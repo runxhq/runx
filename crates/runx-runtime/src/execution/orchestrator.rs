@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use runx_contracts::{ClosureDisposition, JsonValue, Receipt};
+use runx_contracts::{JsonValue, Receipt, RunOutcome};
 use thiserror::Error;
 
 use super::harness::PackageHarnessReport;
@@ -139,35 +139,34 @@ pub enum RunRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RunResult {
     pub status: RunStatus,
-    pub disposition: Option<ClosureDisposition>,
+    pub outcome: Option<RunOutcome>,
     pub output: JsonValue,
-    pub receipt_refs: Vec<String>,
-    pub child_receipt_refs: Vec<String>,
+    pub receipt_ids: Vec<String>,
+    pub child_receipt_uris: Vec<String>,
     pub pending_requests: Vec<JsonValue>,
     pub diagnostics: Vec<String>,
 }
 
 impl RunResult {
     /// Transport projections must not infer success from the presence or shape
-    /// of JSON. The receipt disposition is assigned where execution seals.
+    /// of JSON. The receipt outcome is assigned where execution seals.
     #[must_use]
     pub fn succeeded(&self) -> bool {
-        self.disposition == Some(ClosureDisposition::Closed)
+        self.outcome == Some(RunOutcome::Completed)
     }
 
     #[must_use]
     pub fn needs_resolution(&self) -> bool {
-        self.status == RunStatus::NeedsAgent
-            || self.disposition == Some(ClosureDisposition::Deferred)
+        self.status == RunStatus::NeedsAgent || self.outcome == Some(RunOutcome::Deferred)
     }
 
     pub(crate) fn sealed(output: JsonValue, receipt: &Receipt) -> Self {
         Self {
             status: RunStatus::Sealed,
-            disposition: Some(receipt.seal.disposition.clone()),
+            outcome: Some(receipt.seal.outcome),
             output,
-            receipt_refs: vec![receipt.id.to_string()],
-            child_receipt_refs: child_receipt_refs(receipt),
+            receipt_ids: vec![receipt.id.to_string()],
+            child_receipt_uris: child_receipt_uris(receipt),
             pending_requests: Vec::new(),
             diagnostics: Vec::new(),
         }
@@ -508,18 +507,18 @@ fn harness_result(output: HarnessReplayOutput) -> Result<RunResult, Orchestrator
     let value = receipt_json(&output.receipt)?;
     Ok(RunResult {
         status,
-        disposition: Some(output.receipt.seal.disposition.clone()),
+        outcome: Some(output.receipt.seal.outcome),
         output: value,
-        receipt_refs: vec![output.receipt.id.to_string()],
-        child_receipt_refs: child_receipt_refs(&output.receipt),
+        receipt_ids: vec![output.receipt.id.to_string()],
+        child_receipt_uris: child_receipt_uris(&output.receipt),
         pending_requests: Vec::new(),
         diagnostics: Vec::new(),
     })
 }
 
 fn status_from_receipt(receipt: &Receipt) -> RunStatus {
-    match receipt.seal.disposition {
-        ClosureDisposition::Closed => RunStatus::Sealed,
+    match receipt.seal.outcome {
+        RunOutcome::Completed => RunStatus::Sealed,
         _ => RunStatus::Failed,
     }
 }
@@ -532,7 +531,7 @@ fn receipt_json(receipt: &Receipt) -> Result<JsonValue, OrchestratorError> {
         .map_err(Into::into)
 }
 
-fn child_receipt_refs(receipt: &Receipt) -> Vec<String> {
+fn child_receipt_uris(receipt: &Receipt) -> Vec<String> {
     receipt
         .lineage
         .children

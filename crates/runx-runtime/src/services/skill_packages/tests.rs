@@ -4,9 +4,9 @@ use std::collections::BTreeMap;
 use std::fs;
 
 use runx_contracts::{
-    JsonNumber, JsonValue, SkillApplyVerdict, SkillArchitectureDecision,
-    SkillArchitectureDisposition, SkillChangeBundle, SkillChangeDecision, SkillChangeDraft,
-    SkillChangeDraftSchema, SkillFileWrite, SkillPackageVisibility, SkillProofKind,
+    Digest, JsonValue, SkillApplyVerdict, SkillArchitectureChoice, SkillArchitectureDecision,
+    SkillChangeBundle, SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema,
+    SkillFileWrite, SkillPackageVisibility, SkillProofKind,
 };
 use serde_json::json;
 
@@ -65,32 +65,29 @@ runners:
           decision: object
 "#;
 
-fn architecture(
-    disposition: SkillArchitectureDisposition,
-    deletes: &[&str],
-) -> SkillArchitectureDecision {
-    let disposition_name = match disposition {
-        SkillArchitectureDisposition::Build => "build",
-        SkillArchitectureDisposition::ExtendExisting => "extend_existing",
-        SkillArchitectureDisposition::NoSkill => "no_skill",
-        SkillArchitectureDisposition::NeedsCore => "needs_core",
+fn architecture(choice: SkillArchitectureChoice, deletes: &[&str]) -> SkillArchitectureDecision {
+    let choice_name = match choice {
+        SkillArchitectureChoice::Build => "build",
+        SkillArchitectureChoice::ExtendExisting => "extend_existing",
+        SkillArchitectureChoice::NoSkill => "no_skill",
+        SkillArchitectureChoice::NeedsCore => "needs_core",
     };
     let implements_package = matches!(
-        disposition,
-        SkillArchitectureDisposition::Build | SkillArchitectureDisposition::ExtendExisting
+        choice,
+        SkillArchitectureChoice::Build | SkillArchitectureChoice::ExtendExisting
     );
     serde_json::from_value(json!({
         "schema": "runx.skill.architecture_decision.v1",
-        "disposition": disposition_name,
+        "choice": choice_name,
         "identity": if implements_package {
             json!({
-                "current_name": if disposition == SkillArchitectureDisposition::ExtendExisting {
+                "current_name": if choice == SkillArchitectureChoice::ExtendExisting {
                     json!("demo")
                 } else {
                     json!(null)
                 },
                 "proposed_name": "demo",
-                "action": if disposition == SkillArchitectureDisposition::Build { "create" } else { "keep" },
+                "action": if choice == SkillArchitectureChoice::Build { "create" } else { "keep" },
                 "visibility": "public",
                 "rationale": "Demo is the exact operator-facing identity."
             })
@@ -143,7 +140,7 @@ fn architecture(
         "native_reuse": {
             "inspected_capabilities": ["runx.skill.inspect", "runx.skill.apply"],
             "selected_capabilities": [],
-            "missing_capabilities": if disposition == SkillArchitectureDisposition::NeedsCore {
+            "missing_capabilities": if choice == SkillArchitectureChoice::NeedsCore {
                 json!(["runx.missing.capability"])
             } else {
                 json!([])
@@ -190,13 +187,13 @@ fn architecture(
 }
 
 fn change_bundle(
-    base_digest: &str,
+    base_digest: &Digest,
     decision: SkillChangeDecision,
     architecture: SkillArchitectureDecision,
     writes: &[(&str, &str)],
     deletes: &[&str],
 ) -> SkillChangeBundle {
-    let plan = plan_skill_architecture(base_digest, architecture)
+    let plan = plan_skill_architecture(base_digest.as_str(), architecture)
         .expect("architecture fixture must produce a plan");
     let draft = SkillChangeDraft {
         schema: SkillChangeDraftSchema::V1,
@@ -232,11 +229,11 @@ fn skill_authoring_workspace_inspection_includes_base_digest()
         &RuntimeEffectRegistry::default(),
     )?;
 
-    assert_eq!(report["target_exists"], JsonValue::Bool(true));
-    assert_eq!(report["base_digest"], JsonValue::String(expected_digest));
+    assert!(report.target_exists);
+    assert_eq!(report.base_digest, expected_digest);
     let target_inspection = report
-        .get("target_inspection")
-        .and_then(JsonValue::as_object)
+        .target_inspection
+        .as_ref()
         .expect("existing skill inspection must include its resolved contract");
     assert!(
         target_inspection
@@ -244,39 +241,12 @@ fn skill_authoring_workspace_inspection_includes_base_digest()
             .and_then(JsonValue::as_array)
             .is_some_and(|runners| !runners.is_empty())
     );
-    let target_metrics = report
-        .get("target_metrics")
-        .and_then(JsonValue::as_object)
-        .expect("inspection must return typed package metrics");
-    assert_eq!(
-        target_metrics.get("files"),
-        Some(&JsonValue::Number(JsonNumber::U64(2)))
-    );
-    assert_eq!(
-        target_metrics
-            .keys()
-            .map(String::as_str)
-            .collect::<Vec<_>>(),
-        vec![
-            "bytes",
-            "executable_files",
-            "executable_lines",
-            "files",
-            "generated_lines",
-            "production_lines",
-            "test_lines",
-        ]
-    );
+    assert_eq!(report.target_metrics.files, 2);
     assert!(
-        report["catalog_skills"]
-            .as_array()
-            .is_some_and(|skills| skills.iter().any(|skill| {
-                skill
-                    .as_object()
-                    .and_then(|skill| skill.get("path"))
-                    .and_then(JsonValue::as_str)
-                    == Some("skills/team/demo/run.yaml")
-            }))
+        report
+            .catalog_skills
+            .iter()
+            .any(|skill| skill.path == "skills/team/demo/run.yaml")
     );
     Ok(())
 }
@@ -296,10 +266,10 @@ fn skill_authoring_workspace_keeps_invalid_target_repairable()
         &RuntimeEffectRegistry::default(),
     )?;
 
-    assert_eq!(report["target_exists"], JsonValue::Bool(true));
+    assert!(report.target_exists);
     let target_inspection = report
-        .get("target_inspection")
-        .and_then(JsonValue::as_object)
+        .target_inspection
+        .as_ref()
         .expect("invalid skill inspection must remain available as repair context");
     assert_eq!(
         target_inspection.get("status").and_then(JsonValue::as_str),
@@ -321,7 +291,7 @@ fn skill_authoring_no_change_does_not_touch_workspace() -> Result<(), Box<dyn st
     let bundle = change_bundle(
         &base,
         SkillChangeDecision::NoChange,
-        architecture(SkillArchitectureDisposition::ExtendExisting, &[]),
+        architecture(SkillArchitectureChoice::ExtendExisting, &[]),
         &[],
         &[],
     );
@@ -347,7 +317,7 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
     let bundle = change_bundle(
         &base,
         SkillChangeDecision::Write,
-        architecture(SkillArchitectureDisposition::Build, &[]),
+        architecture(SkillArchitectureChoice::Build, &[]),
         &[
             ("SKILL.md", "not valid skill frontmatter"),
             ("run.yaml", "schema: runx.runner.v1\n"),
@@ -380,7 +350,7 @@ fn skill_authoring_needs_core_does_not_touch_workspace() -> Result<(), Box<dyn s
     let bundle = change_bundle(
         &base,
         SkillChangeDecision::NeedsCore,
-        architecture(SkillArchitectureDisposition::NeedsCore, &[]),
+        architecture(SkillArchitectureChoice::NeedsCore, &[]),
         &[],
         &[],
     );
@@ -401,7 +371,7 @@ fn skill_authoring_needs_core_does_not_touch_workspace() -> Result<(), Box<dyn s
 #[test]
 fn skill_authoring_plan_digest_binds_the_base_and_architecture()
 -> Result<(), Box<dyn std::error::Error>> {
-    let architecture = architecture(SkillArchitectureDisposition::Build, &[]);
+    let architecture = architecture(SkillArchitectureChoice::Build, &[]);
     let first =
         plan_skill_architecture(&format!("sha256:{}", "a".repeat(64)), architecture.clone())?;
     let second = plan_skill_architecture(&format!("sha256:{}", "b".repeat(64)), architecture)?;
@@ -413,7 +383,7 @@ fn skill_authoring_plan_digest_binds_the_base_and_architecture()
 #[test]
 fn skill_authoring_rejects_public_architecture_without_operator_contract_and_each_journey_proof() {
     let digest = format!("sha256:{}", "a".repeat(64));
-    let mut missing_identity = architecture(SkillArchitectureDisposition::Build, &[]);
+    let mut missing_identity = architecture(SkillArchitectureChoice::Build, &[]);
     missing_identity.identity = None;
     assert!(plan_skill_architecture(&digest, missing_identity).is_err());
 
@@ -422,7 +392,7 @@ fn skill_authoring_rejects_public_architecture_without_operator_contract_and_eac
         SkillProofKind::StandaloneOperatorJourney,
         SkillProofKind::ComposedOperatorJourney,
     ] {
-        let mut incomplete = architecture(SkillArchitectureDisposition::Build, &[]);
+        let mut incomplete = architecture(SkillArchitectureChoice::Build, &[]);
         incomplete.proof_plan.retain(|proof| proof.kind != missing);
         assert!(
             plan_skill_architecture(&digest, incomplete).is_err(),
@@ -430,7 +400,7 @@ fn skill_authoring_rejects_public_architecture_without_operator_contract_and_eac
         );
     }
 
-    let mut internal = architecture(SkillArchitectureDisposition::ExtendExisting, &[]);
+    let mut internal = architecture(SkillArchitectureChoice::ExtendExisting, &[]);
     let identity = internal
         .identity
         .as_mut()
@@ -440,7 +410,7 @@ fn skill_authoring_rejects_public_architecture_without_operator_contract_and_eac
     assert!(plan_skill_architecture(&digest, internal).is_ok());
 
     let mut internal_with_public_triggers =
-        architecture(SkillArchitectureDisposition::ExtendExisting, &[]);
+        architecture(SkillArchitectureChoice::ExtendExisting, &[]);
     internal_with_public_triggers
         .identity
         .as_mut()
@@ -455,7 +425,7 @@ fn skill_authoring_bind_owns_integrity_fields_and_rejects_tampered_plan()
     let base_digest = format!("sha256:{}", "a".repeat(64));
     let plan = plan_skill_architecture(
         &base_digest,
-        architecture(SkillArchitectureDisposition::Build, &[]),
+        architecture(SkillArchitectureChoice::Build, &[]),
     )?;
     let draft = SkillChangeDraft {
         schema: SkillChangeDraftSchema::V1,
@@ -495,7 +465,7 @@ fn skill_authoring_rejects_stale_base_and_plan_drift() -> Result<(), Box<dyn std
     let mut bundle = change_bundle(
         &base,
         SkillChangeDecision::Write,
-        architecture(SkillArchitectureDisposition::ExtendExisting, &[]),
+        architecture(SkillArchitectureChoice::ExtendExisting, &[]),
         &[(
             "SKILL.md",
             &VALID_MANUAL.replace("bounded decision", "bounded operator decision"),
@@ -518,7 +488,7 @@ fn skill_authoring_rejects_stale_base_and_plan_drift() -> Result<(), Box<dyn std
     let bundle = change_bundle(
         &base,
         SkillChangeDecision::Write,
-        architecture(SkillArchitectureDisposition::ExtendExisting, &[]),
+        architecture(SkillArchitectureChoice::ExtendExisting, &[]),
         &[("SKILL.md", VALID_MANUAL)],
         &[],
     );
@@ -550,10 +520,7 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
     let bundle = change_bundle(
         &base,
         SkillChangeDecision::Write,
-        architecture(
-            SkillArchitectureDisposition::ExtendExisting,
-            &["obsolete.txt"],
-        ),
+        architecture(SkillArchitectureChoice::ExtendExisting, &["obsolete.txt"]),
         &[],
         &["obsolete.txt"],
     );

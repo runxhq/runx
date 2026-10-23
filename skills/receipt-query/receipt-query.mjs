@@ -9,14 +9,14 @@ export function prepareReceiptQuery(inputs) {
       path: !question ? "no_question" : replay ? "replay" : "live",
       question: question || "",
       filter,
-      native_status: filter.status.length === 1 ? filter.status[0] : null,
+      native_outcome: filter.outcome.length === 1 ? filter.outcome[0] : null,
       receipt_ids: receiptIds,
       receipt_ids_supplied: Object.prototype.hasOwnProperty.call(inputs, "receipt_ids"),
       proof_requested: proofRequested,
       query: {
         principal: filter.principal || "",
-        skill_ref: filter.skill_ref || "",
-        status: filter.status,
+        skill: filter.skill || "",
+        outcome: filter.outcome,
         time_range: { from: filter.from || "", to: filter.to || "" },
         receipt_ids: receiptIds,
       },
@@ -95,15 +95,15 @@ function chainVerification({ requested, replay, native }) {
 function readFilter(value) {
   const filter = record(value);
   const timeRange = record(filter.time_range);
-  const status = Array.isArray(filter.status)
-    ? filter.status.map(stringValue).filter(Boolean)
-    : stringValue(filter.status)
-      ? [stringValue(filter.status)]
+  const outcome = Array.isArray(filter.outcome)
+    ? filter.outcome.map(stringValue).filter(Boolean)
+    : stringValue(filter.outcome)
+      ? [stringValue(filter.outcome)]
       : [];
   return {
     principal: stringValue(filter.principal),
-    skill_ref: stringValue(filter.skill_ref),
-    status,
+    skill: stringValue(filter.skill),
+    outcome,
     from: stringValue(timeRange.from),
     to: stringValue(timeRange.to),
     issuer: stringValue(filter.issuer),
@@ -117,17 +117,17 @@ function projectReceiptDetail(value) {
   const id = requiredString(detail.id, "receipt detail id");
   return {
     id,
-    receipt_ref: stringValue(detail.receipt_ref) || `runx:receipt:${id}`,
+    receipt_uri: stringValue(detail.receipt_uri) || `runx:receipt:${id}`,
     subject_kind: stringValue(detail.subject_kind) || "",
-    subject_ref: stringValue(detail.subject_ref) || "",
+    subject_uri: stringValue(detail.subject_uri) || "",
     created_at: stringValue(detail.created_at) || "",
-    status: stringValue(detail.status) || "",
+    outcome: stringValue(detail.outcome) || "",
     verification: record(detail.verification),
     authority: projectAuthority(detail.authority),
     decisions: records(detail.decisions).map(projectDecision),
     acts: records(detail.acts).map(projectAct),
-    artifact_refs: stringArray(detail.artifact_refs, 500),
-    lineage_refs: stringArray(detail.lineage_refs, 500),
+    artifact_uris: stringArray(detail.artifact_uris, 500),
+    lineage_uris: stringArray(detail.lineage_uris, 500),
     seal_reason: stringValue(detail.seal_reason),
   };
 }
@@ -135,16 +135,16 @@ function projectReceiptDetail(value) {
 function projectAuthority(value) {
   const authority = record(value);
   return {
-    actor_ref: stringValue(authority.actor_ref),
-    grant_refs: stringArray(authority.grant_refs, 500),
-    scope_refs: stringArray(authority.scope_refs, 500),
+    actor_uri: stringValue(authority.actor_uri),
+    grant_uris: stringArray(authority.grant_uris, 500),
+    scope_uris: stringArray(authority.scope_uris, 500),
     exercised_scopes: records(authority.exercised_scopes).map((entry) => ({
       scope: stringValue(entry.scope) || "",
       source: stringValue(entry.source) || "",
       term_id: stringValue(entry.term_id),
-      resource_ref: stringValue(entry.resource_ref),
+      resource_uri: stringValue(entry.resource_uri),
     })).filter((entry) => entry.scope),
-    approval_refs: stringArray(authority.approval_refs, 500),
+    approval_uris: stringArray(authority.approval_uris, 500),
     term_count: nonNegativeInteger(authority.term_count),
     credential_ref_count: nonNegativeInteger(authority.credential_ref_count),
   };
@@ -167,13 +167,13 @@ function projectAct(value) {
     purpose: stringValue(act.purpose) || "",
     legitimacy: stringValue(act.legitimacy) || "",
     reason: stringValue(act.reason),
-    target_refs: stringArray(act.target_refs, 500),
-    artifact_refs: stringArray(act.artifact_refs, 500),
+    target_uris: stringArray(act.target_uris, 500),
+    artifact_uris: stringArray(act.artifact_uris, 500),
     criterion_statuses: records(act.criterion_statuses).map((criterion) => ({
       criterion_id: stringValue(criterion.criterion_id) || "",
       status: stringValue(criterion.status) || "",
-      evidence_refs: stringArray(criterion.evidence_refs, 500),
-      verification_refs: stringArray(criterion.verification_refs, 500),
+      evidence_uris: stringArray(criterion.evidence_uris, 500),
+      verification_uris: stringArray(criterion.verification_uris, 500),
     })).filter((criterion) => criterion.criterion_id),
     context_ref_present: act.context_ref_present === true,
   };
@@ -185,16 +185,16 @@ function projectIdStub(row) {
   if (!receiptId) throw new Error("ledger row is missing a receipt id");
   return {
     receipt_id: receiptId,
-    skill_ref: stringValue(receipt.skill_ref) || stringValue(receipt.name) || "",
-    status: stringValue(receipt.status) || "",
+    skill: stringValue(receipt.skill) || stringValue(receipt.name) || "",
+    outcome: stringValue(receipt.outcome) || "",
     created_at: stringValue(receipt.created_at) || "",
     verification_status: stringValue(receipt.verification_status) || stringValue(receipt.verification?.status) || "unknown",
   };
 }
 
 function matchesFilter(stub, filter) {
-  if (filter.skill_ref && stub.skill_ref !== filter.skill_ref) return false;
-  if (filter.status.length > 0 && !filter.status.includes(stub.status)) return false;
+  if (filter.skill && stub.skill !== filter.skill) return false;
+  if (filter.outcome.length > 0 && !filter.outcome.includes(stub.outcome)) return false;
   if (filter.from && stub.created_at && stub.created_at < filter.from) return false;
   if (filter.to && stub.created_at && stub.created_at > filter.to) return false;
   return true;
@@ -202,7 +202,7 @@ function matchesFilter(stub, filter) {
 
 function renderSummary({ decision, matched, chain, proofRequested, query }) {
   if (decision === "needs_more_evidence") {
-    return `No receipts matched the resolved query against ${query.skill_ref || query.principal || "the ledger"}; the gap is the query, not a confirmed zero.`;
+    return `No receipts matched the resolved query against ${query.skill || query.principal || "the ledger"}; the gap is the query, not a confirmed zero.`;
   }
   const noun = matched.length === 1 ? "receipt" : "receipts";
   if (!proofRequested) return `${matched.length} ${noun} matched the resolved query; chain verification was not requested.`;

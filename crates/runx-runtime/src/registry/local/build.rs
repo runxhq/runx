@@ -4,13 +4,13 @@
 use runx_contracts::maturity::MaturityTier;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    OfferRevisionRef, PaidSkillListing, PaidSkillOfferTerms, PaidSkillOffers, PaidSkillRunnerOffer,
-    PrincipalReference, RunxPrincipalId, Sha256Digest, sha256_hex,
+    Digest, OfferVersionBinding, PaidSkillListing, PaidSkillOfferTerms, PaidSkillOffers,
+    PaidSkillRunnerOffer, PrincipalReference, RunxPrincipalId, sha256_hex,
 };
 use serde::Deserialize;
 
 use super::super::package_files::{
-    normalize_registry_package_files, registry_package_digest, skill_content_digest,
+    normalize_registry_package_files, registry_bundle_digest, skill_content_digest,
     validate_registry_skill_package,
 };
 use super::super::types::{
@@ -39,11 +39,11 @@ pub(super) fn build_registry_skill_version(
     )?;
     let skill = &package.skill;
     let manifest = package.root_manifest();
-    let RegistryPackageDigests {
+    let RegistryBundleDigests {
         digest,
         profile_digest,
-        package_digest,
-    } = registry_package_digests(markdown, options, &package_files);
+        bundle_digest,
+    } = registry_bundle_digests(markdown, options, &package_files);
     // A local registry version keeps no connector bindings; it reads the
     // catalog fields below.
     let metadata = project_registry_package_metadata(skill, manifest, Vec::new());
@@ -57,19 +57,18 @@ pub(super) fn build_registry_skill_version(
         message: error.to_string(),
     })?;
     let defaults = registry_version_defaults(&content_digest, options);
-    let skill_id = build_skill_id(&defaults.owner, &skill.name)?;
+    let skill_id = build_skill_id(&defaults.publisher_slug, &skill.name)?;
     let paid_listing = resolve_paid_listing(
         &metadata.marketplace_offers,
         &skill_id,
         &defaults.version,
         &digest,
         profile_digest.as_deref(),
-        package_digest.as_deref(),
+        bundle_digest.as_deref(),
         &defaults.publisher,
     )?;
     Ok(RegistrySkillVersion {
         skill_id,
-        owner: defaults.owner,
         name: metadata.name,
         description: metadata.description,
         category: metadata.category,
@@ -80,7 +79,7 @@ pub(super) fn build_registry_skill_version(
         profile_document: options.profile_document.clone(),
         profile_digest,
         package_files,
-        package_digest,
+        bundle_digest,
         paid_listing,
         runner_names: metadata.runner_names,
         trust_tier: defaults.trust_tier,
@@ -99,24 +98,24 @@ pub(super) fn build_registry_skill_version(
     })
 }
 
-struct RegistryPackageDigests {
+struct RegistryBundleDigests {
     digest: String,
     profile_digest: Option<String>,
-    package_digest: Option<String>,
+    bundle_digest: Option<String>,
 }
 
-fn registry_package_digests(
+fn registry_bundle_digests(
     markdown: &str,
     options: &IngestSkillOptions,
     package_files: &[RegistryPackageFile],
-) -> RegistryPackageDigests {
-    RegistryPackageDigests {
+) -> RegistryBundleDigests {
+    RegistryBundleDigests {
         digest: sha256_hex(markdown.as_bytes()),
         profile_digest: options
             .profile_document
             .as_ref()
             .map(|document| sha256_hex(document.as_bytes())),
-        package_digest: registry_package_digest(package_files),
+        bundle_digest: registry_bundle_digest(package_files),
     }
 }
 
@@ -126,14 +125,14 @@ fn resolve_paid_listing(
     version: &str,
     skill_digest: &str,
     profile_digest: Option<&str>,
-    package_digest: Option<&str>,
+    bundle_digest: Option<&str>,
     publisher: &RegistryPublisher,
 ) -> Result<Option<PaidSkillListing>, LocalRegistryError> {
     if offers.is_empty() {
         return Ok(None);
     }
     let profile_digest = required_paid_digest(profile_digest, "profile_digest")?;
-    let package_digest = required_paid_digest(package_digest, "package_digest")?;
+    let bundle_digest = required_paid_digest(bundle_digest, "bundle_digest")?;
     let skill_digest = registry_sha256(skill_digest, "skill_digest")?;
     let principal_id = RunxPrincipalId::new(publisher.id.clone()).ok_or_else(|| {
         invalid_paid_listing(format!(
@@ -145,10 +144,10 @@ fn resolve_paid_listing(
         .iter()
         .map(|(runner, terms)| {
             let offer = PaidSkillRunnerOffer::from_terms(
-                OfferRevisionRef {
+                OfferVersionBinding {
                     offer_id: NonEmptyString::from(format!("{skill_id}#{runner}")),
-                    revision: NonEmptyString::from(version.to_owned()),
-                    revision_digest: profile_digest.clone(),
+                    version: NonEmptyString::from(version.to_owned()),
+                    profile_digest: profile_digest.clone(),
                     input_schema_digest: terms.input_schema_digest.clone(),
                     output_schema_digest: terms.output_schema_digest.clone(),
                 },
@@ -164,28 +163,25 @@ fn resolve_paid_listing(
         version: NonEmptyString::from(version.to_owned()),
         skill_digest,
         profile_digest,
-        package_digest,
-        vendor_ref: PrincipalReference::from_runx_principal_id(principal_id),
+        bundle_digest,
+        seller_ref: PrincipalReference::from_runx_principal_id(principal_id),
         offers,
     }))
 }
 
-fn required_paid_digest(
-    value: Option<&str>,
-    field: &str,
-) -> Result<Sha256Digest, LocalRegistryError> {
+fn required_paid_digest(value: Option<&str>, field: &str) -> Result<Digest, LocalRegistryError> {
     value
         .ok_or_else(|| invalid_paid_listing(format!("paid offers require {field}")))
         .and_then(|value| registry_sha256(value, field))
 }
 
-fn registry_sha256(value: &str, field: &str) -> Result<Sha256Digest, LocalRegistryError> {
+fn registry_sha256(value: &str, field: &str) -> Result<Digest, LocalRegistryError> {
     let value = if value.starts_with("sha256:") {
         value.to_owned()
     } else {
         format!("sha256:{value}")
     };
-    Sha256Digest::new(value)
+    Digest::new(value)
         .ok_or_else(|| invalid_paid_listing(format!("{field} must be a lowercase SHA-256 digest")))
 }
 
@@ -211,7 +207,7 @@ fn normalize_profile_digest(
 }
 
 struct RegistryVersionDefaults {
-    owner: String,
+    publisher_slug: String,
     created_at: String,
     publisher: RegistryPublisher,
     trust_tier: TrustTier,
@@ -224,15 +220,18 @@ fn registry_version_defaults(
     content_digest: &str,
     options: &IngestSkillOptions,
 ) -> RegistryVersionDefaults {
-    let owner = options.owner.clone().unwrap_or_else(|| "local".to_owned());
+    let publisher_slug = options
+        .publisher_slug
+        .clone()
+        .unwrap_or_else(|| "local".to_owned());
     let created_at = options.created_at.clone().unwrap_or_else(now_iso8601);
     let publisher = options
         .publisher
         .clone()
-        .unwrap_or_else(|| default_registry_publisher(&owner));
+        .unwrap_or_else(|| default_registry_publisher(&publisher_slug));
     let trust_tier = options
         .trust_tier
-        .unwrap_or_else(|| derive_registry_trust_tier(&owner, None));
+        .unwrap_or_else(|| derive_registry_trust_tier(&publisher_slug, None));
     let version = options.version.clone().unwrap_or_else(|| {
         // A version without a label is named by its content digest, as the
         // hosted registry names it.
@@ -246,7 +245,7 @@ fn registry_version_defaults(
         options.attestations.clone(),
     ]);
     RegistryVersionDefaults {
-        owner,
+        publisher_slug,
         created_at,
         publisher,
         trust_tier,
@@ -263,18 +262,18 @@ pub(super) fn normalize_registry_skill_version(
 ) -> Result<RegistrySkillVersion, LocalRegistryError> {
     let governance = normalize_registry_version_governance(&payload)?;
     let package_files = normalize_package_files(payload.package_files.unwrap_or_default())?;
-    let computed_package_digest = registry_package_digest(&package_files);
-    if let (Some(declared), Some(computed)) = (&payload.package_digest, &computed_package_digest)
+    let computed_bundle_digest = registry_bundle_digest(&package_files);
+    if let (Some(declared), Some(computed)) = (&payload.bundle_digest, &computed_bundle_digest)
         && declared != computed
     {
         return Err(LocalRegistryError::InvalidVersionPayload {
-            field: "registry_version.package_digest".to_owned(),
+            field: "registry_version.bundle_digest".to_owned(),
             message: format!("declared digest {declared} does not match package files {computed}"),
         });
     }
-    if payload.package_digest.is_some() && computed_package_digest.is_none() {
+    if payload.bundle_digest.is_some() && computed_bundle_digest.is_none() {
         return Err(LocalRegistryError::InvalidVersionPayload {
-            field: "registry_version.package_digest".to_owned(),
+            field: "registry_version.bundle_digest".to_owned(),
             message: "declared without package_files".to_owned(),
         });
     }
@@ -297,7 +296,7 @@ pub(super) fn normalize_registry_skill_version(
         payload.profile_document.as_deref(),
         payload.profile_digest.as_deref(),
     )?;
-    let package_digest = payload.package_digest.or(computed_package_digest);
+    let bundle_digest = payload.bundle_digest.or(computed_bundle_digest);
     let metadata =
         project_registry_package_metadata(&package.skill, package.root_manifest(), Vec::new());
     let paid_listing = resolve_paid_listing(
@@ -306,7 +305,7 @@ pub(super) fn normalize_registry_skill_version(
         &version,
         &sha256_hex(markdown.as_bytes()),
         profile_digest.as_deref(),
-        package_digest.as_deref(),
+        bundle_digest.as_deref(),
         &governance.publisher,
     )?;
     if payload
@@ -322,7 +321,6 @@ pub(super) fn normalize_registry_skill_version(
 
     Ok(RegistrySkillVersion {
         skill_id,
-        owner: governance.owner,
         name: required_string(payload.name, "registry_version.name")?,
         description: payload.description,
         category,
@@ -333,7 +331,7 @@ pub(super) fn normalize_registry_skill_version(
         profile_document: payload.profile_document,
         profile_digest,
         package_files,
-        package_digest,
+        bundle_digest,
         paid_listing,
         runner_names: payload.runner_names.unwrap_or_default(),
         trust_tier: governance.trust_tier,
@@ -354,7 +352,6 @@ pub(super) fn normalize_registry_skill_version(
 }
 
 struct NormalizedRegistryVersionGovernance {
-    owner: String,
     created_at: String,
     publisher: RegistryPublisher,
     trust_tier: TrustTier,
@@ -367,7 +364,6 @@ struct NormalizedRegistryVersionGovernance {
 fn normalize_registry_version_governance(
     payload: &RegistrySkillVersionPayload,
 ) -> Result<NormalizedRegistryVersionGovernance, LocalRegistryError> {
-    let owner = required_string(payload.owner.clone(), "registry_version.owner")?;
     let created_at = required_string(payload.created_at.clone(), "registry_version.created_at")?;
     let publisher = validate_publisher(
         payload
@@ -397,7 +393,6 @@ fn normalize_registry_version_governance(
         .cloned()
         .unwrap_or_else(|| created_at.clone());
     Ok(NormalizedRegistryVersionGovernance {
-        owner,
         created_at,
         publisher,
         trust_tier,
@@ -443,7 +438,7 @@ pub(super) fn normalize_registry_catalog(
         approval: None,
         category: None,
         tags: Vec::new(),
-        owner: None,
+        publisher: None,
         links: std::collections::BTreeMap::new(),
     }
 }
@@ -451,7 +446,6 @@ pub(super) fn normalize_registry_catalog(
 #[derive(Clone, Debug, Deserialize)]
 pub(super) struct RegistrySkillVersionPayload {
     skill_id: Option<String>,
-    owner: Option<String>,
     name: Option<String>,
     description: Option<String>,
     category: Option<String>,
@@ -462,7 +456,7 @@ pub(super) struct RegistrySkillVersionPayload {
     profile_document: Option<String>,
     profile_digest: Option<String>,
     package_files: Option<Vec<RegistryPackageFile>>,
-    package_digest: Option<String>,
+    bundle_digest: Option<String>,
     paid_listing: Option<PaidSkillListing>,
     runner_names: Option<Vec<String>>,
     trust_tier: Option<TrustTier>,
@@ -491,21 +485,21 @@ fn normalize_package_files(
     })
 }
 
-pub(super) fn default_registry_publisher(owner: &str) -> RegistryPublisher {
+pub(super) fn default_registry_publisher(publisher_slug: &str) -> RegistryPublisher {
     RegistryPublisher {
-        kind: if owner == "runx" {
+        kind: if publisher_slug == "runx" {
             "organization".to_owned()
         } else {
             "publisher".to_owned()
         },
-        id: owner.to_owned(),
-        handle: Some(owner.to_owned()),
+        id: publisher_slug.to_owned(),
+        handle: Some(publisher_slug.to_owned()),
         display_name: None,
     }
 }
 
 pub(super) fn derive_registry_trust_tier(
-    _owner: &str,
+    _publisher_slug: &str,
     trust_tier: Option<&TrustTier>,
 ) -> TrustTier {
     trust_tier.cloned().unwrap_or(TrustTier::Community)

@@ -3,15 +3,15 @@ kind: skill
 target: ..
 runner: read
 inputs:
-  question: Which spend runs sealed in the supplied ledger slice?
+  question: Which spend runs completed in the supplied ledger slice?
   filter:
-    skill_ref: runx/spend
-    status:
-      - sealed
+    skill: runx/spend
+    outcome:
+      - completed
   receipts:
     - receipt_id: rcpt_01HZX5K2spend
-      skill_ref: runx/spend
-      status: sealed
+      skill: runx/spend
+      outcome: completed
       created_at: "2026-06-03T14:21:08Z"
 expect:
   status: sealed

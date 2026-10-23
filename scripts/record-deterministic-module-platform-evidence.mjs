@@ -42,10 +42,10 @@ const evidence = {
   runner: options.runner,
   commit: process.env.GITHUB_SHA ?? null,
   run_url: runUrl,
-  decision_sha256: decision.decision_sha256,
+  decision_digest: decision.decision_digest,
   worker: {
     path: path.basename(workerPath),
-    sha256: sha256(readFileSync(workerPath)),
+    digest: digest(readFileSync(workerPath)),
   },
   commands,
 };
@@ -80,6 +80,6 @@ function resolve(filePath) {
   return path.resolve(workspaceRoot, filePath);
 }
 
-function sha256(bytes) {
-  return createHash("sha256").update(bytes).digest("hex");
+function digest(bytes) {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }

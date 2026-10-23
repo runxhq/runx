@@ -9,8 +9,8 @@ steps:
       resources:
         kind: batch
         mutations:
-          - {ref: issues/241, op: update, payload: {labels: [triage]}}
-          - {ref: issues/241/comments, op: comment, payload: {body: Triaged.}}
+          - {path: issues/241, op: update, payload: {labels: [triage]}}
+          - {path: issues/241/comments, op: comment, payload: {body: Triaged.}}
       scope: write
   - id: digest
     tool: data.digest

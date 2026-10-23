@@ -30,10 +30,7 @@ pub use project::run_native_new_with_workspace;
 #[cfg(test)]
 mod release_identity_tests {
     #[test]
-    fn native_runtime_release_identity_tracks_cli_version() {
-        assert_eq!(
-            runx_runtime::EXECUTION_RUNTIME_RELEASE,
-            env!("CARGO_PKG_VERSION")
-        );
+    fn the_runtime_runx_version_is_the_cli_version() {
+        assert_eq!(runx_runtime::RUNX_VERSION, env!("CARGO_PKG_VERSION"));
     }
 }

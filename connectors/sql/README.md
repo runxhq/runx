@@ -28,7 +28,7 @@ not the isolated JavaScript skill worker.
 
 ```json
 {
-  "source_ref": "analytics:production",
+  "source": "analytics:production",
   "url": "postgresql+psycopg://report_reader:PASSWORD@localhost/analytics",
   "dialect": "postgres",
   "read_only": true,
@@ -70,10 +70,10 @@ transaction; rollback does not replace permissions or undo external effects.
 
 ## Operations and results
 
-`catalog.read` takes `{action: "catalog", source_ref}`. It returns descriptions,
+`catalog.read` takes `{action: "catalog", source}`. It returns descriptions,
 parameter schemas and result semantics without opening a connection. It does
 not publish SQL or connection settings. `query.read` takes
-`{action: "query", source_ref, query_id, parameters, max_rows}` and executes the
+`{action: "query", source, query_id, parameters, max_rows}` and executes the
 declared statement using SQLAlchemy bound parameters. Parameter contracts use
 JSON Schema 2020-12 with no external retrieval. SQL uses named `:parameter`
 bindings, and every binding must have a declared, required property. Missing,

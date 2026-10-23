@@ -167,7 +167,7 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
     assert_eq!(resume["status"], "sealed");
     assert_eq!(resume["schema"], "runx.skill_run.v1");
     assert_eq!(resume["run_id"], run_id);
-    assert_eq!(resume["closure"]["disposition"], "closed");
+    assert_eq!(resume["outcome"], "completed");
     assert!(resume.get("receipt").is_none());
     assert!(resume.get("execution").is_none());
     let receipt_id = json_string(&resume, "receipt_id")?;
@@ -182,8 +182,8 @@ fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -
 fn declined_and_superseded_agent_runs_preserve_receipts_and_exit_nonzero() -> TestResult {
     let root = crate::support::temp_root("runx-operator-terminal-disposition-journey");
 
-    for disposition in ["declined", "superseded"] {
-        let case_root = root.join(disposition);
+    for outcome in ["declined", "superseded"] {
+        let case_root = root.join(outcome);
         let skill_dir = crate::support::write_agent_task_skill(&case_root.join("skills"))?;
         let receipt_dir = case_root.join(".runx/receipts");
 
@@ -210,10 +210,10 @@ fn declined_and_superseded_agent_runs_preserve_receipts_and_exit_nonzero() -> Te
                     "answers": {
                         request_id: {
                             "intake_report": {
-                                "summary": format!("Operator chose {disposition}.")
+                                "summary": format!("Operator chose {outcome}.")
                             },
                             "closure": {
-                                "disposition": disposition
+                                "outcome": outcome
                             }
                         }
                     }
@@ -232,7 +232,7 @@ fn declined_and_superseded_agent_runs_preserve_receipts_and_exit_nonzero() -> Te
             .output()?;
         let resume = assert_json(&resume, 1)?;
         assert_eq!(resume["status"], "sealed");
-        assert_eq!(resume["closure"]["disposition"], disposition);
+        assert_eq!(resume["outcome"], outcome);
         assert!(resume.get("receipt").is_none());
         let receipt_id = json_string(&resume, "receipt_id")?;
         let run_id = json_string(&resume, "run_id")?;
@@ -269,11 +269,11 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
     // The summary names the request artifact by its content digest.
     assert_eq!(
         json_string(request, "request_digest")?,
-        request["artifact_ref"]["digest"]
+        request["artifact"]["digest"]
             .as_str()
             .ok_or("request summary omitted artifact digest")?
     );
-    let request_path = request["artifact_ref"]["path"]
+    let request_path = request["artifact"]["path"]
         .as_str()
         .ok_or("request summary omitted artifact path")?;
     let request_path = if Path::new(request_path).is_absolute() {
@@ -519,7 +519,7 @@ export function finish() {
     assert_eq!(compact["outcome"], "completed");
     assert!(compact.get("context").is_none());
     assert!(compact.get("trace").is_none());
-    let diagnostics_path = compact["diagnostics_ref"]["path"]
+    let diagnostics_path = compact["diagnostics_artifact"]["path"]
         .as_str()
         .ok_or("compact output omitted diagnostic artifact path")?;
     let diagnostics_path = if Path::new(diagnostics_path).is_absolute() {
@@ -647,8 +647,8 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     let denied = assert_json(&denied, 1)?;
     assert_eq!(denied["status"], "sealed");
     assert_eq!(denied["outcome"], "blocked");
-    assert_eq!(denied["closure"]["disposition"], "blocked");
-    assert_eq!(denied["closure"]["reason"], "authority_denied");
+    assert_eq!(denied["outcome"], "blocked");
+    assert_eq!(denied["seal_reason"], "authority_denied");
     assert_eq!(denied["refusal"]["code"], "authority_denied", "{denied}");
     assert_eq!(denied["refusal"]["verb"], "read", "{denied}");
     assert_eq!(denied["trace"]["status"], "blocked");

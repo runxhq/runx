@@ -4,7 +4,7 @@ steps:
     skill: ../..
     runner: judge
     inputs:
-      data_source_ref: local://contact-consent-review/decay
+      data_source_uri: local://contact-consent-review/decay
       resource: contact_consent_events
       aggregate_id: contact:decay
       expected_version: 0

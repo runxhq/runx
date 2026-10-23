@@ -1,0 +1,261 @@
+{
+  "$id": "https://schemas.runx.ai/runx/skill-lab/authoring-context/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `runx.skill.inspect` returns: the workspace a skill change is authored in, its target package as it stands, and the catalog it can reuse.",
+  "properties": {
+    "base_digest": {
+      "description": "The digest a change to the target binds to.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "catalog_root": {
+      "description": "Where catalog skills live, relative to `repo_root`.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "catalog_skills": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One skill or tool an authored skill can reuse.",
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "fixtures": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "harness_cases": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "tool",
+              "skill",
+              "graph",
+              "packet",
+              "overlay"
+            ],
+            "title": "RunxListItemKind",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "invalid"
+            ],
+            "title": "RunxListStatus",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "path",
+          "status",
+          "scopes"
+        ],
+        "title": "SkillCatalogEntry",
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "core_tools": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One skill or tool an authored skill can reuse.",
+        "properties": {
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "fixtures": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "harness_cases": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "tool",
+              "skill",
+              "graph",
+              "packet",
+              "overlay"
+            ],
+            "title": "RunxListItemKind",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "invalid"
+            ],
+            "title": "RunxListStatus",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "path",
+          "status",
+          "scopes"
+        ],
+        "title": "SkillCatalogEntry",
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "target_dir": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The target package, relative to `repo_root`; null when none was named."
+    },
+    "target_exists": {
+      "type": "boolean"
+    },
+    "target_files": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One file of a skill package.",
+        "properties": {
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "bytes"
+        ],
+        "title": "SkillPackageFile",
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "target_inspection": {
+      "anyOf": [
+        {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The existing target's inspection, or why it would not inspect; null when the target does not exist."
+    },
+    "target_metrics": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "executable_files": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "executable_lines": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "files": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "generated_lines": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "production_lines": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "test_lines": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "files",
+        "bytes",
+        "production_lines",
+        "test_lines",
+        "generated_lines",
+        "executable_files",
+        "executable_lines"
+      ],
+      "title": "SkillPackageMetrics",
+      "type": "object"
+    }
+  },
+  "required": [
+    "repo_root",
+    "target_dir",
+    "target_exists",
+    "base_digest",
+    "target_files",
+    "target_metrics",
+    "target_inspection",
+    "catalog_root",
+    "catalog_skills",
+    "core_tools"
+  ],
+  "title": "SkillAuthoringContext",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.skill_lab.authoring_context.v1"
+}

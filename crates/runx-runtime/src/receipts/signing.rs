@@ -128,7 +128,7 @@ impl TrustedReceiptKey {
     }
 
     #[must_use]
-    pub fn public_key_sha256(&self) -> String {
+    pub fn public_key_digest(&self) -> String {
         sha256_prefixed(&self.public_key)
     }
 }
@@ -160,7 +160,8 @@ impl Ed25519ReceiptSigner {
         let issuer = ReceiptIssuer {
             issuer_type,
             kid: kid.into(),
-            public_key_sha256: sha256_prefixed(key_pair.public_key().as_ref()).into(),
+            public_key_digest: sha256_prefixed(key_pair.public_key().as_ref()).into(),
+            runx_version: crate::RUNX_VERSION.into(),
         };
         Ok(Self { issuer, key_pair })
     }
@@ -221,7 +222,7 @@ impl RuntimeReceiptSigner for Ed25519ReceiptSigner {
 }
 
 /// Verifies a receipt's Ed25519 signature against the keys it trusts: the
-/// receipt's issuer type and key id select a key, its public key hash must be
+/// receipt's issuer type and key id select a key, its public key digest must be
 /// that key's, and the signature must be that key's over the digest.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Ed25519ReceiptVerifier {
@@ -263,8 +264,8 @@ impl SignatureVerifier for Ed25519ReceiptVerifier {
         if key.public_key.len() != 32 {
             return Err(SignatureVerificationFailure::MalformedKey);
         }
-        if issuer.public_key_sha256 != key.public_key_sha256() {
-            return Err(SignatureVerificationFailure::KeyHashMismatch);
+        if issuer.public_key_digest != key.public_key_digest() {
+            return Err(SignatureVerificationFailure::KeyDigestMismatch);
         }
         let signature_bytes = decode_signature_value(&signature.value)?;
         if signature_bytes.len() != 64 {

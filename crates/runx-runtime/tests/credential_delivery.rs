@@ -59,7 +59,7 @@ fn public_observation_metadata_serializes_without_secret_material()
     );
     assert!(
         observation
-            .material_ref_hash
+            .material_id_digest
             .as_ref()
             .is_some_and(|hash| hash.as_str().starts_with("sha256:"))
     );

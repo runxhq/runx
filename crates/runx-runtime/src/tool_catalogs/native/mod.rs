@@ -35,7 +35,7 @@ mod catalog;
 
 use capability::NativeCapability;
 use capability::RawNativeInvocation;
-pub(super) use input::{invalid_input, required_string};
+pub(super) use input::{invalid_input, non_empty, root_name};
 pub(super) use workspace::resolve_repo_root_for;
 
 pub(crate) use catalog::artifacts;
@@ -105,7 +105,7 @@ pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
 }
 
 pub(crate) struct NativeToolInvocation<'a> {
-    pub tool_ref: &'a str,
+    pub tool: &'a str,
     pub observed_at: &'a str,
     pub inputs: JsonObject,
     pub scopes: &'a [String],
@@ -126,7 +126,7 @@ pub(crate) struct NativeToolInvocationResult {
 }
 
 pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvocationResult> {
-    if let Some(tool) = definition(request.tool_ref) {
+    if let Some(tool) = definition(request.tool) {
         let invocation = RawNativeInvocation {
             inputs: request.inputs,
             scopes: request.scopes,
@@ -146,7 +146,7 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
         });
     }
 
-    let capability = request.effects.capability(request.tool_ref)?;
+    let capability = request.effects.capability(request.tool)?;
     if let Err(error) = crate::capability::enforce_required_scopes(
         capability.definition().id,
         capability.definition().scopes.iter().copied(),
@@ -164,7 +164,7 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
     request
         .effects
         .invoke_tool(EffectToolRequest {
-            tool_ref: request.tool_ref,
+            tool: request.tool,
             observed_at: request.observed_at,
             inputs: &request.inputs,
             env: request.env,
@@ -186,31 +186,31 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
         })
 }
 
-fn definition(tool_ref: &str) -> Option<&'static dyn NativeCapability> {
+fn definition(tool: &str) -> Option<&'static dyn NativeCapability> {
     let index = capability_index();
-    if index.duplicate_ids.contains(tool_ref) {
+    if index.duplicate_ids.contains(tool) {
         return None;
     }
-    index.by_id.get(tool_ref).copied()
+    index.by_id.get(tool).copied()
 }
 
 #[cfg(test)]
-pub(super) fn required_scopes(tool_ref: &str) -> Option<&'static [&'static str]> {
-    definition(tool_ref).map(|capability| capability.definition().scopes)
+pub(super) fn required_scopes(tool: &str) -> Option<&'static [&'static str]> {
+    definition(tool).map(|capability| capability.definition().scopes)
 }
 
-/// What a call of core tool `tool_ref` with `inputs` would change or run,
+/// What a call of core tool `tool` with `inputs` would change or run,
 /// without running it; none for a tool that only reads or that runx does not
 /// own.
 pub(crate) fn local_effect(
-    tool_ref: &str,
+    tool: &str,
     inputs: JsonObject,
     env: &BTreeMap<String, String>,
     skill_directory: &Path,
     effects: &RuntimeEffectRegistry,
     bounds: crate::services::WorkspaceBounds,
 ) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
-    let Some(tool) = definition(tool_ref) else {
+    let Some(tool) = definition(tool) else {
         return Ok(None);
     };
     tool.local_effect(RawNativeInvocation {
@@ -227,22 +227,22 @@ pub(crate) fn local_effect(
     })
 }
 
-pub(crate) fn is_core_tool(tool_ref: &str) -> bool {
-    definition(tool_ref).is_some()
+pub(crate) fn is_core_tool(tool: &str) -> bool {
+    definition(tool).is_some()
 }
 
-/// Whether a call of core tool `tool_ref` that may have run can run again
+/// Whether a call of core tool `tool` that may have run can run again
 /// unseen: it only reads, or it changes files in runx's own process, where
 /// every change is journaled and bound to what it replaces, so a resend
 /// either finds it rolled back or is refused or repeats the same bytes. A
 /// tool that runs a process cannot.
-/// Whether `tool_ref` is a native tool that only reads.
-pub(crate) fn only_reads(tool_ref: &str) -> bool {
-    definition(tool_ref).is_some_and(|capability| !capability.definition().effect.mutating())
+/// Whether `tool` is a native tool that only reads.
+pub(crate) fn only_reads(tool: &str) -> bool {
+    definition(tool).is_some_and(|capability| !capability.definition().effect.mutating())
 }
 
-pub(crate) fn resends_safely(tool_ref: &str) -> bool {
-    definition(tool_ref).is_some_and(|capability| {
+pub(crate) fn resends_safely(tool: &str) -> bool {
+    definition(tool).is_some_and(|capability| {
         !capability.definition().effect.mutating()
             || capability.execution_boundary()
                 == runx_contracts::ExecutionBoundaryKind::NativeCapability
@@ -250,14 +250,14 @@ pub(crate) fn resends_safely(tool_ref: &str) -> bool {
 }
 
 pub(crate) fn execution_boundary(
-    tool_ref: &str,
+    tool: &str,
     effects: &crate::effects::RuntimeEffectRegistry,
 ) -> Option<runx_contracts::ExecutionBoundaryKind> {
-    definition(tool_ref)
+    definition(tool)
         .map(NativeCapability::execution_boundary)
         .or_else(|| {
             effects
-                .capability(tool_ref)
+                .capability(tool)
                 .map(|_| runx_contracts::ExecutionBoundaryKind::NativeCapability)
         })
 }

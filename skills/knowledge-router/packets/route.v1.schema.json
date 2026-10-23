@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/knowledge-router/route/v1.json",
+  "x-runx-packet-id": "runx/knowledge-router.route.v1",
+  "additionalProperties": false,
+  "properties": {
+    "next_skill": {
+      "additionalProperties": false,
+      "properties": {
+        "rationale": {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        "skill": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "skill",
+        "rationale"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "owner_recommendation": {
+      "additionalProperties": false,
+      "properties": {
+        "escalation_required": {
+          "type": "boolean"
+        },
+        "owner_id": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 4000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "owner_id",
+        "rationale",
+        "escalation_required"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "route": {
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "maxLength": 500,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rationale": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_ids": {
+          "items": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 500,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "domain",
+        "rationale",
+        "source_ids"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "runx/knowledge-router.route.v1"
+    },
+    "source_matches": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "matching_signal": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "source_id": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "matching_signal",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "maxItems": 500,
+      "type": "array"
+    },
+    "validation": {
+      "additionalProperties": false,
+      "properties": {
+        "catalog_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "constraints_applied": {},
+        "unknown_entries": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "source",
+                  "owner",
+                  "skill"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1000,
+          "type": "array"
+        },
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid",
+        "catalog_digest",
+        "unknown_entries",
+        "constraints_applied"
+      ],
+      "type": "object"
+    },
+    "verdict": {
+      "enum": [
+        "routed",
+        "needs_more_context",
+        "manual_review",
+        "refused"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "route",
+    "source_matches",
+    "owner_recommendation",
+    "next_skill",
+    "validation"
+  ],
+  "type": "object"
+}

@@ -26,7 +26,7 @@ const EXAMPLES = [
   "runx-harness-fixture-oracles",
   "runx-native-capability-snapshot",
   "runx-schema-artifacts",
-  "runx-paid-invocation-fixtures",
+  "runx-purchase-fixtures",
   "runx-principal-id-fixtures",
   "kernel_eval_batch",
   "parser_eval",
@@ -61,7 +61,7 @@ export const prebuiltBinEnv = {
   RUNX_HARNESS_FIXTURE_ORACLE_BIN: examplePath("runx-harness-fixture-oracles"),
   RUNX_CAPABILITY_SNAPSHOT_BIN: examplePath("runx-native-capability-snapshot"),
   RUNX_SCHEMA_ARTIFACTS_BIN: examplePath("runx-schema-artifacts"),
-  RUNX_PAID_INVOCATION_FIXTURES_BIN: examplePath("runx-paid-invocation-fixtures"),
+  RUNX_PURCHASE_FIXTURES_BIN: examplePath("runx-purchase-fixtures"),
   RUNX_PRINCIPAL_ID_FIXTURES_BIN: examplePath("runx-principal-id-fixtures"),
   RUNX_X402_FIXTURES_BIN: examplePath("runx-x402-fixtures"),
 };

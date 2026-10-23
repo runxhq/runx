@@ -1,13 +1,13 @@
 [
   {
     "name": "inspect-local-manifest",
-    "ref": "fixture.local_echo",
+    "tool": "fixture.local_echo",
     "toolRoot": "tool-roots/local",
     "expectedStatus": 0
   },
   {
     "name": "inspect-missing",
-    "ref": "fixture.missing",
+    "tool": "fixture.missing",
     "expectedStatus": 1
   }
 ]

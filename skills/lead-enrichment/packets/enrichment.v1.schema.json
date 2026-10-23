@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/lead-enrichment/enrichment/v1.json",
+  "x-runx-packet-id": "runx/lead-enrichment.enrichment.v1",
+  "additionalProperties": false,
+  "properties": {
+    "acquisition": {
+      "const": "supplied_evidence"
+    },
+    "as_of": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "blockers": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array"
+    },
+    "conflicts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "source_ids": {
+                  "items": {
+                    "maxLength": 1000,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "value": {
+                  "oneOf": [
+                    {
+                      "maxLength": 2000,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "maximum": 1000000000,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "value",
+                "source_ids"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "minItems": 2,
+            "type": "array"
+          },
+          "field": {
+            "enum": [
+              "person.name",
+              "person.email",
+              "person.title",
+              "person.linkedin_url",
+              "company.name",
+              "company.domain",
+              "company.industry",
+              "company.employee_count",
+              "company.country",
+              "company.website"
+            ]
+          }
+        },
+        "required": [
+          "field",
+          "candidates"
+        ],
+        "type": "object"
+      },
+      "maxItems": 30,
+      "minItems": 0,
+      "type": "array"
+    },
+    "decision": {
+      "enum": [
+        "enriched",
+        "partial",
+        "needs_more_evidence"
+      ]
+    },
+    "facts": {
+      "items": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "else": {
+              "properties": {
+                "value": {
+                  "maxLength": 2000,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              }
+            },
+            "if": {
+              "properties": {
+                "field": {
+                  "const": "company.employee_count"
+                }
+              },
+              "required": [
+                "field"
+              ]
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "maximum": 1000000000,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "field": {
+            "enum": [
+              "person.name",
+              "person.email",
+              "person.title",
+              "person.linkedin_url",
+              "company.name",
+              "company.domain",
+              "company.industry",
+              "company.employee_count",
+              "company.country",
+              "company.website"
+            ]
+          },
+          "source_ids": {
+            "items": {
+              "maxLength": 1000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "value": {
+            "oneOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "maximum": 1000000000,
+                "minimum": 0,
+                "type": "integer"
+              }
+            ]
+          }
+        },
+        "required": [
+          "field",
+          "value",
+          "source_ids"
+        ],
+        "type": "object"
+      },
+      "maxItems": 30,
+      "minItems": 0,
+      "type": "array"
+    },
+    "missing_fields": {
+      "items": {
+        "enum": [
+          "person.name",
+          "person.email",
+          "person.title",
+          "person.linkedin_url",
+          "company.name",
+          "company.domain",
+          "company.industry",
+          "company.employee_count",
+          "company.country",
+          "company.website"
+        ]
+      },
+      "maxItems": 30,
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "sources": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "match_confidence": {
+            "const": "high"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "provenance": {
+            "const": "caller_supplied_source_digest"
+          },
+          "source_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "source_id": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "source_digest",
+          "observed_at",
+          "match_confidence",
+          "provenance"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array"
+    },
+    "subject": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "company"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "decision",
+    "subject",
+    "as_of",
+    "facts",
+    "missing_fields",
+    "conflicts",
+    "sources",
+    "blockers",
+    "acquisition"
+  ],
+  "type": "object"
+}

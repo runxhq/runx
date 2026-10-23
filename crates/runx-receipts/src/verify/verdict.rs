@@ -197,7 +197,7 @@ fn is_signature_finding(code: ReceiptFindingCode) -> bool {
             | ReceiptFindingCode::SignatureInvalid
             | ReceiptFindingCode::SignatureKeyMissing
             | ReceiptFindingCode::SignatureKeyMalformed
-            | ReceiptFindingCode::SignatureKeyHashMismatch
+            | ReceiptFindingCode::SignatureKeyDigestMismatch
             | ReceiptFindingCode::SignatureUnsupportedIssuer
             | ReceiptFindingCode::SignatureUnsupportedAlgorithm
             | ReceiptFindingCode::SignatureMalformed

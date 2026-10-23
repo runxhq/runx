@@ -66,7 +66,7 @@ macro_rules! single_key_enum {
 mod amount;
 mod cost;
 mod digest;
-mod ids;
+pub(crate) mod ids;
 mod template;
 
 pub use amount::{AmountBinding, AmountRule};
@@ -239,7 +239,7 @@ pub struct DelegatedAuth {
 pub struct NoAuth {}
 
 /// The kind of a credential a purchase fills. runx Connect holds it per
-/// resource for the purchase's owner, taken from the seller's provider answer
+/// resource for the purchase's buyer, taken from the seller's provider answer
 /// (`OperationHold`), so nobody connects it and nothing local delivers it.
 pub const PURCHASE_CREDENTIAL_KIND: &str = "purchase";
 
@@ -724,7 +724,7 @@ pub const HOLD_EVIDENCE_KEY: &str = "$held";
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HoldAction {
-    /// Hold a new resource's credential for the owner of the purchase whose
+    /// Hold a new resource's credential for the buyer of the purchase whose
     /// run made the call.
     Take,
     /// Move a held resource's expiry.
@@ -1226,8 +1226,8 @@ pub struct McpImplementation {
     /// tool's discriminating argument is a literal here, never an input.
     pub arguments: Template,
     /// sha256 over the served tool's name, description, input schema and
-    /// annotations when the manifest was authored ([`mcp_tool_digest`]).
-    /// A tool served with another definition is refused.
+    /// annotations when the manifest was authored. A tool served with another
+    /// definition is refused.
     pub tool_digest: Digest,
     /// How a write is confirmed: an independent call to a read tool, checked
     /// against what the write returned. Every write has one; a read has none.

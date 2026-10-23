@@ -1,0 +1,1 @@
+{"description":"Lookup names only the purchase.","expectation":"valid","operation":"GetPurchase","payload":{"purchase_id":"paid_direct"},"schema_id":"runx.payment.get_purchase.request.v1"}

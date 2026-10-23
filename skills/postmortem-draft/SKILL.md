@@ -33,19 +33,19 @@ Running the incident belongs to its operator; this skill explains it afterward.
 
 ## Output
 
-`postmortem` (`runx.postmortem.v1`) carries `decision` (`publishable`,
+`postmortem` (`runx/postmortem-draft.postmortem.v1`) carries `decision` (`publishable`,
 `needs_more_evidence`, `refused`), `summary`, the cited `timeline`,
 `root_cause`, `unknowns`, `action_items`, the gated `publish_proposal` or
 null, `validation`, and the fragments digest. `publish_performed` is always
 false.
 
-Inputs are `incident_ref` and `incident_fragments`.
+Inputs are `incident_id` and `incident_fragments`.
 
 ## Agent task contracts
 
 ### `postmortem-draft-draft`
 
-Read `incident_ref` and `incident_fragments` from step inputs. Return
+Read `incident_id` and `incident_fragments` from step inputs. Return
 `postmortem_draft` with `summary`, `timeline` entries (each `entry`,
 `fragment_id`, `quote`), `root_cause` (`status`, and for known or suspected a
 `statement`, `fragment_id`, and `quote`), `unknowns`, and `action_items`

@@ -7,7 +7,7 @@ steps:
       dispute_event:
         dispute_id: dp_demo_001
         provider: stripe
-        provider_charge_ref: ch_demo_001
+        provider_charge_id: ch_demo_001
         amount_minor: 1250
         currency: USD
         reason_code: product_not_received

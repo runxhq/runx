@@ -16,7 +16,7 @@ inputs:
   resources:
     kind: issues
     mutations:
-      - ref: issues
+      - path: issues
         op: create
         payload: { title: Harness cases for issue creation, body: Cover the create and readback path., labels: [triage] }
   idempotency_key: runxhq/runx:issues:create:harness-cases

@@ -5,7 +5,7 @@ caller:
   answers:
     assess:
       capability_profile:
-        skill_ref: fixtures/subject
+        skill: fixtures/subject
         summary: Digests one fixed value under a bounded read-only contract.
       trust_assessment:
         tier: local_harness

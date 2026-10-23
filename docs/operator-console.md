@@ -39,7 +39,7 @@ do not duplicate its logic in the UI or in skill prose.
 
 Use `operations-review` when an agent is asked to manage a project, workspace, product,
 or account. It reads the same projection the UI shows and emits
-`runx.ops_desk.packet.v1`:
+`runx/operations-review.desk.v1`:
 
 - findings grounded in evidence;
 - proposed governed lanes;

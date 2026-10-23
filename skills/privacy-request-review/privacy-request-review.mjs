@@ -19,7 +19,7 @@ export function judgeRequest(inputs) {
   const identityProvider = stringValue(proof.identity_provider);
   const verifiedAt = stringValue(proof.verified_at);
   const assertionSubject = stringValue(assertion.subject_id);
-  const assertionRef = stringValue(assertion.assertion_ref) ?? `${identityProvider ?? "unknown"}:${subjectId ?? "unknown"}`;
+  const assertionId = stringValue(assertion.assertion_id) ?? `${identityProvider ?? "unknown"}:${subjectId ?? "unknown"}`;
   const assertionDigest = stringValue(assertion.assertion_digest);
   const lawfulBasis = requestType ? stringValue(lawfulBases[requestType]) : null;
 
@@ -62,7 +62,7 @@ export function judgeRequest(inputs) {
     requestor: {
       identity_provider: identityProvider ?? "",
       verified_at: verifiedAt ?? "",
-      assertion_ref: assertionRef,
+      assertion_id: assertionId,
       identity_assertion_digest: assertionDigest ?? "",
     },
     scope_bounds: { data_classes: allowedClasses, requested_scopes: requestedScopes },
@@ -73,7 +73,7 @@ export function judgeRequest(inputs) {
       verdict,
       event: {
         type: "subject_request.verdict_recorded",
-        payload: { packet: "runx.data_subject_request.v1", ...verdict },
+        payload: { packet: "runx/privacy-request-review.verdict.v1", ...verdict },
       },
     },
   };
@@ -87,7 +87,7 @@ export function finalizeVerdict(inputs) {
   }
   return {
     subject_request_verdict: {
-      schema: "runx.data_subject_request.v1",
+      schema: "runx/privacy-request-review.verdict.v1",
       ...draft,
       persistence: {
         append_status: "committed",

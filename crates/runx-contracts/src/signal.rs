@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
-use crate::{Fingerprint, JsonObject, Links, Reference};
+use crate::{ContentDigest, JsonObject, Links, Reference};
 
 pub const SIGNAL_SCHEMA: &str = "runx.signal.v1";
 
@@ -67,8 +67,8 @@ pub struct Signal {
     pub source_ref: Reference,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authenticity: Option<SignalAuthenticity>,
-    /// Open signal type identifier (e.g. `signal_type::ISSUE_OPENED`). Adapters
-    /// can publish their own identifier without a contract edit.
+    /// Open signal type identifier (e.g. `issue_opened`). Adapters can publish
+    /// their own identifier without a contract edit.
     pub signal_type: NonEmptyString,
     pub title: NonEmptyString,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -77,7 +77,7 @@ pub struct Signal {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence_refs: Vec<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fingerprint: Option<Fingerprint>,
+    pub digest: Option<ContentDigest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<Links>,
     #[serde(skip_serializing_if = "Option::is_none")]

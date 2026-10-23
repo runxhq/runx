@@ -51,7 +51,18 @@
             "reused_effects",
             "must_not_repeat"
           ],
+          "title": "SkillChainUse",
           "type": "object"
+        },
+        "choice": {
+          "enum": [
+            "build",
+            "extend_existing",
+            "no_skill",
+            "needs_core"
+          ],
+          "title": "SkillArchitectureChoice",
+          "type": "string"
         },
         "deletions": {
           "items": {
@@ -115,16 +126,8 @@
             "blocker_behavior",
             "native_escape"
           ],
+          "title": "SkillDirectUse",
           "type": "object"
-        },
-        "disposition": {
-          "enum": [
-            "build",
-            "extend_existing",
-            "no_skill",
-            "needs_core"
-          ],
-          "type": "string"
         },
         "effects": {
           "items": {
@@ -136,6 +139,7 @@
                   "policy",
                   "human"
                 ],
+                "title": "SkillApprovalRequirement",
                 "type": "string"
               },
               "authority_scopes": {
@@ -153,6 +157,7 @@
                   "mutate",
                   "financial"
                 ],
+                "title": "SkillEffectClass",
                 "type": "string"
               },
               "provider_boundary": {
@@ -165,6 +170,7 @@
               "approval",
               "provider_boundary"
             ],
+            "title": "SkillEffectRequirement",
             "type": "object"
           },
           "type": "array"
@@ -179,6 +185,7 @@
                 "create",
                 "internalize"
               ],
+              "title": "SkillIdentityAction",
               "type": "string"
             },
             "current_name": {
@@ -198,6 +205,7 @@
                 "public",
                 "internal"
               ],
+              "title": "SkillPackageVisibility",
               "type": "string"
             }
           },
@@ -206,6 +214,7 @@
             "visibility",
             "rationale"
           ],
+          "title": "SkillIdentityDecision",
           "type": "object"
         },
         "knowledge_contract": {
@@ -251,6 +260,7 @@
             "stop_conditions",
             "recovery"
           ],
+          "title": "SkillKnowledge",
           "type": "object"
         },
         "native_reuse": {
@@ -283,6 +293,7 @@
             "selected_capabilities",
             "missing_capabilities"
           ],
+          "title": "SkillNativeReuseEvidence",
           "type": "object"
         },
         "objective": {
@@ -319,6 +330,7 @@
                   "standalone_operator_journey",
                   "composed_operator_journey"
                 ],
+                "title": "SkillProofKind",
                 "type": "string"
               },
               "name": {
@@ -331,6 +343,7 @@
               "kind",
               "expected"
             ],
+            "title": "SkillProofRequirement",
             "type": "object"
           },
           "type": "array"
@@ -357,13 +370,14 @@
                   "process",
                   "operation"
                 ],
+                "title": "SkillExecutionLane",
                 "type": "string"
               },
               "outcome": {
                 "minLength": 1,
                 "type": "string"
               },
-              "reuse_ref": {
+              "reuses": {
                 "minLength": 1,
                 "type": "string"
               }
@@ -373,6 +387,7 @@
               "outcome",
               "lane"
             ],
+            "title": "SkillBehaviorDecision",
             "type": "object"
           },
           "type": "array"
@@ -402,12 +417,14 @@
             "max_process_spawns",
             "network_allowed"
           ],
+          "title": "SkillResourceBudget",
           "type": "object"
         },
         "schema": {
           "enum": [
             "runx.skill.architecture_decision.v1"
           ],
+          "title": "SkillArchitectureDecisionSchema",
           "type": "string"
         },
         "skill_chain": {
@@ -432,12 +449,13 @@
             "context_skills",
             "routes"
           ],
+          "title": "SkillChainPlan",
           "type": "object"
         }
       },
       "required": [
         "schema",
-        "disposition",
+        "choice",
         "objective",
         "operator_value",
         "knowledge_contract",
@@ -450,6 +468,7 @@
         "deletions",
         "proof_plan"
       ],
+      "title": "SkillArchitectureDecision",
       "type": "object",
       "x-runx-schema": "runx.skill.architecture_decision.v1"
     },
@@ -464,6 +483,7 @@
         "no_change",
         "needs_core"
       ],
+      "title": "SkillChangeDecision",
       "type": "string"
     },
     "deletes": {
@@ -482,7 +502,8 @@
             "type": "string"
           },
           "packet": {
-            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
             "type": "string"
           },
           "value_type": {
@@ -494,6 +515,7 @@
           "name",
           "value_type"
         ],
+        "title": "SkillExpectedOutput",
         "type": "object"
       },
       "type": "array"
@@ -513,6 +535,7 @@
       "enum": [
         "runx.skill.change_bundle.v1"
       ],
+      "title": "SkillChangeBundleSchema",
       "type": "string"
     },
     "summary": {
@@ -535,6 +558,7 @@
           "path",
           "contents"
         ],
+        "title": "SkillFileWrite",
         "type": "object"
       },
       "type": "array"
@@ -552,6 +576,7 @@
     "deletes",
     "expected_outputs"
   ],
+  "title": "SkillChangeBundle",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.skill.change_bundle.v1"

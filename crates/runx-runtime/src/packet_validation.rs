@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{JsonObject, JsonValue, PacketId};
 use runx_parser::SkillArtifactContract;
 
 use crate::RuntimeError;
 use crate::observations::PacketCheck;
-use crate::packet_schemas::{PacketSchemaCatalog, packet_schema_directories};
+use crate::packet_schemas::PacketSchemaCatalog;
 
 /// Verify each artifact a step holds against the packet its contract
 /// declares. `held` is the step's artifacts by name, each in its envelope.
@@ -14,7 +14,6 @@ pub(crate) fn verify_declared_packets(
     held: &JsonObject,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
-    env: &BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, PacketCheck>, RuntimeError> {
     let bindings = packet_bindings(held, artifacts)?;
     if bindings.is_empty() {
@@ -23,23 +22,17 @@ pub(crate) fn verify_declared_packets(
 
     let package_root = crate::skill_package::find_owning_package_root(skill_directory)
         .unwrap_or_else(|| skill_directory.to_path_buf());
-    let workspace = crate::RunxPaths::resolve(env, skill_directory)
-        .workspace()
-        .to_path_buf();
-    let schema_directories = packet_schema_directories(skill_directory, &package_root, &workspace)
-        .map_err(|error| RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: format!("packet schema roots failed: {error}"),
-        })?;
-    let schemas = PacketSchemaCatalog::discover(schema_directories.clone()).map_err(|error| {
-        RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: format!("packet schema catalog failed: {error}"),
-        }
+    let schemas = PacketSchemaCatalog::for_package(
+        &package_root,
+        bindings.iter().map(|binding| &binding.packet),
+    )
+    .map_err(|error| RuntimeError::SkillFailed {
+        skill_name: "agent".to_owned(),
+        message: format!("packet schema catalog failed: {error}"),
     })?;
     let mut checks = BTreeMap::new();
     for binding in bindings {
-        let (output, check) = verify_packet_binding(binding, &schemas, &schema_directories)?;
+        let (output, check) = verify_packet_binding(binding, &schemas)?;
         checks.insert(output, check);
     }
     Ok(checks)
@@ -48,19 +41,10 @@ pub(crate) fn verify_declared_packets(
 fn verify_packet_binding(
     binding: PacketBinding,
     schemas: &PacketSchemaCatalog,
-    schema_directories: &[std::path::PathBuf],
 ) -> Result<(String, PacketCheck), RuntimeError> {
-    let schema = schemas.get(&binding.packet).ok_or_else(|| {
-        let searched = schema_directories
-            .iter()
-            .map(|path| path.display().to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
-        packet_error(
-            &binding,
-            format!("declared packet schema was not found; searched {searched}"),
-        )
-    })?;
+    let schema = schemas
+        .get(&binding.packet)
+        .ok_or_else(|| packet_error(&binding, schemas.not_found(&binding.packet)))?;
     let schema_document = serde_json::to_value(&schema.schema.value)
         .map_err(|source| RuntimeError::json("serializing packet schema for validation", source))?;
     let validator = jsonschema::draft202012::options()
@@ -76,7 +60,7 @@ fn verify_packet_binding(
         binding.output,
         PacketCheck {
             packet: binding.packet,
-            schema_sha256: schema.schema.sha256.clone(),
+            schema_digest: schema.schema.digest.clone(),
         },
     ))
 }
@@ -93,7 +77,7 @@ fn packet_error(binding: &PacketBinding, detail: impl std::fmt::Display) -> Runt
 
 struct PacketBinding {
     output: String,
-    packet: String,
+    packet: PacketId,
     value: JsonValue,
 }
 
@@ -118,7 +102,7 @@ fn packet_bindings(
 fn projected_binding(
     projection: &JsonObject,
     output: &str,
-    packet: &str,
+    packet: &PacketId,
 ) -> Result<PacketBinding, RuntimeError> {
     let envelope = projection
         .get(output)
@@ -136,7 +120,7 @@ fn projected_binding(
         })?;
     Ok(PacketBinding {
         output: output.to_owned(),
-        packet: packet.to_owned(),
+        packet: packet.clone(),
         value,
     })
 }
@@ -146,7 +130,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::fs;
 
-    use runx_contracts::JsonValue;
+    use runx_contracts::{JsonValue, PacketId};
     use runx_parser::SkillArtifactContract;
 
     use super::verify_declared_packets;
@@ -166,10 +150,7 @@ mod tests {
         SkillArtifactContract {
             emits: None,
             named_emits: Some(BTreeMap::from([("plan".to_owned(), "plan".to_owned())])),
-            packets: Some(BTreeMap::from([(
-                "plan".to_owned(),
-                "runx.test.plan.v1".to_owned(),
-            )])),
+            packets: Some(BTreeMap::from([("plan".to_owned(), packet_id(PLAN))])),
             wrap_as: None,
             packet: None,
         }
@@ -181,8 +162,15 @@ mod tests {
             named_emits: None,
             packets: None,
             wrap_as: Some("plan_packet".to_owned()),
-            packet: Some("runx.test.wrapped-plan.v1".to_owned()),
+            packet: Some(packet_id(WRAPPED_PLAN)),
         }
+    }
+
+    const PLAN: &str = "acme/planner.plan.v1";
+    const WRAPPED_PLAN: &str = "acme/planner.wrapped_plan.v1";
+
+    fn packet_id(id: &str) -> PacketId {
+        PacketId::new(id).unwrap_or_else(|| unreachable!("{id} is a packet id"))
     }
 
     fn payload(value: JsonValue) -> JsonValue {
@@ -191,10 +179,11 @@ mod tests {
 
     fn write_schema(skill: &std::path::Path) -> Result<(), std::io::Error> {
         fs::write(
-            skill.join("packets/plan.schema.json"),
+            skill.join("packets/plan.v1.schema.json"),
             r#"{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "x-runx-packet-id": "runx.test.plan.v1",
+  "$id": "https://schemas.runx.ai/packages/acme/planner/plan/v1.json",
+  "x-runx-packet-id": "acme/planner.plan.v1",
   "type": "object",
   "required": ["decision"],
   "properties": {"decision": {"type": "string"}},
@@ -207,10 +196,11 @@ mod tests {
 
     fn write_wrapped_schema(skill: &std::path::Path) -> Result<(), std::io::Error> {
         fs::write(
-            skill.join("packets/wrapped-plan.schema.json"),
+            skill.join("packets/wrapped_plan.v1.schema.json"),
             r#"{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "x-runx-packet-id": "runx.test.wrapped-plan.v1",
+  "$id": "https://schemas.runx.ai/packages/acme/planner/wrapped-plan/v1.json",
+  "x-runx-packet-id": "acme/planner.wrapped_plan.v1",
   "type": "object",
   "required": ["plan"],
   "properties": {
@@ -241,12 +231,11 @@ mod tests {
             &held(&value, &artifacts()),
             Some(&artifacts()),
             skill.path(),
-            &BTreeMap::new(),
         )?;
 
         let plan = evidence.get("plan").ok_or("plan evidence is missing")?;
-        assert_eq!(plan.packet, "runx.test.plan.v1");
-        assert!(plan.schema_sha256.starts_with("sha256:"));
+        assert_eq!(plan.packet, PLAN);
+        assert!(plan.schema_digest.starts_with("sha256:"));
         Ok(())
     }
 
@@ -264,7 +253,6 @@ mod tests {
                 &held(&value, &artifacts()),
                 Some(&artifacts()),
                 skill.path(),
-                &BTreeMap::new(),
             )
             .is_err()
         );
@@ -286,7 +274,6 @@ mod tests {
                 &held(&value, &wrapped_artifacts()),
                 Some(&wrapped_artifacts()),
                 skill.path(),
-                &BTreeMap::new(),
             )
             .is_err()
         );
@@ -306,7 +293,6 @@ mod tests {
                 &held(&value, &artifacts()),
                 Some(&artifacts()),
                 skill.path(),
-                &BTreeMap::new(),
             )
             .is_err()
         );

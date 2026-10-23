@@ -12,9 +12,9 @@ caller:
           - Missing explicit refund approval.
         execution_handoff:
           interface: skill
-          lane_ref: refund
+          lane: refund
           approval_gate: payment.refund.approval
-          verifier_ref: ledger.query
+          verifier: ledger.query
         verification:
           expected_receipt: runx.refund.v1
           readback: refund effect linked to settlement hfr_a1a4b34d30076835ce88807d391951ac

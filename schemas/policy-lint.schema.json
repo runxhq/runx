@@ -1,0 +1,358 @@
+{
+  "$id": "https://schemas.runx.ai/runx/policy/lint/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `policy.lint` returns: the policy's findings, and its readback when it parsed as a `runx.operational_policy.v1`.",
+  "properties": {
+    "engine": {
+      "description": "The engine that linted the policy.",
+      "enum": [
+        "runx policy"
+      ],
+      "title": "PolicyLintEngine",
+      "type": "string"
+    },
+    "findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "path",
+          "message"
+        ],
+        "title": "OperationalPolicyValidationFinding",
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "readback": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "findings": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "message": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "path": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "path",
+                  "message"
+                ],
+                "title": "OperationalPolicyValidationFinding",
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "outcomes": {
+              "additionalProperties": false,
+              "properties": {
+                "close_source_issue": {
+                  "enum": [
+                    "never",
+                    "when_verified",
+                    "when_terminal"
+                  ],
+                  "title": "OperationalPolicyOutcomeCloseMode",
+                  "type": "string"
+                },
+                "observe_provider": {
+                  "type": "boolean"
+                },
+                "publish_final_source_thread_update": {
+                  "type": "boolean"
+                },
+                "verification_required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "observe_provider",
+                "verification_required",
+                "close_source_issue",
+                "publish_final_source_thread_update"
+              ],
+              "title": "OperationalPolicyOutcomePolicy",
+              "type": "object"
+            },
+            "permissions": {
+              "additionalProperties": false,
+              "properties": {
+                "auto_merge": {
+                  "const": false,
+                  "type": "boolean"
+                },
+                "mutate_target_repo": {
+                  "type": "boolean"
+                },
+                "require_human_merge_gate": {
+                  "const": true,
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "auto_merge",
+                "mutate_target_repo",
+                "require_human_merge_gate"
+              ],
+              "title": "OperationalPolicyAutomationPermissions",
+              "type": "object"
+            },
+            "policy_id": {
+              "type": "string"
+            },
+            "runners": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "allowed_actions": {
+                    "items": {
+                      "enum": [
+                        "reply-only",
+                        "issue-intake",
+                        "work-plan",
+                        "issue-to-pr",
+                        "manual-review",
+                        "pr-review",
+                        "pr-fix-up",
+                        "merge-assist"
+                      ],
+                      "title": "OperationalPolicyAction",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "kind": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "runner_id": {
+                    "type": "string"
+                  },
+                  "scafld_required": {
+                    "type": "boolean"
+                  },
+                  "state": {
+                    "enum": [
+                      "available",
+                      "disabled",
+                      "maintenance"
+                    ],
+                    "title": "OperationalPolicyRunnerState",
+                    "type": "string"
+                  },
+                  "target_repos": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "runner_id",
+                  "kind",
+                  "state",
+                  "target_repos",
+                  "allowed_actions",
+                  "scafld_required"
+                ],
+                "title": "OperationalPolicyRunnerReadback",
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "schema_version": {
+              "enum": [
+                "runx.operational_policy.v1"
+              ],
+              "title": "OperationalPolicySchema",
+              "type": "string"
+            },
+            "sources": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "allowed_actions": {
+                    "items": {
+                      "enum": [
+                        "reply-only",
+                        "issue-intake",
+                        "work-plan",
+                        "issue-to-pr",
+                        "manual-review",
+                        "pr-review",
+                        "pr-fix-up",
+                        "merge-assist"
+                      ],
+                      "title": "OperationalPolicyAction",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "locator_count": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "provider": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "publish_mode": {
+                    "enum": [
+                      "reply",
+                      "comment",
+                      "none"
+                    ],
+                    "title": "OperationalPolicyPublishMode",
+                    "type": "string"
+                  },
+                  "source_id": {
+                    "type": "string"
+                  },
+                  "source_thread_required": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "source_id",
+                  "provider",
+                  "locator_count",
+                  "allowed_actions",
+                  "source_thread_required",
+                  "publish_mode"
+                ],
+                "title": "OperationalPolicySourceReadback",
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "targets": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "allowed_actions": {
+                    "items": {
+                      "enum": [
+                        "reply-only",
+                        "issue-intake",
+                        "work-plan",
+                        "issue-to-pr",
+                        "manual-review",
+                        "pr-review",
+                        "pr-fix-up",
+                        "merge-assist"
+                      ],
+                      "title": "OperationalPolicyAction",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "available_runner_count": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "default_owner_route": {
+                    "type": "string"
+                  },
+                  "owner_count": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "runner_ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "scafld_required": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "repo",
+                  "runner_ids",
+                  "default_owner_route",
+                  "owner_count",
+                  "allowed_actions",
+                  "scafld_required",
+                  "available_runner_count"
+                ],
+                "title": "OperationalPolicyTargetReadback",
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "valid": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "policy_id",
+            "schema_version",
+            "valid",
+            "findings",
+            "sources",
+            "runners",
+            "targets",
+            "outcomes",
+            "permissions"
+          ],
+          "title": "OperationalPolicyReadback",
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "description": "Whether the policy parsed and linted clean.",
+      "enum": [
+        "pass",
+        "fail"
+      ],
+      "title": "PolicyLintStatus",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "engine",
+    "findings",
+    "readback"
+  ],
+  "title": "PolicyLint",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.policy.lint.v1"
+}

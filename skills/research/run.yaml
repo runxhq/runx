@@ -1,5 +1,5 @@
 skill: research
-version: "0.3.12"
+version: "0.3.13"
 
 catalog:
   kind: graph
@@ -69,7 +69,7 @@ harness:
                     - evidence_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
                       content_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
                       source_kind: local_file
-                      source_ref: file:fixtures/local-architecture-evidence.txt
+                      source_uri: file:fixtures/local-architecture-evidence.txt
         receipt: { schema: runx.receipt.v1 }
 
 input_definitions:

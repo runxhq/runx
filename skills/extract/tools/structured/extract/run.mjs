@@ -257,8 +257,8 @@ function validatePacket(packet, schema) {
     paragraph: packet.extraction.items.filter((item) => item.kind === "paragraph").length,
   };
   const checks = [
-    { name: "has_source_digest", passed: /^sha256:[0-9a-f]{64}$/.test(packet.source.input_sha256), detail: packet.source.input_sha256 },
-    { name: "has_schema_digest", passed: /^sha256:[0-9a-f]{64}$/.test(packet.validation.schema_sha256), detail: packet.validation.schema_sha256 },
+    { name: "has_source_digest", passed: /^sha256:[0-9a-f]{64}$/.test(packet.source.input_digest), detail: packet.source.input_digest },
+    { name: "has_schema_digest", passed: /^sha256:[0-9a-f]{64}$/.test(packet.validation.schema_digest), detail: packet.validation.schema_digest },
     { name: "has_minimum_items", passed: Array.isArray(packet.extraction.items) && packet.extraction.items.length >= 8, detail: String(packet.extraction.items.length) },
     {
       name: "summary_counts_match_items",
@@ -321,18 +321,18 @@ function main() {
   };
 
   const packet = {
-    schema: "runx.structured_extraction.result.v1",
+    schema: "runx/extract.result.v1",
     source: {
       url: sourceUrl,
       content_type: contentType,
       input_path: String(inputs.input_path),
-      input_sha256: sha256Bytes(inputBytes),
+      input_digest: sha256Bytes(inputBytes),
       input_bytes: inputBytes.length,
     },
     extraction,
     validation: {
-      schema_id: schema.$id || "runx.structured_extraction.result.v1",
-      schema_sha256: sha256Bytes(schemaBytes),
+      schema_id: schema.$id || "runx/extract.result.v1",
+      schema_digest: sha256Bytes(schemaBytes),
       valid: false,
       engine: "native-json-schema-subset-v1",
       checks: [],
@@ -341,7 +341,7 @@ function main() {
       mode: "fixture",
       tool_version: TOOL_VERSION,
       source_kind: "real_public_document",
-      output_payload_sha256: null,
+      output_payload_digest: null,
     },
   };
 
@@ -350,7 +350,7 @@ function main() {
     extraction: packet.extraction,
     validation_schema_id: packet.validation.schema_id,
   };
-  packet.provenance.output_payload_sha256 = sha256Text(canonicalJson(outputPayload));
+  packet.provenance.output_payload_digest = sha256Text(canonicalJson(outputPayload));
   const validation = validatePacket(packet, schema);
   packet.validation.valid = validation.valid;
   packet.validation.checks = validation.checks;
@@ -369,8 +369,8 @@ function main() {
 
   packet.artifacts = [
     {
-      id: packet.source.input_sha256,
-      artifact_id: packet.source.input_sha256,
+      id: packet.source.input_digest,
+      artifact_id: packet.source.input_digest,
       type: "input_fixture",
       artifact_type: "input_fixture",
       label: "RFC 9110 HTML fixture",
@@ -378,22 +378,22 @@ function main() {
       byte_count: inputBytes.length,
     },
     {
-      id: packet.validation.schema_sha256,
-      artifact_id: packet.validation.schema_sha256,
+      id: packet.validation.schema_digest,
+      artifact_id: packet.validation.schema_digest,
       type: "json_schema",
       artifact_type: "json_schema",
       label: packet.validation.schema_id,
     },
     {
-      id: packet.provenance.output_payload_sha256,
-      artifact_id: packet.provenance.output_payload_sha256,
+      id: packet.provenance.output_payload_digest,
+      artifact_id: packet.provenance.output_payload_digest,
       type: "validated_output",
       artifact_type: "validated_output",
       label: "Structured extraction JSON payload",
     },
   ];
   packet.signal = {
-    signal_id: `extract:${packet.source.input_sha256}:${packet.provenance.output_payload_sha256}`,
+    signal_id: `extract:${packet.source.input_digest}:${packet.provenance.output_payload_digest}`,
     source_events: [
       {
         provider: "rfc-editor",

@@ -19,7 +19,7 @@ steps:
           note: { type: string }
       sample_payloads:
         - { id: case-1, status: open }
-        - { id: case-2, status: closed, note: resolved by vendor }
+        - { id: case-2, status: closed, note: resolved by provider }
       compatibility_policy:
         breaking_allowed: false
         required_fields: [id]

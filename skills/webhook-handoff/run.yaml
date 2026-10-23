@@ -1,5 +1,5 @@
 skill: webhook-handoff
-version: "0.1.2"
+version: "0.1.3"
 catalog:
   kind: graph
   audience: operator
@@ -71,7 +71,7 @@ harness:
         event_id: evt_n8n_demo_001
         execution_context:
           caller: runx-cli
-          workflow_ref: n8n-cloud-demo
+          workflow: n8n-cloud-demo
           environment: local-dogfood
         payload:
           hello: workflow
@@ -80,7 +80,7 @@ harness:
         receipt:
           schema: runx.receipt.v1
           state: sealed
-          disposition: closed
+          outcome: completed
         steps:
           - terms
           - build-handoff-context
@@ -113,7 +113,7 @@ harness:
         handoff_audience: zapier:zap:runx-governed-effect
         execution_context:
           caller: runx-cli
-          workflow_ref: operator-zap-demo
+          workflow: operator-zap-demo
         payload:
           hello: zap
       expect:
@@ -159,7 +159,7 @@ runners:
     examples:
       - platform: n8n
         event_id: evt_n8n_demo_001
-        execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
+        execution_context: { caller: runx-cli, workflow: n8n-cloud-demo }
         payload: { hello: workflow }
     result_from: [build-handoff-context]
     steps:
@@ -205,11 +205,11 @@ runners:
       - platform: n8n
         webhook_host: acme.app.n8n.cloud
         event_id: evt_n8n_demo_001
-        execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
+        execution_context: { caller: runx-cli, workflow: n8n-cloud-demo }
         payload: { hello: workflow }
       - platform: zapier
         event_id: evt_zapier_demo_001
-        execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }
+        execution_context: { caller: runx-cli, workflow: operator-zap-demo }
         payload: { hello: zap }
     result_from: [deliver]
     steps:

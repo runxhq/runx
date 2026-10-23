@@ -16,7 +16,7 @@ const registryBaseUrl = normalizeBaseUrl(
 const skillId = process.env.RUNX_SMOKE_SKILL_ID?.trim() || "runx/github-issue-triage";
 const smokeInstallationId = process.env.RUNX_SMOKE_INSTALLATION_ID?.trim() || "inst_release_smoke";
 
-const [owner, name] = parseSkillId(skillId);
+const [publisher, name] = parseSkillId(skillId);
 const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-release-smoke-"));
 const homeDir = path.join(tempDir, "home");
 const skillsDir = path.join(tempDir, "skills");
@@ -24,7 +24,7 @@ const installStatePath = path.join(homeDir, "install.json");
 const cliBin = path.join(tempDir, "node_modules", ".bin", process.platform === "win32" ? "runx.cmd" : "runx");
 
 try {
-  const skillDetail = await readJson(`${registryBaseUrl}/v1/skills/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`);
+  const skillDetail = await readJson(`${registryBaseUrl}/v1/skills/${encodeURIComponent(publisher)}/${encodeURIComponent(name)}`);
   const skillVersion = skillDetail?.skill?.version;
   const beforeCount = Number(skillDetail?.skill?.install_count ?? 0);
   if (typeof skillVersion !== "string" || skillVersion.length === 0) {
@@ -79,7 +79,7 @@ try {
     throw new Error(`First released CLI install returned an unexpected payload for ${skillId}.`);
   }
 
-  const midCount = Number((await readJson(`${registryBaseUrl}/v1/skills/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`))?.skill?.install_count ?? 0);
+  const midCount = Number((await readJson(`${registryBaseUrl}/v1/skills/${encodeURIComponent(publisher)}/${encodeURIComponent(name)}`))?.skill?.install_count ?? 0);
 
   const secondInstall = await runRunx(
     cliBin,
@@ -93,7 +93,7 @@ try {
     throw new Error(`Second released CLI install returned an unexpected status for ${skillId}.`);
   }
 
-  const afterCount = Number((await readJson(`${registryBaseUrl}/v1/skills/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`))?.skill?.install_count ?? 0);
+  const afterCount = Number((await readJson(`${registryBaseUrl}/v1/skills/${encodeURIComponent(publisher)}/${encodeURIComponent(name)}`))?.skill?.install_count ?? 0);
   const firstDelta = midCount - beforeCount;
   const secondDelta = afterCount - midCount;
 
@@ -156,9 +156,9 @@ function normalizeBaseUrl(raw, fallback) {
 }
 
 function parseSkillId(raw) {
-  const [owner, name] = raw.split("/", 2).map((value) => value?.trim() || "");
-  if (!owner || !name) {
-    throw new Error("RUNX_SMOKE_SKILL_ID must use owner/name form.");
+  const [publisher, name] = raw.split("/", 2).map((value) => value?.trim() || "");
+  if (!publisher || !name) {
+    throw new Error("RUNX_SMOKE_SKILL_ID must use publisher/name form.");
   }
-  return [owner, name];
+  return [publisher, name];
 }

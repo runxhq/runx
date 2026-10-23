@@ -77,7 +77,7 @@ pub fn mcp_tool_result_from_run_result(
     } else if pending {
         format!(
             "{skill_name} is deferred at {run_id}. Inspect receipt {} and reconcile provider state before retrying.",
-            result.receipt_refs.first().map_or("n/a", String::as_str)
+            result.receipt_ids.first().map_or("n/a", String::as_str)
         )
     } else if let Some(output) = &output {
         match output {
@@ -87,8 +87,8 @@ pub fn mcp_tool_result_from_run_result(
     } else {
         format!(
             "{skill_name} ended with {}. Inspect receipt {}.",
-            result.disposition.map_or("invalid", |value| value.label()),
-            result.receipt_refs.first().map_or("n/a", String::as_str)
+            result.outcome.map_or("invalid", |value| value.label()),
+            result.receipt_ids.first().map_or("n/a", String::as_str)
         )
     };
     mcp_host_tool_result(text, runx, output, !succeeded && !pending)

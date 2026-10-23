@@ -43,7 +43,7 @@
     "runx:schema:read"
   ],
   "artifacts": {
-    "packet": "runx.structured_extraction.result.v1",
+    "packet": "runx/extract.result.v1",
     "wrap_as": "structured_extraction_result"
   }
 }

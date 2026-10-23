@@ -45,7 +45,7 @@ export default function auditLeastPrivilege(inputs) {
       classification: !evidenceReady ? "defer" : authority ? "recorded" : "not_recorded",
       recorded_authority: {
         receipt_count: authority?.receiptIds.size || 0,
-        receipt_refs: [...(authority?.receiptIds || [])],
+        receipt_ids: [...(authority?.receiptIds || [])],
         sources: [...(authority?.sources || [])],
       },
       rationale: !evidenceReady
@@ -83,8 +83,8 @@ export default function auditLeastPrivilege(inputs) {
 }
 
 function belongsToSubject(detail, subject) {
-  return subject !== null && [detail.subject_ref, detail.authority?.actor_ref,
-    ...(Array.isArray(detail.authority?.grant_refs) ? detail.authority.grant_refs : [])].includes(subject);
+  return subject !== null && [detail.subject_uri, detail.authority?.actor_uri,
+    ...(Array.isArray(detail.authority?.grant_uris) ? detail.authority.grant_uris : [])].includes(subject);
 }
 
 function collectRecordedAuthority(details) {

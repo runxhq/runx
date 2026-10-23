@@ -12,8 +12,8 @@ inputs:
     recipient: operator@example.org
     status: eligible
     suppressed: false
-    policy_ref: policy:outreach
-    evidence_refs: ['decision:recipient-1']
+    policy_id: policy:outreach
+    evidence_ids: ['decision:recipient-1']
   evidence_pack:
     decision: ready
     research_brief:
@@ -34,7 +34,7 @@ inputs:
     source_evidence:
     - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
       content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-      source_ref: https://example.com/evidence
+      source_uri: https://example.com/evidence
       source_kind: fetch
       provenance: {observed_at: '2026-07-17T00:00:00Z', bytes: 0, status: 200, redirects: []}
     index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
@@ -48,7 +48,7 @@ expect:
         content_draft_packet:
           data:
             decision: needs_more_evidence
-            draft: {title: '', body: '', claim_refs: []}
+            draft: {title: '', body: '', claims: []}
             validation: {status: fail}
     review:
       subset:
@@ -74,7 +74,7 @@ caller:
 
 
             Example team. Reply to opt out.'
-          claim_refs:
+          claims:
           - claim: The guide converts most readers.
             source_digests: ['sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff']
         review_checklist: []

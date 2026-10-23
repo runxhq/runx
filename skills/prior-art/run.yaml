@@ -1,5 +1,5 @@
 skill: prior-art
-version: "0.2.12"
+version: "0.2.13"
 catalog:
   kind: graph
   audience: builder
@@ -257,4 +257,4 @@ runners:
           validation: object
         artifacts:
           wrap_as: prior_art_report
-          packet: runx.builder.prior_art.v1
+          packet: runx/prior-art.report.v1

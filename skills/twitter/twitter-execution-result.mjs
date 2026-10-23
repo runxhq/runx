@@ -46,7 +46,7 @@ export function finalizeExecution(inputs) {
   const lastFailure = failure ? {
     act_id: failure.act_id,
     reason: failure.detail,
-    evidence_ref: text(operation.readback_ref),
+    evidence_uri: text(operation.readback_uri),
   } : plan.last_failure;
   const decision = state.nextActIndex === state.totalActCount
     ? counts.failed > 0 ? "completed_with_failures" : "executed"
@@ -209,7 +209,7 @@ function stop(code, reason, action, retryAt = null) {
 
 function progressEvent(plan, decision, state, selectedCount, accountId, counts, lastFailure, batchCounts) {
   return {
-    schema: "twitter.execution.progress.v1",
+    schema: "runx/twitter.execution_progress.v1",
     type: "twitter.execution.progress",
     plan_digest: text(plan.plan_digest),
     account_id: accountId,
@@ -257,13 +257,13 @@ function executionPacket(plan, decision, overrides = {}) {
   };
 }
 
-function result(act, status, providerRef, detail) {
+function result(act, status, externalId, detail) {
   return {
     act_id: String(act.act_id),
     kind: act.kind,
     consequence: act.consequence,
     status,
-    provider_ref: providerRef || null,
+    external_id: externalId || null,
     detail,
   };
 }

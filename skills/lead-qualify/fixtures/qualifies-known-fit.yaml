@@ -4,14 +4,14 @@ target: ..
 inputs:
   enrichment_packet:
     decision: enriched
-    subject: {ref: 'lead:example', kind: person}
+    subject: {id: 'lead:example', kind: person}
     as_of: '2026-10-10T00:00:00Z'
     facts:
-    - {field: company.industry, value: B2B software, source_refs: ['crm:lead']}
+    - {field: company.industry, value: B2B software, source_ids: ['crm:lead']}
     missing_fields: []
     conflicts: []
     sources:
-    - source_ref: crm:lead
+    - source_id: crm:lead
       source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       observed_at: '2026-10-09T00:00:00Z'
       match_confidence: high
@@ -21,10 +21,10 @@ inputs:
   criteria:
   - {id: industry, description: Works for a B2B software company., required: true}
   contact_eligibility:
-    subject: {ref: 'lead:example', kind: person}
+    subject: {id: 'lead:example', kind: person}
     status: eligible
-    policy_ref: policy:outreach
-    evidence_refs: ['policy:assessment']
+    policy_id: policy:outreach
+    evidence_ids: ['policy:assessment']
 caller:
   answers:
     assess:
@@ -52,4 +52,4 @@ operator_journeys:
   expected_outcome: Reuse the factual packet, preserve its digest and keep eligibility distinct from commercial
     fit.
   prior_evidence: [An enrichment packet with matched factual observations.]
-  must_not_repeat: [Do not repeat enrichment or perform a vendor lookup.]
+  must_not_repeat: [Do not repeat enrichment or perform a provider lookup.]

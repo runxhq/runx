@@ -7,14 +7,14 @@ inputs:
   principal: account:growth-demo
   provider_context:
     provider: slack
-    account_ref: acct_demo
+    account_id: acct_demo
     runtime_path: provider.send
     domain_verified: true
   audience:
     type: list
-    ref: newsletter-subscribers
-  content_ref:
-    draft_ref: campaign:jun-newsletter
+    locator: newsletter-subscribers
+  content:
+    draft_uri: campaign:jun-newsletter
     digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     subject_or_title: June product update
   consent_basis: Subscribers opted in to the newsletter list.
@@ -27,31 +27,31 @@ caller:
         action_family: message-send
         principal:
           type: account
-          ref: account:growth-demo
+          uri: account:growth-demo
         provider:
           name: slack
-          account_ref: acct_demo
+          account_id: acct_demo
           runtime_path: provider.send
         send_class: campaign
         channel: email
         audience:
           type: list
-          ref: newsletter-subscribers
+          locator: newsletter-subscribers
           requires_reconfirmation: false
         content:
-          draft_ref: campaign:jun-newsletter
+          draft_uri: campaign:jun-newsletter
           digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           subject_or_title: June product update
         gates:
           preflight_required: true
           human_approval_required: true
-          approval_ref: approval:pending
+          approval_id: approval:pending
         blockers: []
         provider_actions:
           - provider.review_delivery
           - provider.send_test
           - provider.schedule_or_send
-        evidence_refs:
+        evidence_locators:
           - provider_context:slack
         success_checkpoint:
           milestone: send_ready_for_approval
@@ -68,14 +68,14 @@ expect:
           action_family: message-send
           audience:
             type: list
-            ref: newsletter-subscribers
+            locator: newsletter-subscribers
             requires_reconfirmation: false
           content:
             digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           gates:
             preflight_required: true
             human_approval_required: true
-            approval_ref: approval:pending
+            approval_id: approval:pending
           blockers: []
           success_checkpoint:
             milestone: send_ready_for_approval

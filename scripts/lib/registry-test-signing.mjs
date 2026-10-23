@@ -39,7 +39,7 @@ export function signSingleRegistryVersion(registryDirectory, signingKey) {
   ];
   const manifest = {
     schema: REGISTRY_SIGNED_MANIFEST_SCHEMA,
-    subject: { kind: "skill", ref: requiredString(version, "skill_id") },
+    subject: { kind: "skill", name: requiredString(version, "skill_id") },
     version: requiredString(version, "version"),
     content_digest: registryContentDigest(files),
     signer: { id: signingKey.signerId, key_id: signingKey.keyId },

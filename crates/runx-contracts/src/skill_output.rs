@@ -2,7 +2,7 @@
 //! Execution semantics remain owned by the runtime; this is a transport view.
 use serde::{Deserialize, Serialize};
 
-use crate::{JsonObject, JsonValue, schema::RunxSchema};
+use crate::{JsonObject, JsonValue, RunOutcome, SealReason, schema::RunxSchema};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum SkillOutputSchema {
@@ -21,15 +21,6 @@ pub enum SkillOutputStatus {
     Failure,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillOutputOutcome {
-    Completed,
-    Deferred,
-    Blocked,
-    Failed,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.skill_run.v1")]
@@ -37,8 +28,12 @@ pub struct SkillOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<SkillOutputSchema>,
     pub status: SkillOutputStatus,
+    /// How the run ended: its seal's outcome, or `deferred` while it waits.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub outcome: Option<SkillOutputOutcome>,
+    pub outcome: Option<RunOutcome>,
+    /// Why the seal ended the run so, where the outcome alone does not say.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seal_reason: Option<SealReason>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,18 +43,15 @@ pub struct SkillOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requests: Option<Vec<JsonValue>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_set_ref: Option<ProjectArtifactRef>,
+    pub request_set_artifact: Option<ProjectArtifact>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub diagnostics_ref: Option<ProjectArtifactRef>,
+    pub diagnostics_artifact: Option<ProjectArtifact>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub artifact_refs: Option<Vec<ProjectArtifactRef>>,
+    pub artifacts: Option<Vec<ProjectArtifact>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runner: Option<String>,
-    /// How the run's seal closed it: its disposition and reason.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub closure: Option<JsonObject>,
     /// A failed run's exit code and message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<JsonObject>,
@@ -67,7 +59,7 @@ pub struct SkillOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refusal: Option<JsonObject>,
     /// The run's operator context and step trace, written only with
-    /// `--diagnostics`; otherwise they live behind `diagnostics_ref`.
+    /// `--diagnostics`; otherwise they live behind `diagnostics_artifact`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -81,18 +73,18 @@ pub struct SkillOutput {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-pub enum ProjectArtifactRefSchema {
-    #[serde(rename = "runx.project_artifact_ref.v1")]
+pub enum ProjectArtifactSchema {
+    #[serde(rename = "runx.project_artifact.v1")]
     V1,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.project_artifact_ref.v1")]
-pub struct ProjectArtifactRef {
-    pub schema: ProjectArtifactRefSchema,
-    #[serde(rename = "ref")]
-    pub r#ref: String,
+#[runx_schema(id = "runx.project_artifact.v1")]
+pub struct ProjectArtifact {
+    pub schema: ProjectArtifactSchema,
+    /// `runx:project-artifact:` and the artifact's digest.
+    pub uri: String,
     pub digest: String,
     pub bytes: u64,
     pub media_type: String,
@@ -101,20 +93,20 @@ pub struct ProjectArtifactRef {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProjectArtifactRef, SkillOutput};
+    use super::{ProjectArtifact, SkillOutput};
 
     #[test]
-    fn compact_reference_uses_the_native_wire_field() -> Result<(), serde_json::Error> {
+    fn a_project_artifact_uses_the_native_wire_fields() -> Result<(), serde_json::Error> {
         let value = serde_json::json!({
-            "schema": "runx.project_artifact_ref.v1",
-            "ref": "runx:project-artifact:sha256:abc",
+            "schema": "runx.project_artifact.v1",
+            "uri": "runx:project-artifact:sha256:abc",
             "digest": "sha256:abc",
             "bytes": 12,
             "media_type": "application/json",
             "path": "/project/.runx/artifacts/request.json"
         });
-        let reference: ProjectArtifactRef = serde_json::from_value(value.clone())?;
-        assert_eq!(serde_json::to_value(reference)?, value);
+        let artifact: ProjectArtifact = serde_json::from_value(value.clone())?;
+        assert_eq!(serde_json::to_value(artifact)?, value);
         Ok(())
     }
 
@@ -123,7 +115,7 @@ mod tests {
     {
         for value in [
             serde_json::json!({"status": "failure", "error": {"code": "skill_error"}}),
-            serde_json::json!({"schema": "runx.skill_run.v1", "status": "sealed", "outcome": "failed", "skill_name": "echo", "runner": "default", "closure": {"disposition": "failed"}}),
+            serde_json::json!({"schema": "runx.skill_run.v1", "status": "sealed", "outcome": "blocked", "seal_reason": "graph_blocked", "skill_name": "echo", "runner": "default"}),
             serde_json::json!({"schema": "runx.skill_run.v1", "status": "needs_agent", "run_id": "rx_1", "requests": [], "next": "runx resume rx_1 - --json", "entry_provenance": {"kind": "local"}}),
             serde_json::json!({"schema": "runx.skill_run.v1", "status": "payment_required", "outcome": "deferred", "result": {"payment_required": {}}}),
         ] {

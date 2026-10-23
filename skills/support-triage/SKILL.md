@@ -21,7 +21,7 @@ rather than invent an answer.
 1. Supply `support_request` with a stable `source`, its `body`, and an optional
    subject and customer hints. Include only the account information needed for
    this decision.
-2. Supply current `product_evidence` as `{source_ref, text}` entries. These may
+2. Supply current `product_evidence` as `{source_id, text}` entries. These may
    be documentation excerpts or account observations already admitted by the
    operator. Give each source a unique reference.
 3. A bounded agent judges intent, severity, missing context and the next path.
@@ -54,7 +54,7 @@ must not fabricate DNS values, account status or a successful verification.
 
 ## Result and handoff
 
-`support_triage_packet` uses `runx.support.triage_reply.v1`. It contains the
+`support_triage_packet` uses `runx/support-triage.reply.v1`. It contains the
 classification, severity, recommended path, rationale, exact evidence quotes,
 missing context, operator notes, an optional `{subject, body}` email draft,
 and digests of the request and product context. `decision` is `ready` or `held`;

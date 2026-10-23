@@ -25,8 +25,8 @@ fn tool_catalogs_build_minimal_manifest() -> Result<(), Box<dyn std::error::Erro
     assert!(report.errors.is_empty());
 
     assert_eq!(fs::read(&manifest_path)?, manifest_before);
-    assert!(report.built[0].source_hash.starts_with("sha256:"));
-    assert!(report.built[0].schema_hash.starts_with("sha256:"));
+    assert!(report.built[0].source_digest.starts_with("sha256:"));
+    assert!(report.built[0].schema_digest.starts_with("sha256:"));
     Ok(())
 }
 
@@ -72,7 +72,7 @@ fn tool_catalogs_inspect_native_tool() -> Result<(), Box<dyn std::error::Error>>
     let root = repo_root()?;
     let report = inspect_tool(&ToolInspectOptions {
         root: root.clone(),
-        tool_ref: "fs.read".to_owned(),
+        tool: "fs.read".to_owned(),
         source: None,
         search_from_directory: root,
         tool_roots: Vec::new(),
@@ -91,7 +91,7 @@ fn tool_catalogs_inspect_local_manifest() -> Result<(), Box<dyn std::error::Erro
     let temp_root = copy_minimal_tool_fixture("inspect_local_manifest")?;
     let report = inspect_tool(&ToolInspectOptions {
         root: temp_root.clone(),
-        tool_ref: "fixture.minimal".to_owned(),
+        tool: "fixture.minimal".to_owned(),
         source: None,
         search_from_directory: temp_root.clone(),
         tool_roots: Vec::new(),
@@ -138,7 +138,7 @@ fn tool_catalogs_ignore_ancestor_tool_roots_outside_workspace()
 
     let error = match inspect_tool(&ToolInspectOptions {
         root: root.clone(),
-        tool_ref: "docs.echo".to_owned(),
+        tool: "docs.echo".to_owned(),
         source: None,
         search_from_directory: skill_dir,
         tool_roots: Vec::new(),
@@ -163,7 +163,7 @@ fn tool_catalogs_reject_absolute_explicit_manifest_path() -> Result<(), Box<dyn 
 
     let error = match inspect_tool(&ToolInspectOptions {
         root: temp_root.clone(),
-        tool_ref: manifest.to_string_lossy().into_owned(),
+        tool: manifest.to_string_lossy().into_owned(),
         source: None,
         search_from_directory: temp_root,
         tool_roots: Vec::new(),
@@ -189,7 +189,7 @@ fn tool_catalogs_reject_parent_traversal_explicit_manifest_path()
 
     let error = match inspect_tool(&ToolInspectOptions {
         root: temp_root.clone(),
-        tool_ref: "../outside/manifest.json".to_owned(),
+        tool: "../outside/manifest.json".to_owned(),
         source: None,
         search_from_directory: temp_root,
         tool_roots: Vec::new(),

@@ -9,7 +9,7 @@ steps:
       handoff_audience: n8n:workflow:runx-governed-effect
       execution_context:
         caller: runx-cli
-        workflow_ref: n8n-cloud-demo
+        workflow: n8n-cloud-demo
         environment: local-dogfood
       payload:
         hello: workflow

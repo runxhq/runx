@@ -70,7 +70,7 @@ pub(crate) struct Evaluation<'a> {
 /// Whether an admitted call runs now or waits on an approval. A call that
 /// cannot be admitted is refused, never admitted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum AdmissionDisposition {
+pub(crate) enum AdmissionDecision {
     Admit,
     /// A person must answer first: an approval floor or gate applies.
     NeedsResolution,
@@ -81,7 +81,7 @@ pub(crate) enum AdmissionDisposition {
 /// intent and a single use, with its derivation.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Admission {
-    pub disposition: AdmissionDisposition,
+    pub decision: AdmissionDecision,
     pub intent: OperationIntent,
     pub intent_digest: Digest,
     pub reasons: Vec<AdmissionReason>,
@@ -137,9 +137,7 @@ impl Admitted {
     /// Derive the execution term with the approval evidence the call now
     /// holds, and admit it.
     pub(crate) fn admit_with(&mut self, approvals: Vec<AuthorityApproval>) -> Result<(), String> {
-        if self.admission.disposition != AdmissionDisposition::NeedsResolution
-            || approvals.is_empty()
-        {
+        if self.admission.decision != AdmissionDecision::NeedsResolution || approvals.is_empty() {
             return Err("the call has no pending resolution with approval evidence".to_owned());
         }
         let evidence = approvals
@@ -167,7 +165,7 @@ impl Admitted {
                 reason.detail = NonEmptyString::from("approval evidence is bound to this intent");
             }
         }
-        self.admission.disposition = AdmissionDisposition::Admit;
+        self.admission.decision = AdmissionDecision::Admit;
         self.admission.execution_term = Some(term);
         self.admission.derivation = Some(derivation);
         Ok(())
@@ -576,7 +574,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     };
 
     // Approval: the operation's floor or the step's gate.
-    let disposition = match &approval {
+    let decision = match &approval {
         Some(_) => {
             reasons.push(
                 AdmissionCheck::Approval,
@@ -587,11 +585,11 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
                     "the step requires approval of this exact intent"
                 },
             );
-            AdmissionDisposition::NeedsResolution
+            AdmissionDecision::NeedsResolution
         }
         None => {
             reasons.pass(AdmissionCheck::Approval, "no approval floor applies");
-            AdmissionDisposition::Admit
+            AdmissionDecision::Admit
         }
     };
 
@@ -619,10 +617,10 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         "within the operation's guarantees",
     );
 
-    let admitted = disposition == AdmissionDisposition::Admit;
+    let admitted = decision == AdmissionDecision::Admit;
     Ok(Admitted {
         admission: Admission {
-            disposition,
+            decision,
             intent,
             intent_digest,
             reasons: reasons.0,
@@ -1152,7 +1150,7 @@ fn held_resource(
                 &target,
             ])?,
             runx_contracts::Placement::Hosted,
-            session.principal_ref,
+            session.principal_uri,
             None,
             runx_contracts::InstanceAuthority::Held {
                 credential: credential.clone(),
@@ -1448,11 +1446,10 @@ operations:
             Placement::Local,
             "runx:principal:operator".to_owned(),
             None,
-            InstanceAuthority::Credential {
-                profile: "acme".into(),
+            InstanceAuthority::Environment {
                 credential: runx_contracts::connector::CredentialName::new("key").unwrap(),
+                variable: runx_contracts::connector::EnvName::new("ACME_KEY").unwrap(),
                 scopes: vec!["records.read".into()],
-                material_ref: "material-1".into(),
             },
         );
         let (name, _, digest) = first.operation("records.read").unwrap();

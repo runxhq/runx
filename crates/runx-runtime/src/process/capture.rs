@@ -15,7 +15,7 @@ pub(crate) struct CapturedOutput {
     pub(crate) bytes: Vec<u8>,
     pub(crate) truncated: bool,
     pub(crate) total_bytes: u64,
-    pub(crate) sha256: String,
+    pub(crate) digest: String,
 }
 
 /// One stream's follower: who is given its output as it is read.
@@ -60,7 +60,7 @@ where
                     bytes: captured,
                     truncated,
                     total_bytes,
-                    sha256: format!("sha256:{}", runx_contracts::hex_lower(&digest.finalize())),
+                    digest: format!("sha256:{}", runx_contracts::hex_lower(&digest.finalize())),
                 });
             }
             if let Some((follower, stream)) = &following {
@@ -100,7 +100,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bounded_capture_retains_a_prefix_but_hashes_the_complete_stream()
+    fn bounded_capture_retains_a_prefix_but_digests_the_complete_stream()
     -> Result<(), Box<dyn std::error::Error>> {
         let complete = b"complete process output".to_vec();
         let output = join_capture(
@@ -114,7 +114,7 @@ mod tests {
             output.total_bytes,
             u64::try_from(complete.len()).map_err(|error| error.to_string())?
         );
-        assert_eq!(output.sha256, runx_contracts::sha256_prefixed(&complete));
+        assert_eq!(output.digest, runx_contracts::sha256_prefixed(&complete));
         Ok(())
     }
 }

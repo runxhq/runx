@@ -22,6 +22,7 @@
                 "instance_path",
                 "schema_path"
               ],
+              "title": "DataValidationIssue",
               "type": "object"
             },
             "type": "array"
@@ -43,6 +44,7 @@
           "errors",
           "truncated"
         ],
+        "title": "DataValueValidation",
         "type": "object"
       },
       "type": "array"
@@ -63,6 +65,7 @@
     "values_digest",
     "results"
   ],
+  "title": "DataValidation",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.data.validation.v1"

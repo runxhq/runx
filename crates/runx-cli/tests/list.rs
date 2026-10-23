@@ -89,10 +89,10 @@ fn list_marks_a_graph_stage_internal_with_its_own_description()
             })
             .cloned()
     };
-    let owner = local("reply").ok_or(format!("reply is not listed: {report}"))?;
+    let reply = local("reply").ok_or(format!("reply is not listed: {report}"))?;
     let draft = local("reply-draft").ok_or(format!("reply-draft is not listed: {report}"))?;
-    assert_eq!(owner["visibility"], "public");
-    assert_eq!(owner["description"], "Reply to one request.");
+    assert_eq!(reply["visibility"], "public");
+    assert_eq!(reply["description"], "Reply to one request.");
     assert_eq!(draft["visibility"], "internal");
     assert_eq!(draft["description"], "Draft one reply.");
 

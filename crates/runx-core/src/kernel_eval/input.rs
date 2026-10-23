@@ -2,9 +2,7 @@ use runx_contracts::{JsonValue, json_string_field};
 use serde::Deserialize;
 
 use crate::policy::ScopeGrantPolicy;
-use crate::state_machine::{
-    SequentialGraphEvent, SequentialGraphState, SequentialGraphStepDefinition,
-};
+use crate::state_machine::{SequentialGraph, SequentialGraphEvent, SequentialGraphStepDefinition};
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
@@ -15,19 +13,19 @@ pub(super) enum KernelInput {
         requested_scope: String,
         policy: ScopeGrantPolicy,
     },
-    #[serde(rename = "state-machine.createSequentialGraphState")]
+    #[serde(rename = "state-machine.createSequentialGraph")]
     CreateSequentialGraphState {
         graph_id: String,
         steps: Vec<SequentialGraphStepDefinition>,
     },
     #[serde(rename = "state-machine.planSequentialGraphTransition")]
     PlanSequentialGraphTransition {
-        state: SequentialGraphState,
+        state: SequentialGraph,
         steps: Vec<SequentialGraphStepDefinition>,
     },
     #[serde(rename = "state-machine.transitionSequentialGraph")]
     TransitionSequentialGraph {
-        state: SequentialGraphState,
+        state: SequentialGraph,
         event: SequentialGraphEvent,
     },
 }
@@ -43,7 +41,7 @@ pub(super) fn is_supported_kernel_kind(kind: &str) -> bool {
     matches!(
         kind,
         "policy.scopeGrantAllows"
-            | "state-machine.createSequentialGraphState"
+            | "state-machine.createSequentialGraph"
             | "state-machine.planSequentialGraphTransition"
             | "state-machine.transitionSequentialGraph"
     )

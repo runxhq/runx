@@ -9,7 +9,7 @@ inputs:
     kind: issues
     filters: {limit: 1}
     mutations:
-      - ref: issues/241
+      - path: issues/241
         op: update
         payload: {labels: [triage]}
   scope: read

@@ -16,7 +16,7 @@ operator_journeys:
       - Do not call finalize again.
 inputs:
   issue_evidence:
-    schema: runx.issue_to_pr.issue_evidence.v1
+    schema: runx/github-issue-to-pr.issue_evidence.v1
     repository: runxhq/runx
     number: "442"
     title: Make issue-to-PR operator-first
@@ -28,10 +28,10 @@ inputs:
     source:
       provider: github
       transport: local_http
-      principal_ref: runx:principal:github:7
-      readback_ref: runx:github-readback:sha256:fixture
+      principal_uri: runx:principal:github:7
+      readback_uri: runx:github-readback:sha256:fixture
   host_result:
-    schema: runx.issue_to_pr.host_result.v1
+    schema: runx/github-issue-to-pr.host_result.v1
     status: completed
     repository: runxhq/runx
     issue_number: "442"
@@ -63,7 +63,7 @@ expect:
     subset:
       issue_to_pr_result:
         data:
-          schema: runx.issue_to_pr.result.v1
+          schema: runx/github-issue-to-pr.result.v1
           status: completed
           outcome: finalized_local
           repository: runxhq/runx

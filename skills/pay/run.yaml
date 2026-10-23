@@ -1,5 +1,5 @@
 skill: pay
-version: 0.1.3
+version: "0.1.4"
 catalog:
   kind: graph
   audience: operator
@@ -13,7 +13,7 @@ input_definitions:
   payment_authority:
     type: object
     required: true
-    description: Exact counterparty, currency and maximum approved by the parent; this never replaces
+    description: Exact resource URL, currency and maximum approved by the parent; this never replaces
       native run authority.
     schema:
       additionalProperties: false
@@ -21,7 +21,7 @@ input_definitions:
         - term_id
         - currency
         - max_amount_minor
-        - counterparty
+        - resource_url
       properties:
         term_id:
           type: string
@@ -34,7 +34,7 @@ input_definitions:
           type: integer
           minimum: 0
           maximum: 9007199254740991
-        counterparty:
+        resource_url:
           type: string
           format: uri
           maxLength: 2048
@@ -81,12 +81,12 @@ runners:
       - connector: wallet/evm
         request:
           resource:
-            url: https://vendor.example/v1/invocations
+            url: https://merchant.example/v1/report
             method: POST
             body:
               offer_id: document-ocr
               input:
-                artifact_ref: runx:artifact:document-1
+                artifact_uri: runx:artifact:document-1
             max_response_bytes: 26214400
           amount_minor: 25
           pay_to: "0x0000000000000000000000000000000000000002"
@@ -94,7 +94,7 @@ runners:
           term_id: authority-test-1
           currency: USD
           max_amount_minor: 25
-          counterparty: https://vendor.example/v1/invocations
+          resource_url: https://merchant.example/v1/report
         idempotency_seed: pay-test-payment-001
       - connector: link
         request:
@@ -107,12 +107,12 @@ runners:
           resource_url: https://merchant.example/invoice/42
           challenge: Payment id="original-provider-challenge", method="stripe", intent="charge"
           method: POST
-          body: '{"invoice_ref":"invoice-42"}'
+          body: '{"invoice_id":"invoice-42"}'
         parent_payment_authority:
           term_id: invoice-42
           currency: USD
           max_amount_minor: 150
-          counterparty: https://merchant.example/invoice/42
+          resource_url: https://merchant.example/invoice/42
         idempotency_seed: northstar-invoice-42
     result_from:
       - readback
@@ -145,7 +145,7 @@ runners:
         runner: readback
         inputs:
           resource_url: $steps.admit.resource_url
-          payment_ref: $steps.settle.provider_operation.result.payment_ref
+          payment_id: $steps.settle.provider_operation.result.payment_id
         when:
           value: $input.connector
           equals: wallet/evm
@@ -178,7 +178,7 @@ runners:
           - status
           - payment_method_id
           - network_id
-          - transaction_ref
+          - transaction_id
           - payment_outcome
           - paid_amount_minor
           - paid_currency
@@ -206,12 +206,12 @@ runners:
     examples:
       - payment_signal:
           resource:
-            url: https://vendor.example/v1/invocations
+            url: https://merchant.example/v1/report
             method: POST
             body:
               offer_id: document-ocr
               input:
-                artifact_ref: runx:artifact:document-1
+                artifact_uri: runx:artifact:document-1
             max_response_bytes: 26214400
           amount_minor: 25
           pay_to: "0x0000000000000000000000000000000000000002"
@@ -219,7 +219,7 @@ runners:
           term_id: document-ocr-purchase-1
           currency: USD
           max_amount_minor: 25
-          counterparty: https://vendor.example/v1/invocations
+          resource_url: https://merchant.example/v1/report
         idempotency_seed: document-ocr-purchase-0001
     result_from:
       - pay
@@ -234,7 +234,7 @@ runners:
           units: $input.payment_signal.amount_minor
           unit: $input.parent_payment_authority.currency
         result_fields:
-          - payment_ref
+          - payment_id
           - challenge_id
           - amount_minor
           - currency
@@ -243,7 +243,7 @@ runners:
           - network
           - payer
           - pay_to
-          - invocation_id
+          - purchase_id
           - payment_required_digest
           - payment_response_digest
         input:
@@ -259,7 +259,7 @@ runners:
         schema:
           format: uri
           maxLength: 2048
-      payment_ref:
+      payment_id:
         type: string
         required: true
         description: Durable payment reference returned by the settle runner.
@@ -271,7 +271,7 @@ runners:
     steps:
       - id: prepare
         inputs:
-          payment_ref: $input.payment_ref
+          payment_id: $input.payment_id
           resource_url: $input.resource_url
         tool:
           module: readback.mjs
@@ -283,7 +283,7 @@ runners:
       - id: readback
         operation: wallet/evm/payment.x402.read
         result_fields:
-          - payment_ref
+          - payment_id
           - challenge_id
           - amount_minor
           - currency
@@ -292,7 +292,7 @@ runners:
           - network
           - payer
           - pay_to
-          - invocation_id
+          - purchase_id
           - payment_required_digest
           - payment_response_digest
           - resource_status

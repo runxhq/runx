@@ -77,7 +77,7 @@ export function normalizeRead(inputs) {
       items,
       truncated: Boolean(next),
       next_cursor: next || null,
-      retrieved_via: text(operation.readback_ref) || "api.x.com",
+      retrieved_via: text(operation.readback_uri) || "api.x.com",
     }),
   };
 }
@@ -151,7 +151,7 @@ export function normalizeArchivePage(inputs) {
       source: "archive",
       items,
       truncated,
-      retrieved_via: text(page.artifact_ref),
+      retrieved_via: text(page.artifact_uri),
       blockers,
     }),
   };

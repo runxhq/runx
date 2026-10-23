@@ -3,7 +3,6 @@
   "install_count": 1,
   "acquisition": {
     "skill_id": "acme/echo",
-    "owner": "acme",
     "name": "echo",
     "version": "1.0.0",
     "digest": "sha256:fixture",
@@ -16,7 +15,7 @@
         "content": "console.log('echo');\n"
       }
     ],
-    "package_digest": "sha256:fixture-package",
+    "bundle_digest": "sha256:fixture-package",
     "runner_names": ["default"],
     "trust_tier": "community",
     "publisher": {

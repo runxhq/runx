@@ -35,9 +35,9 @@ settlement cannot be proven, gather that evidence before contesting.
 3. Require complete signature verification, a hosted or CI issuer, and
    redacted native detail for each linked receipt tree. A receipt signed by a
    runx home's own local key proves only that operator's word.
-4. Admit external evidence only as bounded ref, SHA-256 digest, kind, and
+4. Admit external evidence only as bounded locator, SHA-256 digest, kind, and
    summary. Raw provider payloads and credentials remain outside the packet.
-5. Draft one posture using only admitted receipt ids and evidence refs.
+5. Draft one posture using only admitted receipt ids and evidence locators.
 6. Deterministic finalization rejects invented citations, effect claims, and
    any completion state the evidence cannot support.
 7. When the operator deliberately invokes `file`, Runx validates the unchanged
@@ -55,7 +55,7 @@ it to produce a stronger contest narrative.
 
 The input includes the normalized dispute event, exact original receipt id,
 prior refund ids, and bounded external evidence. The result contains the
-posture, response summary, cited receipt ids and evidence refs, open questions,
+posture, response summary, cited receipt ids and evidence locators, open questions,
 validation, and an exact provider-filing handoff for later review.
 
 `ready_for_review` means only that the packet is complete enough for an
@@ -99,6 +99,6 @@ and matching provider readback is the completion proof.
 ### `dispute-response-draft`
 
 Choose `accept`, `contest`, `refund_already_sent`, `needs_more_evidence`, or
-`operator_review` from the admitted dispute, evidence refs, and native redacted
-receipt detail. Cite only exact admitted ids and refs. Never claim filing,
+`operator_review` from the admitted dispute, evidence locators, and native redacted
+receipt detail. Cite only exact admitted ids and locators. Never claim filing,
 provider acceptance, closure, settlement, or a refund not proven by the packet.

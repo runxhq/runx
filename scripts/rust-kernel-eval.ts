@@ -6,8 +6,8 @@ import { rustExampleBinary } from "./lib/rust-example.mjs";
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 
-export type GraphStatus = "pending" | "running" | "succeeded" | "failed";
-export type GraphStepStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
+export type GraphState = "pending" | "running" | "succeeded" | "failed";
+export type GraphStepState = "pending" | "running" | "succeeded" | "failed" | "skipped";
 
 export interface StepAdmissionWitness {
   readonly stepId: string;
@@ -20,9 +20,9 @@ export interface SequentialGraphStepDefinition {
   readonly contextFrom?: readonly string[];
 }
 
-export interface SequentialGraphStepState {
+export interface SequentialGraphStep {
   readonly stepId: string;
-  readonly status: GraphStepStatus;
+  readonly state: GraphStepState;
   readonly attempts: number;
   readonly startedAt?: string;
   readonly completedAt?: string;
@@ -31,10 +31,10 @@ export interface SequentialGraphStepState {
   readonly error?: string;
 }
 
-export interface SequentialGraphState {
+export interface SequentialGraph {
   readonly graphId: string;
-  readonly status: GraphStatus;
-  readonly steps: readonly SequentialGraphStepState[];
+  readonly state: GraphState;
+  readonly steps: readonly SequentialGraphStep[];
 }
 
 export type SequentialGraphEvent =

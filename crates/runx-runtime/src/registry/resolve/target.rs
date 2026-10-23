@@ -37,8 +37,10 @@ impl RegistryTarget {
         }
     }
 
+    /// The registry source as one URI, `remote:`, `local:` or `file:` and
+    /// where; a resolution names its source by this URI's digest.
     #[must_use]
-    pub fn fingerprint_source(&self) -> String {
+    pub fn source_uri(&self) -> String {
         match self {
             Self::Remote { registry_url } => {
                 format!("remote:{}", canonical_registry_url(registry_url))

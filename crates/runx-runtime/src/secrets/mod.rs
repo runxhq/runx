@@ -66,17 +66,17 @@ pub fn set_value(paths: &RunxPaths, name: &SecretName, value: &str) -> Result<()
     if value.trim().is_empty() {
         return Err(SecretError::Empty);
     }
-    let material_ref = sealed::store(paths, value, SEALED_KIND)?;
+    let material_id = sealed::store(paths, value, SEALED_KIND)?;
     replace(
         paths,
         name,
         RunxSecretRecord::Stored {
-            material_ref: material_ref.clone(),
+            material_id: material_id.clone(),
         },
     )
     .inspect_err(|_| {
         // The record did not change, so the new file is nobody's.
-        let _ = sealed::remove(paths, &material_ref);
+        let _ = sealed::remove(paths, &material_id);
     })
 }
 
@@ -134,8 +134,8 @@ pub fn remove(paths: &RunxPaths, name: &SecretName) -> Result<bool, SecretError>
         return Ok(false);
     };
     write_runx_config_file(&path, &config)?;
-    if let RunxSecretRecord::Stored { material_ref } = record {
-        sealed::remove(paths, &material_ref)?;
+    if let RunxSecretRecord::Stored { material_id } = record {
+        sealed::remove(paths, &material_id)?;
     }
     Ok(true)
 }
@@ -165,7 +165,7 @@ pub(crate) fn read(
         .remove(name)
         .ok_or_else(|| SecretError::NotSet { name: name.clone() })?;
     let value = match record {
-        RunxSecretRecord::Stored { material_ref } => sealed::load(&paths, &material_ref)?,
+        RunxSecretRecord::Stored { material_id } => sealed::load(&paths, &material_id)?,
         RunxSecretRecord::Reference { reference, pinned } => {
             reference::read(env, cwd, &reference, pinned.as_deref(), purpose)
                 .map_err(SecretError::Read)?
@@ -195,8 +195,8 @@ fn replace(
     let mut config = load_runx_config_file(&path)?;
     let replaced = config.secrets.insert(name.clone(), record);
     write_runx_config_file(&path, &config)?;
-    if let Some(RunxSecretRecord::Stored { material_ref }) = replaced {
-        sealed::remove(paths, &material_ref)?;
+    if let Some(RunxSecretRecord::Stored { material_id }) = replaced {
+        sealed::remove(paths, &material_id)?;
     }
     Ok(())
 }

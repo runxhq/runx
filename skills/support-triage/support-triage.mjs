@@ -4,22 +4,22 @@ export default function finalize(inputs) {
   const { support_request: request, product_evidence: documents = [], draft } = inputs;
   const sources = new Map([[request.source, `${request.subject || ""}\n${request.body}`]]);
   for (const document of documents) {
-    if (sources.has(document.source_ref)) throw new Error("support source references must be unique");
-    sources.set(document.source_ref, document.text);
+    if (sources.has(document.source_id)) throw new Error("support source references must be unique");
+    sources.set(document.source_id, document.text);
   }
   const findings = [];
   if (!draft.evidence.length) findings.push("The judgment must cite the supplied customer request.");
-  if (!draft.evidence.some((item) => item.source_ref === request.source)) findings.push("Customer request evidence is missing.");
+  if (!draft.evidence.some((item) => item.source_id === request.source)) findings.push("Customer request evidence is missing.");
   for (const item of draft.evidence) {
-    if (!sources.get(item.source_ref)?.includes(item.quote)) findings.push(`Unbound support evidence: ${item.source_ref}`);
+    if (!sources.get(item.source_id)?.includes(item.quote)) findings.push(`Unbound support evidence: ${item.source_id}`);
   }
   if (draft.draft_email) {
     if (draft.classification !== "how_to" || draft.recommended_path !== "reply_draft") findings.push("This reply needs specialist review before customer drafting.");
     if (draft.missing_context.length) findings.push("Resolve missing context before presenting a definitive reply.");
-    if (!draft.evidence.some((item) => item.source_ref !== request.source && sources.has(item.source_ref))) findings.push("A product answer requires supplied product evidence.");
+    if (!draft.evidence.some((item) => item.source_id !== request.source && sources.has(item.source_id))) findings.push("A product answer requires supplied product evidence.");
   }
   return { support_triage_packet: {
-    schema: "runx.support.triage_reply.v1",
+    schema: "runx/support-triage.reply.v1",
     decision: findings.length ? "held" : "ready",
     classification: draft.classification,
     severity: draft.severity,

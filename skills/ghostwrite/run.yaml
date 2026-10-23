@@ -1,5 +1,5 @@
 skill: ghostwrite
-version: "0.4.6"
+version: "0.4.7"
 
 catalog:
   kind: skill
@@ -27,18 +27,18 @@ input_definitions:
   evidence_pack:
     type: json
     required: true
-    packet: runx.research.packet.v1
-    description: Validated runx.research.packet.v1 evidence.
+    packet: runx/research.packet.v1
+    description: Validated runx/research.packet.v1 evidence.
   brand_context:
     type: json
     required: false
-    packet: runx.context.brand_voice.v1
-    description: Validated runx.context.brand_voice.v1 packet.
+    packet: runx/brand-voice.context.v1
+    description: Validated runx/brand-voice.context.v1 packet.
   taste_context:
     type: json
     required: false
-    packet: runx.context.taste_profile.v1
-    description: Validated runx.context.taste_profile.v1 packet.
+    packet: runx/taste-profile.context.v1
+    description: Validated runx/taste-profile.context.v1 packet.
 
 runners:
   draft:
@@ -195,7 +195,7 @@ runners:
             draft:
               title: ""
               body: ""
-              claim_refs: []
+              claims: []
             review_checklist: []
             distribution_notes: {}
             evidence_binding:
@@ -224,7 +224,7 @@ runners:
           named_emits:
             content_draft_packet: content_draft_packet
           packets:
-            content_draft_packet: runx.content.draft.v1
+            content_draft_packet: runx/ghostwrite.draft.v1
 
       - id: finalize
         label: verify draft evidence and context bindings
@@ -242,7 +242,7 @@ runners:
             - content_brief.channel
             - draft.title
             - draft.body
-            - draft.claim_refs
+            - draft.claims
           required_value_bindings:
             - candidate_path: content_brief.objective
               source_path: objective
@@ -266,7 +266,7 @@ runners:
             draft:
               title: ""
               body: ""
-              claim_refs: []
+              claims: []
             review_checklist: []
             distribution_notes: {}
             evidence_binding:
@@ -293,14 +293,14 @@ runners:
           authoritative_source: $input.evidence_context
           fallback_source: $input.evidence_context
           source_digests: $input.evidence_context.source_digests
-          claim_bindings: $input.content_draft.draft.claim_refs
+          claim_bindings: $input.content_draft.draft.claims
           context_requirements: $input.evidence_context.context_requirements
           context_bindings: $input.content_draft.context_binding.applied
         artifacts:
           named_emits:
             content_draft_packet: content_draft_packet
           packets:
-            content_draft_packet: runx.content.draft.v1
+            content_draft_packet: runx/ghostwrite.draft.v1
 
   package:
     description: Turn a verified draft into a channel payload bound to its digest, not yet sent.
@@ -312,8 +312,8 @@ runners:
       draft:
         type: json
         required: true
-        packet: runx.content.draft.v1
-        description: Validated, evidence-bound runx.content.draft.v1 packet.
+        packet: runx/ghostwrite.draft.v1
+        description: Validated, evidence-bound runx/ghostwrite.draft.v1 packet.
     result_from: [bind]
     steps:
       - id: prepare
@@ -337,41 +337,11 @@ runners:
         outputs:
           content_publish_packet:
             type: object
-            schema:
-              additionalProperties: false
-              required: [decision, channel, headline, body, evidence_binding, delivery_status, blockers, payload_digest]
-              properties:
-                decision: { enum: [ready_for_handoff, needs_input] }
-                channel: { type: string }
-                headline: { type: string }
-                body: { type: string }
-                evidence_binding:
-                  type: object
-                  additionalProperties: false
-                  properties:
-                    evidence_packet_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                    source_digests:
-                      type: array
-                      minItems: 1
-                      items: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                delivery_status: { const: not_sent }
-                blockers: { type: array, items: { type: string, minLength: 1 } }
-                payload_digest: { type: string }
-              # A packet ready for handoff carries its evidence binding and its
-              # payload's digest.
-              if: { properties: { decision: { const: ready_for_handoff } } }
-              then:
-                properties:
-                  headline: { minLength: 1 }
-                  body: { minLength: 1 }
-                  evidence_binding: { required: [evidence_packet_digest, source_digests] }
-                  payload_digest: { pattern: '^sha256:[0-9a-f]{64}$' }
-                  blockers: { maxItems: 0 }
         artifacts:
           named_emits:
             content_publish_packet: content_publish_packet
           packets:
-            content_publish_packet: runx.content.publish.v1
+            content_publish_packet: runx/ghostwrite.publish.v1
 
   handoff:
     description: Bind a packaged payload to its exact target, and say who delivers it next and whether that needs approval. Sends nothing.
@@ -388,7 +358,7 @@ runners:
       packet:
         type: json
         required: true
-        packet: runx.content.publish.v1
+        packet: runx/ghostwrite.publish.v1
         description: Content publication packet from `package`, bound to its payload digest.
       target:
         type: json
@@ -405,33 +375,11 @@ runners:
         outputs:
           handoff_packet:
             type: object
-            schema:
-              additionalProperties: false
-              required: [decision, channel, payload_digest, packet, target, delivery_status, blockers]
-              properties:
-                decision: { enum: [handoff_ready, needs_input] }
-                channel: { type: string }
-                payload_digest: { type: string }
-                # The publication packet as `package` produced it.
-                packet: { type: object, additionalProperties: true }
-                # The target locator the delivering lane reads.
-                target: { type: object, additionalProperties: true }
-                delivery_status: { const: not_sent }
-                blockers: { type: array, items: { type: string, minLength: 1 } }
           boundary_state:
             type: object
-            schema:
-              additionalProperties: false
-              required: [boundary_kind, completion_state, next_actor, approval_required_for_delivery, ack_expected]
-              properties:
-                boundary_kind: { enum: [internal, external] }
-                completion_state: { enum: [handoff_ready, needs_input] }
-                next_actor: { enum: [governed_provider_adapter, operator] }
-                approval_required_for_delivery: { type: boolean }
-                ack_expected: { type: boolean }
         artifacts:
           wrap_as: content_handoff_packet
-          packet: runx.content.handoff.v1
+          packet: runx/ghostwrite.handoff.v1
 
 harness:
   files: [fixtures/support/composed.graph]

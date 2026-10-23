@@ -36,7 +36,7 @@ fn reference_with_uri_preserves_explicit_uri() {
 fn runx_principal_id_accepts_only_the_current_hosted_grammar() {
     for value in [
         "user_1",
-        "vendor-1",
+        "seller-1",
         "service.prod",
         "claim:cr_123",
         "edge-key:sha256:abcdef0123456789",

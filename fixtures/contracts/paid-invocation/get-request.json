@@ -1,1 +1,0 @@
-{"description":"Lookup names only the commercial invocation.","expectation":"valid","operation":"GetPaidInvocation","payload":{"invocation_id":"paid_direct"},"schema_id":"runx.payment.get_paid_invocation.request.v1"}

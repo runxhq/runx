@@ -24,7 +24,7 @@ inputs:
     source_evidence:
       - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
         content_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
-        source_ref: local://runx/receipt-architecture
+        source_uri: local://runx/receipt-architecture
         source_kind: local_file
         provenance: { path: docs/receipt-architecture.md }
     index_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
@@ -42,13 +42,13 @@ inputs:
     evidence:
       evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
       sources:
-        - { source_ref: "source:1", kind: approved, label: Approved Runx engineering note. }
+        - { source_id: "source:1", kind: approved, label: Approved Runx engineering note. }
       bindings:
-        - { rule: Lead with governed action and proof., source_refs: ["source:1"] }
-        - { rule: receipt, source_refs: ["source:1"] }
-        - { rule: magic, source_refs: ["source:1"] }
-        - { rule: Concise engineering sentences., source_refs: ["source:1"] }
-        - { rule: Receipts bind actions to authority evidence., source_refs: ["source:1"] }
+        - { rule: Lead with governed action and proof., source_ids: ["source:1"] }
+        - { rule: receipt, source_ids: ["source:1"] }
+        - { rule: magic, source_ids: ["source:1"] }
+        - { rule: Concise engineering sentences., source_ids: ["source:1"] }
+        - { rule: Receipts bind actions to authority evidence., source_ids: ["source:1"] }
     redactions: []
     stop_conditions: []
     receipt_notes: { authority: context-only, mutation: false }
@@ -67,12 +67,12 @@ inputs:
     evidence:
       evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
       sources:
-        - { source_ref: "source:1", kind: liked, label: Operator-approved surface. }
+        - { source_id: "source:1", kind: liked, label: Operator-approved surface. }
       bindings:
-        - { rule: Make the workflow visible., source_refs: ["source:1"], confidence: explicit }
-        - { rule: Dense operational surfaces., source_refs: ["source:1"], confidence: explicit }
-        - { rule: Decorative filler., source_refs: ["source:1"], confidence: explicit }
-        - { rule: Choose operational clarity., source_refs: ["source:1"], confidence: explicit }
+        - { rule: Make the workflow visible., source_ids: ["source:1"], confidence: explicit }
+        - { rule: Dense operational surfaces., source_ids: ["source:1"], confidence: explicit }
+        - { rule: Decorative filler., source_ids: ["source:1"], confidence: explicit }
+        - { rule: Choose operational clarity., source_ids: ["source:1"], confidence: explicit }
     redactions: []
     stop_conditions: []
     receipt_notes: { authority: context-only, mutation: false }
@@ -94,10 +94,10 @@ expect:
         content_draft_packet:
           data:
             decision: needs_more_evidence
-            draft: { title: "", body: "", claim_refs: [] }
+            draft: { title: "", body: "", claims: [] }
             context_binding:
               required:
-                - { type: taste_profile, packet_digest: sha256:964ae9d7cc831ad4b0a76a0a3343445c1aaf80933de2cd4452065ac94722ad5c, scope: { audience: buyers, channel: email } }
+                - { type: taste_profile, packet_digest: sha256:bd420c6b75ba01eb7cbe12c5e736146a3f5e7711a7ba0e1435147763b735cdd7, scope: { audience: buyers, channel: email } }
             validation: { status: fail }
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: ghostwrite, source_case: out-of-scope-writing-context, source: skills-fixture }

@@ -4,7 +4,7 @@ export function checkSchemaChange(inputs) {
   if (findings.length > 0) {
     return {
       schema_check: {
-        schema: "runx.schema_check.v1",
+        schema: "runx/schema-check.check.v1",
         decision: "refused",
         policy_result: "invalid_input",
         breaking_changes: [],
@@ -41,7 +41,7 @@ export function checkSchemaChange(inputs) {
   ];
   return {
     schema_check: {
-      schema: "runx.schema_check.v1",
+      schema: "runx/schema-check.check.v1",
       decision: compatible ? "compatible" : "refused",
       policy_result: policyAllows ? "allowed" : "blocked_by_policy",
       breaking_changes: breaking,

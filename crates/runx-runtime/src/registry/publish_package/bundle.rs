@@ -226,7 +226,7 @@ fn append_dependency_package(
     files: &mut BTreeMap<String, RegistryPackageFile>,
     prefix: &str,
     package_root: &Path,
-    packet_ids: &std::collections::BTreeSet<String>,
+    packet_ids: &std::collections::BTreeSet<runx_contracts::PacketId>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<crate::registry::RegistryConnectorMetadata>, RegistryPublishPackageError> {
@@ -260,11 +260,11 @@ fn connector_bindings(
 ) -> BTreeSet<PackageBundleConnector> {
     connectors
         .iter()
-        .map(|connector| PackageBundleConnector {
+        .map(|metadata| PackageBundleConnector {
             from: from.to_owned(),
-            connector: connector.name.clone(),
-            manifest_digest: connector.manifest_digest.clone(),
-            connector_digest: connector.connector_digest.clone(),
+            connector: metadata.connector.clone(),
+            manifest_digest: metadata.manifest_digest.clone(),
+            connector_digest: metadata.connector_digest.clone(),
         })
         .collect()
 }

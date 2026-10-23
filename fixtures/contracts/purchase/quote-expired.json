@@ -1,0 +1,1 @@
+{"description":"An expired quote remains a valid typed domain refusal.","expectation":"valid","operation":"QuotePurchase","payload":{"code":"quote_expired","reason":"The quote has expired.","status":"refused"},"schema_id":"runx.payment.quote_purchase.result.v1"}

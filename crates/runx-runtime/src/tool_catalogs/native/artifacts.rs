@@ -33,7 +33,7 @@ fn admit(
         )
         .map_err(|error| invalid_input(ADMIT_TOOL, error.to_string()))?;
     Ok(ArtifactAdmitOutput {
-        artifact_ref: artifact.reference,
+        artifact_uri: artifact.reference,
         media_type: artifact.media_type,
         bytes: artifact.bytes,
         whole_digest: artifact.whole_digest,
@@ -49,13 +49,13 @@ fn read(
         let page = invocation
             .local_artifacts
             .read_json_array_page(
-                &invocation.inputs.artifact_ref,
+                &invocation.inputs.artifact_uri,
                 invocation.inputs.offset,
                 maximum,
             )
             .map_err(|error| invalid_input(READ_TOOL, error.to_string()))?;
         return Ok(ArtifactReadOutput {
-            artifact_ref: page.artifact.reference,
+            artifact_uri: page.artifact.reference,
             media_type: page.artifact.media_type,
             offset: page.offset,
             length: page.length,
@@ -81,14 +81,14 @@ fn read(
     let page = invocation
         .local_artifacts
         .read_page(
-            &invocation.inputs.artifact_ref,
+            &invocation.inputs.artifact_uri,
             invocation.inputs.offset,
             maximum,
             encoding,
         )
         .map_err(|error| invalid_input(READ_TOOL, error.to_string()))?;
     Ok(ArtifactReadOutput {
-        artifact_ref: page.artifact.reference,
+        artifact_uri: page.artifact.reference,
         media_type: page.artifact.media_type,
         offset: page.offset,
         length: page.length,

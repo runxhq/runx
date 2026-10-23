@@ -7,7 +7,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
     "id": "uncategorized",
     "label": "Uncategorized",
     "mark": {
-      "sha256": "383058605c98471d3dbf2e8a2fd5f5c4347785fcae75a589355ba4c3b72678c1",
+      "digest": "383058605c98471d3dbf2e8a2fd5f5c4347785fcae75a589355ba4c3b72678c1",
       "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 5h14v14H5z\"/></g></svg>\n"
     }
   },
@@ -21,7 +21,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "b3982c2b215041c28cc42509bd9e45025ee66102748c06eab282f81d68aec840",
+        "digest": "b3982c2b215041c28cc42509bd9e45025ee66102748c06eab282f81d68aec840",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8.5 7 3.5 12l5 5\"/><path d=\"M15.5 7l5 5-5 5\"/><path d=\"M13.5 4.5l-3 15\"/></g></svg>\n"
       }
     },
@@ -34,7 +34,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "343771c1d8e0b83a055746926a69c01b6698ad7a7d1005ea1d834eda3dd3d1c3",
+        "digest": "343771c1d8e0b83a055746926a69c01b6698ad7a7d1005ea1d834eda3dd3d1c3",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10.5 4.5a6 6 0 1 0 0 12 6 6 0 0 0 0-12z\"/><path d=\"M15 15l5 5\"/></g></svg>\n"
       }
     },
@@ -47,7 +47,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "bb63024ceac699f3bebcb0f31d24f0a5cf0ef45596ba391c9422a68f2e572f28",
+        "digest": "bb63024ceac699f3bebcb0f31d24f0a5cf0ef45596ba391c9422a68f2e572f28",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 8.5h16v11H4z\"/><path d=\"M9 8.5V5.5h6v3\"/><path d=\"M4 13h16\"/></g></svg>\n"
       }
     },
@@ -60,7 +60,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "3b6e1c826626aae17f843dc9db3af43983b6315370d79f738b9f1c76d0c48fcb",
+        "digest": "3b6e1c826626aae17f843dc9db3af43983b6315370d79f738b9f1c76d0c48fcb",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3.5 17.5l6-6 4 4 7-7\"/><path d=\"M15 8.5h5.5V14\"/></g></svg>\n"
       }
     },
@@ -73,7 +73,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "8873832def0831176bbd0315c7a4a02cd391a39927dad8c2bc9d6f52d6509c0a",
+        "digest": "8873832def0831176bbd0315c7a4a02cd391a39927dad8c2bc9d6f52d6509c0a",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 3.5h12v17H6z\"/><path d=\"M9 8h6\"/><path d=\"M9 12h6\"/><path d=\"M9 16h3.5\"/></g></svg>\n"
       }
     },
@@ -86,7 +86,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "7eb47f5c9a0c0790c670cb742b3c9d55528f4f0963ba1fd479d6dc93879ac83b",
+        "digest": "7eb47f5c9a0c0790c670cb742b3c9d55528f4f0963ba1fd479d6dc93879ac83b",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3.5 20h17\"/><path d=\"M6.5 20v-8\"/><path d=\"M12 20V5\"/><path d=\"M17.5 20v-11\"/></g></svg>\n"
       }
     },
@@ -99,7 +99,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "93cb40798cd6099036fbc24c83fda1ccc8bed3929831775493c792c09c2709a8",
+        "digest": "93cb40798cd6099036fbc24c83fda1ccc8bed3929831775493c792c09c2709a8",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3.5l7 3v5.2c0 4.2-2.9 7.7-7 9.3-4.1-1.6-7-5.1-7-9.3V6.5l7-3z\"/><path d=\"M9 12l2 2 4-4\"/></g></svg>\n"
       }
     },
@@ -112,7 +112,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "builder",
       "mark": {
-        "sha256": "1266423473a2b49893841ad7824c1ed55cefad1a42e7be553dd9f31b8d82ea72",
+        "digest": "1266423473a2b49893841ad7824c1ed55cefad1a42e7be553dd9f31b8d82ea72",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 4h6.5v6.5H4z\"/><path d=\"M13.5 13.5H20V20h-6.5z\"/><path d=\"M16.75 4v6.5\"/><path d=\"M13.5 7.25H20\"/><path d=\"M4 17h6.5\"/></g></svg>\n"
       }
     },
@@ -126,7 +126,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "222d6b1e7ebef25ae656ad0f8c487b60d3656ece0958dda58abdf625258606ff",
+        "digest": "222d6b1e7ebef25ae656ad0f8c487b60d3656ece0958dda58abdf625258606ff",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3.5 6.5h17v11h-17z\"/><path d=\"M3.5 10.5h17\"/><path d=\"M7 14.5h3.5\"/></g></svg>\n"
       }
     },
@@ -139,7 +139,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "abc2cef97840d73b8c509b91753a9447a4c5d1dac0fc375e150a614a52a8e1d1",
+        "digest": "abc2cef97840d73b8c509b91753a9447a4c5d1dac0fc375e150a614a52a8e1d1",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3.5 5.5h17v13h-17z\"/><path d=\"M7 10l3 2-3 2\"/><path d=\"M12.5 14.5h4\"/></g></svg>\n"
       }
     },
@@ -152,7 +152,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "58d31be0ddaedf3188e6a7f481e12114da39ea587bf36da8d608ebac2c71a6de",
+        "digest": "58d31be0ddaedf3188e6a7f481e12114da39ea587bf36da8d608ebac2c71a6de",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 19.5h16\"/><path d=\"M6 16l4-5 3 3 5-7\"/></g></svg>\n"
       }
     },
@@ -165,7 +165,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "00b0246d93f2344ca4f443d292f9785ea1fc8b2ca35ed1cdfa6dab17410d403e",
+        "digest": "00b0246d93f2344ca4f443d292f9785ea1fc8b2ca35ed1cdfa6dab17410d403e",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5.5h16v10H10l-4 3.5v-3.5H4z\"/></g></svg>\n"
       }
     },
@@ -178,7 +178,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "40f3b01398b1337f55b659129e8b8208ab8eddfdaa56a960a9fd2063c2609092",
+        "digest": "40f3b01398b1337f55b659129e8b8208ab8eddfdaa56a960a9fd2063c2609092",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 6h16v14H4z\"/><path d=\"M4 10h16\"/><path d=\"M8 4v4\"/><path d=\"M16 4v4\"/></g></svg>\n"
       }
     },
@@ -191,7 +191,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "6b36a38f8587e3ee356bce34729c10fbd080aafa043ec4cf138e5df8ca252bc9",
+        "digest": "6b36a38f8587e3ee356bce34729c10fbd080aafa043ec4cf138e5df8ca252bc9",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 10v4h3l7 4V6l-7 4z\"/><path d=\"M17.5 9.5a3.5 3.5 0 0 1 0 5\"/></g></svg>\n"
       }
     },
@@ -204,7 +204,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "267cea1b802e5dad0dc92dd30f05d532ff3efbf973fc28d1f05666ba58ea82dd",
+        "digest": "267cea1b802e5dad0dc92dd30f05d532ff3efbf973fc28d1f05666ba58ea82dd",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 5h4v4H5z\"/><path d=\"M15 15h4v4h-4z\"/><path d=\"M9 7h3a2 2 0 0 1 2 2v6\"/></g></svg>\n"
       }
     },
@@ -217,7 +217,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "5c7dbda5d5a20fe103a625733d0fd889de2fe466071b79a2ed32ad7032cf472a",
+        "digest": "5c7dbda5d5a20fe103a625733d0fd889de2fe466071b79a2ed32ad7032cf472a",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z\"/><path d=\"M3.5 12h17\"/><path d=\"M12 3.5c2.5 2.3 3.5 5.2 3.5 8.5s-1 6.2-3.5 8.5c-2.5-2.3-3.5-5.2-3.5-8.5s1-6.2 3.5-8.5z\"/></g></svg>\n"
       }
     },
@@ -230,7 +230,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "6fe3bb10bf5d9ff61a5655fad1c909cf5d77d0c156a4e1bd4005ac66daf7428f",
+        "digest": "6fe3bb10bf5d9ff61a5655fad1c909cf5d77d0c156a4e1bd4005ac66daf7428f",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 6c0-1.4 3.1-2.5 7-2.5s7 1.1 7 2.5-3.1 2.5-7 2.5S5 7.4 5 6z\"/><path d=\"M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6\"/><path d=\"M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5\"/></g></svg>\n"
       }
     },
@@ -243,7 +243,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "ce89870527ccfeb41aa09bfa378f184cf5caa382f37de404824d9087db4f8c3e",
+        "digest": "ce89870527ccfeb41aa09bfa378f184cf5caa382f37de404824d9087db4f8c3e",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7.5 18.5a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17.6 9.5a4.5 4.5 0 0 1-.1 9z\"/></g></svg>\n"
       }
     },
@@ -256,7 +256,7 @@ export const registryTaxonomy: RegistryTaxonomy = {
       ],
       "surface": "domain",
       "mark": {
-        "sha256": "e73eb7ce42d3ccbb00215abdbbbe7b53dbfc2e98eb38805c8fc3754c3ac00deb",
+        "digest": "e73eb7ce42d3ccbb00215abdbbbe7b53dbfc2e98eb38805c8fc3754c3ac00deb",
         "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><g fill=\"none\" stroke=\"#5d5a56\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3.5l7.5 4.25v8.5L12 20.5l-7.5-4.25v-8.5z\"/><path d=\"M4.5 7.75L12 12l7.5-4.25\"/><path d=\"M12 12v8.5\"/></g></svg>\n"
       }
     }

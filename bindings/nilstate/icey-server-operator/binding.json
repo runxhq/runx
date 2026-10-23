@@ -21,7 +21,7 @@
     "source_of_truth": true
   },
   "registry": {
-    "owner": "nilstate",
+    "publisher": "nilstate",
     "trust_tier": "verified",
     "version": "upstream-ee9aa1c",
     "profile_path": "bindings/nilstate/icey-server-operator/run.yaml",

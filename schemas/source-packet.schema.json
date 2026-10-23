@@ -5,6 +5,7 @@
   "properties": {
     "adapter_payload": {
       "additionalProperties": {},
+      "description": "Raw adapter payload. Optional; held for replay and audit. Must already have any redactions applied that `redaction_status` declares.",
       "type": "object"
     },
     "authenticity": {
@@ -35,6 +36,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -42,6 +44,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -71,6 +74,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -82,6 +86,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -112,6 +117,7 @@
                 "effect_finality",
                 "credential_resolution"
               ],
+              "title": "ProofKind",
               "type": "string"
             },
             "provider": {
@@ -119,6 +125,7 @@
               "type": "string"
             },
             "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
               "enum": [
                 "thread",
                 "comment",
@@ -148,6 +155,7 @@
                 "connector_instance",
                 "connector_operation"
               ],
+              "title": "ReferenceType",
               "type": "string"
             },
             "uri": {
@@ -159,6 +167,7 @@
             "type",
             "uri"
           ],
+          "title": "Reference",
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         },
@@ -186,6 +195,7 @@
                 "effect_finality",
                 "credential_resolution"
               ],
+              "title": "ProofKind",
               "type": "string"
             },
             "provider": {
@@ -193,6 +203,7 @@
               "type": "string"
             },
             "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
               "enum": [
                 "thread",
                 "comment",
@@ -222,6 +233,7 @@
                 "connector_instance",
                 "connector_operation"
               ],
+              "title": "ReferenceType",
               "type": "string"
             },
             "uri": {
@@ -233,6 +245,7 @@
             "type",
             "uri"
           ],
+          "title": "Reference",
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         },
@@ -261,6 +274,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -268,6 +282,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -297,6 +312,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -308,6 +324,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -322,6 +339,7 @@
             "verified_signature",
             "operator_attested"
           ],
+          "title": "SignalTrustLevel",
           "type": "string"
         },
         "verified_at": {
@@ -353,6 +371,7 @@
                 "effect_finality",
                 "credential_resolution"
               ],
+              "title": "ProofKind",
               "type": "string"
             },
             "provider": {
@@ -360,6 +379,7 @@
               "type": "string"
             },
             "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
               "enum": [
                 "thread",
                 "comment",
@@ -389,6 +409,7 @@
                 "connector_instance",
                 "connector_operation"
               ],
+              "title": "ReferenceType",
               "type": "string"
             },
             "uri": {
@@ -400,6 +421,7 @@
             "type",
             "uri"
           ],
+          "title": "Reference",
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         }
@@ -408,23 +430,23 @@
         "host_ref",
         "trust_level"
       ],
+      "title": "SignalAuthenticity",
       "type": "object"
     },
     "body_preview": {
       "minLength": 1,
       "type": "string"
     },
-    "extensions": {
-      "additionalProperties": {},
-      "type": "object"
-    },
-    "fingerprint": {
+    "digest": {
       "additionalProperties": false,
+      "description": "A content digest with how it was taken and what it was taken over.",
       "properties": {
         "algorithm": {
+          "description": "The algorithm a content digest was taken with.",
           "enum": [
             "sha256"
           ],
+          "title": "DigestAlgorithm",
           "type": "string"
         },
         "canonicalization": {
@@ -456,6 +478,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -463,6 +486,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -492,6 +516,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -503,6 +528,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -519,6 +545,11 @@
         "value",
         "derived_from"
       ],
+      "title": "ContentDigest",
+      "type": "object"
+    },
+    "extensions": {
+      "additionalProperties": {},
       "type": "object"
     },
     "observed_at": {
@@ -527,19 +558,23 @@
       "type": "string"
     },
     "packet_id": {
+      "description": "Stable identifier for this packet. Adapters typically derive this from `source_ref` plus a content hash so re-deliveries are idempotent.",
       "minLength": 1,
       "type": "string"
     },
     "redaction_status": {
+      "description": "Redaction status applied to `body_preview`, `workflow_inputs`, and any human-visible fields in `adapter_payload`.",
       "enum": [
         "unredacted",
         "redacted",
         "summary_only",
         "blocked"
       ],
+      "title": "OperationalProposalRedactionStatus",
       "type": "string"
     },
     "related_refs": {
+      "description": "Related refs the adapter wants to surface alongside the source: thread, parent issue, dedupe candidates, originating webhook delivery.",
       "items": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -564,6 +599,7 @@
               "effect_finality",
               "credential_resolution"
             ],
+            "title": "ProofKind",
             "type": "string"
           },
           "provider": {
@@ -571,6 +607,7 @@
             "type": "string"
           },
           "type": {
+            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
             "enum": [
               "thread",
               "comment",
@@ -600,6 +637,7 @@
               "connector_instance",
               "connector_operation"
             ],
+            "title": "ReferenceType",
             "type": "string"
           },
           "uri": {
@@ -611,6 +649,7 @@
           "type",
           "uri"
         ],
+        "title": "Reference",
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
       },
@@ -621,9 +660,11 @@
       "enum": [
         "runx.source_packet.v1"
       ],
+      "title": "SourcePacketSchema",
       "type": "string"
     },
     "signal_type": {
+      "description": "Open signal type identifier (e.g. `alert`, `support_ticket`). Adapters can publish their own identifier without a contract edit.",
       "minLength": 1,
       "type": "string"
     },
@@ -631,6 +672,7 @@
       "$id": "https://schemas.runx.ai/runx/reference/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
+      "description": "Central runx reference identifying the source. Provider names and locators live inside the reference; the packet itself stays provider-neutral.",
       "properties": {
         "label": {
           "minLength": 1,
@@ -651,6 +693,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -658,6 +701,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -687,6 +731,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -698,6 +743,7 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -707,6 +753,7 @@
     },
     "workflow_inputs": {
       "additionalProperties": {},
+      "description": "Typed workflow slots that the downstream triage / action skill reads. The contract carries them as opaque JSON; the consuming skill is responsible for shape-validating its own slice.",
       "minProperties": 1,
       "type": "object"
     }
@@ -720,6 +767,7 @@
     "observed_at",
     "redaction_status"
   ],
+  "title": "SourcePacket",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.source_packet.v1"

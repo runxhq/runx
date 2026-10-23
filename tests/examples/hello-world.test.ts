@@ -56,9 +56,9 @@ describe("hello-world example", () => {
           path.join(tempDir, "receipts", `${receiptId.replace("sha256:", "sha256-")}.json`),
           "utf8",
         ),
-      ) as { readonly schema?: string; readonly seal?: { readonly disposition?: string } };
+      ) as { readonly schema?: string; readonly seal?: { readonly outcome?: string } };
       expect(receipt.schema).toBe("runx.receipt.v1");
-      expect(receipt.seal?.disposition).toBe("closed");
+      expect(receipt.seal?.outcome).toBe("completed");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

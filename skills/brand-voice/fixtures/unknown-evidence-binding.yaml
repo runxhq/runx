@@ -22,7 +22,7 @@ caller:
           channel_adjustments: []
         evidence_bindings:
           - rule: Invented principle.
-            source_refs: [source:unknown]
+            source_ids: [source:unknown]
         redactions: []
         stop_conditions: []
 expect:

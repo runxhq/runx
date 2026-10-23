@@ -7,12 +7,12 @@
 //!   execution.
 //! - `skill_front`: the skill front; compiles a skill run into an execution and seals it through the act engine.
 
-pub(crate) mod disposition;
 pub(crate) mod graph;
 pub(crate) mod graph_index;
 pub mod harness;
 pub(crate) mod operator_context;
 pub mod orchestrator;
+pub(crate) mod outcome;
 pub(crate) mod output_projection;
 pub(crate) mod prepared_skill;
 pub mod run_record;

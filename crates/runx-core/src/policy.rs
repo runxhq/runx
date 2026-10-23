@@ -5,7 +5,7 @@ mod interpreter;
 pub(crate) mod posix_basename;
 mod rfc3339;
 mod scope;
-mod tool_ref;
+mod tool;
 mod types;
 
 pub use authority_derive::{
@@ -18,5 +18,5 @@ pub use authority_mint::{
 pub use interpreter::strict_process_tool_inline_code_denial;
 pub use rfc3339::parse_rfc3339_moment;
 pub use scope::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows};
-pub use tool_ref::{ToolRefAdmission, admit_agent_tool_ref};
+pub use tool::{ToolAdmission, admit_agent_tool};
 pub use types::LocalExecutionPolicy;

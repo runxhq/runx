@@ -2,8 +2,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::JsonObject;
-use crate::schema::{NonEmptyString, Property, RunxSchema, object_schema};
+use crate::schema::{
+    NamedSchemas, NonEmptyString, Property, RunxSchema, object_schema, record_named, titled,
+};
+use crate::{DigestAlgorithm, JsonObject};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum LedgerEntrySchemaVersion {
@@ -15,12 +17,6 @@ pub enum LedgerEntrySchemaVersion {
 pub enum LedgerChainVersion {
     #[serde(rename = "runx.ledger.chain.v1")]
     V1,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-pub enum LedgerHashAlgorithm {
-    #[serde(rename = "sha256")]
-    Sha256,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -37,9 +33,9 @@ pub enum LedgerPayloadVersion {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
-pub struct LedgerSha256Hex(String);
+pub struct LedgerDigestHex(String);
 
-impl<'de> Deserialize<'de> for LedgerSha256Hex {
+impl<'de> Deserialize<'de> for LedgerDigestHex {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -54,13 +50,13 @@ impl<'de> Deserialize<'de> for LedgerSha256Hex {
             Ok(Self(value))
         } else {
             Err(serde::de::Error::custom(
-                "ledger hash must be 64 lowercase hex characters",
+                "ledger digest must be 64 lowercase hex characters",
             ))
         }
     }
 }
 
-impl RunxSchema for LedgerSha256Hex {
+impl RunxSchema for LedgerDigestHex {
     fn json_schema() -> Value {
         json!({ "pattern": "^[a-f0-9]{64}$", "type": "string" })
     }
@@ -70,11 +66,11 @@ impl RunxSchema for LedgerSha256Hex {
 #[serde(deny_unknown_fields)]
 pub struct LedgerChain {
     pub version: LedgerChainVersion,
-    pub algorithm: LedgerHashAlgorithm,
+    pub algorithm: DigestAlgorithm,
     pub canonicalization: LedgerCanonicalization,
     pub index: u64,
-    pub previous_hash: Option<LedgerSha256Hex>,
-    pub entry_hash: LedgerSha256Hex,
+    pub previous_digest: Option<LedgerDigestHex>,
+    pub entry_digest: LedgerDigestHex,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -92,7 +88,7 @@ pub struct LedgerEntryMeta {
     pub step_id: Option<NonEmptyString>,
     pub producer: LedgerProducer,
     pub created_at: NonEmptyString,
-    pub hash: NonEmptyString,
+    pub digest: NonEmptyString,
     pub size_bytes: u64,
     pub parent_artifact_id: Option<NonEmptyString>,
     pub receipt_id: Option<NonEmptyString>,
@@ -143,6 +139,14 @@ impl RunxSchema for LedgerEntry {
             );
             object.insert("x-runx-schema".to_owned(), json!("runx.ledger.entry.v1"));
         }
-        schema
+        titled(schema, "LedgerEntry")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "LedgerEntry", Self::json_schema) {
+            LedgerEntrySchemaVersion::named_schemas(named);
+            LedgerChain::named_schemas(named);
+            LedgerPayload::named_schemas(named);
+        }
     }
 }

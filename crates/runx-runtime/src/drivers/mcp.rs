@@ -304,7 +304,7 @@ where
 {
     let info = ClientConfig::new(
         ClientCapabilities::default(),
-        Implementation::new("runx", env!("CARGO_PKG_VERSION")),
+        Implementation::new("runx", crate::RUNX_VERSION),
     );
     rmcp::serve_client(info, transport)
         .await

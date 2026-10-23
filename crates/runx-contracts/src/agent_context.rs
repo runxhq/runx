@@ -36,7 +36,7 @@ pub struct ContextArtifactMeta {
     pub step_id: Option<NonEmptyString>,
     pub producer: ContextArtifactProducer,
     pub created_at: NonEmptyString,
-    pub hash: NonEmptyString,
+    pub digest: NonEmptyString,
     pub size_bytes: u64,
     pub parent_artifact_id: Option<NonEmptyString>,
     pub receipt_id: Option<NonEmptyString>,
@@ -68,7 +68,7 @@ pub struct ContextScope {
     pub trust: ContextTrust,
     pub sharing: ContextSharing,
     pub goal_id: Option<NonEmptyString>,
-    pub source_ref: Option<NonEmptyString>,
+    pub source_uri: Option<NonEmptyString>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -120,7 +120,7 @@ pub struct ProfileFile {
     pub sharing: ContextSharing,
     pub root_path: NonEmptyString,
     pub path: NonEmptyString,
-    pub sha256: NonEmptyString,
+    pub digest: NonEmptyString,
     pub content: String,
 }
 
@@ -128,8 +128,8 @@ pub struct ProfileFile {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentContextProfiles {
-    /// The workspace's `MEMORY.md`, as an envelope recorded before memory
-    /// became its host's carried it. runx writes none: memory a host supplies
+    /// The workspace's `MEMORY.md`, in envelopes recorded before hosts
+    /// carried memory themselves. runx writes none: memory a host supplies
     /// travels as admitted context entries.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory: Option<ProfileFile>,
@@ -164,7 +164,7 @@ pub struct AgentContextEnvelope {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<crate::CallAct>,
     /// Digest of the exact owning `SKILL.md` bytes carried in `instructions`.
-    pub instructions_sha256: NonEmptyString,
+    pub instructions_digest: NonEmptyString,
     pub instructions: NonEmptyString,
     pub inputs: JsonObject,
     /// Exact non-secret execution requirements selected from the owning

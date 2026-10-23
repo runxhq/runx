@@ -15,7 +15,7 @@ harness:
     - name: mock-charge-remains-local
       inputs:
         mcp_tool_call: { tool: search.paid, arguments: { query: runx } }
-        provider_policy: { price_minor: 125, currency: USD, counterparty: provider:demo }
+        provider_policy: { price_minor: 125, currency: USD, merchant: merchant:demo }
         idempotency_seed: mock-charge-001
       expect:
         status: sealed

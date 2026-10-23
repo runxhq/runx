@@ -2,67 +2,81 @@
   "$id": "https://schemas.runx.ai/runx/registry/search/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "What `registry.search` found for a query, in the project and the registry.",
   "properties": {
     "hits": {
       "items": {
         "additionalProperties": false,
+        "description": "One package `registry.search` found.",
         "properties": {
           "kind": {
+            "description": "What a skill or connector is, as the catalog lists it.",
             "enum": [
               "skill",
               "connector"
             ],
+            "title": "CatalogPackageKind",
+            "type": "string"
+          },
+          "package": {
+            "description": "What a load and `registry.inspect` take: the registry package (`<publisher>/<name>@<version>`), or the project package's path in the workspace.",
             "type": "string"
           },
           "publisher": {
             "type": "string"
           },
-          "ref": {
-            "type": "string"
-          },
           "runners": {
+            "description": "A skill's runners, each with its purpose when its source states one.",
             "items": {
               "additionalProperties": false,
+              "description": "One runner of a skill, as a model chooses it from an index.",
               "properties": {
                 "name": {
                   "type": "string"
                 },
                 "purpose": {
+                  "description": "What it does and when to use it, as its package states it.",
                   "type": "string"
                 }
               },
               "required": [
                 "name"
               ],
+              "title": "CatalogRunner",
               "type": "object"
             },
             "minItems": 1,
             "type": "array"
           },
           "source": {
+            "description": "Where a package is: the registry publishes it, or the project authored it.",
             "enum": [
               "registry",
               "project"
             ],
+            "title": "CatalogSource",
             "type": "string"
           },
           "summary": {
             "type": "string"
           },
           "trust_tier": {
+            "description": "How far the registry vouches for a publisher: runx's own packages, a publisher it verified, or anyone's.",
             "enum": [
               "first_party",
               "verified",
               "community"
             ],
+            "title": "TrustTier",
             "type": "string"
           }
         },
         "required": [
-          "ref",
+          "package",
           "kind",
           "source"
         ],
+        "title": "CatalogHit",
         "type": "object"
       },
       "type": "array"
@@ -75,6 +89,7 @@
     "query",
     "hits"
   ],
+  "title": "RegistrySearchPacket",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.registry.search.v1"

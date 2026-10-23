@@ -164,7 +164,7 @@ pub use receipts::{
     RuntimeReceiptSigningError, TrustedReceiptKey, local_receipt_kid, receipt_signer,
     receipt_trust, receipt_verifier,
 };
-pub use run_record::{RunLog, RunRecordError, RunState, RunSummary};
+pub use run_record::{RunLog, RunRecordError, RunState};
 pub use runner::{
     GraphRun, RUNX_RUN_ID_ENV, RunClock, Runtime, RuntimeOptions, StepOutcome, StepRun,
 };
@@ -189,12 +189,13 @@ pub use tool_catalogs::{
 };
 
 pub const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
-/// Immutable released CLI identity included in every native execution closure.
+/// The runx release this runtime ships in: the CLI version.
 ///
-/// Published Runx binaries are immutable for one CLI version. Binding this
-/// value prevents a queued or resumed run from silently crossing a runtime
-/// upgrade while retaining the same closure digest.
-pub const EXECUTION_RUNTIME_RELEASE: &str = "0.10.2";
+/// Published Runx binaries are immutable for one CLI version. Every native
+/// execution closure binds it, so a queued or resumed run cannot silently
+/// cross a runtime upgrade while retaining the same closure digest, and every
+/// receipt's issuer states it.
+pub const RUNX_VERSION: &str = "0.11.0";
 
 pub use services::{persist_json_artifact, read_json_artifact};
 

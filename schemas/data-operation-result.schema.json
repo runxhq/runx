@@ -14,7 +14,7 @@
       "minimum": 0,
       "type": "integer"
     },
-    "data_source_ref": {
+    "data_source_uri": {
       "type": "string"
     },
     "event_digest": {
@@ -27,7 +27,7 @@
         }
       ]
     },
-    "event_ref": {
+    "event_id": {
       "anyOf": [
         {
           "type": "string"
@@ -110,6 +110,7 @@
         "read",
         "conflict"
       ],
+      "title": "DataOperationStatus",
       "type": "string"
     },
     "stop_conditions": {
@@ -127,6 +128,7 @@
           "code",
           "message"
         ],
+        "title": "DataStopCondition",
         "type": "object"
       },
       "type": "array"
@@ -134,7 +136,7 @@
   },
   "required": [
     "schema",
-    "data_source_ref",
+    "data_source_uri",
     "provider",
     "operation",
     "resource",
@@ -143,7 +145,7 @@
     "before_version",
     "after_version",
     "idempotency_key",
-    "event_ref",
+    "event_id",
     "event_digest",
     "result_digest",
     "projection_digest",
@@ -154,6 +156,7 @@
     "stop_conditions",
     "provider_evidence"
   ],
+  "title": "DataOperationResult",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.data.operation_result.v1"

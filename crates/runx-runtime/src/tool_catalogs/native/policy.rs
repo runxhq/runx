@@ -1,4 +1,6 @@
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{
+    JsonObject, OperationalPolicyValidationFinding, PolicyLint, PolicyLintEngine, PolicyLintStatus,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -7,7 +9,7 @@ use crate::{
 };
 
 use super::NativeInvocation;
-use super::capability::{NativeCapability, TypedNativeCapability, decode_typed_output};
+use super::capability::{NativeCapability, TypedNativeCapability};
 use crate::RuntimeError;
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
@@ -21,27 +23,10 @@ impl CapabilityInput for PolicyLintInput {}
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 struct PolicyLintOutput {
-    policy_lint: PolicyLintPacket,
+    policy_lint: PolicyLint,
 }
 
 impl CapabilityOutput for PolicyLintOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct PolicyLintPacket {
-    status: String,
-    engine: String,
-    findings: Vec<PolicyLintFinding>,
-    readback: Option<JsonObject>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct PolicyLintFinding {
-    code: String,
-    path: String,
-    message: String,
-}
 
 const FIELDS: &[CapabilityField] = &[CapabilityField {
     name: "policy",
@@ -51,7 +36,7 @@ const FIELDS: &[CapabilityField] = &[CapabilityField {
 static LINT: TypedNativeCapability<PolicyLintInput, PolicyLintOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "policy.lint",
-        owner: "runx-core/policy",
+        source: "runx-core/policy",
         summary: "Parse and lint one operational policy through the canonical policy engine.",
         scopes: &[],
         effect: CapabilityEffect::Read,
@@ -74,68 +59,34 @@ fn lint_policy(
         &serde_json::to_vec(&invocation.inputs.policy)
             .map_err(|source| RuntimeError::json("serializing policy lint input", source))?,
     );
-    let lint = match parsed {
+    let policy_lint = match parsed {
         Ok(policy) => match runx_contracts::project_operational_policy_readback(&policy) {
-            Ok(readback) => {
-                let valid = readback.valid;
-                let findings = json_value(&readback.findings, "policy lint findings")?;
-                let readback = json_value(&readback, "policy lint readback")?;
-                JsonObject::from([
-                    (
-                        "status".to_owned(),
-                        JsonValue::String(if valid { "pass" } else { "fail" }.to_owned()),
-                    ),
-                    (
-                        "engine".to_owned(),
-                        JsonValue::String("runx policy".to_owned()),
-                    ),
-                    ("findings".to_owned(), findings),
-                    ("readback".to_owned(), readback),
-                ])
-            }
-            Err(error) => lint_failure(
-                error.finding().code.as_str(),
-                error.finding().path.as_str(),
-                error.finding().message.as_str(),
-            ),
+            Ok(readback) => PolicyLint {
+                status: if readback.valid {
+                    PolicyLintStatus::Pass
+                } else {
+                    PolicyLintStatus::Fail
+                },
+                engine: PolicyLintEngine::RunxPolicy,
+                findings: readback.findings.clone(),
+                readback: Some(readback),
+            },
+            Err(error) => lint_failure(error.finding().clone()),
         },
-        Err(error) => lint_failure(
-            "policy.contract.invalid",
-            "$",
-            &format!("policy does not match runx.operational_policy.v1: {error}"),
-        ),
+        Err(error) => lint_failure(OperationalPolicyValidationFinding {
+            code: "policy.contract.invalid".into(),
+            path: "$".into(),
+            message: format!("policy does not match runx.operational_policy.v1: {error}").into(),
+        }),
     };
-    decode_typed_output(
-        "policy.lint",
-        JsonValue::Object(JsonObject::from([(
-            "policy_lint".to_owned(),
-            JsonValue::Object(lint),
-        )])),
-    )
+    Ok(PolicyLintOutput { policy_lint })
 }
 
-fn lint_failure(code: &str, path: &str, message: &str) -> JsonObject {
-    JsonObject::from([
-        ("status".to_owned(), JsonValue::String("fail".to_owned())),
-        (
-            "engine".to_owned(),
-            JsonValue::String("runx policy".to_owned()),
-        ),
-        (
-            "findings".to_owned(),
-            JsonValue::Array(vec![JsonValue::Object(JsonObject::from([
-                ("code".to_owned(), JsonValue::String(code.to_owned())),
-                ("path".to_owned(), JsonValue::String(path.to_owned())),
-                ("message".to_owned(), JsonValue::String(message.to_owned())),
-            ]))]),
-        ),
-        ("readback".to_owned(), JsonValue::Null),
-    ])
-}
-
-fn json_value(value: &impl Serialize, context: &str) -> Result<JsonValue, RuntimeError> {
-    let bytes = serde_json::to_vec(value)
-        .map_err(|source| RuntimeError::json(format!("serializing {context}"), source))?;
-    serde_json::from_slice(&bytes)
-        .map_err(|source| RuntimeError::json(format!("projecting {context}"), source))
+fn lint_failure(finding: OperationalPolicyValidationFinding) -> PolicyLint {
+    PolicyLint {
+        status: PolicyLintStatus::Fail,
+        engine: PolicyLintEngine::RunxPolicy,
+        findings: vec![finding],
+        readback: None,
+    }
 }

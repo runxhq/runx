@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum GraphStatus {
+pub enum GraphState {
     Pending,
     Running,
     Succeeded,
@@ -14,7 +14,7 @@ pub enum GraphStatus {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum GraphStepStatus {
+pub enum GraphStepState {
     Pending,
     Running,
     Succeeded,
@@ -79,9 +79,9 @@ pub struct SequentialGraphStepDefinition {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SequentialGraphStepState {
+pub struct SequentialGraphStep {
     pub step_id: String,
-    pub status: GraphStepStatus,
+    pub state: GraphStepState,
     pub attempts: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub started_at: Option<String>,
@@ -97,10 +97,10 @@ pub struct SequentialGraphStepState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SequentialGraphState {
+pub struct SequentialGraph {
     pub graph_id: String,
-    pub status: GraphStatus,
-    pub steps: Vec<SequentialGraphStepState>,
+    pub state: GraphState,
+    pub steps: Vec<SequentialGraphStep>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

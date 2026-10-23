@@ -16,10 +16,10 @@ caller:
           examples_to_emulate: []
           examples_to_avoid: []
         evidence_bindings:
-          - { rule: Make the workflow visible before promotional language., source_refs: [source:1], confidence: inferred }
-          - { rule: Dense operational surfaces with visible proof., source_refs: [source:1], confidence: observed }
-          - { rule: Decorative marketing cards that hide the workflow., source_refs: [source:2], confidence: observed }
-          - { rule: Choose operational clarity over decorative flourish., source_refs: [source:1, source:2], confidence: inferred }
+          - { rule: Make the workflow visible before promotional language., source_ids: [source:1], confidence: inferred }
+          - { rule: Dense operational surfaces with visible proof., source_ids: [source:1], confidence: observed }
+          - { rule: Decorative marketing cards that hide the workflow., source_ids: [source:2], confidence: observed }
+          - { rule: Choose operational clarity over decorative flourish., source_ids: [source:1, source:2], confidence: inferred }
         redactions: []
         stop_conditions: [Do not apply this packet outside the declared surface.]
     author:
@@ -29,11 +29,11 @@ caller:
         draft:
           title: The workflow stays visible
           body: Receipts bind actions to authority evidence.
-          claim_refs:
+          claims:
             - { claim: Receipts bind actions to authority evidence., source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111] }
         context_binding:
           applied:
-            - { packet_digest: sha256:b5ab80e6d9bee911cfbed34c80f55539bc57a22a72a4cc775bc02085ab2472e9, applied_rules: [Choose operational clarity over decorative flourish.] }
+            - { packet_digest: sha256:2b1a6d3baf53029a1be8bd2e2f8a9590f6ae81dec6d1026ce8c7304cbfe054ed, applied_rules: [Choose operational clarity over decorative flourish.] }
         review_checklist: []
         distribution_notes: { primary_channel: public product writing }
     draft:
@@ -48,9 +48,9 @@ caller:
             consequence: public_send
             rationale: Applies the admitted operational-clarity rule.
         context_bindings:
-          - { packet_digest: sha256:b5ab80e6d9bee911cfbed34c80f55539bc57a22a72a4cc775bc02085ab2472e9, applied_rules: [Choose operational clarity over decorative flourish.] }
-        gates: { human_approval_required: true, approval_ref: approval:pending }
-        evidence_refs: []
+          - { packet_digest: sha256:2b1a6d3baf53029a1be8bd2e2f8a9590f6ae81dec6d1026ce8c7304cbfe054ed, applied_rules: [Choose operational clarity over decorative flourish.] }
+        gates: { human_approval_required: true, approval_id: approval:pending }
+        evidence_locators: []
         open_questions: []
         blockers: []
         success_checkpoint: { milestone: plan_ready_for_approval, description: One exact post awaits approval. }
@@ -66,7 +66,7 @@ expect:
           data:
             decision: ready
             context_binding:
-              required: [{ type: taste_profile, packet_digest: sha256:b5ab80e6d9bee911cfbed34c80f55539bc57a22a72a4cc775bc02085ab2472e9 }]
+              required: [{ type: taste_profile, packet_digest: sha256:2b1a6d3baf53029a1be8bd2e2f8a9590f6ae81dec6d1026ce8c7304cbfe054ed }]
             validation: { status: pass }
     social-plan:
       subset:
@@ -74,6 +74,6 @@ expect:
           data:
             decision: ready
             context_bindings:
-              - { packet_digest: sha256:b5ab80e6d9bee911cfbed34c80f55539bc57a22a72a4cc775bc02085ab2472e9, applied_rules: [Choose operational clarity over decorative flourish.] }
+              - { packet_digest: sha256:2b1a6d3baf53029a1be8bd2e2f8a9590f6ae81dec6d1026ce8c7304cbfe054ed, applied_rules: [Choose operational clarity over decorative flourish.] }
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: taste-profile, source_case: forward-writing-context, source: skills-fixture }

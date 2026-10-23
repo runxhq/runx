@@ -47,7 +47,7 @@ exactKeys(document, [
   "probe",
   "candidates",
   "decision",
-  "decision_sha256",
+  "decision_digest",
 ], "document");
 expect(document.schema === "runx.deterministic_module_engine_decision.v1", "unexpected decision schema");
 expectRfc3339(document.captured_at, "captured_at");
@@ -148,10 +148,10 @@ function checkCandidates(value) {
       "resource_controls",
       "platform_evidence",
       "local_probe",
-      "disposition",
+      "verdict",
       "reason",
     ], field);
-    for (const name of ["id", "class", "version", "license", "security_boundary", "module_model", "disposition", "reason"]) {
+    for (const name of ["id", "class", "version", "license", "security_boundary", "module_model", "verdict", "reason"]) {
       expectNonEmpty(candidate?.[name], `${field}.${name}`);
     }
     expect(Array.isArray(candidate?.official_sources) && candidate.official_sources.length >= 2, `${field}.official_sources must cite at least two primary sources`);
@@ -185,7 +185,7 @@ function checkDecision(value, candidates) {
     : undefined;
   expect(Boolean(selected), "decision.selected_engine must name a compared candidate");
   expect(value?.selected_version === selected?.version, "decision.selected_version must match the selected candidate");
-  expect(selected?.disposition === "selected", "the selected candidate disposition must be selected");
+  expect(selected?.verdict === "selected", "the selected candidate's verdict must be selected");
   expectNonEmpty(value?.worker_design, "decision.worker_design");
   expect(Array.isArray(value?.rationale) && value.rationale.length >= 4, "decision.rationale must explain the tradeoff");
   expectSameStrings(value?.required_controls, [
@@ -222,11 +222,11 @@ function checkDecision(value, candidates) {
 }
 
 function checkDigest(value) {
-  expect(/^sha256:[a-f0-9]{64}$/u.test(value?.decision_sha256 ?? ""), "decision_sha256 must be sha256-prefixed");
+  expect(/^sha256:[a-f0-9]{64}$/u.test(value?.decision_digest ?? ""), "decision_digest must be sha256-prefixed");
   const unsigned = { ...value };
-  delete unsigned.decision_sha256;
+  delete unsigned.decision_digest;
   const actual = `sha256:${createHash("sha256").update(canonicalJson(unsigned)).digest("hex")}`;
-  expect(value?.decision_sha256 === actual, `decision_sha256 mismatch: expected ${actual}`);
+  expect(value?.decision_digest === actual, `decision_digest mismatch: expected ${actual}`);
 }
 
 function canonicalJson(value) {

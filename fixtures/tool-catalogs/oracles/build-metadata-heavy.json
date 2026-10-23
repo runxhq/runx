@@ -5,8 +5,8 @@
     {
       "path": "tools/fixture/metadata_heavy",
       "manifest": "tools/fixture/metadata_heavy/manifest.json",
-      "source_hash": "sha256:44f0cf7e5fa6c0b8942feb229dcd2e22aa4ce059ce5c4b31129e3338fc4d21a8",
-      "schema_hash": "sha256:256c1ea22c1b32138626643a72b66443717911538ac0b5e3521290b8e73dbc0d"
+      "source_digest": "sha256:44f0cf7e5fa6c0b8942feb229dcd2e22aa4ce059ce5c4b31129e3338fc4d21a8",
+      "schema_digest": "sha256:256c1ea22c1b32138626643a72b66443717911538ac0b5e3521290b8e73dbc0d"
     }
   ],
   "errors": []

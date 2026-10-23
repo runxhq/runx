@@ -15,9 +15,9 @@ inputs:
         rationale: Should never execute.
     gates:
       human_approval_required: true
-      approval_ref: approval:granted
-  plan_digest: sha256:25cd0a74139936a7cad4124f4ef510f7b16aaaa49abced92f39f4fc5c7cfbfc6
-  data_source_ref: tenant://twitter/refused-plan
+      approval_id: approval:granted
+  plan_digest: sha256:a43b03b13f5c531dc5aefec6784568d180eed2193cf30cc10ce5ec1b305c70c9
+  data_source_uri: tenant://twitter/refused-plan
 
 expect:
   status: sealed

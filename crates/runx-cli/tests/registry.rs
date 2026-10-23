@@ -129,12 +129,12 @@ runners:
         skill: ../sibling
         artifacts:
           wrap_as: sibling_packet
-          packet: runx.test.registry-sibling.v1
+          packet: acme/bundled-root.sibling.v1
 "#,
     )?;
     fs::write(
-        skill_dir.join("packets/sibling.schema.json"),
-        "{\"x-runx-packet-id\":\"runx.test.registry-sibling.v1\",\"type\":\"object\"}\n",
+        skill_dir.join("packets/sibling.v1.schema.json"),
+        "{\"$id\":\"https://schemas.runx.ai/packages/acme/bundled-root/sibling/v1.json\",\"x-runx-packet-id\":\"acme/bundled-root.sibling.v1\",\"type\":\"object\"}\n",
     )?;
     fs::write(
         sibling_dir.join("SKILL.md"),
@@ -460,10 +460,10 @@ runners:
         json!(["provider"])
     );
     assert_eq!(
-        output["registry"]["package"]["metadata"]["skill_refs"],
+        output["registry"]["package"]["metadata"]["skills"],
         json!([])
     );
-    // A run-time choice names each connector it may choose; refs are sorted
+    // A run-time choice names each connector it may choose; connectors are sorted
     // and operations keep the order the package lists them. Each connector is
     // named by its name and the digests a closure binds it by.
     let connectors = output["registry"]["package"]["metadata"]["connectors"]
@@ -473,7 +473,7 @@ runners:
         .iter()
         .map(|connector| {
             json!({
-                "ref": connector["ref"],
+                "connector": connector["connector"],
                 "runtime_capability": connector["runtime_capability"],
                 "operations": connector["operations"],
             })
@@ -482,9 +482,9 @@ runners:
     assert_eq!(
         named,
         [
-            json!({"ref": "fixture/automation", "runtime_capability": false, "operations": ["handoff.deliver"]}),
-            json!({"ref": "fixture/forge", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
-            json!({"ref": "fixture/hooks", "runtime_capability": false, "operations": ["handoff.deliver"]}),
+            json!({"connector": "fixture/automation", "runtime_capability": false, "operations": ["handoff.deliver"]}),
+            json!({"connector": "fixture/forge", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
+            json!({"connector": "fixture/hooks", "runtime_capability": false, "operations": ["handoff.deliver"]}),
         ]
     );
     for connector in connectors {
@@ -531,7 +531,7 @@ fn registry_connector_package_projects_a_connector_on_its_own()
     let output: serde_json::Value = serde_json::from_slice(&package.stdout)?;
     let packaged = &output["registry"]["connector"];
     assert_eq!(output["registry"]["action"], "connector_package");
-    assert_eq!(packaged["ref"], "acme/ops");
+    assert_eq!(packaged["connector"], "acme/ops");
     assert_eq!(packaged["manifest"]["id"], "acme/ops");
     assert_eq!(packaged["manifest"]["runtime_capability"], false);
     // The connector names itself, so its package carries no namespace file.
@@ -589,7 +589,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
         "acme/ops@1.0.0".to_owned(),
     ])?;
     let detail = json!({"status": "success", "connector": {
-        "ref": "acme/ops",
+        "connector": "acme/ops",
         "version": "1.0.0",
         "name": "Acme Ops",
         "description": "Reads Acme items.",
@@ -608,7 +608,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
         (
             "/v1/connectors/acme/ops/versions/1.0.0/package",
             json!({"status": "success", "package": {
-                "ref": "acme/ops",
+                "connector": "acme/ops",
                 "version": "1.0.0",
                 "trust_tier": "community",
                 "files": package.files,
@@ -697,7 +697,6 @@ fn a_root_name_installs_the_canonical_skill_it_addresses() -> Result<(), Box<dyn
             "/v1/skills/echo",
             json!({"status": "success", "skill": {
                 "skill_id": "acme/echo",
-                "owner": "acme",
                 "name": "echo",
                 "version": "1.0.0",
                 "digest": "sha256:fixture",
@@ -716,7 +715,6 @@ fn a_root_name_installs_the_canonical_skill_it_addresses() -> Result<(), Box<dyn
             "POST /v1/skills/acme/echo/acquire",
             json!({"status": "success", "install_count": 1, "acquisition": {
                 "skill_id": "acme/echo",
-                "owner": "acme",
                 "name": "echo",
                 "version": "1.0.0",
                 "digest": "sha256:fixture",
@@ -1145,7 +1143,7 @@ fn signed_manifest(
 /// The envelope the registry serves for one subject's version and content.
 fn sign_envelope(
     kind: runx_contracts::RegistrySubjectKind,
-    subject_ref: &str,
+    name: &str,
     version: &str,
     content_digest: String,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
@@ -1153,7 +1151,7 @@ fn sign_envelope(
         schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
         subject: runx_contracts::RegistrySubject {
             kind,
-            subject_ref: subject_ref.to_owned(),
+            name: name.to_owned(),
         },
         version: version.to_owned(),
         content_digest,
@@ -1425,7 +1423,7 @@ fn runx_command() -> Result<Command, Box<dyn std::error::Error>> {
         TEST_MANIFEST_KEY_ID,
     );
     command.env(
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV,
+        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
         "acme",
     );
     Ok(command)

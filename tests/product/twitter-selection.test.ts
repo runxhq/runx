@@ -12,7 +12,7 @@ describe("twitter archive selection", () => {
   });
 });
 
-function select(artifactRef: string) {
+function select(artifactUri: string) {
   const selected = selectArchivePage({
     objective: "Delete old reposts",
     principal: "account:@fixture",
@@ -26,7 +26,7 @@ function select(artifactRef: string) {
       blockers: [],
     },
     runx_page: {
-      artifact_ref: artifactRef,
+      artifact_uri: artifactUri,
       whole_digest: "sha256:archive-content",
       records: [
         JSON.stringify({

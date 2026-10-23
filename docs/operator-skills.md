@@ -32,7 +32,7 @@ url=...`), not a skill rewrite.
 
 Runx Connect has a separate job: OAuth, credential custody, capability grants,
 and provider execution. A skill may read Slack, GitHub, or another provider
-through Connect while retaining its queue, cursor, dispositions, and other
+through Connect while retaining its queue, cursor, decisions, and other
 operator state locally. Do not add a hosted projection merely because the
 provider call is hosted.
 

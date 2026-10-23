@@ -1,6 +1,6 @@
 //! Upstream registry binding contract (`runx.registry_binding.v1`): the open
 //! (`additionalProperties: true`) document tying a skill to its upstream source,
-//! registry placement, and harness verification status.
+//! registry placement, and harness verification state.
 //!
 //! Identity is the legacy bare `runx.ai/schemas` `$id` (no `x-runx-schema`).
 use serde::{Deserialize, Serialize};
@@ -70,7 +70,7 @@ impl TrustTier {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum RegistryHarnessStatus {
+pub enum RegistryHarnessState {
     Pending,
     Failed,
     HarnessVerified,
@@ -134,7 +134,7 @@ impl RunxSchema for RegistryBindingUpstream {
 /// The registry placement for a binding. Open.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryBindingRegistry {
-    pub owner: String,
+    pub publisher: String,
     pub trust_tier: TrustTier,
     pub version: String,
     pub profile_path: String,
@@ -146,7 +146,7 @@ impl RunxSchema for RegistryBindingRegistry {
     fn json_schema() -> Value {
         object_schema(
             vec![
-                Property::new("owner", String::json_schema(), true),
+                Property::new("publisher", String::json_schema(), true),
                 Property::new("trust_tier", TrustTier::json_schema(), true),
                 Property::new("version", String::json_schema(), true),
                 Property::new("profile_path", String::json_schema(), true),
@@ -162,10 +162,10 @@ impl RunxSchema for RegistryBindingRegistry {
     }
 }
 
-/// The harness verification status for a binding. Open.
+/// Where a binding's harness verification is. Open.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 pub struct RegistryBindingHarness {
-    pub status: RegistryHarnessStatus,
+    pub state: RegistryHarnessState,
     pub case_count: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assertion_count: Option<f64>,
@@ -209,14 +209,14 @@ mod tests {
                 "source_of_truth": true
             },
             "registry": {
-                "owner": "runx",
+                "publisher": "runx",
                 "trust_tier": "first_party",
                 "version": "1.0.0",
                 "profile_path": "run.yaml",
                 "materialized_package_is_registry_artifact": true
             },
             "harness": {
-                "status": "harness_verified",
+                "state": "harness_verified",
                 "case_count": 1
             }
         })

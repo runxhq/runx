@@ -11,8 +11,8 @@ import {
   projectOperationalPolicyReadback,
   validateOperationalPolicyContract,
   validateOperationalPolicySemantics,
-  type OperationalPolicyContract,
 } from "./operational-policy.js";
+import type { OperationalPolicyContract } from "../generated/contract-types.js";
 
 const fixtureRoot = new URL("../../../../fixtures/operational-policy/", import.meta.url);
 
@@ -97,8 +97,8 @@ const validPolicy: OperationalPolicyContract = {
     },
   ],
   dedupe: {
-    strategy: "source_fingerprint",
-    key_fields: ["source_locator", "fingerprint", "target_repo"],
+    strategy: "source_digest",
+    key_fields: ["source_locator", "digest", "target_repo"],
     on_duplicate: "reuse",
   },
   outcomes: {
@@ -335,7 +335,7 @@ describe("operational-policy schema", () => {
       runner_id: "local-review",
       owner_route_id: "api-kam",
       owners: ["Ops"],
-      dedupe_strategy: "source_fingerprint",
+      dedupe_strategy: "source_digest",
       outcome_close_mode: "when_verified",
       source_thread_required: true,
       mutate_target_repo: true,

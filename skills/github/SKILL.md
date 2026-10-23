@@ -75,9 +75,9 @@ evidence. Do not silently turn a denied push into a pull.
 - `repo` is exactly `owner/name`.
 - `direction` is `pull` or `push`.
 - `resources` contains the issue, PR, thread, or `batch` selector and a
-  limit no greater than 100. A push has one to eight `mutations` entries with `ref`, `op`, and an
+  limit no greater than 100. A push has one to eight `mutations` entries with `path`, `op`, and an
   exact typed `payload`. Issue and PR changes use `op: update`; a new issue
-  uses `ref: issues` and `op: create`; new thread comments use `op: comment`. Bodies are capped at 65,536 characters. Pulls
+  uses `path: issues` and `op: create`; new thread comments use `op: comment`. Bodies are capped at 65,536 characters. Pulls
   return GitHub's records whole.
 - `scope` is the requested read or write scope.
 - `activity` takes `repo`, `since` (RFC 3339) and an optional `page`, and
@@ -85,7 +85,7 @@ evidence. Do not silently turn a denied push into a pull.
   `next_page` when more may follow. Its provider evidence is the read's
   `runx.provider.operation.v1`, kept in the run's record.
 
-The `runx.github_sync.v1` plan records exact direction, provider operation,
+The `runx/github.sync_plan.v1` plan records exact direction, provider operation,
 scope, filters, blockers, authority posture, cursor state when used, and the
 explicit absence of remote effects. Execution additionally emits the native
 provider-operation packet; it does not rewrite the planning packet to imply a
@@ -111,7 +111,7 @@ remote effect.
 A caller wants to pull the next 50 open issues after cursor `2`. Planning can
 persist that cursor locally; `pull` then performs `issues.list` through the
 selected instance and returns the provider result. To close issue 241, a push
-carries `ref: issues/241`, `op: update`, and
+carries `path: issues/241`, `op: update`, and
 `payload: {state: closed, state_reason: completed}`. Runx applies only that
 issue update through `issues.update` under `repo.write`, and reads issue 241
 back. A morning summary calls `activity` with `since` set to its last check

@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/receipt-audit/audit/v1.json",
+  "x-runx-packet-id": "runx/receipt-audit.audit.v1",
+  "type": "object",
+  "required": [
+    "receipt_audit"
+  ],
+  "properties": {
+    "receipt_audit": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "ready",
+            "needs_more_evidence"
+          ],
+          "type": "string"
+        },
+        "exercised_scopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "findings": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "message": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "severity": {
+                "enum": [
+                  "info",
+                  "warning",
+                  "error"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "severity",
+              "message"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "granted_scopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "rationale": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "receipt_id": {
+          "type": "string"
+        },
+        "recommendations": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "refusals": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "success_checkpoint": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "milestone": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "milestone",
+            "description"
+          ],
+          "type": "object"
+        },
+        "verdict": {
+          "enum": [
+            "clean",
+            "anomaly",
+            "needs_more_evidence"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "receipt_id",
+        "granted_scopes",
+        "exercised_scopes",
+        "refusals",
+        "findings",
+        "verdict",
+        "rationale",
+        "recommendations",
+        "success_checkpoint"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

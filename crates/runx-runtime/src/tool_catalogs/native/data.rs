@@ -1,5 +1,7 @@
+use runx_contracts::digest::DigestAlgorithm;
 use runx_contracts::{
-    DataValidation, DataValidationIssue, DataValueValidation, JsonObject, JsonValue,
+    DataComparison, DataDigest, DataValidation, DataValidationIssue, DataValueValidation, Digest,
+    HarnessContext, JsonObject, JsonValue,
 };
 use serde::{Deserialize, Serialize};
 
@@ -72,33 +74,18 @@ impl CapabilityInput for HarnessContextInput {}
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 struct DigestOutput {
-    digest_result: DigestResult,
+    digest_result: DataDigest,
 }
 
 impl CapabilityOutput for DigestOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-struct DigestResult {
-    algorithm: String,
-    digest: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
 struct CompareOutput {
-    comparison: Comparison,
+    comparison: DataComparison,
 }
 
 impl CapabilityOutput for CompareOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct Comparison {
-    equal: bool,
-    actual_digest: String,
-    expected_digest: String,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -114,18 +101,6 @@ struct HarnessContextOutput {
 }
 
 impl CapabilityOutput for HarnessContextOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct HarnessContext {
-    captured: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    harness: Option<JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    signal: Option<JsonObject>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    decision: Option<JsonObject>,
-}
 
 const DIGEST_FIELDS: &[CapabilityField] = &[
     field("value", "Exact JSON value or UTF-8 string to hash."),
@@ -156,7 +131,7 @@ const fn field(name: &'static str, description: &'static str) -> CapabilityField
 static DIGEST: TypedNativeCapability<DigestInput, DigestOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "data.digest",
-        owner: "runx-runtime/data",
+        source: "runx-runtime/data",
         summary: "Compute a stable SHA-256 digest over canonical JSON or exact UTF-8 text.",
         scopes: &[],
         effect: CapabilityEffect::Read,
@@ -173,7 +148,7 @@ static DIGEST: TypedNativeCapability<DigestInput, DigestOutput> = TypedNativeCap
 static COMPARE: TypedNativeCapability<CompareInput, CompareOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "data.compare",
-        owner: "runx-runtime/data",
+        source: "runx-runtime/data",
         summary: "Compare two resolved JSON values without copying them into output.",
         scopes: &[],
         effect: CapabilityEffect::Read,
@@ -191,7 +166,7 @@ static HARNESS_CONTEXT: TypedNativeCapability<HarnessContextInput, HarnessContex
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "control.capture_harness_context",
-            owner: "runx-runtime/control",
+            source: "runx-runtime/control",
             summary: "Capture supplied harness, signal, and decision packets as explicit context.",
             scopes: &["runx:control:read"],
             effect: CapabilityEffect::Read,
@@ -208,7 +183,7 @@ static HARNESS_CONTEXT: TypedNativeCapability<HarnessContextInput, HarnessContex
 static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "data.validate",
-        owner: "runx-runtime/data",
+        source: "runx-runtime/data",
         summary: "Validate up to 128 JSON values against a self-contained JSON Schema 2020-12; formats are annotations, external retrieval is disabled.",
         scopes: &[],
         effect: CapabilityEffect::Read,
@@ -302,9 +277,9 @@ fn digest_value(
 ) -> Result<DigestOutput, RuntimeError> {
     let bytes = digest_bytes(&invocation.inputs.value, &invocation.inputs.encoding)?;
     Ok(DigestOutput {
-        digest_result: DigestResult {
-            algorithm: "sha256".to_owned(),
-            digest: runx_contracts::sha256_prefixed(&bytes),
+        digest_result: DataDigest {
+            algorithm: DigestAlgorithm::Sha256,
+            digest: Digest::of(&bytes),
         },
     })
 }
@@ -317,10 +292,10 @@ fn compare_values(
     let actual_bytes = digest_bytes(actual, "canonical_json")?;
     let expected_bytes = digest_bytes(expected, "canonical_json")?;
     Ok(CompareOutput {
-        comparison: Comparison {
+        comparison: DataComparison {
             equal: actual == expected,
-            actual_digest: runx_contracts::sha256_prefixed(&actual_bytes),
-            expected_digest: runx_contracts::sha256_prefixed(&expected_bytes),
+            actual_digest: Digest::of(&actual_bytes),
+            expected_digest: Digest::of(&expected_bytes),
         },
     })
 }

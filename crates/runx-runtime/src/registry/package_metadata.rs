@@ -32,7 +32,7 @@ pub struct RegistryPackageMetadata {
     /// The child skills the package composes, as written: its graph steps'
     /// skill targets and the skills an agent turn may run, sorted and once
     /// each.
-    pub skill_refs: Vec<String>,
+    pub skills: Vec<String>,
     /// The connectors the package's `run.yaml` declares, in id order. Its own
     /// declarations only: a skill it composes declares its own.
     pub connectors: Vec<RegistryConnectorMetadata>,
@@ -44,8 +44,7 @@ pub struct RegistryPackageMetadata {
 /// operations.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryConnectorMetadata {
-    #[serde(rename = "ref")]
-    pub name: ConnectorName,
+    pub connector: ConnectorName,
     pub version: String,
     pub manifest_digest: Digest,
     /// The manifest and every tool its process operations run.
@@ -87,7 +86,7 @@ pub(crate) fn project_registry_package_metadata(
         tags: registry_tags(&catalog),
         harness_cases: registry_harness_cases(manifest),
         input_names: registry_input_names(manifest),
-        skill_refs: registry_skill_refs(manifest),
+        skills: registry_skills(manifest),
         connectors,
     }
 }
@@ -167,7 +166,7 @@ pub(crate) fn registry_catalog(manifest: Option<&SkillRunnerManifest>) -> Catalo
             approval: None,
             category: None,
             tags: Vec::new(),
-            owner: None,
+            publisher: None,
             links: BTreeMap::new(),
         })
 }
@@ -183,11 +182,11 @@ fn registry_input_names(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
     names.into_iter().collect()
 }
 
-fn registry_skill_refs(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
+fn registry_skills(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
     let mut refs = std::collections::BTreeSet::new();
     if let Some(manifest) = manifest {
         refs.extend(manifest.skills.iter().filter_map(|entry| match entry {
-            runx_contracts::SkillAllowance::Ref(reference) => Some(reference.as_str().to_owned()),
+            runx_contracts::SkillAllowance::Skill(reference) => Some(reference.as_str().to_owned()),
             runx_contracts::SkillAllowance::Rule(_) => None,
         }));
         for runner in manifest.runners.values() {
@@ -196,7 +195,7 @@ fn registry_skill_refs(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
                     .graph
                     .steps
                     .iter()
-                    .filter_map(|step| step.skill().map(|target| target.reference.clone())),
+                    .filter_map(|step| step.skill().map(|target| target.skill.clone())),
             );
         }
     }

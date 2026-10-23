@@ -2,17 +2,21 @@
   "$id": "https://schemas.runx.ai/runx/process/output/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "What a process wrote after a cursor, as its log keeps it.",
   "properties": {
     "chunks": {
       "items": {
         "additionalProperties": false,
+        "description": "Consecutive output of one stream.",
         "properties": {
           "stream": {
+            "description": "A process's stdout or stderr, or the terminal a `tty` process writes to.",
             "enum": [
               "stdout",
               "stderr",
               "terminal"
             ],
+            "title": "ProcessStream",
             "type": "string"
           },
           "text": {
@@ -23,16 +27,19 @@
           "stream",
           "text"
         ],
+        "title": "ProcessOutputChunk",
         "type": "object"
       },
       "type": "array"
     },
     "dropped": {
+      "description": "Bytes written before `from` that the log no longer keeps.",
       "minimum": 0,
       "type": "integer"
     },
     "exit": {
       "additionalProperties": false,
+      "description": "How a process ended.",
       "properties": {
         "at": {
           "type": "string"
@@ -41,6 +48,7 @@
           "type": "integer"
         },
         "message": {
+          "description": "Why it failed, for a process that never ran or whose supervisor ended without recording its exit.",
           "type": "string"
         },
         "reason": {
@@ -50,6 +58,7 @@
             "timed_out",
             "failed"
           ],
+          "title": "ProcessExitReason",
           "type": "string"
         },
         "signal": {
@@ -60,13 +69,16 @@
         "reason",
         "at"
       ],
+      "title": "ProcessExit",
       "type": "object"
     },
     "from": {
+      "description": "Where this read began: the cursor asked for, or the oldest output the log still keeps when that is later.",
       "minimum": 0,
       "type": "integer"
     },
     "next": {
+      "description": "The cursor the next read passes as `after`.",
       "minimum": 0,
       "type": "integer"
     },
@@ -74,11 +86,13 @@
       "type": "string"
     },
     "state": {
+      "description": "Where a process stands: recorded and waiting on its supervisor, running under it, or exited.",
       "enum": [
         "starting",
         "running",
         "exited"
       ],
+      "title": "ProcessState",
       "type": "string"
     }
   },
@@ -90,6 +104,7 @@
     "dropped",
     "chunks"
   ],
+  "title": "ProcessOutput",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.process.output.v1"

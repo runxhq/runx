@@ -155,7 +155,7 @@ fn load_context_skill_directory(
     })?;
     validate_context_manifest(step_id, reference, package.manifest())?;
     let mut data = JsonObject::new();
-    insert_string(&mut data, "ref", reference);
+    insert_string(&mut data, "skill", reference);
     insert_string(&mut data, "source", source);
     insert_string(&mut data, "security_boundary", "untrusted-agent-context");
     insert_string(&mut data, "name", &package.package.skill.name);
@@ -190,7 +190,7 @@ fn load_context_skill_directory(
         );
         insert_string(
             &mut data,
-            "profile_sha256",
+            "profile_digest",
             &runx_contracts::sha256_prefixed(profile),
         );
     }
@@ -209,7 +209,7 @@ fn load_registry_context_skill(
     let (resolution, package) = resolve_registry_context_skill(step_id, reference, env)?;
     validate_context_manifest(step_id, reference, package.root_manifest())?;
     let mut data = JsonObject::new();
-    insert_string(&mut data, "ref", reference);
+    insert_string(&mut data, "skill", reference);
     insert_string(&mut data, "source", &resolution.source);
     insert_string(&mut data, "security_boundary", "untrusted-agent-context");
     insert_string(&mut data, "source_label", &resolution.source_label);
@@ -221,16 +221,12 @@ fn load_registry_context_skill(
     if let Some(profile_digest) = &resolution.profile_digest {
         insert_string(
             &mut data,
-            "profile_sha256",
+            "profile_digest",
             &prefixed_registry_digest(profile_digest),
         );
     }
-    if let Some(package_digest) = &resolution.package_digest {
-        insert_string(
-            &mut data,
-            "package_sha256",
-            &prefixed_registry_digest(package_digest),
-        );
+    if let Some(bundle_digest) = &resolution.bundle_digest {
+        insert_string(&mut data, "bundle_digest", bundle_digest);
     }
     if let Some(description) = &package.skill.description {
         insert_string(&mut data, "description", description);
@@ -310,7 +306,7 @@ fn manual_context_entry(
     mut data: JsonObject,
 ) -> Result<ContextEntry, RuntimeError> {
     insert_string(&mut data, "content_kind", "skill-manual");
-    insert_string(&mut data, "manual_sha256", &package.manual_digest);
+    insert_string(&mut data, "manual_digest", &package.manual_digest);
     insert_string(&mut data, "content", &package.manual_markdown);
     let skill = &package.skill;
     let summary = match &skill.description {

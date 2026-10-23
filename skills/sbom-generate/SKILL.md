@@ -29,7 +29,7 @@ pass its content here; the digest binds whatever bytes were supplied.
 
 ## Output
 
-`sbom_result` (`runx.sbom.v1`) carries `decision` (`generated`, `refused`),
+`sbom_result` (`runx/sbom-generate.sbom.v1`) carries `decision` (`generated`, `refused`),
 the CycloneDX 1.5 `sbom` or null, `component_count`, `license_summary`,
 `license_risks`, `validation`, and the lockfile digest.
 

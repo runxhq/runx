@@ -1,8 +1,8 @@
 skill: agent-session
-version: "0.1.4"
+version: "0.1.5"
 
 catalog:
-  owner: runx
+  publisher: runx
   kind: skill
   audience: operator
   visibility: public

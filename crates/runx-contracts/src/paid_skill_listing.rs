@@ -16,12 +16,12 @@ use thiserror::Error;
 
 use crate::canonical_json::canonical_stable_json;
 use crate::connector::{CredentialName, Template};
-use crate::paid_invocation::{
-    CurrencyCode, EmbeddedOfferRevisionRef, OfferRevisionRef, PortableAmountMinor,
-    PrincipalReference, SettlementFamilies, Sha256Digest,
+use crate::purchase::{
+    CurrencyCode, EmbeddedOfferVersionBinding, OfferVersionBinding, PortableAmountMinor,
+    PrincipalReference, SettlementFamilies,
 };
-use crate::schema::{NonEmptyString, RunxSchema};
-use crate::{JsonObject, JsonValue, MAX_PORTABLE_INTEGER};
+use crate::schema::{NamedSchemas, NonEmptyString, RunxSchema, record_named};
+use crate::{Digest, JsonObject, JsonValue, MAX_PORTABLE_INTEGER};
 
 pub const PAID_SKILL_LISTING_SCHEMA: &str = "runx.marketplace.paid_skill_listing.v1";
 
@@ -110,8 +110,13 @@ impl RunxSchema for PriceChoice {
                     "maximum": MAX_PORTABLE_INTEGER,
                 },
                 { "type": "boolean" },
-            ]
+            ],
+            "title": "PriceChoice",
         })
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(named, "PriceChoice", Self::json_schema);
     }
 }
 
@@ -267,7 +272,7 @@ impl PaidSkillPrice {
     }
 
     /// The stored artifact an `artifact_bytes` price reads: the
-    /// `artifact_ref` its input holds. Its committed size, looked up by the
+    /// `artifact_uri` its input holds. Its committed size, looked up by the
     /// caller, is what the call costs.
     pub fn priced_artifact_ref<'a>(&self, inputs: &'a JsonObject) -> Option<&'a str> {
         let Self::ArtifactBytes { artifact_input, .. } = self else {
@@ -276,7 +281,7 @@ impl PaidSkillPrice {
         inputs
             .get(artifact_input.as_str())?
             .as_object()?
-            .get("artifact_ref")?
+            .get("artifact_uri")?
             .as_str()
             .filter(|reference| stored_artifact_ref(reference))
     }
@@ -361,8 +366,7 @@ fn stored_artifact_ref(reference: &str) -> bool {
 
 /// A resource an earlier purchase bought that a paid runner acts on, such as
 /// the inbox an extension extends. runx admits the purchase only while its
-/// owner holds that resource, so the seller's run needs no bearer from its
-/// buyer (S10).
+/// buyer holds that resource, so the buyer hands the seller's run no bearer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaidSkillActsOn {
@@ -414,8 +418,8 @@ pub struct PaidSkillOfferTerms {
     pub price: PaidSkillPrice,
     pub currency: CurrencyCode,
     pub accepted_settlement_families: SettlementFamilies,
-    pub input_schema_digest: Sha256Digest,
-    pub output_schema_digest: Sha256Digest,
+    pub input_schema_digest: Digest,
+    pub output_schema_digest: Digest,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub acts_on: Option<PaidSkillActsOn>,
 }
@@ -430,15 +434,15 @@ pub struct PaidSkillExecutorBinding {
     /// The execution package digest a run records (`runx.skill-package.v1`
     /// over the files a run loads), not the registry's digest of the
     /// published package files that a listing binds.
-    pub package_digest: Sha256Digest,
-    pub execution_closure_digest: Sha256Digest,
+    pub package_digest: Digest,
+    pub execution_closure_digest: Digest,
 }
 
 /// One immutable, registry-resolved runner offer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaidSkillRunnerOffer {
-    pub offer_revision: EmbeddedOfferRevisionRef,
+    pub offer_version: EmbeddedOfferVersionBinding,
     pub price: PaidSkillPrice,
     pub currency: CurrencyCode,
     pub accepted_settlement_families: SettlementFamilies,
@@ -447,11 +451,11 @@ pub struct PaidSkillRunnerOffer {
 }
 
 impl PaidSkillRunnerOffer {
-    /// The registry-resolved offer for author terms under `offer_revision`.
+    /// The registry-resolved offer for author terms under `offer_version`.
     #[must_use]
-    pub fn from_terms(offer_revision: OfferRevisionRef, terms: &PaidSkillOfferTerms) -> Self {
+    pub fn from_terms(offer_version: OfferVersionBinding, terms: &PaidSkillOfferTerms) -> Self {
         Self {
-            offer_revision: offer_revision.into(),
+            offer_version: offer_version.into(),
             price: terms.price.clone(),
             currency: terms.currency.clone(),
             accepted_settlement_families: terms.accepted_settlement_families.clone(),
@@ -498,6 +502,10 @@ impl RunxSchema for PaidSkillOffers {
             "maxProperties": 64,
         })
     }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        PaidSkillRunnerOffer::named_schemas(named);
+    }
 }
 
 /// Immutable marketplace identity and commercial terms for paid runners in one
@@ -509,13 +517,11 @@ impl RunxSchema for PaidSkillOffers {
 pub struct PaidSkillListing {
     pub skill_id: NonEmptyString,
     pub version: NonEmptyString,
-    pub skill_digest: Sha256Digest,
-    pub profile_digest: Sha256Digest,
-    /// The registry's digest of the published package files
-    /// (`registry_package_digest`), not the execution package digest a run
-    /// records.
-    pub package_digest: Sha256Digest,
-    pub vendor_ref: PrincipalReference,
+    pub skill_digest: Digest,
+    pub profile_digest: Digest,
+    /// The registry's digest of the published bundle's files.
+    pub bundle_digest: Digest,
+    pub seller_ref: PrincipalReference,
     pub offers: PaidSkillOffers,
 }
 
@@ -523,11 +529,11 @@ pub struct PaidSkillListing {
 mod tests {
     use super::*;
 
-    fn revision() -> Value {
+    fn offer_version() -> Value {
         json!({
             "offer_id": "acme/browser#create",
-            "revision": "1.0.0",
-            "revision_digest": format!("sha256:{}", "b".repeat(64)),
+            "version": "1.0.0",
+            "profile_digest": format!("sha256:{}", "b".repeat(64)),
             "input_schema_digest": format!("sha256:{}", "d".repeat(64)),
             "output_schema_digest": format!("sha256:{}", "e".repeat(64))
         })
@@ -550,10 +556,10 @@ mod tests {
             "version": "1.0.0",
             "skill_digest": format!("sha256:{}", "a".repeat(64)),
             "profile_digest": format!("sha256:{}", "b".repeat(64)),
-            "package_digest": format!("sha256:{}", "c".repeat(64)),
-            "vendor_ref": {"type": "principal", "uri": "runx:principal:acme"},
+            "bundle_digest": format!("sha256:{}", "c".repeat(64)),
+            "seller_ref": {"type": "principal", "uri": "runx:principal:acme"},
             "offers": {"transcribe": {
-                "offer_revision": revision(),
+                "offer_version": offer_version(),
                 "price": {"model": "fixed", "amount_minor": 125},
                 "currency": "USD",
                 "accepted_settlement_families": ["rail-a", "rail-b"]
@@ -574,7 +580,7 @@ mod tests {
     #[test]
     fn paid_skill_listing_rejects_empty_runner_identity() {
         let offer = json!({
-            "offer_revision": revision(),
+            "offer_version": offer_version(),
             "price": {"model": "fixed", "amount_minor": 125},
             "currency": "USD",
             "accepted_settlement_families": ["rail-a"]
@@ -584,8 +590,8 @@ mod tests {
             "version": "1.0.0",
             "skill_digest": format!("sha256:{}", "a".repeat(64)),
             "profile_digest": format!("sha256:{}", "b".repeat(64)),
-            "package_digest": format!("sha256:{}", "c".repeat(64)),
-            "vendor_ref": {"type": "principal", "uri": "runx:principal:acme"},
+            "bundle_digest": format!("sha256:{}", "c".repeat(64)),
+            "seller_ref": {"type": "principal", "uri": "runx:principal:acme"},
             "offers": {"": offer}
         }));
         assert!(result.is_err());
@@ -725,7 +731,7 @@ mod tests {
             }
         }))?;
         let offer = PaidSkillRunnerOffer::from_terms(
-            serde_json::from_value::<OfferRevisionRef>(revision())?,
+            serde_json::from_value::<OfferVersionBinding>(offer_version())?,
             &terms,
         );
         assert_eq!(offer.price, terms.price);

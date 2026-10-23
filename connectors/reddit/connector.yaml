@@ -15,13 +15,13 @@ parameters:
   type: object
   required:
   - account
-  - profile_ref
+  - profile
   additionalProperties: false
   properties:
     account:
       type: string
       pattern: ^[a-z0-9_-]{3,20}$
-    profile_ref:
+    profile:
       type: string
       pattern: ^[A-Za-z0-9_.:-]{1,100}$
 placements:
@@ -54,7 +54,7 @@ operations:
     - observed_at
     - status
     - page
-    - profile_ref
+    - profile
     implementation:
       process:
         tool: reddit.brave

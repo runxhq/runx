@@ -41,7 +41,7 @@ export function indexSources(inputs) {
   if (totalBytes > MAX_TOTAL_BYTES) throw new Error(`inspected sources exceed ${MAX_TOTAL_BYTES} bytes`);
   return {
     evidence_index: {
-      schema: "runx.prior_art.evidence_index.v1",
+      schema: "runx/prior-art.evidence_index.v1",
       workspace: "local",
       catalog,
       inspected_sources: inspectedSources,
@@ -107,7 +107,7 @@ return {
   evidence: {
     cited_paths: [...new Set([...findings.map((entry) => entry.source), ...sources.map((entry) => entry.path)])].sort(),
     inspected_sources: inspected,
-    catalog_refs: adjacentSkills.map((name) => catalog.find((entry) => entry.name === name)).filter(Boolean),
+    catalog_entries: adjacentSkills.map((name) => catalog.find((entry) => entry.name === name)).filter(Boolean),
   },
   validation: {
     status: decision === "ready" ? "pass" : "hold",

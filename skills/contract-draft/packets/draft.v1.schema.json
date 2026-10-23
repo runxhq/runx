@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/contract-draft/draft/v1.json",
+  "x-runx-packet-id": "runx/contract-draft.draft.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "decision",
+    "reason",
+    "document",
+    "deviations",
+    "send_proposal",
+    "validation",
+    "template_digest",
+    "parties_digest",
+    "terms_digest",
+    "delivery_performed"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "runx/contract-draft.draft.v1"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "drafted",
+        "refused"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "document": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "template_id",
+        "template_version",
+        "title",
+        "clauses"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "template_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "clauses": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "heading",
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "heading": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            }
+          }
+        }
+      }
+    },
+    "deviations": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "required": [
+          "clause_id",
+          "reason",
+          "baseline",
+          "text"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "clause_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "baseline": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          }
+        }
+      }
+    },
+    "send_proposal": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "gate",
+        "delivery_skill",
+        "sent"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "gate": {
+          "const": "human-approver"
+        },
+        "delivery_skill": {
+          "const": "message-send"
+        },
+        "sent": {
+          "const": false
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "status",
+        "findings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "findings": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            }
+          }
+        }
+      }
+    },
+    "template_digest": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "parties_digest": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "terms_digest": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "delivery_performed": {
+      "const": false
+    }
+  }
+}

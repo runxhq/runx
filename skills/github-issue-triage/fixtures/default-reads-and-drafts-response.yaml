@@ -54,5 +54,5 @@ expect:
             delivery_status: not_sent
             provider_status: readback
             validation: { status: pass }
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: github-issue-triage, source_case: direct-default-success, source: skills-fixture }

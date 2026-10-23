@@ -250,7 +250,7 @@ fn derive_term_id(
     request: &ExecutionTermRequest<'_>,
     parents: &[(DerivationParent, &AuthorityTerm)],
 ) -> NonEmptyString {
-    let fingerprint = serde_json::json!({
+    let preimage = serde_json::json!({
         "parent_term_ids": parents.iter().map(|(_, term)| term.term_id.as_str()).collect::<Vec<_>>(),
         "intent": request.intent,
         "intent_digest": request.intent_digest,
@@ -258,7 +258,7 @@ fn derive_term_id(
     });
     NonEmptyString::from(format!(
         "exec-{}",
-        sha256_hex(fingerprint.to_string().as_bytes())
+        sha256_hex(preimage.to_string().as_bytes())
     ))
 }
 

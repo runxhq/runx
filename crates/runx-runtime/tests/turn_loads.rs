@@ -66,7 +66,7 @@ impl Project {
             &FileRegistryStore::new(&self.registry),
             &format!("---\nname: {name}\ndescription: Says it, digested. {note}\n---\n# {name}\n"),
             IngestSkillOptions {
-                owner: Some("acme".to_owned()),
+                publisher_slug: Some("acme".to_owned()),
                 version: Some(version.to_owned()),
                 created_at: Some("2026-10-16T00:00:00Z".to_owned()),
                 profile_document: Some(format!("skill: {name}\nrunners:\n{runners}")),
@@ -111,7 +111,7 @@ impl Project {
     }
 
     fn env(&self) -> TestResult<BTreeMap<String, String>> {
-        let mut env = crate::skill_run::trusted_manifest_env_for_owner("acme", None)?;
+        let mut env = crate::skill_run::trusted_manifest_env_for_publisher("acme", None)?;
         env.insert(
             "RUNX_CWD".to_owned(),
             self.root.to_string_lossy().into_owned(),
@@ -295,7 +295,7 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
     )?;
     assert_eq!(manual.content.as_bytes(), on_disk.as_slice());
     assert_eq!(
-        manual.sha256.as_str(),
+        manual.digest.as_str(),
         runx_contracts::sha256_prefixed(&on_disk)
     );
     assert_eq!(
@@ -639,7 +639,7 @@ fn loads_and_calls_store(project: &Project, session: PathBuf) -> TestResult {
         "store__heads_list",
         None,
         input(
-            serde_json::json!({"input": {"data_source_ref": "local://board", "resource": "items"}}),
+            serde_json::json!({"input": {"data_source_uri": "local://board", "resource": "items"}}),
         )?,
     )?;
     assert!(
@@ -684,7 +684,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     let echo = found("digested")?;
     let hit = echo["hits"]
         .as_array()
-        .and_then(|hits| hits.iter().find(|hit| hit["ref"] == "acme/echo@1.0.0"))
+        .and_then(|hits| hits.iter().find(|hit| hit["package"] == "acme/echo@1.0.0"))
         .ok_or_else(|| format!("the registry's skill is found: {echo}"))?;
     assert_eq!(hit["source"], "registry");
     assert_eq!(hit["trust_tier"], "verified");
@@ -694,7 +694,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     let notes = found("notes")?;
     let hit = notes["hits"]
         .as_array()
-        .and_then(|hits| hits.iter().find(|hit| hit["ref"] == "skills/notes"))
+        .and_then(|hits| hits.iter().find(|hit| hit["package"] == "skills/notes"))
         .ok_or("the project's own skill is found")?;
     assert_eq!(hit["source"], "project");
     assert_eq!(
@@ -707,7 +707,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
         TURN,
         "registry_inspect",
         None,
-        input(serde_json::json!({"ref": "acme/echo@1.0.0"}))?,
+        input(serde_json::json!({"package": "acme/echo@1.0.0"}))?,
     )?;
     let TurnCallOutcome::Completed { output, .. } = &inspected.outcome else {
         return Err(format!("the inspection completed: {inspected:?}").into());
@@ -729,7 +729,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
         TURN,
         "registry_inspect",
         None,
-        input(serde_json::json!({"ref": "store"}))?,
+        input(serde_json::json!({"package": "store"}))?,
     )?;
     let TurnCallOutcome::Completed { output, .. } = &store.outcome else {
         return Err(format!("the connector inspection completed: {store:?}").into());

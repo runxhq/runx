@@ -1,0 +1,30 @@
+{
+  "$id": "https://schemas.runx.ai/runx/data/comparison/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `data.compare` returns: whether two resolved values are equal, and the digest of each, without copying either into the output.",
+  "properties": {
+    "actual_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "equal": {
+      "type": "boolean"
+    },
+    "expected_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "equal",
+    "actual_digest",
+    "expected_digest"
+  ],
+  "title": "DataComparison",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.data.comparison.v1"
+}

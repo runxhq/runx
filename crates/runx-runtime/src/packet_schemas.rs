@@ -1,14 +1,18 @@
 //! Canonical packet-schema catalog for runtime consumers.
 //!
-//! The parser owns document meaning. This module owns deterministic discovery,
-//! exact-source collision handling, and search-root policy. Execution, listing,
-//! and registry publication consume this catalog instead of maintaining their
-//! own packet registries.
+//! The parser owns document meaning. This module owns resolution, which
+//! follows the id: a core packet resolves from the contracts compiled into
+//! runx, and a package packet from the package its id names. That is the
+//! package itself, the pinned copy a package carries of another's packet,
+//! or, for a package outside any installed bundle, the owning package in the
+//! workspace or added to the project. Execution, listing, and registry
+//! publication consume this catalog instead of maintaining their own packet
+//! registries.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use runx_parser::SkillPackageSource;
+use runx_contracts::PacketId;
 use runx_parser::{
     PacketSchemaError, SkillArtifactContract, SkillInput, SkillRunnerDefinition,
     ValidatedPacketSchema, ValidatedSkillPackage, ValidatedTool, parse_packet_schema_document,
@@ -32,7 +36,6 @@ pub(crate) fn agent_output_contract_schema(
     output: &BTreeMap<String, runx_contracts::OutputField>,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
-    env: &BTreeMap<String, String>,
 ) -> Result<runx_contracts::JsonValue, RuntimeError> {
     let mut root = runx_contracts::output_value_schema(Some(output));
     let Some(artifacts) = artifacts else {
@@ -50,13 +53,13 @@ pub(crate) fn agent_output_contract_schema(
 
     let package_root = crate::skill_package::find_owning_package_root(skill_directory)
         .unwrap_or_else(|| skill_directory.to_path_buf());
-    let workspace = crate::RunxPaths::resolve(env, skill_directory)
-        .workspace()
-        .to_path_buf();
-    let directories = packet_schema_directories(skill_directory, &package_root, &workspace)
-        .map_err(agent_packet_contract_error)?;
-    let catalog =
-        PacketSchemaCatalog::discover(directories).map_err(agent_packet_contract_error)?;
+    let catalog = PacketSchemaCatalog::for_package(
+        &package_root,
+        named_bindings
+            .values()
+            .chain(wrapped_binding.iter().map(|(_, packet)| packet)),
+    )
+    .map_err(agent_packet_contract_error)?;
 
     for (name, packet) in named_bindings {
         if !output.contains_key(&name) {
@@ -176,13 +179,13 @@ fn agent_packet_shape_error() -> RuntimeError {
 
 fn packet_schema(
     catalog: &PacketSchemaCatalog,
-    packet: &str,
+    packet: &PacketId,
 ) -> Result<runx_contracts::JsonObject, RuntimeError> {
     catalog
         .get(packet)
         .ok_or_else(|| RuntimeError::SkillFailed {
             skill_name: "agent".to_owned(),
-            message: format!("declared packet schema '{packet}' was not found"),
+            message: catalog.not_found(packet),
         })?
         .schema
         .value
@@ -225,7 +228,6 @@ fn agent_packet_contract_error(error: impl std::fmt::Display) -> RuntimeError {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PacketSchemaEntry {
     pub(crate) path: PathBuf,
-    pub(crate) file_name: String,
     pub(crate) source: String,
     pub(crate) schema: ValidatedPacketSchema,
 }
@@ -238,8 +240,6 @@ pub(crate) enum PacketSchemaCatalogError {
     Parse(#[from] PacketSchemaError),
     #[error("{0}")]
     PackageBundle(String),
-    #[error("packet schema path is not valid UTF-8: {path}")]
-    InvalidPath { path: PathBuf },
     #[error("packet schema is not valid UTF-8: {path}")]
     InvalidSource { path: PathBuf },
     #[error("native packet schema {file_name} is invalid: {message}")]
@@ -248,7 +248,7 @@ pub(crate) enum PacketSchemaCatalogError {
         "packet schema id '{packet_id}' resolves to conflicting documents at {existing_path} and {path}"
     )]
     Conflict {
-        packet_id: String,
+        packet_id: PacketId,
         existing_path: PathBuf,
         path: PathBuf,
     },
@@ -256,13 +256,15 @@ pub(crate) enum PacketSchemaCatalogError {
 
 #[derive(Clone, Default)]
 pub(crate) struct PacketSchemaCatalog {
-    entries: BTreeMap<String, PacketSchemaEntry>,
+    entries: BTreeMap<PacketId, PacketSchemaEntry>,
+    /// Where each requested id that resolved nowhere was looked for.
+    searched: BTreeMap<PacketId, Vec<PathBuf>>,
 }
 
 impl PacketSchemaCatalog {
-    /// Start with reusable packet contracts owned by the native Runx contract
-    /// catalog. Product packages consume these contracts by id and never carry
-    /// private copies of Runx-owned schema bytes.
+    /// The core packets: the reusable contracts the native Runx contract
+    /// catalog owns. A core packet's bytes are exactly its published
+    /// `schemas/` document, and no package carries a copy.
     pub(crate) fn native_public() -> Result<Self, PacketSchemaCatalogError> {
         // The contracts are compiled in, so the catalog is the same for the
         // whole process: built once, then copied for each caller to extend.
@@ -277,109 +279,118 @@ impl PacketSchemaCatalog {
     fn build_native_public() -> Result<Self, PacketSchemaCatalogError> {
         let mut catalog = Self::default();
         for artifact in runx_contracts::generated_schema_artifacts() {
-            if !artifact.native_packet {
-                continue;
-            }
-            let Some(schema) = artifact.schema.as_object() else {
+            let Some(packet_id) = artifact.packet_id() else {
                 continue;
             };
-            if schema
-                .get("x-runx-packet")
-                .and_then(serde_json::Value::as_bool)
-                != Some(true)
-            {
-                continue;
-            }
-            let Some(packet_id) = schema
-                .get("x-runx-schema")
-                .and_then(serde_json::Value::as_str)
-                .filter(|value| !value.trim().is_empty())
-            else {
-                continue;
+            let native_error = |message: String| PacketSchemaCatalogError::Native {
+                file_name: artifact.file_name.to_owned(),
+                message,
             };
-            let mut document = schema.clone();
-            document.insert(
-                runx_parser::PACKET_ID_FIELD.to_owned(),
-                serde_json::Value::String(packet_id.to_owned()),
-            );
-            document.insert(
-                "x-runx-generated-from".to_owned(),
-                serde_json::Value::String(format!("schemas/{}", artifact.file_name)),
-            );
-            let source = serde_json::to_string_pretty(&serde_json::Value::Object(document))
-                .map(|source| format!("{source}\n"))
-                .map_err(|error| PacketSchemaCatalogError::Native {
-                    file_name: artifact.file_name.to_owned(),
-                    message: error.to_string(),
-                })?;
-            let path = PathBuf::from("[runx-native-packets]").join(artifact.file_name);
-            let entry = packet_schema_entry(path, source)?.ok_or_else(|| {
-                PacketSchemaCatalogError::Native {
-                    file_name: artifact.file_name.to_owned(),
-                    message: "generated public packet has no packet identity".to_owned(),
-                }
+            let source = artifact
+                .document()
+                .map_err(|error| native_error(error.to_string()))?;
+            let value =
+                serde_json::from_str(&source).map_err(|error| native_error(error.to_string()))?;
+            let digest = runx_contracts::sha256_prefixed(source.as_bytes());
+            catalog.insert(PacketSchemaEntry {
+                path: PathBuf::from("[runx-native-packets]").join(artifact.file_name),
+                source,
+                schema: ValidatedPacketSchema {
+                    packet_id,
+                    value,
+                    digest,
+                },
             })?;
-            catalog.insert(entry)?;
         }
         Ok(catalog)
     }
 
-    pub(crate) fn discover(
-        directories: impl IntoIterator<Item = PathBuf>,
+    /// The packets the package at `package_root` resolves for `packet_ids`:
+    /// every core packet, and each named package packet from where its id
+    /// says it lives (R5).
+    pub(crate) fn for_package<'a>(
+        package_root: &Path,
+        packet_ids: impl IntoIterator<Item = &'a PacketId>,
     ) -> Result<Self, PacketSchemaCatalogError> {
         let mut catalog = Self::native_public()?;
-        catalog.discover_directories(directories)?;
+        catalog.resolve_all(package_root, packet_ids)?;
         Ok(catalog)
     }
 
-    pub(crate) fn discover_directories(
-        &mut self,
-        directories: impl IntoIterator<Item = PathBuf>,
-    ) -> Result<(), PacketSchemaCatalogError> {
-        for directory in stable_unique_paths(directories) {
-            self.discover_directory(&directory)?;
-        }
-        Ok(())
-    }
-
-    /// Add packet schemas from every canonical `packets/` directory in the
-    /// parser-admitted package snapshot. Hydration and publication therefore
-    /// resolve the same immutable bytes instead of rereading package files.
-    pub(crate) fn discover_validated_package(
-        &mut self,
+    /// As [`Self::for_package`], starting from the packets the parser
+    /// admitted with the package and the documents `admitted` already
+    /// resolved for it, so hydration and publication resolve the same
+    /// immutable bytes instead of rereading files.
+    pub(crate) fn for_validated_package<'a>(
         package: &ValidatedSkillPackage,
         package_root: &Path,
+        admitted: impl IntoIterator<Item = &'a PacketSchemaEntry>,
+        packet_ids: impl IntoIterator<Item = &'a PacketId>,
+    ) -> Result<Self, PacketSchemaCatalogError> {
+        let mut catalog = Self::native_public()?;
+        for entry in admitted {
+            catalog.insert(entry.clone())?;
+        }
+        for packet in package.packets.values() {
+            let path = package_root.join(&packet.path);
+            let source = package
+                .file_text(&packet.path)
+                .ok_or_else(|| PacketSchemaCatalogError::InvalidSource { path: path.clone() })?
+                .to_owned();
+            catalog.insert(PacketSchemaEntry {
+                path,
+                source,
+                schema: packet.schema.clone(),
+            })?;
+        }
+        catalog.resolve_all(package_root, packet_ids)?;
+        Ok(catalog)
+    }
+
+    fn resolve_all<'a>(
+        &mut self,
+        package_root: &Path,
+        packet_ids: impl IntoIterator<Item = &'a PacketId>,
     ) -> Result<(), PacketSchemaCatalogError> {
-        for directory in package_packet_directories(package) {
-            self.discover_source_directory(&package.source, package_root, &directory)?;
+        let mut lookup = None;
+        for packet_id in packet_ids {
+            if self.entries.contains_key(packet_id) || self.searched.contains_key(packet_id) {
+                continue;
+            }
+            let lookup = match &lookup {
+                Some(lookup) => lookup,
+                None => lookup.insert(PacketLookup::for_package(package_root)?),
+            };
+            self.resolve(packet_id, lookup)?;
         }
         Ok(())
     }
 
-    /// Add packet schemas from the exact package snapshot already admitted by
-    /// the parser. Registry publication uses this instead of rereading package
-    /// files after validation.
-    pub(crate) fn discover_loaded_package(
+    fn resolve(
         &mut self,
-        loaded: &crate::LoadedSkillPackage,
+        packet_id: &PacketId,
+        lookup: &PacketLookup,
     ) -> Result<(), PacketSchemaCatalogError> {
-        self.discover_validated_package(&loaded.package, &loaded.package_root)
-    }
-
-    pub(crate) fn discover_directory(
-        &mut self,
-        directory: &Path,
-    ) -> Result<(), PacketSchemaCatalogError> {
-        for entry in read_dir_sorted(directory)? {
-            if !entry.is_file
-                || entry.path.extension().and_then(|value| value.to_str()) != Some("json")
-            {
-                continue;
+        let mut searched = Vec::new();
+        for candidates in lookup.candidates(packet_id)? {
+            let mut found = false;
+            for path in candidates {
+                let declares = if path.is_file() {
+                    read_packet_schema(&path)?.filter(|entry| &entry.schema.packet_id == packet_id)
+                } else {
+                    None
+                };
+                searched.push(path);
+                if let Some(entry) = declares {
+                    self.insert(entry)?;
+                    found = true;
+                }
             }
-            if let Some(schema) = read_packet_schema(&entry.path)? {
-                self.insert(schema)?;
+            if found {
+                return Ok(());
             }
         }
+        self.searched.insert(packet_id.clone(), searched);
         Ok(())
     }
 
@@ -398,43 +409,88 @@ impl PacketSchemaCatalog {
             }
             return Ok(());
         }
+        self.searched.remove(packet_id);
         self.entries.insert(packet_id.clone(), entry);
         Ok(())
     }
 
-    pub(crate) fn get(&self, packet_id: &str) -> Option<&PacketSchemaEntry> {
+    pub(crate) fn get(&self, packet_id: &PacketId) -> Option<&PacketSchemaEntry> {
         self.entries.get(packet_id)
     }
 
-    pub(crate) fn entries(&self) -> impl Iterator<Item = &PacketSchemaEntry> {
-        self.entries.values()
+    /// Why a requested id is not in the catalog.
+    pub(crate) fn not_found(&self, packet_id: &PacketId) -> String {
+        if packet_id.is_core() {
+            return format!("'{packet_id}' is not a core packet this runx carries");
+        }
+        let searched = self
+            .searched
+            .get(packet_id)
+            .map(|paths| {
+                paths
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
+        format!("declared packet schema '{packet_id}' was not found; searched {searched}")
+    }
+}
+
+/// Where one package looks for the packets other packages own.
+struct PacketLookup {
+    package_root: PathBuf,
+    /// The workspace and project-added packages, for a package outside any
+    /// installed bundle. An installed package resolves only what its bundle
+    /// carries.
+    owners: Option<(PathBuf, PathBuf)>,
+}
+
+impl PacketLookup {
+    fn for_package(package_root: &Path) -> Result<Self, PacketSchemaCatalogError> {
+        let bundled = crate::registry::package_bundle::package_bundle_root(package_root)
+            .map_err(PacketSchemaCatalogError::PackageBundle)?
+            .is_some();
+        // The package's own workspace, never the execution workspace an
+        // isolated run sets: what a packet means never depends on where the
+        // package runs.
+        let paths = crate::RunxPaths::resolve(&BTreeMap::new(), package_root);
+        Ok(Self {
+            package_root: package_root.to_path_buf(),
+            owners: (!bundled).then(|| (paths.skills(), paths.added_skills())),
+        })
     }
 
-    fn discover_source_directory(
-        &mut self,
-        source: &SkillPackageSource,
-        package_root: &Path,
-        relative_directory: &str,
-    ) -> Result<(), PacketSchemaCatalogError> {
-        let prefix = format!("{relative_directory}/");
-        for (relative, contents) in source
-            .files
-            .range(prefix.clone()..)
-            .take_while(|(path, _)| path.starts_with(&prefix))
-        {
-            let file_name = &relative[prefix.len()..];
-            if file_name.contains('/') || !file_name.ends_with(".json") {
-                continue;
-            }
-            let path = package_root.join(relative);
-            let source = std::str::from_utf8(contents)
-                .map(str::to_owned)
-                .map_err(|_| PacketSchemaCatalogError::InvalidSource { path: path.clone() })?;
-            if let Some(schema) = packet_schema_entry(path, source)? {
-                self.insert(schema)?;
-            }
+    /// Candidate paths in precedence order, each group a source that settles
+    /// the id when any of its paths declares it: the package's own packet
+    /// and its pinned copy, then the owning package in the workspace, then
+    /// every version of the owning package added to the project.
+    fn candidates(
+        &self,
+        packet_id: &PacketId,
+    ) -> Result<Vec<Vec<PathBuf>>, PacketSchemaCatalogError> {
+        let (Some((publisher, package)), Some(file_name), Some(pinned)) = (
+            packet_id.owner(),
+            packet_id.file_name(),
+            packet_id.pinned_path(),
+        ) else {
+            return Ok(Vec::new());
+        };
+        let packets = self.package_root.join("packets");
+        let mut candidates = vec![vec![packets.join(&file_name), packets.join(pinned)]];
+        if let Some((skills, added_skills)) = &self.owners {
+            candidates.push(vec![skills.join(package).join("packets").join(&file_name)]);
+            let versions = added_skills.join(publisher).join(package);
+            candidates.push(
+                read_dir_sorted(&versions)?
+                    .into_iter()
+                    .filter(|entry| entry.is_dir)
+                    .map(|entry| entry.path.join("packets").join(&file_name))
+                    .collect(),
+            );
         }
-        Ok(())
+        Ok(candidates)
     }
 }
 
@@ -446,8 +502,8 @@ pub(crate) fn read_packet_schema(
 }
 
 /// A schema file's entry, parsed once per exact path and bytes: every output
-/// check of a run reads the same packet directories, and a changed file is
-/// another source.
+/// check of a run reads the same packet files, and a changed file is another
+/// source.
 pub(crate) fn packet_schema_entry(
     path: PathBuf,
     source: String,
@@ -467,7 +523,12 @@ pub(crate) fn packet_schema_entry(
     if let Some(entry) = cache.lock().ok().and_then(|cache| cache.get(&key).cloned()) {
         return Ok(entry);
     }
-    let entry = parse_packet_schema_entry(path, source)?;
+    let label = path.to_string_lossy().into_owned();
+    let entry = parse_packet_schema_document(label, &source)?.map(|schema| PacketSchemaEntry {
+        path,
+        source,
+        schema,
+    });
     if let Ok(mut cache) = cache.lock() {
         if cache.len() >= RETAINED {
             cache.clear();
@@ -477,58 +538,7 @@ pub(crate) fn packet_schema_entry(
     Ok(entry)
 }
 
-fn parse_packet_schema_entry(
-    path: PathBuf,
-    source: String,
-) -> Result<Option<PacketSchemaEntry>, PacketSchemaCatalogError> {
-    let label = path.to_string_lossy().into_owned();
-    let Some(schema) = parse_packet_schema_document(label, &source)? else {
-        return Ok(None);
-    };
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .map(str::to_owned)
-        .ok_or_else(|| PacketSchemaCatalogError::InvalidPath { path: path.clone() })?;
-    Ok(Some(PacketSchemaEntry {
-        path,
-        file_name,
-        source,
-        schema,
-    }))
-}
-
-/// Search only the selected profile, its owning package, the package's source
-/// workspace, and the execution workspace. The source and execution
-/// workspaces intentionally differ for isolated harness runs.
-pub(crate) fn packet_schema_directories(
-    profile_directory: &Path,
-    package_root: &Path,
-    workspace: &Path,
-) -> Result<Vec<PathBuf>, PacketSchemaCatalogError> {
-    let source_workspace = crate::RunxPaths::resolve(&BTreeMap::new(), package_root)
-        .workspace()
-        .to_path_buf();
-    let bundle_root = crate::registry::package_bundle::package_bundle_root(profile_directory)
-        .map_err(PacketSchemaCatalogError::PackageBundle)?;
-    let mut directories = vec![
-        profile_directory.join("packets"),
-        package_root.join("packets"),
-    ];
-    if let Some(root) = bundle_root {
-        directories.push(root.join("packets"));
-        directories.push(root.join("dist").join("packets"));
-    }
-    directories.extend([
-        source_workspace.join("packets"),
-        source_workspace.join("dist").join("packets"),
-        workspace.join("packets"),
-        workspace.join("dist").join("packets"),
-    ]);
-    Ok(stable_unique_paths(directories))
-}
-
-pub(crate) fn declared_runner_packet_ids(runner: &SkillRunnerDefinition) -> BTreeSet<String> {
+pub(crate) fn declared_runner_packet_ids(runner: &SkillRunnerDefinition) -> BTreeSet<PacketId> {
     let mut packet_ids = BTreeSet::new();
     extend_input_packet_ids(&runner.inputs, &mut packet_ids);
     for step in &runner.graph.steps {
@@ -537,13 +547,15 @@ pub(crate) fn declared_runner_packet_ids(runner: &SkillRunnerDefinition) -> BTre
     packet_ids
 }
 
-pub(crate) fn declared_tool_packet_ids(tool: &ValidatedTool) -> BTreeSet<String> {
+pub(crate) fn declared_tool_packet_ids(tool: &ValidatedTool) -> BTreeSet<PacketId> {
     let mut packet_ids = declared_artifact_packet_ids(tool.artifacts.as_ref());
     extend_input_packet_ids(&tool.inputs, &mut packet_ids);
     packet_ids
 }
 
-pub(crate) fn declared_input_packet_ids(inputs: &BTreeMap<String, SkillInput>) -> BTreeSet<String> {
+pub(crate) fn declared_input_packet_ids(
+    inputs: &BTreeMap<String, SkillInput>,
+) -> BTreeSet<PacketId> {
     inputs
         .values()
         .filter_map(|input| input.packet.clone())
@@ -552,13 +564,16 @@ pub(crate) fn declared_input_packet_ids(inputs: &BTreeMap<String, SkillInput>) -
 
 pub(crate) fn declared_artifact_packet_ids(
     artifacts: Option<&SkillArtifactContract>,
-) -> BTreeSet<String> {
+) -> BTreeSet<PacketId> {
     let mut packet_ids = BTreeSet::new();
     extend_packet_ids(artifacts, &mut packet_ids);
     packet_ids
 }
 
-fn extend_packet_ids(artifacts: Option<&SkillArtifactContract>, packet_ids: &mut BTreeSet<String>) {
+fn extend_packet_ids(
+    artifacts: Option<&SkillArtifactContract>,
+    packet_ids: &mut BTreeSet<PacketId>,
+) {
     let Some(artifacts) = artifacts else {
         return;
     };
@@ -570,65 +585,53 @@ fn extend_packet_ids(artifacts: Option<&SkillArtifactContract>, packet_ids: &mut
 
 fn extend_input_packet_ids(
     inputs: &BTreeMap<String, SkillInput>,
-    packet_ids: &mut BTreeSet<String>,
+    packet_ids: &mut BTreeSet<PacketId>,
 ) {
     packet_ids.extend(inputs.values().filter_map(|input| input.packet.clone()));
 }
 
-fn package_packet_directories(package: &ValidatedSkillPackage) -> BTreeSet<String> {
-    let mut directories = BTreeSet::from(["packets".to_owned()]);
-    directories.extend(package.profiles.keys().filter_map(|profile| {
-        runx_parser::profile_directory(profile)
-            .filter(|directory| !directory.is_empty())
-            .map(|directory| format!("{directory}/packets"))
-    }));
-    directories
-}
-
-fn stable_unique_paths(paths: impl IntoIterator<Item = PathBuf>) -> Vec<PathBuf> {
-    let mut unique = Vec::new();
-    for path in paths {
-        if !unique.iter().any(|existing| existing == &path) {
-            unique.push(path);
-        }
-    }
-    unique
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        PacketSchemaCatalog, PacketSchemaCatalogError, packet_schema_directories,
-        packet_schema_entry,
-    };
+    use super::{PacketSchemaCatalog, PacketSchemaCatalogError, packet_schema_entry};
+    use runx_contracts::PacketId;
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
+
+    fn packet(id: &str, shape: &str) -> Result<String, &'static str> {
+        let packet_id = PacketId::new(id).ok_or("packet id")?;
+        Ok(format!(
+            r#"{{"$id":"{}","x-runx-packet-id":"{id}","type":"{shape}"}}"#,
+            packet_id.schema_url()
+        ))
+    }
+
+    fn write_skill(root: &Path, name: &str) -> Result<PathBuf, std::io::Error> {
+        let package = root.join("skills").join(name);
+        fs::create_dir_all(package.join("packets"))?;
+        fs::write(
+            package.join("SKILL.md"),
+            format!("---\nname: {name}\ndescription: Test.\n---\n"),
+        )?;
+        Ok(package)
+    }
 
     #[test]
     fn catalog_accepts_identical_documents_and_rejects_conflicts()
     -> Result<(), Box<dyn std::error::Error>> {
-        let source = r#"{"x-runx-packet-id":"runx.test.plan.v1","type":"object"}"#;
+        let source = packet("acme/test.plan.v1", "object")?;
         let mut catalog = PacketSchemaCatalog::default();
         catalog.insert(
-            packet_schema_entry(PathBuf::from("first.json"), source.to_owned())?
+            packet_schema_entry(PathBuf::from("first.json"), source.clone())?
                 .ok_or("first schema missing")?,
         )?;
         catalog.insert(
-            packet_schema_entry(PathBuf::from("second.json"), source.to_owned())?
+            packet_schema_entry(PathBuf::from("second.json"), source)?
                 .ok_or("second schema missing")?,
-        )?;
-        catalog.insert(
-            packet_schema_entry(
-                PathBuf::from("formatted.json"),
-                "{\n  \"type\": \"object\",\n  \"x-runx-packet-id\": \"runx.test.plan.v1\"\n}\n"
-                    .to_owned(),
-            )?
-            .ok_or("formatted schema missing")?,
         )?;
 
         let conflict = packet_schema_entry(
             PathBuf::from("conflict.json"),
-            r#"{"x-runx-packet-id":"runx.test.plan.v1","type":"string"}"#.to_owned(),
+            packet("acme/test.plan.v1", "string")?,
         )?
         .ok_or("conflicting schema missing")?;
         assert!(matches!(
@@ -639,41 +642,89 @@ mod tests {
     }
 
     #[test]
-    fn native_public_packets_are_available_without_workspace_files()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn core_packets_are_the_published_schema_bytes() -> Result<(), Box<dyn std::error::Error>> {
         let catalog = PacketSchemaCatalog::native_public()?;
-        assert!(catalog.get("runx.external_job_stage.request.v1").is_some());
-        assert!(catalog.get("runx.external_job_stage.result.v1").is_some());
-        assert!(
-            catalog
-                .get("runx.external_job_schedule_intent.v1")
-                .is_some()
-        );
-        let repository_packets = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
-            .join("dist/packets");
-        let discovered = PacketSchemaCatalog::discover([repository_packets])?;
-        assert!(
-            discovered
-                .get("runx.external_job_stage.request.v1")
-                .is_some()
+        let id = PacketId::new("runx.external_job_stage.request.v1").ok_or("id")?;
+        let entry = catalog.get(&id).ok_or("core packet missing")?;
+        let published = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../schemas/external-job-stage-request.schema.json"),
+        )?;
+        assert_eq!(entry.source, published);
+        assert_eq!(
+            entry.schema.digest,
+            runx_contracts::sha256_prefixed(published.as_bytes())
         );
         Ok(())
     }
 
     #[test]
-    fn packet_schema_roots_keep_source_workspace_when_execution_is_isolated()
+    fn a_package_packet_resolves_from_the_package_its_id_names()
     -> Result<(), Box<dyn std::error::Error>> {
-        let source = tempfile::tempdir()?;
-        fs::write(source.path().join("pnpm-workspace.yaml"), "packages: []\n")?;
-        let package = source.path().join("skills/code-plan");
-        let profile = package.join("graph/plan");
-        let execution = tempfile::tempdir()?;
+        let workspace = tempfile::tempdir()?;
+        let reader = write_skill(workspace.path(), "cold-outreach")?;
+        let owner = write_skill(workspace.path(), "lead-qualify")?;
+        let qualification = packet("acme/lead-qualify.qualification.v1", "object")?;
+        fs::write(
+            owner.join("packets/qualification.v1.schema.json"),
+            &qualification,
+        )?;
+        // The execution workspace and any workspace build output are never
+        // packet sources.
+        fs::create_dir_all(workspace.path().join("dist/packets"))?;
+        fs::write(
+            workspace.path().join("dist/packets/stale.schema.json"),
+            packet("acme/lead-qualify.stale.v1", "object")?,
+        )?;
 
-        let roots = packet_schema_directories(&profile, &package, execution.path())?;
+        let id = PacketId::new("acme/lead-qualify.qualification.v1").ok_or("id")?;
+        let stale = PacketId::new("acme/lead-qualify.stale.v1").ok_or("id")?;
+        let catalog = PacketSchemaCatalog::for_package(&reader, [&id, &stale])?;
+        assert_eq!(
+            catalog.get(&id).map(|entry| &entry.source),
+            Some(&qualification)
+        );
+        assert!(catalog.get(&stale).is_none());
+        assert!(catalog.not_found(&stale).contains("lead-qualify"));
+        Ok(())
+    }
 
-        assert!(roots.contains(&source.path().join("dist/packets")));
-        assert!(roots.contains(&execution.path().join("dist/packets")));
+    #[test]
+    fn an_installed_package_resolves_only_what_its_bundle_carries()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let workspace = tempfile::tempdir()?;
+        let owner = write_skill(workspace.path(), "lead-qualify")?;
+        fs::write(
+            owner.join("packets/qualification.v1.schema.json"),
+            packet("acme/lead-qualify.qualification.v1", "object")?,
+        )?;
+        let installed = workspace
+            .path()
+            .join(".runx/added-skills/acme/cold-outreach/1.0.0");
+        fs::create_dir_all(installed.join("packets/acme/lead-qualify"))?;
+        fs::write(
+            installed.join("SKILL.md"),
+            "---\nname: cold-outreach\ndescription: Test.\n---\n",
+        )?;
+        fs::write(
+            installed.join("runx.package.json"),
+            r#"{"schema":"runx.registry.package_bundle.v1","dependencies":[],"connectors":[]}"#,
+        )?;
+        let id = PacketId::new("acme/lead-qualify.qualification.v1").ok_or("id")?;
+
+        let catalog = PacketSchemaCatalog::for_package(&installed, [&id])?;
+        assert!(
+            catalog.get(&id).is_none(),
+            "a bundle never reads the workspace"
+        );
+
+        let pinned = packet("acme/lead-qualify.qualification.v1", "object")?;
+        fs::write(
+            installed.join("packets/acme/lead-qualify/qualification.v1.schema.json"),
+            &pinned,
+        )?;
+        let catalog = PacketSchemaCatalog::for_package(&installed, [&id])?;
+        assert_eq!(catalog.get(&id).map(|entry| &entry.source), Some(&pinned));
         Ok(())
     }
 }

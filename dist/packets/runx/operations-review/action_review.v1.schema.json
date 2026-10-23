@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/operations-review/action-review/v1.json",
+  "x-runx-packet-id": "runx/operations-review.action_review.v1",
+  "type": "object",
+  "required": [
+    "action_review"
+  ],
+  "properties": {
+    "action_review": {
+      "additionalProperties": false,
+      "properties": {
+        "approval_required": {
+          "type": "boolean"
+        },
+        "blockers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "consequence": {
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "ready",
+            "awaiting_approval",
+            "needs_input",
+            "refused"
+          ],
+          "type": "string"
+        },
+        "execution_handoff": {
+          "additionalProperties": false,
+          "properties": {
+            "approval_gate": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "interface": {
+              "type": "string"
+            },
+            "lane": {
+              "type": "string"
+            },
+            "verifier": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "interface",
+            "lane",
+            "verifier"
+          ],
+          "type": "object"
+        },
+        "verification": {
+          "additionalProperties": false,
+          "properties": {
+            "expected_effect": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "expected_receipt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "readback": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "expected_receipt",
+            "readback"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "decision",
+        "consequence",
+        "approval_required",
+        "blockers",
+        "execution_handoff",
+        "verification"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

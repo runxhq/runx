@@ -81,7 +81,7 @@ impl From<super::RegistryManifestTrustEnvError> for ResolveError {
         match error {
             super::RegistryManifestTrustEnvError::InvalidKey => Self::Failed(error.to_string()),
             super::RegistryManifestTrustEnvError::MissingKeyId
-            | super::RegistryManifestTrustEnvError::MissingOwner
+            | super::RegistryManifestTrustEnvError::MissingPublisher
             | super::RegistryManifestTrustEnvError::MissingSource => Self::Usage(error.to_string()),
         }
     }
@@ -134,7 +134,7 @@ pub fn install_skill_ref<T>(
         RegistryTarget::Remote { registry_url } => {
             let client = registry_client(&registry_url, env)?;
             // One segment reaches the registry only as a root name, which it
-            // resolves to the canonical `<owner>/<name>` it installs.
+            // resolves to the canonical `<publisher>/<name>` it installs.
             let skill_id = if subject.contains('/') {
                 subject.to_owned()
             } else {
@@ -297,7 +297,7 @@ fn newest_readable<P, T, E: Into<ResolveError>>(
     }
     Err(ResolveError::Failed(format!(
         "runx {} reads no published version of {subject}; the newest, {subject}@{}: {}",
-        crate::EXECUTION_RUNTIME_RELEASE,
+        crate::RUNX_VERSION,
         newest.version,
         newest.reason
     )))
@@ -392,10 +392,10 @@ pub fn install_connector(
         let Some(published) = client.connector_package(name, version)? else {
             return Ok(None);
         };
-        if &published.name != name || published.version != version {
+        if &published.connector != name || published.version != version {
             return Err(ResolveError::Failed(format!(
                 "the registry served {}@{} for {name}@{version}",
-                published.name, published.version
+                published.connector, published.version
             )));
         }
         Ok(Some(published))
@@ -432,7 +432,7 @@ pub fn install_connector(
     }))
 }
 
-/// The canonical `<owner>/<name>` root name `subject` addresses in the
+/// The canonical `<publisher>/<name>` root name `subject` addresses in the
 /// registry `registry` targets; none where no skill holds it, or the registry
 /// is a directory, which holds no root names.
 ///
@@ -504,10 +504,10 @@ fn candidate_from_resolution(
         markdown: resolution.markdown,
         profile_document: resolution.profile_document,
         package_files: resolution.package_files,
-        package_digest: resolution.package_digest,
+        bundle_digest: resolution.bundle_digest,
         source: resolution.source,
         source_label: resolution.source_label,
-        r#ref: registry_ref.to_owned(),
+        package: registry_ref.to_owned(),
         skill_id: Some(resolution.skill_id),
         version: Some(resolution.version),
         signed_manifest: resolution.signed_manifest,
@@ -527,10 +527,10 @@ fn candidate_from_acquired(
         markdown: acquired.markdown.clone(),
         profile_document: acquired.profile_document.clone(),
         package_files: acquired.package_files.clone(),
-        package_digest: acquired.package_digest.clone(),
+        bundle_digest: acquired.bundle_digest.clone(),
         source: "runx-registry".to_owned(),
         source_label: "runx registry".to_owned(),
-        r#ref: registry_ref.to_owned(),
+        package: registry_ref.to_owned(),
         skill_id: Some(acquired.skill_id.clone()),
         version: Some(acquired.version.clone()),
         signed_manifest: acquired.signed_manifest.clone(),
@@ -692,7 +692,7 @@ mod tests {
             refusal(result)?,
             format!(
                 "runx {} reads no published version of acme/echo; the newest, acme/echo@2: colour is not supported",
-                crate::EXECUTION_RUNTIME_RELEASE
+                crate::RUNX_VERSION
             )
         );
         assert_eq!(fetched, ["1"]);

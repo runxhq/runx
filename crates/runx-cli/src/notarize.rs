@@ -234,21 +234,21 @@ fn render_notarize_result(
         "{verb} receipt {} ({})\n",
         response.digest, response.mode
     ));
-    out.push_str(&format!("  status:      {}\n", response.status));
-    out.push_str(&format!("  published:   {}\n", response.published));
-    out.push_str(&format!("  public hash: {}\n", response.public_hash));
+    out.push_str(&format!("  status:        {}\n", response.status));
+    out.push_str(&format!("  published:     {}\n", response.published));
+    out.push_str(&format!("  public digest: {}\n", response.public_digest));
     if let Some(receipt_id) = &response.receipt_id {
-        out.push_str(&format!("  receipt id:  {receipt_id}\n"));
+        out.push_str(&format!("  receipt id:    {receipt_id}\n"));
     }
     if let Some(url) = &response.public_url {
-        out.push_str(&format!("  public url:  {url}\n"));
+        out.push_str(&format!("  public url:    {url}\n"));
     }
     if let Some(replay_status) = &response.replay_status {
-        out.push_str(&format!("  replay:      {replay_status}\n"));
+        out.push_str(&format!("  replay:        {replay_status}\n"));
     }
     if let Some(verdict) = &response.verdict {
         out.push_str(&format!(
-            "  verdict:     {}\n",
+            "  verdict:       {}\n",
             compact_json(verdict)
                 .map_err(|error| NotarizeCliError::Serialize(error.to_string()))?
         ));

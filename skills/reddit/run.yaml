@@ -1,5 +1,5 @@
 skill: reddit
-version: 0.1.8
+version: "0.1.9"
 catalog:
   kind: graph
   audience: operator
@@ -90,7 +90,7 @@ runners:
     - id: account-state
       operation: store/events.read
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.account_id
         limit: 1
@@ -849,7 +849,7 @@ runners:
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.account_id
         expected_version: $input.expected_version
@@ -872,7 +872,7 @@ runners:
     - id: list
       operation: store/heads.list
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_accounts
         limit: 20
         cursor: $input.cursor
@@ -945,7 +945,7 @@ runners:
     - id: account-state
       operation: store/events.read
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.account_id
         limit: 1
@@ -965,7 +965,7 @@ runners:
     - id: history
       operation: store/events.read
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_contributions
         aggregate_id: $steps.digest.digest_result.digest
         limit: 1
@@ -1005,7 +1005,7 @@ runners:
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_contributions
         aggregate_id: $steps.digest.digest_result.digest
         event: $steps.finish.contribution
@@ -1105,14 +1105,14 @@ runners:
     - id: account-state
       operation: store/events.read
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.account_id
         limit: 1
     - id: target-account
       operation: store/events.read
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.action.target_author
         limit: 1
@@ -1132,7 +1132,7 @@ runners:
     - id: history
       operation: store/events.read
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_contributions
         aggregate_id: $steps.digest.digest_result.digest
         limit: 1
@@ -1173,7 +1173,7 @@ runners:
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
       input:
-        data_source_ref: local://reddit
+        data_source_uri: local://reddit
         resource: reddit_contributions
         aggregate_id: $steps.digest.digest_result.digest
         event: $steps.finish.contribution

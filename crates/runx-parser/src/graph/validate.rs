@@ -32,7 +32,7 @@ pub fn validate_graph_document(
     reject_unsupported_top_level(&document)?;
 
     let name = required_string(document.get("name"), "name")?;
-    let owner = optional_string(document.get("owner"), "owner")?;
+    let publisher = optional_string(document.get("publisher"), "publisher")?;
     let result_from =
         optional_string_array(document.get("result_from"), "result_from")?.unwrap_or_default();
     let raw_steps = required_array(document.get("steps"), "steps")?;
@@ -58,7 +58,7 @@ pub fn validate_graph_document(
 
     Ok(ExecutionGraph {
         name,
-        owner,
+        publisher,
         result_from,
         steps,
         policy,
@@ -146,7 +146,7 @@ fn validate_gated_context(steps: &[crate::GraphStep]) -> Result<(), ValidationEr
 }
 
 /// The fields of a standalone graph document.
-const GRAPH_FIELDS: &[&str] = &["name", "owner", "result_from", "steps", "policy"];
+const GRAPH_FIELDS: &[&str] = &["name", "publisher", "result_from", "steps", "policy"];
 
 fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationError> {
     match document

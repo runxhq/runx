@@ -5,6 +5,7 @@
   "properties": {
     "harness": {
       "additionalProperties": true,
+      "description": "Where a binding's harness verification is. Open.",
       "properties": {
         "assertion_count": {
           "type": "number"
@@ -18,19 +19,21 @@
           },
           "type": "array"
         },
-        "status": {
+        "state": {
           "enum": [
             "pending",
             "failed",
             "harness_verified"
           ],
+          "title": "RegistryHarnessState",
           "type": "string"
         }
       },
       "required": [
-        "status",
+        "state",
         "case_count"
       ],
+      "title": "RegistryBindingHarness",
       "type": "object"
     },
     "registry": {
@@ -39,18 +42,20 @@
         "materialized_package_is_registry_artifact": {
           "const": true
         },
-        "owner": {
-          "type": "string"
-        },
         "profile_path": {
           "type": "string"
         },
+        "publisher": {
+          "type": "string"
+        },
         "trust_tier": {
+          "description": "How far the registry vouches for a publisher: runx's own packages, a publisher it verified, or anyone's.",
           "enum": [
             "first_party",
             "verified",
             "community"
           ],
+          "title": "TrustTier",
           "type": "string"
         },
         "version": {
@@ -58,7 +63,7 @@
         }
       },
       "required": [
-        "owner",
+        "publisher",
         "trust_tier",
         "version",
         "profile_path",
@@ -70,10 +75,12 @@
       "enum": [
         "runx.registry_binding.v1"
       ],
+      "title": "RegistryBindingSchema",
       "type": "string"
     },
     "skill": {
       "additionalProperties": true,
+      "description": "The skill identity for a registry binding. Open (`additionalProperties: true`).",
       "properties": {
         "description": {
           "type": "string"
@@ -90,6 +97,7 @@
         "name",
         "description"
       ],
+      "title": "RegistryBindingSkill",
       "type": "object"
     },
     "state": {
@@ -99,6 +107,7 @@
         "harness_verified",
         "published"
       ],
+      "title": "RegistryBindingState",
       "type": "string"
     },
     "upstream": {
@@ -161,6 +170,7 @@
     "registry",
     "harness"
   ],
+  "title": "RegistryBinding",
   "type": "object",
   "x-runx-schema": "runx.registry_binding.v1"
 }

@@ -82,10 +82,10 @@ fn persist_json_bytes(
     Ok(JsonValue::Object(JsonObject::from([
         (
             "schema".to_owned(),
-            JsonValue::String("runx.project_artifact_ref.v1".to_owned()),
+            JsonValue::String("runx.project_artifact.v1".to_owned()),
         ),
         (
-            "ref".to_owned(),
+            "uri".to_owned(),
             JsonValue::String(format!("runx:project-artifact:{digest}")),
         ),
         ("digest".to_owned(), JsonValue::String(digest)),
@@ -104,10 +104,10 @@ fn persist_json_bytes(
     ])))
 }
 
-pub fn read_json_artifact(artifacts: &Path, reference: &JsonValue) -> Result<JsonValue, String> {
-    let field = |name| reference.as_object().and_then(|object| object.get(name));
-    if field("schema").and_then(JsonValue::as_str) != Some("runx.project_artifact_ref.v1") {
-        return Err("project artifact reference has an unsupported schema".to_owned());
+pub fn read_json_artifact(artifacts: &Path, artifact: &JsonValue) -> Result<JsonValue, String> {
+    let field = |name| artifact.as_object().and_then(|object| object.get(name));
+    if field("schema").and_then(JsonValue::as_str) != Some("runx.project_artifact.v1") {
+        return Err("project artifact has an unsupported schema".to_owned());
     }
     let raw_path = field("path")
         .and_then(JsonValue::as_str)
@@ -124,7 +124,7 @@ pub fn read_json_artifact(artifacts: &Path, reference: &JsonValue) -> Result<Jso
     let bytes = read_artifact_bytes(&path)?;
     let digest = sha256_prefixed(&bytes);
     if field("digest").and_then(JsonValue::as_str) != Some(digest.as_str())
-        || field("ref").and_then(JsonValue::as_str)
+        || field("uri").and_then(JsonValue::as_str)
             != Some(format!("runx:project-artifact:{digest}").as_str())
         || field("media_type").and_then(JsonValue::as_str) != Some("application/json")
         || field("bytes")
@@ -132,7 +132,7 @@ pub fn read_json_artifact(artifacts: &Path, reference: &JsonValue) -> Result<Jso
             .and_then(|value| value.as_u64())
             != Some(bytes.len() as u64)
     {
-        return Err("project artifact digest differs from the stored reference".to_owned());
+        return Err("project artifact digest differs from the stored artifact".to_owned());
     }
     serde_json::from_slice(&bytes)
         .map_err(|error| format!("project artifact is invalid JSON: {error}"))

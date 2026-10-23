@@ -287,7 +287,7 @@ pub(super) fn bundle_report(
                     JsonValue::Number(JsonNumber::U64(write.contents.len() as u64)),
                 ),
                 (
-                    "sha256".to_owned(),
+                    "content_digest".to_owned(),
                     JsonValue::String(sha256_prefixed(write.contents.as_bytes())),
                 ),
             ]);

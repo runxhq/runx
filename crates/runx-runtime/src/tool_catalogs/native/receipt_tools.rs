@@ -1,4 +1,4 @@
-use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_contracts::{JsonNumber, JsonObject, JsonValue, ReceiptProof, ReceiptQuery};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -32,58 +32,18 @@ impl CapabilityInput for ReceiptProofInput {}
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 struct ReceiptQueryOutput {
-    receipt_query: ReceiptQueryPacket,
+    receipt_query: ReceiptQuery,
 }
 
 impl CapabilityOutput for ReceiptQueryOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-struct ReceiptQueryPacket {
-    schema: String,
-    source: String,
-    store_label: String,
-    filter: JsonObject,
-    receipt_ids: Vec<String>,
-    receipts: Vec<JsonValue>,
-    receipt_details: Vec<JsonValue>,
-    verification: ReceiptVerification,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
 struct ReceiptProofOutput {
-    receipt_proof: ReceiptProofPacket,
+    receipt_proof: ReceiptProof,
 }
 
 impl CapabilityOutput for ReceiptProofOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct ReceiptProofPacket {
-    schema: String,
-    decision: String,
-    requested_receipt_ids: Vec<String>,
-    matched_receipts: Vec<JsonValue>,
-    receipt_details: Vec<JsonValue>,
-    verification: ReceiptVerification,
-    store: ReceiptStore,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct ReceiptVerification {
-    checked: bool,
-    intact: Option<bool>,
-    trees: Vec<JsonValue>,
-    findings: Vec<JsonValue>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct ReceiptStore {
-    label: String,
-}
 
 const QUERY_FIELDS: &[CapabilityField] = &[
     field(
@@ -91,7 +51,7 @@ const QUERY_FIELDS: &[CapabilityField] = &[
         "Case-insensitive subject, id, issuer, actor, or artifact search.",
     ),
     field("skill", "Skill or subject filter."),
-    field("status", "Exact terminal status filter."),
+    field("outcome", "Exact closure outcome filter."),
     field("issuer", "Exact receipt issuer filter: local or hosted."),
     field("actor", "Exact signed actor filter."),
     field("since", "RFC3339 inclusive lower time bound."),
@@ -125,7 +85,7 @@ static QUERY: TypedNativeCapability<ReceiptQueryInput, ReceiptQueryOutput> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "receipt.query",
-            owner: "runx-runtime/receipts",
+            source: "runx-runtime/receipts",
             summary: "Query native receipt history with bounded detail and optional tree proof.",
             scopes: &["receipt.read"],
             effect: CapabilityEffect::Read,
@@ -143,7 +103,7 @@ static PROVE: TypedNativeCapability<ReceiptProofInput, ReceiptProofOutput> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "receipt.prove",
-            owner: "runx-runtime/receipts",
+            source: "runx-runtime/receipts",
             summary: "Resolve exact receipts, verify each child tree, and return redacted proof.",
             scopes: &["receipt.read"],
             effect: CapabilityEffect::Read,

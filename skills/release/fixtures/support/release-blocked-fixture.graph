@@ -5,7 +5,7 @@ steps:
     tool: { command: node, args: [./setup_release_fixture.mjs] }
     outputs:
       project_root: string
-      profile_ref: string
+      profile_path: string
   - id: prepare
     skill: ../..
     runner: prepare
@@ -13,4 +13,4 @@ steps:
       channel: fixture
       version: 1.2.3
       project_root: $steps.setup.project_root
-      profile_ref: $steps.setup.profile_ref
+      profile_path: $steps.setup.profile_path

@@ -1,0 +1,853 @@
+{
+  "$defs": {
+    "PurchasePaymentChallenge": {
+      "additionalProperties": false,
+      "properties": {
+        "media_type": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "payload": {},
+        "payload_digest": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "payment_method": {
+          "additionalProperties": false,
+          "description": "Protocol-owned discovery and display terms. These do not authorize a payment: the settlement executor verifies the complete challenge itself.",
+          "properties": {
+            "asset": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "method": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "network": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "pay_to": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "method"
+          ],
+          "title": "PurchasePaymentMethod",
+          "type": "object"
+        },
+        "protocol_version": {
+          "description": "Present only when the payment protocol carries a version.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "quote_expires_at": {
+          "minLength": 1,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+          "type": "string"
+        },
+        "quote_ref": {
+          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "locator": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "observed_at": {
+              "minLength": 1,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+              "type": "string"
+            },
+            "proof_kind": {
+              "enum": [
+                "effect_evidence",
+                "effect_finality",
+                "credential_resolution"
+              ],
+              "title": "ProofKind",
+              "type": "string"
+            },
+            "provider": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+              "enum": [
+                "thread",
+                "comment",
+                "event",
+                "tracking_item",
+                "change_request",
+                "repository",
+                "signal",
+                "run",
+                "act",
+                "receipt",
+                "artifact",
+                "verification",
+                "harness",
+                "host",
+                "surface",
+                "target",
+                "skill_binding",
+                "principal",
+                "scope_admission",
+                "grant",
+                "mandate",
+                "credential",
+                "webhook_delivery",
+                "redaction_policy",
+                "external_url",
+                "connector_instance",
+                "connector_operation"
+              ],
+              "title": "ReferenceType",
+              "type": "string"
+            },
+            "uri": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "uri"
+          ],
+          "title": "Reference",
+          "type": "object",
+          "x-runx-schema": "runx.reference.v1"
+        },
+        "settlement_family": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "settlement_family",
+        "media_type",
+        "payload",
+        "payload_digest",
+        "quote_ref",
+        "quote_expires_at"
+      ],
+      "title": "PurchasePaymentChallenge",
+      "type": "object"
+    },
+    "PurchasePaymentOptionBinding": {
+      "additionalProperties": false,
+      "description": "One exact quoted option. Its provider attempt retains this binding through settlement and recovery; this is not another payment or purchase identity.",
+      "properties": {
+        "payload_digest": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "settlement_family": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "settlement_family",
+        "payload_digest"
+      ],
+      "title": "PurchasePaymentOptionBinding",
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.runx.ai/runx/payment/quote-purchase/result/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "const": "admitted",
+          "type": "string"
+        },
+        "value": {
+          "additionalProperties": false,
+          "properties": {
+            "payment_options": {
+              "items": {
+                "$ref": "#/$defs/PurchasePaymentChallenge"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "purchase": {
+              "$id": "https://schemas.runx.ai/runx/payment/purchase/v1.json",
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "accepted_settlement_families": {
+                  "items": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+                    "type": "string"
+                  },
+                  "maxItems": 16,
+                  "minItems": 1,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "act_ref": {
+                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "The purchase's act, fixed before any run: what the seller's run performs and capacity reserves.",
+                  "properties": {
+                    "label": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "locator": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "observed_at": {
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                      "type": "string"
+                    },
+                    "proof_kind": {
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "title": "ProofKind",
+                      "type": "string"
+                    },
+                    "provider": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+                      "enum": [
+                        "thread",
+                        "comment",
+                        "event",
+                        "tracking_item",
+                        "change_request",
+                        "repository",
+                        "signal",
+                        "run",
+                        "act",
+                        "receipt",
+                        "artifact",
+                        "verification",
+                        "harness",
+                        "host",
+                        "surface",
+                        "target",
+                        "skill_binding",
+                        "principal",
+                        "scope_admission",
+                        "grant",
+                        "mandate",
+                        "credential",
+                        "webhook_delivery",
+                        "redaction_policy",
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
+                      ],
+                      "title": "ReferenceType",
+                      "type": "string"
+                    },
+                    "uri": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "uri"
+                  ],
+                  "title": "Reference",
+                  "type": "object",
+                  "x-runx-schema": "runx.reference.v1"
+                },
+                "amount_minor": {
+                  "maximum": 9007199254740991,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "buyer_key": {
+                  "description": "The key the buyer claims with; runx's purchase receipt binds it.",
+                  "pattern": "^ed25519:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+                  "type": "string"
+                },
+                "buyer_ref": {
+                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "The buyer: the principal that pays.",
+                  "properties": {
+                    "label": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "locator": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "observed_at": {
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                      "type": "string"
+                    },
+                    "proof_kind": {
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "title": "ProofKind",
+                      "type": "string"
+                    },
+                    "provider": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": {
+                      "const": "principal",
+                      "type": "string"
+                    },
+                    "uri": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "uri"
+                  ],
+                  "title": "PrincipalReference",
+                  "type": "object",
+                  "x-runx-schema": "runx.reference.v1"
+                },
+                "canonicalizer_version": {
+                  "description": "The sole V1 canonicalization identifier for digest-bound inputs.",
+                  "enum": [
+                    "runx.receipt.c14n.v1"
+                  ],
+                  "title": "PurchaseCanonicalizerVersion",
+                  "type": "string"
+                },
+                "created_at": {
+                  "minLength": 1,
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                  "type": "string"
+                },
+                "currency": {
+                  "pattern": "^[A-Z]{3}$",
+                  "type": "string"
+                },
+                "execution_state": {
+                  "enum": [
+                    "unstarted",
+                    "queued",
+                    "running",
+                    "waiting_external",
+                    "cancelling",
+                    "succeeded",
+                    "failed",
+                    "cancelled"
+                  ],
+                  "title": "PurchaseExecutionState",
+                  "type": "string"
+                },
+                "expires_at": {
+                  "minLength": 1,
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                  "type": "string"
+                },
+                "external_job_ref": {
+                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "locator": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "observed_at": {
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                      "type": "string"
+                    },
+                    "proof_kind": {
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "title": "ProofKind",
+                      "type": "string"
+                    },
+                    "provider": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+                      "enum": [
+                        "thread",
+                        "comment",
+                        "event",
+                        "tracking_item",
+                        "change_request",
+                        "repository",
+                        "signal",
+                        "run",
+                        "act",
+                        "receipt",
+                        "artifact",
+                        "verification",
+                        "harness",
+                        "host",
+                        "surface",
+                        "target",
+                        "skill_binding",
+                        "principal",
+                        "scope_admission",
+                        "grant",
+                        "mandate",
+                        "credential",
+                        "webhook_delivery",
+                        "redaction_policy",
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
+                      ],
+                      "title": "ReferenceType",
+                      "type": "string"
+                    },
+                    "uri": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "uri"
+                  ],
+                  "title": "Reference",
+                  "type": "object",
+                  "x-runx-schema": "runx.reference.v1"
+                },
+                "idempotency": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "binding_digest": {
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "key": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "binding_digest"
+                  ],
+                  "title": "PaymentIdempotencyBinding",
+                  "type": "object"
+                },
+                "input_digest": {
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "offer_version": {
+                  "$id": "https://schemas.runx.ai/runx/payment/offer-version-binding/v1.json",
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "input_schema_digest": {
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "offer_id": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "output_schema_digest": {
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "profile_digest": {
+                      "description": "The digest of the profile that declares the offer at that version.",
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "The package version the offer is sold at.",
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "offer_id",
+                    "version",
+                    "profile_digest",
+                    "input_schema_digest",
+                    "output_schema_digest"
+                  ],
+                  "title": "OfferVersionBinding",
+                  "type": "object",
+                  "x-runx-schema": "runx.payment.offer_version_binding.v1"
+                },
+                "outcome_gate": {
+                  "enum": [
+                    "open",
+                    "fulfilment_won",
+                    "refund_won"
+                  ],
+                  "title": "PurchaseOutcomeGate",
+                  "type": "string"
+                },
+                "package_digest": {
+                  "description": "The execution package digest the purchase runs (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "payment_ref": {
+                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "locator": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "observed_at": {
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                      "type": "string"
+                    },
+                    "proof_kind": {
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "title": "ProofKind",
+                      "type": "string"
+                    },
+                    "provider": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+                      "enum": [
+                        "thread",
+                        "comment",
+                        "event",
+                        "tracking_item",
+                        "change_request",
+                        "repository",
+                        "signal",
+                        "run",
+                        "act",
+                        "receipt",
+                        "artifact",
+                        "verification",
+                        "harness",
+                        "host",
+                        "surface",
+                        "target",
+                        "skill_binding",
+                        "principal",
+                        "scope_admission",
+                        "grant",
+                        "mandate",
+                        "credential",
+                        "webhook_delivery",
+                        "redaction_policy",
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
+                      ],
+                      "title": "ReferenceType",
+                      "type": "string"
+                    },
+                    "uri": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "uri"
+                  ],
+                  "title": "PaymentReference",
+                  "type": "object",
+                  "x-runx-schema": "runx.reference.v1"
+                },
+                "payment_state": {
+                  "enum": [
+                    "unpaid",
+                    "settling",
+                    "settled",
+                    "refunded"
+                  ],
+                  "title": "PurchasePaymentState",
+                  "type": "string"
+                },
+                "purchase_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "seller_ref": {
+                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "The seller: the publisher's principal enrolled to sell the skill.",
+                  "properties": {
+                    "label": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "locator": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "observed_at": {
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                      "type": "string"
+                    },
+                    "proof_kind": {
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "title": "ProofKind",
+                      "type": "string"
+                    },
+                    "provider": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": {
+                      "const": "principal",
+                      "type": "string"
+                    },
+                    "uri": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "uri"
+                  ],
+                  "title": "PrincipalReference",
+                  "type": "object",
+                  "x-runx-schema": "runx.reference.v1"
+                },
+                "settlement_family": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+                  "type": "string"
+                },
+                "skill_ref": {
+                  "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "description": "What is bought: the skill runner binding the seller's run performs.",
+                  "properties": {
+                    "label": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "locator": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "observed_at": {
+                      "minLength": 1,
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                      "type": "string"
+                    },
+                    "proof_kind": {
+                      "enum": [
+                        "effect_evidence",
+                        "effect_finality",
+                        "credential_resolution"
+                      ],
+                      "title": "ProofKind",
+                      "type": "string"
+                    },
+                    "provider": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": {
+                      "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+                      "enum": [
+                        "thread",
+                        "comment",
+                        "event",
+                        "tracking_item",
+                        "change_request",
+                        "repository",
+                        "signal",
+                        "run",
+                        "act",
+                        "receipt",
+                        "artifact",
+                        "verification",
+                        "harness",
+                        "host",
+                        "surface",
+                        "target",
+                        "skill_binding",
+                        "principal",
+                        "scope_admission",
+                        "grant",
+                        "mandate",
+                        "credential",
+                        "webhook_delivery",
+                        "redaction_policy",
+                        "external_url",
+                        "connector_instance",
+                        "connector_operation"
+                      ],
+                      "title": "ReferenceType",
+                      "type": "string"
+                    },
+                    "uri": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "uri"
+                  ],
+                  "title": "Reference",
+                  "type": "object",
+                  "x-runx-schema": "runx.reference.v1"
+                },
+                "updated_at": {
+                  "minLength": 1,
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "purchase_id",
+                "buyer_ref",
+                "seller_ref",
+                "skill_ref",
+                "offer_version",
+                "package_digest",
+                "input_digest",
+                "canonicalizer_version",
+                "amount_minor",
+                "currency",
+                "accepted_settlement_families",
+                "idempotency",
+                "expires_at",
+                "payment_state",
+                "execution_state",
+                "outcome_gate",
+                "created_at",
+                "updated_at"
+              ],
+              "title": "Purchase",
+              "type": "object",
+              "x-runx-schema": "runx.payment.purchase.v1"
+            }
+          },
+          "required": [
+            "purchase",
+            "payment_options"
+          ],
+          "title": "QuotePurchaseAdmission",
+          "type": "object"
+        }
+      },
+      "required": [
+        "status",
+        "value"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "offer_unavailable",
+            "quote_expired",
+            "terms_changed",
+            "replay_conflict",
+            "payment_not_authorized",
+            "capacity_unavailable",
+            "not_found",
+            "cancellation_not_available"
+          ],
+          "title": "PurchaseRefusalCode",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "const": "refused",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "code",
+        "reason"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "QuotePurchaseResult",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.payment.quote_purchase.result.v1"
+}

@@ -177,14 +177,6 @@ pub(super) fn display_relative(path: &Path) -> String {
         .join("/")
 }
 
-pub(super) fn json_string<'a>(value: &'a JsonValue, field: &str) -> &'a str {
-    value
-        .as_object()
-        .and_then(|object| object.get(field))
-        .and_then(JsonValue::as_str)
-        .unwrap_or("")
-}
-
 pub(super) fn unique_stage_root(repo_root: &Path, target: &Path) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

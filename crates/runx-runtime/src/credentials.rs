@@ -385,7 +385,7 @@ impl CredentialDelivery {
         connector: &str,
         kind: &str,
         env_var: &str,
-        material_ref: &str,
+        material_id: &str,
         secret: impl Into<String>,
     ) -> Result<Self, CredentialDeliveryError> {
         validate_env_name(env_var)?;
@@ -400,7 +400,7 @@ impl CredentialDelivery {
             Some(build_local_provision_observation(
                 connector,
                 kind,
-                material_ref,
+                material_id,
             )),
         ))
     }
@@ -510,14 +510,14 @@ pub enum CredentialDeliveryError {
 pub(crate) fn build_local_provision_observation(
     provider: &str,
     auth_mode: &str,
-    material_ref: &str,
+    material_id: &str,
 ) -> CredentialDeliveryObservation {
-    let material_ref_hash = hash_material_ref(material_ref);
-    let material_ref_id = sha256_hex(material_ref.as_bytes());
+    let material_id_digest = digest_material_id(material_id);
+    let material_id_hex = sha256_hex(material_id.as_bytes());
     CredentialDeliveryObservation {
         schema: runx_contracts::CredentialDeliveryObservationSchema::V1,
-        observation_id: format!("local-credential-delivery/{material_ref_id}").into(),
-        request_id: format!("local-credential-provision/{material_ref_id}").into(),
+        observation_id: format!("local-credential-delivery/{material_id_hex}").into(),
+        request_id: format!("local-credential-provision/{material_id_hex}").into(),
         response_id: None,
         status: CredentialDeliveryObservationStatus::Delivered,
         harness_ref: Reference::with_uri(
@@ -534,22 +534,22 @@ pub(crate) fn build_local_provision_observation(
         delivery_mode: Some(CredentialDeliveryMode::ProcessEnv),
         credential_refs: vec![Reference {
             reference_type: ReferenceType::Credential,
-            uri: format!("runx:credential:local:{material_ref_id}").into(),
+            uri: format!("runx:credential:local:{material_id_hex}").into(),
             provider: Some(provider.to_owned().into()),
             locator: None,
             label: None,
             observed_at: None,
             proof_kind: Some(ProofKind::CredentialResolution),
         }],
-        material_ref_hash: Some(material_ref_hash.into()),
+        material_id_digest: Some(material_id_digest.into()),
         delivered_roles: vec![runx_contracts::CredentialMaterialRole::ApiKey],
         redaction_refs: None,
         observed_at: crate::time::now_iso8601().into(),
     }
 }
 
-fn hash_material_ref(material_ref: &str) -> String {
-    sha256_prefixed(material_ref.as_bytes())
+fn digest_material_id(material_id: &str) -> String {
+    sha256_prefixed(material_id.as_bytes())
 }
 
 fn validate_env_name(name: &str) -> Result<(), CredentialDeliveryError> {

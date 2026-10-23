@@ -15,7 +15,7 @@ pub trait SignatureVerifier {
 pub enum SignatureVerificationFailure {
     MissingKey,
     MalformedKey,
-    KeyHashMismatch,
+    KeyDigestMismatch,
     UnsupportedIssuer,
     UnsupportedAlgorithm,
     MalformedSignature,
@@ -26,8 +26,8 @@ pub(super) fn signature_failure_code(error: &SignatureVerificationFailure) -> Re
     match error {
         SignatureVerificationFailure::MissingKey => ReceiptFindingCode::SignatureKeyMissing,
         SignatureVerificationFailure::MalformedKey => ReceiptFindingCode::SignatureKeyMalformed,
-        SignatureVerificationFailure::KeyHashMismatch => {
-            ReceiptFindingCode::SignatureKeyHashMismatch
+        SignatureVerificationFailure::KeyDigestMismatch => {
+            ReceiptFindingCode::SignatureKeyDigestMismatch
         }
         SignatureVerificationFailure::UnsupportedIssuer => {
             ReceiptFindingCode::SignatureUnsupportedIssuer
@@ -44,7 +44,7 @@ pub(super) fn signature_failure_path(error: &SignatureVerificationFailure) -> &'
     match error {
         SignatureVerificationFailure::MissingKey
         | SignatureVerificationFailure::MalformedKey
-        | SignatureVerificationFailure::KeyHashMismatch
+        | SignatureVerificationFailure::KeyDigestMismatch
         | SignatureVerificationFailure::UnsupportedIssuer => "issuer",
         SignatureVerificationFailure::UnsupportedAlgorithm => "signature.alg",
         SignatureVerificationFailure::MalformedSignature
@@ -60,8 +60,8 @@ pub(super) fn signature_failure_message(error: &SignatureVerificationFailure) ->
         SignatureVerificationFailure::MalformedKey => {
             "signature verifier resolved malformed issuer key material"
         }
-        SignatureVerificationFailure::KeyHashMismatch => {
-            "issuer public key hash does not match the resolved verifier key"
+        SignatureVerificationFailure::KeyDigestMismatch => {
+            "issuer public key digest does not match the resolved verifier key"
         }
         SignatureVerificationFailure::UnsupportedIssuer => {
             "signature verifier does not support this issuer type"

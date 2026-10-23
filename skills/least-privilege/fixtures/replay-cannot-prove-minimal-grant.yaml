@@ -10,16 +10,16 @@ inputs:
     - rcpt_repo_read
   receipt_rows:
     - receipt_id: rcpt_repo_read
-      skill_ref: code/governed-issue-to-pr
-      status: closed
+      skill: code/governed-issue-to-pr
+      outcome: completed
       created_at: "2026-07-01T00:00:00Z"
       verification_status: verified
   receipt_details:
     - id: rcpt_repo_read
       subject_kind: skill
-      subject_ref: code/governed-issue-to-pr
+      subject_uri: code/governed-issue-to-pr
       created_at: "2026-07-01T00:00:00Z"
-      status: closed
+      outcome: completed
       verification:
         status: verified
       authority:

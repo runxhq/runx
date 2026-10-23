@@ -1,5 +1,5 @@
 skill: github-issue-triage
-version: "0.4.11"
+version: "0.4.12"
 
 catalog:
   kind: graph
@@ -45,7 +45,7 @@ input_definitions:
         title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
         state: { type: string, enum: [open, closed] }
         body: { type: string, maxLength: 20000, pattern: '^[^\u0000]*$' }
-        source_ref: { type: string, minLength: 1, maxLength: 1024 }
+        source_locator: { type: string, minLength: 1, maxLength: 1024 }
   issue_snapshots:
     type: array
     required: true
@@ -63,7 +63,7 @@ input_definitions:
           title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
           state: { type: string, enum: [open, closed] }
           body: { type: string, maxLength: 20000, pattern: '^[^\u0000]*$' }
-          source_ref: { type: string, minLength: 1, maxLength: 1024 }
+          source_locator: { type: string, minLength: 1, maxLength: 1024 }
 
 connectors:
   github:
@@ -141,7 +141,7 @@ runners:
           named_emits:
             issue_triage_packet: issue_triage_packet
           packets:
-            issue_triage_packet: runx.issue.triage.v1
+            issue_triage_packet: runx/github-issue-triage.triage.v1
 
   discover:
     description: Pick the issue that most deserves attention from a queue of issue snapshots you supply.
@@ -204,7 +204,7 @@ runners:
           named_emits:
             issue_triage_queue: issue_triage_queue
           packets:
-            issue_triage_queue: runx.issue.triage_queue.v1
+            issue_triage_queue: runx/github-issue-triage.queue.v1
 
   respond:
     description: Draft the next action for one issue snapshot you already hold, or replay one. Posts nothing.
@@ -266,14 +266,14 @@ runners:
           named_emits:
             issue_triage_packet: issue_triage_packet
           packets:
-            issue_triage_packet: runx.issue.triage.v1
+            issue_triage_packet: runx/github-issue-triage.triage.v1
 
   post:
     description: Post the exact accepted reply of a triage packet as an issue comment, read back.
     inputs:
       issue_triage_packet:
         type: json
-        packet: runx.issue.triage.v1
+        packet: runx/github-issue-triage.triage.v1
         required: true
         description: Exact draft-ready packet emitted by provider-respond or respond.
       idempotency_key:

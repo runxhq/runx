@@ -9,7 +9,7 @@ operator_journeys:
     expected_outcome: Refuse without the selected SQL source binding before inventing a catalog, rows or answer.
 inputs:
   question: Which campaigns produced qualified trials since 2026-10-01?
-  source_ref: analytics:production
+  source: analytics:production
 expect:
   status: policy_denied
 metadata: {public_skill: sql-analysis, source_case: default-binding-refusal, source: skills-fixture}

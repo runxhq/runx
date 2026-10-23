@@ -98,7 +98,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
     );
     let cli: Value = serde_json::from_slice(&cli.stdout)?;
     assert_eq!(cli["result"]["message"], "dogfood message 0");
-    assert_eq!(cli["closure"]["disposition"], "closed");
+    assert_eq!(cli["outcome"], "completed");
 
     // Admission is a package binding, not permission to execute whatever bytes
     // happen to replace the served package later in this session.
@@ -142,7 +142,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
             runx_contracts::RECEIPT_SCHEMA
         );
         assert_eq!(path_text(&receipt, &["id"])?, receipt_id);
-        assert_eq!(path_text(&receipt, &["seal", "disposition"])?, "closed");
+        assert_eq!(path_text(&receipt, &["seal", "outcome"])?, "completed");
         assert!(
             receipt.get("seal").is_some(),
             "missing receipt seal in {}",
@@ -399,7 +399,7 @@ runners:
                 String::from_utf8_lossy(&resumed.stderr)
             );
             let resumed: Value = serde_json::from_slice(&resumed.stdout)?;
-            assert_eq!(resumed["closure"]["disposition"], "closed");
+            assert_eq!(resumed["outcome"], "completed");
             assert_eq!(resumed["run_id"], run_id);
             let receipt_id = resumed["receipt_id"].as_str().ok_or("missing receipt id")?;
             let verified = command()
@@ -576,7 +576,7 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     let question = read(
         &mut server,
         7,
-        json!({"turn": "answer", "ref": "input:question"}),
+        json!({"turn": "answer", "locator": "input:question"}),
     )?;
     assert_eq!(
         question["result"]["structuredContent"]["text"], "what digests?",
@@ -585,12 +585,16 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     let call = read(
         &mut server,
         8,
-        json!({"turn": "answer", "ref": "call:0", "limit": 40}),
+        json!({"turn": "answer", "locator": "call:0", "limit": 40}),
     )?;
     let page = &call["result"]["structuredContent"];
     assert_eq!(page["text"].as_str().map(str::len), Some(40), "{call}");
     assert_eq!(page["next_offset"], 40, "{call}");
-    let unheld = read(&mut server, 9, json!({"turn": "answer", "ref": "call:9"}))?;
+    let unheld = read(
+        &mut server,
+        9,
+        json!({"turn": "answer", "locator": "call:9"}),
+    )?;
     assert_eq!(unheld["result"]["isError"], true, "{unheld}");
 
     write_frame(

@@ -59,13 +59,13 @@ pub enum RuntimeError {
         /// skill; `None` when the step asked its host itself.
         child: Option<String>,
     },
-    /// A step sealed a governed closure other than `closed`: an agent act
+    /// A step sealed a governed outcome other than `completed`: an agent act
     /// that declined, deferred, blocked, or was superseded. The graph stops
-    /// there with that disposition; it is an outcome, not a fault.
-    #[error("graph step '{step_id}' closed with {}: {summary}", disposition.label())]
+    /// there with that outcome; it is an outcome, not a fault.
+    #[error("graph step '{step_id}' ended {}: {summary}", outcome.label())]
     StepClosed {
         step_id: String,
-        disposition: runx_contracts::ClosureDisposition,
+        outcome: runx_contracts::RunOutcome,
         /// The step receipt's own seal reason, which the graph seal keeps.
         reason: Option<runx_contracts::SealReason>,
         summary: String,
@@ -167,10 +167,10 @@ pub enum RuntimeError {
     ModelProvider { detail: String },
     #[error("continuation rejected: {reason}")]
     ContinuationRejected { reason: String },
-    #[error("{owner} input contract failed at '{path}': {message}")]
+    #[error("{declared_by} input contract failed at '{path}': {message}")]
     InputContract {
         step_id: Option<String>,
-        owner: &'static str,
+        declared_by: &'static str,
         input: String,
         path: String,
         message: String,
@@ -298,7 +298,7 @@ impl RuntimeError {
         match self {
             Self::InputContract {
                 step_id,
-                owner,
+                declared_by,
                 input,
                 path,
                 accepted_schema,
@@ -311,7 +311,10 @@ impl RuntimeError {
                 if let Some(step_id) = step_id {
                     projection.insert("step_id".to_owned(), JsonValue::String(step_id.clone()));
                 }
-                projection.insert("owner".to_owned(), JsonValue::String((*owner).to_owned()));
+                projection.insert(
+                    "declared_by".to_owned(),
+                    JsonValue::String((*declared_by).to_owned()),
+                );
                 projection.insert("input".to_owned(), JsonValue::String(input.clone()));
                 projection.insert("path".to_owned(), JsonValue::String(path.clone()));
                 projection.insert(
@@ -468,7 +471,7 @@ impl RuntimeError {
                 source,
             },
             Self::InputContract {
-                owner,
+                declared_by,
                 input,
                 path,
                 message,
@@ -476,7 +479,7 @@ impl RuntimeError {
                 ..
             } => Self::InputContract {
                 step_id: Some(step_id.to_owned()),
-                owner,
+                declared_by,
                 input,
                 path,
                 message,

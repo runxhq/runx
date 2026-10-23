@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::super::types::{
-    SequentialGraphState, SequentialGraphStepDefinition, SequentialGraphStepState,
-};
+use super::super::types::{SequentialGraph, SequentialGraphStep, SequentialGraphStepDefinition};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SequentialGraphStepIndex {
@@ -44,14 +42,14 @@ impl SequentialGraphStepIndex {
         }
     }
 
-    pub(super) fn state_for<'a>(
+    pub(super) fn step_for<'a>(
         &self,
-        state: &'a SequentialGraphState,
+        graph: &'a SequentialGraph,
         step_id: &str,
-    ) -> Option<&'a SequentialGraphStepState> {
+    ) -> Option<&'a SequentialGraphStep> {
         self.positions
             .get(step_id)
-            .and_then(|index| state.steps.get(*index))
+            .and_then(|index| graph.steps.get(*index))
             .filter(|step| step.step_id == step_id)
     }
 
@@ -59,17 +57,17 @@ impl SequentialGraphStepIndex {
         self.positions.get(step_id).copied()
     }
 
-    pub(super) fn state_at<'a>(
+    pub(super) fn step_at<'a>(
         &self,
-        state: &'a SequentialGraphState,
+        graph: &'a SequentialGraph,
         position: usize,
         step_id: &str,
-    ) -> Option<&'a SequentialGraphStepState> {
-        state
+    ) -> Option<&'a SequentialGraphStep> {
+        graph
             .steps
             .get(position)
             .filter(|step| step.step_id == step_id)
-            .or_else(|| self.state_for(state, step_id))
+            .or_else(|| self.step_for(graph, step_id))
     }
 
     pub(super) fn context_sources_at(

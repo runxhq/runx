@@ -16,10 +16,10 @@ caller:
         - payment.x402.read
     operations:
       - operation: payment.x402
-        target: https://vendor.example/v1/invocations
+        target: https://merchant.example/v1/report
         access: mutate
         result:
-          payment_ref: payment_x402_001
+          payment_id: payment_x402_001
           challenge_id: ch_test_001
           amount_minor: 25
           currency: USD
@@ -28,15 +28,15 @@ caller:
           network: eip155:8453
           payer: "0x0000000000000000000000000000000000000001"
           pay_to: "0x0000000000000000000000000000000000000002"
-          invocation_id: ausca-invocation-1
+          purchase_id: ausca-purchase-1
           payment_required_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
           payment_response_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
           resource_status: 202
       - operation: payment.x402.read
-        target: https://vendor.example/v1/invocations
+        target: https://merchant.example/v1/report
         access: read
         result:
-          payment_ref: payment_x402_001
+          payment_id: payment_x402_001
           challenge_id: ch_test_001
           amount_minor: 25
           currency: USD
@@ -45,7 +45,7 @@ caller:
           network: eip155:8453
           payer: "0x0000000000000000000000000000000000000001"
           pay_to: "0x0000000000000000000000000000000000000002"
-          invocation_id: ausca-invocation-1
+          purchase_id: ausca-purchase-1
           payment_required_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
           payment_response_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
           resource_status: 200

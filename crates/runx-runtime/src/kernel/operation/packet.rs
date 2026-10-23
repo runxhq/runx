@@ -18,7 +18,7 @@ pub(crate) struct Readback {
     pub operation: String,
     pub target: String,
     pub result: JsonValue,
-    pub readback_ref: String,
+    pub readback_uri: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operation_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -41,10 +41,10 @@ pub(crate) struct Seal<'a> {
     /// back.
     pub finality: &'static str,
     pub transport: &'static str,
-    pub principal_ref: &'a str,
+    pub principal_uri: &'a str,
     /// The runx Connect grant the call ran under; a local instance has none.
     pub grant_id: Option<&'a str>,
-    pub account_ref: Option<&'a str>,
+    pub account_id: Option<&'a str>,
     pub intent_digest: &'a str,
     pub operation_digest: &'a str,
     pub implementation_digest: Option<&'a str>,
@@ -61,7 +61,7 @@ impl Readback {
         if self.operation != expected.operation || self.target != expected.target {
             return Err("the readback does not match the admitted operation and target".to_owned());
         }
-        if self.readback_ref.trim().is_empty() {
+        if self.readback_uri.trim().is_empty() {
             return Err("the readback carries no evidence reference".to_owned());
         }
         if let Some(key) = expected.idempotency_key {
@@ -127,10 +127,10 @@ impl Readback {
             target: self.target,
             result,
             transport: seal.transport.to_owned(),
-            readback_ref: self.readback_ref,
+            readback_uri: self.readback_uri,
             access: Some(seal.access.to_owned()),
-            principal_ref: Some(seal.principal_ref.to_owned()),
-            grant_ref: seal
+            principal_uri: Some(seal.principal_uri.to_owned()),
+            grant_uri: seal
                 .grant_id
                 .map(|grant_id| format!("runx:grant:{grant_id}")),
             finality: Some(seal.finality.to_owned()),
@@ -139,7 +139,7 @@ impl Readback {
             operation_id: self.operation_id,
             idempotency_key: self.idempotency_key,
             host: None,
-            account_ref: seal.account_ref.map(str::to_owned),
+            account_id: seal.account_id.map(str::to_owned),
             operation_digest: Some(seal.operation_digest.to_owned()),
             implementation_digest: seal.implementation_digest.map(str::to_owned),
             cost: seal.cost.clone(),
@@ -207,7 +207,7 @@ mod tests {
             operation: "thread.reply".to_owned(),
             target: "slack://T/C/2".to_owned(),
             result: JsonValue::Null,
-            readback_ref: "runx:provider-readback:1".to_owned(),
+            readback_uri: "runx:provider-readback:1".to_owned(),
             operation_id: Some("op-1".to_owned()),
             idempotency_key: Some("runx:expected".to_owned()),
         }

@@ -161,7 +161,7 @@ fn payment_families_and_constraints_have_the_same_rust_and_schema_shape() {
             true,
         ),
         (
-            json!({"vendor-method": {"networks": ["vendor:test"]}}),
+            json!({"provider-method": {"networks": ["provider:test"]}}),
             true,
         ),
         (json!({"x402": {"networks": ["eip155:8453"]}}), true),
@@ -424,36 +424,35 @@ fn an_item_binding_renders_only_for_a_repeated_request() {
 
 /// The TS renderer answers the same (packages/contracts/src/connector.test.ts).
 #[test]
-fn the_paid_invocation_renders_only_where_it_is_supplied() {
+fn the_purchase_renders_only_where_it_is_supplied() {
     let template: Template = serde_json::from_str(
-        r#"{"invocation": {"$runx": "invocation"}, "key": {"$runx": "idempotency_key"}}"#,
+        r#"{"purchase": {"$runx": "purchase"}, "key": {"$runx": "idempotency_key"}}"#,
     )
     .expect("template");
-    assert!(template.binds_invocation());
+    assert!(template.binds_purchase());
     assert!(template.binds_idempotency_key());
-    let invocation: Template =
-        serde_json::from_str(r#"{"$runx": "invocation"}"#).expect("template");
-    assert!(!invocation.binds_idempotency_key());
+    let purchase: Template = serde_json::from_str(r#"{"$runx": "purchase"}"#).expect("template");
+    assert!(!purchase.binds_idempotency_key());
     let expected: JsonValue =
-        serde_json::from_str(r#"{"invocation": "pinv_1", "key": "runx:sha256:abc"}"#)
+        serde_json::from_str(r#"{"purchase": "purchase_1", "key": "runx:sha256:abc"}"#)
             .expect("expected");
     assert_eq!(
         template
             .render(&TemplateInputs {
                 idempotency_key: Some("runx:sha256:abc"),
-                invocation_id: Some("pinv_1"),
+                purchase_id: Some("purchase_1"),
                 ..TemplateInputs::default()
             })
             .expect("renders"),
         expected
     );
-    // The kernel holds the call's key but never the paid invocation.
+    // The kernel holds the call's key but never the purchase.
     assert!(matches!(
         template.render(&TemplateInputs {
             idempotency_key: Some("runx:sha256:abc"),
             ..TemplateInputs::default()
         }),
-        Err(TemplateError::Unavailable { binding: "$runx", reference }) if reference == "invocation"
+        Err(TemplateError::Unavailable { binding: "$runx", reference }) if reference == "purchase"
     ));
 }
 

@@ -41,7 +41,7 @@ runners:
 
 fn options(profile_document: String) -> IngestSkillOptions {
     IngestSkillOptions {
-        owner: Some("acme".to_owned()),
+        publisher_slug: Some("acme".to_owned()),
         profile_document: Some(profile_document),
         package_files: vec![RegistryPackageFile {
             path: "scripts/transcribe.mjs".to_owned(),
@@ -82,7 +82,7 @@ fn registry_paid_listing_is_resolved_once_and_returned_without_profile_reparsing
     assert_eq!(listing.skill_id.as_str(), "acme/transcribe");
     assert_eq!(listing.version.as_str(), version.version);
     assert_eq!(
-        listing.vendor_ref.as_reference().uri.as_str(),
+        listing.seller_ref.as_reference().uri.as_str(),
         "runx:principal:acme"
     );
     assert_eq!(listing.offers.as_map().len(), 1);
@@ -135,7 +135,7 @@ fn registry_paid_listing_price_change_revisions_profile_not_package()
 
     assert_ne!(first.version, second.version);
     assert_ne!(first.profile_digest, second.profile_digest);
-    assert_eq!(first.package_digest, second.package_digest);
+    assert_eq!(first.bundle_digest, second.bundle_digest);
     assert_ne!(first.paid_listing, second.paid_listing);
     let second_offer = &second
         .paid_listing

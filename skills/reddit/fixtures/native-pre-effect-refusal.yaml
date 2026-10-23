@@ -7,7 +7,7 @@ setup:
   parameters:
     reddit:
       account: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
 inputs: {}
 expect:
   status: failure
@@ -20,7 +20,7 @@ caller:
       operation: session
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
     result:
       id: example_builder
       login: example_builder
@@ -34,8 +34,8 @@ caller:
       session_account: example_builder
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
       phase: perform
-      idempotency_key: runx:sha256:464ad50715e48e1c842c374a0b30d14ad9ebb752b64d96ef15cabbb9b3f4facd
+      idempotency_key: runx:sha256:0528de0403b41fa3f5769467324acde4fb756a231d6fbad3a23e58e98c4c1b9d
     result:
       refused: native_session_account_mismatch

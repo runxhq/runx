@@ -956,13 +956,20 @@ fn plugin_index(root: &Path) -> Result<PluginConnectors, ConnectorRegistryError>
 /// connector of the directory, and a namespace holding both a connector and
 /// surfaces is refused. A directory without `connectors/` holds none; one
 /// that cannot be read is an error.
+///
+/// A manifest this runx cannot read, a broken one or one written for a newer
+/// runx, is indexed where it lives and its error waits for a run that reaches
+/// it, so it never fails a run that names another connector (#557).
 fn connector_directories(
     directory: &Path,
 ) -> Result<Vec<(ConnectorName, PathBuf)>, ConnectorRegistryError> {
     let mut found = Vec::new();
     for (namespace, path) in subdirectories(directory)? {
         if path.join(MANIFEST_FILE).is_file() {
-            let name = manifest_name(&path)?;
+            let name = match manifest_name(&path) {
+                Ok(name) => name,
+                Err(error) => ConnectorName::new(namespace.as_str()).ok_or(error)?,
+            };
             if name.as_str() != namespace {
                 return Err(ConnectorRegistryError::InvalidManifest {
                     path: path.join(MANIFEST_FILE),
@@ -973,7 +980,8 @@ fn connector_directories(
             }
             for (surface, below) in subdirectories(&path)? {
                 if below.join(MANIFEST_FILE).is_file()
-                    && manifest_name(&below)?.as_str() == format!("{namespace}/{surface}")
+                    && manifest_name(&below)
+                        .is_ok_and(|held| held.as_str() == format!("{namespace}/{surface}"))
                 {
                     return Err(ConnectorRegistryError::LeafAndParent { namespace, path });
                 }
@@ -985,7 +993,15 @@ fn connector_directories(
             if !below.join(MANIFEST_FILE).is_file() {
                 continue;
             }
-            let held = manifest_name(&below)?;
+            let held = match manifest_name(&below) {
+                Ok(held) => held,
+                // Where it lives names it a surface, or nothing: an installed
+                // version's directory is no connector name.
+                Err(_) => match ConnectorName::new(format!("{namespace}/{surface}")) {
+                    Some(name) => name,
+                    None => continue,
+                },
+            };
             // An installed version of the connector `namespace`, not a surface.
             if held.as_str() == namespace {
                 continue;
@@ -1151,7 +1167,7 @@ pub(crate) fn read_bounded(path: &Path) -> Result<String, String> {
 }
 
 /// The kernel tests' own plugin, whose `fixture/*` connectors carry each
-/// connector shape the tests exercise. No test reaches a vendor connector.
+/// connector shape the tests exercise. No test reaches a live provider connector.
 #[cfg(test)]
 fn fixture_plugin() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/plugins/kernel")

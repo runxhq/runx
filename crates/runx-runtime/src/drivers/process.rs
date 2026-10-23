@@ -141,11 +141,11 @@ impl Process<'_> {
             _ => JsonObject::new(),
         };
         if let Some(principal) = self.call.session_principal {
-            if inputs.contains_key("principal_ref") {
-                return Err("principal_ref is kernel-supplied process context".to_owned());
+            if inputs.contains_key("principal_uri") {
+                return Err("principal_uri is kernel-supplied process context".to_owned());
             }
             inputs.insert(
-                "principal_ref".to_owned(),
+                "principal_uri".to_owned(),
                 JsonValue::String(principal.to_owned()),
             );
         }

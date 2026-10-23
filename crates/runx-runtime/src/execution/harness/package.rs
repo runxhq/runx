@@ -269,31 +269,6 @@ impl PackageHarnessEnvironment {
         &self,
         loaded: &crate::LoadedSkillPackage,
     ) -> Result<(), SkillRunError> {
-        let mut packet_schemas = crate::packet_schemas::PacketSchemaCatalog::default();
-        for schema in loaded.resolved_input_packet_schemas.values() {
-            packet_schemas
-                .insert(schema.clone())
-                .map_err(|error| RuntimeError::SkillFailed {
-                    skill_name: "package-harness".to_owned(),
-                    message: format!("packet schema catalog failed: {error}"),
-                })?;
-        }
-        packet_schemas
-            .discover_directories([
-                loaded.directory.join("packets"),
-                loaded.package_root.join("packets"),
-            ])
-            .map_err(|error| RuntimeError::SkillFailed {
-                skill_name: "package-harness".to_owned(),
-                message: format!("packet schema catalog failed: {error}"),
-            })?;
-        for schema in packet_schemas.entries() {
-            self.stage_file(
-                &format!("packets/{}", schema.file_name),
-                schema.source.as_bytes(),
-                false,
-            )?;
-        }
         let Some(harness) = loaded
             .manifest()
             .and_then(|manifest| manifest.harness.as_ref())

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/extract/result/v1.json",
+  "x-runx-packet-id": "runx/extract.result.v1",
+  "additionalProperties": false,
+  "properties": {
+    "citations": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "pointer": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "quote": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "pointer",
+          "quote"
+        ],
+        "type": "object"
+      },
+      "maxItems": 500,
+      "type": "array"
+    },
+    "decision": {
+      "enum": [
+        "ready",
+        "held"
+      ]
+    },
+    "missing_fields": {
+      "items": {
+        "maxLength": 2000,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "output_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "runx/extract.result.v1"
+    },
+    "schema_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "source_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "validation": {
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "results": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "errors": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "instance_path": {
+                      "type": "string"
+                    },
+                    "schema_path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "instance_path",
+                    "schema_path"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "index": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              },
+              "valid": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "index",
+              "valid",
+              "errors",
+              "truncated"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "schema_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "values_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "valid",
+        "schema_digest",
+        "values_digest",
+        "results",
+        "findings"
+      ],
+      "type": "object"
+    },
+    "value": {
+      "description": "Caller-schema JSON value when ready, null when held."
+    }
+  },
+  "required": [
+    "schema",
+    "decision",
+    "source_id",
+    "source_digest",
+    "schema_digest",
+    "output_digest",
+    "value",
+    "citations",
+    "missing_fields",
+    "validation"
+  ],
+  "type": "object"
+}

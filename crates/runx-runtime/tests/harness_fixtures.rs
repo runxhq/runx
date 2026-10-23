@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, ReceiptSchema};
+use runx_contracts::{JsonObject, JsonValue, ReceiptSchema, RunOutcome};
 use runx_receipts::canonical_receipt_json;
 use runx_runtime::{
     HarnessExpectedStatus, HarnessFixtureKind, load_harness_fixture, run_harness_fixture,
@@ -10,16 +10,16 @@ use runx_runtime::{
 
 #[test]
 fn loads_active_harness_fixtures() -> Result<(), Box<dyn std::error::Error>> {
-    for (path, expected_status, expected_disposition) in [
+    for (path, expected_status, expected_seal_outcome) in [
         (
             "fixtures/harness/echo-skill.yaml",
             HarnessExpectedStatus::Sealed,
-            ClosureDisposition::Closed,
+            RunOutcome::Completed,
         ),
         (
             "fixtures/harness/sequential-graph.yaml",
             HarnessExpectedStatus::Sealed,
-            ClosureDisposition::Closed,
+            RunOutcome::Completed,
         ),
     ] {
         let fixture = load_harness_fixture(fixture_path(path))?;
@@ -28,13 +28,13 @@ fn loads_active_harness_fixtures() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(receipt.schema, ReceiptSchema::V1);
         // A suspended (deferred) run carries the "deferred" state; every
         // terminal seal carries "sealed".
-        let expected_state = if expected_disposition == ClosureDisposition::Deferred {
+        let expected_state = if expected_seal_outcome == RunOutcome::Deferred {
             "deferred"
         } else {
             "sealed"
         };
         assert_eq!(receipt.state.as_deref(), Some(expected_state));
-        assert_eq!(receipt.disposition, Some(expected_disposition));
+        assert_eq!(receipt.outcome, Some(expected_seal_outcome));
     }
     Ok(())
 }
@@ -48,7 +48,7 @@ fn parses_harness_skill_fixture_contract() -> Result<(), Box<dyn std::error::Err
     assert_eq!(fixture.target, "../skills/echo");
     let receipt = fixture.expect.receipt.ok_or("missing expect.receipt")?;
     assert_eq!(
-        receipt.subject_ref.as_deref(),
+        receipt.subject_uri.as_deref(),
         Some("runx:run:harness-echo-skill")
     );
     assert_eq!(receipt.reason, None);
@@ -69,20 +69,20 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
     );
     let receipt = fixture.expect.receipt.ok_or("missing expect.receipt")?;
     assert_eq!(
-        receipt.subject_ref.as_deref(),
+        receipt.subject_uri.as_deref(),
         Some("runx:run:harness-graph")
     );
     assert_eq!(
-        receipt.child_receipt_refs,
+        receipt.child_receipt_uris,
         Some(vec![
-            "runx:receipt:sha256:4299d24e992e103ed5ce9ee84a2658b8fcd209faa1d60e1dd27376b8beb29792"
+            "runx:receipt:sha256:7661ac43e78cc5b7d4d878c0d8b9777f4f4532f6b0bbcdf76a6f38795243a2e7"
                 .to_owned(),
-            "runx:receipt:sha256:a03afe6102cbbd0723b2b781bcd9aae30d1929b3f8236aa7f29e9866ee900709"
+            "runx:receipt:sha256:90685a39cb2fadeacb14300b9cf9d03d3afa109f79f020f40bdbd2ca42ff42ae"
                 .to_owned()
         ])
     );
     // An omitted list asserts nothing; an empty one asserts there is none.
-    assert_eq!(receipt.verification_refs, None);
+    assert_eq!(receipt.verification_uris, None);
     Ok(())
 }
 
@@ -95,7 +95,7 @@ fn replays_active_harness_skill_fixture() -> Result<(), Box<dyn std::error::Erro
         output.receipt.subject.reference.uri,
         "runx:run:harness-echo-skill"
     );
-    assert_eq!(output.receipt.seal.disposition, ClosureDisposition::Closed);
+    assert_eq!(output.receipt.seal.outcome, RunOutcome::Completed);
     assert_eq!(output.step_receipts.len(), 1);
     let skill_output = output.skill_output.ok_or("missing skill_output")?;
     assert_eq!(
@@ -117,7 +117,7 @@ fn replays_active_harness_graph_fixture() -> Result<(), Box<dyn std::error::Erro
         output.receipt.subject.reference.uri,
         "runx:run:harness-graph"
     );
-    assert_eq!(output.receipt.seal.disposition, ClosureDisposition::Closed);
+    assert_eq!(output.receipt.seal.outcome, RunOutcome::Completed);
     assert_eq!(output.step_receipts.len(), 2);
     // Neither step makes a governed call, so neither seals an act.
     assert!(

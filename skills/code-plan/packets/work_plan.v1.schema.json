@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/code-plan/work-plan/v1.json",
+  "x-runx-packet-id": "runx/code-plan.work_plan.v1",
+  "type": "object",
+  "properties": {
+    "decision": { "type": "string", "enum": ["ready", "blocked"] },
+    "plan_kind": { "type": "string", "enum": ["workspace_change", "skill_package"] },
+    "change_set": { "type": "object", "additionalProperties": true },
+    "harness_context": { "type": "object", "additionalProperties": true },
+    "objective_summary": { "type": "string" },
+    "workspace_change_plan": { "type": "object", "additionalProperties": true },
+    "orchestration_steps": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "required_skills": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "open_questions": { "type": "array" },
+    "evidence": { "type": "object", "additionalProperties": true },
+    "validation": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": true
+}

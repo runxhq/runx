@@ -1,7 +1,7 @@
 //! Every connector manifest of a plugin parses and validates, and its name is
 //! its directory: `connectors/<name>/` for a leaf,
 //! `connectors/<namespace>/<surface>/` under a parent. The plugin is the
-//! kernel tests' fixture plugin, so no vendor connector is read.
+//! kernel tests' fixture plugin, so no live provider connector is read.
 
 use std::fs;
 use std::path::{Path, PathBuf};

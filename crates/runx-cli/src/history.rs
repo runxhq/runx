@@ -212,7 +212,7 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
                 parsed.json = true;
                 index += 1;
             }
-            "--receipt-dir" | "--skill" | "--status" | "--since" | "--until" | "--limit"
+            "--receipt-dir" | "--skill" | "--state" | "--since" | "--until" | "--limit"
             | "--after" => {
                 let (value, next_index) =
                     cli_args::flag_value(args, index, flag, inline_value, "history")
@@ -220,7 +220,7 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
                 match flag {
                     "--receipt-dir" => parsed.receipt_dir = Some(PathBuf::from(value)),
                     "--skill" => parsed.filter.skill = Some(value),
-                    "--status" => parsed.filter.state = Some(value),
+                    "--state" => parsed.filter.state = Some(value),
                     "--since" => parsed.filter.since = Some(value),
                     "--until" => parsed.filter.until = Some(value),
                     "--after" => parsed.after = Some(value),
@@ -286,9 +286,9 @@ fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option
     ];
     for run in &listing.runs {
         let status = run
-            .disposition
+            .outcome
             .as_ref()
-            .map_or(run.state.label(), |disposition| disposition.label());
+            .map_or(run.state.label(), |outcome| outcome.label());
         lines.push(format!("  {status}  {}  {}", run.skill, run.run_id));
         if let Some(receipt_id) = &run.receipt_id {
             lines.push(format!("     receipt  {receipt_id}"));
@@ -320,9 +320,9 @@ fn render_run(read: &RunRead) -> String {
         String::new(),
         format!(
             "  {}  {}  {}",
-            run.disposition
+            run.outcome
                 .as_ref()
-                .map_or(run.state.label(), |disposition| disposition.label()),
+                .map_or(run.state.label(), |outcome| outcome.label()),
             run.skill,
             run.run_id
         ),
@@ -347,22 +347,22 @@ fn render_receipt_inspection(inspection: &ReceiptInspectionProjection) -> String
         String::new(),
         format!(
             "  receipt  {}  {}  {}",
-            receipt.status, receipt.verification.status, receipt.id
+            receipt.outcome, receipt.verification.status, receipt.id
         ),
-        format!("  subject  {}", receipt.subject_ref),
+        format!("  subject  {}", receipt.subject_uri),
         format!(
             "  actor  {}",
             receipt
                 .authority
-                .actor_ref
+                .actor_uri
                 .as_deref()
                 .unwrap_or("none stated")
         ),
         format!(
             "  authority  {} scope(s), {} grant(s), {} approval(s)",
             receipt.authority.exercised_scopes.len(),
-            receipt.authority.grant_refs.len(),
-            receipt.authority.approval_refs.len()
+            receipt.authority.grant_uris.len(),
+            receipt.authority.approval_uris.len()
         ),
         format!("  acts  {}", receipt.acts.len()),
     ];
@@ -398,7 +398,7 @@ mod tests {
             "sourcey".into(),
             "--skill".into(),
             "source".into(),
-            "--status=paused".into(),
+            "--state=paused".into(),
             "--limit".into(),
             "5".into(),
             "--json".into(),
@@ -438,8 +438,8 @@ mod tests {
             &[
                 "history".into(),
                 receipt_id.into(),
-                "--status".into(),
-                "closed".into(),
+                "--state".into(),
+                "completed".into(),
             ],
             &BTreeMap::new(),
             Path::new("."),

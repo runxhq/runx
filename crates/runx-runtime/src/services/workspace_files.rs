@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Read as _, Write};
 use std::path::{Component, Path, PathBuf};
 
+use runx_contracts::Digest;
 use sha2::{Digest as _, Sha256};
 use thiserror::Error;
 
@@ -86,7 +87,8 @@ pub(crate) struct WorkspaceTextFile {
     pub(crate) contents: String,
     pub(crate) bytes: u64,
     pub(crate) truncated: bool,
-    pub(crate) digest: String,
+    /// The whole file's digest; none for a file too large to read.
+    pub(crate) digest: Option<Digest>,
 }
 
 #[derive(Debug, Error)]
@@ -213,7 +215,7 @@ impl WorkspaceFile {
                 contents: String::new(),
                 bytes: self.bytes,
                 truncated: true,
-                digest: String::new(),
+                digest: None,
             });
         }
         let capacity = usize::try_from(self.bytes.min(max_bytes)).unwrap_or(0);
@@ -226,7 +228,7 @@ impl WorkspaceFile {
             contents,
             bytes: bytes_read,
             truncated: false,
-            digest,
+            digest: Some(digest),
         })
     }
 
@@ -234,7 +236,7 @@ impl WorkspaceFile {
         &self,
         target: &mut impl Write,
         max_bytes: u64,
-    ) -> Result<(u64, String), WorkspaceFileError> {
+    ) -> Result<(u64, Digest), WorkspaceFileError> {
         if self.bytes > max_bytes {
             return Err(WorkspaceFileError::ArtifactTooLarge {
                 path: self.relative_path.clone().into(),
@@ -277,10 +279,7 @@ impl WorkspaceFile {
                 .write_all(&buffer[..read])
                 .map_err(WorkspaceFileError::SnapshotUnavailable)?;
         }
-        Ok((
-            total,
-            format!("sha256:{}", runx_contracts::hex_lower(&digest.finalize())),
-        ))
+        Ok((total, Digest::from_sha256(digest.finalize().into())))
     }
 }
 
@@ -376,6 +375,7 @@ mod tests {
             ".npmrc",
             ".netrc",
             ".pgpass",
+            ".runx/kernel-v2.sqlite",
             ".runx/kernel.sqlite",
             ".git/config",
             "vendor/lib/.git/HEAD",

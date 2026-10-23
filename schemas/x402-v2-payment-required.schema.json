@@ -54,6 +54,7 @@
           "payTo",
           "maxTimeoutSeconds"
         ],
+        "title": "X402PaymentRequirements",
         "type": "object"
       },
       "minItems": 1,
@@ -154,6 +155,7 @@
       "required": [
         "url"
       ],
+      "title": "X402ResourceInfo",
       "type": "object"
     },
     "x402Version": {
@@ -166,5 +168,6 @@
     "resource",
     "accepts"
   ],
+  "title": "X402PaymentRequired",
   "type": "object"
 }

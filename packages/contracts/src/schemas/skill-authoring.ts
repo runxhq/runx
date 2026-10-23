@@ -1,18 +1,12 @@
-import {
-  type UnknownRecord,
-  generatedSchema,
-  validateContractSchema,
-} from "../internal.js";
-
-// Rust owns these closed wire contracts. The JavaScript surface deliberately
-// consumes generated schemas instead of maintaining parallel handwritten
-// interfaces that can drift from the runtime.
-export type SkillArchitectureDecisionContract = UnknownRecord;
-export type SkillArchitecturePlanContract = UnknownRecord;
-export type SkillChangeDraftContract = UnknownRecord;
-export type SkillChangeBundleContract = UnknownRecord;
-export type SkillValidationResultContract = UnknownRecord;
-export type SkillApplyResultContract = UnknownRecord;
+import { generatedSchema, validateContractSchema } from "../internal.js";
+import type {
+  SkillApplyResultContract,
+  SkillArchitectureDecisionContract,
+  SkillArchitecturePlanContract,
+  SkillChangeBundleContract,
+  SkillChangeDraftContract,
+  SkillValidationResultContract,
+} from "../generated/contract-types.js";
 
 export const skillArchitectureDecisionV1Schema =
   generatedSchema<SkillArchitectureDecisionContract>("skill-architecture-decision.schema.json");

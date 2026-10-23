@@ -16,7 +16,7 @@ method:
     description: Supply the question and bounded source material.
   - title: Make sense of it
     description: Separate evidence, inference and unresolved questions.
-    skill_ref: ../research
+    skill: ../research
     runner: default
 inputs:
   - label: The decision you need to make
@@ -41,7 +41,7 @@ const context = {
   packagePaths: new Set([CATALOG_PRESENTATION_PATH, "references/examples/decision-brief.md"]),
   runnerNames: ["default"],
   inputNames: ["question"],
-  skillRefs: ["../research"],
+  skills: ["../research"],
 };
 
 describe("readCatalogPresentation", () => {
@@ -52,7 +52,7 @@ describe("readCatalogPresentation", () => {
       overview: "Research that builds toward a decision.",
       method: [
         { title: "Bring the evidence", description: "Supply the question and bounded source material." },
-        { title: "Make sense of it", description: "Separate evidence, inference and unresolved questions.", skill_ref: "../research", runner: "default" },
+        { title: "Make sense of it", description: "Separate evidence, inference and unresolved questions.", skill: "../research", runner: "default" },
       ],
       inputs: [{ label: "The decision you need to make", input: "question" }],
       outputs: [{ label: "A recommendation with citations and open questions" }],
@@ -72,9 +72,9 @@ describe("readCatalogPresentation", () => {
     refusal(PRESENTATION.replace("runner: default", "runner: elsewhere"), "method[1].runner");
     refusal(`${PRESENTATION}\n${"x".repeat(4_001)}\n`, "overview");
     // References resolve against what the package declares, not only their form.
-    refusal(PRESENTATION.replace("skill_ref: ../research", "skill_ref: ../elsewhere"), "method[1].skill_ref");
-    // Only a sibling or owner/name: a package-internal graph has no page to link.
-    refusal(PRESENTATION.replace("skill_ref: ../research", "skill_ref: ./graph/plan"), "method[1].skill_ref");
+    refusal(PRESENTATION.replace("skill: ../research", "skill: ../elsewhere"), "method[1].skill");
+    // Only a sibling or publisher/name: a package-internal graph has no page to link.
+    refusal(PRESENTATION.replace("skill: ../research", "skill: ./graph/plan"), "method[1].skill");
     refusal(PRESENTATION.replace("input: question", "input: topic"), "inputs[0].input");
     refusal(PRESENTATION.replace("schema: runx.catalog-presentation.v1", "schema: runx.catalog-presentation.v2"), "schema");
     refusal(PRESENTATION.replace("input: question", "input: $input.question"), "inputs[0].input");
@@ -123,7 +123,7 @@ describe("public skill catalog", () => {
       category: "research",
       runner_names: ["default"],
       input_names: ["question"],
-      skill_refs: ["../research"],
+      skills: ["../research"],
       ...metadata,
     },
     packageFiles: [

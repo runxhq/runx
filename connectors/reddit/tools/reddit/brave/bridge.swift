@@ -59,8 +59,8 @@ func execute(_ request: [String: Any]) throws -> Any {
     let currentURL = property(tab,"URL ") as? String ?? ""
     guard ["www.reddit.com", "old.reddit.com"].contains(URL(string:currentURL)?.host ?? "") else {throw Stop(reason:"non_reddit_url")}
     let event = NSAppleEventDescriptor(eventClass:code("CrSu"), eventID:code("ExJa"), targetDescriptor:NSAppleEventDescriptor(processIdentifier:pid), returnID:-1, transactionID:0)
-    let windowRef = specifier("cwin", binding["window_id"]!, NSAppleEventDescriptor.null())
-    event.setParam(specifier("CrTb", binding["tab_id"]!, windowRef), forKeyword:code("----"))
+    let windowSpecifier = specifier("cwin", binding["window_id"]!, NSAppleEventDescriptor.null())
+    event.setParam(specifier("CrTb", binding["tab_id"]!, windowSpecifier), forKeyword:code("----"))
     event.setParam(NSAppleEventDescriptor(string:script), forKeyword:code("JvSc"))
     let reply = try event.sendEvent(options:[.waitForReply, .neverInteract], timeout:15)
     guard let value = reply.paramDescriptor(forKeyword:code("----"))?.stringValue,

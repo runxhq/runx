@@ -11,7 +11,7 @@ caller:
     architect:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
-        disposition: extend_existing
+        choice: extend_existing
         identity:
           current_name: example
           proposed_name: example

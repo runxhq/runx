@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    SkillArchitectureDecision, SkillArchitectureDisposition, SkillChangeBundle,
-    SkillChangeDecision, SkillExecutionLane, SkillIdentityAction, SkillPackageMetrics,
-    SkillPackageVisibility, SkillProofKind,
+    SkillArchitectureChoice, SkillArchitectureDecision, SkillChangeBundle, SkillChangeDecision,
+    SkillExecutionLane, SkillIdentityAction, SkillPackageMetrics, SkillPackageVisibility,
+    SkillProofKind,
 };
 
 use super::{RuntimeError, architecture_digest, invalid_skill_change};
@@ -87,25 +87,25 @@ pub(super) fn validate_change_shape(change: &SkillChangeBundle) -> Result<(), Ru
 }
 
 pub(super) fn validate_architecture(change: &SkillChangeBundle) -> Result<(), RuntimeError> {
-    let disposition_matches = matches!(
-        (change.decision, change.architecture.disposition),
+    let outcome_matches = matches!(
+        (change.decision, change.architecture.choice),
         (
             SkillChangeDecision::Write,
-            SkillArchitectureDisposition::Build | SkillArchitectureDisposition::ExtendExisting
+            SkillArchitectureChoice::Build | SkillArchitectureChoice::ExtendExisting
         ) | (
             SkillChangeDecision::NoChange,
-            SkillArchitectureDisposition::ExtendExisting
+            SkillArchitectureChoice::ExtendExisting
         ) | (
             SkillChangeDecision::NoSkill,
-            SkillArchitectureDisposition::NoSkill
+            SkillArchitectureChoice::NoSkill
         ) | (
             SkillChangeDecision::NeedsCore,
-            SkillArchitectureDisposition::NeedsCore
+            SkillArchitectureChoice::NeedsCore
         )
     );
-    if !disposition_matches {
+    if !outcome_matches {
         return Err(invalid_skill_change(
-            "change decision conflicts with the architecture disposition",
+            "change decision conflicts with the architecture choice",
         ));
     }
     validate_architecture_decision(&change.architecture)?;
@@ -146,8 +146,8 @@ fn validate_operator_contract(
     architecture: &SkillArchitectureDecision,
 ) -> Result<(), RuntimeError> {
     let implements_package = matches!(
-        architecture.disposition,
-        SkillArchitectureDisposition::Build | SkillArchitectureDisposition::ExtendExisting
+        architecture.choice,
+        SkillArchitectureChoice::Build | SkillArchitectureChoice::ExtendExisting
     );
     if !implements_package {
         if architecture.identity.is_some()
@@ -164,7 +164,7 @@ fn validate_operator_contract(
     let identity = architecture.identity.as_ref().ok_or_else(|| {
         invalid_skill_change("build and extension architectures require an identity decision")
     })?;
-    validate_identity_decision(architecture.disposition, identity)?;
+    validate_identity_decision(architecture.choice, identity)?;
 
     match identity.visibility {
         SkillPackageVisibility::Public => {
@@ -205,28 +205,28 @@ fn validate_operator_contract(
 }
 
 fn validate_identity_decision(
-    disposition: SkillArchitectureDisposition,
+    choice: SkillArchitectureChoice,
     identity: &runx_contracts::SkillIdentityDecision,
 ) -> Result<(), RuntimeError> {
     let current = identity.current_name.as_ref().map(NonEmptyString::as_str);
     let proposed = identity.proposed_name.as_ref().map(NonEmptyString::as_str);
-    match (disposition, identity.action, current, proposed) {
-        (SkillArchitectureDisposition::Build, SkillIdentityAction::Create, None, Some(_)) => {}
+    match (choice, identity.action, current, proposed) {
+        (SkillArchitectureChoice::Build, SkillIdentityAction::Create, None, Some(_)) => {}
         (
-            SkillArchitectureDisposition::ExtendExisting,
+            SkillArchitectureChoice::ExtendExisting,
             SkillIdentityAction::Keep | SkillIdentityAction::Internalize,
             Some(current),
             Some(proposed),
         ) if current == proposed => {}
         (
-            SkillArchitectureDisposition::ExtendExisting,
+            SkillArchitectureChoice::ExtendExisting,
             SkillIdentityAction::Rename,
             Some(current),
             Some(proposed),
         ) if current != proposed => {}
         _ => {
             return Err(invalid_skill_change(
-                "identity action, current_name, and proposed_name conflict with the architecture disposition",
+                "identity action, current_name, and proposed_name conflict with the architecture choice",
             ));
         }
     }
@@ -263,15 +263,15 @@ fn validate_architecture_completeness(
     architecture: &SkillArchitectureDecision,
 ) -> Result<(), RuntimeError> {
     if matches!(
-        architecture.disposition,
-        SkillArchitectureDisposition::Build | SkillArchitectureDisposition::ExtendExisting
+        architecture.choice,
+        SkillArchitectureChoice::Build | SkillArchitectureChoice::ExtendExisting
     ) && (architecture.required_behaviors.is_empty() || architecture.proof_plan.is_empty())
     {
         return Err(invalid_skill_change(
             "build and extension architectures require behaviors and a proof plan",
         ));
     }
-    if architecture.disposition == SkillArchitectureDisposition::NeedsCore
+    if architecture.choice == SkillArchitectureChoice::NeedsCore
         && architecture.native_reuse.missing_capabilities.is_empty()
     {
         return Err(invalid_skill_change(
@@ -279,7 +279,7 @@ fn validate_architecture_completeness(
         ));
     }
     if !architecture.native_reuse.missing_capabilities.is_empty()
-        && architecture.disposition != SkillArchitectureDisposition::NeedsCore
+        && architecture.choice != SkillArchitectureChoice::NeedsCore
     {
         return Err(invalid_skill_change(
             "missing native capabilities require a needs_core architecture decision",
@@ -324,9 +324,9 @@ fn validate_behavior_lanes(
                 )));
             }
             SkillExecutionLane::NativeCapability => {
-                let reuse = behavior.reuse_ref.as_ref().ok_or_else(|| {
+                let reuse = behavior.reuses.as_ref().ok_or_else(|| {
                     invalid_skill_change(format!(
-                        "native behavior '{}' requires reuse_ref",
+                        "native behavior '{}' requires reuses",
                         behavior.id.as_str()
                     ))
                 })?;

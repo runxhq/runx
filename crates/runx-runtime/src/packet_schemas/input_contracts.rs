@@ -1,44 +1,28 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use runx_contracts::{InputDefinition, JsonObject};
+use runx_contracts::{InputDefinition, JsonObject, PacketId};
 use runx_parser::{
     SkillPackageError, ValidatedSkillPackage, ValidatedTool, validate_input_examples,
 };
 
-use super::{
-    PacketSchemaCatalog, PacketSchemaEntry, declared_input_packet_ids, package_packet_directories,
-    packet_schema_directories,
-};
+use super::{PacketSchemaCatalog, PacketSchemaEntry, declared_input_packet_ids};
 
 /// Resolve every packet-valued input exactly once at package admission. All
 /// downstream consumers then use the ordinary input schema path; packet
 /// references do not create a parallel validator or inspection surface.
 pub(crate) fn hydrate_packet_input_contracts(
     package: &mut ValidatedSkillPackage,
-    selected_directory: &Path,
     package_root: &Path,
-) -> Result<BTreeMap<String, PacketSchemaEntry>, SkillPackageError> {
+) -> Result<BTreeMap<PacketId, PacketSchemaEntry>, SkillPackageError> {
     if !package_uses_packet_inputs(package) {
         return Ok(BTreeMap::new());
     }
 
-    let mut catalog = PacketSchemaCatalog::native_public().map_err(package_error)?;
-    catalog
-        .discover_validated_package(package, package_root)
-        .map_err(package_error)?;
-    let local_directories = package_packet_directories(package)
-        .into_iter()
-        .map(|directory| package_root.join(directory))
-        .collect::<Vec<_>>();
-    catalog
-        .discover_directories(
-            packet_schema_directories(selected_directory, package_root, package_root)
-                .map_err(package_error)?
-                .into_iter()
-                .filter(|directory| !local_directories.contains(directory)),
-        )
-        .map_err(package_error)?;
+    let packet_ids = package_input_packet_ids(package);
+    let catalog =
+        PacketSchemaCatalog::for_validated_package(package, package_root, [], &packet_ids)
+            .map_err(package_error)?;
 
     for (profile_path, manifest) in &mut package.profiles {
         hydrate_inputs(
@@ -47,8 +31,8 @@ pub(crate) fn hydrate_packet_input_contracts(
             &catalog,
         )?;
         for (runner_name, runner) in &mut manifest.runners {
-            let owner = format!("{profile_path} runner {runner_name}");
-            hydrate_inputs(&mut runner.inputs, &owner, &catalog)?;
+            let declared_by = format!("{profile_path} runner {runner_name}");
+            hydrate_inputs(&mut runner.inputs, &declared_by, &catalog)?;
             validate_input_examples(
                 &format!("runners.{runner_name}.examples"),
                 &runner.examples,
@@ -67,7 +51,7 @@ pub(crate) fn hydrate_packet_input_contracts(
             &catalog,
         )?;
     }
-    package_input_packet_ids(package)
+    packet_ids
         .into_iter()
         .map(|packet_id| {
             let entry = catalog.get(&packet_id).cloned().ok_or_else(|| {
@@ -94,11 +78,9 @@ pub(crate) fn hydrate_standalone_tool_input_contracts(
             "tool manifest has no owning directory",
         )
     })?;
-    let catalog = PacketSchemaCatalog::discover(
-        packet_schema_directories(tool_directory, tool_directory, tool_directory)
-            .map_err(package_error)?,
-    )
-    .map_err(package_error)?;
+    let catalog =
+        PacketSchemaCatalog::for_package(tool_directory, &declared_input_packet_ids(&tool.inputs))
+            .map_err(package_error)?;
     hydrate_inputs(
         &mut tool.inputs,
         &format!("tool {}", manifest_path.display()),
@@ -123,7 +105,7 @@ fn inputs_use_packets(inputs: &BTreeMap<String, InputDefinition>) -> bool {
     inputs.values().any(|input| input.packet.is_some())
 }
 
-fn package_input_packet_ids(package: &ValidatedSkillPackage) -> BTreeSet<String> {
+fn package_input_packet_ids(package: &ValidatedSkillPackage) -> BTreeSet<PacketId> {
     let mut packet_ids = BTreeSet::new();
     for manifest in package.profiles.values() {
         packet_ids.extend(declared_input_packet_ids(&manifest.input_definitions));
@@ -139,40 +121,40 @@ fn package_input_packet_ids(package: &ValidatedSkillPackage) -> BTreeSet<String>
 
 fn hydrate_inputs(
     inputs: &mut BTreeMap<String, InputDefinition>,
-    owner: &str,
+    declared_by: &str,
     catalog: &PacketSchemaCatalog,
 ) -> Result<(), SkillPackageError> {
     for (name, input) in inputs {
-        let Some(packet_id) = input.packet.as_deref() else {
+        let Some(packet_id) = input.packet.as_ref() else {
             continue;
         };
         let entry = catalog.get(packet_id).ok_or_else(|| {
             SkillPackageError::invalid(
-                owner,
-                format!("input '{name}' declares missing packet schema '{packet_id}'"),
+                declared_by,
+                format!("input '{name}': {}", catalog.not_found(packet_id)),
             )
         })?;
         let schema = entry.schema.value.as_object().cloned().ok_or_else(|| {
             SkillPackageError::invalid(
-                owner,
+                declared_by,
                 format!("packet schema '{packet_id}' must be a JSON Schema object"),
             )
         })?;
-        validate_packet_schema(owner, name, packet_id, &schema)?;
+        validate_packet_schema(declared_by, name, packet_id, &schema)?;
         input.schema = Some(schema);
     }
     Ok(())
 }
 
 fn validate_packet_schema(
-    owner: &str,
+    declared_by: &str,
     input: &str,
-    packet_id: &str,
+    packet_id: &PacketId,
     schema: &JsonObject,
 ) -> Result<(), SkillPackageError> {
     let schema = serde_json::to_value(schema).map_err(|source| {
         SkillPackageError::invalid(
-            owner,
+            declared_by,
             format!(
                 "input '{input}' packet schema '{packet_id}' could not be serialized: {source}"
             ),
@@ -180,7 +162,7 @@ fn validate_packet_schema(
     })?;
     jsonschema::draft202012::meta::validate(&schema).map_err(|source| {
         SkillPackageError::invalid(
-            owner,
+            declared_by,
             format!("input '{input}' packet schema '{packet_id}' is invalid: {source}"),
         )
     })

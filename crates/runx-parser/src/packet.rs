@@ -4,17 +4,17 @@
 //! owns the document contract so listing, execution, and publication cannot
 //! disagree about packet identity or digests.
 
-use runx_contracts::{JsonValue, sha256_prefixed};
+use runx_contracts::{JsonValue, PACKET_ID_EXPECTED, PacketId, sha256_prefixed};
 use thiserror::Error;
 
 pub const PACKET_ID_FIELD: &str = "x-runx-packet-id";
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidatedPacketSchema {
-    pub packet_id: String,
+    pub packet_id: PacketId,
     pub value: JsonValue,
-    pub sha256: String,
+    pub digest: String,
 }
 
 #[derive(Debug, Error)]
@@ -25,15 +25,25 @@ pub enum PacketSchemaError {
         #[source]
         source: serde_json::Error,
     },
-    #[error("{path}: {PACKET_ID_FIELD} must be a non-empty string")]
+    #[error("{path}: {PACKET_ID_FIELD} is not a packet id; {PACKET_ID_EXPECTED}")]
     InvalidPacketId { path: String },
+    #[error(
+        "{path}: {packet_id} is a core packet id; core packets are compiled into runx, and a packet file declares its package's id"
+    )]
+    CorePacketFile { path: String, packet_id: PacketId },
+    #[error("{path}: $id of {packet_id} must be {expected}")]
+    SchemaUrl {
+        path: String,
+        packet_id: PacketId,
+        expected: String,
+    },
 }
 
-/// Parse one JSON document as a Runx packet schema.
+/// Parse one JSON document as a package's packet schema.
 ///
 /// JSON without `x-runx-packet-id` is not a packet schema and returns `None`.
-/// Once the field is present it is strict: wrong types and empty identifiers
-/// are rejected rather than silently creating divergent identities.
+/// Once the field is present it is strict: the id is a package id, never a
+/// core one, and `$id` is that id's canonical schema URL.
 pub fn parse_packet_schema_document(
     path: impl Into<String>,
     source: &str,
@@ -51,13 +61,28 @@ pub fn parse_packet_schema_document(
     else {
         return Ok(None);
     };
-    let packet_id = raw_packet_id
-        .as_str()
-        .filter(|packet_id| !packet_id.trim().is_empty())
-        .ok_or(PacketSchemaError::InvalidPacketId { path })?;
+    let Some(packet_id) = raw_packet_id.as_str().and_then(PacketId::new) else {
+        return Err(PacketSchemaError::InvalidPacketId { path });
+    };
+    if packet_id.is_core() {
+        return Err(PacketSchemaError::CorePacketFile { path, packet_id });
+    }
+    let expected = packet_id.schema_url();
+    if value
+        .as_object()
+        .and_then(|object| object.get("$id"))
+        .and_then(JsonValue::as_str)
+        != Some(expected.as_str())
+    {
+        return Err(PacketSchemaError::SchemaUrl {
+            path,
+            packet_id,
+            expected,
+        });
+    }
     Ok(Some(ValidatedPacketSchema {
-        packet_id: packet_id.to_owned(),
+        packet_id,
         value,
-        sha256: sha256_prefixed(source.as_bytes()),
+        digest: sha256_prefixed(source.as_bytes()),
     }))
 }

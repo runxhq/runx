@@ -69,9 +69,9 @@ fn a_provider_read_is_sent_once_never_through_the_repeating_lane() {
                 "status": "success",
                 "provider": "x402",
                 "operation": "payment.x402.read",
-                "target": "https://vendor.example/v1/invocations",
+                "target": "https://merchant.example/v1/report",
                 "access": "read",
-                "readback_ref": "runx:provider-readback:payment-1",
+                "readback_uri": "runx:provider-readback:payment-1",
                 "result": {"status": "settled"}
             })
             .to_string(),
@@ -91,7 +91,7 @@ fn a_provider_read_is_sent_once_never_through_the_repeating_lane() {
             grant_id: "grant_x402_1".to_owned(),
             operation: "payment.x402.read".to_owned(),
             operation_digest: format!("sha256:{}", "a".repeat(64)),
-            target: "https://vendor.example/v1/invocations".to_owned(),
+            target: "https://merchant.example/v1/report".to_owned(),
             scopes: vec!["payment.x402.read".to_owned()],
             input: JsonObject::new(),
             access: OperationAccess::Read,
@@ -128,7 +128,7 @@ fn provider_operation_authenticates_and_returns_bounded_readback() {
                 "access": "mutate",
                 "operation_id": "provider-op-1",
                 "idempotency_key": "runx:test-operation",
-                "readback_ref": "runx:provider-readback:provider-op-1",
+                "readback_uri": "runx:provider-readback:provider-op-1",
                 "result": {"message_locator": "chat://T/C/2"}
             })
             .to_string(),
@@ -281,7 +281,7 @@ fn provider_operation_rejects_mismatched_access_before_trusting_result() {
             "operation": "thread.reply",
             "target": "chat://T/C/2",
             "access": "mutate",
-            "readback_ref": "runx:provider-readback:1",
+            "readback_uri": "runx:provider-readback:1",
             "result": {"message_locator": "chat://T/C/2"}
         })),
         request.access,
@@ -342,7 +342,7 @@ fn provider_operation_requires_readback_evidence() {
     )
     .expect_err("provider reads require readback evidence");
 
-    assert!(error.to_string().contains("readback_ref"));
+    assert!(error.to_string().contains("readback_uri"));
 }
 
 fn response_object(value: serde_json::Value) -> JsonObject {

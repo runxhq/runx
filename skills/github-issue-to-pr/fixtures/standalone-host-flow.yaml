@@ -29,7 +29,7 @@ caller:
   answers:
     host-work:
       host_result:
-        schema: runx.issue_to_pr.host_result.v1
+        schema: runx/github-issue-to-pr.host_result.v1
         status: completed
         repository: runxhq/runx
         issue_number: "442"
@@ -60,7 +60,7 @@ expect:
     subset:
       issue_to_pr_result:
         data:
-          schema: runx.issue_to_pr.result.v1
+          schema: runx/github-issue-to-pr.result.v1
           status: completed
           outcome: finalized_local
           repository: runxhq/runx

@@ -69,7 +69,7 @@ Use the public catalog when you want to browse or share a package:
 ```text
 https://runx.ai/x
 https://runx.ai/x?category=security
-https://runx.ai/x/<owner>/<skill>@<version>
+https://runx.ai/x/<publisher>/<skill>@<version>
 ```
 
 Use the CLI when you are preparing work or checking for overlap:
@@ -88,8 +88,8 @@ The command shape is deliberate:
 | Browse the catalog | `https://runx.ai/x` |
 | Browse one category | `https://runx.ai/x?category=<slug>` |
 | Search from a terminal | `runx registry search <query>` |
-| Inspect one package | `runx skill inspect <owner>/<name>@<version>` |
-| Install package material | `runx registry install <owner>/<name>@<version>` |
+| Inspect one package | `runx skill inspect <publisher>/<name>@<version>` |
+| Install package material | `runx registry install <publisher>/<name>@<version>` |
 | Execute a local or registry skill | `runx skill <path-or-ref>` |
 
 Running a registry ref fetches it, so most work needs no install.
@@ -99,7 +99,7 @@ needs a newer runx, the output names it and the newest version yours reads
 runs instead.
 
 Every package a project runs is added under
-`.runx/added-skills/<owner>/<name>/<version>/`: a registry skill when it is
+`.runx/added-skills/<publisher>/<name>/<version>/`: a registry skill when it is
 first run or installed, the registry skills a graph names, and a bundled runx
 skill the first time the project uses it (`runx new` uses `runx/skill-build`).
 Commit them or ignore them as you would any other dependency.
@@ -163,7 +163,7 @@ Name a skill so an agent instinctively reaches for the right one:
   drops go in the `description`.
 
 Renaming an existing skill is a `git mv`, a token sweep, and a regenerate
-(`packet-schemas`) plus `verify:fast` and the harness. The registry knows the
+(`packets:collect`) plus `verify:fast` and the harness. The registry knows the
 renamed skill once it is published under its new name.
 
 ## Canonical category slugs
@@ -203,7 +203,7 @@ evidence, not copied into the repo by default.
 | `data` | `product-analytics`, `run-history`, `sql-analysis` |
 | `growth` | `cold-outreach`, `crm-update-plan`, `lead-enrichment`, `lead-qualify` |
 | `ops` | `github`, `code-intake`, `github-issue-triage`, `message-send`, `operations-review`, `postmortem-draft`, `webhook-handoff` |
-| `payments` | `charge`, `dispute-respond`, `pay`, `purchase-policy-check`, `refund`, `invoice-pay` |
+| `payments` | `charge`, `dispute-respond`, `pay`, `procurement-policy-check`, `refund`, `invoice-pay` |
 | `research` | `research-brief`, `research`, `web-search` |
 | `security` | `cve-audit`, `sbom-generate`, `vuln-triage`, `privacy-request-review`, `least-privilege`, `receipt-audit`, `redact-pii`, `sign-receipt` |
 
@@ -262,7 +262,7 @@ publisher identity without making runx maintain it. Community packages can still
 be used immediately:
 
 ```bash
-runx skill <owner>/<skill>@<version> --json
+runx skill <publisher>/<skill>@<version> --json
 ```
 
 Promote a community skill toward first-party only when it has clear adoption,

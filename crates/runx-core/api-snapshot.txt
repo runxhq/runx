@@ -69,12 +69,12 @@ pub runx_core::policy::ExecutionTermRequest::issued_by_ref: runx_contracts::refe
 pub struct runx_core::policy::LocalExecutionPolicy
 pub runx_core::policy::LocalExecutionPolicy::refuse_host_processes: bool
 pub runx_core::policy::LocalExecutionPolicy::strict_process_tool_inline_code: bool
-pub struct runx_core::policy::ToolRefAdmission
-pub runx_core::policy::ToolRefAdmission::allowed: bool
-pub runx_core::policy::ToolRefAdmission::reason: &'static str
-impl runx_core::policy::ToolRefAdmission
-pub const fn runx_core::policy::ToolRefAdmission::allow() -> Self
-pub const fn runx_core::policy::ToolRefAdmission::deny(reason: &'static str) -> Self
+pub struct runx_core::policy::ToolAdmission
+pub runx_core::policy::ToolAdmission::allowed: bool
+pub runx_core::policy::ToolAdmission::reason: &'static str
+impl runx_core::policy::ToolAdmission
+pub const fn runx_core::policy::ToolAdmission::allow() -> Self
+pub const fn runx_core::policy::ToolAdmission::deny(reason: &'static str) -> Self
 pub trait runx_core::policy::FamilySubsetComparator
 pub fn runx_core::policy::FamilySubsetComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
 pub fn runx_core::policy::FamilySubsetComparator::comparison_algorithm(&self) -> &str
@@ -83,7 +83,7 @@ impl runx_core::policy::FamilySubsetComparator for runx_core::policy::ConnectorB
 pub fn runx_core::policy::ConnectorBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
 pub fn runx_core::policy::ConnectorBoundsComparator::comparison_algorithm(&self) -> &str
 pub fn runx_core::policy::ConnectorBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
-pub fn runx_core::policy::admit_agent_tool_ref(value: &str) -> runx_core::policy::ToolRefAdmission
+pub fn runx_core::policy::admit_agent_tool(value: &str) -> runx_core::policy::ToolAdmission
 pub fn runx_core::policy::derive_execution_term(request: &runx_core::policy::ExecutionTermRequest<'_>, comparator: &dyn runx_core::policy::FamilySubsetComparator, checked_at: runx_contracts::schema::IsoDateTime) -> core::result::Result<(runx_contracts::authority::AuthorityTerm, alloc::vec::Vec<runx_contracts::authority::AuthoritySubsetProof>), runx_core::policy::DerivationError>
 pub fn runx_core::policy::mint_attenuated(parent: &runx_contracts::authority::AuthorityTerm, request: &runx_core::policy::AttenuationRequest, comparator: &dyn runx_core::policy::FamilySubsetComparator, checked_at: runx_contracts::schema::IsoDateTime) -> core::result::Result<(runx_contracts::authority::AuthorityTerm, runx_contracts::authority::AuthoritySubsetProof), runx_core::policy::AttenuationError>
 pub fn runx_core::policy::missing_granted_scopes(required_scopes: &[alloc::string::String], granted_scopes: &[alloc::string::String], policy: runx_core::policy::ScopeGrantPolicy) -> alloc::vec::Vec<alloc::string::String>
@@ -92,17 +92,17 @@ pub fn runx_core::policy::scope_grant_allows(granted_scope: &str, requested_scop
 pub fn runx_core::policy::strict_process_tool_inline_code_denial(command: core::option::Option<&str>, args: &[alloc::string::String], policy: core::option::Option<&runx_core::policy::LocalExecutionPolicy>) -> core::option::Option<alloc::string::String>
 pub mod runx_core::serde_conventions
 pub mod runx_core::state_machine
-pub enum runx_core::state_machine::GraphStatus
-pub runx_core::state_machine::GraphStatus::Failed
-pub runx_core::state_machine::GraphStatus::Pending
-pub runx_core::state_machine::GraphStatus::Running
-pub runx_core::state_machine::GraphStatus::Succeeded
-pub enum runx_core::state_machine::GraphStepStatus
-pub runx_core::state_machine::GraphStepStatus::Failed
-pub runx_core::state_machine::GraphStepStatus::Pending
-pub runx_core::state_machine::GraphStepStatus::Running
-pub runx_core::state_machine::GraphStepStatus::Skipped
-pub runx_core::state_machine::GraphStepStatus::Succeeded
+pub enum runx_core::state_machine::GraphState
+pub runx_core::state_machine::GraphState::Failed
+pub runx_core::state_machine::GraphState::Pending
+pub runx_core::state_machine::GraphState::Running
+pub runx_core::state_machine::GraphState::Succeeded
+pub enum runx_core::state_machine::GraphStepState
+pub runx_core::state_machine::GraphStepState::Failed
+pub runx_core::state_machine::GraphStepState::Pending
+pub runx_core::state_machine::GraphStepState::Running
+pub runx_core::state_machine::GraphStepState::Skipped
+pub runx_core::state_machine::GraphStepState::Succeeded
 pub enum runx_core::state_machine::SequentialGraphEvent
 pub runx_core::state_machine::SequentialGraphEvent::Complete
 pub runx_core::state_machine::SequentialGraphEvent::FailGraph
@@ -139,25 +139,25 @@ pub runx_core::state_machine::AuthorityAdmissionWitness::child_term_id: alloc::s
 pub runx_core::state_machine::AuthorityAdmissionWitness::idempotency_key: core::option::Option<alloc::string::String>
 pub runx_core::state_machine::AuthorityAdmissionWitness::parent_term_id: alloc::string::String
 pub runx_core::state_machine::AuthorityAdmissionWitness::verb: runx_contracts::authority::AuthorityVerb
-pub struct runx_core::state_machine::SequentialGraphState
-pub runx_core::state_machine::SequentialGraphState::graph_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraphState::status: runx_core::state_machine::GraphStatus
-pub runx_core::state_machine::SequentialGraphState::steps: alloc::vec::Vec<runx_core::state_machine::SequentialGraphStepState>
+pub struct runx_core::state_machine::SequentialGraph
+pub runx_core::state_machine::SequentialGraph::graph_id: alloc::string::String
+pub runx_core::state_machine::SequentialGraph::status: runx_core::state_machine::GraphState
+pub runx_core::state_machine::SequentialGraph::steps: alloc::vec::Vec<runx_core::state_machine::SequentialGraphStep>
 pub struct runx_core::state_machine::SequentialGraphStepDefinition
 pub runx_core::state_machine::SequentialGraphStepDefinition::context_from: core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub runx_core::state_machine::SequentialGraphStepDefinition::id: alloc::string::String
 pub struct runx_core::state_machine::SequentialGraphStepIndex
 impl runx_core::state_machine::SequentialGraphStepIndex
 pub fn runx_core::state_machine::SequentialGraphStepIndex::new(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> Self
-pub struct runx_core::state_machine::SequentialGraphStepState
-pub runx_core::state_machine::SequentialGraphStepState::attempts: u32
-pub runx_core::state_machine::SequentialGraphStepState::completed_at: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStepState::error: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStepState::outputs: core::option::Option<runx_contracts::json::JsonObject>
-pub runx_core::state_machine::SequentialGraphStepState::receipt_id: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStepState::started_at: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStepState::status: runx_core::state_machine::GraphStepStatus
-pub runx_core::state_machine::SequentialGraphStepState::step_id: alloc::string::String
+pub struct runx_core::state_machine::SequentialGraphStep
+pub runx_core::state_machine::SequentialGraphStep::attempts: u32
+pub runx_core::state_machine::SequentialGraphStep::completed_at: core::option::Option<alloc::string::String>
+pub runx_core::state_machine::SequentialGraphStep::error: core::option::Option<alloc::string::String>
+pub runx_core::state_machine::SequentialGraphStep::outputs: core::option::Option<runx_contracts::json::JsonObject>
+pub runx_core::state_machine::SequentialGraphStep::receipt_id: core::option::Option<alloc::string::String>
+pub runx_core::state_machine::SequentialGraphStep::started_at: core::option::Option<alloc::string::String>
+pub runx_core::state_machine::SequentialGraphStep::status: runx_core::state_machine::GraphStepState
+pub runx_core::state_machine::SequentialGraphStep::step_id: alloc::string::String
 pub struct runx_core::state_machine::StepAdmissionWitness
 pub runx_core::state_machine::StepAdmissionWitness::authority: core::option::Option<runx_core::state_machine::AuthorityAdmissionWitness>
 pub runx_core::state_machine::StepAdmissionWitness::receipt_id: alloc::string::String
@@ -165,14 +165,14 @@ pub runx_core::state_machine::StepAdmissionWitness::step_id: alloc::string::Stri
 impl runx_core::state_machine::StepAdmissionWitness
 pub fn runx_core::state_machine::StepAdmissionWitness::local_runtime(step_id: impl core::convert::Into<alloc::string::String>, receipt_id: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn runx_core::state_machine::StepAdmissionWitness::with_authority(step_id: impl core::convert::Into<alloc::string::String>, receipt_id: impl core::convert::Into<alloc::string::String>, authority: runx_core::state_machine::AuthorityAdmissionWitness) -> Self
-pub fn runx_core::state_machine::apply_sequential_graph_event(state: &mut runx_core::state_machine::SequentialGraphState, event: &runx_core::state_machine::SequentialGraphEvent)
-pub fn runx_core::state_machine::apply_sequential_graph_event_indexed(state: &mut runx_core::state_machine::SequentialGraphState, event: &runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::apply_sequential_graph_event_owned_indexed(state: &mut runx_core::state_machine::SequentialGraphState, event: runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::create_sequential_graph_state(graph_id: impl core::convert::Into<alloc::string::String>, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphState
+pub fn runx_core::state_machine::apply_sequential_graph_event(state: &mut runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent)
+pub fn runx_core::state_machine::apply_sequential_graph_event_indexed(state: &mut runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
+pub fn runx_core::state_machine::apply_sequential_graph_event_owned_indexed(state: &mut runx_core::state_machine::SequentialGraph, event: runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
+pub fn runx_core::state_machine::create_sequential_graph(graph_id: impl core::convert::Into<alloc::string::String>, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraph
 pub fn runx_core::state_machine::create_sequential_graph_step_index(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphStepIndex
-pub fn runx_core::state_machine::plan_sequential_graph_transition(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed_from(state: &runx_core::state_machine::SequentialGraphState, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, start_index: usize) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::start_sequential_graph_step_indexed(state: &mut runx_core::state_machine::SequentialGraphState, step_id: &str, at: alloc::string::String, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::succeed_sequential_graph_step_indexed(state: &mut runx_core::state_machine::SequentialGraphState, at: alloc::string::String, admission_witness: runx_core::state_machine::StepAdmissionWitness, outputs: core::option::Option<runx_contracts::json::JsonObject>, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::transition_sequential_graph(state: &runx_core::state_machine::SequentialGraphState, event: &runx_core::state_machine::SequentialGraphEvent) -> runx_core::state_machine::SequentialGraphState
+pub fn runx_core::state_machine::plan_sequential_graph_transition(state: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed(state: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed_from(state: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, start_index: usize) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::start_sequential_graph_step_indexed(state: &mut runx_core::state_machine::SequentialGraph, step_id: &str, at: alloc::string::String, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
+pub fn runx_core::state_machine::succeed_sequential_graph_step_indexed(state: &mut runx_core::state_machine::SequentialGraph, at: alloc::string::String, admission_witness: runx_core::state_machine::StepAdmissionWitness, outputs: core::option::Option<runx_contracts::json::JsonObject>, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
+pub fn runx_core::state_machine::transition_sequential_graph(state: &runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent) -> runx_core::state_machine::SequentialGraph

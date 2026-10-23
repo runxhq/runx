@@ -6,7 +6,7 @@ caller:
     judge:
       draft:
         decision: brief
-        items: [{ source_ref: mail-thread-1, priority: high }]
+        items: [{ source_id: mail-thread-1, priority: high }]
         recommended_action_ids: [private_update]
         next_check_minutes: 20
 expect:

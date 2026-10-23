@@ -8,7 +8,7 @@ expect:
     - second
   receipt:
     schema: runx.receipt.v1
-    subject_ref: runx:run:harness-graph
+    subject_uri: runx:run:harness-graph
     state: sealed
-    disposition: closed
+    outcome: completed
     child_receipt_count: 2

@@ -18,7 +18,7 @@ pub(crate) struct ReceiptQueryInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) skill: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) status: Option<String>,
+    pub(crate) outcome: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) issuer: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,7 +59,7 @@ impl QueryRequest {
         JsonValue::Object(JsonObject::from([
             ("query".to_owned(), optional_json(&self.filter.query)),
             ("skill".to_owned(), optional_json(&self.filter.skill)),
-            ("status".to_owned(), optional_json(&self.filter.status)),
+            ("outcome".to_owned(), optional_json(&self.filter.outcome)),
             ("issuer".to_owned(), optional_json(&self.filter.issuer)),
             ("actor".to_owned(), optional_json(&self.filter.actor)),
             ("since".to_owned(), optional_json(&self.filter.since)),
@@ -88,7 +88,7 @@ fn history_filter(inputs: &ReceiptQueryInput, limit: usize) -> Result<ReceiptFil
     Ok(ReceiptFilter {
         query: optional_string(inputs.query.as_deref()),
         skill: optional_string(inputs.skill.as_deref()),
-        status: optional_string(inputs.status.as_deref()),
+        outcome: optional_string(inputs.outcome.as_deref()),
         issuer: optional_string(inputs.issuer.as_deref()),
         actor: optional_string(inputs.actor.as_deref()),
         since: resolve_since(inputs)?,

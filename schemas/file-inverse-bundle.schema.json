@@ -1,0 +1,98 @@
+{
+  "$id": "https://schemas.runx.ai/runx/fs/inverse-bundle/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `fs.inverse` returns: the bundle that undoes a run's edits, for `fs.apply_bundle` to apply.",
+  "properties": {
+    "calls": {
+      "description": "The calls it undoes, in the order the run made them.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "deletes": {
+      "items": {
+        "anyOf": [
+          {
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "expected_digest": {
+                "maxLength": 71,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "path": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "expected_digest"
+            ],
+            "title": "FileBoundDelete",
+            "type": "object"
+          }
+        ],
+        "description": "A file a bundle deletes: its path, or its path with the digest of the content it removes.",
+        "title": "FileBundleDelete"
+      },
+      "type": "array"
+    },
+    "repo_root": {
+      "description": "The root the edits changed, relative to the workspace.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "writes": {
+      "items": {
+        "additionalProperties": false,
+        "description": "A file a bundle writes.",
+        "properties": {
+          "contents": {
+            "type": "string"
+          },
+          "create": {
+            "const": true,
+            "description": "The file must not exist yet.",
+            "type": "boolean"
+          },
+          "expected_digest": {
+            "description": "The digest of the content it replaces, as a read returned it.",
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "contents"
+        ],
+        "title": "FileBundleWrite",
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "repo_root",
+    "writes",
+    "deletes",
+    "calls"
+  ],
+  "title": "FileInverseBundle",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.fs.inverse_bundle.v1"
+}

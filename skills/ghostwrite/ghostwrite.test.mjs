@@ -79,7 +79,7 @@ test("scope is compared exactly and an undeclared scope applies nowhere", () => 
 const boundDraft = (overrides = {}) => ({
   decision: "ready",
   validation: { status: "pass", findings: [] },
-  draft: { title: "Evidence-bound execution", body: "Receipts bind actions.", claim_refs: [{ claim: "Receipts bind actions.", source_digests: [digest] }] },
+  draft: { title: "Evidence-bound execution", body: "Receipts bind actions.", claims: [{ claim: "Receipts bind actions.", source_digests: [digest] }] },
   evidence_binding: { evidence_packet_digest: digest, source_digests: [digest] },
   ...overrides,
 });
@@ -93,7 +93,7 @@ test("packaging holds a draft that is ready only by its own say", () => {
   // A claim citing a source the draft is not bound to.
   const stray = prepareContent({
     channel: "blog",
-    draft: boundDraft({ draft: { title: "t", body: "b", claim_refs: [{ claim: "c", source_digests: [`sha256:${"b".repeat(64)}`] }] } }),
+    draft: boundDraft({ draft: { title: "t", body: "b", claims: [{ claim: "c", source_digests: [`sha256:${"b".repeat(64)}`] }] } }),
   });
   assert.equal(stray.publish_draft.decision, "needs_input");
 });

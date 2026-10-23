@@ -32,7 +32,7 @@ export function prepareSitemapPlan(inputs) {
   };
   return {
     sitemap_plan_draft: {
-      schema: "runx.search.sitemap_plan.v1",
+      schema: "runx/google-search-console.sitemap_plan.v1",
       decision: findings.length === 0 ? "ready_for_execution" : "blocked",
       ...digestSubject,
       provider_status: "not_called",
@@ -60,7 +60,7 @@ export function admitSitemapSubmission(inputs) {
   const findings = [];
   const computedDigest = digest(inputs.digest_result);
 
-  if (text(plan.schema) !== "runx.search.sitemap_plan.v1") {
+  if (text(plan.schema) !== "runx/google-search-console.sitemap_plan.v1") {
     findings.push(finding("gsc.sitemap_plan.schema_invalid", "sitemap plan schema is not supported"));
   }
   if (text(plan.decision) !== "ready_for_execution") {
@@ -94,7 +94,7 @@ export function refuseSitemapSubmission(inputs) {
   const admission = object(inputs.submission_admission);
   return {
     sitemap_submission: {
-      schema: "runx.search.sitemap_submission.v1",
+      schema: "runx/google-search-console.sitemap_submission.v1",
       decision: "blocked",
       provider: "google-search-console",
       operation: "sitemaps.submit",
@@ -136,7 +136,7 @@ export function finalizeSitemapSubmission(inputs) {
 
   return {
     sitemap_submission: {
-      schema: "runx.search.sitemap_submission.v1",
+      schema: "runx/google-search-console.sitemap_submission.v1",
       decision: findings.length === 0 ? "completed" : "blocked",
       provider: "google-search-console",
       operation: "sitemaps.submit",

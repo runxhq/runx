@@ -1,5 +1,5 @@
 skill: crm-update-plan
-version: "0.1.8"
+version: "0.1.9"
 
 catalog:
   kind: graph
@@ -56,7 +56,7 @@ harness:
             subset:
               crm_update_proposal:
                 data:
-                  schema: runx.crm_update_proposal.v1
+                  schema: runx/crm-update-plan.proposal.v1
                   decision: proposed
                   write_performed: false
                   gate: crm-operator-or-human-approver
@@ -207,57 +207,8 @@ runners:
         outputs:
           crm_update_proposal:
             type: object
-            schema:
-              required: [schema, decision, reason, updates, rejected_updates, write_performed, gate, transcript_digest, records_digest, validation]
-              additionalProperties: false
-              properties:
-                schema: { const: runx.crm_update_proposal.v1 }
-                decision: { type: string, enum: [proposed, no_action, refused] }
-                reason: { type: string, minLength: 1, maxLength: 2000 }
-                updates:
-                  type: array
-                  maxItems: 200
-                  items:
-                    type: object
-                    required: [record_id, field, from, to, evidence_quote]
-                    additionalProperties: false
-                    properties:
-                      record_id: { type: string, minLength: 1, maxLength: 500 }
-                      field: { type: string, minLength: 1, maxLength: 200 }
-                      from: {}
-                      to: {}
-                      evidence_quote: { type: string, minLength: 1, maxLength: 4000 }
-                rejected_updates:
-                  type: array
-                  maxItems: 200
-                  items:
-                    type: object
-                    required: [record_id, field, reason]
-                    additionalProperties: false
-                    properties:
-                      record_id: { type: [string, "null"], maxLength: 500 }
-                      field: { type: string, maxLength: 200 }
-                      reason: { type: string, minLength: 1, maxLength: 500 }
-                write_performed: { const: false }
-                gate: { const: crm-operator-or-human-approver }
-                transcript_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
-                records_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
-                validation:
-                  type: object
-                  required: [status, findings]
-                  additionalProperties: false
-                  properties:
-                    status: { type: string, enum: [pass, fail] }
-                    findings:
-                      type: array
-                      maxItems: 100
-                      items:
-                        type: object
-                        required: [code, message]
-                        additionalProperties: false
-                        properties:
-                          code: { type: string, minLength: 1, maxLength: 200 }
-                          message: { type: string, minLength: 1, maxLength: 2000 }
         artifacts:
           named_emits:
             crm_update_proposal: crm_update_proposal
+          packets:
+            crm_update_proposal: runx/crm-update-plan.proposal.v1

@@ -54,7 +54,7 @@ function isRuntimeCapability(binary, id) {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`connectors/${id}: ${result.stderr || result.stdout}`);
   const connector = JSON.parse(result.stdout).registry?.connector;
-  if (connector?.ref !== id) throw new Error(`connectors/${id} packaged as ${connector?.ref}`);
+  if (connector?.connector !== id) throw new Error(`connectors/${id} packaged as ${connector?.connector}`);
   return connector.manifest.runtime_capability === true;
 }
 

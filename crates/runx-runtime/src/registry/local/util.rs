@@ -239,7 +239,7 @@ mod tests {
     fn version(description: &str) -> Result<RegistrySkillVersion, serde_json::Error> {
         serde_json::from_value(serde_json::json!({
             "skill_id": "acme/echo",
-            "owner": "acme",
+            "publisher": "acme",
             "name": "echo",
             "description": description,
             "version": "1.0.0",

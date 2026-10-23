@@ -1,0 +1,18 @@
+{
+  "$id": "https://schemas.runx.ai/runx/payment/get-purchase/request/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "purchase_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "purchase_id"
+  ],
+  "title": "GetPurchaseRequest",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.payment.get_purchase.request.v1"
+}

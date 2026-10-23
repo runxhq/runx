@@ -12,8 +12,8 @@ inputs:
     recipient: operator@example.org
     status: eligible
     suppressed: true
-    policy_ref: policy:outreach
-    evidence_refs: ['decision:recipient-1']
+    policy_id: policy:outreach
+    evidence_ids: ['decision:recipient-1']
   evidence_pack:
     decision: ready
     research_brief:
@@ -32,7 +32,7 @@ inputs:
     source_evidence:
     - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
       content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-      source_ref: https://example.com/evidence
+      source_uri: https://example.com/evidence
       source_kind: fetch
       provenance: {observed_at: '2026-07-17T00:00:00Z', bytes: 0, status: 200, redirects: []}
     index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
@@ -56,5 +56,5 @@ operator_journeys:
 - mode: composed
   request: Continue outreach preparation from supplied research and contact-policy evidence.
   expected_outcome: Reuse the supplied evidence and retain the exact bounded outcome without outward actions.
-  prior_evidence: [The validated research packet and current recipient suppression disposition.]
+  prior_evidence: [The validated research packet and current recipient suppression state.]
   must_not_repeat: [Do not enrich or research the recipient again; do not draft for a suppressed recipient.]

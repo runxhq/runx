@@ -10,9 +10,9 @@ use std::fs;
 use std::path::Path;
 
 use runx_contracts::{
-    ClosureDisposition, Lineage, Receipt, ReceiptAuthority, ReceiptCanonicalization,
-    ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema, ReceiptSignature,
-    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, SubjectKind,
+    Lineage, Receipt, ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer,
+    ReceiptIssuerType, ReceiptSchema, ReceiptSignature, Reference, ReferenceType, RunOutcome, Seal,
+    SignatureAlgorithm, Subject, SubjectKind,
 };
 use serde_json::{Value, json};
 
@@ -263,7 +263,8 @@ fn base(id: &str) -> Receipt {
         issuer: ReceiptIssuer {
             issuer_type: ReceiptIssuerType::Local,
             kid: "fixture-key".into(),
-            public_key_sha256: format!("sha256:{}", "0".repeat(64)).into(),
+            public_key_digest: format!("sha256:{}", "0".repeat(64)).into(),
+            runx_version: "0.11.0".into(),
         },
         signature: ReceiptSignature {
             alg: SignatureAlgorithm::Ed25519,
@@ -273,7 +274,7 @@ fn base(id: &str) -> Receipt {
         subject: Subject {
             kind: SubjectKind::Step,
             reference: Reference::runx(ReferenceType::Run, id),
-            outcome: runx_contracts::connector::Digest::of(id.as_bytes()),
+            outcome_digest: runx_contracts::connector::Digest::of(id.as_bytes()),
         },
         authority: ReceiptAuthority {
             actor_ref: None,
@@ -287,7 +288,7 @@ fn base(id: &str) -> Receipt {
         decisions: Vec::new(),
         acts: Vec::new(),
         seal: Seal {
-            disposition: ClosureDisposition::Closed,
+            outcome: RunOutcome::Completed,
             reason: None,
             criteria: Vec::new(),
         },

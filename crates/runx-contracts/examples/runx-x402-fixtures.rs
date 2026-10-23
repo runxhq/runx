@@ -4,10 +4,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
-    RunxX402InvocationExtensionInfo, X402_PAYMENT_PAYLOAD_SCHEMA_ID,
-    X402_PAYMENT_REQUIRED_SCHEMA_ID, X402_SETTLE_RESPONSE_SCHEMA_ID, X402_UPSTREAM_COMMIT,
-    X402_UPSTREAM_PACKAGE, X402_UPSTREAM_PACKAGE_VERSION, X402PaymentPayload, X402PaymentRequired,
-    X402SettleResponse, sha256_prefixed,
+    RunxX402PurchaseExtensionInfo, X402_PAYMENT_PAYLOAD_SCHEMA_ID, X402_PAYMENT_REQUIRED_SCHEMA_ID,
+    X402_SETTLE_RESPONSE_SCHEMA_ID, X402_UPSTREAM_COMMIT, X402_UPSTREAM_PACKAGE,
+    X402_UPSTREAM_PACKAGE_VERSION, X402PaymentPayload, X402PaymentRequired, X402SettleResponse,
+    sha256_prefixed,
 };
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -38,8 +38,8 @@ const SCHEMAS: &[(&str, &str)] = &[
         "x402-v2-settle-response.schema.json",
     ),
     (
-        "runx.x402.invocation_extension.v1",
-        "runx-x402-invocation-extension-v1.schema.json",
+        "runx.x402.purchase_extension.v1",
+        "runx-x402-purchase-extension-v1.schema.json",
     ),
 ];
 
@@ -185,20 +185,20 @@ fn vectors() -> io::Result<Vec<Vector>> {
             }),
             None,
         )?,
-        valid::<RunxX402InvocationExtensionInfo>(
+        valid::<RunxX402PurchaseExtensionInfo>(
             "runx-discovery-extension.json",
-            "runx_invocation_extension",
+            "runx_purchase_extension",
             "Runx RX-01-C projection",
-            "runx.x402.invocation_extension.v1",
+            "runx.x402.purchase_extension.v1",
             discovery_extension(),
             None,
         )?,
-        valid::<RunxX402InvocationExtensionInfo>(
-            "runx-invocation-extension.json",
-            "runx_invocation_extension",
+        valid::<RunxX402PurchaseExtensionInfo>(
+            "runx-purchase-extension.json",
+            "runx_purchase_extension",
             "Runx RX-01-C projection",
-            "runx.x402.invocation_extension.v1",
-            invocation_extension(),
+            "runx.x402.purchase_extension.v1",
+            purchase_extension(),
             None,
         )?,
         invalid(
@@ -215,12 +215,12 @@ fn vectors() -> io::Result<Vec<Vector>> {
         ),
         invalid(
             "invalid-runx-extension-field.json",
-            "runx_invocation_extension",
-            "runx.x402.invocation_extension.v1",
+            "runx_purchase_extension",
+            "runx.x402.purchase_extension.v1",
             json!({
                 "purpose": "discovery",
-                "offer_revision": offer_revision(),
-                "package_digest": digest('7'),
+                "offer_version": offer_version(),
+                "bundle_digest": digest('7'),
                 "terms_digest": digest('8')
             }),
         ),
@@ -285,9 +285,9 @@ fn manifest(options: &Options, vectors: &[Vector], pin: &Value) -> io::Result<Va
         .map(|(schema_id, file)| {
             let bytes = fs::read(options.schema_dir.join(file))?;
             Ok(json!({
+                "digest": sha256_prefixed(&bytes),
                 "file": file,
-                "schema_id": schema_id,
-                "sha256": sha256_prefixed(&bytes)
+                "schema_id": schema_id
             }))
         })
         .collect::<io::Result<Vec<_>>>()?;
@@ -303,17 +303,17 @@ fn manifest(options: &Options, vectors: &[Vector], pin: &Value) -> io::Result<Va
                 "schema_id": vector.schema_id,
             }))?;
             Ok(json!({
+                "digest": sha256_prefixed(&bytes),
                 "expectation": vector.expectation,
                 "file": vector.file,
                 "kind": vector.kind,
-                "schema_id": vector.schema_id,
-                "sha256": sha256_prefixed(&bytes)
+                "schema_id": vector.schema_id
             }))
         })
         .collect::<io::Result<Vec<_>>>()?;
     Ok(json!({
         "external_protocol": { "name": "x402", "version": 2 },
-        "pin_sha256": sha256_prefixed(&canonical_bytes(pin)?),
+        "pin_digest": sha256_prefixed(&canonical_bytes(pin)?),
         "schema": "runx.x402.contract_fixtures.v1",
         "schemas": schemas,
         "vectors": vector_entries
@@ -380,17 +380,17 @@ fn requirements() -> Value {
 fn discovery_extension() -> Value {
     json!({
         "purpose": "discovery",
-        "offer_revision": offer_revision(),
-        "package_digest": digest('7')
+        "offer_version": offer_version(),
+        "bundle_digest": digest('7')
     })
 }
 
-fn invocation_extension() -> Value {
+fn purchase_extension() -> Value {
     json!({
-        "purpose": "invocation",
-        "invocation_id": "paid_ocr_1",
+        "purpose": "purchase",
+        "purchase_id": "paid_ocr_1",
         "quote_ref": { "type": "receipt", "uri": "runx:receipt:quote-1" },
-        "offer_revision": offer_revision(),
+        "offer_version": offer_version(),
         "package_digest": digest('7'),
         "input_digest": digest('1'),
         "canonicalizer_version": "runx.receipt.c14n.v1",
@@ -398,11 +398,11 @@ fn invocation_extension() -> Value {
     })
 }
 
-fn offer_revision() -> Value {
+fn offer_version() -> Value {
     json!({
         "offer_id": "ocr-v1",
-        "revision": "2026-08-22.1",
-        "revision_digest": digest('4'),
+        "version": "2026-08-22.1",
+        "profile_digest": digest('4'),
         "input_schema_digest": digest('2'),
         "output_schema_digest": digest('3')
     })

@@ -18,7 +18,7 @@ publishing an advisory is the operator's step, outside runx.
 ## Runners
 
 `scan` accepts the exact CVE audit result, its independent verification packet,
-and the sealed receipt reference. Every assessment remains bound to dependency,
+and the sealed receipt id. Every assessment remains bound to dependency,
 installed version, and advisory id. Judgment may classify priority, distinguish
 established from unknown exposure, and propose remediation, but confidence must
 describe only that judgment—the CVE identity is already verified.
@@ -47,7 +47,7 @@ priority, unknown exposure, and low-confidence judgments. A clean audit returns
 ## Inputs and result
 
 The scan runner consumes the target-bound audit result, verification result, and
-receipt reference plus any bounded operational context needed to assess
+receipt id plus any bounded operational context needed to assess
 exposure. It returns one assessment per verified finding, a remediation plan,
 operator summary, evidence binding, confidence, and escalation criteria.
 
@@ -58,7 +58,7 @@ artifact is a draft for review, not external publication.
 ## Stop conditions
 
 - Return `needs_verified_evidence` when the audit, independent verification, or
-  receipt reference is missing or invalid.
+  receipt id is missing or invalid.
 - Return `needs_more_evidence` when an assessment adds or omits a finding,
   changes a version or advisory identity, or lacks bounded confidence.
 - Reject advisory wording that cites an unknown id or states exposure the

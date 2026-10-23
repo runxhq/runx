@@ -52,10 +52,11 @@ struct SealedPayload {
     auth_tag: String,
 }
 
+/// What a sealed file holds. `id` labels the file; reading never needs it,
+/// so a file sealed by runx 0.10 under its `ref` label reads the same.
 #[derive(Serialize)]
 struct StoredSealedPayload<'a> {
-    #[serde(rename = "ref")]
-    material_ref: &'a str,
+    id: &'a str,
     alg: &'static str,
     iv: String,
     ciphertext: String,
@@ -64,8 +65,8 @@ struct StoredSealedPayload<'a> {
 
 type SealedNonce = Nonce<Aes256Gcm>;
 
-/// Seal `value` in a new file of this home, and return its reference,
-/// `<kind>_<digest>`: a new reference for every value sealed.
+/// Seal `value` in a new file of this home, and return its id,
+/// `<kind>_<digest>`: a new id for every value sealed.
 pub(crate) fn store(paths: &RunxPaths, value: &str, kind: &str) -> Result<String, SealedError> {
     let key_dir = paths.keys();
     let cipher = cipher(&key_dir)?;
@@ -75,7 +76,7 @@ pub(crate) fn store(paths: &RunxPaths, value: &str, kind: &str) -> Result<String
         .encrypt(&nonce, value.as_bytes())
         .map_err(|error| SealedError::Crypto(error.to_string()))?;
     let auth_tag = sealed.split_off(sealed.len().saturating_sub(16));
-    let material_ref = format!(
+    let material_id = format!(
         "{kind}_{}",
         hex(&Sha256::digest(
             [nonce.as_slice(), sealed.as_slice()].concat()
@@ -85,7 +86,7 @@ pub(crate) fn store(paths: &RunxPaths, value: &str, kind: &str) -> Result<String
         .collect::<String>()
     );
     let payload = StoredSealedPayload {
-        material_ref: &material_ref,
+        id: &material_id,
         alg: "aes-256-gcm",
         iv: URL_SAFE_NO_PAD.encode(nonce),
         ciphertext: URL_SAFE_NO_PAD.encode(sealed),
@@ -93,16 +94,16 @@ pub(crate) fn store(paths: &RunxPaths, value: &str, kind: &str) -> Result<String
     };
     let contents = serde_json::to_string_pretty(&payload)
         .map_err(|error| SealedError::Crypto(error.to_string()))?;
-    let path = key_dir.join(format!("{material_ref}.json"));
+    let path = key_dir.join(format!("{material_id}.json"));
     private_file::replace_private(&path, format!("{contents}\n").as_bytes())
         .map_err(private(&path))?;
-    Ok(material_ref)
+    Ok(material_id)
 }
 
-/// The value sealed under `material_ref`.
-pub(crate) fn load(paths: &RunxPaths, material_ref: &str) -> Result<String, SealedError> {
+/// The value sealed under `material_id`.
+pub(crate) fn load(paths: &RunxPaths, material_id: &str) -> Result<String, SealedError> {
     let key_dir = paths.keys();
-    let path = key_dir.join(format!("{material_ref}.json"));
+    let path = key_dir.join(format!("{material_id}.json"));
     let contents = private_file::read_private(&path, MAX_SEALED_BYTES)
         .map_err(private(&path))?
         .ok_or_else(|| corrupt(&path, Some("it does not exist".to_owned())))?;
@@ -134,9 +135,9 @@ pub(crate) fn load(paths: &RunxPaths, material_ref: &str) -> Result<String, Seal
     String::from_utf8(plaintext).map_err(|error| corrupt(&path, Some(error.to_string())))
 }
 
-/// Remove the file sealed under `material_ref`, if it is there.
-pub(crate) fn remove(paths: &RunxPaths, material_ref: &str) -> Result<(), SealedError> {
-    match fs::remove_file(paths.keys().join(format!("{material_ref}.json"))) {
+/// Remove the file sealed under `material_id`, if it is there.
+pub(crate) fn remove(paths: &RunxPaths, material_id: &str) -> Result<(), SealedError> {
+    match fs::remove_file(paths.keys().join(format!("{material_id}.json"))) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(SealedError::Io(error)),

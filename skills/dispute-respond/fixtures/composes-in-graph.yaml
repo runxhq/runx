@@ -8,7 +8,7 @@ caller:
         posture: contest
         response_summary: Contest only when the original charge receipt verifies.
         cited_receipt_ids: [sha256:fc1bb8c2027c1b0a76d8095a1d6c112e37a4f4d144991be4d505ec21314ccd39]
-        cited_evidence_refs: []
+        cited_evidence_locators: []
         open_questions: []
 expect:
   status: sealed

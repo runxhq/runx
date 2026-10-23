@@ -55,8 +55,8 @@ caller:
           rationale: Operator-confirmed inactive account.
         gates:
           human_approval_required: true
-          approval_ref: approval:pending
-        evidence_refs:
+          approval_id: approval:pending
+        evidence_locators:
         - archive:posts
         open_questions: []
         blockers: []

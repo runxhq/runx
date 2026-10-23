@@ -24,9 +24,9 @@ inputs:
     acts:
       - { act_id: act-post-1, kind: post, params: { text: Runx 0.5 is out. }, consequence: public_send, rationale: Release announcement. }
       - { act_id: act-like-1, kind: like, params: { post_id: "5001" }, consequence: live_mutation, rationale: Thank the first reviewer. }
-    gates: { human_approval_required: true, approval_ref: approval:granted }
-  plan_digest: sha256:535eb9bd5b96982a210ce5d1ce304f23b510b08560975b9688728f6cb0309abd
-  data_source_ref: tenant://twitter/sqlite-post
+    gates: { human_approval_required: true, approval_id: approval:granted }
+  plan_digest: sha256:87a42900aefb308c10af4ce8319a97624cb160444980ce4057d951317b8f6d94
+  data_source_uri: tenant://twitter/sqlite-post
 
 caller:
   http_exchanges:
@@ -80,7 +80,7 @@ expect:
             next_act_index: 1
             remaining_count: 1
             results:
-              - { act_id: act-post-1, kind: post, consequence: public_send, status: done, provider_ref: "6001", detail: null }
+              - { act_id: act-post-1, kind: post, consequence: public_send, status: done, external_id: "6001", detail: null }
             ledger_delta:
               account_id: "42"
               decision: partial

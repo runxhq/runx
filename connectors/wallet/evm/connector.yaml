@@ -48,7 +48,7 @@ operations:
       currency:
         $argument: /parent_payment_authority/currency
     result_fields:
-      - payment_ref
+      - payment_id
       - challenge_id
       - amount_minor
       - currency
@@ -57,7 +57,7 @@ operations:
       - network
       - payer
       - pay_to
-      - invocation_id
+      - purchase_id
       - payment_required_digest
       - payment_response_digest
       - resource_status
@@ -123,7 +123,7 @@ operations:
             - term_id
             - currency
             - max_amount_minor
-            - counterparty
+            - resource_url
           properties:
             term_id:
               type: string
@@ -136,7 +136,7 @@ operations:
               type: integer
               minimum: 0
               maximum: 9007199254740991
-            counterparty:
+            resource_url:
               type: string
               format: uri
               maxLength: 2048
@@ -152,11 +152,11 @@ operations:
     input_schema:
       type: object
       required:
-        - payment_ref
+        - payment_id
         - resource_url
       additionalProperties: false
       properties:
-        payment_ref:
+        payment_id:
           type: string
           minLength: 1
           maxLength: 300
@@ -166,7 +166,7 @@ operations:
           pattern: ^https://
           maxLength: 2048
     result_fields:
-      - payment_ref
+      - payment_id
       - challenge_id
       - amount_minor
       - currency
@@ -175,7 +175,7 @@ operations:
       - network
       - payer
       - pay_to
-      - invocation_id
+      - purchase_id
       - payment_required_digest
       - payment_response_digest
       - resource_status

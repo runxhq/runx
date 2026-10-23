@@ -13,7 +13,7 @@ use crate::path_util::display_path;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolInspectOptions {
     pub root: PathBuf,
-    pub tool_ref: String,
+    pub tool: String,
     pub source: Option<String>,
     pub search_from_directory: PathBuf,
     pub tool_roots: Vec<PathBuf>,
@@ -35,8 +35,8 @@ pub fn inspect_tool_with_effects(
     options: &ToolInspectOptions,
     effects: &crate::RuntimeEffectRegistry,
 ) -> Result<ToolInspectReport, ToolCatalogError> {
-    if native_source_allowed(options.source.as_deref(), &options.tool_ref, effects)
-        && let Some(report) = super::native::inspect(&options.tool_ref, &options.root, effects)
+    if native_source_allowed(options.source.as_deref(), &options.tool, effects)
+        && let Some(report) = super::native::inspect(&options.tool, &options.root, effects)
     {
         return Ok(report);
     }
@@ -44,22 +44,22 @@ pub fn inspect_tool_with_effects(
     let tool = read_local_tool_manifest(&manifest_path)?;
     Ok(ToolInspectReport {
         status: ToolBuildStatus::Success,
-        tool: inspect_local_tool(options, &manifest_path, tool)?,
+        tool: inspect_local_tool(&manifest_path, tool)?,
     })
 }
 
 fn native_source_allowed(
     source: Option<&str>,
-    tool_ref: &str,
+    tool: &str,
     effects: &crate::RuntimeEffectRegistry,
 ) -> bool {
     let source = source.map(str::trim).map(str::to_ascii_lowercase);
     match source.as_deref() {
         None | Some("") | Some("all") | Some("native") => true,
-        Some("runx-runtime") => super::native::is_core_tool(tool_ref),
+        Some("runx-runtime") => super::native::is_core_tool(tool),
         Some(source) => effects
-            .capability(tool_ref)
-            .is_some_and(|capability| capability.definition().owner.eq_ignore_ascii_case(source)),
+            .capability(tool)
+            .is_some_and(|capability| capability.definition().source.eq_ignore_ascii_case(source)),
     }
 }
 
@@ -82,12 +82,10 @@ fn read_local_tool_manifest(
 }
 
 fn inspect_local_tool(
-    options: &ToolInspectOptions,
     manifest_path: &Path,
     tool: runx_parser::ValidatedTool,
 ) -> Result<ToolInspectResult, ToolCatalogError> {
     Ok(ToolInspectResult {
-        tool_ref: options.tool_ref.clone(),
         name: tool.name,
         description: tool.description,
         execution: "process".to_owned(),
@@ -110,7 +108,7 @@ fn local_provenance() -> ToolInspectProvenance {
         source_label: None,
         namespace: None,
         external_name: None,
-        catalog_ref: None,
+        catalog_id: None,
         tool_id: None,
         tags: None,
     }
@@ -118,13 +116,12 @@ fn local_provenance() -> ToolInspectProvenance {
 
 fn resolve_local_manifest(options: &ToolInspectOptions) -> Result<PathBuf, ToolCatalogError> {
     if options.allow_explicit_manifest_path
-        && let Some(path) =
-            explicit_manifest_path(&options.tool_ref, &options.search_from_directory)?
+        && let Some(path) = explicit_manifest_path(&options.tool, &options.search_from_directory)?
     {
         return Ok(path);
     }
 
-    let segments = tool_ref_segments(&options.tool_ref)?;
+    let segments = tool_segments(&options.tool)?;
     for root in resolve_tool_roots(options) {
         let manifest = root
             .join(segments.iter().collect::<PathBuf>())
@@ -136,15 +133,15 @@ fn resolve_local_manifest(options: &ToolInspectOptions) -> Result<PathBuf, ToolC
 
     Err(ToolCatalogError::NotFound(format!(
         "Tool '{}' was not found in configured tool roots.",
-        options.tool_ref
+        options.tool
     )))
 }
 
 fn explicit_manifest_path(
-    tool_ref: &str,
+    tool: &str,
     search_from_directory: &Path,
 ) -> Result<Option<PathBuf>, ToolCatalogError> {
-    let candidate = Path::new(tool_ref);
+    let candidate = Path::new(tool);
     if candidate.is_absolute()
         || candidate
             .components()
@@ -165,14 +162,14 @@ fn explicit_manifest_path(
     Ok(None)
 }
 
-fn tool_ref_segments(tool_ref: &str) -> Result<Vec<&str>, ToolCatalogError> {
-    let segments = tool_ref
+fn tool_segments(tool: &str) -> Result<Vec<&str>, ToolCatalogError> {
+    let segments = tool
         .split('.')
         .filter(|segment| !segment.is_empty())
         .collect::<Vec<_>>();
     if segments.len() < 2 {
         return Err(ToolCatalogError::Unqualified(format!(
-            "Tool '{tool_ref}' must include a namespace, for example fs.read."
+            "Tool '{tool}' must include a namespace, for example fs.read."
         )));
     }
     Ok(segments)

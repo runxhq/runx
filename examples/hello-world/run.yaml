@@ -30,7 +30,7 @@ harness:
         receipt:
           schema: runx.receipt.v1
           state: sealed
-          disposition: closed
+          outcome: completed
 
 runners:
   default:

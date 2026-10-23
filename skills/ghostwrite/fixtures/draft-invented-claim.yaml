@@ -12,7 +12,7 @@ inputs:
     evidence_log:
       - { claim: One supported claim., source_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111, content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, confidence: verified, relevance: test }
     source_evidence:
-      - { evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111, content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, source_ref: https://example.com/evidence, source_kind: fetch, provenance: { observed_at: "2026-07-17T00:00:00Z", bytes: 0, status: 200, redirects: [] } }
+      - { evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111, content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, source_uri: https://example.com/evidence, source_kind: fetch, provenance: { observed_at: "2026-07-17T00:00:00Z", bytes: 0, status: 200, redirects: [] } }
     decision_support: []
     risks: []
     index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
@@ -26,7 +26,7 @@ caller:
         draft:
           title: Unsupported expansion
           body: This adds a claim the evidence does not support.
-          claim_refs:
+          claims:
             - { claim: Unsupported claim., source_digests: [sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff] }
         review_checklist: []
         distribution_notes: {}
@@ -40,7 +40,7 @@ expect:
         content_draft_packet:
           data:
             decision: needs_more_evidence
-            draft: { title: "", body: "", claim_refs: [] }
+            draft: { title: "", body: "", claims: [] }
             validation: { status: fail }
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: ghostwrite, source_case: invented-claim-stop, source: skills-fixture }

@@ -128,12 +128,11 @@ fn search_rejects_unknown_trust_tier_with_field_path() -> Result<(), Box<dyn std
         "skills": [{
             "skill_id": "acme/echo",
             "name": "echo",
-            "owner": "acme",
             "profile_mode": "portable",
             "runner_names": [],
             "required_scopes": [],
             "tags": [],
-            "trust_tier": "owner_derived",
+            "trust_tier": "unknown_tier",
             "install_command": command(&["runx", "add", "acme/echo@1.0.0"]),
             "run_command": command(&["runx", "skill", "acme/echo@1.0.0"])
         }]
@@ -252,7 +251,7 @@ fn acquire_requires_installation_id_and_posts_default_channel()
 
     assert_eq!(acquired.install_count, 1);
     assert_eq!(
-        acquired.package_digest.as_deref(),
+        acquired.bundle_digest.as_deref(),
         Some("sha256:fixture-package")
     );
     assert_eq!(acquired.package_files[0].path, "run.mjs");
@@ -452,10 +451,9 @@ fn ref_helpers_parse_cache_and_package_paths() {
 }
 
 fn skill_detail(skill_id: &str, version: &str) -> serde_json::Value {
-    let (owner, name) = skill_id.split_once('/').unwrap_or(("acme", skill_id));
+    let (publisher, name) = skill_id.split_once('/').unwrap_or(("acme", skill_id));
     json!({
         "skill_id": skill_id,
-        "owner": owner,
         "name": name,
         "version": version,
         "digest": "sha256:fixture",
@@ -464,7 +462,7 @@ fn skill_detail(skill_id: &str, version: &str) -> serde_json::Value {
         "trust_tier": "verified",
         "required_scopes": [],
         "tags": [],
-        "publisher": { "kind": "organization", "id": format!("pub_{owner}"), "handle": owner },
+        "publisher": { "kind": "organization", "id": format!("pub_{publisher}"), "handle": publisher },
         "attestations": [],
         "install_command": command(&["runx", "registry", "install", &format!("{skill_id}@{version}")]),
         "run_command": command(&["runx", "skill", &format!("{skill_id}@{version}")])
@@ -484,10 +482,10 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
             include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
         ),
         package_files: Vec::new(),
-        package_digest: None,
+        bundle_digest: None,
         source: "runx-registry".to_owned(),
         source_label: "runx registry".to_owned(),
-        r#ref: "acme/echo@1.0.0".to_owned(),
+        package: "acme/echo@1.0.0".to_owned(),
         skill_id: Some("acme/echo".to_owned()),
         version: Some("1.0.0".to_owned()),
         signed_manifest: None,
@@ -531,7 +529,7 @@ fn signed_manifest(
         schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
         subject: RegistrySubject {
             kind: RegistrySubjectKind::Skill,
-            subject_ref: skill_id.to_owned(),
+            name: skill_id.to_owned(),
         },
         version: version.to_owned(),
         content_digest: content_digest.to_owned(),
@@ -582,7 +580,7 @@ fn connector_reads_name_the_qualified_ref_and_version() -> Result<(), Box<dyn st
     let detail = json!({
         "status": "success",
         "connector": {
-            "ref": "acme/ops-api",
+            "connector": "acme/ops-api",
             "version": "1.0.0",
             "name": "Ops API",
             "description": "Reads ops items.",
@@ -646,7 +644,7 @@ fn a_connector_package_is_exactly_its_files_and_signed_manifest()
     let mut manifest = serde_json::to_value(manifest)?;
     manifest["subject"]["kind"] = json!("connector");
     let package = json!({
-        "ref": "acme/ops-api",
+        "connector": "acme/ops-api",
         "version": "1.0.0",
         "trust_tier": "community",
         "files": [{ "path": "connector.yaml", "content": "schema: runx.connector.v1\n" }],
@@ -674,7 +672,7 @@ fn a_connector_package_is_exactly_its_files_and_signed_manifest()
     // A withdrawn version is served as its stored bytes and refused, never read
     // into the current contract.
     let withdrawn = json!({
-        "ref": "acme/ops-api",
+        "connector": "acme/ops-api",
         "version": "1.0.0",
         "withdrawn_at": "2026-10-15T00:00:00.000Z",
         "files": package["files"],

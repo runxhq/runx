@@ -4,18 +4,18 @@ export function admitQualification({ enrichment_packet, criteria, contact_eligib
   if (!["enriched", "partial"].includes(enrichment_packet.decision) || !enrichment_packet.facts.length) {
     blockers.push("no admitted factual evidence is available");
   }
-  const sources = new Set(enrichment_packet.sources.map((source) => source.source_ref));
+  const sources = new Set(enrichment_packet.sources.map((source) => source.source_id));
   const fields = enrichment_packet.facts.map((fact) => fact.field);
   const conflicts = new Set(enrichment_packet.conflicts.map((conflict) => conflict.field));
   if (new Set(fields).size !== fields.length
       || enrichment_packet.facts.some((fact) => conflicts.has(fact.field)
-        || fact.source_refs.some((ref) => !sources.has(ref)))) {
+        || fact.source_ids.some((ref) => !sources.has(ref)))) {
     blockers.push("factual context contains duplicate, conflicting or unbound fields");
   }
   if (new Set(criteria.map((criterion) => criterion.id)).size !== criteria.length) {
     blockers.push("criterion IDs must be unique");
   }
-  const bound = contact_eligibility.subject.ref === enrichment_packet.subject.ref
+  const bound = contact_eligibility.subject.id === enrichment_packet.subject.id
     && contact_eligibility.subject.kind === enrichment_packet.subject.kind;
   if (!bound) blockers.push("contact eligibility belongs to a different or unbound subject");
   return {
@@ -60,8 +60,8 @@ export function finalizeQualification({ qualification_context: context, enrichme
   const supplied = context.contact_eligibility;
   const eligibility = supplied && {
     status: supplied.status,
-    policy_ref: supplied.policy_ref,
-    evidence_refs: supplied.evidence_refs,
+    policy_id: supplied.policy_id,
+    evidence_ids: supplied.evidence_ids,
   };
   const decision = fit === "not_fit" ? "disqualified"
     : fit === "unknown" ? "needs_more_evidence"

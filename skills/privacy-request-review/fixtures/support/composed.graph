@@ -16,7 +16,7 @@ steps:
         verified_at: "2026-08-01T10:00:00Z"
         assertion:
           subject_id: subject:alice
-          assertion_ref: idp:acme:session:9911
+          assertion_id: idp:acme:session:9911
           assertion_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       policy:
         jurisdiction: GDPR
@@ -27,7 +27,7 @@ steps:
           data_classes: [profile, activity, billing]
           erasure_allowed: [profile, activity]
           export_allowed: [profile]
-      data_source_ref: tenant://privacy/sqlite-requests
+      data_source_uri: tenant://privacy/sqlite-requests
       resource: subject_requests
       aggregate_id: subject:alice:dsr-001
       expected_version: 0

@@ -9,7 +9,7 @@ The example graph lives at `examples/hello-graph/graph.yaml`:
 
 ```yaml
 name: hello-graph
-owner: runx
+publisher: runx
 steps:
   - id: first
     skill: ../hello-world
@@ -37,10 +37,10 @@ steps:
       objective: refresh the public docs
 ```
 
-Executable registry refs are explicit, `registry:<owner>/<name>[@<version>]`.
+Executable registry refs are explicit, `registry:<publisher>/<name>[@<version>]`.
 Before the run, `runx skill` fetches each one the project does not hold, exactly
 as it fetches a top-level ref, into the project's
-`skills/<owner>/<name>/<version>/`, and repeats for the skills those name. The
+`skills/<publisher>/<name>/<version>/`, and repeats for the skills those name. The
 run resolves the step from there, so the runtime itself never reaches a
 registry. A ref with no version names the one version the project holds.
 `RUNX_REGISTRY_DIR` or `--registry <dir>` names a local registry instead of the
@@ -72,7 +72,7 @@ skill; the skill remains an abstract context/capability document.
 Local path refs resolve relative to the graph skill directory and must stay
 inside the owning skill root. Use registry refs for cataloged skills shared
 across skill roots. Registry refs must be explicit
-(`registry:<owner>/<name>[@<version>]`) and arrive as executable registry steps
+(`registry:<publisher>/<name>[@<version>]`) and arrive as executable registry steps
 do: `runx skill` fetches each one the project does not hold before the run, and
 the turn reads it from the project's skills.
 
@@ -242,7 +242,7 @@ steps:
     operation: store/events.append
     idempotency_key: $input.idempotency_key
     input:
-      data_source_ref: $input.data_source_ref
+      data_source_uri: $input.data_source_uri
       resource: board_events
       aggregate_id: $input.posting_id
       expected_version: $input.expected_version
@@ -254,7 +254,7 @@ connector's declared operations, as operation steps, and receives
 `runx.data.operation_result.v1` with version movement, digests and provider
 evidence.
 
-Storage choice is not product logic. A graph passes `data_source_ref` such as
+Storage choice is not product logic. A graph passes `data_source_uri` such as
 `local://dev-board/events`; the workspace's store instance decides
 where the streams live. With none confirmed it is the workspace store, a SQLite
 file under `.runx/`. Moving to Postgres or Redis is a store instance, not a

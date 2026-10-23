@@ -25,6 +25,7 @@
               "equal",
               "subset"
             ],
+            "title": "AuthoritySubsetRelation",
             "type": "string"
           }
         },
@@ -33,6 +34,7 @@
           "parent_term_id",
           "relation"
         ],
+        "title": "AuthoritySubsetComparison",
         "type": "object"
       },
       "type": "array"
@@ -65,6 +67,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -72,6 +75,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -101,6 +105,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -112,6 +117,7 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -139,6 +145,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -146,6 +153,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -175,6 +183,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -186,6 +195,7 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -193,6 +203,7 @@
       "enum": [
         "subset"
       ],
+      "title": "AuthoritySubsetResult",
       "type": "string"
     }
   },
@@ -203,6 +214,7 @@
     "compared_terms",
     "checked_at"
   ],
+  "title": "AuthoritySubsetProof",
   "type": "object",
   "x-runx-schema": "runx.authority_subset_proof.v1"
 }

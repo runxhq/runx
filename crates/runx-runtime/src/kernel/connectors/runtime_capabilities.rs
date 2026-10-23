@@ -35,7 +35,7 @@ operations:
         media_type: {type: string, minLength: 3, maxLength: 200, pattern: "^[^\\s/]+/[^\\s/]+$"}
         value: {}
         data_base64: {type: string, minLength: 4, pattern: "^[A-Za-z0-9+/]*={0,2}$"}
-    result_fields: [artifact_ref, content_digest, media_type, size_bytes, created_at, principal_ref]
+    result_fields: [artifact_uri, content_digest, media_type, size_bytes, created_at, principal_uri]
     implementation:
       artifact: {}
 "###,
@@ -78,21 +78,21 @@ operations:
     scopes: [store.append]
     credentials: [password]
     target:
-      template: {"$argument": "/data_source_ref"}
+      template: {"$argument": "/data_source_uri"}
     guarantees:
       provider_idempotency: enforced
     input_schema:
       type: object
       additionalProperties: false
-      required: [data_source_ref, resource, aggregate_id, expected_version, event]
+      required: [data_source_uri, resource, aggregate_id, expected_version, event]
       properties:
-        data_source_ref: {type: string, minLength: 1, maxLength: 512}
+        data_source_uri: {type: string, minLength: 1, maxLength: 512}
         resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
         aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
         expected_version: {type: integer, minimum: 0, maximum: 9007199254740990}
         event: {type: object}
         observed_at: {type: string, minLength: 1, maxLength: 64}
-    result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+    result_fields: [schema, data_source_uri, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_id, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
     implementation:
       store: {}
   events.read:
@@ -101,18 +101,18 @@ operations:
     scopes: [store.read]
     credentials: [password]
     target:
-      template: {"$argument": "/data_source_ref"}
+      template: {"$argument": "/data_source_uri"}
     input_schema:
       type: object
       additionalProperties: false
-      required: [data_source_ref, resource, aggregate_id]
+      required: [data_source_uri, resource, aggregate_id]
       properties:
-        data_source_ref: {type: string, minLength: 1, maxLength: 512}
+        data_source_uri: {type: string, minLength: 1, maxLength: 512}
         resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
         aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
         limit: {type: integer, minimum: 1, maximum: 500}
         after_version: {type: integer, minimum: 0, maximum: 9007199254740991}
-    result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, limit, next_after_version, has_more, events, rows, redactions, stop_conditions, provider_evidence]
+    result_fields: [schema, data_source_uri, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_id, event_digest, result_digest, projection_digest, projection, limit, next_after_version, has_more, events, rows, redactions, stop_conditions, provider_evidence]
     implementation:
       store: {}
   projection.read:
@@ -121,16 +121,16 @@ operations:
     scopes: [store.read]
     credentials: [password]
     target:
-      template: {"$argument": "/data_source_ref"}
+      template: {"$argument": "/data_source_uri"}
     input_schema:
       type: object
       additionalProperties: false
-      required: [data_source_ref, resource, aggregate_id]
+      required: [data_source_uri, resource, aggregate_id]
       properties:
-        data_source_ref: {type: string, minLength: 1, maxLength: 512}
+        data_source_uri: {type: string, minLength: 1, maxLength: 512}
         resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
         aggregate_id: {type: string, minLength: 1, maxLength: 192, pattern: "^[A-Za-z0-9][A-Za-z0-9._:@/-]*$"}
-    result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+    result_fields: [schema, data_source_uri, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_id, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
     implementation:
       store: {}
   heads.list:
@@ -139,13 +139,13 @@ operations:
     scopes: [store.read]
     credentials: [password]
     target:
-      template: {"$argument": "/data_source_ref"}
+      template: {"$argument": "/data_source_uri"}
     input_schema:
       type: object
       additionalProperties: false
-      required: [data_source_ref, resource]
+      required: [data_source_uri, resource]
       properties:
-        data_source_ref: {type: string, minLength: 1, maxLength: 512}
+        data_source_uri: {type: string, minLength: 1, maxLength: 512}
         resource: {type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}
         event_types:
           type: array
@@ -153,7 +153,7 @@ operations:
           items: {type: string, minLength: 1, maxLength: 128}
         limit: {type: integer, minimum: 1, maximum: 100}
         cursor: {type: string, minLength: 1, maxLength: 1024}
-    result_fields: [schema, data_source_ref, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_ref, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
+    result_fields: [schema, data_source_uri, provider, operation, resource, aggregate_id, status, before_version, after_version, idempotency_key, event_id, event_digest, result_digest, projection_digest, projection, events, rows, redactions, stop_conditions, provider_evidence]
     implementation:
       store: {}
 "###,

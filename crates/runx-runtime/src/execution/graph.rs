@@ -49,7 +49,7 @@ pub(crate) struct LoadedStepSkillRegistryProvenance {
     pub(crate) skill_id: String,
     pub(crate) version: String,
     pub(crate) digest: String,
-    pub(crate) package_digest: Option<String>,
+    pub(crate) bundle_digest: Option<String>,
     pub(crate) trust_tier: String,
 }
 
@@ -498,20 +498,20 @@ pub(crate) fn step_skill(
     Ok(loaded)
 }
 
-/// The graph a purchase runs: one step that calls `runner` through the
-/// registry reference the skill was reached by, with the run's inputs. The
+/// The graph a purchase runs: one step that calls `runner` of `skill`, the
+/// registry selector the skill was reached by, with the run's inputs. The
 /// step reaches a runner the registry sells, so the kernel buys it (S10).
-pub(crate) fn purchase_graph(reference: &str, runner: &str, inputs: &JsonObject) -> ExecutionGraph {
+pub(crate) fn purchase_graph(skill: &str, runner: &str, inputs: &JsonObject) -> ExecutionGraph {
     ExecutionGraph {
-        name: format!("purchase {reference}#{runner}"),
-        owner: None,
+        name: format!("purchase {skill}#{runner}"),
+        publisher: None,
         result_from: vec![PURCHASE_STEP.to_owned()],
         policy: None,
         steps: vec![GraphStep {
             id: PURCHASE_STEP.to_owned(),
             label: None,
             kind: StepKind::Skill(SkillTarget {
-                reference: reference.to_owned(),
+                skill: skill.to_owned(),
                 runner: Some(runner.to_owned()),
             }),
             artifacts: None,
@@ -541,7 +541,7 @@ pub(crate) fn child_skill_steps(step: &GraphStep) -> Vec<Cow<'_, GraphStep>> {
         StepKind::Skill(_) => vec![Cow::Borrowed(step)],
         StepKind::Agent(agent) => agent
             .allowance
-            .skill_refs()
+            .named_skills()
             .map(|skill| {
                 Cow::Owned(GraphStep {
                     id: step.id.clone(),
@@ -565,10 +565,10 @@ pub(crate) fn child_skill_steps(step: &GraphStep) -> Vec<Cow<'_, GraphStep>> {
     }
 }
 
-/// What a turn's call to child skill `reference` runs: its default runner.
-pub(crate) fn turn_skill_target(reference: &str) -> SkillTarget {
+/// What a turn's call to child skill `skill` runs: its default runner.
+pub(crate) fn turn_skill_target(skill: &str) -> SkillTarget {
     SkillTarget {
-        reference: reference.to_owned(),
+        skill: skill.to_owned(),
         runner: None,
     }
 }
@@ -636,7 +636,7 @@ fn resolve_step_skill_directory(
     step: &GraphStep,
     options: StepSkillLoadOptions<'_>,
 ) -> Result<ResolvedStepSkillDirectory, RuntimeError> {
-    if let Some(skill) = step.skill().map(|target| target.reference.as_str()) {
+    if let Some(skill) = step.skill().map(|target| target.skill.as_str()) {
         if runx_parser::registry_ref(skill).is_some() {
             let paths = crate::RunxPaths::resolve(options.env, graph_dir);
             // The user's own copy takes precedence over what runx added,
@@ -801,7 +801,7 @@ fn materialize_registry_step_skill(
         skill_id: resolution.skill_id.clone(),
         version: resolution.version.clone(),
         digest: prefixed_digest(&resolution.digest),
-        package_digest: resolution.package_digest.clone(),
+        bundle_digest: resolution.bundle_digest.clone(),
         trust_tier: registry_trust_tier_label(&resolution.trust_tier).to_owned(),
     };
     // A registry child is added to the project's added skills, once per
@@ -811,10 +811,10 @@ fn materialize_registry_step_skill(
         markdown: resolution.markdown,
         profile_document: resolution.profile_document,
         package_files: resolution.package_files,
-        package_digest: resolution.package_digest,
+        bundle_digest: resolution.bundle_digest,
         source: resolution.source,
         source_label: resolution.source_label,
-        r#ref: format!("{}@{}", resolution.skill_id, resolution.version),
+        package: format!("{}@{}", resolution.skill_id, resolution.version),
         skill_id: Some(resolution.skill_id),
         version: Some(resolution.version),
         signed_manifest: resolution.signed_manifest,
@@ -865,7 +865,7 @@ fn materialize_registry_step_skill(
 }
 
 /// The user's own copy of the skill a registry ref names, at
-/// `skills/<owner>/<name>/` in the skill roots: it takes precedence over what
+/// `skills/<publisher>/<name>/` in the skill roots: it takes precedence over what
 /// runx added, whatever version the ref names (core-shape §6.5).
 fn own_registry_skill(
     reference: &str,
@@ -879,7 +879,7 @@ fn own_registry_skill(
     )
 }
 
-/// The installed package a `registry:<owner>/<name>[@version]` ref names: the
+/// The installed package a `registry:<publisher>/<name>[@version]` ref names: the
 /// project's added skills hold what `runx skill` fetched for it, once per
 /// version, and a ref with no version names the one version installed.
 pub(crate) fn installed_registry_skill(
@@ -1018,7 +1018,7 @@ mod tests {
         serde_json::from_value(json).unwrap_or_default()
     }
 
-    /// The user's own copy of a registry skill, `skills/<owner>/<name>/`
+    /// The user's own copy of a registry skill, `skills/<publisher>/<name>/`
     /// beside the source, answers its ref whatever version the ref names
     /// (core-shape §6.5).
     #[test]
@@ -1202,7 +1202,7 @@ steps:
 name: provision
 steps:
   - id: provision
-    operation: vendor/inbox.provision
+    operation: acme/inbox.provision
     input: { seconds: $input.seconds }
     idempotency_key: $run.id
 "#;

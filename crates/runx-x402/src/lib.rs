@@ -1,15 +1,15 @@
-//! Effect-free x402 v2 presentation and Runx invocation binding.
+//! Effect-free x402 v2 presentation and Runx purchase binding.
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use runx_contracts::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use runx_contracts::{
-    JsonObject, JsonValue, PaidInvocationPaymentChallenge, PaidInvocationPaymentMethod,
-    RUNX_INVOCATION_EXTENSION_KEY, Reference, RunxX402InvocationExtension,
-    RunxX402InvocationExtensionInfo, SettlementFamily, X402_PROTOCOL_VERSION,
+    JsonObject, JsonValue, PurchasePaymentChallenge, PurchasePaymentMethod,
+    RUNX_PURCHASE_EXTENSION_KEY, Reference, RunxX402PurchaseExtension,
+    RunxX402PurchaseExtensionInfo, SettlementFamily, X402_PROTOCOL_VERSION,
     X402AcceptedRequirements, X402PaymentPayload, X402PaymentRequired, X402PaymentRequirements,
-    X402ResourceInfo, X402SettleResponse, X402Version2, parse_runx_invocation_extension,
-    runx_invocation_extension_value, sha256_prefixed,
+    X402ResourceInfo, X402SettleResponse, X402Version2, parse_runx_purchase_extension,
+    runx_purchase_extension_value, sha256_prefixed,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -31,16 +31,16 @@ pub enum X402PresentationError {
     InvalidPayload,
     #[error("x402 value could not be encoded")]
     EncodingFailed,
-    #[error("runx.invocation is reserved and cannot be supplied by a vendor")]
+    #[error("runx.purchase is reserved and cannot be supplied by a seller")]
     ReservedExtension,
-    #[error("runx.invocation is absent")]
-    MissingRunxInvocation,
-    #[error("runx.invocation does not match its published v1 schema")]
-    RunxInvocationSchemaMismatch,
+    #[error("runx.purchase is absent")]
+    MissingRunxPurchase,
+    #[error("runx.purchase does not match its published v1 schema")]
+    RunxPurchaseSchemaMismatch,
     #[error("the retry selected requirements are not an exact offered requirement")]
     RequirementMismatch,
-    #[error("the retry runx.invocation declaration changed")]
-    RunxInvocationMismatch,
+    #[error("the retry runx.purchase declaration changed")]
+    RunxPurchaseMismatch,
     #[error("the rail-neutral challenge is not an x402 v2 JSON challenge")]
     ChallengeKindMismatch,
     #[error("the rail-neutral challenge payload digest does not match")]
@@ -50,15 +50,15 @@ pub enum X402PresentationError {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ValidatedX402Retry {
     pub requirement_index: usize,
-    pub invocation: RunxX402InvocationExtensionInfo,
+    pub info: RunxX402PurchaseExtensionInfo,
 }
 
-/// The schema a `runx.invocation` declaration advertises: the published v1
+/// The schema a `runx.purchase` declaration advertises: the published v1
 /// document by its resolvable `$id`. The external `{ info, schema }` form is
 /// kept, the five-kilobyte document is not; a challenge has to fit one
-/// portable HTTP header next to the vendor's own discovery declaration.
-pub fn runx_invocation_schema_reference() -> Result<JsonObject, X402PresentationError> {
-    let schema = RunxX402InvocationExtensionInfo::json_schema();
+/// portable HTTP header next to the seller's own discovery declaration.
+pub fn runx_purchase_schema_reference() -> Result<JsonObject, X402PresentationError> {
+    let schema = RunxX402PurchaseExtensionInfo::json_schema();
     let id = schema
         .get("$id")
         .and_then(serde_json::Value::as_str)
@@ -66,25 +66,25 @@ pub fn runx_invocation_schema_reference() -> Result<JsonObject, X402Presentation
     json_object_from_serializable(&serde_json::json!({ "$ref": id }))
 }
 
-/// Assemble the whole external challenge. Vendors may supply other declared
-/// extensions as data, but cannot supply or overwrite `runx.invocation`.
+/// Assemble the whole external challenge. Sellers may supply other declared
+/// extensions as data, but cannot supply or overwrite `runx.purchase`.
 pub fn assemble_payment_required(
     resource: X402ResourceInfo,
     accepts: X402AcceptedRequirements,
-    invocation: RunxX402InvocationExtensionInfo,
+    info: RunxX402PurchaseExtensionInfo,
     error: Option<String>,
     mut extensions: JsonObject,
 ) -> Result<X402PaymentRequired, X402PresentationError> {
-    if extensions.contains_key(RUNX_INVOCATION_EXTENSION_KEY) {
+    if extensions.contains_key(RUNX_PURCHASE_EXTENSION_KEY) {
         return Err(X402PresentationError::ReservedExtension);
     }
-    let declaration = RunxX402InvocationExtension {
-        info: invocation,
-        schema: runx_invocation_schema_reference()?,
+    let declaration = RunxX402PurchaseExtension {
+        info,
+        schema: runx_purchase_schema_reference()?,
     };
-    let extension_value = runx_invocation_extension_value(&declaration)
+    let extension_value = runx_purchase_extension_value(&declaration)
         .map_err(|_| X402PresentationError::EncodingFailed)?;
-    extensions.insert(RUNX_INVOCATION_EXTENSION_KEY.to_owned(), extension_value);
+    extensions.insert(RUNX_PURCHASE_EXTENSION_KEY.to_owned(), extension_value);
 
     Ok(X402PaymentRequired {
         x402_version: X402Version2,
@@ -102,7 +102,7 @@ pub fn bind_payment_required_challenge(
     payment_required: &X402PaymentRequired,
     quote_ref: Reference,
     quote_expires_at: IsoDateTime,
-) -> Result<PaidInvocationPaymentChallenge, X402PresentationError> {
+) -> Result<PurchasePaymentChallenge, X402PresentationError> {
     let payload = json_value_from_serializable(payment_required)?;
     let canonical = runx_contracts::to_canonical_bytes(&payload)
         .map_err(|_| X402PresentationError::EncodingFailed)?;
@@ -112,10 +112,10 @@ pub fn bind_payment_required_challenge(
         .ok_or(X402PresentationError::EncodingFailed)?;
     let media_type =
         NonEmptyString::new(X402_JSON_MEDIA_TYPE).ok_or(X402PresentationError::EncodingFailed)?;
-    let payload_digest = runx_contracts::Sha256Digest::new(sha256_prefixed(&canonical))
+    let payload_digest = runx_contracts::Digest::new(sha256_prefixed(&canonical))
         .ok_or(X402PresentationError::EncodingFailed)?;
 
-    Ok(PaidInvocationPaymentChallenge {
+    Ok(PurchasePaymentChallenge {
         settlement_family,
         protocol_version: Some(protocol_version),
         media_type,
@@ -127,9 +127,9 @@ pub fn bind_payment_required_challenge(
     })
 }
 
-fn payment_method(accepts: &X402AcceptedRequirements) -> Option<PaidInvocationPaymentMethod> {
+fn payment_method(accepts: &X402AcceptedRequirements) -> Option<PurchasePaymentMethod> {
     match accepts.as_slice() {
-        [requirement] => Some(PaidInvocationPaymentMethod {
+        [requirement] => Some(PurchasePaymentMethod {
             method: requirement.scheme.clone(),
             network: Some(requirement.network.as_str().into()),
             asset: Some(requirement.asset.clone()),
@@ -142,7 +142,7 @@ fn payment_method(accepts: &X402AcceptedRequirements) -> Option<PaidInvocationPa
 /// Recover and verify the external declaration carried by a rail-neutral
 /// challenge without logging the opaque payload.
 pub fn payment_required_from_challenge(
-    challenge: &PaidInvocationPaymentChallenge,
+    challenge: &PurchasePaymentChallenge,
 ) -> Result<X402PaymentRequired, X402PresentationError> {
     if challenge.settlement_family.as_str() != X402_SETTLEMENT_FAMILY
         || challenge
@@ -175,7 +175,7 @@ pub fn payment_required_from_challenge(
 /// Validate only immutable presentation commitments. This performs no payment
 /// verification and returns no payment material.
 ///
-/// A payment commits to one offered requirement and to the `runx.invocation`
+/// A payment commits to one offered requirement and to the `runx.purchase`
 /// binding. The resource and any discovery declaration are unsigned metadata
 /// owned by whoever presented the challenge, so a seller's own door may relay
 /// runx's challenge under its own resource and the payment it forwards settles
@@ -191,15 +191,15 @@ pub fn validate_payment_retry(
         .position(|candidate| candidate == &retry.accepted)
         .ok_or(X402PresentationError::RequirementMismatch)?;
 
-    let declared = parse_runx_invocation_declaration(challenge.extensions.as_ref())?;
-    let echoed = parse_runx_invocation_declaration(retry.extensions.as_ref())?;
+    let declared = parse_runx_purchase_declaration(challenge.extensions.as_ref())?;
+    let echoed = parse_runx_purchase_declaration(retry.extensions.as_ref())?;
     if echoed != declared {
-        return Err(X402PresentationError::RunxInvocationMismatch);
+        return Err(X402PresentationError::RunxPurchaseMismatch);
     }
 
     Ok(ValidatedX402Retry {
         requirement_index,
-        invocation: declared.info,
+        info: declared.info,
     })
 }
 
@@ -300,20 +300,20 @@ fn padded_base64(value: &str) -> String {
     normalized
 }
 
-/// Read the `runx.invocation` declaration under `extensions`. The advertised
+/// Read the `runx.purchase` declaration under `extensions`. The advertised
 /// schema must be exactly the published v1 schema by reference, the only form
 /// any emitter assembles; an inline document or any other schema is refused.
-pub fn parse_runx_invocation_declaration(
+pub fn parse_runx_purchase_declaration(
     extensions: Option<&JsonObject>,
-) -> Result<RunxX402InvocationExtension, X402PresentationError> {
+) -> Result<RunxX402PurchaseExtension, X402PresentationError> {
     let value = extensions
-        .and_then(|values| values.get(RUNX_INVOCATION_EXTENSION_KEY))
+        .and_then(|values| values.get(RUNX_PURCHASE_EXTENSION_KEY))
         .cloned()
-        .ok_or(X402PresentationError::MissingRunxInvocation)?;
-    let declaration = parse_runx_invocation_extension(value)
-        .map_err(|_| X402PresentationError::InvalidPayload)?;
-    if declaration.schema != runx_invocation_schema_reference()? {
-        return Err(X402PresentationError::RunxInvocationSchemaMismatch);
+        .ok_or(X402PresentationError::MissingRunxPurchase)?;
+    let declaration =
+        parse_runx_purchase_extension(value).map_err(|_| X402PresentationError::InvalidPayload)?;
+    if declaration.schema != runx_purchase_schema_reference()? {
+        return Err(X402PresentationError::RunxPurchaseSchemaMismatch);
     }
     Ok(declaration)
 }

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::signature::KeyPair;
-use runx_contracts::{sha256_hex, sha256_prefixed};
+use runx_contracts::sha256_prefixed;
 use runx_runtime::registry::resolve::{LocalRegistrySourceKind, RegistryTarget, install_skill_ref};
 use runx_runtime::registry::{
     FileRegistryStore, IngestSkillOptions, InstallCandidate, InstallError,
@@ -77,7 +77,7 @@ fn a_carried_connector_this_runx_does_not_read_leaves_nothing()
     let temp = tempdir()?;
     let mut candidate = install_candidate()?;
     candidate.package_files = unreadable_connector_files();
-    candidate.package_digest = Some(package_digest(&candidate.package_files)?);
+    candidate.bundle_digest = Some(bundle_digest(&candidate.package_files)?);
     candidate.signed_manifest = Some(signed_for(&candidate, "acme/echo")?);
 
     let error = install_local_skill(&candidate, &options(temp.path())?)
@@ -110,7 +110,7 @@ fn a_bare_name_installs_the_newest_version_this_runx_reads()
         &store,
         include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
         IngestSkillOptions {
-            owner: Some("acme".to_owned()),
+            publisher_slug: Some("acme".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some("2026-10-01T00:00:00.000Z".to_owned()),
             profile_document: Some(
@@ -123,7 +123,7 @@ fn a_bare_name_installs_the_newest_version_this_runx_reads()
     store.put_version(
         RegistrySkillVersion {
             version: "2.0.0".to_owned(),
-            package_digest: Some(package_digest(&package_files)?),
+            bundle_digest: Some(bundle_digest(&package_files)?),
             package_files,
             created_at: "2026-10-02T00:00:00.000Z".to_owned(),
             updated_at: "2026-10-02T00:00:00.000Z".to_owned(),
@@ -222,7 +222,7 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
     let temp = tempdir()?;
     let mut candidate = install_candidate()?;
     candidate.package_files = package_files_fixture();
-    candidate.package_digest = Some(package_digest(&candidate.package_files)?);
+    candidate.bundle_digest = Some(bundle_digest(&candidate.package_files)?);
     candidate.signed_manifest = Some(signed_for(&candidate, "acme/echo")?);
 
     let install = install_local_skill(
@@ -259,9 +259,9 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
     );
 
     let mut tampered = candidate;
-    tampered.package_digest = Some("sha256:not-the-package".to_owned());
+    tampered.bundle_digest = Some("sha256:not-the-package".to_owned());
     let error = install_error(&tampered, temp.path())?;
-    assert!(matches!(error, InstallError::PackageDigestMismatch { .. }));
+    assert!(matches!(error, InstallError::BundleDigestMismatch { .. }));
     Ok(())
 }
 
@@ -270,7 +270,7 @@ fn package_files_must_be_bound_by_signed_manifest() -> Result<(), Box<dyn std::e
     let temp = tempdir()?;
     let mut candidate = install_candidate()?;
     candidate.package_files = package_files_fixture();
-    candidate.package_digest = Some(package_digest(&candidate.package_files)?);
+    candidate.bundle_digest = Some(bundle_digest(&candidate.package_files)?);
 
     let error = install_error(&candidate, temp.path())?;
 
@@ -316,7 +316,7 @@ fn unsigned_local_registry_candidate_installs() -> Result<(), Box<dyn std::error
     candidate.signed_manifest = None;
     candidate.profile_digest = Some(profile_digest());
     candidate.package_files = package_files_fixture();
-    candidate.package_digest = Some(package_digest(&candidate.package_files)?);
+    candidate.bundle_digest = Some(bundle_digest(&candidate.package_files)?);
     candidate.manifest_source_authority = Some(RegistryManifestSourceAuthority::RegistrySource(
         format!("local:{}", temp.path().join("registry").display()),
     ));
@@ -371,7 +371,7 @@ fn a_connector_envelope_never_installs_as_a_skill() -> Result<(), Box<dyn std::e
         &candidate,
         RegistrySubject {
             kind: RegistrySubjectKind::Connector,
-            subject_ref: skill_id.clone(),
+            name: skill_id.clone(),
         },
     )?);
 
@@ -456,7 +456,7 @@ fn malformed_signed_manifest_payload_fails_closed() -> Result<(), Box<dyn std::e
         .signed_manifest
         .as_mut()
         .ok_or("signed manifest missing from fixture")?;
-    manifest.subject.subject_ref = "acme/echo\nversion=1.0.0".to_owned();
+    manifest.subject.name = "acme/echo\nversion=1.0.0".to_owned();
 
     let error = install_error(&candidate, temp.path())?;
 
@@ -503,7 +503,7 @@ fn registry_install_rejects_official_key_from_non_official_source()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let mut candidate = install_candidate()?;
-    candidate.r#ref = "runx/echo@1.0.0".to_owned();
+    candidate.package = "runx/echo@1.0.0".to_owned();
     candidate.skill_id = Some("runx/echo".to_owned());
     candidate.trust_tier = Some(TrustTier::FirstParty);
     candidate.signed_manifest = Some(signed_for(&candidate, "runx/echo")?);
@@ -563,7 +563,7 @@ fn registry_install_accepts_official_source_signature_for_community_skill()
 }
 
 #[test]
-fn registry_install_rejects_third_party_key_outside_owner_namespace()
+fn registry_install_rejects_third_party_key_outside_publisher_namespace()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let candidate = install_candidate()?;
@@ -610,7 +610,7 @@ fn registry_manifest_env_key_cannot_self_promote_to_official()
             STANDARD.encode(key_pair.public_key().as_ref()),
         ),
         (
-            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV.to_owned(),
+            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV.to_owned(),
             "runx".to_owned(),
         ),
         (
@@ -675,10 +675,10 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
             include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
         ),
         package_files: Vec::new(),
-        package_digest: None,
+        bundle_digest: None,
         source: "runx-registry".to_owned(),
         source_label: "runx registry".to_owned(),
-        r#ref: "acme/echo@1.0.0".to_owned(),
+        package: "acme/echo@1.0.0".to_owned(),
         skill_id: Some("acme/echo".to_owned()),
         version: Some("1.0.0".to_owned()),
         signed_manifest: None,
@@ -732,7 +732,7 @@ fn stage_profile() -> &'static str {
     "skill: stage\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n  script:\n    steps:\n      - id: script\n        tool: { module: run.mjs }\n"
 }
 
-fn package_digest(files: &[RegistryPackageFile]) -> Result<String, serde_json::Error> {
+fn bundle_digest(files: &[RegistryPackageFile]) -> Result<String, serde_json::Error> {
     let mut sorted = files.to_vec();
     sorted.sort_by(|left, right| left.path.cmp(&right.path));
     let mut canonical = String::from("{\"files\":[");
@@ -747,7 +747,7 @@ fn package_digest(files: &[RegistryPackageFile]) -> Result<String, serde_json::E
         canonical.push('}');
     }
     canonical.push_str("]}");
-    Ok(sha256_hex(canonical.as_bytes()))
+    Ok(sha256_prefixed(canonical.as_bytes()))
 }
 
 fn trusted_manifest_keys() -> Result<Vec<TrustedRegistryManifestKey>, Box<dyn std::error::Error>> {
@@ -773,7 +773,7 @@ fn signed_for(
         candidate,
         RegistrySubject {
             kind: RegistrySubjectKind::Skill,
-            subject_ref: skill_id.to_owned(),
+            name: skill_id.to_owned(),
         },
     )
 }

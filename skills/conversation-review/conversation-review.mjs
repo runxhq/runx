@@ -16,8 +16,8 @@ export function finalizeConversation(inputs) {
       ? inputs.thread.messages.map((entry) => text(entry?.text)) : []
   )].join("\n");
   const findings = [];
-  if (!text(inputs.source_ref) || !/^sha256:[0-9a-f]{64}$/.test(text(inputs.source_digest))
-      || !text(inputs.thread_locator) || inputs.thread?.source_ref !== inputs.source_ref
+  if (!text(inputs.source_locator) || !/^sha256:[0-9a-f]{64}$/.test(text(inputs.source_digest))
+      || !text(inputs.thread_locator) || inputs.thread?.source_locator !== inputs.source_locator
       || inputs.thread?.source_digest !== inputs.source_digest
       || inputs.thread?.thread_locator !== inputs.thread_locator) {
     findings.push("source binding is incomplete or inconsistent");
@@ -35,9 +35,9 @@ export function finalizeConversation(inputs) {
   const status = valid ? (sourceComplete ? kind : "needs_context") : "needs_context";
   return {
     conversation_packet: {
-      schema: "runx.conversation.review.v1",
+      schema: "runx/conversation-review.review.v1",
       status,
-      source_ref: text(inputs.source_ref),
+      source_locator: text(inputs.source_locator),
       source_digest: text(inputs.source_digest),
       thread_locator: text(inputs.thread_locator),
       summary: valid ? summary : "",
@@ -57,13 +57,13 @@ export function prepareWork(inputs) {
   const source = inputs.source_context;
   const evidence = source?.workflow_inputs;
   if (source?.schema !== "runx.source_packet.v1" || !evidence
-      || source.source_ref?.uri !== evidence.source_ref
-      || evidence.thread?.source_ref !== evidence.source_ref
+      || source.source_ref?.uri !== evidence.source_locator
+      || evidence.thread?.source_locator !== evidence.source_locator
       || evidence.thread?.source_digest !== evidence.source_digest) {
     throw new Error("conversation work requires bound normalized source evidence");
   }
   return { review_inputs: {
-    source_ref: evidence.source_ref, source_digest: evidence.source_digest,
+    source_locator: evidence.source_locator, source_digest: evidence.source_digest,
     thread_locator: evidence.thread_locator, title: evidence.title, body: evidence.body,
     thread: evidence.thread, source_complete: evidence.source_complete,
   } };
@@ -74,26 +74,26 @@ export function finishWork(inputs) {
   const routes = inputs.handoff_routes || {};
   const kind = review?.status;
   const route = routes[kind];
-  let disposition = "held";
+  let state = "held";
   let summary = review?.reason || "Conversation review requires more context.";
   const followups = [];
   const completion_evidence = [];
   if (review?.validation?.status === "pass" && kind === "no_action") {
-    disposition = "satisfied";
+    state = "satisfied";
     summary = review.summary;
-    completion_evidence.push(`${review.source_ref}@${review.source_digest}: no action required`);
+    completion_evidence.push(`${review.source_locator}@${review.source_digest}: no action required`);
   } else if (review?.validation?.status === "pass" && ["reply", "coding", "follow_up"].includes(kind)) {
     if (typeof route === "string" && route) {
-      disposition = "follow_up";
+      state = "follow_up";
       summary = review.summary;
       const next = kind === "reply" ? { draft_message: review.draft_message, thread_locator: review.thread_locator }
         : kind === "coding" ? { request_quote: review.request_quote }
           : { objective: review.follow_up_task };
-      followups.push({ route_id: route, target_ref: review.thread_locator,
+      followups.push({ route_id: route, target_locator: review.thread_locator,
         inputs: next, due_at_unix_seconds: 0 });
     } else {
       summary = `Held: ${kind} needs a configured handoff route. ${review.summary || ""}`.trim();
     }
   }
-  return { work_result: { disposition, summary, completion_evidence, followups } };
+  return { work_result: { state, summary, completion_evidence, followups } };
 }

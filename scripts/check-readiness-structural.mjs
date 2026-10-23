@@ -117,7 +117,8 @@ function hasBuildOutputSegment(file) {
 
 function isAllowedCommittedBuildOutput(file) {
   return (
-    /^dist\/packets\/[^/]+\.schema\.json$/u.test(file)
+    // The package packets `packets:collect` writes for the site, by owner.
+    /^dist\/packets\/[a-z0-9-]+\/[a-z0-9-]+\/[a-z][a-z0-9_.]*\.v[1-9][0-9]*\.schema\.json$/u.test(file)
     || file.startsWith("fixtures/tool-catalogs/build/")
   );
 }

@@ -4,8 +4,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use runx_contracts::javascript_worker::{
-    MAX_FRAME_BYTES, PROTOCOL_VERSION, WorkerDisposition, WorkerRequest, WorkerResponse,
-    write_frame,
+    MAX_FRAME_BYTES, PROTOCOL_VERSION, WorkerFate, WorkerRequest, WorkerResponse, write_frame,
 };
 
 use crate::RuntimeError;
@@ -161,7 +160,7 @@ impl WorkerSession {
                         "deterministic JavaScript worker exceeded {} ms wall limit",
                         timeout.as_millis()
                     )),
-                    disposition: WorkerDisposition::Discard,
+                    fate: WorkerFate::Discard,
                 });
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -182,13 +181,10 @@ impl WorkerSession {
                 protocol_version,
                 invocation_id: Some(response_id),
                 message,
-                disposition,
+                fate,
                 ..
             } if protocol_version == PROTOCOL_VERSION && response_id == invocation_id => {
-                Ok(WorkerInvocationResult::Failure {
-                    message,
-                    disposition,
-                })
+                Ok(WorkerInvocationResult::Failure { message, fate })
             }
             response => Err(worker_error(format!(
                 "deterministic JavaScript worker response mismatch: {response:?}"

@@ -362,10 +362,10 @@ export interface TemplateInputs {
   readonly result?: JsonValue;
   readonly idempotencyKey?: string;
   /**
-   * The paid invocation the call runs under. runx Connect supplies it only
+   * The purchase the call runs under. runx Connect supplies it only
    * from the run its gateway session authenticates; the kernel never does.
    */
-  readonly invocationId?: string;
+  readonly purchaseId?: string;
 }
 
 const MAX_DEPTH = 32;
@@ -424,7 +424,7 @@ function renderBinding(key: string, argument: JsonValue, inputs: TemplateInputs,
       return found(inputs.result === undefined ? undefined : pointer(inputs.result, reference));
     case "$runx":
       if (reference === "idempotency_key") return found(inputs.idempotencyKey);
-      if (reference === "invocation") return found(inputs.invocationId);
+      if (reference === "purchase") return found(inputs.purchaseId);
       throw new TemplateError(`template binding $runx ${JSON.stringify(reference)} is not a runtime value`);
     case "$minor_units": {
       const invalid = () => new TemplateError("template $minor_units needs a canonical decimal, scale 0 to 18, and a portable integer result");
@@ -505,8 +505,8 @@ export interface DeclaredRequestCall {
   readonly arguments: JsonObject;
   readonly parameters?: JsonObject;
   readonly idempotencyKey?: string;
-  /** The paid invocation the call runs under, which only runx Connect supplies. */
-  readonly invocationId?: string;
+  /** The purchase the call runs under, which only runx Connect supplies. */
+  readonly purchaseId?: string;
   /** The declared request's id, among requests, preconditions and readbacks. */
   readonly request: string;
   /** The position of the element a repeated request is sent for. */
@@ -532,7 +532,7 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
     arguments: call.arguments,
     parameters: call.parameters ?? {},
     ...(call.idempotencyKey === undefined ? {} : { idempotencyKey: call.idempotencyKey }),
-    ...(call.invocationId === undefined ? {} : { invocationId: call.invocationId }),
+    ...(call.purchaseId === undefined ? {} : { purchaseId: call.purchaseId }),
   };
   let item: JsonValue | undefined;
   if (call.item !== undefined) {

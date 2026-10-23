@@ -5,8 +5,8 @@ runner: plan
 inputs:
   objective: Send the launch update today.
   principal: account:growth-demo
-  content_ref:
-    draft_ref: campaign:launch
+  content:
+    draft_uri: campaign:launch
     digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   operator_context: Do not default to all contacts.
 caller:
@@ -17,29 +17,29 @@ caller:
         action_family: message-send
         principal:
           type: account
-          ref: account:growth-demo
+          uri: account:growth-demo
         provider:
           name: unknown
-          account_ref: ""
+          account_id: ""
           runtime_path: ""
         send_class: campaign
         channel: email
         audience:
           type: recipient
-          ref: ""
+          locator: ""
           requires_reconfirmation: false
         content:
-          draft_ref: campaign:launch
+          draft_uri: campaign:launch
           digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
           subject_or_title: ""
         gates:
           preflight_required: true
           human_approval_required: true
-          approval_ref: ""
+          approval_id: ""
         blockers:
           - audience is missing
         provider_actions: []
-        evidence_refs: []
+        evidence_locators: []
         success_checkpoint:
           milestone: awaiting_audience
           description: The send cannot proceed without a named recipient, list, segment, thread, or channel.
@@ -54,7 +54,7 @@ expect:
           decision: needs_input
           action_family: message-send
           audience:
-            ref: ""
+            locator: ""
           gates:
             human_approval_required: true
           blockers:

@@ -1,10 +1,13 @@
 //! `run.list`: the workspace's runs, read from their records.
 
-use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_contracts::schema::BoundedVec;
+use runx_contracts::{
+    JsonNumber, JsonObject, JsonValue, RUN_LIST_MAX_RUNS, RunList, RunListSchema,
+};
 use serde::{Deserialize, Serialize};
 
 use super::NativeInvocation;
-use super::capability::{NativeCapability, TypedNativeCapability, decode_typed_output};
+use super::capability::{NativeCapability, TypedNativeCapability};
 use crate::RuntimeError;
 use crate::execution::run_record::{RunFilter, list_runs};
 use crate::{
@@ -12,7 +15,7 @@ use crate::{
     CapabilityField, CapabilityInput, CapabilityOutput,
 };
 
-const MAX_LIMIT: u64 = 1000;
+const MAX_LIMIT: u64 = RUN_LIST_MAX_RUNS as u64;
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -43,24 +46,17 @@ impl CapabilityInput for RunListInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 struct RunListOutput {
-    run_list: RunListPacket,
+    run_list: RunList,
 }
 
 impl CapabilityOutput for RunListOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct RunListPacket {
-    schema: String,
-    runs: Vec<JsonValue>,
-}
 
 const FIELDS: &[CapabilityField] = &[
     field("query", "Case-insensitive run id or skill search."),
     field("skill", "Skill filter."),
     field(
         "state",
-        "running, paused or sealed, or a sealed run's disposition.",
+        "running, paused or sealed, or a sealed run's outcome.",
     ),
     field(
         "since",
@@ -88,7 +84,7 @@ const fn field(name: &'static str, description: &'static str) -> CapabilityField
 static LIST: TypedNativeCapability<RunListInput, RunListOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "run.list",
-        owner: "runx-runtime/runs",
+        source: "runx-runtime/runs",
         summary: "List the workspace's runs, most recent first, with what each waits on or sealed.",
         scopes: &["run.read"],
         effect: CapabilityEffect::Read,
@@ -135,22 +131,12 @@ fn list(invocation: &NativeInvocation<'_, RunListInput>) -> Result<RunListOutput
             limit: usize::try_from(inputs.limit).ok(),
         },
     )?;
-    let runs =
-        JsonValue::from_serialize(&listing.runs).map_err(|error| RuntimeError::SkillFailed {
-            skill_name: "run.list".to_owned(),
-            message: error.to_string(),
-        })?;
-    decode_typed_output(
-        "run.list",
-        JsonValue::Object(JsonObject::from([(
-            "run_list".to_owned(),
-            JsonValue::Object(JsonObject::from([
-                (
-                    "schema".to_owned(),
-                    JsonValue::String("runx.run.list.v1".to_owned()),
-                ),
-                ("runs".to_owned(), runs),
-            ])),
-        )])),
-    )
+    let runs = BoundedVec::new(listing.runs)
+        .ok_or_else(|| failed(format!("listed more than {MAX_LIMIT} runs")))?;
+    Ok(RunListOutput {
+        run_list: RunList {
+            schema: RunListSchema::V1,
+            runs,
+        },
+    })
 }

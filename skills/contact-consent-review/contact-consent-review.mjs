@@ -5,7 +5,7 @@ export function decideListHygiene(inputs) {
   const projection = object(projectionResult.projection);
   const base = {
     aggregate_id: inputs.aggregate_id,
-    data_source_ref: inputs.data_source_ref,
+    data_source_uri: inputs.data_source_uri,
     resource: inputs.resource,
     expected_version: inputs.expected_version,
     idempotency_key: inputs.idempotency_key,
@@ -109,7 +109,7 @@ export function finalizeListHygiene(inputs) {
     if (
       projection.version !== writeResult.after_version ||
       projection.last_event_type !== plan.event.type ||
-      projection.last_event_ref !== writeResult.event_ref ||
+      projection.last_event_id !== writeResult.event_id ||
       projection.last_event_digest !== writeResult.event_digest ||
       readback.projection_digest !== writeResult.projection_digest
     ) {
@@ -130,13 +130,13 @@ export function finalizeListHygiene(inputs) {
         recorded: appended,
         state: appended ? plan.decision.state : null,
         aggregate_id: plan.aggregate_id,
-        data_source_ref: plan.data_source_ref,
+        data_source_uri: plan.data_source_uri,
         resource: plan.resource,
         idempotency_key: appended ? plan.idempotency_key : null,
         write_status: appended ? writeResult.status : "not_attempted",
         before_version: plan.projection_version,
         after_version: projection.version,
-        event_ref: appended ? writeResult.event_ref : null,
+        event_id: appended ? writeResult.event_id : null,
         event_digest: appended ? writeResult.event_digest : null,
         projection_digest: readback.projection_digest,
       },
@@ -185,7 +185,7 @@ function noWrite(base, state, reason, reasonCode) {
 }
 
 function sameSource(result, expected) {
-  return result.data_source_ref === expected.data_source_ref &&
+  return result.data_source_uri === expected.data_source_uri &&
     result.resource === expected.resource &&
     result.aggregate_id === expected.aggregate_id;
 }

@@ -19,7 +19,7 @@ pub enum ToolCatalogError {
         message: String,
     },
     InvalidRequest(String),
-    /// A tool ref with no namespace, which names no catalog tool.
+    /// A tool name with no namespace, which names no catalog tool.
     Unqualified(String),
     NotFound(String),
 }

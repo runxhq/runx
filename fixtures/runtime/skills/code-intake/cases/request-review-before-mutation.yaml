@@ -42,7 +42,7 @@ caller:
             surface: "workspace"
         thread_locator: "github://example/repo/issues/984"
       closure:
-        disposition: "closed"
+        outcome: "completed"
         reason_code: "issue_intake_completed"
         summary: "Ambiguous request needs review before mutation."
       intake_report:
@@ -65,7 +65,7 @@ caller:
         created_at: "2026-05-15T00:00:00Z"
         dedupe:
           algorithm: "sha256"
-          fingerprint: "sha256:ambiguous-api-docs-drift"
+          digest: "sha256:ambiguous-api-docs-drift"
           source_locator: "github://example/repo/issues/984"
         schema: "runx.signal.v1"
         signal_id: "sig_support_984"
@@ -92,7 +92,7 @@ expect:
   receipt:
     schema: "runx.receipt.v1"
     state: "sealed"
-    disposition: "closed"
+    outcome: "completed"
 metadata:
   product_skill: "code-intake"
   source_case: "request-review-before-mutation"

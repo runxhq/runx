@@ -24,7 +24,7 @@ spec.loader.exec_module(reader)
 
 def config(url, dialect="sqlite"):
     return {
-        "source_ref": "analytics:test", "url": url, "dialect": dialect,
+        "source": "analytics:test", "url": url, "dialect": dialect,
         "read_only": True, "max_rows": 2,
         "queries": {
             "campaigns": {
@@ -42,7 +42,7 @@ def config(url, dialect="sqlite"):
 
 
 def query(**changes):
-    return {"action": "query", "source_ref": "analytics:test", "query_id": "campaigns",
+    return {"action": "query", "source": "analytics:test", "query_id": "campaigns",
             "parameters": {"since": "2026-10-01"}, "max_rows": 2, **changes}
 
 
@@ -81,7 +81,7 @@ class SQLReadTest(unittest.TestCase):
 
     def test_catalog_opens_no_database_and_hides_sql_and_secrets(self):
         self.config["url"] = "missingdriver://secret:password@invalid/db"
-        result = reader.read({"action": "catalog", "source_ref": "analytics:test"}, self.config)
+        result = reader.read({"action": "catalog", "source": "analytics:test"}, self.config)
         encoded = json.dumps(result)
         self.assertFalse(result["executed"])
         self.assertEqual(result["queries"][0]["id"], "campaigns")
@@ -92,7 +92,7 @@ class SQLReadTest(unittest.TestCase):
         self.config["url"] = "missingdriver://invalid"
         for inputs in [query(parameters={}), query(parameters={"since": None}),
                        query(parameters={"since": "x", "extra": 1}),
-                       query(query_id="unknown"), query(source_ref="another:source"),
+                       query(query_id="unknown"), query(source="another:source"),
                        query(sql="DELETE FROM trials")]:
             with self.subTest(inputs=inputs), self.assertRaises(reader.ReadError) as raised:
                 reader.read(inputs, self.config)

@@ -50,7 +50,7 @@ pub(super) fn proof_root() -> Result<Receipt, serde_json::Error> {
 /// label's: two children with one label are one receipt.
 pub(super) fn proof_child(label: &str) -> Result<Receipt, serde_json::Error> {
     let mut receipt = fixture(SUCCESS_RECEIPT)?;
-    receipt.subject.outcome = runx_contracts::connector::Digest::of(label.as_bytes());
+    receipt.subject.outcome_digest = runx_contracts::connector::Digest::of(label.as_bytes());
     child_refs_mut(&mut receipt).clear();
     refresh_proof_digest_and_signature(&mut receipt)?;
     Ok(receipt)

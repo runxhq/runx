@@ -21,12 +21,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use runx_contracts::{
-    InstanceAuthority, JsonObject, PaidInvocation, PaidInvocationExecutionState,
-    PaidInvocationOutcomeGate, PaidInvocationPaymentChallenge, PaidInvocationPaymentOptionRef,
-    PaidInvocationPaymentState, PaidSkillOfferTerms, Placement, PortableAmountMinor, Purchase,
-    PurchaseMethod, PurchasePaymentOption, PurchaseQuote, PurchaseRequest,
-    QUOTE_PAID_INVOCATION_RESULT_SCHEMA, QuotePaidInvocationResult, RUNX_BALANCE_SETTLEMENT_FAMILY,
-    ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
+    InstanceAuthority, JsonObject, PaidSkillOfferTerms, Placement, PortableAmountMinor, Purchase,
+    PurchaseExecutionState, PurchaseMethod, PurchaseOutcomeGate, PurchasePaymentChallenge,
+    PurchasePaymentOption, PurchasePaymentOptionBinding, PurchasePaymentState, PurchaseQuote,
+    PurchaseRead, PurchaseRequest, QUOTE_PURCHASE_RESULT_SCHEMA, QuotePurchaseResult,
+    RUNX_BALANCE_SETTLEMENT_FAMILY, ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
 };
 use serde::{Deserialize, Serialize};
 
@@ -85,11 +84,10 @@ impl PaidRunner {
     }
 
     fn route(&self) -> Option<String> {
-        let (owner, name) = self
-            .skill_id
-            .split_once('/')
-            .filter(|(owner, name)| !owner.is_empty() && !name.is_empty() && !name.contains('/'))?;
-        Some(format!("/v1/skills/{owner}/{name}/run"))
+        let (publisher, name) = self.skill_id.split_once('/').filter(|(publisher, name)| {
+            !publisher.is_empty() && !name.is_empty() && !name.contains('/')
+        })?;
+        Some(format!("/v1/skills/{publisher}/{name}/run"))
     }
 }
 
@@ -115,7 +113,7 @@ pub(crate) enum Bought {
     /// Fulfilled: what the buyer reads, and what settles the act once the
     /// step that bought it is sealed.
     Fulfilled {
-        purchase: Box<Purchase>,
+        purchase: Box<PurchaseRead>,
         settlement: PurchaseSettlement,
     },
     /// Nothing was bought: refused before any money moved, declined, or
@@ -141,7 +139,7 @@ impl PurchaseSettlement {
 enum PurchaseEvent {
     Decided {
         idempotency_key: String,
-        invocation_id: String,
+        purchase_id: String,
         method: Paid,
         /// The run whose ledger reserved the amount, and its key there.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -164,12 +162,12 @@ impl StreamEvent for PurchaseEvent {
     }
 }
 
-/// Cloud's quote for one call's inputs: the paid invocation it admitted, the
+/// Cloud's quote for one call's inputs: the unpaid purchase it admitted, the
 /// challenge that pays it, and what the account's balance holds when
 /// the purchase takes it.
 struct Quote {
-    invocation: PaidInvocation,
-    payment_options: Vec<PaidInvocationPaymentChallenge>,
+    purchase: Purchase,
+    payment_options: Vec<PurchasePaymentChallenge>,
     balance_micro: Option<u64>,
     expires_at: runx_contracts::schema::IsoDateTime,
 }
@@ -183,7 +181,7 @@ enum Paid {
     /// A hosted payment grant.
     Grant {
         grant_id: String,
-        option: PaidInvocationPaymentOptionRef,
+        option: PurchasePaymentOptionBinding,
     },
 }
 
@@ -218,7 +216,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
     let Some(route) = call.paid.route() else {
         return Ok(refused(
             "purchase_invalid",
-            format!("paid skill {} is not owner/name", call.paid.skill_id),
+            format!("paid skill {} is not publisher/name", call.paid.skill_id),
         ));
     };
     let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(call.env, call.cwd))
@@ -253,7 +251,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
     if let Some(refusal) = disagreement(call, &quote) {
         return Ok(refusal);
     }
-    let amount_micro = match usd_micro(&quote.invocation) {
+    let amount_micro = match usd_micro(&quote.purchase) {
         Ok(amount) => amount,
         Err(refusal) => return Ok(refusal),
     };
@@ -363,7 +361,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         .map(|_| (call.run_id.to_owned(), purchase_key.clone()));
     let decided = PurchaseEvent::Decided {
         idempotency_key: purchase_key.clone(),
-        invocation_id: quote.invocation.invocation_id.as_str().to_owned(),
+        purchase_id: quote.purchase.purchase_id.as_str().to_owned(),
         method: method.paid.clone(),
         spend: spend.clone(),
     };
@@ -389,7 +387,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
     let sent = Sent {
         recovering: false,
         idempotency_key: purchase_key,
-        invocation_id: quote.invocation.invocation_id.as_str().to_owned(),
+        purchase_id: quote.purchase.purchase_id.as_str().to_owned(),
         method: method.paid.clone(),
         spend,
     };
@@ -400,7 +398,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
 struct Sent {
     recovering: bool,
     idempotency_key: String,
-    invocation_id: String,
+    purchase_id: String,
     method: Paid,
     spend: Option<(String, String)>,
 }
@@ -421,19 +419,19 @@ fn recover(
             "the current account and endpoint do not match the recorded purchase binding; the original attempt remains unresolved".to_owned()));
     }
     let mut sent = None;
-    let mut purchase_id = None;
+    let mut answered_id = None;
     for recorded in store.read::<PurchaseEvent>(key).map_err(state)? {
         match recorded.event {
             PurchaseEvent::Decided {
                 idempotency_key,
-                invocation_id,
+                purchase_id,
                 method,
                 spend,
             } if idempotency_key == pending.idempotency_key => {
                 sent = Some(Sent {
                     recovering: true,
                     idempotency_key,
-                    invocation_id,
+                    purchase_id,
                     method,
                     spend,
                 });
@@ -441,7 +439,7 @@ fn recover(
             PurchaseEvent::Answered {
                 idempotency_key,
                 purchase_id: answered,
-            } if idempotency_key == pending.idempotency_key => purchase_id = Some(answered),
+            } if idempotency_key == pending.idempotency_key => answered_id = Some(answered),
             _ => {}
         }
     }
@@ -451,7 +449,7 @@ fn recover(
             "the attempt records no decision to send it again with".to_owned(),
         ));
     };
-    match purchase_id {
+    match answered_id {
         Some(purchase_id) => follow(call, session, custody, &purchase_id, &sent),
         None => send(call, route, session, store, custody, key, &sent),
     }
@@ -472,8 +470,8 @@ fn send(
         .map_err(|error| RuntimeError::json("writing the purchase", error))?;
     if let Some(object) = account_payment.as_object_mut() {
         object.insert(
-            "invocation_id".to_owned(),
-            serde_json::json!(sent.invocation_id),
+            "purchase_id".to_owned(),
+            serde_json::json!(sent.purchase_id),
         );
     }
     let mut body = serde_json::json!({
@@ -506,9 +504,9 @@ fn send(
     };
     match response.status {
         200..=299 => {
-            let purchase: Purchase = serde_json::from_str(&response.body)
+            let reading: PurchaseRead = serde_json::from_str(&response.body)
                 .map_err(|error| held(format!("the purchase answer is not a purchase: {error}")))?;
-            let purchase_id = purchase.invocation.invocation_id.as_str().to_owned();
+            let purchase_id = reading.purchase.purchase_id.as_str().to_owned();
             store
                 .append(vec![append(
                     store,
@@ -519,7 +517,7 @@ fn send(
                     },
                 )?])
                 .map_err(state)?;
-            settle_or_follow(call, session, custody, purchase, sent)
+            settle_or_follow(call, session, custody, reading, sent)
         }
         408 | 425 | 429 | 500..=599 => Err(held(format!(
             "runx answered the purchase with HTTP {}",
@@ -532,18 +530,17 @@ fn send(
                 )));
             }
             // An HTTP failure can follow settlement. Release only after an
-            // independent read proves this account's exact invocation unpaid.
-            let observed = read(call, session, &sent.invocation_id).map_err(|_| {
+            // independent read proves this account's exact purchase unpaid.
+            let observed = read(call, session, &sent.purchase_id).map_err(|_| {
                 held("the purchase refusal has no independent unpaid readback".to_owned())
             })?;
-            if observed.invocation.invocation_id.as_str() != sent.invocation_id
-                || observed.invocation.principal.as_reference().uri.as_str()
-                    != session.principal_ref
-                || observed.invocation.payment_state != PaidInvocationPaymentState::Unpaid
-                || observed.invocation.execution_state != PaidInvocationExecutionState::Unstarted
+            if observed.purchase.purchase_id.as_str() != sent.purchase_id
+                || observed.purchase.buyer_ref.as_reference().uri.as_str() != session.principal_uri
+                || observed.purchase.payment_state != PurchasePaymentState::Unpaid
+                || observed.purchase.execution_state != PurchaseExecutionState::Unstarted
             {
                 return Err(held(
-                    "the purchase refusal does not prove that this invocation moved no money"
+                    "the purchase refusal does not prove that this purchase moved no money"
                         .to_owned(),
                 ));
             }
@@ -572,45 +569,45 @@ fn follow(
     purchase_id: &str,
     sent: &Sent,
 ) -> Result<Bought, RuntimeError> {
-    let purchase = read(call, session, purchase_id)?;
-    settle_or_follow(call, session, custody, purchase, sent)
+    let reading = read(call, session, purchase_id)?;
+    settle_or_follow(call, session, custody, reading, sent)
 }
 
 fn settle_or_follow(
     call: &PurchaseCall<'_>,
     session: &HostedSession,
     custody: &EffectCustody,
-    mut purchase: Purchase,
+    mut reading: PurchaseRead,
     sent: &Sent,
 ) -> Result<Bought, RuntimeError> {
     let started = Instant::now();
     let wait = wait(call.env);
     loop {
-        match purchase.invocation.outcome_gate {
-            PaidInvocationOutcomeGate::FulfilmentWon if purchase.receipt.is_some() => {
-                let purchase_id = purchase.invocation.invocation_id.as_str().to_owned();
+        match reading.purchase.outcome_gate {
+            PurchaseOutcomeGate::FulfilmentWon if reading.receipt.is_some() => {
+                let purchase_id = reading.purchase.purchase_id.as_str().to_owned();
                 custody
                     .read_back(Readback {
                         provider: "runx".to_owned(),
                         operation: "purchase".to_owned(),
                         target: call.paid.target(),
-                        result: serde_json::to_value(&purchase)
+                        result: serde_json::to_value(&reading)
                             .and_then(serde_json::from_value)
                             .map_err(|error| RuntimeError::json("recording the purchase", error))?,
-                        readback_ref: format!("runx:purchase:{purchase_id}"),
+                        readback_uri: format!("runx:purchase:{purchase_id}"),
                         operation_id: Some(purchase_id),
                         idempotency_key: Some(sent.idempotency_key.clone()),
                     })
                     .map_err(state)?;
                 return Ok(Bought::Fulfilled {
-                    purchase: Box::new(purchase),
+                    purchase: Box::new(reading),
                     settlement: PurchaseSettlement {
                         custody: custody.clone(),
                         spend: sent.spend.clone(),
                     },
                 });
             }
-            PaidInvocationOutcomeGate::RefundWon => {
+            PurchaseOutcomeGate::RefundWon => {
                 let release = sent
                     .spend
                     .as_ref()
@@ -621,7 +618,7 @@ fn settle_or_follow(
                 custody
                     .rejected("refunded".to_owned(), &[], true, release)
                     .map_err(state)?;
-                let reason = purchase.failure.as_ref().map_or_else(
+                let reason = reading.failure.as_ref().map_or_else(
                     || "the seller's run did not fulfil the purchase; it was refunded".to_owned(),
                     |failure| format!("{}: {}", failure.code.as_str(), failure.message.as_str()),
                 );
@@ -635,13 +632,13 @@ fn settle_or_follow(
                     step_id: call.step_id.to_owned(),
                     reason: format!(
                         "purchase {} is still running for its seller; resume the run to read it again",
-                        purchase.invocation.invocation_id
+                        reading.purchase.purchase_id
                     ),
                 });
             }
             _ => {
                 std::thread::sleep(POLL);
-                purchase = read(call, session, purchase.invocation.invocation_id.as_str())?;
+                reading = read(call, session, reading.purchase.purchase_id.as_str())?;
             }
         }
     }
@@ -651,7 +648,7 @@ fn read(
     call: &PurchaseCall<'_>,
     session: &HostedSession,
     purchase_id: &str,
-) -> Result<Purchase, RuntimeError> {
+) -> Result<PurchaseRead, RuntimeError> {
     let pending = |reason: String| RuntimeError::ProviderReadbackPending {
         step_id: call.step_id.to_owned(),
         reason,
@@ -675,8 +672,8 @@ fn read(
         .map_err(|error| pending(format!("the purchase read is not a purchase: {error}")))
 }
 
-/// Cloud's quote for the call: an unpaid purchase answered with the paid
-/// invocation it admitted, its requirement and its expiry.
+/// Cloud's quote for the call: the unpaid purchase it admitted, its
+/// requirement and its expiry.
 fn quote(
     call: &PurchaseCall<'_>,
     route: &str,
@@ -693,7 +690,7 @@ fn quote(
             route,
             Some(body.to_string()),
             Some(key),
-            &format!("application/json; profile=\"{QUOTE_PAID_INVOCATION_RESULT_SCHEMA}\""),
+            &format!("application/json; profile=\"{QUOTE_PURCHASE_RESULT_SCHEMA}\""),
         )
         .map_err(|error| {
             refused(
@@ -711,15 +708,15 @@ fn quote(
         };
         return Err(Bought::Refused { code, reason });
     }
-    let result: QuotePaidInvocationResult = serde_json::from_str(&response.body)
+    let result: QuotePurchaseResult = serde_json::from_str(&response.body)
         .map_err(|error| refused("quote_invalid", format!("the quote is not runx's: {error}")))?;
-    let QuotePaidInvocationResult::Admitted { value } = result else {
+    let QuotePurchaseResult::Admitted { value } = result else {
         return Err(refused(
             "quote_unavailable",
             "runx refused to quote this purchase",
         ));
     };
-    let invocation = value.invocation;
+    let purchase = value.purchase;
     let payment_options = value.payment_options.into_vec();
     let moment = |value: &runx_contracts::schema::IsoDateTime| {
         runx_core::policy::parse_rfc3339_moment(value.as_str())
@@ -728,7 +725,7 @@ fn quote(
     let mut identities = BTreeSet::new();
     let mut latest_expiry = None;
     for option in &payment_options {
-        if !invocation
+        if !purchase
             .accepted_settlement_families
             .accepts(option.settlement_family.as_str())
             || option.payload_digest.as_str()
@@ -753,10 +750,10 @@ fn quote(
         let expiry = moment(&option.quote_expires_at)?;
         latest_expiry = Some(latest_expiry.map_or(expiry, |latest| std::cmp::max(latest, expiry)));
     }
-    if latest_expiry != Some(moment(&invocation.expires_at)?) {
+    if latest_expiry != Some(moment(&purchase.expires_at)?) {
         return Err(refused(
             "quote_invalid",
-            "the invocation expiry does not match its payment options",
+            "the purchase expiry does not match its payment options",
         ));
     }
     let now = moment(&crate::time::now_iso8601().into())?;
@@ -766,12 +763,12 @@ fn quote(
             "the quoted payment options have expired",
         ));
     }
-    let expires_at = invocation.expires_at.clone();
-    let invocation_id = invocation.invocation_id.as_str();
+    let expires_at = purchase.expires_at.clone();
+    let purchase_id = purchase.purchase_id.as_str();
     let response = session
         .exchange(
             HttpMethod::Get,
-            &format!("/v1/purchases/{}", url_segment(invocation_id)),
+            &format!("/v1/purchases/{}", url_segment(purchase_id)),
             None,
             None,
             "application/json",
@@ -786,25 +783,25 @@ fn quote(
         let (code, reason) = api_refusal(response.status, &response.body);
         return Err(Bought::Refused { code, reason });
     }
-    let purchase: Purchase = serde_json::from_str(&response.body).map_err(|error| {
+    let reading: PurchaseRead = serde_json::from_str(&response.body).map_err(|error| {
         refused(
             "quote_invalid",
             format!("the quoted purchase is not runx's: {error}"),
         )
     })?;
-    if purchase.invocation != invocation {
+    if reading.purchase != purchase {
         return Err(refused(
             "quote_changed",
             "the purchase changed after it was quoted",
         ));
     }
-    let balance_micro = purchase.balance_micro.filter(|_| {
-        invocation
+    let balance_micro = reading.balance_micro.filter(|_| {
+        purchase
             .accepted_settlement_families
             .accepts(RUNX_BALANCE_SETTLEMENT_FAMILY)
     });
     Ok(Quote {
-        invocation,
+        purchase,
         payment_options,
         balance_micro,
         expires_at,
@@ -825,15 +822,15 @@ fn disagreement(call: &PurchaseCall<'_>, quote: &Quote) -> Option<Bought> {
             ));
         }
     };
-    (quote.invocation.amount_minor.get() != expected
-        || quote.invocation.currency.as_str() != call.paid.terms.currency.as_str())
+    (quote.purchase.amount_minor.get() != expected
+        || quote.purchase.currency.as_str() != call.paid.terms.currency.as_str())
     .then(|| {
         refused(
             "quote_disagrees",
             format!(
                 "runx quoted {} {} where the listing prices {expected} {}",
-                quote.invocation.amount_minor.get(),
-                quote.invocation.currency.as_str(),
+                quote.purchase.amount_minor.get(),
+                quote.purchase.currency.as_str(),
                 call.paid.terms.currency.as_str()
             ),
         )
@@ -849,7 +846,7 @@ fn methods(
     quote: &Quote,
     amount_micro: u64,
 ) -> Result<Vec<Method>, RuntimeError> {
-    let total = PortableAmountMinor::new(quote.invocation.amount_minor.get())
+    let total = PortableAmountMinor::new(quote.purchase.amount_minor.get())
         .ok_or_else(|| engine("the quoted amount is not a portable amount"))?;
     let records = super::instances::Instances::new(Arc::clone(store))
         .list()
@@ -899,13 +896,13 @@ fn methods(
                         terms
                             .and_then(|terms| terms.network.as_ref())
                             .map(|network| network.as_str()),
-                        Some(quote.invocation.currency.as_str()),
+                        Some(quote.purchase.currency.as_str()),
                     )
                 });
             if !compatible {
                 continue;
             }
-            let option = PaidInvocationPaymentOptionRef {
+            let option = PurchasePaymentOptionBinding {
                 settlement_family: option.settlement_family.clone(),
                 payload_digest: option.payload_digest.clone(),
             };
@@ -930,7 +927,7 @@ fn methods(
 
 fn payment_choice(
     instance_id: &str,
-    option: &PaidInvocationPaymentOptionRef,
+    option: &PurchasePaymentOptionBinding,
 ) -> Result<String, RuntimeError> {
     let value = serde_json::to_value((instance_id, option))
         .and_then(serde_json::from_value::<runx_contracts::JsonValue>)
@@ -945,21 +942,21 @@ fn purchase_request(
     quote: &Quote,
     methods: &[Method],
 ) -> Result<PurchaseRequest, RuntimeError> {
-    let invocation = &quote.invocation;
+    let purchase = &quote.purchase;
     serde_json::from_value(serde_json::json!({
         "skill": call.paid.skill_id,
         "runner": call.paid.runner,
-        "offer": invocation.offer_revision,
-        "package_digest": invocation.package_digest,
-        "seller": invocation.vendor_ref,
-        "amount_minor": invocation.amount_minor,
-        "currency": invocation.currency,
-        "input_digest": invocation.input_digest,
+        "offer_version": purchase.offer_version,
+        "package_digest": purchase.package_digest,
+        "seller_ref": purchase.seller_ref,
+        "amount_minor": purchase.amount_minor,
+        "currency": purchase.currency,
+        "input_digest": purchase.input_digest,
         "quote": PurchaseQuote {
-            invocation_id: invocation.invocation_id.clone(),
+            purchase_id: purchase.purchase_id.clone(),
             expires_at: quote.expires_at.clone(),
             payment_options: quote.payment_options.iter().map(|option| PurchasePaymentOption {
-                option: PaidInvocationPaymentOptionRef {
+                option: PurchasePaymentOptionBinding {
                     settlement_family: option.settlement_family.clone(),
                     payload_digest: option.payload_digest.clone(),
                 },
@@ -978,17 +975,17 @@ fn purchase_request(
 
 /// What the purchase moves, counted against a money limit: a USD amount in
 /// cents is micro-USD times ten thousand.
-fn usd_micro(invocation: &PaidInvocation) -> Result<u64, Bought> {
-    if invocation.currency.as_str() != "USD" {
+fn usd_micro(purchase: &Purchase) -> Result<u64, Bought> {
+    if purchase.currency.as_str() != "USD" {
         return Err(refused(
             "currency_uncounted",
             format!(
                 "a purchase in {} cannot be counted against a money limit; only USD can",
-                invocation.currency.as_str()
+                purchase.currency.as_str()
             ),
         ));
     }
-    invocation
+    purchase
         .amount_minor
         .get()
         .checked_mul(10_000)

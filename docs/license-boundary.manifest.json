@@ -1,6 +1,6 @@
 {
   "schema": "runx.license_boundary_manifest.v1",
-  "inventory_command": "rg -n 'oauth|RUNX_CONNECT|connection_id|material_ref|credential|auth' crates --glob '*.rs'",
+  "inventory_command": "rg -n 'oauth|RUNX_CONNECT|connection_id|material_id|credential|auth' crates --glob '*.rs'",
   "crate_classes": {
     "runx-cli": {
       "class": "apache-oss",
@@ -50,7 +50,7 @@
     "runx-x402": {
       "class": "apache-oss",
       "phase1_state": "keep",
-      "decision": "Effect-free x402 v2 presentation and Runx invocation binding stay Apache-2.0; provider verification, settlement, credentials, and rails remain outside this crate."
+      "decision": "Effect-free x402 v2 presentation and Runx purchase binding stay Apache-2.0; provider verification, settlement, credentials, and rails remain outside this crate."
     }
   },
   "private_crate_names": [],

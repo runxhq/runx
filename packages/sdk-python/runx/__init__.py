@@ -29,7 +29,7 @@ class CopyableCommand:
 class SkillSearchResult:
     skill_id: str
     name: str
-    owner: str
+    publisher: str
     source: str
     source_label: str
     trust_tier: str
@@ -46,7 +46,7 @@ class SkillSearchResult:
         return cls(
             skill_id=str(value["skill_id"]),
             name=str(value["name"]),
-            owner=str(value["owner"]),
+            publisher=str(value["skill_id"]).split("/", 1)[0],
             source=str(value["source"]),
             source_label=str(value["source_label"]),
             trust_tier=str(value["trust_tier"]),

@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
-use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, sha256_prefixed};
+use runx_contracts::{JsonObject, JsonValue, RunOutcome, sha256_prefixed};
 
 use runx_runtime::persist_json_artifact;
 #[cfg(test)]
@@ -34,8 +34,8 @@ pub(super) struct ResumeHint<'a> {
 pub(super) fn run_result_exit_code(
     result: &runx_runtime::execution::orchestrator::RunResult,
 ) -> ExitCode {
-    if let Some(disposition) = &result.disposition {
-        closure_disposition_exit_code(disposition.clone())
+    if let Some(outcome) = result.outcome {
+        run_outcome_exit_code(outcome)
     } else if result.needs_resolution() {
         ExitCode::from(2)
     } else {
@@ -43,16 +43,16 @@ pub(super) fn run_result_exit_code(
     }
 }
 
-fn closure_disposition_exit_code(disposition: ClosureDisposition) -> ExitCode {
-    match disposition {
-        ClosureDisposition::Closed => ExitCode::SUCCESS,
-        ClosureDisposition::Deferred => ExitCode::from(2),
-        ClosureDisposition::Superseded
-        | ClosureDisposition::Declined
-        | ClosureDisposition::Blocked
-        | ClosureDisposition::Failed
-        | ClosureDisposition::Killed
-        | ClosureDisposition::TimedOut => ExitCode::from(1),
+fn run_outcome_exit_code(outcome: RunOutcome) -> ExitCode {
+    match outcome {
+        RunOutcome::Completed => ExitCode::SUCCESS,
+        RunOutcome::Deferred => ExitCode::from(2),
+        RunOutcome::Superseded
+        | RunOutcome::Declined
+        | RunOutcome::Blocked
+        | RunOutcome::Failed
+        | RunOutcome::Killed
+        | RunOutcome::TimedOut => ExitCode::from(1),
     }
 }
 
@@ -136,8 +136,8 @@ fn project_json_output_value(
             "execution",
             &JsonValue::Object(diagnostic_payload),
         )?;
-        object.insert("diagnostics_ref".to_owned(), reference.clone());
-        append_artifact_refs(&mut object, vec![reference]);
+        object.insert("diagnostics_artifact".to_owned(), reference.clone());
+        append_artifacts(&mut object, vec![reference]);
     }
     if let Some(requests) = object
         .get("requests")
@@ -158,7 +158,7 @@ fn project_json_output_value(
             request_summaries.push(compact_request(request, reference));
         }
         object.insert("requests".to_owned(), JsonValue::Array(request_summaries));
-        append_artifact_refs(&mut object, refs);
+        append_artifacts(&mut object, refs);
     }
     insert_next_command(&mut object);
 
@@ -173,10 +173,10 @@ fn project_json_output_value(
             "result".to_owned(),
             JsonValue::Object(JsonObject::from([
                 ("schema".to_owned(), JsonValue::String(schema)),
-                ("artifact_ref".to_owned(), reference.clone()),
+                ("artifact".to_owned(), reference.clone()),
             ])),
         );
-        append_artifact_refs(&mut object, vec![reference.clone()]);
+        append_artifacts(&mut object, vec![reference.clone()]);
         Some(reference)
     } else {
         None
@@ -200,7 +200,7 @@ fn project_json_output_value(
         .transpose()?;
     if let Some(reference) = &request_set_reference {
         object.insert("requests".to_owned(), JsonValue::Array(Vec::new()));
-        object.insert("request_set_ref".to_owned(), reference.clone());
+        object.insert("request_set_artifact".to_owned(), reference.clone());
     }
 
     if serialized_len(&JsonValue::Object(object.clone()))? <= MAX_COMPACT_OUTPUT_BYTES {
@@ -215,18 +215,18 @@ fn project_json_output_value(
     } else if let Some(reference) = result_reference {
         minimal.insert(
             "result".to_owned(),
-            JsonValue::Object(JsonObject::from([("artifact_ref".to_owned(), reference)])),
+            JsonValue::Object(JsonObject::from([("artifact".to_owned(), reference)])),
         );
     }
     minimal.insert("requests".to_owned(), JsonValue::Array(Vec::new()));
     if let Some(reference) = request_set_reference {
-        minimal.insert("request_set_ref".to_owned(), reference);
+        minimal.insert("request_set_artifact".to_owned(), reference);
     }
     if let Some(next) = object.get("next") {
         minimal.insert("next".to_owned(), next.clone());
     }
     minimal.insert(
-        "artifact_refs".to_owned(),
+        "artifacts".to_owned(),
         JsonValue::Array(vec![full_output_reference]),
     );
     let minimal = JsonValue::Object(minimal);
@@ -243,7 +243,7 @@ fn request_digest(request: &JsonValue) -> Option<String> {
         .map(|bytes| sha256_prefixed(&bytes))
 }
 
-fn compact_request(request: &JsonValue, artifact_ref: JsonValue) -> JsonValue {
+fn compact_request(request: &JsonValue, artifact: JsonValue) -> JsonValue {
     let mut summary = JsonObject::new();
     if let Some(digest) = request_digest(request) {
         summary.insert("request_digest".to_owned(), JsonValue::String(digest));
@@ -285,7 +285,7 @@ fn compact_request(request: &JsonValue, artifact_ref: JsonValue) -> JsonValue {
             );
         }
     }
-    summary.insert("artifact_ref".to_owned(), artifact_ref);
+    summary.insert("artifact".to_owned(), artifact);
     JsonValue::Object(summary)
 }
 
@@ -322,9 +322,9 @@ fn result_schema(result: &JsonValue) -> &str {
         .unwrap_or("runx.untyped_result.v1")
 }
 
-fn append_artifact_refs(object: &mut JsonObject, refs: Vec<JsonValue>) {
+fn append_artifacts(object: &mut JsonObject, refs: Vec<JsonValue>) {
     let entry = object
-        .entry("artifact_refs".to_owned())
+        .entry("artifacts".to_owned())
         .or_insert_with(|| JsonValue::Array(Vec::new()));
     if let JsonValue::Array(existing) = entry {
         existing.extend(refs);
@@ -337,6 +337,7 @@ fn compact_identity(object: &JsonObject) -> JsonObject {
         "schema",
         "status",
         "outcome",
+        "seal_reason",
         "skill_name",
         "runner",
         "run_id",
@@ -345,15 +346,6 @@ fn compact_identity(object: &JsonObject) -> JsonObject {
         if let Some(value) = object.get(key) {
             minimal.insert(key.to_owned(), compact_scalar(value));
         }
-    }
-    if let Some(JsonValue::Object(closure)) = object.get("closure") {
-        let mut compact = JsonObject::new();
-        for key in ["disposition", "reason"] {
-            if let Some(value) = closure.get(key) {
-                compact.insert(key.to_owned(), compact_scalar(value));
-            }
-        }
-        minimal.insert("closure".to_owned(), JsonValue::Object(compact));
     }
     minimal
 }
@@ -489,7 +481,7 @@ fn write_purchase(writer: &mut dyn Write, purchase: &JsonObject) -> io::Result<(
         _ => "<unknown>".to_owned(),
     };
     let seller = purchase
-        .get("seller")
+        .get("seller_ref")
         .and_then(JsonValue::as_object)
         .and_then(|seller| object_string(seller, "uri"))
         .unwrap_or("<unknown>");
@@ -668,7 +660,7 @@ fn write_entry_provenance(writer: &mut dyn Write, object: &JsonObject) -> io::Re
         "digest",
         "profile_digest",
         "registry_source",
-        "registry_source_fingerprint",
+        "registry_source_digest",
         "trust_tier",
         "registry_key_id",
         "trust_state",
@@ -705,8 +697,8 @@ mod tests {
     use runx_contracts::{JsonObject, JsonValue};
 
     use super::{
-        ResumeHint, answers_template, closure_disposition_exit_code, persist_json_artifact,
-        read_json_artifact, run_result_exit_code, serialize_json_output, write_purchase,
+        ResumeHint, answers_template, persist_json_artifact, read_json_artifact,
+        run_outcome_exit_code, run_result_exit_code, serialize_json_output, write_purchase,
         write_skill_text,
     };
 
@@ -876,60 +868,60 @@ mod tests {
     }
 
     #[test]
-    fn terminal_dispositions_have_exhaustive_exit_semantics() {
+    fn terminal_outcomes_have_exhaustive_exit_semantics() {
         let docs = include_str!("../../../../docs/cli-exit-codes.md");
-        for (disposition, label, expected, numeric) in [
+        for (outcome, label, expected, numeric) in [
             (
-                runx_contracts::ClosureDisposition::Closed,
-                "closed",
+                runx_contracts::RunOutcome::Completed,
+                "completed",
                 ExitCode::SUCCESS,
                 0,
             ),
             (
-                runx_contracts::ClosureDisposition::Deferred,
+                runx_contracts::RunOutcome::Deferred,
                 "deferred",
                 ExitCode::from(2),
                 2,
             ),
             (
-                runx_contracts::ClosureDisposition::Superseded,
+                runx_contracts::RunOutcome::Superseded,
                 "superseded",
                 ExitCode::from(1),
                 1,
             ),
             (
-                runx_contracts::ClosureDisposition::Declined,
+                runx_contracts::RunOutcome::Declined,
                 "declined",
                 ExitCode::from(1),
                 1,
             ),
             (
-                runx_contracts::ClosureDisposition::Blocked,
+                runx_contracts::RunOutcome::Blocked,
                 "blocked",
                 ExitCode::from(1),
                 1,
             ),
             (
-                runx_contracts::ClosureDisposition::Failed,
+                runx_contracts::RunOutcome::Failed,
                 "failed",
                 ExitCode::from(1),
                 1,
             ),
             (
-                runx_contracts::ClosureDisposition::Killed,
+                runx_contracts::RunOutcome::Killed,
                 "killed",
                 ExitCode::from(1),
                 1,
             ),
             (
-                runx_contracts::ClosureDisposition::TimedOut,
+                runx_contracts::RunOutcome::TimedOut,
                 "timed_out",
                 ExitCode::from(1),
                 1,
             ),
         ] {
             assert_eq!(
-                closure_disposition_exit_code(disposition),
+                run_outcome_exit_code(outcome),
                 expected,
                 "{label} typed exit code"
             );
@@ -941,10 +933,10 @@ mod tests {
 
         let malformed = runx_runtime::execution::orchestrator::RunResult {
             status: runx_runtime::execution::orchestrator::RunStatus::Sealed,
-            disposition: None,
+            outcome: None,
             output: JsonValue::Object(JsonObject::new()),
-            receipt_refs: Vec::new(),
-            child_receipt_refs: Vec::new(),
+            receipt_ids: Vec::new(),
+            child_receipt_uris: Vec::new(),
             pending_requests: Vec::new(),
             diagnostics: Vec::new(),
         };
@@ -1084,7 +1076,7 @@ mod tests {
                 "runner": "create",
                 "amount_minor": 5,
                 "currency": "USD",
-                "seller": {"type": "principal", "uri": "runx:principal:acme"},
+                "seller_ref": {"type": "principal", "uri": "runx:principal:acme"},
                 "quote": {"expires_at": "2026-10-15T00:00:00Z"},
                 "methods": [
                     {"kind": "balance", "available_micro": 80000, "total_minor": 5},

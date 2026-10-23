@@ -398,10 +398,7 @@ pub(crate) fn check_supported(
                 matches!(
                     (&instance.authority, auth),
                     (
-                        InstanceAuthority::Secret { .. }
-                            | InstanceAuthority::Environment { .. }
-                            | InstanceAuthority::Credential { .. }
-                            | InstanceAuthority::Reference { .. },
+                        InstanceAuthority::Secret { .. } | InstanceAuthority::Environment { .. },
                         runx_contracts::connector::LocalAuth::Credentials
                     ) | (
                         InstanceAuthority::Session { .. },
@@ -595,17 +592,14 @@ pub(crate) fn granted_scopes(
 
 /// The credential an instance delivers to implementations: its secret's or
 /// environment variable's, or the one its command session's token stands in
-/// for. A binding recorded before `runx secret` names the credential it
-/// held, and delivers nothing.
+/// for.
 pub(crate) fn delivered_credential<'a>(
     manifest: &'a runx_contracts::connector::ConnectorManifest,
     authority: &'a InstanceAuthority,
 ) -> Option<&'a runx_contracts::connector::CredentialName> {
     match authority {
         InstanceAuthority::Secret { credential, .. }
-        | InstanceAuthority::Environment { credential, .. }
-        | InstanceAuthority::Credential { credential, .. }
-        | InstanceAuthority::Reference { credential, .. } => Some(credential),
+        | InstanceAuthority::Environment { credential, .. } => Some(credential),
         InstanceAuthority::Session {
             session: runx_contracts::connector::SessionKind::Command,
             ..
@@ -624,8 +618,8 @@ pub(crate) fn pinned(
     connector: &LoadedConnector,
     instance_id: InstanceId,
     placement: Placement,
-    principal_ref: String,
-    account_ref: Option<String>,
+    principal_uri: String,
+    account_id: Option<String>,
     authority: InstanceAuthority,
 ) -> ConnectorInstance {
     let credential_declaration_digest = delivered_credential(&connector.manifest, &authority)
@@ -638,8 +632,8 @@ pub(crate) fn pinned(
         manifest_digest: connector.manifest_digest.clone(),
         connector_digest: connector.connector_digest.clone(),
         placement,
-        principal_ref: principal_ref.into(),
-        account_ref: account_ref.map(Into::into),
+        principal_uri: principal_uri.into(),
+        account_id: account_id.map(Into::into),
         authority,
         parameters: BTreeMap::new(),
         credential_declaration_digest,

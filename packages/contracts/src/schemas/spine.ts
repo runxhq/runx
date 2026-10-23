@@ -1,13 +1,42 @@
 import {
-  type DeepReadonly,
   type JsonSchema,
-  type UnknownRecord,
   generatedSchema,
   generatedSchemaAt,
   validateContractSchema,
 } from "../internal.js";
-
-type ContractObject = DeepReadonly<Record<string, unknown>>;
+import type {
+  ActAddressContract,
+  ActFormContract,
+  ArtifactContract,
+  AuthorityApprovalContract,
+  AuthorityBoundsContract,
+  AuthorityResourceFamilyContract,
+  AuthoritySubsetComparisonContract,
+  AuthoritySubsetProofContract,
+  AuthorityTermContract,
+  AuthorityVerbContract,
+  CriterionBindingContract,
+  CriterionContract,
+  CriterionStatusContract,
+  DecisionChoiceContract,
+  DecisionContract,
+  DigestCommitmentContract,
+  DuplicateCandidateContract,
+  IntentContract,
+  LinksContract,
+  ProofKindContract,
+  ReceiptActContract,
+  ReceiptContract,
+  ReceiptIssuerContract,
+  ReceiptSignatureContract,
+  ReferenceContract,
+  ReferenceLinkContract,
+  ReferenceTypeContract,
+  RunOutcomeContract,
+  SignalAuthenticityContract,
+  SignalContract,
+  SignalTrustLevelContract,
+} from "../generated/contract-types.js";
 
 function schemaAt<TStatic>(
   schema: JsonSchema,
@@ -30,81 +59,8 @@ function enumValues(schema: JsonSchema, label: string): readonly string[] {
   });
 }
 
-export type ReferenceTypeContract = string;
-export type SignalTypeContract = string;
-export type SignalTrustLevelContract = string;
-export type ClosureDispositionContract = string;
-export type DecisionChoiceContract = string;
-export type ActFormContract = string;
-export type CriterionStatusContract = string;
-/** A check the runtime runs and binds to a receipt: its own closed vocabulary. */
-export type CriterionContract = string;
-export type AuthorityResourceFamilyContract = string;
-export type AuthorityVerbContract = string;
-export type ProofKindContract = string;
-
-export type ReferenceContract = DeepReadonly<{
-  schema?: string;
-  type: ReferenceTypeContract;
-  uri: string;
-  provider?: string;
-  locator?: string;
-  label?: string;
-  observed_at?: string;
-  proof_kind?: ProofKindContract;
-}>;
-export type ReferenceLinkContract = DeepReadonly<{
-  role: string;
-  ref: ReferenceContract;
-}>;
-export type ActReferenceContract = DeepReadonly<{
-  receipt_ref: ReferenceContract;
-  act_id: string;
-}>;
-export type HashCommitmentContract = ContractObject;
-export type RedactionContract = ContractObject;
-export type LinksContract = ContractObject;
-export type SignalAuthenticityContract = ContractObject;
-export type SignalContract = ContractObject;
-export type AuthorityBoundsContract = ContractObject;
-export type AuthorityApprovalContract = ContractObject;
-export type AuthorityTermContract = ContractObject;
-export type AuthoritySubsetProofContract = ContractObject;
-export type IntentContract = DeepReadonly<{
-  purpose: string;
-  legitimacy: string;
-}>;
-export type CriterionBindingContract = DeepReadonly<{
-  criterion_id: CriterionContract;
-  status: CriterionStatusContract;
-  evidence_refs: readonly ReferenceContract[];
-  verification_refs: readonly ReferenceContract[];
-}>;
-/** A decision states its choice and the act it selects; the intent, target
- * and artifacts are that act's. */
-export type DecisionContract = DeepReadonly<{
-  schema?: string;
-  decision_id: string;
-  choice: DecisionChoiceContract;
-  selected_act_id: string;
-}>;
-export type ArtifactContract = ContractObject;
-/** Who sealed a receipt, as the Rust `ReceiptIssuerType` names it. */
-export type ReceiptIssuerTypeContract = "local" | "hosted" | "ci";
-
-export type ReceiptIssuerContract = DeepReadonly<{
-  type: ReceiptIssuerTypeContract;
-  kid: string;
-  public_key_sha256: string;
-}>;
-export type ReceiptSignatureContract = DeepReadonly<{
-  alg: "Ed25519";
-  value: string;
-}>;
-
 export const referenceSchema = generatedSchema<ReferenceContract>("reference.schema.json");
 export const referenceLinkSchema = generatedSchema<ReferenceLinkContract>("reference-link.schema.json");
-export const redactionSchema = generatedSchema<RedactionContract>("redaction.schema.json");
 export const signalSchema = generatedSchema<SignalContract>("signal.schema.json");
 export const authoritySubsetProofSchema = generatedSchema<AuthoritySubsetProofContract>(
   "authority-subset-proof.schema.json",
@@ -113,34 +69,29 @@ export const authorityTermSchema = generatedSchema<AuthorityTermContract>("autho
 export const decisionSchema = generatedSchema<DecisionContract>("decision.schema.json");
 export const artifactSchema = generatedSchema<ArtifactContract>("artifact.schema.json");
 
-const receiptRootSchema = generatedSchema<ContractObject>("receipt.schema.json");
+const receiptRootSchema = generatedSchema<ReceiptContract>("receipt.schema.json");
 
 export const referenceTypeSchema = schemaAt<ReferenceTypeContract>(
   referenceSchema,
   ["properties", "type"],
   "reference.type",
 );
-export const actReferenceSchema = schemaAt<ActReferenceContract>(
+export const actAddressSchema = schemaAt<ActAddressContract>(
   artifactSchema,
-  ["properties", "produced_by", "properties", "act_ref"],
-  "artifact.produced_by.act_ref",
+  ["properties", "produced_by", "properties", "act"],
+  "artifact.produced_by.act",
 );
 export const proofKindSchema = schemaAt<ProofKindContract>(
   referenceSchema,
   ["properties", "proof_kind"],
   "reference.proof_kind",
 );
-export const redactionCommitmentAlgorithmSchema = schemaAt<string>(
-  redactionSchema,
-  ["properties", "hash_commitments", "items", "properties", "algorithm"],
-  "redaction.hash_commitments[].algorithm",
+export const digestCommitmentSchema = schemaAt<DigestCommitmentContract>(
+  artifactSchema,
+  ["properties", "digest"],
+  "artifact.digest",
 );
-export const hashCommitmentSchema = schemaAt<HashCommitmentContract>(
-  redactionSchema,
-  ["properties", "hash_commitments", "items"],
-  "redaction.hash_commitments[]",
-);
-export const signalTypeSchema = schemaAt<SignalTypeContract>(
+export const signalTypeSchema = schemaAt<string>(
   signalSchema,
   ["properties", "signal_type"],
   "signal.signal_type",
@@ -165,7 +116,7 @@ export const nullableReferenceSchema = schemaAt<ReferenceContract | null>(
   ["properties", "duplicate_of"],
   "links.duplicate_of",
 );
-export const duplicateCandidateSchema = schemaAt<ContractObject>(
+export const duplicateCandidateSchema = schemaAt<DuplicateCandidateContract>(
   linksSchema,
   ["properties", "duplicate_candidates", "items"],
   "links.duplicate_candidates[]",
@@ -191,12 +142,12 @@ export const authorityApprovalSchema = schemaAt<AuthorityApprovalContract>(
   ["properties", "approvals", "items"],
   "authority.terms[].approvals[]",
 );
-export const authoritySubsetComparisonSchema = schemaAt<ContractObject>(
+export const authoritySubsetComparisonSchema = schemaAt<AuthoritySubsetComparisonContract>(
   authoritySubsetProofSchema,
   ["properties", "compared_terms", "items"],
   "authority_subset_proof.compared_terms[]",
 );
-const receiptActSchema = schemaAt<ContractObject>(
+const receiptActSchema = schemaAt<ReceiptActContract>(
   receiptRootSchema,
   ["properties", "acts", "items"],
   "receipt.acts[]",
@@ -221,10 +172,10 @@ export const criterionStatusSchema = schemaAt<CriterionStatusContract>(
   ["properties", "status"],
   "receipt.acts[].criterion_bindings[].status",
 );
-export const closureDispositionSchema = schemaAt<ClosureDispositionContract>(
+export const runOutcomeSchema = schemaAt<RunOutcomeContract>(
   receiptRootSchema,
-  ["properties", "seal", "properties", "disposition"],
-  "receipt.seal.disposition",
+  ["properties", "seal", "properties", "outcome"],
+  "receipt.seal.outcome",
 );
 export const actFormSchema = schemaAt<ActFormContract>(
   receiptActSchema,
@@ -269,7 +220,7 @@ export const signalTypes = [
   "support_ticket",
 ] as const;
 export const signalTrustLevels = enumValues(signalTrustLevelSchema, "signal.authenticity.trust_level");
-export const closureDispositions = enumValues(closureDispositionSchema, "receipt.seal.disposition");
+export const runOutcomes = enumValues(runOutcomeSchema, "receipt.seal.outcome");
 export const decisionChoices = enumValues(decisionChoiceSchema, "decision.choice");
 export const actForms = enumValues(actFormSchema, "receipt.acts[].form");
 export const criterionStatuses = enumValues(criterionStatusSchema, "receipt.acts[].criterion_bindings[].status");
@@ -277,7 +228,6 @@ export const criteria = enumValues(criterionSchema, "receipt.acts[].criterion_bi
 export const authorityResourceFamilies = enumValues(authorityResourceFamilySchema, "authority.terms[].resource_family");
 export const authorityVerbs = enumValues(authorityVerbSchema, "authority.terms[].verbs[]");
 export const proofKinds = enumValues(proofKindSchema, "reference.proof_kind");
-export const redactionCommitmentAlgorithms = enumValues(redactionCommitmentAlgorithmSchema, "redaction.hash_commitments[].algorithm");
 
 export function validateReferenceContract(value: unknown, label = "reference"): ReferenceContract {
   return validateContractSchema(referenceSchema, value, label) as ReferenceContract;
@@ -300,8 +250,4 @@ export function validateDecisionContract(value: unknown, label = "decision"): De
 
 export function validateSpineArtifactContract(value: unknown, label = "artifact"): ArtifactContract {
   return validateContractSchema(artifactSchema, value, label) as ArtifactContract;
-}
-
-export function validateRedactionContract(value: unknown, label = "redaction"): RedactionContract {
-  return validateContractSchema(redactionSchema, value, label) as RedactionContract;
 }

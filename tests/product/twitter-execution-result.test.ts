@@ -97,7 +97,7 @@ describe("twitter execution provider outcomes", () => {
       execution_plan: plan,
       account_id: "42",
       provider_operation: {
-        readback_ref: "fixture:first",
+        readback_uri: "fixture:first",
         result: { outcomes: [
           refused({ detail: "The first act was refused." }),
           { status: "refused", code: "rate_limited", retry_at: "2027-01-15T08:00:00Z" },
@@ -116,7 +116,7 @@ describe("twitter execution provider outcomes", () => {
       },
       account_id: "42",
       provider_operation: {
-        readback_ref: "fixture:second", result: { outcomes: [applied({ following: false })] },
+        readback_uri: "fixture:second", result: { outcomes: [applied({ following: false })] },
       },
     }).twitter_execution;
     expect(second.decision).toBe("completed_with_failures");
@@ -169,7 +169,7 @@ function refused(answer: Record<string, unknown>) {
 function finalize(kind: string, outcomes: Record<string, unknown>[]) {
   return finalizeExecution({
     execution_plan: executionPlan(kind, outcomes.length),
-    provider_operation: { status: "success", readback_ref: "fixture:native-readback", result: { outcomes } },
+    provider_operation: { status: "success", readback_uri: "fixture:native-readback", result: { outcomes } },
     account_id: "42",
   }).twitter_execution;
 }

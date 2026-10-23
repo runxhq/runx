@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_contracts::{CommandExecution, CommandPlan, JsonNumber, JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -54,54 +54,11 @@ impl CapabilityOutput for CommandPlanOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub(super) struct CommandPlan {
-    pub(super) schema: String,
-    pub(super) command_digest: String,
-    pub(super) cwd: String,
-    pub(super) timeout_ms: u64,
-    pub(super) output_mode: String,
-    pub(super) env_names: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
 pub(super) struct CommandExecutionOutput {
     pub(super) command_execution: CommandExecution,
 }
 
 impl CapabilityOutput for CommandExecutionOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct CommandExecution {
-    pub(super) schema: String,
-    pub(super) decision: String,
-    pub(super) command_digest: String,
-    pub(super) cwd: String,
-    pub(super) exit_code: Option<i64>,
-    pub(super) timed_out: bool,
-    pub(super) duration_ms: u64,
-    pub(super) stdout: String,
-    pub(super) stderr: String,
-    pub(super) stdout_digest: String,
-    pub(super) stderr_digest: String,
-    pub(super) stdout_bytes: u64,
-    pub(super) stderr_bytes: u64,
-    pub(super) stdout_truncated: bool,
-    pub(super) stderr_truncated: bool,
-    pub(super) json: JsonValue,
-    pub(super) errors: Vec<CommandError>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct CommandError {
-    pub(super) code: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) exit_code: Option<i64>,
-}
 
 const FIELDS: &[CapabilityField] = &[
     CapabilityField {
@@ -141,7 +98,7 @@ const FIELDS: &[CapabilityField] = &[
 static PLAN: TypedNativeCapability<CommandInput, CommandPlanOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "command.plan",
-        owner: "runx-runtime/command",
+        source: "runx-runtime/command",
         summary: "Normalize and digest one exact argv command without executing it.",
         scopes: &[],
         effect: CapabilityEffect::Read,
@@ -159,7 +116,7 @@ static EXECUTE: TypedNativeCapability<CommandInput, CommandExecutionOutput> =
     TypedNativeCapability::new_with_execution_boundary(
         CapabilityDefinition {
             id: "command.execute",
-            owner: "runx-runtime/command",
+            source: "runx-runtime/command",
             summary: "Execute exact argv under runtime-owned process supervision.",
             scopes: &["process.exec"],
             effect: CapabilityEffect::Mutate,

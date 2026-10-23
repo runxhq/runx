@@ -3,7 +3,8 @@
 use std::path::Path;
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use runx_contracts::schema::{BoundedVec, NonEmptyString};
+use runx_contracts::{CLI_HELP_MAX_ARGS, CliHelp, CliHelpFlag};
 
 use super::{NativeInvocation, invalid_input, resolve_repo_root_for};
 use crate::{CapabilityOutput, RuntimeError};
@@ -18,26 +19,13 @@ use capability::CaptureHelpInput;
 const TOOL: &str = "cli.capture_help";
 const OUTPUT_LIMIT_BYTES: usize = 256 * 1024;
 const TIMEOUT: Duration = Duration::from_secs(15);
-const MAX_CLI_RUN_ARGS: usize = 32;
 const MAX_CLI_RUN_ARG_BYTES: usize = 4 * 1024;
 
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct CliHelpOutput {
-    command: String,
-    args: Vec<String>,
-    help_flag: String,
-    cwd: String,
-    stdout: String,
-    stderr: String,
-    exit_code: Option<i64>,
-}
-
-impl CapabilityOutput for CliHelpOutput {}
+impl CapabilityOutput for CliHelp {}
 
 fn capture_help(
     invocation: &NativeInvocation<'_, CaptureHelpInput>,
-) -> Result<CliHelpOutput, RuntimeError> {
+) -> Result<CliHelp, RuntimeError> {
     let root = resolve_repo_root_for(
         TOOL,
         &invocation.inputs.repo_root,
@@ -48,36 +36,28 @@ fn capture_help(
     let cwd = working_directory(&invocation.inputs.cwd, &root)?;
     let command = bounded_text(&invocation.inputs.command, "command")?;
     let args = arguments(&invocation.inputs.args)?;
-    let help_flag = help_flag(&invocation.inputs.help_flag)?;
-    let mut argv = args.clone();
-    argv.push(help_flag.to_owned());
+    let help_flag = invocation.inputs.help_flag;
+    let argv = args
+        .iter()
+        .map(|arg| arg.as_str().to_owned())
+        .chain([help_flag.as_str().to_owned()])
+        .collect();
     let outcome = run_help(invocation, &cwd, &command, argv)?;
     Ok(help_output(
         invocation, command, args, help_flag, cwd, outcome,
     ))
 }
 
-fn help_flag(value: &str) -> Result<&'static str, RuntimeError> {
-    Ok(match value {
-        "--help" => "--help",
-        "-h" => "-h",
-        "help" => "help",
-        _ => {
-            return Err(invalid_input(TOOL, "help_flag must be --help, -h, or help"));
-        }
-    })
-}
-
 fn run_help(
     invocation: &NativeInvocation<'_, CaptureHelpInput>,
     cwd: &Path,
-    command: &str,
+    command: &NonEmptyString,
     argv: Vec<String>,
 ) -> Result<ProcessOutcome, RuntimeError> {
     let outcome = run_process(
         ProcessSpec::new(
             "native CLI help capture",
-            command.to_owned(),
+            command.as_str().to_owned(),
             OUTPUT_LIMIT_BYTES,
         )
         .args(argv)
@@ -97,37 +77,33 @@ fn run_help(
 
 fn help_output(
     invocation: &NativeInvocation<'_, CaptureHelpInput>,
-    command: String,
-    args: Vec<String>,
-    help_flag: &str,
+    command: NonEmptyString,
+    args: BoundedVec<NonEmptyString, 0, CLI_HELP_MAX_ARGS>,
+    help_flag: CliHelpFlag,
     cwd: std::path::PathBuf,
     outcome: ProcessOutcome,
-) -> CliHelpOutput {
+) -> CliHelp {
     let stdout = invocation
         .credential_delivery
         .redact_bytes_to_string(outcome.stdout.bytes, OUTPUT_LIMIT_BYTES);
     let stderr = invocation
         .credential_delivery
         .redact_bytes_to_string(outcome.stderr.bytes, OUTPUT_LIMIT_BYTES);
-    CliHelpOutput {
+    CliHelp {
         command,
         args,
-        help_flag: help_flag.to_owned(),
-        cwd: cwd.to_string_lossy().into_owned(),
+        help_flag,
+        cwd: cwd.to_string_lossy().into_owned().into(),
         stdout,
         stderr,
         exit_code: outcome.status.code().map(i64::from),
     }
 }
 
-fn arguments(values: &[String]) -> Result<Vec<String>, RuntimeError> {
-    if values.len() > MAX_CLI_RUN_ARGS {
-        return Err(invalid_input(
-            TOOL,
-            format!("args must contain no more than {MAX_CLI_RUN_ARGS} entries"),
-        ));
-    }
-    values
+fn arguments(
+    values: &[String],
+) -> Result<BoundedVec<NonEmptyString, 0, CLI_HELP_MAX_ARGS>, RuntimeError> {
+    let args = values
         .iter()
         .enumerate()
         .map(|(index, value)| {
@@ -139,7 +115,13 @@ fn arguments(values: &[String]) -> Result<Vec<String>, RuntimeError> {
             }
             bounded_text(value, &format!("args[{index}]"))
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    BoundedVec::new(args).ok_or_else(|| {
+        invalid_input(
+            TOOL,
+            format!("args must contain no more than {CLI_HELP_MAX_ARGS} entries"),
+        )
+    })
 }
 
 fn working_directory(requested: &str, root: &Path) -> Result<std::path::PathBuf, RuntimeError> {
@@ -158,14 +140,18 @@ fn working_directory(requested: &str, root: &Path) -> Result<std::path::PathBuf,
     Ok(cwd)
 }
 
-fn bounded_text(value: &str, field: &str) -> Result<String, RuntimeError> {
-    if value.is_empty() || value.len() > MAX_CLI_RUN_ARG_BYTES || value.contains('\0') {
-        return Err(invalid_input(
-            TOOL,
-            format!("{field} must contain 1-{MAX_CLI_RUN_ARG_BYTES} non-NUL bytes"),
-        ));
+fn bounded_text(value: &str, field: &str) -> Result<NonEmptyString, RuntimeError> {
+    if value.len() > MAX_CLI_RUN_ARG_BYTES || value.contains('\0') {
+        return Err(bounded_text_error(field));
     }
-    Ok(value.to_owned())
+    NonEmptyString::new(value).ok_or_else(|| bounded_text_error(field))
+}
+
+fn bounded_text_error(field: &str) -> RuntimeError {
+    invalid_input(
+        TOOL,
+        format!("{field} must contain 1-{MAX_CLI_RUN_ARG_BYTES} non-NUL bytes"),
+    )
 }
 
 #[cfg(test)]

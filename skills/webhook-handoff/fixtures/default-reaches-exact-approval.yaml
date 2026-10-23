@@ -12,7 +12,7 @@ inputs:
   platform: n8n
   webhook_host: acme.app.n8n.cloud
   event_id: evt_n8n_demo_001
-  execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
+  execution_context: { caller: runx-cli, workflow: n8n-cloud-demo }
   payload: { hello: workflow }
 expect:
   status: needs_agent

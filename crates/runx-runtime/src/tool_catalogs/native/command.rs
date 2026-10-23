@@ -9,12 +9,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_contracts::schema::{BoundedU64, BoundedVec};
+use runx_contracts::{
+    COMMAND_MAX_TIMEOUT_MS, COMMAND_MIN_TIMEOUT_MS, COMMAND_OUTPUT_MAX_BYTES, CommandOutputMode,
+    CommandPlan, CommandPlanSchema, Digest, JsonNumber, JsonObject, JsonValue, ProcessEnvName,
+};
 
-use super::{NativeInvocation, invalid_input};
+use super::{NativeInvocation, invalid_input, non_empty};
 use crate::RuntimeError;
 use crate::process::detached::{Followed, Processes, Start};
-use crate::process::{ProcessSpec, STANDARD_PROCESS_OUTPUT_BYTES, run_process};
+use crate::process::{ProcessSpec, run_process};
 use crate::process_invocation::{
     NativeCommandInvocationRequest, prepare_native_command_invocation,
 };
@@ -25,32 +29,15 @@ mod result;
 
 pub(super) use capability::CAPABILITIES;
 use capability::CommandInput;
-use capability::{CommandExecutionOutput, CommandPlan, CommandPlanOutput};
+use capability::{CommandExecutionOutput, CommandPlanOutput};
 
 use input::prepare;
 use result::{observe_command, render_execution};
 
 const TOOL: &str = "command.execute";
-const MIN_TIMEOUT_MS: u64 = 1_000;
-const MAX_TIMEOUT_MS: u64 = 3_600_000;
-const OUTPUT_LIMIT_BYTES: usize = STANDARD_PROCESS_OUTPUT_BYTES;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum OutputMode {
-    Digest,
-    Text,
-    Json,
-}
-
-impl OutputMode {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Digest => "digest",
-            Self::Text => "text",
-            Self::Json => "json",
-        }
-    }
-}
+const MIN_TIMEOUT_MS: u64 = COMMAND_MIN_TIMEOUT_MS;
+const MAX_TIMEOUT_MS: u64 = COMMAND_MAX_TIMEOUT_MS;
+const OUTPUT_LIMIT_BYTES: usize = COMMAND_OUTPUT_MAX_BYTES as usize;
 
 struct PreparedCommand {
     command: String,
@@ -60,7 +47,7 @@ struct PreparedCommand {
     cwd_relative: String,
     explicit_env: BTreeMap<String, String>,
     timeout_ms: u64,
-    output_mode: OutputMode,
+    output_mode: CommandOutputMode,
     command_digest: String,
 }
 
@@ -68,14 +55,25 @@ fn plan(
     invocation: &NativeInvocation<'_, CommandInput>,
 ) -> Result<CommandPlanOutput, RuntimeError> {
     let command = prepare(invocation)?;
+    let env_names = command
+        .explicit_env
+        .keys()
+        .map(|name| {
+            ProcessEnvName::new(name.as_str())
+                .ok_or_else(|| invalid_input(TOOL, format!("invalid env name {name:?}")))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(CommandPlanOutput {
         command_plan: CommandPlan {
-            schema: "runx.command.plan.v1".to_owned(),
-            command_digest: command.command_digest,
-            cwd: command.cwd_relative,
-            timeout_ms: command.timeout_ms,
-            output_mode: command.output_mode.as_str().to_owned(),
-            env_names: command.explicit_env.keys().cloned().collect(),
+            schema: CommandPlanSchema::V1,
+            command_digest: Digest::new(command.command_digest)
+                .ok_or_else(|| invalid_input(TOOL, "the command digest is not sha256"))?,
+            cwd: non_empty(TOOL, "cwd", command.cwd_relative)?,
+            timeout_ms: BoundedU64::new(command.timeout_ms)
+                .ok_or_else(|| invalid_input(TOOL, "timeout_ms is out of bounds"))?,
+            output_mode: command.output_mode,
+            env_names: BoundedVec::new(env_names)
+                .ok_or_else(|| invalid_input(TOOL, "env exceeds its bound"))?,
         },
     })
 }

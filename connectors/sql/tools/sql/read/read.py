@@ -37,9 +37,9 @@ QUERY_SCHEMA = {
 CONFIG_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["source_ref", "url", "dialect", "read_only", "queries"],
+    "required": ["source", "url", "dialect", "read_only", "queries"],
     "properties": {
-        "source_ref": ID,
+        "source": ID,
         "url": {"type": "string", "minLength": 1, "maxLength": 8192},
         "dialect": {"type": "string", "minLength": 1, "maxLength": 64},
         "read_only": {"const": True},
@@ -55,10 +55,10 @@ CONFIG_SCHEMA = {
 }
 INPUT_SCHEMA = {
     "type": "object", "additionalProperties": False,
-    "required": ["action", "source_ref"],
+    "required": ["action", "source"],
     "properties": {
         "action": {"enum": ["catalog", "query"]},
-        "source_ref": ID,
+        "source": ID,
         "query_id": ID,
         "parameters": {"type": "object", "maxProperties": 64},
         "max_rows": {"type": "integer", "minimum": 1, "maximum": 1000},
@@ -140,11 +140,11 @@ def encode(value):
 
 def read(inputs, config):
     validate(INPUT_SCHEMA, inputs, "sql.invalid_input")
-    if inputs["source_ref"] != config["source_ref"]:
+    if inputs["source"] != config["source"]:
         raise ReadError("sql.source_mismatch")
-    common = {"source_ref": config["source_ref"], "dialect": config["dialect"]}
+    common = {"source": config["source"], "dialect": config["dialect"]}
     if inputs["action"] == "catalog":
-        if set(inputs) != {"action", "source_ref"}:
+        if set(inputs) != {"action", "source"}:
             raise ReadError("sql.invalid_catalog_input")
         return {
             **common, "status": "catalog", "executed": False,
@@ -153,7 +153,7 @@ def read(inputs, config):
                 "description", "parameters_schema", "result_description"
             )}} for name, query in config["queries"].items()],
         }
-    if set(inputs) != {"action", "source_ref", "query_id", "parameters", "max_rows"}:
+    if set(inputs) != {"action", "source", "query_id", "parameters", "max_rows"}:
         raise ReadError("sql.incomplete_query_input")
     query = config["queries"].get(inputs["query_id"])
     if query is None:

@@ -1,5 +1,5 @@
 skill: support-triage
-version: "0.1.9"
+version: "0.1.10"
 catalog:
   kind: skill
   audience: public
@@ -52,11 +52,11 @@ runners:
           items:
             type: object
             required:
-            - source_ref
+            - source_id
             - text
             additionalProperties: false
             properties:
-              source_ref:
+              source_id:
                 type: string
                 minLength: 1
                 maxLength: 1000
@@ -135,11 +135,11 @@ runners:
                 items:
                   type: object
                   required:
-                  - source_ref
+                  - source_id
                   - quote
                   additionalProperties: false
                   properties:
-                    source_ref:
+                    source_id:
                       type: string
                       minLength: 1
                       maxLength: 1000
@@ -191,134 +191,11 @@ runners:
       outputs:
         support_triage_packet:
           type: object
-          schema:
-            additionalProperties: false
-            required:
-            - classification
-            - severity
-            - recommended_path
-            - rationale
-            - evidence
-            - missing_context
-            - operator_notes
-            - draft_email
-            - schema
-            - decision
-            - delivery_status
-            - request_digest
-            - context_digest
-            - validation
-            properties:
-              classification:
-                enum:
-                - how_to
-                - billing
-                - account_access
-                - bug
-                - abuse
-                - unknown
-              severity:
-                enum:
-                - low
-                - medium
-                - high
-                - critical
-              recommended_path:
-                enum:
-                - reply_draft
-                - request_info
-                - engineering_intake
-                - billing_review
-                - account_review
-                - abuse_review
-                - manual_review
-              rationale:
-                type: string
-                minLength: 1
-                maxLength: 5000
-              evidence:
-                type: array
-                maxItems: 50
-                items:
-                  type: object
-                  required:
-                  - source_ref
-                  - quote
-                  additionalProperties: false
-                  properties:
-                    source_ref:
-                      type: string
-                      minLength: 1
-                      maxLength: 1000
-                    quote:
-                      type: string
-                      minLength: 1
-                      maxLength: 4000
-              missing_context:
-                type: array
-                maxItems: 30
-                items:
-                  type: string
-                  minLength: 1
-                  maxLength: 2000
-              operator_notes:
-                type: array
-                maxItems: 30
-                items:
-                  type: string
-                  minLength: 1
-                  maxLength: 2000
-              draft_email:
-                type:
-                - object
-                - 'null'
-                required:
-                - subject
-                - body
-                additionalProperties: false
-                properties:
-                  subject:
-                    type: string
-                    minLength: 1
-                    maxLength: 2000
-                  body:
-                    type: string
-                    minLength: 1
-                    maxLength: 20000
-              schema:
-                const: runx.support.triage_reply.v1
-              decision:
-                enum:
-                - ready
-                - held
-              delivery_status:
-                const: not_sent
-              request_digest:
-                type: string
-                pattern: ^sha256:[0-9a-f]{64}$
-              context_digest:
-                type: string
-                pattern: ^sha256:[0-9a-f]{64}$
-              validation:
-                type: object
-                additionalProperties: false
-                required:
-                - status
-                - findings
-                properties:
-                  status:
-                    enum:
-                    - pass
-                    - fail
-                  findings:
-                    type: array
-                    items:
-                      type: string
       artifacts:
         named_emits:
           support_triage_packet: support_triage_packet
         packets:
-          support_triage_packet: runx.support.triage_reply.v1
+          support_triage_packet: runx/support-triage.reply.v1
 harness:
   files:
   - fixtures/support/composed.graph
@@ -330,7 +207,7 @@ harness:
         subject: How do I verify my sending domain?
         body: I added the DNS records. What should I check next?
       product_evidence:
-      - source_ref: docs:domain-verification
+      - source_id: docs:domain-verification
         text: Open Settings > Domains and select Verify. Pending records may take up to 24 hours to resolve.
     caller:
       answers:
@@ -341,9 +218,9 @@ harness:
             recommended_path: reply_draft
             rationale: The customer asks for a documented next step.
             evidence:
-            - source_ref: thread:domain-1
+            - source_id: thread:domain-1
               quote: I added the DNS records.
-            - source_ref: docs:domain-verification
+            - source_id: docs:domain-verification
               quote: Open Settings > Domains and select Verify.
             missing_context: []
             operator_notes:
@@ -393,7 +270,7 @@ harness:
             recommended_path: request_info
             rationale: No product documentation was supplied.
             evidence:
-            - source_ref: thread:content-plan
+            - source_id: thread:content-plan
               quote: How do I plan a content calendar?
             missing_context:
             - Which product and documented calendar workflow?
@@ -416,7 +293,7 @@ harness:
         subject: How do I verify my sending domain?
         body: I added the DNS records. What should I check next?
       product_evidence:
-      - source_ref: docs:domain-verification
+      - source_id: docs:domain-verification
         text: Open Settings > Domains and select Verify. Pending records may take up to 24 hours to resolve.
     caller:
       answers:
@@ -427,9 +304,9 @@ harness:
             recommended_path: reply_draft
             rationale: The customer asks for a documented next step.
             evidence:
-            - source_ref: thread:domain-1
+            - source_id: thread:domain-1
               quote: I added the DNS records.
-            - source_ref: docs:domain-verification
+            - source_id: docs:domain-verification
               quote: Change your DNS records to an invented value.
             missing_context: []
             operator_notes:
@@ -462,7 +339,7 @@ harness:
             recommended_path: reply_draft
             rationale: The customer asks for a documented next step.
             evidence:
-            - source_ref: thread:domain-1
+            - source_id: thread:domain-1
               quote: I added the DNS records.
             missing_context: []
             operator_notes:

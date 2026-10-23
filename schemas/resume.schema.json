@@ -2,12 +2,15 @@
   "$id": "https://schemas.runx.ai/runx/resume/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Each map is keyed by the address of the request it answers. `answers` is the agent's lane; `approvals` and `standing_approvals` are the person's, and every entry in them resolves as theirs. A close comes alone.",
   "properties": {
     "answers": {
       "additionalProperties": {
         "additionalProperties": false,
+        "description": "An agent's answer to an input request or an agent act.",
         "properties": {
           "request_digest": {
+            "description": "The digest of the request answered, as the run reported it.",
             "minLength": 1,
             "type": "string"
           },
@@ -17,6 +20,7 @@
           "request_digest",
           "value"
         ],
+        "title": "BoundAnswer",
         "type": "object"
       },
       "minProperties": 1,
@@ -25,11 +29,13 @@
     "approvals": {
       "additionalProperties": {
         "additionalProperties": false,
+        "description": "A person's decision, validated against the request it answers: an approval takes `approved` and `reason`, and a purchase's also the `choice` of method it pays with; a claimed call's retry takes `value: {\"retry\": true}`.",
         "properties": {
           "approved": {
             "type": "boolean"
           },
           "choice": {
+            "description": "The instance of the purchase request's method the person pays with.",
             "minLength": 1,
             "type": "string"
           },
@@ -46,6 +52,7 @@
         "required": [
           "request_digest"
         ],
+        "title": "BoundApproval",
         "type": "object"
       },
       "minProperties": 1,
@@ -53,28 +60,35 @@
     },
     "close": {
       "additionalProperties": false,
+      "description": "Seal the run without continuing it: a person stopped it, or a new attempt replaced it. An effect the run left unconfirmed stays unconfirmed.",
       "properties": {
-        "disposition": {
+        "outcome": {
           "enum": [
             "declined",
             "superseded"
           ],
+          "title": "CloseOutcome",
           "type": "string"
         }
       },
       "required": [
-        "disposition"
+        "outcome"
       ],
+      "title": "RunClose",
       "type": "object"
     },
     "standing_approvals": {
+      "description": "The person's new standing approvals, which replace the run's set for every later step and answer any open approval of a local effect they cover.",
       "items": {
         "additionalProperties": false,
+        "description": "A person's bounded confirmation of the local effects a run worked by an agent would otherwise hold for them: exactly one of `edits`, `commands` and `local`. It never covers an operation's own declared approval.",
         "properties": {
           "commands": {
             "additionalProperties": false,
+            "description": "A command or process whose argv begins with these tokens.",
             "properties": {
               "argv_prefix": {
+                "description": "The exact leading argv tokens. Argv has no shell, so a prefix admits nothing beyond the tokens it names.",
                 "items": {
                   "minLength": 1,
                   "type": "string"
@@ -85,12 +99,15 @@
             "required": [
               "argv_prefix"
             ],
+            "title": "StandingCommands",
             "type": "object"
           },
           "edits": {
             "additionalProperties": false,
+            "description": "File changes under these paths.",
             "properties": {
               "paths": {
+                "description": "Workspace-relative path prefixes, by whole components; `\"\"` is the whole workspace.",
                 "items": {
                   "type": "string"
                 },
@@ -100,18 +117,22 @@
             "required": [
               "paths"
             ],
+            "title": "StandingEdits",
             "type": "object"
           },
           "local": {
             "const": true,
+            "description": "Every local effect.",
             "type": "boolean"
           }
         },
+        "title": "StandingApproval",
         "type": "object"
       },
       "type": "array"
     }
   },
+  "title": "ResumeDocument",
   "type": "object",
   "x-runx-schema": "runx.resume.v1"
 }

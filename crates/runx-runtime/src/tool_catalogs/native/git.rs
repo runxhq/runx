@@ -2,7 +2,9 @@
 
 use std::time::Duration;
 
-use super::{NativeInvocation, invalid_input, resolve_repo_root_for};
+use runx_contracts::{GitBranch, GitDiff, GitStatus};
+
+use super::{NativeInvocation, invalid_input, non_empty, resolve_repo_root_for, root_name};
 use crate::RuntimeError;
 
 mod capability;
@@ -11,10 +13,7 @@ mod history;
 use crate::process::{ProcessOutcome, ProcessSpec, run_process};
 use crate::process_invocation::process_base_environment;
 pub(super) use capability::CAPABILITIES;
-use capability::{
-    GitBlobDigest, GitBlobDigestInput, GitBlobDigestOutput, GitBranchOutput, GitDiffInput,
-    GitDiffOutput, GitInput, GitStatusOutput,
-};
+use capability::{GitBlobDigest, GitBlobDigestInput, GitBlobDigestOutput, GitDiffInput, GitInput};
 
 const CURRENT_BRANCH: &str = "git.current_branch";
 const STATUS: &str = "git.status";
@@ -38,9 +37,7 @@ fn blob_digest(
     })
 }
 
-fn current_branch(
-    invocation: &NativeInvocation<'_, GitInput>,
-) -> Result<GitBranchOutput, RuntimeError> {
+fn current_branch(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitBranch, RuntimeError> {
     let root = resolve_repo_root_for(
         CURRENT_BRANCH,
         &invocation.inputs.repo_root,
@@ -69,14 +66,14 @@ fn current_branch(
         ));
     }
 
-    Ok(GitBranchOutput {
-        repo_root: root.to_string_lossy().into_owned(),
+    Ok(GitBranch {
+        repo_root: root_name(CURRENT_BRANCH, &root)?,
         branch,
         detached,
     })
 }
 
-fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatusOutput, RuntimeError> {
+fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatus, RuntimeError> {
     let root = resolve_repo_root_for(
         STATUS,
         &invocation.inputs.repo_root,
@@ -108,8 +105,8 @@ fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatusOutput
         ),
         _ => (None, Vec::new()),
     };
-    Ok(GitStatusOutput {
-        repo_root: root.to_string_lossy().into_owned(),
+    Ok(GitStatus {
+        repo_root: root_name(STATUS, &root)?,
         clean: entries.is_empty(),
         entries,
         branch,
@@ -118,7 +115,7 @@ fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatusOutput
 
 fn diff_name_only(
     invocation: &NativeInvocation<'_, GitDiffInput>,
-) -> Result<GitDiffOutput, RuntimeError> {
+) -> Result<GitDiff, RuntimeError> {
     let root = resolve_repo_root_for(
         DIFF_NAME_ONLY,
         &invocation.inputs.repo_root,
@@ -160,9 +157,9 @@ fn diff_name_only(
         .filter(|line| !line.is_empty())
         .map(str::to_owned)
         .collect();
-    Ok(GitDiffOutput {
-        repo_root: root.to_string_lossy().into_owned(),
-        base: base.to_owned(),
+    Ok(GitDiff {
+        repo_root: root_name(DIFF_NAME_ONLY, &root)?,
+        base: non_empty(DIFF_NAME_ONLY, "base", base.to_owned())?,
         files,
     })
 }

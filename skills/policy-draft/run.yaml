@@ -1,7 +1,7 @@
 skill: policy-draft
-version: "0.2.6"
+version: "0.2.7"
 catalog:
-  owner: runx
+  publisher: runx
   kind: graph
   audience: operator
   visibility: public
@@ -94,51 +94,12 @@ runners:
         outputs:
           policy_proposal:
             type: object
-            schema:
-              required: [decision, policy, validation, rationale, blockers, needs_input, success_checkpoint]
-              additionalProperties: false
-              properties:
-                decision: { type: string, enum: [ready, needs_input, reject] }
-                policy:
-                  type: [object, "null"]
-                  required: [schema]
-                  properties:
-                    schema: { const: runx.operational_policy.v1 }
-                  additionalProperties: true
-                validation:
-                  type: object
-                  required: [status, engine, findings, readback, reason]
-                  additionalProperties: false
-                  properties:
-                    status: { type: string, enum: [pass, fail, not_run] }
-                    engine: { const: runx policy }
-                    findings:
-                      type: array
-                      items:
-                        type: object
-                        required: [code, path, message]
-                        additionalProperties: false
-                        properties:
-                          code: { type: string }
-                          path: { type: string }
-                          message: { type: string }
-                    readback: { type: [object, "null"], additionalProperties: true }
-                    reason: { type: string }
-                rationale: { type: string }
-                blockers: { type: array, items: { type: string } }
-                needs_input: { type: array, items: { type: string } }
-                success_checkpoint:
-                  type: object
-                  properties:
-                    milestone: { type: string }
-                    description: { type: string }
-                  additionalProperties: true
         inputs:
           policy_context: $steps.prepare.policy_context
           policy_lint: $steps.lint.policy_lint
         artifacts:
           wrap_as: policy_proposal_packet
-          packet: runx.policy_proposal.v1
+          packet: runx/policy-draft.proposal.v1
       - id: finalize-stop
         label: seal missing-input or attenuation refusal
         when:
@@ -148,50 +109,11 @@ runners:
         outputs:
           policy_proposal:
             type: object
-            schema:
-              required: [decision, policy, validation, rationale, blockers, needs_input, success_checkpoint]
-              additionalProperties: false
-              properties:
-                decision: { type: string, enum: [ready, needs_input, reject] }
-                policy:
-                  type: [object, "null"]
-                  required: [schema]
-                  properties:
-                    schema: { const: runx.operational_policy.v1 }
-                  additionalProperties: true
-                validation:
-                  type: object
-                  required: [status, engine, findings, readback, reason]
-                  additionalProperties: false
-                  properties:
-                    status: { type: string, enum: [pass, fail, not_run] }
-                    engine: { const: runx policy }
-                    findings:
-                      type: array
-                      items:
-                        type: object
-                        required: [code, path, message]
-                        additionalProperties: false
-                        properties:
-                          code: { type: string }
-                          path: { type: string }
-                          message: { type: string }
-                    readback: { type: [object, "null"], additionalProperties: true }
-                    reason: { type: string }
-                rationale: { type: string }
-                blockers: { type: array, items: { type: string } }
-                needs_input: { type: array, items: { type: string } }
-                success_checkpoint:
-                  type: object
-                  properties:
-                    milestone: { type: string }
-                    description: { type: string }
-                  additionalProperties: true
         inputs:
           policy_context: $steps.prepare.policy_context
         artifacts:
           wrap_as: policy_proposal_packet
-          packet: runx.policy_proposal.v1
+          packet: runx/policy-draft.proposal.v1
 
 harness:
   files: [fixtures/support/composed.graph]

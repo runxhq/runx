@@ -52,7 +52,7 @@ package, the validated `run.yaml` identity and the exact `target_dir` and
 `package_digest` in `apply_result` form the publication candidate. When the
 operator's objective includes shipping or registry availability, continue that
 exact candidate through the repository's canonical registry operator: publish
-under the intended existing owner/name, then independently read back the same
+under the intended existing publisher/name, then independently read back the same
 version and digest. Do not call the work shipped while that sync is pending or
 unverified. Publication remains a separate authenticated act so Skill Build
 never receives registry credentials or hides a remote mutation inside local
@@ -328,7 +328,7 @@ authoring.
   admitted JSON-array artifact. The runtime owns artifact admission, page
   framing, snapshot digest, record boundaries, offsets, retries, and the page
   loop; the module owns only
-  decoding and domain selection. Treat `runx_page.artifact_ref` as an opaque,
+  decoding and domain selection. Treat `runx_page.artifact_uri` as an opaque,
   runtime-local read capability that belongs in receipt provenance; never place
   it in a plan or idempotency digest. Bind deterministic domain output to
   `runx_page.whole_digest`, which is stable for identical content. Keep
@@ -377,8 +377,8 @@ authoring.
 - Prefer extending an existing owner over adding a near-duplicate skill.
 - Preserve registry identity as part of capability ownership. Inspect the live
   registry before publishing a shared package; update the intended existing
-  owner/name rather than creating a first-party neighbor beside an older name.
-  Preserve an accepted contributor's namespace in `catalog.owner` in
+  publisher/name rather than creating a first-party neighbor beside an older name.
+  Preserve an accepted contributor's namespace in `catalog.publisher` in
   `run.yaml`; absence means the Runx-owned `runx` namespace.
   A deliberate rename must migrate or retire the prior identity through the
   registry operator. Never transfer a contributor's community-owned row into
@@ -476,7 +476,7 @@ or security invariant or a primitive with two independent existing consumers.
 Before calling `turn_complete`, call `runx.skill.plan` once with the exact
 `authoring_context.base_digest` and candidate `architecture_decision`. Repair
 any deterministic architecture error it returns, then submit the same validated
-decision. For every `native_capability` behavior, `reuse_ref` must be exactly one
+decision. For every `native_capability` behavior, `reuses` must be exactly one
 entry from `native_reuse.selected_capabilities`; split a behavior when it needs
 more than one capability. This prevalidation is read-only and does not replace
 the graph's native digest-binding step.
@@ -525,7 +525,7 @@ required or operator-selected, the context that must survive the boundary, and
 the truthful effect state before and after that route. Cover every material
 outcome independently. Reject an unnecessary provider pin even when it appears
 in prior work or the request's implementation sketch. Apply the cold-operator
-trial to the proposed public result and chain before choosing a disposition.
+trial to the proposed public result and chain before making the architecture choice.
 Classify every potentially large value as control input,
 immutable artifact, durable cursor/projection, or bounded domain result, and
 name its production owner plus small/large proof. Reads, drafts, local
@@ -542,7 +542,7 @@ For a shared/public package, also preserve its intended registry identity and
 state whether registry availability is in scope. If it is, the plan ends local
 authoring at the exact applied package and names the canonical registry
 operator as the separate publish-and-readback boundary. Do not plan embedded
-registry HTTP, credentials, auto-publish, or an adjacent owner/name.
+registry HTTP, credentials, auto-publish, or an adjacent publisher/name.
 
 For `improve`, diagnose only from supplied receipt or harness evidence and
 distinguish contract, implementation, fixture, environment, and operator

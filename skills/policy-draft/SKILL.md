@@ -60,7 +60,7 @@ targets:
     scafld_required: boolean
     base_branch: string            # optional
 dedupe:
-  strategy: source_fingerprint
+  strategy: source_digest
   key_fields: [string]
   on_duplicate: reuse | comment | block
 outcomes:

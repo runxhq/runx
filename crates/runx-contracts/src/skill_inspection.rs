@@ -136,7 +136,7 @@ pub struct RunnerInspection {
     pub inputs: Vec<InspectedInput>,
     pub outputs: Vec<InspectedOutput>,
     /// The packet each result output declares, by output name.
-    pub declared_result_packets: BTreeMap<String, String>,
+    pub declared_result_packets: BTreeMap<String, crate::PacketId>,
     pub requirements: ExecutionRequirements,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes: Vec<String>,

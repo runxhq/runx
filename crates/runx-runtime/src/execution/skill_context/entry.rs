@@ -44,7 +44,7 @@ pub(super) fn skill_context_entry(
             trust: runx_contracts::ContextTrust::SkillInstructions,
             sharing: runx_contracts::ContextSharing::ConfiguredModel,
             goal_id: None,
-            source_ref: None,
+            source_uri: None,
         },
         data: input.data,
         meta: ContextArtifactMeta {
@@ -62,7 +62,7 @@ pub(super) fn skill_context_entry(
                 runner: non_empty(CONTEXT_PRODUCER_RUNNER)?,
             },
             created_at: non_empty(input.created_at)?,
-            hash: non_empty(input.digest)?,
+            digest: non_empty(input.digest)?,
             size_bytes: input.size_bytes,
             parent_artifact_id: None,
             receipt_id: None,

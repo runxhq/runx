@@ -1,0 +1,62 @@
+{
+  "$id": "https://schemas.runx.ai/runx/command/plan/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `command.execute` would run, before it runs: the command's identity and the bounds it runs under.",
+  "properties": {
+    "command_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "cwd": {
+      "description": "The directory it runs in, relative to the workspace.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "env_names": {
+      "description": "The names of the variables it sets, never their values.",
+      "items": {
+        "pattern": "^[A-Z_][A-Z0-9_]*$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 0,
+      "type": "array"
+    },
+    "output_mode": {
+      "description": "How a command's output is returned: its digest only, as text, or parsed as JSON.",
+      "enum": [
+        "digest",
+        "text",
+        "json"
+      ],
+      "title": "CommandOutputMode",
+      "type": "string"
+    },
+    "schema": {
+      "enum": [
+        "runx.command.plan.v1"
+      ],
+      "title": "CommandPlanSchema",
+      "type": "string"
+    },
+    "timeout_ms": {
+      "maximum": 3600000,
+      "minimum": 1000,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema",
+    "command_digest",
+    "cwd",
+    "timeout_ms",
+    "output_mode",
+    "env_names"
+  ],
+  "title": "CommandPlan",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.command.plan.v1"
+}

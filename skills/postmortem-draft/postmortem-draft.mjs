@@ -51,7 +51,7 @@ export function finalizePostmortem(inputs) {
   const decision = failed ? "refused" : publishable ? "publishable" : "needs_more_evidence";
   return {
     postmortem: {
-      schema: "runx.postmortem.v1",
+      schema: "runx/postmortem-draft.postmortem.v1",
       decision,
       reason: failed
         ? "Refused: the draft claims facts the supplied fragments do not support."

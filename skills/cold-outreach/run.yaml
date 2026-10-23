@@ -1,5 +1,5 @@
 skill: cold-outreach
-version: "0.1.7"
+version: "0.1.8"
 catalog:
   kind: graph
   audience: public
@@ -32,7 +32,7 @@ runners:
           additionalProperties: false
           required: [email]
           properties:
-            ref: {type: string, minLength: 1, maxLength: 1000}
+            id: {type: string, minLength: 1, maxLength: 1000}
             email: {type: string, format: email, maxLength: 320}
             name: {type: string, minLength: 1, maxLength: 200}
             company: {type: string, minLength: 1, maxLength: 200}
@@ -60,17 +60,17 @@ runners:
       contact_policy:
         type: object
         required: true
-        description: Current policy disposition for this exact recipient, supplied by the caller; the model does
+        description: Current policy status for this exact recipient, supplied by the caller; the model does
           not establish legal permission.
         schema:
           additionalProperties: false
-          required: [recipient, status, suppressed, policy_ref, evidence_refs]
+          required: [recipient, status, suppressed, policy_id, evidence_ids]
           properties:
             recipient: {type: string, format: email, maxLength: 320}
             status: {enum: [eligible, ineligible, unknown]}
             suppressed: {type: boolean}
-            policy_ref: {type: string, maxLength: 1000}
-            evidence_refs:
+            policy_id: {type: string, maxLength: 1000}
+            evidence_ids:
               type: array
               maxItems: 20
               uniqueItems: true
@@ -78,16 +78,16 @@ runners:
       qualification:
         type: json
         required: false
-        packet: runx.growth.lead_qualification.v1
-        description: Optional lead qualification for prospect.ref; a supplied hold or mismatched subject stops drafting.
+        packet: runx/lead-qualify.qualification.v1
+        description: Optional lead qualification for prospect.id; a supplied hold or mismatched subject stops drafting.
       evidence_pack:
         type: json
         required: true
-        packet: runx.research.packet.v1
+        packet: runx/research.packet.v1
         description: Validated recipient research and disclosure-approved offer evidence.
-      brand_context: {type: json, required: false, packet: runx.context.brand_voice.v1, description: 'Scoped validated
+      brand_context: {type: json, required: false, packet: runx/brand-voice.context.v1, description: 'Scoped validated
           brand voice, selected by the caller.'}
-      taste_context: {type: json, required: false, packet: runx.context.taste_profile.v1, description: 'Scoped validated
+      taste_context: {type: json, required: false, packet: runx/taste-profile.context.v1, description: 'Scoped validated
           taste, selected by the caller.'}
     result_from: [hold, review]
     steps:
@@ -117,7 +117,7 @@ runners:
           type: object
           schema:
             additionalProperties: false
-            required: [decision, sender, prospect, purpose, offer, required_footer, policy_ref, policy_evidence_refs,
+            required: [decision, sender, prospect, purpose, offer, required_footer, policy_id, policy_evidence_ids,
               blockers]
             properties:
               decision: {enum: [hold, eligible_for_draft]}
@@ -137,12 +137,12 @@ runners:
                   email: {type: string, format: email}
                   name: {type: string}
                   company: {type: string}
-                  ref: {type: string, minLength: 1, maxLength: 1000}
+                  id: {type: string, minLength: 1, maxLength: 1000}
               purpose: {type: string, minLength: 1, maxLength: 2000}
               offer: {type: string, minLength: 1, maxLength: 2000}
               required_footer: {type: string, minLength: 1, maxLength: 3000}
-              policy_ref: {type: string, maxLength: 1000}
-              policy_evidence_refs:
+              policy_id: {type: string, maxLength: 1000}
+              policy_evidence_ids:
                 type: array
                 maxItems: 20
                 items: {type: string, minLength: 1, maxLength: 1000}
@@ -163,8 +163,8 @@ runners:
             - decision
             - sender
             - recipient
-            - policy_ref
-            - policy_evidence_refs
+            - policy_id
+            - policy_evidence_ids
             - draft_status
             - delivery_status
             - blockers
@@ -181,8 +181,8 @@ runners:
                   from_address: {type: string, format: email, maxLength: 320}
                   reply_to: {type: string, format: email, maxLength: 320}
               recipient: {type: string, format: email, maxLength: 320}
-              policy_ref: {type: string, maxLength: 1000}
-              policy_evidence_refs:
+              policy_id: {type: string, maxLength: 1000}
+              policy_evidence_ids:
                 type: array
                 maxItems: 20
                 uniqueItems: true
@@ -256,8 +256,8 @@ runners:
             - decision
             - sender
             - recipient
-            - policy_ref
-            - policy_evidence_refs
+            - policy_id
+            - policy_evidence_ids
             - draft_status
             - delivery_status
             - blockers
@@ -274,8 +274,8 @@ runners:
                   from_address: {type: string, format: email, maxLength: 320}
                   reply_to: {type: string, format: email, maxLength: 320}
               recipient: {type: string, format: email, maxLength: 320}
-              policy_ref: {type: string, maxLength: 1000}
-              policy_evidence_refs:
+              policy_id: {type: string, maxLength: 1000}
+              policy_evidence_ids:
                 type: array
                 maxItems: 20
                 uniqueItems: true

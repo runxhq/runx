@@ -37,7 +37,7 @@ const FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "evidence",
-        description: "Bounded opaque evidence references with digests and proof claims.",
+        description: "Bounded opaque evidence locators with digests and proof claims.",
     },
     CapabilityField {
         name: "scope",
@@ -49,7 +49,7 @@ static ATTEST: TypedNativeCapability<AttestationInput, AttestationOutput> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "receipt.attest",
-            owner: "runx-runtime/receipts",
+            source: "runx-runtime/receipts",
             summary: "Validate and digest one bounded off-runtime action attestation for sealing.",
             scopes: &[],
             effect: CapabilityEffect::Read,

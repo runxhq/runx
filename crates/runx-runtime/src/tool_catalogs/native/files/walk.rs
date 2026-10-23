@@ -9,33 +9,36 @@
 //! searched.
 
 use std::io::Read as _;
+use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
 use regex::{Regex, RegexBuilder};
-use sha2::{Digest as _, Sha256};
 
-use super::super::{NativeInvocation, invalid_input};
-use super::capability::{
-    FileListEntry, FileListInput, FileListOutput, FileSearchInput, FileSearchMatch,
-    FileSearchOutput,
+use runx_contracts::schema::BoundedVec;
+use runx_contracts::{
+    Digest, FS_LIST_MAX_ENTRIES, FS_SEARCH_MAX_CONTEXT_LINES, FS_SEARCH_MAX_MATCHES, FileEntryKind,
+    FileList, FileListEntry, FileSearch, FileSearchMatch,
 };
+
+use super::super::{NativeInvocation, invalid_input, non_empty, root_name};
+use super::capability::{FileListInput, FileSearchInput};
 use crate::RuntimeError;
 use crate::services::{WorkspaceBounds, is_secret_path};
 
 pub(super) const LIST_TOOL: &str = "fs.list";
 pub(super) const SEARCH_TOOL: &str = "fs.search";
 const MAX_DEPTH: u64 = 16;
-const MAX_LIST_ENTRIES: u64 = 5_000;
-const MAX_SEARCH_RESULTS: u64 = 1_000;
-const MAX_CONTEXT_LINES: u64 = 3;
+const MAX_LIST_ENTRIES: u64 = FS_LIST_MAX_ENTRIES as u64;
+const MAX_SEARCH_RESULTS: u64 = FS_SEARCH_MAX_MATCHES as u64;
+const MAX_CONTEXT_LINES: u64 = FS_SEARCH_MAX_CONTEXT_LINES as u64;
 const MAX_SEARCHED_FILE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_LINE_CHARS: usize = 500;
 const BINARY_PROBE_BYTES: usize = 8 * 1024;
 
 pub(super) fn list(
     invocation: &NativeInvocation<'_, FileListInput>,
-) -> Result<FileListOutput, RuntimeError> {
+) -> Result<FileList, RuntimeError> {
     let inputs = invocation.inputs;
     let root = super::root(LIST_TOOL, &inputs.repo_root, &inputs.path_scope, invocation)?;
     let depth = bounded(LIST_TOOL, "depth", inputs.depth, MAX_DEPTH)?;
@@ -65,32 +68,33 @@ pub(super) fn list(
             continue;
         };
         let kind = if file_type.is_dir() {
-            "directory"
+            FileEntryKind::Directory
         } else if file_type.is_symlink() {
-            "symlink"
+            FileEntryKind::Symlink
         } else {
-            "file"
+            FileEntryKind::File
         };
-        let bytes = (kind == "file")
+        let bytes = (kind == FileEntryKind::File)
             .then(|| entry.metadata().ok().map(|metadata| metadata.len()))
             .flatten();
         entries.push(FileListEntry {
-            path: relative(&root, entry.path()),
-            kind: kind.to_owned(),
+            path: non_empty(LIST_TOOL, "path", relative(&root, entry.path()))?,
+            kind,
             bytes,
         });
     }
-    Ok(FileListOutput {
-        repo_root: root.to_string_lossy().into_owned(),
-        path: relative(&root, &start),
-        entries,
+    Ok(FileList {
+        repo_root: root_name(LIST_TOOL, &root)?,
+        path: non_empty(LIST_TOOL, "path", relative(&root, &start))?,
+        entries: BoundedVec::new(entries)
+            .ok_or_else(|| invalid_input(LIST_TOOL, "listing exceeded its entry bound"))?,
         truncated,
     })
 }
 
 pub(super) fn search(
     invocation: &NativeInvocation<'_, FileSearchInput>,
-) -> Result<FileSearchOutput, RuntimeError> {
+) -> Result<FileSearch, RuntimeError> {
     let inputs = invocation.inputs;
     let root = super::root(
         SEARCH_TOOL,
@@ -149,27 +153,24 @@ pub(super) fn search(
                 truncated = true;
                 break 'files;
             }
-            let before = lines[index.saturating_sub(context)..index]
-                .iter()
-                .map(|line| clip(line))
-                .collect();
-            let after = lines[index + 1..(index + 1 + context).min(lines.len())]
-                .iter()
-                .map(|line| clip(line))
-                .collect();
+            let context_of = |lines: &[&str]| {
+                BoundedVec::new(lines.iter().map(|line| clip(line)).collect())
+                    .ok_or_else(|| invalid_input(SEARCH_TOOL, "context exceeded its line bound"))
+            };
             matches.push(FileSearchMatch {
-                path: path.clone(),
-                line: index as u64 + 1,
+                path: non_empty(SEARCH_TOOL, "path", path.clone())?,
+                line: NonZeroU64::MIN.saturating_add(index as u64),
                 text: clip(line),
-                before,
-                after,
+                before: context_of(&lines[index.saturating_sub(context)..index])?,
+                after: context_of(&lines[index + 1..(index + 1 + context).min(lines.len())])?,
                 content_digest: digest.clone(),
             });
         }
     }
-    Ok(FileSearchOutput {
-        repo_root: root.to_string_lossy().into_owned(),
-        matches,
+    Ok(FileSearch {
+        repo_root: root_name(SEARCH_TOOL, &root)?,
+        matches: BoundedVec::new(matches)
+            .ok_or_else(|| invalid_input(SEARCH_TOOL, "search exceeded its match bound"))?,
         files_searched,
         truncated,
     })
@@ -269,7 +270,7 @@ fn walker(
 
 /// A file's text and digest, or nothing for a file too large or binary to
 /// search.
-fn searchable_text(path: &Path) -> Result<Option<(String, String)>, RuntimeError> {
+fn searchable_text(path: &Path) -> Result<Option<(String, Digest)>, RuntimeError> {
     let metadata = std::fs::metadata(path)
         .map_err(|source| RuntimeError::io(format!("reading {}", path.display()), source))?;
     if metadata.len() > MAX_SEARCHED_FILE_BYTES {
@@ -282,10 +283,7 @@ fn searchable_text(path: &Path) -> Result<Option<(String, String)>, RuntimeError
     if bytes[..bytes.len().min(BINARY_PROBE_BYTES)].contains(&0) {
         return Ok(None);
     }
-    let digest = format!(
-        "sha256:{}",
-        runx_contracts::hex_lower(&Sha256::digest(&bytes))
-    );
+    let digest = Digest::of(&bytes);
     Ok(String::from_utf8(bytes).ok().map(|text| (text, digest)))
 }
 

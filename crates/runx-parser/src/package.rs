@@ -111,6 +111,16 @@ pub struct ValidatedPackageTool {
     pub source_files: BTreeSet<String>,
 }
 
+/// A packet schema a package carries in `packets/`: its own, or the pinned
+/// copy of another package's packet it reads.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackagePacket {
+    /// Package-relative path, `packets/...`.
+    pub path: String,
+    pub schema: crate::ValidatedPacketSchema,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidatedSkillPackage {
@@ -140,7 +150,9 @@ pub struct ValidatedSkillPackage {
     /// uses this instead of walking or interpreting package source again.
     pub consumed_files: BTreeSet<String>,
     pub harness_fixtures: BTreeMap<String, HarnessFixture>,
-    pub context_skill_refs: Vec<String>,
+    pub context_skills: Vec<String>,
+    /// Every packet schema in `packets/`, by id.
+    pub packets: BTreeMap<runx_contracts::PacketId, PackagePacket>,
     pub source: SkillPackageSource,
 }
 

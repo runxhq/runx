@@ -42,7 +42,7 @@ operations:
       additionalProperties: false
       properties: {}
     result_fields:
-    - account_ref
+    - account_id
     hosted: {}
     implementation:
       http:
@@ -62,10 +62,10 @@ operations:
         - op: auto_json
         - op: project
           fields:
-            account_ref: id
+            account_id: id
         preconditions: []
         result_paths:
-          account_ref: acknowledgement.account_ref
+          account_id: acknowledgement.account_id
   payment.stripe:
     description: Collect one exact payment using an existing Stripe payment method. Only a succeeded PaymentIntent
       independently read back with the approved terms confirms collection.
@@ -88,7 +88,7 @@ operations:
       - account_id
       - amount_minor
       - currency
-      - payment_method_ref
+      - payment_method_id
       - reference
       additionalProperties: false
       properties:
@@ -102,19 +102,19 @@ operations:
         currency:
           type: string
           pattern: ^[a-z]{3}$
-        payment_method_ref:
+        payment_method_id:
           type: string
           pattern: ^pm_[A-Za-z0-9_]{1,128}$
         reference:
           type: string
           pattern: ^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$
     result_fields:
-    - payment_ref
+    - payment_id
     - amount_minor
     - amount_received
     - currency
     - status
-    - charge_ref
+    - charge_id
     - reference
     hosted: {}
     implementation:
@@ -142,7 +142,7 @@ operations:
             currency:
               $argument: /currency
             payment_method:
-              $argument: /payment_method_ref
+              $argument: /payment_method_id
             confirm: true
             automatic_payment_methods[enabled]: true
             automatic_payment_methods[allow_redirects]: never
@@ -154,7 +154,7 @@ operations:
         - op: auto_json
         - op: project
           fields:
-            payment_ref: id
+            payment_id: id
         preconditions:
         - request:
             id: account
@@ -168,13 +168,13 @@ operations:
           - op: auto_json
           - op: project
             fields:
-              account_ref: id
+              account_id: id
           matches:
           - expected:
               source: argument
               path: account_id
-            observed: account_ref
-        operation_id_path: payment_ref
+            observed: account_id
+        operation_id_path: payment_id
         readbacks:
         - request:
             id: payment
@@ -182,24 +182,24 @@ operations:
             url:
               $concat:
               - https://api.stripe.com/v1/payment_intents/
-              - $response: write.json.payment_ref
+              - $response: write.json.payment_id
             headers: *id001
           decode:
           - op: auto_json
           - op: project
             fields:
-              payment_ref: id
+              payment_id: id
               amount_minor: amount
               amount_received: amount_received
               currency: currency
               status: status
-              charge_ref: latest_charge
+              charge_id: latest_charge
               reference: metadata.runx_reference
           matches:
           - expected:
               source: acknowledgement
-              path: payment_ref
-            observed: payment_ref
+              path: payment_id
+            observed: payment_id
           - expected:
               source: argument
               path: amount_minor
@@ -221,12 +221,12 @@ operations:
               value: succeeded
             observed: status
         result_paths:
-          payment_ref: readbacks.0.payment_ref
+          payment_id: readbacks.0.payment_id
           amount_minor: readbacks.0.amount_minor
           amount_received: readbacks.0.amount_received
           currency: readbacks.0.currency
           status: readbacks.0.status
-          charge_ref: readbacks.0.charge_ref
+          charge_id: readbacks.0.charge_id
           reference: readbacks.0.reference
   payment.stripe.read:
     description: Read one PaymentIntent without exposing its client secret or customer payment details.
@@ -241,27 +241,27 @@ operations:
         - stripe://
         - $argument: /account_id
         - /payments/
-        - $argument: /payment_ref
+        - $argument: /payment_id
     input_schema:
       type: object
       required:
       - account_id
-      - payment_ref
+      - payment_id
       additionalProperties: false
       properties:
         account_id:
           type: string
           pattern: ^acct_[A-Za-z0-9]{1,64}$
-        payment_ref:
+        payment_id:
           type: string
           pattern: ^pi_[A-Za-z0-9]{1,128}$
     result_fields:
-    - payment_ref
+    - payment_id
     - amount_minor
     - amount_received
     - currency
     - status
-    - charge_ref
+    - charge_id
     hosted: {}
     implementation:
       http:
@@ -277,18 +277,18 @@ operations:
           url:
             $concat:
             - https://api.stripe.com/v1/payment_intents/
-            - $argument: /payment_ref
+            - $argument: /payment_id
           headers: *id001
         decode:
         - op: auto_json
         - op: project
           fields:
-            payment_ref: id
+            payment_id: id
             amount_minor: amount
             amount_received: amount_received
             currency: currency
             status: status
-            charge_ref: latest_charge
+            charge_id: latest_charge
         preconditions:
         - request:
             id: account
@@ -299,19 +299,19 @@ operations:
           - op: auto_json
           - op: project
             fields:
-              account_ref: id
+              account_id: id
           matches:
           - expected:
               source: argument
               path: account_id
-            observed: account_ref
+            observed: account_id
         result_paths:
-          payment_ref: acknowledgement.payment_ref
+          payment_id: acknowledgement.payment_id
           amount_minor: acknowledgement.amount_minor
           amount_received: acknowledgement.amount_received
           currency: acknowledgement.currency
           status: acknowledgement.status
-          charge_ref: acknowledgement.charge_ref
+          charge_id: acknowledgement.charge_id
   payment.stripe.lookup:
     description: 'Find one PaymentIntent by the native effect key recorded for the attempted collection. Search
       is eventually consistent: absence never proves a payment was not submitted. Multiple matches refuse.'
@@ -341,12 +341,12 @@ operations:
           type: string
           pattern: ^[A-Za-z0-9_:-]{1,200}$
     result_fields:
-    - payment_ref
+    - payment_id
     - amount_minor
     - amount_received
     - currency
     - status
-    - charge_ref
+    - charge_id
     - reference
     hosted: {}
     implementation:
@@ -377,12 +377,12 @@ operations:
           path: data.0
         - op: project
           fields:
-            payment_ref: id
+            payment_id: id
             amount_minor: amount
             amount_received: amount_received
             currency: currency
             status: status
-            charge_ref: latest_charge
+            charge_id: latest_charge
             reference: metadata.runx_reference
         preconditions:
         - request:
@@ -394,19 +394,19 @@ operations:
           - op: auto_json
           - op: project
             fields:
-              account_ref: id
+              account_id: id
           matches:
           - expected:
               source: argument
               path: account_id
-            observed: account_ref
+            observed: account_id
         result_paths:
-          payment_ref: acknowledgement.payment_ref
+          payment_id: acknowledgement.payment_id
           amount_minor: acknowledgement.amount_minor
           amount_received: acknowledgement.amount_received
           currency: acknowledgement.currency
           status: acknowledgement.status
-          charge_ref: acknowledgement.charge_ref
+          charge_id: acknowledgement.charge_id
           reference: acknowledgement.reference
   payment.stripe.refund:
     description: Refund one original PaymentIntent on its account and currency. Stripe atomically enforces its remaining
@@ -423,12 +423,12 @@ operations:
         - stripe://
         - $argument: /account_id
         - /payments/
-        - $argument: /payment_ref
+        - $argument: /payment_id
     input_schema:
       type: object
       required:
       - account_id
-      - payment_ref
+      - payment_id
       - amount_minor
       - currency
       additionalProperties: false
@@ -436,7 +436,7 @@ operations:
         account_id:
           type: string
           pattern: ^acct_[A-Za-z0-9]{1,64}$
-        payment_ref:
+        payment_id:
           type: string
           pattern: ^pi_[A-Za-z0-9]{1,128}$
         amount_minor:
@@ -447,8 +447,8 @@ operations:
           type: string
           pattern: ^[a-z]{3}$
     result_fields:
-    - refund_ref
-    - payment_ref
+    - refund_id
+    - payment_id
     - amount_minor
     - currency
     - status
@@ -469,7 +469,7 @@ operations:
           body_encoding: form
           body:
             payment_intent:
-              $argument: /payment_ref
+              $argument: /payment_id
             amount:
               $argument: /amount_minor
             metadata[runx_effect_key]:
@@ -478,7 +478,7 @@ operations:
         - op: auto_json
         - op: project
           fields:
-            refund_ref: id
+            refund_id: id
         preconditions:
         - request:
             id: account
@@ -489,35 +489,35 @@ operations:
           - op: auto_json
           - op: project
             fields:
-              account_ref: id
+              account_id: id
           matches:
           - expected:
               source: argument
               path: account_id
-            observed: account_ref
+            observed: account_id
         - request:
             id: original
             method: GET
             url:
               $concat:
               - https://api.stripe.com/v1/payment_intents/
-              - $argument: /payment_ref
+              - $argument: /payment_id
             headers: *id001
           decode:
           - op: auto_json
           - op: project
             fields:
-              payment_ref: id
+              payment_id: id
               amount_minor: amount
               amount_received: amount_received
               currency: currency
               status: status
-              charge_ref: latest_charge
+              charge_id: latest_charge
           matches:
           - expected:
               source: argument
-              path: payment_ref
-            observed: payment_ref
+              path: payment_id
+            observed: payment_id
           - expected:
               source: argument
               path: currency
@@ -526,7 +526,7 @@ operations:
               source: literal
               value: succeeded
             observed: status
-        operation_id_path: refund_ref
+        operation_id_path: refund_id
         readbacks:
         - request:
             id: refund_read
@@ -534,26 +534,26 @@ operations:
             url:
               $concat:
               - https://api.stripe.com/v1/refunds/
-              - $response: write.json.refund_ref
+              - $response: write.json.refund_id
             headers: *id001
           decode:
           - op: auto_json
           - op: project
             fields:
-              refund_ref: id
-              payment_ref: payment_intent
+              refund_id: id
+              payment_id: payment_intent
               amount_minor: amount
               currency: currency
               status: status
           matches:
           - expected:
               source: acknowledgement
-              path: refund_ref
-            observed: refund_ref
+              path: refund_id
+            observed: refund_id
           - expected:
               source: argument
-              path: payment_ref
-            observed: payment_ref
+              path: payment_id
+            observed: payment_id
           - expected:
               source: argument
               path: amount_minor
@@ -567,8 +567,8 @@ operations:
               value: succeeded
             observed: status
         result_paths:
-          refund_ref: readbacks.0.refund_ref
-          payment_ref: readbacks.0.payment_ref
+          refund_id: readbacks.0.refund_id
+          payment_id: readbacks.0.payment_id
           amount_minor: readbacks.0.amount_minor
           currency: readbacks.0.currency
           status: readbacks.0.status
@@ -590,23 +590,23 @@ operations:
         - stripe://
         - $argument: /account_id
         - /refunds/
-        - $argument: /refund_ref
+        - $argument: /refund_id
     input_schema:
       type: object
       required:
       - account_id
-      - refund_ref
+      - refund_id
       additionalProperties: false
       properties:
         account_id: &id003
           type: string
           pattern: ^acct_[A-Za-z0-9]{1,64}$
-        refund_ref:
+        refund_id:
           type: string
           pattern: ^re_[A-Za-z0-9]{1,128}$
     result_fields:
-    - refund_ref
-    - payment_ref
+    - refund_id
+    - payment_id
     - amount_minor
     - currency
     - status
@@ -625,14 +625,14 @@ operations:
           url:
             $concat:
             - https://api.stripe.com/v1/refunds/
-            - $argument: /refund_ref
+            - $argument: /refund_id
           headers: *id001
         decode:
         - op: auto_json
         - op: project
           fields:
-            refund_ref: id
-            payment_ref: payment_intent
+            refund_id: id
+            payment_id: payment_intent
             amount_minor: amount
             currency: currency
             status: status
@@ -646,15 +646,15 @@ operations:
           - op: auto_json
           - op: project
             fields:
-              account_ref: id
+              account_id: id
           matches:
           - expected:
               source: argument
               path: account_id
-            observed: account_ref
+            observed: account_id
         result_paths:
-          refund_ref: acknowledgement.refund_ref
-          payment_ref: acknowledgement.payment_ref
+          refund_id: acknowledgement.refund_id
+          payment_id: acknowledgement.payment_id
           amount_minor: acknowledgement.amount_minor
           currency: acknowledgement.currency
           status: acknowledgement.status
@@ -671,21 +671,21 @@ operations:
         - stripe://
         - $argument: /account_id
         - /charges/
-        - $argument: /charge_ref
+        - $argument: /charge_id
     input_schema:
       type: object
       required:
       - account_id
-      - charge_ref
+      - charge_id
       additionalProperties: false
       properties:
         account_id: *id003
-        charge_ref:
+        charge_id:
           type: string
           pattern: ^ch_[A-Za-z0-9]{1,128}$
     result_fields:
-    - charge_ref
-    - payment_ref
+    - charge_id
+    - payment_id
     - amount_minor
     - amount_refunded
     - currency
@@ -705,14 +705,14 @@ operations:
           url:
             $concat:
             - https://api.stripe.com/v1/charges/
-            - $argument: /charge_ref
+            - $argument: /charge_id
           headers: *id001
         decode:
         - op: auto_json
         - op: project
           fields:
-            charge_ref: id
-            payment_ref: payment_intent
+            charge_id: id
+            payment_id: payment_intent
             amount_minor: amount
             amount_refunded: amount_refunded
             currency: currency
@@ -727,15 +727,15 @@ operations:
           - op: auto_json
           - op: project
             fields:
-              account_ref: id
+              account_id: id
           matches:
           - expected:
               source: argument
               path: account_id
-            observed: account_ref
+            observed: account_id
         result_paths:
-          charge_ref: acknowledgement.charge_ref
-          payment_ref: acknowledgement.payment_ref
+          charge_id: acknowledgement.charge_id
+          payment_id: acknowledgement.payment_id
           amount_minor: acknowledgement.amount_minor
           amount_refunded: acknowledgement.amount_refunded
           currency: acknowledgement.currency

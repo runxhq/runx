@@ -49,9 +49,9 @@ struct OracleCase {
     name: String,
     fixture: String,
     full_canonical_json: String,
-    full_sha256: String,
+    full_digest: String,
     body_canonical_json: String,
-    body_sha256: String,
+    body_digest: String,
 }
 
 fn schema() -> Validator {
@@ -110,7 +110,7 @@ fn conformance_canonical_json_is_byte_identical_to_oracle() {
         );
         assert_eq!(
             canonical_receipt_digest(&receipt).expect("full digest"),
-            case.full_sha256,
+            case.full_digest,
             "{} full digest drifted",
             case.name
         );
@@ -122,7 +122,7 @@ fn conformance_canonical_json_is_byte_identical_to_oracle() {
         );
         assert_eq!(
             canonical_receipt_body_digest(&receipt).expect("body digest"),
-            case.body_sha256,
+            case.body_digest,
             "{} body digest drifted",
             case.name
         );

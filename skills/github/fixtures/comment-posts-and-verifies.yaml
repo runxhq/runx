@@ -63,5 +63,5 @@ expect:
                 - status: applied
                   acknowledgement:
                     id: 1001
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: github, source_case: comment-success, source: skills-fixture }

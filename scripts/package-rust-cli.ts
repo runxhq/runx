@@ -95,9 +95,9 @@ const signatureManifest = options.signatureManifest
     version: manifest.version,
     platform: platform.key,
     binary: `bin/${stagedBinaryName}`,
-    sha256: binaryDigest,
+    binaryDigest,
     worker: `bin/${platform.workerName}`,
-    workerSha256: workerDigest,
+    workerDigest,
   })
   : null;
 writeFileSync(
@@ -108,9 +108,9 @@ writeFileSync(
     version: manifest.version,
     platform: platform.key,
     binary: `bin/${stagedBinaryName}`,
-    sha256: binaryDigest,
+    binary_digest: binaryDigest,
     worker: `bin/${platform.workerName}`,
-    worker_sha256: workerDigest,
+    worker_digest: workerDigest,
   }, null, 2)}\n`,
 );
 if (signatureManifest) {
@@ -218,9 +218,9 @@ console.log(JSON.stringify({
   version: manifest.version,
   platform: platform.key,
   binary: path.relative(workspaceRoot, binaryPath),
-  sha256: binaryDigest,
+  binary_digest: binaryDigest,
   worker: path.relative(workspaceRoot, workerPath),
-  worker_sha256: workerDigest,
+  worker_digest: workerDigest,
   signature_manifest: signatureManifest ? "native/signatures.json" : null,
   selector_artifact_dir: options.check ? null : path.relative(workspaceRoot, selectorRoot),
   native_artifact_dir: options.check ? null : path.relative(workspaceRoot, nativeRoot),
@@ -361,9 +361,9 @@ function readSignatureManifest(
     readonly version: string;
     readonly platform: string;
     readonly binary: string;
-    readonly sha256: string;
+    readonly binaryDigest: string;
     readonly worker: string;
-    readonly workerSha256: string;
+    readonly workerDigest: string;
   },
 ): unknown {
   const manifest = JSON.parse(readFileSync(filePath, "utf8")) as {
@@ -372,9 +372,9 @@ function readSignatureManifest(
     readonly version?: string;
     readonly platform?: string;
     readonly binary?: string;
-    readonly sha256?: string;
+    readonly binary_digest?: string;
     readonly worker?: string;
-    readonly worker_sha256?: string;
+    readonly worker_digest?: string;
     readonly signatures?: readonly unknown[];
   };
   if (manifest.schema !== "runx.rust_cli_artifact_signatures.v1") {
@@ -392,14 +392,14 @@ function readSignatureManifest(
   if (manifest.binary !== expected.binary) {
     throw new Error(`signature manifest binary ${manifest.binary ?? "<missing>"} does not match ${expected.binary}`);
   }
-  if (manifest.sha256 !== expected.sha256) {
-    throw new Error("signature manifest sha256 does not match the staged binary");
+  if (manifest.binary_digest !== expected.binaryDigest) {
+    throw new Error("signature manifest binary_digest does not match the staged binary");
   }
   if (manifest.worker !== expected.worker) {
     throw new Error(`signature manifest worker ${manifest.worker ?? "<missing>"} does not match ${expected.worker}`);
   }
-  if (manifest.worker_sha256 !== expected.workerSha256) {
-    throw new Error("signature manifest worker_sha256 does not match the staged worker");
+  if (manifest.worker_digest !== expected.workerDigest) {
+    throw new Error("signature manifest worker_digest does not match the staged worker");
   }
   if (!Array.isArray(manifest.signatures) || manifest.signatures.length === 0) {
     throw new Error("signature manifest must include at least one signature entry");
@@ -413,7 +413,7 @@ function readSignatureManifest(
 }
 
 function sha256(bytes: Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
 function printUsage(): void {

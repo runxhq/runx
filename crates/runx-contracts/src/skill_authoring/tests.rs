@@ -28,7 +28,7 @@ fn skill_authoring_contract_binds_closed_bundle_and_plan() {
         ],
         "deletes": [],
         "expected_outputs": [
-            { "name": "decision", "value_type": "object", "packet": "demo.decision.v1" }
+            { "name": "decision", "value_type": "object", "packet": "acme/demo.decision.v1" }
         ]
     });
     assert!(serde_json::from_value::<SkillChangeBundle>(value.clone()).is_ok());
@@ -49,7 +49,7 @@ fn skill_authoring_generated_objects_are_recursively_closed() {
 fn architecture_fixture() -> Value {
     json!({
         "schema": "runx.skill.architecture_decision.v1",
-        "disposition": "build",
+        "choice": "build",
         "identity": {
             "current_name": null,
             "proposed_name": "demo",

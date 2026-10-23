@@ -9,19 +9,12 @@
       },
       "type": "array"
     },
-    "disposition": {
-      "enum": [
-        "satisfied",
-        "follow_up",
-        "held"
-      ],
-      "type": "string"
-    },
     "followups": {
       "items": {
         "additionalProperties": false,
         "properties": {
           "due_after_seconds": {
+            "description": "Relative scheduling for a successor emitted after an external effect. The operator resolves it against the time it admits that successor.",
             "minimum": 0,
             "type": "integer"
           },
@@ -36,30 +29,42 @@
           "route_id": {
             "type": "string"
           },
-          "target_ref": {
+          "target_locator": {
             "type": "string"
           }
         },
         "required": [
           "route_id",
-          "target_ref",
+          "target_locator",
           "inputs",
           "due_at_unix_seconds"
         ],
+        "title": "WorkProposal",
         "type": "object"
       },
       "type": "array"
+    },
+    "state": {
+      "description": "Where the work stands after the run: done, waiting on a follow-up, or held.",
+      "enum": [
+        "satisfied",
+        "follow_up",
+        "held"
+      ],
+      "title": "WorkState",
+      "type": "string"
     },
     "summary": {
       "type": "string"
     }
   },
   "required": [
-    "disposition",
+    "state",
     "summary",
     "completion_evidence",
     "followups"
   ],
+  "title": "WorkOutcome",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.work_outcome.v1"

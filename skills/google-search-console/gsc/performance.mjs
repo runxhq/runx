@@ -133,7 +133,7 @@ export function normalizePerformance(inputs) {
 
   return {
     performance_draft: {
-      schema: "runx.search.performance.evidence.v1",
+      schema: "runx/google-search-console.performance_evidence.v1",
       decision: findings.length > 0
         ? "blocked"
         : caveats.length > 0

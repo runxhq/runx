@@ -43,15 +43,15 @@ Each consequential proposal should include:
 ```yaml
 execution:
   interface: skill | cli | hosted_api | workflow | provider_tool | manual
-  lane_ref: string
-  profile_ref: string | null
-  command_ref: string | null
-  workflow_ref: string | null
+  lane: string
+  profile: string | null
+  command: string | null
+  workflow: string | null
   approval_gate: string | null
-  verifier_ref: string | null
+  verifier: string | null
 ```
 
-`command_ref` is descriptive, not a shell transcript. The deterministic graph
+`command` is descriptive, not a shell transcript. The deterministic graph
 step or human operator runs the command with real inputs after approval.
 
 ## Release Example
@@ -62,11 +62,11 @@ Good:
 lane: release
 execution:
   interface: workflow
-  lane_ref: release
-  profile_ref: project.release.yaml
-  workflow_ref: .github/workflows/release-cli.yml
+  lane: release
+  profile: project.release.yaml
+  workflow: .github/workflows/release-cli.yml
   approval_gate: release.publish.approval
-  verifier_ref: release.verify
+  verifier: release.verify
 verification:
   expected_receipt: project.release.report.v1
   readback: registry package, GitHub release, Docker image, website version, service health

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 
 use runx_contracts::{
-    SkillArchitectureDecision, SkillArchitectureDisposition, SkillChangeDecision, SkillChangeDraft,
+    SkillArchitectureChoice, SkillArchitectureDecision, SkillChangeDecision, SkillChangeDraft,
     SkillChangeDraftSchema, SkillFileWrite,
 };
 use serde_json::json;
@@ -67,10 +67,10 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
 
     let target = ApplyTarget::resolve(temp.path(), "skills/demo", &BTreeMap::new())?;
     let change = change_bundle(
-        &target.before.digest,
+        target.before.digest.as_str(),
         VALID_MANUAL.replace("bounded decision", "bounded operator decision"),
     )?;
-    validate_change_contract(&change, "improve", &target.before.digest)?;
+    validate_change_contract(&change, "improve", target.before.digest.as_str())?;
     let admitted = admit_skill_change(
         &target.relative,
         &target.path,
@@ -124,7 +124,7 @@ fn change_bundle(base_digest: &str, manual: String) -> Result<SkillChangeBundle,
 fn architecture() -> Result<SkillArchitectureDecision, RuntimeError> {
     serde_json::from_value(json!({
         "schema": "runx.skill.architecture_decision.v1",
-        "disposition": disposition_name(SkillArchitectureDisposition::ExtendExisting),
+        "choice": choice_name(SkillArchitectureChoice::ExtendExisting),
         "identity": {
             "current_name": "demo",
             "proposed_name": "demo",
@@ -207,11 +207,11 @@ fn architecture() -> Result<SkillArchitectureDecision, RuntimeError> {
     })
 }
 
-fn disposition_name(disposition: SkillArchitectureDisposition) -> &'static str {
-    match disposition {
-        SkillArchitectureDisposition::Build => "build",
-        SkillArchitectureDisposition::ExtendExisting => "extend_existing",
-        SkillArchitectureDisposition::NoSkill => "no_skill",
-        SkillArchitectureDisposition::NeedsCore => "needs_core",
+fn choice_name(choice: SkillArchitectureChoice) -> &'static str {
+    match choice {
+        SkillArchitectureChoice::Build => "build",
+        SkillArchitectureChoice::ExtendExisting => "extend_existing",
+        SkillArchitectureChoice::NoSkill => "no_skill",
+        SkillArchitectureChoice::NeedsCore => "needs_core",
     }
 }

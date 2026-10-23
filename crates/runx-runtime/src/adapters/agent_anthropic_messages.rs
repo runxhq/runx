@@ -63,8 +63,8 @@ fn tools_json(tools: &AgentToolNameMap) -> Vec<WireValue> {
         .collect()
 }
 
-/// Map a wire tool name from the model back to the runx tool ref it was
-/// offered as. runx tool refs are namespaced with a dot (`acme.post`), which
+/// Map a wire tool name from the model back to the runx tool name it was
+/// offered as. runx tool names are namespaced with a dot (`acme.post`), which
 /// the Anthropic tool-name schema forbids, so they are offered with dots
 /// flattened; recover the real ref before the governed executor sees it.
 fn real_tool_name(tools: &AgentToolNameMap, wire: &str) -> String {
@@ -310,7 +310,7 @@ mod tests {
         let uses = caller(&stub)
             .next_tool_uses(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])
             .map_err(|error| format!("call should succeed: {error}"))?;
-        // The model's flattened call maps back to the dotted runx tool ref.
+        // The model's flattened call maps back to the dotted runx tool name.
         assert_eq!(uses.len(), 1);
         assert_eq!(uses[0].name, "acme.post");
         // The tool was offered to Anthropic without a dot (the API rejects dots).

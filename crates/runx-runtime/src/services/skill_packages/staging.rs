@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use runx_contracts::JsonValue;
+use runx_contracts::{Digest, JsonValue};
 
 use super::path::{
     declared_secret_prefixes, display_relative, invalid_skill_change, normalize_package_file,
@@ -199,7 +199,7 @@ fn admitted_registry_dir(repo_root: &Path, env: &BTreeMap<String, String>) -> Op
 pub(super) struct CandidateStage {
     root: PathBuf,
     pub(super) skill_dir: PathBuf,
-    pub(super) base_digest: String,
+    pub(super) base_digest: Digest,
 }
 
 impl CandidateStage {

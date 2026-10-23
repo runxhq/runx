@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/skill-review/evaluation/v1.json",
+  "x-runx-packet-id": "runx/skill-review.evaluation.v1",
+  "type": "object",
+  "required": ["capability_profile", "trust_assessment", "test_matrix", "recommendation_report"],
+  "properties": {
+    "capability_profile": {
+      "type": "object",
+      "required": ["skill", "summary"],
+      "properties": {
+        "skill": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "trust_assessment": {
+      "type": "object",
+      "required": ["tier", "caveats"],
+      "properties": {
+        "tier": { "type": "string", "minLength": 1 },
+        "caveats": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "test_matrix": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "recommendation_report": {
+      "type": "object",
+      "required": ["recommendation", "rationale"],
+      "properties": {
+        "recommendation": { "type": "string", "minLength": 1 },
+        "rationale": { "type": "string", "minLength": 1 },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "next_action": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "verdict": { "type": "string" },
+    "findings": { "type": "array" },
+    "recommendations": { "type": "array" }
+  },
+  "additionalProperties": true
+}

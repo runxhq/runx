@@ -1,9 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use runx_contracts::{
-    JsonNumber, JsonObject, JsonValue, SkillPackageDelta, SkillPackageMetrics, sha256_prefixed,
-};
+use runx_contracts::{Digest, SkillPackageDelta, SkillPackageMetrics};
 
 use super::path::{
     display_relative, ignored_package_entry, invalid_skill_change, is_executable_path,
@@ -16,11 +14,11 @@ pub(super) struct PackageFile {
     pub(super) relative: PathBuf,
     pub(super) contents: Vec<u8>,
     pub(super) permissions: fs::Permissions,
-    permission_fingerprint: u32,
+    permission_bits: u32,
 }
 
 pub(super) struct PackageSnapshot {
-    pub(super) digest: String,
+    pub(super) digest: Digest,
     pub(super) files: Vec<PackageFile>,
 }
 
@@ -48,39 +46,6 @@ pub(super) fn package_metrics(snapshot: &PackageSnapshot) -> SkillPackageMetrics
         }
     }
     metrics
-}
-
-pub(super) fn package_metrics_json(metrics: &SkillPackageMetrics) -> JsonValue {
-    JsonValue::Object(JsonObject::from([
-        (
-            "files".to_owned(),
-            JsonValue::Number(JsonNumber::U64(metrics.files)),
-        ),
-        (
-            "bytes".to_owned(),
-            JsonValue::Number(JsonNumber::U64(metrics.bytes)),
-        ),
-        (
-            "production_lines".to_owned(),
-            JsonValue::Number(JsonNumber::U64(metrics.production_lines)),
-        ),
-        (
-            "test_lines".to_owned(),
-            JsonValue::Number(JsonNumber::U64(metrics.test_lines)),
-        ),
-        (
-            "generated_lines".to_owned(),
-            JsonValue::Number(JsonNumber::U64(metrics.generated_lines)),
-        ),
-        (
-            "executable_files".to_owned(),
-            JsonValue::Number(JsonNumber::U64(metrics.executable_files)),
-        ),
-        (
-            "executable_lines".to_owned(),
-            JsonValue::Number(JsonNumber::U64(metrics.executable_lines)),
-        ),
-    ]))
 }
 
 pub(super) fn package_delta(
@@ -177,17 +142,17 @@ pub(super) fn package_snapshot(root: &Path) -> Result<PackageSnapshot, RuntimeEr
     for file in &files {
         let path = display_relative(&file.relative);
         append_digest_field(&mut canonical, path.as_bytes());
-        append_digest_field(&mut canonical, &file.permission_fingerprint.to_be_bytes());
+        append_digest_field(&mut canonical, &file.permission_bits.to_be_bytes());
         append_digest_field(&mut canonical, &file.contents);
     }
     Ok(PackageSnapshot {
-        digest: sha256_prefixed(&canonical),
+        digest: Digest::of(&canonical),
         files,
     })
 }
 
-pub(super) fn absent_package_digest() -> String {
-    sha256_prefixed(b"absent")
+pub(super) fn absent_package_digest() -> Digest {
+    Digest::of(b"absent")
 }
 
 fn collect_package_files(
@@ -242,7 +207,7 @@ fn collect_package_files(
                     .map_err(|_| invalid_skill_change("package file escaped target directory"))?,
                 contents,
                 permissions: metadata.permissions(),
-                permission_fingerprint: permission_fingerprint(&metadata),
+                permission_bits: permission_bits(&metadata),
             });
         } else {
             return Err(invalid_skill_change(format!(
@@ -260,13 +225,13 @@ fn append_digest_field(target: &mut Vec<u8>, value: &[u8]) {
 }
 
 #[cfg(unix)]
-fn permission_fingerprint(metadata: &fs::Metadata) -> u32 {
+fn permission_bits(metadata: &fs::Metadata) -> u32 {
     use std::os::unix::fs::PermissionsExt;
 
     metadata.permissions().mode()
 }
 
 #[cfg(not(unix))]
-fn permission_fingerprint(metadata: &fs::Metadata) -> u32 {
+fn permission_bits(metadata: &fs::Metadata) -> u32 {
     u32::from(metadata.permissions().readonly())
 }

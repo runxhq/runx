@@ -13,4 +13,4 @@ fail the TypeScript test wall if exact, delegated, or trusted wildcard
 semantics drift.
 
 See the [TypeScript interop boundary](../../docs/ts-interop-boundary.md) for
-the package disposition and ownership rules.
+the package outcome and ownership rules.

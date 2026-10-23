@@ -51,7 +51,11 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         None => quote! { ::core::option::Option::None },
     };
 
-    let wire = schema_body(input, &identity_expr, Mode::Wire)?;
+    let title = ident.to_string();
+    let wire = described(
+        schema_body(input, &identity_expr, Mode::Wire)?,
+        &input.attrs,
+    );
     // What decoding accepts is a shape, not a document: it carries no identity.
     let accepted = schema_body(
         input,
@@ -59,17 +63,49 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         Mode::Accepted,
     )?;
 
+    let held = held_types(input);
+
     Ok(quote! {
         impl ::runx_contracts::schema::RunxSchema for #ident {
             fn json_schema() -> ::serde_json::Value {
-                #wire
+                ::runx_contracts::schema::titled(#wire, #title)
             }
 
             fn accepted_schema() -> ::serde_json::Value {
                 #accepted
             }
+
+            fn named_schemas(named: &mut ::runx_contracts::schema::NamedSchemas) {
+                if ::runx_contracts::schema::record_named(
+                    named,
+                    #title,
+                    <Self as ::runx_contracts::schema::RunxSchema>::json_schema,
+                ) {
+                    #(<#held as ::runx_contracts::schema::RunxSchema>::named_schemas(named);)*
+                }
+            }
         }
     })
+}
+
+/// The types a contract type holds on the wire: its fields', or each
+/// variant's, skipped fields aside.
+fn held_types(input: &DeriveInput) -> Vec<&Type> {
+    fn wire_fields(fields: &Fields) -> impl Iterator<Item = &Type> {
+        fields
+            .iter()
+            .filter(|field| !serde_skip(&field.attrs))
+            .map(|field| &field.ty)
+    }
+    match &input.data {
+        Data::Struct(data) => wire_fields(&data.fields).collect(),
+        Data::Enum(data) => data
+            .variants
+            .iter()
+            .flat_map(|variant| wire_fields(&variant.fields))
+            .collect(),
+        Data::Union(_) => Vec::new(),
+    }
 }
 
 /// Which schema a body emits: the one wire form Rust writes
@@ -293,6 +329,10 @@ fn struct_field_properties(
         } else {
             present_schema(field, inner_schema)?
         };
+        let property_schema = match mode {
+            Mode::Wire => described(property_schema, &field.attrs),
+            Mode::Accepted => property_schema,
+        };
         properties.push(quote! {
             ::runx_contracts::schema::Property::new(
                 #wire_name,
@@ -369,7 +409,10 @@ fn enum_body(
                 mode,
             )?
         };
-        variant_schemas.push(schema);
+        variant_schemas.push(match mode {
+            Mode::Wire => described(schema, &variant.attrs),
+            Mode::Accepted => schema,
+        });
     }
 
     Ok(quote! {
@@ -501,6 +544,56 @@ fn newtype_inner_schema(
     Ok(quote! {
         <#inner_ty as ::runx_contracts::schema::RunxSchema>::#method()
     })
+}
+
+/// `schema` carrying the item's doc comment as its `description`, when it has
+/// one: the wire schema documents itself to the agents and hosts that read it.
+fn described(
+    schema: proc_macro2::TokenStream,
+    attrs: &[syn::Attribute],
+) -> proc_macro2::TokenStream {
+    match doc_text(attrs) {
+        Some(text) => quote! { ::runx_contracts::schema::described(#schema, #text) },
+        None => schema,
+    }
+}
+
+/// The text of an item's `///` lines: a paragraph's lines joined with a
+/// space, a list item kept on its own line, paragraphs apart by a blank line.
+fn doc_text(attrs: &[syn::Attribute]) -> Option<String> {
+    let mut paragraphs = Vec::new();
+    let mut paragraph = String::new();
+    for attr in attrs {
+        if !attr.path().is_ident("doc") {
+            continue;
+        }
+        let syn::Meta::NameValue(meta) = &attr.meta else {
+            continue;
+        };
+        let syn::Expr::Lit(syn::ExprLit {
+            lit: Lit::Str(text),
+            ..
+        }) = &meta.value
+        else {
+            continue;
+        };
+        let text = text.value();
+        let line = text.trim();
+        if line.is_empty() {
+            if !paragraph.is_empty() {
+                paragraphs.push(std::mem::take(&mut paragraph));
+            }
+            continue;
+        }
+        if !paragraph.is_empty() {
+            paragraph.push(if line.starts_with("- ") { '\n' } else { ' ' });
+        }
+        paragraph.push_str(line);
+    }
+    if !paragraph.is_empty() {
+        paragraphs.push(paragraph);
+    }
+    (!paragraphs.is_empty()).then(|| paragraphs.join("\n\n"))
 }
 
 /// Strip a leading `Option<...>`, returning the inner type and whether it was

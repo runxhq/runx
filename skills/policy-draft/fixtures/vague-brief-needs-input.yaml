@@ -40,7 +40,7 @@ expect:
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: closed
+    outcome: completed
 metadata:
   public_skill: policy-draft
   source_case: vague-brief-needs-input

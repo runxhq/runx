@@ -89,7 +89,7 @@ export function admitGrowthEvidence(inputs) {
 function admitSearch(packet, siteUrl, findings, caveats, sources, sourceRecords, evidence, seen) {
   if (Object.keys(packet).length === 0) return;
   const local = [];
-  if (text(packet.schema) !== "runx.search.performance.evidence.v1") {
+  if (text(packet.schema) !== "runx/google-search-console.performance_evidence.v1") {
     local.push(finding("growth.search.schema_invalid", "search evidence schema is not supported"));
   }
   if (text(object(packet.validation).status) !== "pass" || text(packet.decision) === "blocked") {
@@ -139,7 +139,7 @@ function admitSearch(packet, siteUrl, findings, caveats, sources, sourceRecords,
 function admitAnalytics(packet, findings, caveats, sources, sourceRecords, evidence, seen) {
   if (Object.keys(packet).length === 0) return;
   const local = [];
-  if (text(packet.schema) !== "runx.analytics.report.evidence.v1") {
+  if (text(packet.schema) !== "runx/google-analytics.report_evidence.v1") {
     local.push(finding("growth.analytics.schema_invalid", "analytics evidence schema is not supported"));
   }
   if (text(object(packet.validation).status) !== "pass" || text(packet.decision) === "blocked") {
@@ -193,7 +193,7 @@ function admitSite(value, findings, caveats, sources, sourceRecords, evidence, s
   records.slice(0, MAX_SITE_SOURCES).forEach((raw, index) => {
     const record = object(raw);
     const sourceDigest = text(record.source_digest || record.evidence_digest || record.content_digest);
-    const sourceRef = text(record.source_ref || record.final_url);
+    const sourceUri = text(record.source_uri || record.final_url);
     const kind = text(record.kind || "site_evidence");
     const summary = text(record.summary || record.extracted);
     const local = [];
@@ -201,8 +201,8 @@ function admitSite(value, findings, caveats, sources, sourceRecords, evidence, s
     if (!isDigest(sourceDigest)) {
       local.push(finding("growth.site_evidence.digest_missing", `site evidence ${index} requires a SHA-256 digest`));
     }
-    if (!sourceRef) {
-      local.push(finding("growth.site_evidence.ref_missing", `site evidence ${index} requires source_ref or final_url`));
+    if (!sourceUri) {
+      local.push(finding("growth.site_evidence.uri_missing", `site evidence ${index} requires source_uri or final_url`));
     }
     if (!summary) {
       local.push(finding("growth.site_evidence.summary_missing", `site evidence ${index} requires a bounded summary or extracted value`));
@@ -215,7 +215,7 @@ function admitSite(value, findings, caveats, sources, sourceRecords, evidence, s
       return;
     }
     if (!register(sourceDigest, kind, {
-      source_ref: sourceRef,
+      source_uri: sourceUri,
       observed_at: text(record.observed_at),
       decision: text(record.decision),
     }, sources, sourceRecords, seen)) return;
@@ -223,7 +223,7 @@ function admitSite(value, findings, caveats, sources, sourceRecords, evidence, s
     evidence.push({
       kind,
       source_digest: sourceDigest,
-      source_ref: sourceRef,
+      source_uri: sourceUri,
       observed_at: text(record.observed_at),
       summary,
     });

@@ -49,7 +49,7 @@ caller:
                   task_id: abandoned-cart-api
                   objective: Implement and publish the backend contract.
                   depends_on: []
-                  shared_context_refs:
+                  shared_context_paths:
                     - change_set.shared_invariants
                   validation_commands:
                     - bundle exec rspec spec/services/abandoned_cart_spec.rb
@@ -66,7 +66,7 @@ caller:
                   objective: Update the app against the frozen contract.
                   depends_on:
                     - implement-api
-                  shared_context_refs:
+                  shared_context_paths:
                     - freeze-api-contract
                   validation_commands:
                     - npm test

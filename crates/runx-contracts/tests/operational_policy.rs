@@ -119,7 +119,7 @@ fn provider_policy_admits_each_target_repo_route() -> Result<(), Box<dyn std::er
         assert_eq!(admission.owners.as_deref(), Some(&["Ops".to_owned()][..]));
         assert_eq!(
             admission.dedupe_strategy,
-            OperationalPolicyDedupeStrategy::SourceFingerprint
+            OperationalPolicyDedupeStrategy::SourceDigest
         );
         assert_eq!(
             admission.outcome_close_mode,

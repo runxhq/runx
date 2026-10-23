@@ -134,7 +134,7 @@ fn login_exchange_stores_encrypted_public_api_token() -> Result<(), Box<dyn std:
 
     assert!(output.contains("\"status\": \"success\""));
     let config_text = fs::read_to_string(temp.join("config.json"))?;
-    assert!(config_text.contains("publish_api_token_ref"));
+    assert!(config_text.contains("publish_api_token_material_id"));
     assert!(!config_text.contains("rxk_secret"));
     assert!(!config_text.contains("rxk_default"));
     let config = runx_runtime::load_runx_config_file(&temp.join("config.json"))?;
@@ -143,7 +143,7 @@ fn login_exchange_stores_encrypted_public_api_token() -> Result<(), Box<dyn std:
         runx_runtime::load_local_public_api_token(
             &home_paths(&temp),
             public
-                .api_token_ref
+                .api_token_material_id
                 .as_deref()
                 .ok_or("missing default token")?,
         )?,
@@ -153,7 +153,7 @@ fn login_exchange_stores_encrypted_public_api_token() -> Result<(), Box<dyn std:
         runx_runtime::load_local_public_api_token(
             &home_paths(&temp),
             public
-                .publish_api_token_ref
+                .publish_api_token_material_id
                 .as_deref()
                 .ok_or("missing publish token")?,
         )?,

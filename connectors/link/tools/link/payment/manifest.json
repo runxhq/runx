@@ -16,7 +16,7 @@
       "type": "string",
       "required": true
     },
-    "principal_ref": {
+    "principal_uri": {
       "type": "string",
       "required": true
     },

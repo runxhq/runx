@@ -22,6 +22,7 @@
               "type": "string"
             }
           },
+          "title": "ActAssignmentActor",
           "type": "object"
         },
         "kind": {
@@ -31,6 +32,7 @@
             "comment",
             "system"
           ],
+          "title": "ActAssignmentHostKind",
           "type": "string"
         },
         "scope_set": {
@@ -39,13 +41,14 @@
           },
           "type": "array"
         },
-        "trigger_ref": {
+        "trigger_uri": {
           "type": "string"
         }
       },
       "required": [
         "kind"
       ],
+      "title": "ActAssignmentHost",
       "type": "object"
     },
     "idempotency": {
@@ -54,7 +57,7 @@
         "algorithm": {
           "type": "string"
         },
-        "content_hash": {
+        "content_digest": {
           "minLength": 1,
           "type": "string"
         },
@@ -70,8 +73,9 @@
       "required": [
         "algorithm",
         "intent_key",
-        "content_hash"
+        "content_digest"
       ],
+      "title": "ActAssignmentIdempotency",
       "type": "object"
     },
     "input_overrides": {
@@ -91,25 +95,27 @@
       "enum": [
         "runx.act_assignment.v1"
       ],
+      "title": "ActAssignmentSchema",
       "type": "string"
     },
-    "skill_ref": {
+    "skill": {
       "minLength": 1,
       "type": "string"
     },
-    "source_ref": {
+    "source_uri": {
       "minLength": 1,
       "type": "string"
     }
   },
   "required": [
     "schema",
-    "skill_ref",
+    "skill",
     "runner",
     "requested_at",
     "host",
     "idempotency"
   ],
+  "title": "ActAssignment",
   "type": "object",
   "x-runx-schema": "runx.act_assignment.v1"
 }

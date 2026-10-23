@@ -156,18 +156,20 @@ mod tests {
     }
 
     #[test]
-    fn json_lists_declared_packets() -> Result<(), ListCliError> {
+    fn json_lists_each_package_packet() -> Result<(), ListCliError> {
         let root = temp_workspace("packets");
         let _ignored = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("packets")).map_err(runtime_io("creating packet fixture"))?;
+        let package = root.join("skills/example");
+        fs::create_dir_all(package.join("packets"))
+            .map_err(runtime_io("creating packet fixture"))?;
         fs::write(
-            root.join("package.json"),
-            r#"{"runx":{"packets":["packets/*.json"]}}"#,
+            package.join("SKILL.md"),
+            "---\nname: example\ndescription: Example packets.\n---\n# Example\n",
         )
         .map_err(runtime_io("writing package fixture"))?;
         fs::write(
-            root.join("packets/example.result.json"),
-            r#"{"x-runx-packet-id":"runx.example.result.v1"}"#,
+            package.join("packets/result.v1.schema.json"),
+            r#"{"$id":"https://schemas.runx.ai/packages/acme/example/result/v1.json","x-runx-packet-id":"acme/example.result.v1","type":"object"}"#,
         )
         .map_err(runtime_io("writing packet fixture"))?;
 
@@ -184,7 +186,7 @@ mod tests {
         let report = serde_json::from_str::<TestListReport>(&output)?;
         assert_eq!(report.schema, "runx.list.v1");
         assert_eq!(report.items[0].kind, "packet");
-        assert_eq!(report.items[0].name, "runx.example.result.v1");
+        assert_eq!(report.items[0].name, "acme/example.result.v1");
 
         fs::remove_dir_all(root).map_err(runtime_io("removing packet fixture"))?;
         Ok(())

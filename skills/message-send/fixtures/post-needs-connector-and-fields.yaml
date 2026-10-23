@@ -5,7 +5,7 @@ runner: plan_post
 inputs:
   channel: "#ops"
   content:
-    content_ref: draft:mutable
+    content_uri: draft:mutable
   principal: team:operations
 expect:
   status: failure

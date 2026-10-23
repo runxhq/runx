@@ -106,7 +106,7 @@ export function selectArchivePage(inputs) {
     ...selectionDraft(context, {
       acts,
       scanned,
-      evidenceRefs: [text(page.whole_digest)],
+      evidenceLocators: [text(page.whole_digest)],
       actLabel: "delete",
       blockers: [],
       truncated,
@@ -154,8 +154,8 @@ function selectionDraft(context, selection) {
     objective: context.objective,
     principal: context.principal,
     acts: selection.acts,
-    gates: { human_approval_required: true, approval_ref: "approval:pending" },
-    evidence_refs: selection.evidenceRefs,
+    gates: { human_approval_required: true, approval_id: "approval:pending" },
+    evidence_locators: selection.evidenceLocators,
     open_questions: [],
     blockers: [],
     success_checkpoint: {
@@ -194,7 +194,7 @@ function selectUsers(plan, bundle, predicate, maxActs) {
     return emptySelection("unfollow", followingArchive.blockers);
   }
   const following = accountIds(followingArchive.entries, "following");
-  const evidenceRefs = [`archive:${followingArchive.path}`];
+  const evidenceLocators = [`archive:${followingArchive.path}`];
   let selected;
   if (predicate.non_mutual === true) {
     const followersArchive = archiveEntries(plan, bundle, "followers");
@@ -203,7 +203,7 @@ function selectUsers(plan, bundle, predicate, maxActs) {
     }
     const followers = new Set(accountIds(followersArchive.entries, "follower"));
     selected = following.filter((id) => !followers.has(id));
-    evidenceRefs.push(`archive:${followersArchive.path}`);
+    evidenceLocators.push(`archive:${followersArchive.path}`);
   } else if (Array.isArray(predicate.user_ids)) {
     const followingSet = new Set(following);
     selected = predicate.user_ids.map(String).filter((id) => followingSet.has(id));
@@ -223,7 +223,7 @@ function selectUsers(plan, bundle, predicate, maxActs) {
   return {
     acts,
     scanned: following.length,
-    evidenceRefs,
+    evidenceLocators,
     actLabel: "unfollow",
     blockers: [],
     truncated: selected.length > acts.length,
@@ -231,9 +231,9 @@ function selectUsers(plan, bundle, predicate, maxActs) {
 }
 
 function archiveEntries(plan, bundle, role) {
-  const fileRef = array(plan.files).map(record).find((file) => text(file.role) === role);
-  if (!fileRef) return { path: "", entries: [], blockers: [`archive plan is missing ${role}`] };
-  const path = text(fileRef.path);
+  const archiveFile = array(plan.files).map(record).find((file) => text(file.role) === role);
+  if (!archiveFile) return { path: "", entries: [], blockers: [`archive plan is missing ${role}`] };
+  const path = text(archiveFile.path);
   const file = array(record(bundle).files).map(record).find((entry) => text(entry.path) === path);
   if (!file) return { path, entries: [], blockers: [`native file evidence is missing ${path}`] };
   if (file.truncated === true) {
@@ -298,7 +298,7 @@ function selectionPacket(overrides) {
 }
 
 function emptySelection(actLabel, blockers) {
-  return { acts: [], scanned: 0, evidenceRefs: [], actLabel, blockers };
+  return { acts: [], scanned: 0, evidenceLocators: [], actLabel, blockers };
 }
 
 function addFile(files, blockers, role, value, message) {

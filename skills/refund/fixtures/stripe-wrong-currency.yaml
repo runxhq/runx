@@ -19,7 +19,7 @@ inputs:
   connector: stripe
   request:
     account_id: acct_northstar
-    payment_ref: pi_northstar
+    payment_id: pi_northstar
     amount_minor: 100
     currency: usd
   idempotency_seed: northstar-refund-42

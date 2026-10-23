@@ -17,12 +17,12 @@ reads it back.
 2. Use the already-authenticated local `gh` and Git installations by default.
    A project may bind hosted Runx Connect when provider isolation or hosted
    authority is required.
-3. Read the issue once and emit `runx.issue_to_pr.issue_evidence.v1`.
+3. Read the issue once and emit `runx/github-issue-to-pr.issue_evidence.v1`.
 4. Let the host agent investigate, edit, and test with its ordinary repository
    tools. Runx does not turn editing into a sequence of answer files.
 5. Call `scafld finalize` once after the change and tests are ready. Record its
    receipt reference and contract digest in
-   `runx.issue_to_pr.host_result.v1`.
+   `runx/github-issue-to-pr.host_result.v1`.
 6. Withhold publication unless the host result explicitly requests it. A held
    result is still a completed tested local change, not a plan.
 7. When publication is requested, admit the exact `pullrequest.publish` effect
@@ -38,10 +38,10 @@ stages of issue-to-PR.
 Use the smallest runner matching evidence already available:
 
 - `github-issue-to-pr` reads the issue and performs host work.
-- `from-evidence` accepts `runx.issue_to_pr.issue_evidence.v1` and skips the
+- `from-evidence` accepts `runx/github-issue-to-pr.issue_evidence.v1` and skips the
   provider read.
 - `resume` accepts issue evidence plus
-  `runx.issue_to_pr.host_result.v1`; it skips issue discovery, editing, tests,
+  `runx/github-issue-to-pr.host_result.v1`; it skips issue discovery, editing, tests,
   and finalize.
 - `publish` accepts an admitted completed host result and performs only PR open
   plus readback.

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Emits the native/signatures.json manifest that package-rust-cli.ts requires.
-// The sha256 binds the manifest to a specific binary; the signature entry
+// The binary digest binds the manifest to a specific binary; the signature entry
 // records the build identity (GitHub Actions OIDC run by default). npm
 // publish --provenance is the authoritative cryptographic attestation, this
 // manifest is the in-package provenance breadcrumb the release contract checks.
@@ -28,8 +28,8 @@ const binaryPath = path.resolve(workspaceRoot, options.binary);
 const workerPath = path.resolve(workspaceRoot, options.worker);
 const binaryName = options.platform === "win32-x64" ? "runx.exe" : "runx";
 const workerName = options.platform === "win32-x64" ? "runx-js-worker.exe" : "runx-js-worker";
-const sha256 = createHash("sha256").update(readFileSync(binaryPath)).digest("hex");
-const workerSha256 = createHash("sha256").update(readFileSync(workerPath)).digest("hex");
+const binaryDigest = sha256(binaryPath);
+const workerDigest = sha256(workerPath);
 
 const signatureManifest = {
   schema: "runx.rust_cli_artifact_signatures.v1",
@@ -37,9 +37,9 @@ const signatureManifest = {
   version: manifest.version,
   platform: options.platform,
   binary: `bin/${binaryName}`,
-  sha256,
+  binary_digest: binaryDigest,
   worker: `bin/${workerName}`,
-  worker_sha256: workerSha256,
+  worker_digest: workerDigest,
   signatures: [
     {
       kind: "github-actions-oidc",
@@ -49,7 +49,11 @@ const signatureManifest = {
 };
 
 writeFileSync(path.resolve(workspaceRoot, options.out), `${JSON.stringify(signatureManifest, null, 2)}\n`);
-console.log(JSON.stringify({ status: "written", out: options.out, sha256 }, null, 2));
+console.log(JSON.stringify({ status: "written", out: options.out, binary_digest: binaryDigest }, null, 2));
+
+function sha256(filePath: string): string {
+  return `sha256:${createHash("sha256").update(readFileSync(filePath)).digest("hex")}`;
+}
 
 function parseArgs(argv: readonly string[]): Options {
   let binary = "";

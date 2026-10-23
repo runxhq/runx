@@ -11,7 +11,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::fingerprint::sha256_prefixed;
+use crate::digest::sha256_prefixed;
 use crate::json::{JsonObject, JsonValue};
 use crate::schema::{NonEmptyString, RunxSchema};
 
@@ -76,8 +76,7 @@ impl OutputField {
     }
 }
 
-/// The standalone `output.schema.json` document: a top-level open map of field
-/// name to [`OutputField`], carrying the bare `runx.ai/spec` `$id`.
+/// A runner's declared outputs: each output field by name.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(transparent)]
 #[runx_schema(id = "runx.output.v1")]

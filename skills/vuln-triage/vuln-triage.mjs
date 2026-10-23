@@ -1,17 +1,17 @@
 export function admitScan(inputs) {
   const evidence = object(inputs.cve_evidence);
-  const audit = unwrap(evidence.audit_result) || (evidence.schema === "runx.security.exact_cve_audit.v1" ? evidence : {});
+  const audit = unwrap(evidence.audit_result) || (evidence.schema === "runx/cve-audit.audit.v1" ? evidence : {});
   const verification = unwrap(evidence.verification);
   const findings = [];
   const finding = (code, message) => findings.push({ code, message });
   const target = text(inputs.target, 1_000);
-  const receiptRef = text(evidence.receipt_ref || evidence.receipt_id, 200);
+  const receiptId = text(evidence.receipt_id, 200);
   const evidenceDigest = text(inputs.evidence_digest, 80);
 
   if (!target) finding("vuln.target.missing", "target is required");
-  if (audit.schema !== "runx.security.exact_cve_audit.v1") finding("vuln.audit.missing", "cve_evidence must include an exact cve-audit packet");
+  if (audit.schema !== "runx/cve-audit.audit.v1") finding("vuln.audit.missing", "cve_evidence must include an exact cve-audit packet");
   if (verification.verified !== true) finding("vuln.audit.unverified", "cve_evidence must include successful independent verification");
-  if (!/^(?:runx:receipt:)?sha256:[0-9a-f]{64}$/u.test(receiptRef)) finding("vuln.receipt.missing", "cve_evidence must include its sealed receipt reference");
+  if (!/^sha256:[0-9a-f]{64}$/u.test(receiptId)) finding("vuln.receipt.missing", "cve_evidence must include its sealed receipt id");
   if (!/^sha256:[0-9a-f]{64}$/u.test(evidenceDigest)) finding("vuln.evidence.unbound", "native CVE evidence digest is required");
 
   const verifiedFindings = array(audit.findings).slice(0, 500).map((item, index) => {
@@ -40,12 +40,12 @@ export function admitScan(inputs) {
   const path = findings.length > 0 ? "stop" : verifiedFindings.length === 0 ? "complete" : "assess";
   return {
     triage_context: {
-      schema: "runx.security.vulnerability_triage_context.v1",
+      schema: "runx/vuln-triage.triage_context.v1",
       path,
       stop_decision: findings.some(({ code }) => code.endsWith(".missing")) ? "needs_agent" : "needs_verified_evidence",
       target,
       source: {
-        receipt_ref: receiptRef,
+        receipt_id: receiptId,
         evidence_digest: evidenceDigest,
         target: object(audit.target),
         dependency_scope: text(audit.dependency_scope, 100),
@@ -114,7 +114,7 @@ export function finalizeScan(inputs) {
 
   return {
     vulnerability_scan_packet: {
-      schema: "runx.security.vulnerability_scan.v1",
+      schema: "runx/vuln-triage.scan.v1",
       decision: findings.length > 0 && context.path === "assess" ? "needs_more_evidence" : decision,
       target: context.target,
       dependency_inventory: context.dependency_inventory,
@@ -136,11 +136,11 @@ export function admitAdvisory(inputs) {
   const packet = object(inputs.triage_packet);
   const findings = [];
   const finding = (code, message) => findings.push({ code, message });
-  if (packet.schema !== "runx.security.vulnerability_scan.v1") finding("vuln.advisory.packet", "triage_packet must be runx.security.vulnerability_scan.v1");
+  if (packet.schema !== "runx/vuln-triage.scan.v1") finding("vuln.advisory.packet", "triage_packet must be runx/vuln-triage.scan.v1");
   if (object(packet.validation).status !== "pass") finding("vuln.advisory.validation", "triage packet validation must pass");
   const advisories = array(packet.advisories).slice(0, 500);
   const evidenceBinding = object(packet.evidence_binding);
-  if (!/^(?:runx:receipt:)?sha256:[0-9a-f]{64}$/u.test(text(evidenceBinding.receipt_ref))) finding("vuln.advisory.receipt", "triage packet requires a sealed receipt reference");
+  if (!/^sha256:[0-9a-f]{64}$/u.test(text(evidenceBinding.receipt_id))) finding("vuln.advisory.receipt", "triage packet requires a sealed receipt id");
   if (!/^sha256:[0-9a-f]{64}$/u.test(text(evidenceBinding.evidence_digest))) finding("vuln.advisory.digest", "triage packet requires an evidence digest");
   for (const [index, advisory] of advisories.entries()) {
     const item = object(advisory);
@@ -152,7 +152,7 @@ export function admitAdvisory(inputs) {
   const path = findings.length > 0 || advisories.length === 0 ? "stop" : "draft";
   return {
     advisory_context: {
-      schema: "runx.security.vulnerability_advisory_context.v1",
+      schema: "runx/vuln-triage.advisory_context.v1",
       path,
       stop_decision: findings.length > 0 ? "needs_verified_evidence" : "no_advisory_needed",
       target: packet.target,
@@ -182,7 +182,7 @@ export function finalizeAdvisory(inputs) {
   const decision = context.path === "stop" ? context.stop_decision : findings.length === 0 ? "ready_for_review" : "needs_more_evidence";
   return {
     vulnerability_advisory_packet: {
-      schema: "runx.security.vulnerability_advisory.v1",
+      schema: "runx/vuln-triage.advisory.v1",
       decision,
       target: context.target,
       audience: context.audience,

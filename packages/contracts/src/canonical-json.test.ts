@@ -20,7 +20,7 @@ interface CanonicalJsonCase {
   readonly expected_canonical_json: string;
   readonly expected_utf8_hex: string;
   readonly expected_sha256_hex: string;
-  readonly expected_sha256: string;
+  readonly expected_digest: string;
 }
 
 interface ReceiptOracleFixture {
@@ -32,9 +32,9 @@ interface ReceiptOracleCase {
   readonly name: string;
   readonly fixture: string;
   readonly full_canonical_json: string;
-  readonly full_sha256: string;
+  readonly full_digest: string;
   readonly body_canonical_json: string;
-  readonly body_sha256: string;
+  readonly body_digest: string;
 }
 
 interface HarnessSpineFixture {
@@ -89,7 +89,7 @@ describe("runx.stable-json.v1 canonical JSON", () => {
       expect(actual).toBe(testCase.expected_canonical_json);
       expect(Buffer.from(actual, "utf8").toString("hex")).toBe(testCase.expected_utf8_hex);
       expect(sha256Hex(actual)).toBe(testCase.expected_sha256_hex);
-      expect(sha256Prefixed(actual)).toBe(testCase.expected_sha256);
+      expect(sha256Prefixed(actual)).toBe(testCase.expected_digest);
     },
   );
 
@@ -142,7 +142,7 @@ describe("runx.receipt.c14n.v1 conformance", () => {
       const actual = canonicalJsonStringify(fixture.expected);
 
       expect(actual).toBe(testCase.full_canonical_json);
-      expect(sha256Prefixed(actual)).toBe(testCase.full_sha256);
+      expect(sha256Prefixed(actual)).toBe(testCase.full_digest);
     },
   );
 
@@ -153,7 +153,7 @@ describe("runx.receipt.c14n.v1 conformance", () => {
       const actual = canonicalJsonStringify(stripBodyProofFields(fixture.expected, true));
 
       expect(actual).toBe(testCase.body_canonical_json);
-      expect(sha256Prefixed(actual)).toBe(testCase.body_sha256);
+      expect(sha256Prefixed(actual)).toBe(testCase.body_digest);
     },
   );
 });

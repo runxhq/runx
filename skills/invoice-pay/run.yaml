@@ -1,5 +1,5 @@
 skill: invoice-pay
-version: 0.6.2
+version: "0.6.3"
 catalog:
   kind: graph
   audience: operator
@@ -13,7 +13,7 @@ runners:
   invoice-pay:
     default: true
     inputs:
-      invoice_ref:
+      invoice_id:
         type: string
         required: true
         description: The invoice's own reference.
@@ -77,7 +77,7 @@ runners:
     steps:
       - id: admit
         inputs:
-          invoice_ref: $input.invoice_ref
+          invoice_id: $input.invoice_id
           amount_minor: $input.amount_minor
           currency: $input.currency
           payee: $input.payee
@@ -98,7 +98,7 @@ runners:
           parent_payment_authority: $input.parent_payment_authority
           idempotency_seed: $input.idempotency_seed
     examples:
-      - invoice_ref: INV-2026-0042
+      - invoice_id: INV-2026-0042
         amount_minor: 4200
         currency: USD
         payee:
@@ -107,7 +107,7 @@ runners:
           term_id: invoice-authority-1
           currency: USD
           max_amount_minor: 5000
-          counterparty: https://payee.example/v1/invoices/pay
+          resource_url: https://payee.example/v1/invoices/pay
         idempotency_seed: invoice-pay-test-0042
         connector: wallet/evm
         request:
@@ -115,7 +115,7 @@ runners:
             url: https://payee.example/v1/invoices/pay
             method: POST
             body:
-              invoice_ref: INV-2026-0042
+              invoice_id: INV-2026-0042
           amount_minor: 4200
           pay_to: "0x00000000000000000000000000000000000000a1"
 harness:

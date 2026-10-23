@@ -63,7 +63,7 @@ Its tools are fixed (`turn_list`, `turn_status`, `turn_call` and
 child skill is worked on the same connection. `turn_status` returns a
 `TurnStatusContract`: the turn's act and the calls it may make, each a
 `TurnToolContract` with a name, target and input schema that a host can
-present to its model as a typed tool. Each call returns a `TurnCallContract`.
+present to its model as a typed tool. Each call returns a `TurnCallResultContract`.
 All three come from `@runxhq/contracts`. Runx admits, executes and records
 every call under the run's authority. A write names its `idempotency_key`. A
 pending call lists what it waits on. The host answers an approval through

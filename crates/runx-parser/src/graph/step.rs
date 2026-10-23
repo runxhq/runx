@@ -265,7 +265,7 @@ fn validate_kind(
             }))
         }
         _ => Ok(StepKind::Skill(SkillTarget {
-            reference: non_empty(value, &qualified)?,
+            skill: non_empty(value, &qualified)?,
             runner: optional_non_empty_string(raw_step.get("runner"), &format!("{field}.runner"))?,
         })),
     }

@@ -1,1 +1,0 @@
-{"description":"Cancellation is idempotently bound to the commercial invocation.","expectation":"valid","operation":"CancelPaidInvocation","payload":{"idempotency":{"binding_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","key":"cancel_direct"},"invocation_id":"paid_direct"},"schema_id":"runx.payment.cancel_paid_invocation.request.v1"}

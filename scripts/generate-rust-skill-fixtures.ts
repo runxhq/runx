@@ -113,7 +113,7 @@ function intakeFixture(
     expect: canonicalExpectation(entry, {
       status: "sealed",
       state: "sealed",
-      disposition: "closed",
+      outcome: "completed",
     }),
     metadata: {
       product_skill: skillName,
@@ -137,7 +137,7 @@ function canonicalExpectation(
   receipt: {
     status: string;
     state: string;
-    disposition: string;
+    outcome: string;
     childReceiptCount?: number;
   },
 ): Record<string, unknown> {
@@ -145,7 +145,7 @@ function canonicalExpectation(
   const receiptExpectation: Record<string, unknown> = {
     schema: "runx.receipt.v1",
     state: receipt.state,
-    disposition: receipt.disposition,
+    outcome: receipt.outcome,
   };
   if (receipt.childReceiptCount !== undefined) {
     receiptExpectation.child_receipt_count = receipt.childReceiptCount;

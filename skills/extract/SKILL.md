@@ -17,9 +17,9 @@ deterministic; the model's interpretation is not claimed to be deterministic.
 
 ## Choose an input lane
 
-The default `extract` runner accepts `content`, `source_ref`, `schema` and
+The default `extract` runner accepts `content`, `source_id`, `schema` and
 `objective`. Use it when `web-fetch`, an artifact reader or an upstream operation
-has already collected the text. `source_ref` identifies that document or capture;
+has already collected the text. `source_id` identifies that document or capture;
 it does not trigger a network request or prove the URL is current.
 
 `from-file` accepts the same fields except `content`, plus a workspace-relative
@@ -64,7 +64,7 @@ contains `INV-104`, `125` and `Northstar`, with quotations bound to
 `/invoice_id`, `/total_usd` and `/customer`. It does not pay the invoice; pass the
 admitted invoice and the necessary authority to `invoice-pay` separately.
 
-`structured_extraction_result` uses `runx.structured_extraction.result.v1` and
+`structured_extraction_result` uses `runx/extract.result.v1` and
 contains the source reference, source/schema/output digests, decision, value,
 quotations, missing fields and native validation result. Extraction performs no
 provider write, publication, indexing or payment. Downstream consumers receive

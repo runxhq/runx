@@ -24,7 +24,7 @@ inputs:
     source_evidence:
       - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
         content_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
-        source_ref: local://runx/receipt-architecture
+        source_uri: local://runx/receipt-architecture
         source_kind: local_file
         provenance: { path: docs/receipt-architecture.md }
     index_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
@@ -42,13 +42,13 @@ inputs:
     evidence:
       evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
       sources:
-        - { source_ref: "source:1", kind: approved, label: Approved Runx engineering note. }
+        - { source_id: "source:1", kind: approved, label: Approved Runx engineering note. }
       bindings:
-        - { rule: Lead with governed action and proof., source_refs: ["source:1"] }
-        - { rule: receipt, source_refs: ["source:1"] }
-        - { rule: magic, source_refs: ["source:1"] }
-        - { rule: Concise engineering sentences., source_refs: ["source:1"] }
-        - { rule: Receipts bind actions to authority evidence., source_refs: ["source:1"] }
+        - { rule: Lead with governed action and proof., source_ids: ["source:1"] }
+        - { rule: receipt, source_ids: ["source:1"] }
+        - { rule: magic, source_ids: ["source:1"] }
+        - { rule: Concise engineering sentences., source_ids: ["source:1"] }
+        - { rule: Receipts bind actions to authority evidence., source_ids: ["source:1"] }
     redactions: []
     stop_conditions: []
     receipt_notes: { authority: context-only, mutation: false }
@@ -67,12 +67,12 @@ inputs:
     evidence:
       evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
       sources:
-        - { source_ref: "source:1", kind: liked, label: Operator-approved surface. }
+        - { source_id: "source:1", kind: liked, label: Operator-approved surface. }
       bindings:
-        - { rule: Make the workflow visible., source_refs: ["source:1"], confidence: explicit }
-        - { rule: Dense operational surfaces., source_refs: ["source:1"], confidence: explicit }
-        - { rule: Decorative filler., source_refs: ["source:1"], confidence: explicit }
-        - { rule: Choose operational clarity., source_refs: ["source:1"], confidence: explicit }
+        - { rule: Make the workflow visible., source_ids: ["source:1"], confidence: explicit }
+        - { rule: Dense operational surfaces., source_ids: ["source:1"], confidence: explicit }
+        - { rule: Decorative filler., source_ids: ["source:1"], confidence: explicit }
+        - { rule: Choose operational clarity., source_ids: ["source:1"], confidence: explicit }
     redactions: []
     stop_conditions: []
     receipt_notes: { authority: context-only, mutation: false }
@@ -86,14 +86,14 @@ caller:
         draft:
           title: Governed action stays visible
           body: Receipts bind actions to authority evidence.
-          claim_refs:
+          claims:
             - claim: Receipts bind actions to authority evidence.
               source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111]
         context_binding:
           applied:
-            - packet_digest: sha256:d82b3f6e9731497a2aa6d91051f144a69fdcff6dd1225572ea30b245bf9ab5b5
+            - packet_digest: sha256:242e528c7321572ef34e4942bc0d8350828e38185bcb79b1012e69db2b369253
               applied_rules: [Lead with governed action and proof.]
-            - packet_digest: sha256:96c6705e4667be9eac94382c35fe1552eac2f243d60fbafce64b5263d79b068f
+            - packet_digest: sha256:7dcbc2daee848863a29e219180c1edeae50a046e521d8f67cbbc298cdee2dff9
               applied_rules: [Choose operational clarity.]
         review_checklist: []
         distribution_notes: { primary_channel: brief }
@@ -108,8 +108,8 @@ expect:
             decision: ready
             context_binding:
               required:
-                - { type: brand_voice, packet_digest: sha256:d82b3f6e9731497a2aa6d91051f144a69fdcff6dd1225572ea30b245bf9ab5b5, scope: { audience: operators, channel: brief } }
-                - { type: taste_profile, packet_digest: sha256:96c6705e4667be9eac94382c35fe1552eac2f243d60fbafce64b5263d79b068f, scope: { audience: operators, channel: brief } }
+                - { type: brand_voice, packet_digest: sha256:242e528c7321572ef34e4942bc0d8350828e38185bcb79b1012e69db2b369253, scope: { audience: operators, channel: brief } }
+                - { type: taste_profile, packet_digest: sha256:7dcbc2daee848863a29e219180c1edeae50a046e521d8f67cbbc298cdee2dff9, scope: { audience: operators, channel: brief } }
             validation: { status: pass }
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: ghostwrite, source_case: bound-writing-context, source: skills-fixture }

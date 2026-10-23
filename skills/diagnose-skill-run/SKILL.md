@@ -64,11 +64,10 @@ cause. Do not bundle unrelated improvements.
 
 ## Output
 
-The stable failure packet is consumed directly by `skill-build improve`. Its
-output shape is formalised as JSON Schema at
-[review-receipt-output.schema.json](../../schemas/review-receipt-output.schema.json).
-Agents should self-validate before returning, and downstream
-consumers (notably the `skill-build improve` runner) may validate on receipt.
+The stable failure packet, `runx/diagnose-skill-run.diagnosis.v1`, is consumed directly by
+`skill-build improve`. Agents should self-validate before returning, and
+downstream consumers (notably the `skill-build improve` runner) may validate on
+receipt.
 
 - `verdict`: `pass`, `needs_update`, or `blocked`.
 - `failure_summary`: which step, which failure class, what root cause.

@@ -4,13 +4,13 @@ steps:
     skill: ../..
     runner: review
     inputs:
-      source_ref: nitrosend://example/1/2
+      source_locator: nitrosend://example/1/2
       source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       thread_locator: nitrosend://example/1
       title: A quick call
       body: Could we find time to talk next week?
       thread:
-        source_ref: nitrosend://example/1/2
+        source_locator: nitrosend://example/1/2
         source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         thread_locator: nitrosend://example/1
         coverage_incomplete: false

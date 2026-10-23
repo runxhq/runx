@@ -63,7 +63,7 @@ runners:
         &store,
         markdown,
         IngestSkillOptions {
-            owner: Some("acme".to_owned()),
+            publisher_slug: Some("acme".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some("2026-04-10T00:00:00.000Z".to_owned()),
             profile_document: Some(profile_document.clone()),
@@ -149,7 +149,7 @@ runners:
     .ok_or_else(|| std::io::Error::other("missing registry resolution"))?;
     assert_eq!(resolved.skill_id, "acme/sourcey");
     // A registry directory holds no root names: a bare ref is refused, never
-    // searched for across owners.
+    // searched for across publishers.
     assert!(matches!(
         resolve_registry_skill(
             &store,
@@ -175,7 +175,7 @@ fn pinned_registry_lookup_ignores_invalid_siblings() -> Result<(), Box<dyn std::
         &store,
         include_str!("../../../fixtures/skills/echo/SKILL.md"),
         IngestSkillOptions {
-            owner: Some("acme".to_owned()),
+            publisher_slug: Some("acme".to_owned()),
             version: Some("1.0.0".to_owned()),
             ..IngestSkillOptions::default()
         },
@@ -228,15 +228,15 @@ runners:
 }
 
 #[test]
-fn local_registry_owner_runx_defaults_to_community_trust() -> Result<(), Box<dyn std::error::Error>>
-{
+fn local_registry_publisher_runx_defaults_to_community_trust()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let store = FileRegistryStore::new(temp.path());
     let version = ingest_skill_markdown(
         &store,
         SOURCEY_SKILL,
         IngestSkillOptions {
-            owner: Some("runx".to_owned()),
+            publisher_slug: Some("runx".to_owned()),
             version: Some("1.0.0".to_owned()),
             ..IngestSkillOptions::default()
         },
@@ -287,7 +287,7 @@ harness:
         &store,
         markdown,
         IngestSkillOptions {
-            owner: Some("runx".to_owned()),
+            publisher_slug: Some("runx".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some("2026-06-01T00:00:00.000Z".to_owned()),
             profile_document: Some(profile_document.to_owned()),
@@ -343,7 +343,7 @@ fn local_registry_publish_records_the_harness_maturity() -> Result<(), Box<dyn s
             markdown,
             PublishSkillMarkdownOptions {
                 ingest: IngestSkillOptions {
-                    owner: Some("acme".to_owned()),
+                    publisher_slug: Some("acme".to_owned()),
                     version: Some("1.0.0".to_owned()),
                     ..IngestSkillOptions::default()
                 },
@@ -367,7 +367,7 @@ fn local_registry_publish_rejects_changed_duplicate() -> Result<(), Box<dyn std:
         markdown,
         PublishSkillMarkdownOptions {
             ingest: IngestSkillOptions {
-                owner: Some("acme".to_owned()),
+                publisher_slug: Some("acme".to_owned()),
                 version: Some("1.0.0".to_owned()),
                 created_at: Some("2026-04-10T00:00:00.000Z".to_owned()),
                 ..IngestSkillOptions::default()
@@ -381,7 +381,7 @@ fn local_registry_publish_rejects_changed_duplicate() -> Result<(), Box<dyn std:
         markdown,
         PublishSkillMarkdownOptions {
             ingest: IngestSkillOptions {
-                owner: Some("acme".to_owned()),
+                publisher_slug: Some("acme".to_owned()),
                 version: Some("1.0.0".to_owned()),
                 ..IngestSkillOptions::default()
             },
@@ -411,7 +411,7 @@ fn local_registry_publish_rejects_changed_duplicate() -> Result<(), Box<dyn std:
         &changed,
         PublishSkillMarkdownOptions {
             ingest: IngestSkillOptions {
-                owner: Some("acme".to_owned()),
+                publisher_slug: Some("acme".to_owned()),
                 version: Some("1.0.0".to_owned()),
                 ..IngestSkillOptions::default()
             },
@@ -444,7 +444,7 @@ fn file_registry_store_rejects_path_traversal_skill_ids() -> Result<(), Box<dyn 
         markdown,
         PublishSkillMarkdownOptions {
             ingest: IngestSkillOptions {
-                owner: Some("..".to_owned()),
+                publisher_slug: Some("..".to_owned()),
                 version: Some("1.0.0".to_owned()),
                 ..IngestSkillOptions::default()
             },

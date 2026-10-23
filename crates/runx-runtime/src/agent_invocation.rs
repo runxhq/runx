@@ -79,7 +79,6 @@ fn envelope(
         &output,
         request.artifacts.as_ref(),
         &request.skill_directory,
-        &request.env,
     )?;
     Ok(AgentContextEnvelope {
         run_id: request
@@ -90,7 +89,7 @@ fn envelope(
         step_id: optional_non_empty(request.step_id.as_deref()),
         skill: skill_name(request).into(),
         act: act.cloned(),
-        instructions_sha256: package.package.manual_digest.clone().into(),
+        instructions_digest: package.package.manual_digest.clone().into(),
         instructions: envelope_instructions(request, &package.package.manual_markdown)?.into(),
         inputs: request.inputs.clone(),
         requirements: AgentExecutionRequirements {

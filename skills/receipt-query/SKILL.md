@@ -18,9 +18,9 @@ review skill.
 
 ## What this skill does
 
-`receipt-query` applies an explicit bounded query over receipt ids, principal, skill
-ref, status, and time range, then returns the receipts that satisfy it as
-id-keyed stubs (`receipt_id`, `skill_ref`, `status`, `created_at`, verification
+`receipt-query` applies an explicit bounded query over receipt ids, principal,
+skill, outcome, and time range, then returns the receipts that satisfy it as
+id-keyed stubs (`receipt_id`, `skill`, `outcome`, `created_at`, verification
 status). Exact-id reads also return `receipt_details` from the native redacted
 inspection projection: signed authority, decisions, acts, artifact references,
 lineage, seal, and verification without execution bodies, credential material,
@@ -54,7 +54,7 @@ match and a verified chain walk, not an aggregate health report.
 ## When to use this skill
 
 - A reviewer needs the receipts for an exact run or a bounded skill, actor,
-  status, issuer or time window.
+  outcome, issuer or time window.
 - A review needs the set of receipts that match a condition before drilling into
   any single one.
 - A compliance check needs proof that a stretch of ledger history is unbroken.
@@ -74,8 +74,8 @@ match and a verified chain walk, not an aggregate health report.
 ## Procedure
 
 1. Read the question. With no question, return `needs_agent`.
-2. Resolve the filter into a bounded query: principal handle, `skill_ref`,
-   status set, and `time_range`. An absent filter uses the bounded default
+2. Resolve the filter into a bounded query: principal handle, `skill`,
+   outcome set, and `time_range`. An absent filter uses the bounded default
    limit; the prose question never adds a filter.
 3. Match receipts against the query and collect id-keyed stubs only. Receipt
    bodies, act payloads, proofs, and material refs stay out of the output.
@@ -100,7 +100,7 @@ match and a verified chain walk, not an aggregate health report.
 - **No question:** return `needs_agent`; there is nothing to query.
 - **No matching receipts:** return `needs_more_evidence` with the resolved query,
   so the gap is the query, not a silent zero. Silence is a stop, not a zero.
-- **Filter references an unknown principal or skill_ref:** treat as zero matches
+- **Filter references an unknown principal or skill:** treat as zero matches
   and return `needs_more_evidence`; do not guess a near match.
 - **Chain break found:** keep `decision: answered` but set
   `chain_verification.intact` false and list the breaking id pairs from the
@@ -113,42 +113,21 @@ match and a verified chain walk, not an aggregate health report.
 - **Write, delete, or reseal requests:** this read runner cannot perform them.
   Its sole native query scope is `receipt.read`; prose does not grant a write.
 
-## Output schema
+## Output
 
-```yaml
-ledger_answer:
-  decision: answered | needs_agent | needs_more_evidence | refused
-  question: string        # the audit question, restated in operational terms
-  query:                  # the resolved filter actually run, so the answer reproduces
-    principal: string
-    skill_ref: string
-    status: array
-    time_range:
-      from: string
-      to: string
-matched_receipts:         # id-keyed stubs only; never a receipt body
-  - receipt_id: string
-    skill_ref: string
-    status: string
-    created_at: string
-receipt_details:          # exact-id reads only; Rust-curated, bounded, redacted
-  - id: string
-    authority: object
-    decisions: array
-    acts: array
-    artifact_refs: array
-    lineage_refs: array
-chain_verification:
-  checked: boolean        # was verification requested
-  intact: boolean | null  # null when unchecked
-  breaks:                 # empty when intact
-    - from_receipt_id: string
-      to_receipt_id: string
-      reason: string
-summary: string           # one or two sentences answering the question
-```
+The whole result is the `runx/receipt-query.answer.v1` packet:
 
-The `ledger_answer` object is the named packet `runx.ledger_answer.v1`. Scope is
+- `ledger_answer`: the decision (`answered`, `needs_agent`,
+  `needs_more_evidence` or `refused`), the audit question restated in
+  operational terms, and the resolved filter actually run, so the answer
+  reproduces.
+- `matched_receipts`: id-keyed stubs only, never a receipt body.
+- `receipt_details`: exact-id reads only, Rust-curated, bounded and redacted.
+- `chain_verification`: whether verification was requested, whether the chain
+  is intact (`null` when unchecked) and each break.
+- `summary`: one or two sentences answering the question.
+
+Scope is
 `receipt.read` only; no gate is required because the skill cannot mutate, and a
 delete, redact, reseal, or reorder request is refused, not gated. The run's own
 receipt carries the question, the resolved query, the matched count, the list of
@@ -178,8 +157,8 @@ the fixture labels its rows verified.
 
 - `question` (optional): the audit question bounding the ledger read. Without
   one the runner returns `needs_agent` and does not query.
-- `filter` (optional): JSON narrowing the query by `principal`, `skill_ref`,
-  `status`, `time_range` (`from`/`to`), and `limit` (default 500, maximum 5000).
+- `filter` (optional): JSON narrowing the query by `principal`, `skill`,
+  `outcome`, `time_range` (`from`/`to`), and `limit` (default 500, maximum 5000).
 - `receipt_ids` (optional): up to 100 exact receipt ids to resolve and verify.
 - `proof` (optional): JSON requesting chain verification over the matched
   receipts, for example `{ "verify_chain": true }`.

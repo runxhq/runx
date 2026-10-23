@@ -1,0 +1,30 @@
+{
+  "$id": "https://schemas.runx.ai/runx/control/harness-context/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `control.capture_harness_context` returns: the harness, signal and decision packets a run was given, held as explicit context.",
+  "properties": {
+    "captured": {
+      "type": "boolean"
+    },
+    "decision": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "harness": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "signal": {
+      "additionalProperties": {},
+      "type": "object"
+    }
+  },
+  "required": [
+    "captured"
+  ],
+  "title": "HarnessContext",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.control.harness_context.v1"
+}

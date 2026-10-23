@@ -1,5 +1,5 @@
 skill: sql-analysis
-version: "0.4.7"
+version: "0.4.8"
 catalog:
   kind: graph
   audience: operator
@@ -27,7 +27,7 @@ runners:
         schema:
           minLength: 1
           maxLength: 8000
-      source_ref:
+      source:
         type: string
         required: true
         description: Exact logical source target bound to the selected local SQL connector instance.
@@ -48,13 +48,13 @@ runners:
       operation: sql/catalog.read
       input:
         action: catalog
-        source_ref: $input.source_ref
+        source: $input.source
     - id: plan
       skill: .
       runner: plan
       inputs:
         question: $input.question
-        source_ref: $input.source_ref
+        source: $input.source
         max_rows: $input.max_rows
         catalog: $steps.catalog.provider_operation.result
     - id: stopped
@@ -78,7 +78,7 @@ runners:
       operation: sql/query.read
       input:
         action: query
-        source_ref: $input.source_ref
+        source: $input.source
         query_id: $steps.plan.sql_analysis_plan.query_id
         parameters: $steps.plan.sql_analysis_plan.parameters
         max_rows: $steps.plan.sql_analysis_plan.max_rows
@@ -147,7 +147,7 @@ runners:
         schema:
           minLength: 1
           maxLength: 8000
-      source_ref:
+      source:
         type: string
         required: true
         description: Exact logical source target bound to the selected local SQL connector instance.
@@ -168,14 +168,14 @@ runners:
         schema:
           additionalProperties: false
           required:
-          - source_ref
+          - source
           - dialect
           - status
           - executed
           - max_rows
           - queries
           properties:
-            source_ref:
+            source:
               type: string
               pattern: ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$
             dialect:
@@ -224,7 +224,7 @@ runners:
         task: sql-select-query
       inputs:
         question: $input.question
-        source_ref: $input.source_ref
+        source: $input.source
         catalog: $input.catalog
         max_rows: $input.max_rows
       outputs:
@@ -266,7 +266,7 @@ runners:
         export: bindChoice
       inputs:
         question: $input.question
-        source_ref: $input.source_ref
+        source: $input.source
         catalog: $input.catalog
         choice: $steps.choose.choice
         max_rows: $input.max_rows
@@ -290,68 +290,11 @@ runners:
       outputs:
         sql_analysis_plan:
           type: object
-          schema:
-            additionalProperties: false
-            required:
-            - decision
-            - question
-            - source_ref
-            - dialect
-            - query_id
-            - parameters
-            - max_rows
-            - reason
-            - missing_context
-            - result_description
-            - executed
-            - validation
-            properties:
-              decision:
-                enum:
-                - ready
-                - no_suitable_query
-                - invalid_parameters
-              question:
-                type: string
-                maxLength: 8000
-              source_ref:
-                type: string
-                pattern: ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$
-              dialect:
-                type: string
-                maxLength: 64
-              query_id:
-                type: string
-                maxLength: 192
-              parameters:
-                type: object
-                additionalProperties: true
-              max_rows:
-                type: integer
-                minimum: 1
-                maximum: 1000
-              reason:
-                type: string
-                maxLength: 4000
-              missing_context:
-                type: array
-                maxItems: 16
-                items:
-                  type: string
-                  maxLength: 1000
-              result_description:
-                type: string
-                maxLength: 4000
-              executed:
-                const: false
-              validation:
-                type: object
-                additionalProperties: true
       artifacts:
         named_emits:
           sql_analysis_plan: sql_analysis_plan
         packets:
-          sql_analysis_plan: runx.data.sql_analysis_plan.v1
+          sql_analysis_plan: runx/sql-analysis.plan.v1
 harness:
   files:
   - fixtures/support/composed-plan.graph
@@ -360,10 +303,10 @@ harness:
     runner: plan
     inputs:
       question: Which campaigns produced qualified trials since 2026-10-01?
-      source_ref: analytics:production
+      source: analytics:production
       max_rows: 100
       catalog:
-        source_ref: analytics:production
+        source: analytics:production
         dialect: postgres
         status: catalog
         executed: false
@@ -429,10 +372,10 @@ harness:
     runner: plan
     inputs:
       question: Which campaigns produced qualified trials since 2026-10-01?
-      source_ref: analytics:production
+      source: analytics:production
       max_rows: 100
       catalog:
-        source_ref: analytics:production
+        source: analytics:production
         dialect: postgres
         status: catalog
         executed: false
@@ -481,10 +424,10 @@ harness:
     runner: plan
     inputs:
       question: Which campaigns produced qualified trials since 2026-10-01?
-      source_ref: analytics:production
+      source: analytics:production
       max_rows: 100
       catalog:
-        source_ref: analytics:production
+        source: analytics:production
         dialect: postgres
         status: catalog
         executed: false
@@ -533,10 +476,10 @@ harness:
     runner: plan
     inputs:
       question: Which campaigns produced qualified trials since 2026-10-01?
-      source_ref: analytics:production
+      source: analytics:production
       max_rows: 100
       catalog:
-        source_ref: analytics:production
+        source: analytics:production
         dialect: postgres
         status: catalog
         executed: false
@@ -586,10 +529,10 @@ harness:
     runner: plan
     inputs:
       question: Which campaigns produced qualified trials since 2026-10-01?
-      source_ref: analytics:production
+      source: analytics:production
       max_rows: 100
       catalog:
-        source_ref: analytics:production
+        source: analytics:production
         dialect: postgres
         status: catalog
         executed: false
@@ -638,10 +581,10 @@ harness:
     runner: plan
     inputs:
       question: Which campaigns produced qualified trials since 2026-10-01?
-      source_ref: analytics:production
+      source: analytics:production
       max_rows: 100
       catalog:
-        source_ref: analytics:production
+        source: analytics:production
         dialect: snowflake
         status: catalog
         executed: false

@@ -23,6 +23,7 @@ fn search_and_run_use_runx_cli_json() -> Result<(), Box<dyn std::error::Error>> 
     )?;
 
     assert_eq!(results[0].skill_id, "acme/sourcey");
+    assert_eq!(results[0].publisher, "acme");
     assert_eq!(results[0].required_scopes, vec!["repo:read".to_owned()]);
     assert_eq!(
         results[0].install_command.copy_text,
@@ -152,7 +153,7 @@ fn fake_runx_script() -> &'static str {
     r#"#!/bin/sh
 printf '%s\n' "$@" > "$RUNX_SDK_ARGS"
 if [ "$1" = "registry" ] && [ "$2" = "search" ]; then
-  printf '%s\n' '{"status":"success","registry":{"action":"search","source":"runx-registry","query":"sourcey","results":[{"skill_id":"acme/sourcey","name":"sourcey","owner":"acme","source":"runx-registry","source_label":"runx registry","trust_tier":"community","required_scopes":["repo:read"],"tags":["docs"],"version":"1.0.0","install_command":{"shell":"posix","argv":["runx","add","acme/sourcey@1.0.0"],"copy_text":"runx add acme/sourcey@1.0.0"},"run_command":{"shell":"posix","argv":["runx","skill","acme/sourcey@1.0.0"],"copy_text":"runx skill acme/sourcey@1.0.0"}}]}}'
+  printf '%s\n' '{"status":"success","registry":{"action":"search","source":"runx-registry","query":"sourcey","results":[{"skill_id":"acme/sourcey","name":"sourcey","source":"runx-registry","source_label":"runx registry","trust_tier":"community","required_scopes":["repo:read"],"tags":["docs"],"version":"1.0.0","install_command":{"shell":"posix","argv":["runx","add","acme/sourcey@1.0.0"],"copy_text":"runx add acme/sourcey@1.0.0"},"run_command":{"shell":"posix","argv":["runx","skill","acme/sourcey@1.0.0"],"copy_text":"runx skill acme/sourcey@1.0.0"}}]}}'
 elif [ "$1" = "resume" ]; then
   cat "$3" > "$RUNX_SDK_STDIN"
   printf '%s\n' '{"status":"sealed","args":["skill"]}'

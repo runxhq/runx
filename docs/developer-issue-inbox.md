@@ -3,7 +3,7 @@
 The runx developer inbox is a harness context queue, not another chat stream. Slack,
 Sentry, GitHub, file, and API adapters may submit source events, but every
 accepted event must become one `runx.receipt.v1` packet with an explicit
-state, dedupe fingerprint, triage action, and source-thread locator.
+state, dedupe digest, triage action, and source-thread locator.
 
 ## Source Command Normalization
 
@@ -91,7 +91,7 @@ Non-trigger cases:
 - general support chatter without a reproducible issue
 - Slack keywords outside an allowlisted source
 - Sentry alerts below configured frequency or severity thresholds
-- reports missing a stable source locator or dedupe fingerprint
+- reports missing a stable source locator or dedupe digest
 - ambiguous requests that need a human target decision
 - duplicate events already attached to an open harness
 - source events whose configured source thread cannot be recovered
@@ -110,7 +110,7 @@ Developer views should group by `harness_id` and show the next useful gate:
 - done: `outcome_observed`, `final_outcome`, `no_action`, `monitor`
 
 List views should stay compact: id, state, status summary, source, dedupe
-fingerprint, triage action, issue/PR refs, duplicate counts, latest transition,
+digest, triage action, issue/PR refs, duplicate counts, latest transition,
 and timestamps. Full receipts and ledger artifacts remain the evidence layer.
 
 Inbox adapters should treat core story output as provider-neutral markdown/text.
@@ -129,7 +129,7 @@ names. Consuming repos own those policies.
 Core can still enforce the policy shape. A PR-producing lane should require:
 
 - a source locator and source-thread locator
-- a dedupe fingerprint
+- a dedupe digest
 - an allowed target repo
 - an available runner
 - a target repo that is scafld-ready when mutation is requested

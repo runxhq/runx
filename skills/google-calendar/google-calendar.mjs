@@ -18,7 +18,7 @@ export function normalizeCalendar(input) {
   if (!instant(asText(result.fetched_at, 40))) problems.push('observation_time_invalid');
   const complete = result.complete === true;
   const context = {
-    schema: 'runx.calendar.context.v1',
+    schema: 'runx/google-calendar.context.v1',
     kind,
     provider: 'google-calendar',
     source_status: sourceStatus,
@@ -65,7 +65,7 @@ export function normalizeCalendar(input) {
 }
 
 export function prepareAssistantWindow(input) {
-  const match = /^runx:\/\/assistant\/goal\/[a-z0-9_-]+\/schedule\/sha256:[0-9a-f]{64}\/occurrence\/([0-9]+)$/.exec(input.occurrence_ref);
+  const match = /^runx:\/\/assistant\/goal\/[a-z0-9_-]+\/schedule\/sha256:[0-9a-f]{64}\/occurrence\/([0-9]+)$/.exec(input.occurrence_uri);
   const dueSeconds = match ? Number(match[1]) : NaN;
   const hours = Number(input.window_hours);
   if (!Number.isSafeInteger(dueSeconds) || dueSeconds <= 0
@@ -81,7 +81,7 @@ export function prepareAssistantWindow(input) {
   }
   return { calendar_window: {
     calendar_id: input.calendar_id,
-    occurrence_ref: input.occurrence_ref,
+    occurrence_uri: input.occurrence_uri,
     time_min: new Date(start).toISOString(),
     time_max: new Date(end).toISOString(),
   } };
@@ -90,19 +90,19 @@ export function prepareAssistantWindow(input) {
 export function finishAssistantBrief(input) {
   const context = asObject(input.calendar_context);
   const window = asObject(input.window);
-  const bound = context.schema === 'runx.calendar.context.v1'
+  const bound = context.schema === 'runx/google-calendar.context.v1'
     && context.kind === 'events'
     && context.provider === 'google-calendar'
     && context.calendar_id === input.calendar_id
     && context.time_min === window.time_min && context.time_max === window.time_max
-    && window.occurrence_ref === input.occurrence_ref
+    && window.occurrence_uri === input.occurrence_uri
     && context.source_status === 'provider_readback'
     && context.provider_status === 'readback_verified';
   if (!bound) throw new Error('calendar brief differs from its provider-backed window');
   if (context.decision !== 'ready' || context.coverage !== 'complete'
       || context.validation?.status !== 'pass') {
     return { work_result: {
-      disposition: 'held', summary: 'Calendar coverage is incomplete; upcoming availability is unknown.',
+      state: 'held', summary: 'Calendar coverage is incomplete; upcoming availability is unknown.',
       completion_evidence: [], followups: [],
     } };
   }
@@ -116,7 +116,7 @@ export function finishAssistantBrief(input) {
   const summary = `Calendar: ${events.length} active event${events.length === 1 ? '' : 's'} in the next window.`
     + (upcoming.length ? ` ${upcoming.join('; ')}` : '');
   return { work_result: {
-    disposition: 'satisfied', summary: summary.slice(0, 1000),
+    state: 'satisfied', summary: summary.slice(0, 1000),
     completion_evidence: [
       `google-calendar:${input.calendar_id}@${context.observed_at}:${window.time_min}..${window.time_max}`,
     ],

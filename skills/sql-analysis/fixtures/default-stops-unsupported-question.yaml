@@ -13,7 +13,7 @@ operator_journeys:
     is no query fixture to answer an accidental call.
 inputs:
   question: Which campaigns produced qualified trials since 2026-10-01?
-  source_ref: analytics:fixture
+  source: analytics:fixture
   max_rows: 2
 caller:
   answers:
@@ -29,9 +29,9 @@ caller:
   - tool: sql.read
     arguments:
       action: catalog
-      source_ref: analytics:fixture
+      source: analytics:fixture
     result:
-      source_ref: analytics:fixture
+      source: analytics:fixture
       dialect: sqlite
       status: catalog
       executed: false

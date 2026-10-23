@@ -2,10 +2,12 @@
   "$id": "https://schemas.runx.ai/runx/receipt/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "The single signed governance receipt: `runx.receipt.v1`.\n\n`decisions[]` (each choice and the act it selects) and `acts[]` (intent, the caller's reason, the checks bound to each act) are inline. Every field is signed; display identity comes from `subject.kind`, `subject.ref`, `issuer` and `authority.actor_ref`.",
   "properties": {
     "acts": {
       "items": {
         "additionalProperties": false,
+        "description": "What was done, inline. The act's semantic core (intent, the caller's reason, the checks bound to it) stays in the signed body; its outcome is the receipt's seal. Only the bulky execution I/O (the agent-context envelope: instructions/inputs/output and tool calls) is referenced via `context_ref` and hydrated by projections.",
         "properties": {
           "artifact_refs": {
             "items": {
@@ -32,6 +34,7 @@
                     "effect_finality",
                     "credential_resolution"
                   ],
+                  "title": "ProofKind",
                   "type": "string"
                 },
                 "provider": {
@@ -39,6 +42,7 @@
                   "type": "string"
                 },
                 "type": {
+                  "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                   "enum": [
                     "thread",
                     "comment",
@@ -68,6 +72,7 @@
                     "connector_instance",
                     "connector_operation"
                   ],
+                  "title": "ReferenceType",
                   "type": "string"
                 },
                 "uri": {
@@ -79,6 +84,7 @@
                 "type",
                 "uri"
               ],
+              "title": "Reference",
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
@@ -88,6 +94,7 @@
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
+            "description": "The agent-context envelope (instructions/inputs/output/tool-calls) is referenced here and hydrated by the inspection projections.",
             "properties": {
               "label": {
                 "minLength": 1,
@@ -108,6 +115,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -115,6 +123,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -144,6 +153,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -155,20 +165,24 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
           "criterion_bindings": {
             "items": {
               "additionalProperties": false,
+              "description": "One check's result and the references that prove it.",
               "properties": {
                 "criterion_id": {
+                  "description": "A check the runtime runs and binds to a receipt. The runtime is the only writer of criteria, so they are its own closed vocabulary: each names what was checked, and its binding states the result and the evidence.",
                   "enum": [
                     "step_outcome",
                     "output_contract_verified",
                     "voice_profile_applied",
                     "packet_schemas_verified"
                   ],
+                  "title": "Criterion",
                   "type": "string"
                 },
                 "evidence_refs": {
@@ -196,6 +210,7 @@
                           "effect_finality",
                           "credential_resolution"
                         ],
+                        "title": "ProofKind",
                         "type": "string"
                       },
                       "provider": {
@@ -203,6 +218,7 @@
                         "type": "string"
                       },
                       "type": {
+                        "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                         "enum": [
                           "thread",
                           "comment",
@@ -232,6 +248,7 @@
                           "connector_instance",
                           "connector_operation"
                         ],
+                        "title": "ReferenceType",
                         "type": "string"
                       },
                       "uri": {
@@ -243,6 +260,7 @@
                       "type",
                       "uri"
                     ],
+                    "title": "Reference",
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
                   },
@@ -253,6 +271,7 @@
                     "verified",
                     "failed"
                   ],
+                  "title": "CriterionStatus",
                   "type": "string"
                 },
                 "verification_refs": {
@@ -280,6 +299,7 @@
                           "effect_finality",
                           "credential_resolution"
                         ],
+                        "title": "ProofKind",
                         "type": "string"
                       },
                       "provider": {
@@ -287,6 +307,7 @@
                         "type": "string"
                       },
                       "type": {
+                        "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                         "enum": [
                           "thread",
                           "comment",
@@ -316,6 +337,7 @@
                           "connector_instance",
                           "connector_operation"
                         ],
+                        "title": "ReferenceType",
                         "type": "string"
                       },
                       "uri": {
@@ -327,6 +349,7 @@
                       "type",
                       "uri"
                     ],
+                    "title": "Reference",
                     "type": "object",
                     "x-runx-schema": "runx.reference.v1"
                   },
@@ -339,16 +362,19 @@
                 "evidence_refs",
                 "verification_refs"
               ],
+              "title": "CriterionBinding",
               "type": "object"
             },
             "type": "array"
           },
           "form": {
+            "description": "What kind of act a governed call is.",
             "enum": [
               "observation",
               "reply",
               "review"
             ],
+            "title": "ActForm",
             "type": "string"
           },
           "id": {
@@ -357,8 +383,10 @@
           },
           "intent": {
             "additionalProperties": false,
+            "description": "Why an act was done and under what it was legitimate.",
             "properties": {
               "legitimacy": {
+                "description": "The execution term the act was admitted under.",
                 "maxLength": 512,
                 "pattern": "^runx:authority_term:\\S+$",
                 "type": "string"
@@ -372,18 +400,22 @@
               "purpose",
               "legitimacy"
             ],
+            "title": "Intent",
             "type": "object"
           },
           "operation": {
             "additionalProperties": false,
+            "description": "The connector operation the act ran, exactly as admission bound it: its qualified connector, manifest and connector digests, and the operation, instance and target it was admitted for.",
             "properties": {
               "act_digest": {
+                "description": "Digest of the act the call performs, when its caller states one.",
                 "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
               },
               "amount": {
                 "additionalProperties": false,
+                "description": "Present when the operation requires an amount.",
                 "properties": {
                   "unit": {
                     "minLength": 1,
@@ -398,9 +430,11 @@
                   "units",
                   "unit"
                 ],
+                "title": "OperationAmount",
                 "type": "object"
               },
               "approval_digest": {
+                "description": "Digest of the approval text a person is shown, when the call is gated.",
                 "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
@@ -416,6 +450,7 @@
                 "type": "string"
               },
               "instance_id": {
+                "description": "The instance fixes the placement, principal and account.",
                 "maxLength": 128,
                 "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
                 "type": "string"
@@ -431,6 +466,7 @@
                 "type": "string"
               },
               "operation_digest": {
+                "description": "What the operation means: its verb, scopes, target and floors.",
                 "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
@@ -441,6 +477,7 @@
                 "type": "string"
               },
               "request_key_digest": {
+                "description": "Digest of the caller's request key; present for mutations.",
                 "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
@@ -460,12 +497,14 @@
               "target",
               "payload_digest"
             ],
+            "title": "OperationIntent",
             "type": "object"
           },
           "previous": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
+            "description": "The receipt the caller states this act follows. It is the caller's statement, recorded as given: runx does not check it.",
             "properties": {
               "label": {
                 "minLength": 1,
@@ -486,6 +525,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -493,6 +533,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -522,6 +563,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -533,10 +575,12 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
           "reason": {
+            "description": "What the caller told a reader about this particular call, when it said anything.",
             "minLength": 1,
             "type": "string"
           },
@@ -565,6 +609,7 @@
                     "effect_finality",
                     "credential_resolution"
                   ],
+                  "title": "ProofKind",
                   "type": "string"
                 },
                 "provider": {
@@ -572,6 +617,7 @@
                   "type": "string"
                 },
                 "type": {
+                  "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                   "enum": [
                     "thread",
                     "comment",
@@ -601,6 +647,7 @@
                     "connector_instance",
                     "connector_operation"
                   ],
+                  "title": "ReferenceType",
                   "type": "string"
                 },
                 "uri": {
@@ -612,6 +659,7 @@
                 "type",
                 "uri"
               ],
+              "title": "Reference",
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
@@ -626,6 +674,7 @@
           "target_refs",
           "artifact_refs"
         ],
+        "title": "ReceiptAct",
         "type": "object"
       },
       "type": "array"
@@ -637,6 +686,7 @@
           "$id": "https://schemas.runx.ai/runx/reference/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
+          "description": "The principal an act was admitted for, when the run was given one. A receipt with no admitted actor states none.",
           "properties": {
             "label": {
               "minLength": 1,
@@ -657,6 +707,7 @@
                 "effect_finality",
                 "credential_resolution"
               ],
+              "title": "ProofKind",
               "type": "string"
             },
             "provider": {
@@ -664,6 +715,7 @@
               "type": "string"
             },
             "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
               "enum": [
                 "thread",
                 "comment",
@@ -693,6 +745,7 @@
                 "connector_instance",
                 "connector_operation"
               ],
+              "title": "ReferenceType",
               "type": "string"
             },
             "uri": {
@@ -704,14 +757,17 @@
             "type",
             "uri"
           ],
+          "title": "Reference",
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         },
         "derivations": {
+          "description": "How each derived execution term in `terms` was proven.",
           "items": {
             "$id": "https://schemas.runx.ai/runx/authority-derivation/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
+            "description": "How an execution term was derived: the evidence admission proved, ordered capability first, then each delegation link from principal to actor, then any approval; and one subset proof per parent term.",
             "properties": {
               "derived_at": {
                 "minLength": 1,
@@ -723,11 +779,13 @@
                   "additionalProperties": false,
                   "properties": {
                     "kind": {
+                      "description": "The three kinds of evidence admission proves. Each has one job.",
                       "enum": [
                         "capability",
                         "delegation",
                         "approval"
                       ],
+                      "title": "AuthorityEvidenceKind",
                       "type": "string"
                     },
                     "reference": {
@@ -754,6 +812,7 @@
                             "effect_finality",
                             "credential_resolution"
                           ],
+                          "title": "ProofKind",
                           "type": "string"
                         },
                         "provider": {
@@ -761,6 +820,7 @@
                           "type": "string"
                         },
                         "type": {
+                          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                           "enum": [
                             "thread",
                             "comment",
@@ -790,6 +850,7 @@
                             "connector_instance",
                             "connector_operation"
                           ],
+                          "title": "ReferenceType",
                           "type": "string"
                         },
                         "uri": {
@@ -801,13 +862,15 @@
                         "type",
                         "uri"
                       ],
+                      "title": "Reference",
                       "type": "object",
                       "x-runx-schema": "runx.reference.v1"
                     },
                     "term": {
-                      "$id": "https://schemas.runx.ai/runx/authority/term/v1.json",
+                      "$id": "https://schemas.runx.ai/runx/authority-term/v1.json",
                       "$schema": "https://json-schema.org/draft/2020-12/schema",
                       "additionalProperties": false,
+                      "description": "The capability or delegation term, sealed so the subset proofs can be re-checked offline. Approvals carry no term.",
                       "properties": {
                         "approvals": {
                           "items": {
@@ -837,6 +900,7 @@
                                       "effect_finality",
                                       "credential_resolution"
                                     ],
+                                    "title": "ProofKind",
                                     "type": "string"
                                   },
                                   "provider": {
@@ -844,6 +908,7 @@
                                     "type": "string"
                                   },
                                   "type": {
+                                    "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                                     "enum": [
                                       "thread",
                                       "comment",
@@ -873,6 +938,7 @@
                                       "connector_instance",
                                       "connector_operation"
                                     ],
+                                    "title": "ReferenceType",
                                     "type": "string"
                                   },
                                   "uri": {
@@ -884,6 +950,7 @@
                                   "type",
                                   "uri"
                                 ],
+                                "title": "Reference",
                                 "type": "object",
                                 "x-runx-schema": "runx.reference.v1"
                               },
@@ -916,6 +983,7 @@
                                       "effect_finality",
                                       "credential_resolution"
                                     ],
+                                    "title": "ProofKind",
                                     "type": "string"
                                   },
                                   "provider": {
@@ -923,6 +991,7 @@
                                     "type": "string"
                                   },
                                   "type": {
+                                    "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                                     "enum": [
                                       "thread",
                                       "comment",
@@ -952,6 +1021,7 @@
                                       "connector_instance",
                                       "connector_operation"
                                     ],
+                                    "title": "ReferenceType",
                                     "type": "string"
                                   },
                                   "uri": {
@@ -963,6 +1033,7 @@
                                   "type",
                                   "uri"
                                 ],
+                                "title": "Reference",
                                 "type": "object",
                                 "x-runx-schema": "runx.reference.v1"
                               }
@@ -970,6 +1041,7 @@
                             "required": [
                               "approval_ref"
                             ],
+                            "title": "AuthorityApproval",
                             "type": "object"
                           },
                           "minItems": 1,
@@ -979,6 +1051,7 @@
                           "additionalProperties": false,
                           "properties": {
                             "operations": {
+                              "description": "Connector operations, as `<connector>/<operation>` or `<connector>/*`.",
                               "items": {
                                 "minLength": 1,
                                 "type": "string"
@@ -987,6 +1060,7 @@
                               "type": "array"
                             },
                             "scopes": {
+                              "description": "Provider grant scopes.",
                               "items": {
                                 "minLength": 1,
                                 "type": "string"
@@ -995,6 +1069,7 @@
                               "type": "array"
                             },
                             "targets": {
+                              "description": "Provider targets: exact values, `<prefix>*`, or `*`.",
                               "items": {
                                 "minLength": 1,
                                 "type": "string"
@@ -1004,6 +1079,7 @@
                             },
                             "uses": {
                               "additionalProperties": false,
+                              "description": "How many times a term may be used. An execution term is single use. Usage is reserved atomically with each effect attempt, never counted from receipts.",
                               "properties": {
                                 "per_day": {
                                   "minimum": 0,
@@ -1014,9 +1090,11 @@
                                   "type": "integer"
                                 }
                               },
+                              "title": "AuthorityUseLimit",
                               "type": "object"
                             }
                           },
+                          "title": "AuthorityBounds",
                           "type": "object"
                         },
                         "credential_ref": {
@@ -1043,6 +1121,7 @@
                                 "effect_finality",
                                 "credential_resolution"
                               ],
+                              "title": "ProofKind",
                               "type": "string"
                             },
                             "provider": {
@@ -1050,6 +1129,7 @@
                               "type": "string"
                             },
                             "type": {
+                              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                               "enum": [
                                 "thread",
                                 "comment",
@@ -1079,6 +1159,7 @@
                                 "connector_instance",
                                 "connector_operation"
                               ],
+                              "title": "ReferenceType",
                               "type": "string"
                             },
                             "uri": {
@@ -1090,6 +1171,7 @@
                             "type",
                             "uri"
                           ],
+                          "title": "Reference",
                           "type": "object",
                           "x-runx-schema": "runx.reference.v1"
                         },
@@ -1122,6 +1204,7 @@
                                 "effect_finality",
                                 "credential_resolution"
                               ],
+                              "title": "ProofKind",
                               "type": "string"
                             },
                             "provider": {
@@ -1129,6 +1212,7 @@
                               "type": "string"
                             },
                             "type": {
+                              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                               "enum": [
                                 "thread",
                                 "comment",
@@ -1158,6 +1242,7 @@
                                 "connector_instance",
                                 "connector_operation"
                               ],
+                              "title": "ReferenceType",
                               "type": "string"
                             },
                             "uri": {
@@ -1169,6 +1254,7 @@
                             "type",
                             "uri"
                           ],
+                          "title": "Reference",
                           "type": "object",
                           "x-runx-schema": "runx.reference.v1"
                         },
@@ -1196,6 +1282,7 @@
                                 "effect_finality",
                                 "credential_resolution"
                               ],
+                              "title": "ProofKind",
                               "type": "string"
                             },
                             "provider": {
@@ -1203,6 +1290,7 @@
                               "type": "string"
                             },
                             "type": {
+                              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                               "enum": [
                                 "thread",
                                 "comment",
@@ -1232,6 +1320,7 @@
                                 "connector_instance",
                                 "connector_operation"
                               ],
+                              "title": "ReferenceType",
                               "type": "string"
                             },
                             "uri": {
@@ -1243,6 +1332,7 @@
                             "type",
                             "uri"
                           ],
+                          "title": "Reference",
                           "type": "object",
                           "x-runx-schema": "runx.reference.v1"
                         },
@@ -1250,6 +1340,7 @@
                           "enum": [
                             "connector"
                           ],
+                          "title": "AuthorityResourceFamily",
                           "type": "string"
                         },
                         "resource_ref": {
@@ -1276,6 +1367,7 @@
                                 "effect_finality",
                                 "credential_resolution"
                               ],
+                              "title": "ProofKind",
                               "type": "string"
                             },
                             "provider": {
@@ -1283,6 +1375,7 @@
                               "type": "string"
                             },
                             "type": {
+                              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                               "enum": [
                                 "thread",
                                 "comment",
@@ -1312,6 +1405,7 @@
                                 "connector_instance",
                                 "connector_operation"
                               ],
+                              "title": "ReferenceType",
                               "type": "string"
                             },
                             "uri": {
@@ -1323,6 +1417,7 @@
                             "type",
                             "uri"
                           ],
+                          "title": "Reference",
                           "type": "object",
                           "x-runx-schema": "runx.reference.v1"
                         },
@@ -1344,6 +1439,7 @@
                               "execute",
                               "revoke"
                             ],
+                            "title": "AuthorityVerb",
                             "type": "string"
                           },
                           "type": "array"
@@ -1358,6 +1454,7 @@
                         "bounds",
                         "issued_by_ref"
                       ],
+                      "title": "AuthorityTerm",
                       "type": "object",
                       "x-runx-schema": "runx.authority_term.v1"
                     }
@@ -1366,6 +1463,7 @@
                     "kind",
                     "reference"
                   ],
+                  "title": "AuthorityEvidence",
                   "type": "object"
                 },
                 "type": "array"
@@ -1402,6 +1500,7 @@
                               "equal",
                               "subset"
                             ],
+                            "title": "AuthoritySubsetRelation",
                             "type": "string"
                           }
                         },
@@ -1410,6 +1509,7 @@
                           "parent_term_id",
                           "relation"
                         ],
+                        "title": "AuthoritySubsetComparison",
                         "type": "object"
                       },
                       "type": "array"
@@ -1442,6 +1542,7 @@
                             "effect_finality",
                             "credential_resolution"
                           ],
+                          "title": "ProofKind",
                           "type": "string"
                         },
                         "provider": {
@@ -1449,6 +1550,7 @@
                           "type": "string"
                         },
                         "type": {
+                          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                           "enum": [
                             "thread",
                             "comment",
@@ -1478,6 +1580,7 @@
                             "connector_instance",
                             "connector_operation"
                           ],
+                          "title": "ReferenceType",
                           "type": "string"
                         },
                         "uri": {
@@ -1489,6 +1592,7 @@
                         "type",
                         "uri"
                       ],
+                      "title": "Reference",
                       "type": "object",
                       "x-runx-schema": "runx.reference.v1"
                     },
@@ -1516,6 +1620,7 @@
                             "effect_finality",
                             "credential_resolution"
                           ],
+                          "title": "ProofKind",
                           "type": "string"
                         },
                         "provider": {
@@ -1523,6 +1628,7 @@
                           "type": "string"
                         },
                         "type": {
+                          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                           "enum": [
                             "thread",
                             "comment",
@@ -1552,6 +1658,7 @@
                             "connector_instance",
                             "connector_operation"
                           ],
+                          "title": "ReferenceType",
                           "type": "string"
                         },
                         "uri": {
@@ -1563,6 +1670,7 @@
                         "type",
                         "uri"
                       ],
+                      "title": "Reference",
                       "type": "object",
                       "x-runx-schema": "runx.reference.v1"
                     },
@@ -1570,6 +1678,7 @@
                       "enum": [
                         "subset"
                       ],
+                      "title": "AuthoritySubsetResult",
                       "type": "string"
                     }
                   },
@@ -1580,6 +1689,7 @@
                     "compared_terms",
                     "checked_at"
                   ],
+                  "title": "AuthoritySubsetProof",
                   "type": "object",
                   "x-runx-schema": "runx.authority_subset_proof.v1"
                 },
@@ -1597,6 +1707,7 @@
               "proofs",
               "derived_at"
             ],
+            "title": "AuthorityDerivation",
             "type": "object",
             "x-runx-schema": "runx.authority_derivation.v1"
           },
@@ -1604,9 +1715,11 @@
         },
         "enforcement": {
           "additionalProperties": false,
+          "description": "What the runtime enforced around the subject.",
           "properties": {
             "execution_boundary": {
               "additionalProperties": false,
+              "description": "Where the subject ran, when the runtime observed it.",
               "properties": {
                 "kind": {
                   "enum": [
@@ -1615,18 +1728,22 @@
                     "native_capability",
                     "remote_provider"
                   ],
+                  "title": "ExecutionBoundaryKind",
                   "type": "string"
                 }
               },
               "required": [
                 "kind"
               ],
+              "title": "ExecutionBoundaryObservation",
               "type": "object"
             }
           },
+          "title": "ReceiptEnforcement",
           "type": "object"
         },
         "grant_refs": {
+          "description": "The capability evidence that admitted the receipt's effects: a runx Connect grant, or the local connector instance the operator confirmed.",
           "items": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1651,6 +1768,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -1658,6 +1776,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -1687,6 +1806,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -1698,6 +1818,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -1727,6 +1848,7 @@
                 "effect_finality",
                 "credential_resolution"
               ],
+              "title": "ProofKind",
               "type": "string"
             },
             "provider": {
@@ -1734,6 +1856,7 @@
               "type": "string"
             },
             "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
               "enum": [
                 "thread",
                 "comment",
@@ -1763,6 +1886,7 @@
                 "connector_instance",
                 "connector_operation"
               ],
+              "title": "ReferenceType",
               "type": "string"
             },
             "uri": {
@@ -1774,6 +1898,7 @@
             "type",
             "uri"
           ],
+          "title": "Reference",
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         },
@@ -1802,6 +1927,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -1809,6 +1935,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -1838,6 +1965,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -1849,6 +1977,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -1856,7 +1985,7 @@
         },
         "terms": {
           "items": {
-            "$id": "https://schemas.runx.ai/runx/authority/term/v1.json",
+            "$id": "https://schemas.runx.ai/runx/authority-term/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
@@ -1888,6 +2017,7 @@
                             "effect_finality",
                             "credential_resolution"
                           ],
+                          "title": "ProofKind",
                           "type": "string"
                         },
                         "provider": {
@@ -1895,6 +2025,7 @@
                           "type": "string"
                         },
                         "type": {
+                          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                           "enum": [
                             "thread",
                             "comment",
@@ -1924,6 +2055,7 @@
                             "connector_instance",
                             "connector_operation"
                           ],
+                          "title": "ReferenceType",
                           "type": "string"
                         },
                         "uri": {
@@ -1935,6 +2067,7 @@
                         "type",
                         "uri"
                       ],
+                      "title": "Reference",
                       "type": "object",
                       "x-runx-schema": "runx.reference.v1"
                     },
@@ -1967,6 +2100,7 @@
                             "effect_finality",
                             "credential_resolution"
                           ],
+                          "title": "ProofKind",
                           "type": "string"
                         },
                         "provider": {
@@ -1974,6 +2108,7 @@
                           "type": "string"
                         },
                         "type": {
+                          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                           "enum": [
                             "thread",
                             "comment",
@@ -2003,6 +2138,7 @@
                             "connector_instance",
                             "connector_operation"
                           ],
+                          "title": "ReferenceType",
                           "type": "string"
                         },
                         "uri": {
@@ -2014,6 +2150,7 @@
                         "type",
                         "uri"
                       ],
+                      "title": "Reference",
                       "type": "object",
                       "x-runx-schema": "runx.reference.v1"
                     }
@@ -2021,6 +2158,7 @@
                   "required": [
                     "approval_ref"
                   ],
+                  "title": "AuthorityApproval",
                   "type": "object"
                 },
                 "minItems": 1,
@@ -2030,6 +2168,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "operations": {
+                    "description": "Connector operations, as `<connector>/<operation>` or `<connector>/*`.",
                     "items": {
                       "minLength": 1,
                       "type": "string"
@@ -2038,6 +2177,7 @@
                     "type": "array"
                   },
                   "scopes": {
+                    "description": "Provider grant scopes.",
                     "items": {
                       "minLength": 1,
                       "type": "string"
@@ -2046,6 +2186,7 @@
                     "type": "array"
                   },
                   "targets": {
+                    "description": "Provider targets: exact values, `<prefix>*`, or `*`.",
                     "items": {
                       "minLength": 1,
                       "type": "string"
@@ -2055,6 +2196,7 @@
                   },
                   "uses": {
                     "additionalProperties": false,
+                    "description": "How many times a term may be used. An execution term is single use. Usage is reserved atomically with each effect attempt, never counted from receipts.",
                     "properties": {
                       "per_day": {
                         "minimum": 0,
@@ -2065,9 +2207,11 @@
                         "type": "integer"
                       }
                     },
+                    "title": "AuthorityUseLimit",
                     "type": "object"
                   }
                 },
+                "title": "AuthorityBounds",
                 "type": "object"
               },
               "credential_ref": {
@@ -2094,6 +2238,7 @@
                       "effect_finality",
                       "credential_resolution"
                     ],
+                    "title": "ProofKind",
                     "type": "string"
                   },
                   "provider": {
@@ -2101,6 +2246,7 @@
                     "type": "string"
                   },
                   "type": {
+                    "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                     "enum": [
                       "thread",
                       "comment",
@@ -2130,6 +2276,7 @@
                       "connector_instance",
                       "connector_operation"
                     ],
+                    "title": "ReferenceType",
                     "type": "string"
                   },
                   "uri": {
@@ -2141,6 +2288,7 @@
                   "type",
                   "uri"
                 ],
+                "title": "Reference",
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
               },
@@ -2173,6 +2321,7 @@
                       "effect_finality",
                       "credential_resolution"
                     ],
+                    "title": "ProofKind",
                     "type": "string"
                   },
                   "provider": {
@@ -2180,6 +2329,7 @@
                     "type": "string"
                   },
                   "type": {
+                    "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                     "enum": [
                       "thread",
                       "comment",
@@ -2209,6 +2359,7 @@
                       "connector_instance",
                       "connector_operation"
                     ],
+                    "title": "ReferenceType",
                     "type": "string"
                   },
                   "uri": {
@@ -2220,6 +2371,7 @@
                   "type",
                   "uri"
                 ],
+                "title": "Reference",
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
               },
@@ -2247,6 +2399,7 @@
                       "effect_finality",
                       "credential_resolution"
                     ],
+                    "title": "ProofKind",
                     "type": "string"
                   },
                   "provider": {
@@ -2254,6 +2407,7 @@
                     "type": "string"
                   },
                   "type": {
+                    "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                     "enum": [
                       "thread",
                       "comment",
@@ -2283,6 +2437,7 @@
                       "connector_instance",
                       "connector_operation"
                     ],
+                    "title": "ReferenceType",
                     "type": "string"
                   },
                   "uri": {
@@ -2294,6 +2449,7 @@
                   "type",
                   "uri"
                 ],
+                "title": "Reference",
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
               },
@@ -2301,6 +2457,7 @@
                 "enum": [
                   "connector"
                 ],
+                "title": "AuthorityResourceFamily",
                 "type": "string"
               },
               "resource_ref": {
@@ -2327,6 +2484,7 @@
                       "effect_finality",
                       "credential_resolution"
                     ],
+                    "title": "ProofKind",
                     "type": "string"
                   },
                   "provider": {
@@ -2334,6 +2492,7 @@
                     "type": "string"
                   },
                   "type": {
+                    "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                     "enum": [
                       "thread",
                       "comment",
@@ -2363,6 +2522,7 @@
                       "connector_instance",
                       "connector_operation"
                     ],
+                    "title": "ReferenceType",
                     "type": "string"
                   },
                   "uri": {
@@ -2374,6 +2534,7 @@
                   "type",
                   "uri"
                 ],
+                "title": "Reference",
                 "type": "object",
                 "x-runx-schema": "runx.reference.v1"
               },
@@ -2395,6 +2556,7 @@
                     "execute",
                     "revoke"
                   ],
+                  "title": "AuthorityVerb",
                   "type": "string"
                 },
                 "type": "array"
@@ -2409,6 +2571,7 @@
               "bounds",
               "issued_by_ref"
             ],
+            "title": "AuthorityTerm",
             "type": "object",
             "x-runx-schema": "runx.authority_term.v1"
           },
@@ -2422,12 +2585,15 @@
         "derivations",
         "enforcement"
       ],
+      "title": "ReceiptAuthority",
       "type": "object"
     },
     "canonicalization": {
+      "description": "The canonicalization byte contract a receipt's id and digest commit under. v1 has one.",
       "enum": [
         "runx.receipt.c14n.v1"
       ],
+      "title": "ReceiptCanonicalization",
       "type": "string"
     },
     "created_at": {
@@ -2442,6 +2608,7 @@
         "additionalProperties": false,
         "properties": {
           "choice": {
+            "description": "The decisions a governed call can carry out.",
             "enum": [
               "continue",
               "escalate",
@@ -2450,6 +2617,7 @@
               "decline",
               "monitor"
             ],
+            "title": "DecisionChoice",
             "type": "string"
           },
           "decision_id": {
@@ -2457,6 +2625,7 @@
             "type": "string"
           },
           "selected_act_id": {
+            "description": "The act the decision is carried out by. Its intent, target and artifacts are that act's.",
             "minLength": 1,
             "type": "string"
           }
@@ -2466,6 +2635,7 @@
           "choice",
           "selected_act_id"
         ],
+        "title": "Decision",
         "type": "object",
         "x-runx-schema": "runx.decision.v1"
       },
@@ -2486,7 +2656,12 @@
           "minLength": 1,
           "type": "string"
         },
-        "public_key_sha256": {
+        "public_key_digest": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "runx_version": {
+          "description": "The runx release that issued the receipt.",
           "minLength": 1,
           "type": "string"
         },
@@ -2496,20 +2671,25 @@
             "hosted",
             "ci"
           ],
+          "title": "ReceiptIssuerType",
           "type": "string"
         }
       },
       "required": [
         "type",
         "kid",
-        "public_key_sha256"
+        "public_key_digest",
+        "runx_version"
       ],
+      "title": "ReceiptIssuer",
       "type": "object"
     },
     "lineage": {
       "additionalProperties": false,
+      "description": "What runx committed of a receipt's place among others.",
       "properties": {
         "children": {
+          "description": "The receipts of the subject's direct children, each committed by its id and signed-body digest.",
           "items": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2534,6 +2714,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -2541,6 +2722,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -2570,6 +2752,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -2581,6 +2764,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -2590,28 +2774,34 @@
       "required": [
         "children"
       ],
+      "title": "Lineage",
       "type": "object"
     },
     "schema": {
       "enum": [
         "runx.receipt.v1"
       ],
+      "title": "ReceiptSchema",
       "type": "string"
     },
     "seal": {
       "additionalProperties": false,
+      "description": "Exactly one seal. `deferred` expresses a suspended (waiting/delegated) run. It closes when the receipt is created, so the receipt's `created_at` is its one time.",
       "properties": {
         "criteria": {
           "items": {
             "additionalProperties": false,
+            "description": "One check's result and the references that prove it.",
             "properties": {
               "criterion_id": {
+                "description": "A check the runtime runs and binds to a receipt. The runtime is the only writer of criteria, so they are its own closed vocabulary: each names what was checked, and its binding states the result and the evidence.",
                 "enum": [
                   "step_outcome",
                   "output_contract_verified",
                   "voice_profile_applied",
                   "packet_schemas_verified"
                 ],
+                "title": "Criterion",
                 "type": "string"
               },
               "evidence_refs": {
@@ -2639,6 +2829,7 @@
                         "effect_finality",
                         "credential_resolution"
                       ],
+                      "title": "ProofKind",
                       "type": "string"
                     },
                     "provider": {
@@ -2646,6 +2837,7 @@
                       "type": "string"
                     },
                     "type": {
+                      "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                       "enum": [
                         "thread",
                         "comment",
@@ -2675,6 +2867,7 @@
                         "connector_instance",
                         "connector_operation"
                       ],
+                      "title": "ReferenceType",
                       "type": "string"
                     },
                     "uri": {
@@ -2686,6 +2879,7 @@
                     "type",
                     "uri"
                   ],
+                  "title": "Reference",
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
                 },
@@ -2696,6 +2890,7 @@
                   "verified",
                   "failed"
                 ],
+                "title": "CriterionStatus",
                 "type": "string"
               },
               "verification_refs": {
@@ -2723,6 +2918,7 @@
                         "effect_finality",
                         "credential_resolution"
                       ],
+                      "title": "ProofKind",
                       "type": "string"
                     },
                     "provider": {
@@ -2730,6 +2926,7 @@
                       "type": "string"
                     },
                     "type": {
+                      "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                       "enum": [
                         "thread",
                         "comment",
@@ -2759,6 +2956,7 @@
                         "connector_instance",
                         "connector_operation"
                       ],
+                      "title": "ReferenceType",
                       "type": "string"
                     },
                     "uri": {
@@ -2770,6 +2968,7 @@
                     "type",
                     "uri"
                   ],
+                  "title": "Reference",
                   "type": "object",
                   "x-runx-schema": "runx.reference.v1"
                 },
@@ -2782,13 +2981,15 @@
               "evidence_refs",
               "verification_refs"
             ],
+            "title": "CriterionBinding",
             "type": "object"
           },
           "type": "array"
         },
-        "disposition": {
+        "outcome": {
+          "description": "How a run, or a receipt's subject, ended.",
           "enum": [
-            "closed",
+            "completed",
             "deferred",
             "superseded",
             "declined",
@@ -2797,9 +2998,11 @@
             "killed",
             "timed_out"
           ],
+          "title": "RunOutcome",
           "type": "string"
         },
         "reason": {
+          "description": "Why it ended so, where the outcome alone does not say.",
           "enum": [
             "preflight_refused",
             "input_contract_invalid",
@@ -2815,13 +3018,15 @@
             "managed_agent_round_budget_exhausted",
             "host_closed"
           ],
+          "title": "SealReason",
           "type": "string"
         }
       },
       "required": [
-        "disposition",
+        "outcome",
         "criteria"
       ],
+      "title": "Seal",
       "type": "object"
     },
     "signature": {
@@ -2831,6 +3036,7 @@
           "enum": [
             "Ed25519"
           ],
+          "title": "SignatureAlgorithm",
           "type": "string"
         },
         "value": {
@@ -2842,19 +3048,23 @@
         "alg",
         "value"
       ],
+      "title": "ReceiptSignature",
       "type": "object"
     },
     "subject": {
       "additionalProperties": false,
       "properties": {
         "kind": {
+          "description": "What a receipt seals: one step's attempt, or the whole graph a run ran.",
           "enum": [
             "step",
             "graph"
           ],
+          "title": "SubjectKind",
           "type": "string"
         },
-        "outcome": {
+        "outcome_digest": {
+          "description": "The digest of how the subject ended: its seal's outcome, the outputs it declared, and its direct children's receipt ids. The receipt commits to that; the produced content beyond its declared outputs is not part of it.",
           "maxLength": 71,
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
@@ -2863,6 +3073,7 @@
           "$id": "https://schemas.runx.ai/runx/reference/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
+          "description": "What ran.",
           "properties": {
             "label": {
               "minLength": 1,
@@ -2883,6 +3094,7 @@
                 "effect_finality",
                 "credential_resolution"
               ],
+              "title": "ProofKind",
               "type": "string"
             },
             "provider": {
@@ -2890,6 +3102,7 @@
               "type": "string"
             },
             "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
               "enum": [
                 "thread",
                 "comment",
@@ -2919,6 +3132,7 @@
                 "connector_instance",
                 "connector_operation"
               ],
+              "title": "ReferenceType",
               "type": "string"
             },
             "uri": {
@@ -2930,6 +3144,7 @@
             "type",
             "uri"
           ],
+          "title": "Reference",
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         }
@@ -2937,8 +3152,9 @@
       "required": [
         "kind",
         "ref",
-        "outcome"
+        "outcome_digest"
       ],
+      "title": "Subject",
       "type": "object"
     }
   },
@@ -2957,6 +3173,7 @@
     "seal",
     "lineage"
   ],
+  "title": "Receipt",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.receipt.v1"

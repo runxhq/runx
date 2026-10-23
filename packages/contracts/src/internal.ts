@@ -4,8 +4,6 @@ import {
   type RunxSchemaArtifactName,
 } from "./schema-artifacts.js";
 
-export const JSON_SCHEMA_DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema" as const;
-
 export const RUNX_SCHEMA_BASE_URL = "https://schemas.runx.ai" as const;
 
 export const RUNX_CONTRACT_IDS = {
@@ -20,13 +18,12 @@ export const RUNX_CONTRACT_IDS = {
   turnCall: `${RUNX_SCHEMA_BASE_URL}/runx/turn-call/v1.json`,
   turnStatus: `${RUNX_SCHEMA_BASE_URL}/runx/turn-status/v1.json`,
   registryBinding: `${RUNX_SCHEMA_BASE_URL}/runx/registry-binding/v1.json`,
-  reviewReceiptOutput: `${RUNX_SCHEMA_BASE_URL}/runx/review-receipt-output/v1.json`,
   doctor: `${RUNX_SCHEMA_BASE_URL}/runx/doctor/v1.json`,
   list: `${RUNX_SCHEMA_BASE_URL}/runx/list/v1.json`,
   receipt: `${RUNX_SCHEMA_BASE_URL}/runx/receipt/v1.json`,
   fixture: `${RUNX_SCHEMA_BASE_URL}/runx/fixture/v1.json`,
   toolManifest: `${RUNX_SCHEMA_BASE_URL}/runx/tool/manifest/v1.json`,
-  packetIndex: `${RUNX_SCHEMA_BASE_URL}/runx/packet/index/v1.json`,
+  packetLock: `${RUNX_SCHEMA_BASE_URL}/runx/packet/lock/v1.json`,
   actAssignment: `${RUNX_SCHEMA_BASE_URL}/runx/act-assignment/v1.json`,
   credentialDeliveryObservation: `${RUNX_SCHEMA_BASE_URL}/runx/credential-delivery/observation/v1.json`,
   dataOperationResult: `${RUNX_SCHEMA_BASE_URL}/runx/data/operation-result/v1.json`,
@@ -35,11 +32,7 @@ export const RUNX_CONTRACT_IDS = {
   signal: `${RUNX_SCHEMA_BASE_URL}/runx/signal/v1.json`,
   decision: `${RUNX_SCHEMA_BASE_URL}/runx/decision/v1.json`,
   artifact: `${RUNX_SCHEMA_BASE_URL}/runx/artifact/v1.json`,
-  redaction: `${RUNX_SCHEMA_BASE_URL}/runx/redaction/v1.json`,
   ledgerEntry: `${RUNX_SCHEMA_BASE_URL}/runx/ledger-entry/v1.json`,
-  handoffSignal: `${RUNX_SCHEMA_BASE_URL}/runx/handoff-signal/v1.json`,
-  handoffState: `${RUNX_SCHEMA_BASE_URL}/runx/handoff-state/v1.json`,
-  suppressionRecord: `${RUNX_SCHEMA_BASE_URL}/runx/suppression-record/v1.json`,
   operationalPolicy: `${RUNX_SCHEMA_BASE_URL}/runx/operational-policy/v1.json`,
   operationalProposal: `${RUNX_SCHEMA_BASE_URL}/runx/operational-proposal/v1.json`,
   externalJobContinuation: `${RUNX_SCHEMA_BASE_URL}/runx/external-job-continuation/v1.json`,
@@ -48,16 +41,16 @@ export const RUNX_CONTRACT_IDS = {
   externalJobStageRequest: `${RUNX_SCHEMA_BASE_URL}/runx/external-job-stage/request/v1.json`,
   externalJobStageResult: `${RUNX_SCHEMA_BASE_URL}/runx/external-job-stage/result/v1.json`,
   paidSkillListing: `${RUNX_SCHEMA_BASE_URL}/runx/marketplace/paid-skill-listing/v1.json`,
-  paidInvocation: `${RUNX_SCHEMA_BASE_URL}/runx/payment/paid-invocation/v1.json`,
-  offerRevisionRef: `${RUNX_SCHEMA_BASE_URL}/runx/payment/offer-revision-ref/v1.json`,
-  quotePaidInvocationRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/quote-paid-invocation/request/v1.json`,
-  quotePaidInvocationResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/quote-paid-invocation/result/v1.json`,
-  executePaidInvocationRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/execute-paid-invocation/request/v1.json`,
-  executePaidInvocationResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/execute-paid-invocation/result/v1.json`,
-  getPaidInvocationRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/get-paid-invocation/request/v1.json`,
-  getPaidInvocationResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/get-paid-invocation/result/v1.json`,
-  cancelPaidInvocationRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/cancel-paid-invocation/request/v1.json`,
-  cancelPaidInvocationResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/cancel-paid-invocation/result/v1.json`,
+  purchase: `${RUNX_SCHEMA_BASE_URL}/runx/payment/purchase/v1.json`,
+  offerVersionBinding: `${RUNX_SCHEMA_BASE_URL}/runx/payment/offer-version-binding/v1.json`,
+  quotePurchaseRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/quote-purchase/request/v1.json`,
+  quotePurchaseResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/quote-purchase/result/v1.json`,
+  executePurchaseRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/execute-purchase/request/v1.json`,
+  executePurchaseResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/execute-purchase/result/v1.json`,
+  getPurchaseRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/get-purchase/request/v1.json`,
+  getPurchaseResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/get-purchase/result/v1.json`,
+  cancelPurchaseRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/cancel-purchase/request/v1.json`,
+  cancelPurchaseResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/cancel-purchase/result/v1.json`,
 } as const;
 
 export const RUNX_LOGICAL_SCHEMAS = {
@@ -66,7 +59,7 @@ export const RUNX_LOGICAL_SCHEMAS = {
   receipt: "runx.receipt.v1",
   fixture: "runx.fixture.v1",
   toolManifest: "runx.tool.manifest.v1",
-  packetIndex: "runx.packet.index.v1",
+  packetLock: "runx.packet.lock.v1",
   actAssignment: "runx.act_assignment.v1",
   credentialDeliveryObservation: "runx.credential_delivery.observation.v1",
   dataOperationResult: "runx.data.operation_result.v1",
@@ -75,11 +68,7 @@ export const RUNX_LOGICAL_SCHEMAS = {
   signal: "runx.signal.v1",
   decision: "runx.decision.v1",
   artifact: "runx.artifact.v1",
-  redaction: "runx.redaction.v1",
   ledgerEntry: "runx.ledger.entry.v1",
-  handoffSignal: "runx.handoff_signal.v1",
-  handoffState: "runx.handoff_state.v1",
-  suppressionRecord: "runx.suppression_record.v1",
   operationalPolicy: "runx.operational_policy.v1",
   operationalProposal: "runx.operational_proposal.v1",
   externalJobContinuation: "runx.external_job_continuation.v1",
@@ -88,16 +77,16 @@ export const RUNX_LOGICAL_SCHEMAS = {
   externalJobStageRequest: "runx.external_job_stage.request.v1",
   externalJobStageResult: "runx.external_job_stage.result.v1",
   paidSkillListing: "runx.marketplace.paid_skill_listing.v1",
-  paidInvocation: "runx.payment.paid_invocation.v1",
-  offerRevisionRef: "runx.payment.offer_revision_ref.v1",
-  quotePaidInvocationRequest: "runx.payment.quote_paid_invocation.request.v1",
-  quotePaidInvocationResult: "runx.payment.quote_paid_invocation.result.v1",
-  executePaidInvocationRequest: "runx.payment.execute_paid_invocation.request.v1",
-  executePaidInvocationResult: "runx.payment.execute_paid_invocation.result.v1",
-  getPaidInvocationRequest: "runx.payment.get_paid_invocation.request.v1",
-  getPaidInvocationResult: "runx.payment.get_paid_invocation.result.v1",
-  cancelPaidInvocationRequest: "runx.payment.cancel_paid_invocation.request.v1",
-  cancelPaidInvocationResult: "runx.payment.cancel_paid_invocation.result.v1",
+  purchase: "runx.payment.purchase.v1",
+  offerVersionBinding: "runx.payment.offer_version_binding.v1",
+  quotePurchaseRequest: "runx.payment.quote_purchase.request.v1",
+  quotePurchaseResult: "runx.payment.quote_purchase.result.v1",
+  executePurchaseRequest: "runx.payment.execute_purchase.request.v1",
+  executePurchaseResult: "runx.payment.execute_purchase.result.v1",
+  getPurchaseRequest: "runx.payment.get_purchase.request.v1",
+  getPurchaseResult: "runx.payment.get_purchase.result.v1",
+  cancelPurchaseRequest: "runx.payment.cancel_purchase.request.v1",
+  cancelPurchaseResult: "runx.payment.cancel_purchase.result.v1",
 } as const;
 
 export type UnknownRecord = Readonly<Record<string, unknown>>;
@@ -271,31 +260,6 @@ export const Type = {
     });
   },
 } as const;
-
-export function stringEnum<const TValue extends readonly string[]>(
-  values: TValue,
-  options: Record<string, unknown> = {},
-) {
-  const properties = Object.fromEntries(
-    values.map((value) => [value, Type.Null()]),
-  ) as Record<TValue[number], JsonSchema>;
-  return Type.KeyOf(
-    Type.Object(properties, { additionalProperties: false }),
-    options,
-  );
-}
-
-export function unknownRecordSchema(options: Record<string, unknown> = {}) {
-  return Type.Record(Type.String(), Type.Unknown(), options);
-}
-
-export function dateTimeStringSchema(options: Record<string, unknown> = {}) {
-  return Type.String({
-    minLength: 1,
-    pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-    ...options,
-  });
-}
 
 export function validateContractSchema<TSchemaValue extends JsonSchema>(
   schema: TSchemaValue,

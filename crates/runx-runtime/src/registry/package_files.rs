@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use runx_contracts::sha256_hex;
+use runx_contracts::sha256_prefixed;
 use runx_parser::{
     SkillPackageError, SkillPackageSource, ValidatedSkillPackage, validate_skill_package,
 };
@@ -57,32 +57,32 @@ pub fn skill_content_digest(
     )
 }
 
-pub(crate) fn registry_package_digest(files: &[RegistryPackageFile]) -> Option<String> {
+pub(crate) fn registry_bundle_digest(files: &[RegistryPackageFile]) -> Option<String> {
     if files.is_empty() {
         return None;
     }
     let mut sorted = files.iter().collect::<Vec<_>>();
     sorted.sort_by(|left, right| left.path.cmp(&right.path));
-    let canonical = serde_json::to_vec(&RegistryPackageDigestDocument {
+    let canonical = serde_json::to_vec(&RegistryBundleDigestDocument {
         files: sorted
             .into_iter()
-            .map(|file| RegistryPackageDigestFile {
+            .map(|file| RegistryBundleDigestFile {
                 content: &file.content,
                 path: &file.path,
             })
             .collect(),
     })
     .ok()?;
-    Some(sha256_hex(&canonical))
+    Some(sha256_prefixed(&canonical))
 }
 
 #[derive(Serialize)]
-struct RegistryPackageDigestDocument<'a> {
-    files: Vec<RegistryPackageDigestFile<'a>>,
+struct RegistryBundleDigestDocument<'a> {
+    files: Vec<RegistryBundleDigestFile<'a>>,
 }
 
 #[derive(Serialize)]
-struct RegistryPackageDigestFile<'a> {
+struct RegistryBundleDigestFile<'a> {
     content: &'a str,
     path: &'a str,
 }
@@ -139,11 +139,11 @@ pub(crate) fn validate_registry_skill_package(
 
 #[cfg(test)]
 mod tests {
-    use super::registry_package_digest;
+    use super::registry_bundle_digest;
     use crate::registry::types::RegistryPackageFile;
 
     #[test]
-    fn package_digest_uses_locale_independent_path_ordering() {
+    fn bundle_digest_uses_locale_independent_path_ordering() {
         let files = vec![
             RegistryPackageFile {
                 path: "graph/plan/run.yaml".to_owned(),
@@ -156,8 +156,8 @@ mod tests {
         ];
 
         assert_eq!(
-            registry_package_digest(&files).as_deref(),
-            Some("70f0608aac8193a5b10fdf5f9b9d5d3be4f836ef6a8d8ce58b803698cada3d90")
+            registry_bundle_digest(&files).as_deref(),
+            Some("sha256:70f0608aac8193a5b10fdf5f9b9d5d3be4f836ef6a8d8ce58b803698cada3d90")
         );
     }
 }

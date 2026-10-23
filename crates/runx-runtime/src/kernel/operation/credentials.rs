@@ -233,24 +233,6 @@ pub(crate) fn secret_fields(
     fields(declaration, value).map_err(|reason| format!("the secret {secret} {reason}"))
 }
 
-/// The refusal of a binding recorded before `runx secret`, naming the
-/// command that binds it again.
-pub(crate) fn bound_before_secrets(instance: &ConnectorInstance) -> String {
-    let connector = &instance.connector;
-    match &instance.authority {
-        InstanceAuthority::Credential { profile, .. } => format!(
-            "{connector} was bound to the credential profile {profile} before `runx secret`, which keeps it as the secret {profile}; bind it again: `runx connector use {connector} --secret {profile}`"
-        ),
-        InstanceAuthority::Reference { reference, .. } => format!(
-            "{connector} was bound to {reference} before `runx secret`; set a secret to it and bind that: `runx secret set <name> --from {reference}`, then `runx connector use {connector} --secret <name>`"
-        ),
-        authority => format!(
-            "{connector}'s {} binding was not recorded before `runx secret`",
-            authority.kind()
-        ),
-    }
-}
-
 pub(crate) fn fields(
     declaration: &CredentialDeclaration,
     value: &str,
@@ -442,30 +424,6 @@ mod tests {
         // A failed read at call time refuses the call.
         std::fs::remove_file(&file).unwrap();
         assert!(call().unwrap_err().contains("cannot be read"));
-    }
-
-    #[test]
-    fn a_binding_made_before_secrets_names_the_command_that_binds_it_again() {
-        let connector = crate::kernel::connectors::fixture_scope()
-            .connector("fixture/forum")
-            .unwrap();
-        let instance = crate::kernel::instances::pinned(
-            &connector,
-            runx_contracts::connector::InstanceId::new("credential.forum").unwrap(),
-            runx_contracts::connector::Placement::Local,
-            "runx:principal:local-credential:fixture/forum:forum".to_owned(),
-            None,
-            InstanceAuthority::Credential {
-                profile: NonEmptyString::new("forum").unwrap(),
-                credential: CredentialName::new("api_key").unwrap(),
-                scopes: Vec::new(),
-                material_ref: NonEmptyString::new("local_credential_1").unwrap(),
-            },
-        );
-        assert_eq!(
-            super::bound_before_secrets(&instance),
-            "fixture/forum was bound to the credential profile forum before `runx secret`, which keeps it as the secret forum; bind it again: `runx connector use fixture/forum --secret forum`"
-        );
     }
 
     #[test]

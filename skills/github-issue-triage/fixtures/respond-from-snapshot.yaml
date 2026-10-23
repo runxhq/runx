@@ -22,7 +22,7 @@ inputs:
     title: Sourcey output path is unclear
     state: open
     body: The docs mention two different output directories.
-    source_ref: github:runxhq/runx/issues/241
+    source_locator: github:runxhq/runx/issues/241
   objective: Draft the next helpful maintainer response.
 caller:
   answers:

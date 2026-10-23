@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/privacy-request-review/verdict/v1.json",
+  "x-runx-packet-id": "runx/privacy-request-review.verdict.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "request",
+    "decision",
+    "escalation",
+    "legal",
+    "requestor",
+    "scope_bounds",
+    "handoff",
+    "persistence",
+    "request_digest",
+    "policy_digest",
+    "downstream_effect_performed"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "runx/privacy-request-review.verdict.v1"
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "request_id",
+        "type",
+        "subject_id",
+        "requested_scopes",
+        "data_classes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "subject_id": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "requested_scopes": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "data_classes": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "eligible",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "eligible": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      }
+    },
+    "escalation": {
+      "type": "object",
+      "required": [
+        "required",
+        "lane",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "lane": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      }
+    },
+    "legal": {
+      "type": "object",
+      "required": [
+        "jurisdiction",
+        "lawful_basis"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "jurisdiction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "lawful_basis": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      }
+    },
+    "requestor": {
+      "type": "object",
+      "required": [
+        "identity_provider",
+        "verified_at",
+        "assertion_id",
+        "identity_assertion_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "identity_provider": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "verified_at": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "assertion_id": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "identity_assertion_digest": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "scope_bounds": {
+      "type": "object",
+      "required": [
+        "data_classes",
+        "requested_scopes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "data_classes": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "requested_scopes": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "handoff": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
+    "persistence": {
+      "type": "object",
+      "required": [
+        "append_status",
+        "aggregate_id",
+        "after_version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "append_status": {
+          "const": "committed"
+        },
+        "aggregate_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "after_version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "request_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "policy_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "downstream_effect_performed": {
+      "const": false
+    }
+  }
+}

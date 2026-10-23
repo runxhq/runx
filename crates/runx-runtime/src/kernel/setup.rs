@@ -72,7 +72,7 @@ impl ToolRunner for SetupTools<'_> {
         let output = crate::tool_catalogs::dispatch::dispatch_connector_tool(
             manifest,
             &crate::tool_catalogs::dispatch::ToolDispatchRequest {
-                tool_ref: Cow::Borrowed(tool),
+                tool: Cow::Borrowed(tool),
                 inputs: Cow::Owned(inputs),
                 resolved_inputs: Cow::Owned(JsonObject::new()),
                 scopes,
@@ -132,7 +132,7 @@ pub(crate) fn confirm_session_over(
                     &principal.login,
                 ])?,
                 Placement::Local,
-                principal.principal_ref(manifest.id.as_str()),
+                principal.principal_uri(manifest.id.as_str()),
                 Some(principal.login),
                 InstanceAuthority::Session {
                     session: SessionKind::Command,
@@ -153,7 +153,7 @@ pub(crate) fn confirm_session_over(
                     &principal.id,
                 ])?,
                 Placement::Local,
-                principal.principal_ref(manifest.id.as_str()),
+                principal.principal_uri(manifest.id.as_str()),
                 Some(principal.login),
                 InstanceAuthority::Session {
                     session: SessionKind::ManagedCommand,
@@ -179,7 +179,7 @@ pub(crate) fn confirm_session_over(
                     &principal.id,
                 ])?,
                 Placement::Local,
-                principal.principal_ref(manifest.id.as_str()),
+                principal.principal_uri(manifest.id.as_str()),
                 Some(principal.login),
                 InstanceAuthority::Session {
                     session: SessionKind::HostBrowser,
@@ -465,7 +465,7 @@ pub(crate) fn hosted_grant_instance(
         connector,
         super::instances::instance_id(&["hosted", connector.name.as_str(), grant_id])?,
         Placement::Hosted,
-        grant.principal_ref,
+        grant.principal_uri,
         None,
         InstanceAuthority::HostedGrant {
             grant_id: grant.grant_id.into(),

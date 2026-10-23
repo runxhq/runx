@@ -4,7 +4,7 @@ export function normalizeIssueEvidence(inputs) {
   const issue = object(object(operation.result).issue);
   return {
     issue_evidence: {
-      schema: "runx.issue_to_pr.issue_evidence.v1",
+      schema: "runx/github-issue-to-pr.issue_evidence.v1",
       repository: text(inputs.requested_repository),
       number: scalarText(issue.number),
       title: text(issue.title),
@@ -16,8 +16,8 @@ export function normalizeIssueEvidence(inputs) {
       source: {
         provider: text(operation.provider),
         transport: text(operation.transport),
-        principal_ref: text(operation.principal_ref),
-        readback_ref: text(operation.readback_ref),
+        principal_uri: text(operation.principal_uri),
+        readback_uri: text(operation.readback_uri),
       },
     },
   };
@@ -88,7 +88,7 @@ export function settlePullRequest(inputs) {
       base: text(object(pull.base).ref),
       number: scalarText(pull.number),
       url: text(pull.html_url),
-      readback_ref: text(opened.readback_ref) || text(push.readback_ref),
+      readback_uri: text(opened.readback_uri) || text(push.readback_uri),
     },
   };
 }
@@ -150,13 +150,13 @@ export function finalizeIssueToPr(inputs) {
     && text(publication.commit) === text(host.commit)
     && text(publication.head) === text(host.publication?.head)
     && text(publication.base) === text(host.publication?.base)
-    && Boolean(text(publication.readback_ref));
+    && Boolean(text(publication.readback_uri));
   if (publicationRequested && !published) errors.push("exact-ref pull-request publication did not verify");
   const complete = errors.length === 0;
   const outcome = complete ? (published ? "published" : "finalized_local") : "blocked";
   return {
     issue_to_pr_result: {
-      schema: "runx.issue_to_pr.result.v1",
+      schema: "runx/github-issue-to-pr.result.v1",
       status: complete ? "completed" : "blocked",
       outcome,
       repository: text(host.repository),
@@ -167,7 +167,7 @@ export function finalizeIssueToPr(inputs) {
         && host.tests.every((test) => text(test?.status) === "passed"),
       finalization: {
         status: verified ? "verified" : "unverified",
-        receipt_ref: verification.receipt_ref,
+        receipt_digest: verification.receipt_digest,
         contract_digest: text(host.finalization?.contract_digest),
         target: text(host.commit),
       },
@@ -175,7 +175,7 @@ export function finalizeIssueToPr(inputs) {
         status: published ? "published" : publicationRequested ? "failed" : "not_requested",
         pr_number: scalarText(publication.number),
         url: text(publication.url),
-        readback_ref: text(publication.readback_ref),
+        readback_uri: text(publication.readback_uri),
       },
       errors,
     },
@@ -190,10 +190,10 @@ function verifiedReceipt(value, host) {
   const result = object(operation.result);
   const body = object(object(result.receipt).body);
   const contract = text(host.finalization?.contract_digest).replace(/^sha256:/, "");
-  const receiptRef = text(result.receipt_digest);
+  const receiptDigest = text(result.receipt_digest);
   const verified = operation.status === "success"
     && result.passed === true
-    && digest(receiptRef)
+    && digest(receiptDigest)
     && text(body.task_id) !== ""
     && text(body.verdict) === "pass"
     && text(body.head_commit) === text(host.commit)
@@ -201,7 +201,7 @@ function verifiedReceipt(value, host) {
     && text(body.spec_fingerprint) === contract
     && Array.isArray(body.open_blockers)
     && body.open_blockers.length === 0;
-  return { verified, receipt_ref: verified ? receiptRef : "" };
+  return { verified, receipt_digest: verified ? receiptDigest : "" };
 }
 
 function object(value) {

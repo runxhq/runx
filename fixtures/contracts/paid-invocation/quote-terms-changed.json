@@ -1,1 +1,0 @@
-{"description":"A term revision is a typed domain refusal.","expectation":"valid","operation":"QuotePaidInvocation","payload":{"code":"terms_changed","reason":"The offer revision no longer matches.","status":"refused"},"schema_id":"runx.payment.quote_paid_invocation.result.v1"}

@@ -23,12 +23,7 @@ pub struct OrchestratorExecutionContext {
     pub workflow: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workflow_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub workflow_ref: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_workflow: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub upstream_execution_id: Option<String>,
+    /// The orchestrator's own id for the run that made the call.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upstream_run_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,9 +50,6 @@ impl OrchestratorExecutionContext {
             self.principal_id.as_deref(),
             self.workflow.as_deref(),
             self.workflow_id.as_deref(),
-            self.workflow_ref.as_deref(),
-            self.source_workflow.as_deref(),
-            self.upstream_execution_id.as_deref(),
             self.upstream_run_id.as_deref(),
         ]
         .into_iter()

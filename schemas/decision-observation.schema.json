@@ -41,13 +41,13 @@
     {
       "additionalProperties": false,
       "properties": {
-        "actor_ref": {
+        "actor_id": {
           "type": "string"
         },
         "approved": {
           "type": "boolean"
         },
-        "evidence_ref": {
+        "evidence_locator": {
           "type": "string"
         },
         "nonce": {
@@ -62,9 +62,10 @@
             "app_or_bot",
             "unknown"
           ],
+          "title": "DecisionOrigin",
           "type": "string"
         },
-        "presentation_ref": {
+        "presentation_locator": {
           "type": "string"
         },
         "request_digest": {
@@ -79,16 +80,17 @@
         "status",
         "request_digest",
         "nonce",
-        "presentation_ref",
-        "actor_ref",
+        "presentation_locator",
+        "actor_id",
         "origin",
-        "evidence_ref",
+        "evidence_locator",
         "occurred_at",
         "approved"
       ],
       "type": "object"
     }
   ],
+  "title": "DecisionObservation",
   "x-runx-packet": true,
   "x-runx-schema": "runx.decision_observation.v1"
 }

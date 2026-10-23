@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::schema::{
-    Identity, IsoDateTime, NonEmptyString, Property, RunxSchema, deserialize_false_bool,
-    deserialize_true_bool, object_schema,
+    Identity, IsoDateTime, NamedSchemas, NonEmptyString, Property, RunxSchema,
+    deserialize_false_bool, deserialize_true_bool, object_schema, record_named, titled,
 };
 use crate::{JsonObject, Reference, ReferenceLink};
 
@@ -43,7 +43,7 @@ pub struct OperationalProposalRecommendedAction {
 #[serde(deny_unknown_fields)]
 pub struct OperationalProposalIdempotency {
     pub key: NonEmptyString,
-    pub fingerprint: NonEmptyString,
+    pub digest: NonEmptyString,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -63,7 +63,7 @@ pub struct OperationalProposalAuthority {
 
 impl RunxSchema for OperationalProposalAuthority {
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new("proposal_only", const_bool(true), true),
                 Property::new("mutation_authority_granted", const_bool(false), true),
@@ -73,7 +73,12 @@ impl RunxSchema for OperationalProposalAuthority {
             ],
             true,
             None,
-        )
+        );
+        titled(schema, "OperationalProposalAuthority")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(named, "OperationalProposalAuthority", Self::json_schema);
     }
 }
 
@@ -155,7 +160,7 @@ impl RunxSchema for OperationalProposal {
     // closed contract document, and keeping its field list contiguous makes
     // review against the wire contract less error-prone.
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new("schema", OperationalProposalSchema::json_schema(), true),
                 Property::new("proposal_id", id_schema(), true),
@@ -228,7 +233,22 @@ impl RunxSchema for OperationalProposal {
                 logical: OPERATIONAL_PROPOSAL_SCHEMA,
                 url: None,
             }),
-        )
+        );
+        titled(schema, "OperationalProposal")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "OperationalProposal", Self::json_schema) {
+            OperationalProposalSchema::named_schemas(named);
+            OperationalProposalIdempotency::named_schemas(named);
+            Reference::named_schemas(named);
+            OperationalProposalRedactionStatus::named_schemas(named);
+            OperationalProposalRecommendedAction::named_schemas(named);
+            ReferenceLink::named_schemas(named);
+            OperationalProposalAuthority::named_schemas(named);
+            OperationalProposalHumanGate::named_schemas(named);
+            OperationalProposalOutcome::named_schemas(named);
+        }
     }
 }
 

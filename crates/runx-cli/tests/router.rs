@@ -40,7 +40,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &help,
@@ -48,7 +48,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
     );
     assert_help_line(
         &help,
@@ -142,11 +142,11 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &skill_help_text(),
-        "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &skill_help_text(),
-        "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
     );
     assert_help_line(
         &skill_help_text(),
@@ -154,7 +154,7 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
     );
     assert_help_line(
         &history_help_text(),
-        "runx history [query] [--skill s] [--status s] [--since iso] [--until iso] [--limit n] [--json]",
+        "runx history [query] [--skill s] [--state s] [--since iso] [--until iso] [--limit n] [--json]",
     );
     assert_help_line(
         &history_help_text(),

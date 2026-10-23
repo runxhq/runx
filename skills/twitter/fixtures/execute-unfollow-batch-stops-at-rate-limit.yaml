@@ -27,9 +27,9 @@ inputs:
       - { act_id: act-unfollow-3003, kind: unfollow, params: { target_user_id: "3003" }, consequence: live_mutation, rationale: Does not follow back. }
       - { act_id: act-unfollow-3004, kind: unfollow, params: { target_user_id: "3004" }, consequence: live_mutation, rationale: Does not follow back. }
       - { act_id: act-del-4001, kind: delete_post, params: { post_id: "4001" }, consequence: live_mutation, rationale: Matched the operator predicate. }
-    gates: { human_approval_required: true, approval_ref: approval:granted }
-  plan_digest: sha256:2fae0ac85e11630026e9ee8fbc8abdbd3c97afcda83842ee8e796a6b3b9faf97
-  data_source_ref: tenant://twitter/sqlite-unfollow
+    gates: { human_approval_required: true, approval_id: approval:granted }
+  plan_digest: sha256:d36a57ea6b2eb1687879699aca6a5c731f5b726e50821ba58d5233a8f2e76365
+  data_source_uri: tenant://twitter/sqlite-unfollow
 
 caller:
   http_exchanges:
@@ -94,9 +94,9 @@ expect:
             remaining_count: 3
             rate: { limited: true, remaining: 0, reset_at: "2027-01-15T08:00:00Z" }
             results:
-              - { act_id: act-unfollow-3001, status: done, provider_ref: "3001" }
-              - { act_id: act-unfollow-3002, status: done, provider_ref: "3002" }
-              - { act_id: act-unfollow-3003, status: failed, provider_ref: "3003" }
+              - { act_id: act-unfollow-3001, status: done, external_id: "3001" }
+              - { act_id: act-unfollow-3002, status: done, external_id: "3002" }
+              - { act_id: act-unfollow-3003, status: failed, external_id: "3003" }
             ledger_delta:
               account_id: "42"
               decision: stopped

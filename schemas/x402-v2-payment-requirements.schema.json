@@ -48,5 +48,6 @@
     "payTo",
     "maxTimeoutSeconds"
   ],
+  "title": "X402PaymentRequirements",
   "type": "object"
 }

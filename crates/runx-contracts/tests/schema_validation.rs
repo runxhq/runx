@@ -43,7 +43,7 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
         "receipt.schema.json",
     ),
     FixtureSchemaMapping::new(
-        "fixtures/contracts/harness-spine/signal-fingerprint-links.json",
+        "fixtures/contracts/harness-spine/signal-digest-links.json",
         "/expected",
         "signal.schema.json",
     ),

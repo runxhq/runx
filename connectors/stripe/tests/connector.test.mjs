@@ -24,7 +24,7 @@ try {
 }
 
 const effectKey = `runx:sha256:${"a".repeat(64)}`;
-const input = { account_id: "acct_northstar", amount_minor: 2500, currency: "aud", payment_method_ref: "pm_saved42", reference: "northstar-invoice-42" };
+const input = { account_id: "acct_northstar", amount_minor: 2500, currency: "aud", payment_method_id: "pm_saved42", reference: "northstar-invoice-42" };
 
 function render(operation, request, args, extra = {}) {
   const declaration = manifest.operations[operation];
@@ -51,7 +51,7 @@ test("collection reads the selected account before the write and the original Pa
   const account = render("payment.stripe", "account", input);
   assert.equal(account.method, "GET");
   assert.equal(account.url, "https://api.stripe.com/v1/account");
-  const readback = render("payment.stripe", "payment", input, { responses: { write: { json: { payment_ref: "pi_original42" } } } });
+  const readback = render("payment.stripe", "payment", input, { responses: { write: { json: { payment_id: "pi_original42" } } } });
   assert.equal(readback.method, "GET");
   assert.equal(readback.url, "https://api.stripe.com/v1/payment_intents/pi_original42");
   assert.equal(readback.body, undefined);
@@ -60,18 +60,18 @@ test("collection reads the selected account before the write and the original Pa
 });
 
 test("a refund names the original payment and uses the same native key, without marketplace transfers", () => {
-  const terms = { account_id: "acct_northstar", payment_ref: "pi_original42", amount_minor: 500, currency: "aud" };
+  const terms = { account_id: "acct_northstar", payment_id: "pi_original42", amount_minor: 500, currency: "aud" };
   const original = render("payment.stripe.refund", "original", terms);
   assert.equal(original.url, "https://api.stripe.com/v1/payment_intents/pi_original42");
   const call = render("payment.stripe.refund", "refund", terms);
   assert.deepEqual(Object.fromEntries(new URLSearchParams(call.body)), { amount: "500", payment_intent: "pi_original42", "metadata[runx_effect_key]": effectKey });
   assert.equal(call.headers["idempotency-key"], effectKey);
   assert.equal(call.headers["stripe-account"], terms.account_id);
-  assert.equal(render("payment.stripe.refund", "refund_read", terms, { responses: { write: { json: { refund_ref: "re_original42" } } } }).url, "https://api.stripe.com/v1/refunds/re_original42");
+  assert.equal(render("payment.stripe.refund", "refund_read", terms, { responses: { write: { json: { refund_id: "re_original42" } } } }).url, "https://api.stripe.com/v1/refunds/re_original42");
 });
 
 test("invalid amounts and identifiers fail the exposed input contract", () => {
-  for (const patch of [{ amount_minor: 0 }, { amount_minor: 0.5 }, { amount_minor: 100000000 }, { currency: "USDC" }, { account_id: "acct_northstar/../../other" }, { payment_method_ref: "pm_42?account=other" }]) {
+  for (const patch of [{ amount_minor: 0 }, { amount_minor: 0.5 }, { amount_minor: 100000000 }, { currency: "USDC" }, { account_id: "acct_northstar/../../other" }, { payment_method_id: "pm_42?account=other" }]) {
     assert.equal(typeof operationInputError(manifest.operations["payment.stripe"], { ...input, ...patch }), "string");
   }
   assert.equal(typeof operationInputError(manifest.operations["payment.stripe.lookup"], { account_id: "acct_northstar", effect_key: "' OR amount>0" }), "string");
@@ -98,7 +98,7 @@ test("all requests pin one stable provider API and charge reads expose cumulativ
     }
   }
   assert.equal(versions.size, 1);
-  const call = render("payment.stripe.charge.read", "charge", { account_id: "acct_northstar", charge_ref: "ch_original42" });
+  const call = render("payment.stripe.charge.read", "charge", { account_id: "acct_northstar", charge_id: "ch_original42" });
   assert.equal(call.url, "https://api.stripe.com/v1/charges/ch_original42");
   assert.ok(manifest.operations["payment.stripe.charge.read"].result_fields.includes("amount_refunded"));
 });

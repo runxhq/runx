@@ -7,18 +7,18 @@ operator_journeys:
     request: Deliver this already prepared release notification to the selected Slack channel.
     expected_outcome: Reuse the exact plan, body, channel, digest, and principal; post once and return provider readback without redrafting.
     prior_evidence:
-      - The validated runx.notify.v1 plan and exact message supplied in the fixture.
+      - The validated runx/message-send.notification_plan.v1 plan and exact message supplied in the fixture.
     must_not_repeat:
       - Do not redraft or reclassify the notification.
       - Do not repeat delivery after stable readback exists.
 inputs:
   notification_plan:
-    schema: runx.notify.v1
+    schema: runx/message-send.notification_plan.v1
     decision: ready_for_provider
     provider: slack
     principal: runx:principal:release-bot
     channel: slack://T123/C456
-    content_ref: inline:sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
+    content_uri: inline:sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
     content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
     send_plan: { decision: ready }
     provider_status: not_called
@@ -49,5 +49,5 @@ caller:
 expect:
   status: sealed
   steps: [digest, bind-plan, bind-content, deliver, prepare-readback, readback]
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: message-send, source_case: composed-delivery-success, source: skills-fixture }

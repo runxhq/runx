@@ -1,5 +1,5 @@
 skill: github-issue-to-pr
-version: "0.4.12"
+version: "0.4.13"
 
 catalog:
   kind: graph
@@ -38,12 +38,12 @@ input_definitions:
     description: Bounded desired outcome; the issue remains the source evidence.
   issue_evidence:
     type: json
-    packet: runx.issue_to_pr.issue_evidence.v1
+    packet: runx/github-issue-to-pr.issue_evidence.v1
     required: true
     description: Prior typed issue evidence; supplying it skips provider discovery and read.
   host_result:
     type: json
-    packet: runx.issue_to_pr.host_result.v1
+    packet: runx/github-issue-to-pr.host_result.v1
     required: true
     description: Tested host change, exact commit, and the workspace-scoped signed receipt produced by one scafld finalize call.
 
@@ -78,7 +78,7 @@ runners:
           issue_evidence: object
         artifacts:
           named_emits: { issue_evidence: issue_evidence }
-          packets: { issue_evidence: runx.issue_to_pr.issue_evidence.v1 }
+          packets: { issue_evidence: runx/github-issue-to-pr.issue_evidence.v1 }
 
       - id: host
         skill: .
@@ -117,7 +117,7 @@ runners:
           host_result: object
         artifacts:
           named_emits: { host_result: host_result }
-          packets: { host_result: runx.issue_to_pr.host_result.v1 }
+          packets: { host_result: runx/github-issue-to-pr.host_result.v1 }
 
       - id: admit-host-result
         inputs:
@@ -158,7 +158,7 @@ runners:
           issue_to_pr_result: object
         artifacts:
           named_emits: { issue_to_pr_result: issue_to_pr_result }
-          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+          packets: { issue_to_pr_result: runx/github-issue-to-pr.result.v1 }
 
       - id: verify-local
         when:
@@ -185,7 +185,7 @@ runners:
           issue_to_pr_result: object
         artifacts:
           named_emits: { issue_to_pr_result: issue_to_pr_result }
-          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+          packets: { issue_to_pr_result: runx/github-issue-to-pr.result.v1 }
 
       - id: finalize-blocked
         when:
@@ -199,7 +199,7 @@ runners:
           issue_to_pr_result: object
         artifacts:
           named_emits: { issue_to_pr_result: issue_to_pr_result }
-          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+          packets: { issue_to_pr_result: runx/github-issue-to-pr.result.v1 }
 
   resume:
     description: Continue from a completed host result and its issue evidence, verifying and publishing without repeating the work.
@@ -247,7 +247,7 @@ runners:
           issue_to_pr_result: object
         artifacts:
           named_emits: { issue_to_pr_result: issue_to_pr_result }
-          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+          packets: { issue_to_pr_result: runx/github-issue-to-pr.result.v1 }
 
       - id: verify-local
         when:
@@ -274,7 +274,7 @@ runners:
           issue_to_pr_result: object
         artifacts:
           named_emits: { issue_to_pr_result: issue_to_pr_result }
-          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+          packets: { issue_to_pr_result: runx/github-issue-to-pr.result.v1 }
 
       - id: finalize-blocked
         when:
@@ -288,7 +288,7 @@ runners:
           issue_to_pr_result: object
         artifacts:
           named_emits: { issue_to_pr_result: issue_to_pr_result }
-          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+          packets: { issue_to_pr_result: runx/github-issue-to-pr.result.v1 }
 
   verify:
     description: Verify a scafld finalize receipt against its exact commit and contract, publishing nothing.
@@ -327,7 +327,7 @@ runners:
           issue_to_pr_result: object
         artifacts:
           named_emits: { issue_to_pr_result: issue_to_pr_result }
-          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+          packets: { issue_to_pr_result: runx/github-issue-to-pr.result.v1 }
 
   publish:
     description: Verify a completed host result, push its exact commit, and open or reuse its pull request, read back.
@@ -356,7 +356,7 @@ runners:
           issue_to_pr_result: object
         artifacts:
           named_emits: { issue_to_pr_result: issue_to_pr_result }
-          packets: { issue_to_pr_result: runx.issue_to_pr.result.v1 }
+          packets: { issue_to_pr_result: runx/github-issue-to-pr.result.v1 }
 
   pull-request:
     description: Push an exact commit to a branch and open, or reuse, the one pull request for it, read back until its head is that commit.

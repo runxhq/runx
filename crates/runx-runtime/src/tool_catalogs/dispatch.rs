@@ -20,7 +20,7 @@ mod local;
 /// The context needed to resolve and invoke one tool. Graph steps and managed
 /// agents share this exact native-or-local dispatch path.
 pub(crate) struct ToolDispatchRequest<'a> {
-    pub tool_ref: Cow<'a, str>,
+    pub tool: Cow<'a, str>,
     pub inputs: Cow<'a, JsonObject>,
     pub resolved_inputs: Cow<'a, JsonObject>,
     pub scopes: &'a [String],
@@ -40,12 +40,12 @@ pub(crate) struct ToolDispatchRequest<'a> {
 /// Inspect a tool through the same native/local catalog roots used at
 /// execution time, so a turn offers its real description and input contract.
 pub(crate) fn inspect_catalog_tool(
-    tool_ref: &str,
+    tool: &str,
     env: &BTreeMap<String, String>,
     skill_directory: &Path,
     effects: &RuntimeEffectRegistry,
 ) -> Result<ToolInspectResult, RuntimeError> {
-    local::inspect_catalog_tool(tool_ref, env, skill_directory, effects)
+    local::inspect_catalog_tool(tool, env, skill_directory, effects)
 }
 
 /// Resolve the artifact contract used to project a tool step into graph
@@ -54,11 +54,11 @@ pub(crate) fn resolve_tool_artifacts(
     request: &ToolDispatchRequest<'_>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<Option<SkillArtifactContract>, RuntimeError> {
-    let tool_ref = request.tool_ref.as_ref();
-    if let Some(artifacts) = crate::tool_catalogs::native::artifacts(tool_ref, effects) {
+    let tool = request.tool.as_ref();
+    if let Some(artifacts) = crate::tool_catalogs::native::artifacts(tool, effects) {
         return Ok(Some(artifacts));
     }
-    local::resolve_artifacts(request, tool_ref)
+    local::resolve_artifacts(request, tool)
 }
 
 /// Dispatch one tool through the native registry, then the local manifest
@@ -70,12 +70,12 @@ pub(crate) fn dispatch_tool(
     observed_at: &str,
     started: Instant,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let tool_ref = request.tool_ref.trim();
-    if tool_ref.is_empty() {
+    let tool = request.tool.trim();
+    if tool.is_empty() {
         return Ok(failure("Tool reference must not be empty.", started));
     }
-    if tool_ref.len() != request.tool_ref.len() {
-        request.tool_ref = Cow::Owned(tool_ref.to_owned());
+    if tool.len() != request.tool.len() {
+        request.tool = Cow::Owned(tool.to_owned());
     }
 
     invoke_resolved_tool(&mut request, effects, observed_at, started)
@@ -99,14 +99,14 @@ fn invoke_resolved_tool(
     observed_at: &str,
     started: Instant,
 ) -> Result<InvocationOutput, RuntimeError> {
-    if crate::tool_catalogs::native::is_core_tool(request.tool_ref.as_ref())
-        || effects.capability(request.tool_ref.as_ref()).is_some()
+    if crate::tool_catalogs::native::is_core_tool(request.tool.as_ref())
+        || effects.capability(request.tool.as_ref()).is_some()
     {
         return invoke_native_tool(request, effects, observed_at, started);
     }
     Ok(match local::invoke(request, started)? {
         Some(output) => output,
-        None => missing_imported_tool(request.tool_ref.as_ref(), started),
+        None => missing_imported_tool(request.tool.as_ref(), started),
     })
 }
 
@@ -119,7 +119,7 @@ fn invoke_native_tool(
     let inputs = std::mem::replace(&mut request.inputs, Cow::Owned(JsonObject::new())).into_owned();
     let Some(invocation) =
         crate::tool_catalogs::native::invoke(crate::tool_catalogs::native::NativeToolInvocation {
-            tool_ref: request.tool_ref.as_ref(),
+            tool: request.tool.as_ref(),
             observed_at,
             inputs,
             scopes: request.scopes,
@@ -134,7 +134,7 @@ fn invoke_native_tool(
         })
     else {
         return Err(RuntimeError::SkillFailed {
-            skill_name: request.tool_ref.to_string(),
+            skill_name: request.tool.to_string(),
             message: "registered native capability disappeared during dispatch".to_owned(),
         });
     };
@@ -191,9 +191,9 @@ pub(super) fn failure(message: impl Into<String>, started: Instant) -> Invocatio
     AdapterProjection::from_started(started).failure(message.into(), Observations::default())
 }
 
-fn missing_imported_tool(tool_ref: &str, started: Instant) -> InvocationOutput {
+fn missing_imported_tool(tool: &str, started: Instant) -> InvocationOutput {
     failure(
-        format!("Imported tool '{tool_ref}' was not found in configured tool catalogs."),
+        format!("Imported tool '{tool}' was not found in configured tool catalogs."),
         started,
     )
 }

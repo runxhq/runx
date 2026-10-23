@@ -19,7 +19,7 @@ struct Expected {
     envelope: ActAssignment,
     intent_key: String,
     trigger_key: Option<String>,
-    content_hash: String,
+    content_digest: String,
 }
 
 #[test]
@@ -35,8 +35,8 @@ fn sdk_act_assignment_wrappers_match_contract_fixtures() -> Result<(), serde_jso
             fixture.expected.trigger_key.as_deref()
         );
         assert_eq!(
-            actual.idempotency.content_hash,
-            fixture.expected.content_hash
+            actual.idempotency.content_digest,
+            fixture.expected.content_digest
         );
     }
     Ok(())

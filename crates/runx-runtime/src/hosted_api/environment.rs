@@ -140,19 +140,20 @@ impl HostedApiEnvironment {
             .then(|| non_empty(env.get(HOSTED_API_TOKEN_ENV).map(String::as_str)))
             .flatten();
         let stored_token_allowed = base_url == stored_base_url;
-        let (stored_token_ref, stored_principal_id) = match credential_purpose {
-            Some(HostedApiCredentialPurpose::Default) => {
-                (public.api_token_ref.as_deref(), public.principal_id.clone())
-            }
+        let (stored_token_material_id, stored_principal_id) = match credential_purpose {
+            Some(HostedApiCredentialPurpose::Default) => (
+                public.api_token_material_id.as_deref(),
+                public.principal_id.clone(),
+            ),
             Some(HostedApiCredentialPurpose::Publish) => (
-                public.publish_api_token_ref.as_deref(),
+                public.publish_api_token_material_id.as_deref(),
                 public.publish_principal_id.clone(),
             ),
             None => (None, None),
         };
         let stored_token = if stored_token_allowed {
-            stored_token_ref
-                .map(|token_ref| load_local_public_api_token(&paths, token_ref))
+            stored_token_material_id
+                .map(|token_material_id| load_local_public_api_token(&paths, token_material_id))
                 .transpose()?
                 .and_then(|token| non_empty(Some(&token)))
         } else {
@@ -166,7 +167,7 @@ impl HostedApiEnvironment {
         let using_stored_token = direct_token.is_none() && stored_token.is_some();
         let stored_credential_environment_mismatch = credential_purpose.is_some()
             && direct_token.is_none()
-            && stored_token_ref.is_some()
+            && stored_token_material_id.is_some()
             && !stored_token_allowed;
         Ok(Self {
             base_url,
@@ -274,12 +275,12 @@ impl AuthenticatedHostedApiEnvironment {
 /// credential, kept apart from the secrets the operator names.
 const PUBLIC_API_TOKEN_KIND: &str = "local_public_api_token";
 
-/// The token `runx login` sealed under `token_ref`.
+/// The token `runx login` sealed under `token_material_id`.
 pub fn load_local_public_api_token(
     paths: &crate::paths::RunxPaths,
-    token_ref: &str,
+    token_material_id: &str,
 ) -> Result<String, HostedApiError> {
-    Ok(crate::secrets::sealed::load(paths, token_ref)?)
+    Ok(crate::secrets::sealed::load(paths, token_material_id)?)
 }
 
 pub fn store_authenticated_hosted_environment(
@@ -294,19 +295,19 @@ pub fn store_authenticated_hosted_environment(
     let paths = crate::paths::RunxPaths::resolve(env, cwd);
     let config_path = paths.config_file();
     let mut next = load_runx_config_file(&config_path)?;
-    let token_ref = crate::secrets::sealed::store(&paths, token, PUBLIC_API_TOKEN_KIND)?;
+    let token_material_id = crate::secrets::sealed::store(&paths, token, PUBLIC_API_TOKEN_KIND)?;
     let public = next.public.get_or_insert_default();
     let base_url = normalize_hosted_base_url(Some(base_url))?
         .unwrap_or_else(|| DEFAULT_HOSTED_API_BASE_URL.to_owned());
     match purpose {
         HostedApiCredentialPurpose::Default => {
             public.api_base_url = Some(base_url);
-            public.api_token_ref = Some(token_ref);
+            public.api_token_material_id = Some(token_material_id);
             public.principal_id = Some(principal_id.into_string());
         }
         HostedApiCredentialPurpose::Publish => {
             public.publish_api_base_url = Some(base_url);
-            public.publish_api_token_ref = Some(token_ref);
+            public.publish_api_token_material_id = Some(token_material_id);
             public.publish_principal_id = Some(principal_id.into_string());
         }
     }

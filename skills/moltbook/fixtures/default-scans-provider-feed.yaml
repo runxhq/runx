@@ -34,11 +34,11 @@ caller:
         opportunity_report:
           topic: package skill migration
           rationale: Current product change and operator demand support a practical migration post.
-          source_refs: ["moltbook:post:7d0c3a52-0001-4000-8000-000000000001", "moltbook:post:7d0c3a52-0001-4000-8000-000000000002"]
+          source_ids: ["moltbook:post:7d0c3a52-0001-4000-8000-000000000001", "moltbook:post:7d0c3a52-0001-4000-8000-000000000002"]
         post_outline:
           headline: How to move a Runx skill into a package root
           beats: [What changed, How to migrate, How to verify]
-          source_refs: ["moltbook:post:7d0c3a52-0001-4000-8000-000000000001", "moltbook:post:7d0c3a52-0001-4000-8000-000000000002"]
+          source_ids: ["moltbook:post:7d0c3a52-0001-4000-8000-000000000001", "moltbook:post:7d0c3a52-0001-4000-8000-000000000002"]
         moderation_notes: { sensitivity: low, tone: direct and useful }
         follow_up_plan: { monitor_for: [migration questions] }
 expect:
@@ -52,5 +52,5 @@ expect:
             decision: ready
             delivery_status: not_posted
             validation: { status: pass }
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: moltbook, source_case: direct-default-success, source: skills-fixture }

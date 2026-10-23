@@ -8,14 +8,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::{
-    ClosureDisposition, ExecutionEvent, JsonObject, JsonValue, Receipt, ResolutionRequest,
-    ResolutionResponse, ResolutionResponseActor,
+    ExecutionEvent, JsonObject, JsonValue, Receipt, ResolutionRequest, ResolutionResponse,
+    ResolutionResponseActor, RunOutcome,
 };
 use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest};
 use thiserror::Error;
 
 use super::super::graph::bind_run_inputs;
-use super::assertions::{assert_exchanges_requested, assert_expectations, status_from_disposition};
+use super::assertions::{assert_exchanges_requested, assert_expectations, status_from_outcome};
 use super::fixtures::{
     HarnessExpectedStatus, HarnessFixture, HarnessFixtureError, HarnessFixtureKind,
     load_harness_fixture,
@@ -32,8 +32,8 @@ use crate::kernel::store::KernelStore;
 use crate::paths::RUNX_CWD_ENV;
 use crate::receipts::signing::strip_receipt_signing_env;
 use crate::receipts::{
-    RunScope, RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy,
-    StepReceiptWithDisposition, step_receipt_with_declared_claim_and_policy,
+    RunScope, RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy, StepReceiptWithOutcome,
+    step_receipt_with_declared_claim_and_policy,
 };
 
 /// What a harness replay runs with. Each case runs as a run of its own, in a
@@ -164,12 +164,12 @@ pub enum HarnessReplayError {
 
 #[derive(Debug, Error)]
 #[error(
-    "{message}; receipt={receipt_id}; disposition={disposition}; reason={reason}; skill_value={skill_value}; skill_failure={skill_failure}"
+    "{message}; receipt={receipt_id}; outcome={outcome}; reason={reason}; skill_value={skill_value}; skill_failure={skill_failure}"
 )]
 pub struct HarnessExpectationFailure {
     pub message: String,
     pub receipt_id: String,
-    pub disposition: String,
+    pub outcome: String,
     pub reason: String,
     pub skill_value: String,
     pub skill_failure: String,
@@ -595,7 +595,7 @@ fn expectation_error_with_output(
     HarnessReplayError::ExpectationFailed(Box::new(HarnessExpectationFailure {
         message: error.to_string(),
         receipt_id: output.receipt.id.to_string(),
-        disposition: format!("{:?}", output.receipt.seal.disposition),
+        outcome: format!("{:?}", output.receipt.seal.outcome),
         reason: output
             .receipt
             .seal
@@ -668,7 +668,7 @@ fn seal_admission_failure(
     let projection = project_step_claim(JsonObject::new(), None);
     let run_id = harness_run_id(&fixture.name);
     let receipt = step_receipt_with_declared_claim_and_policy(
-        StepReceiptWithDisposition {
+        StepReceiptWithOutcome {
             scope: RunScope {
                 run_id: &run_id,
                 graph_name: &fixture.name,
@@ -677,7 +677,7 @@ fn seal_admission_failure(
             attempt: 1,
             output: &output,
             created_at: &options.clock.now(),
-            disposition: ClosureDisposition::Failed,
+            outcome: RunOutcome::Failed,
             reason: Some(runx_contracts::SealReason::InputContractInvalid),
         },
         &projection.outputs,
@@ -685,7 +685,7 @@ fn seal_admission_failure(
     )?;
     Ok(HarnessReplayOutput {
         fixture: fixture.clone(),
-        status: status_from_disposition(&receipt.seal.disposition),
+        status: status_from_outcome(&receipt.seal.outcome),
         receipt,
         step_receipts: Vec::new(),
         steps: Vec::new(),
@@ -979,7 +979,7 @@ fn replay_output_from_graph(
 ) -> HarnessReplayOutput {
     let result = crate::execution::runner::graph_terminal_result(&graph_run).ok();
     let skill_output = result.map(|result| {
-        if graph_run.state.status == runx_core::state_machine::GraphStatus::Succeeded {
+        if graph_run.progress.state == runx_core::state_machine::GraphState::Succeeded {
             InvocationOutput::runtime_success(result, 0)
         } else {
             InvocationOutput::runtime_failure(
@@ -996,7 +996,7 @@ fn replay_output_from_graph(
         .collect::<Vec<_>>();
     HarnessReplayOutput {
         fixture: fixture.clone(),
-        status: status_from_disposition(&graph_run.receipt.seal.disposition),
+        status: status_from_outcome(&graph_run.receipt.seal.outcome),
         receipt: graph_run.receipt,
         step_receipts,
         steps: graph_run.steps,

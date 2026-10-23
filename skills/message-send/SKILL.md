@@ -22,14 +22,14 @@ after the provider reads it back.
   post, posts once, and requires independent readback.
 - `plan`: the provider-neutral authorization step. It binds the principal,
   audience, content digest, consent basis, preflight checks and approval gate
-  into a `runx.message_send.plan.v1` packet, and never delivers.
+  into a `runx/message-send.plan.v1` packet, and never delivers.
 - `plan_post`: validates a channel name, channel id, or exact
   `slack://workspace/channel` destination, computes the message digest with
   Runx's native `data.digest`, and binds that digest, the named principal and
   the send intent through `plan`. It does not post and needs no approval.
 - `plan_post_exact`: for an operator that has already selected one exact
   destination, principal and text under its own policy. It reuses the same
-  validation and digest and emits the same undelivered `runx.notify.v1` plan
+  validation and digest and emits the same undelivered `runx/message-send.notification_plan.v1` plan
   without a second model judgment. Its `send_plan.origin` is
   `message-send.exact`, not a claim that `plan` ran.
 - `post`: accepts only an exact `notify_plan`, the matching destination and
@@ -114,40 +114,16 @@ connector credentials in its inputs or receipts.
 - **Raw credentials or contact dumps:** redact; if redaction would remove the
   evidence needed to decide, return `needs_input`.
 
-## Output schema
+## Outputs
 
-```yaml
-send_plan:
-  decision: ready | needs_input | denied | refused
-  action_family: message-send
-  principal:
-    type: user | team | account | service
-    ref: string
-  provider:
-    name: string
-    account_ref: string
-    runtime_path: string
-  send_class: transactional | campaign | flow_step | support_reply | outreach | status | internal
-  channel: email | sms | chat | push | webhook | other
-  audience:
-    type: recipient | list | segment | thread | channel | all_contacts
-    ref: string
-    requires_reconfirmation: boolean
-  content:
-    draft_ref: string
-    digest: string
-    subject_or_title: string
-  gates:
-    preflight_required: boolean
-    human_approval_required: boolean
-    approval_ref: string
-  blockers: array
-  provider_actions: array
-  evidence_refs: array
-  success_checkpoint:
-    milestone: string
-    description: string
-```
+- `send_plan` is the `runx/message-send.plan.v1` packet: the decision
+  (`ready`, `needs_input`, `denied` or `refused`), the principal, provider,
+  send class, channel, audience, digest-bound content, the gates the send
+  needs, blockers, provider actions, evidence locators and the success
+  checkpoint.
+- `notify_plan` is the `runx/message-send.notification_plan.v1` packet, the
+  exact post `post` and `reconcile_post` deliver.
+- A reply ends in a `runx.work_outcome.v1` packet for its host.
 
 A post is delivered only when the sealed `runx.provider.operation.v1` packet
 identifies the operation and carries the provider-returned message locator,
@@ -168,7 +144,7 @@ prove delivery.
 - `send`: `channel_locator`, `text`, `principal`, `idempotency_key`, and
   optional `provider_context`.
 - `plan`: `objective` and `principal`, with optional `provider_context`,
-  `audience`, `content_ref`, `consent_basis`, `operator_context` and
+  `audience`, `content`, `consent_basis`, `operator_context` and
   `connector`.
 - `post`: the `notify_plan`, the identical locator and text, and a stable
   idempotency key.

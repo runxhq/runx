@@ -13,7 +13,7 @@ export function classifyIndexingRequest(inputs) {
   const specialist = findings.length === 0 && eligible.has(resourceType);
   return {
     indexing_admission: {
-      schema: "runx.search.indexing_admission.v1",
+      schema: "runx/google-search-console.indexing_admission.v1",
       decision: findings.length > 0 ? "blocked" : specialist ? "specialist_required" : "refused",
       reason_code: findings.length > 0
         ? "invalid_request"

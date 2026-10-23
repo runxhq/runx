@@ -17,6 +17,10 @@ fn package_of(request: &SkillInvocation) -> Result<crate::LoadedSkillPackage, cr
     crate::load_validated_skill_package(&request.skill_directory)
 }
 
+fn packet_id(id: &str) -> Result<runx_contracts::PacketId, String> {
+    runx_contracts::PacketId::new(id).ok_or_else(|| format!("{id} is not a packet id"))
+}
+
 fn temp_skill(body: &str) -> Result<tempfile::TempDir, std::io::Error> {
     let directory = tempfile::tempdir()?;
     fs::write(
@@ -61,7 +65,7 @@ fn bundled_voice_profile_has_content_addressed_identity() {
     let profile = bundled_profile("VOICE.md", BUNDLED_VOICE_PROFILE_CONTENT);
 
     assert_eq!(profile.content, BUNDLED_VOICE_PROFILE_CONTENT);
-    assert!(profile.sha256.as_ref().starts_with("sha256:"));
+    assert!(profile.digest.as_ref().starts_with("sha256:"));
     assert_eq!(profile.root_path.as_ref(), "runx://profiles");
 }
 
@@ -115,10 +119,11 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
     let skill = temp_skill("Produce one bounded, evidence-backed plan.")?;
     fs::create_dir_all(skill.path().join("packets"))?;
     fs::write(
-        skill.path().join("packets/plan.schema.json"),
+        skill.path().join("packets/plan.v1.schema.json"),
         r#"{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "x-runx-packet-id": "runx.test.agent-plan.v1",
+  "$id": "https://schemas.runx.ai/packages/acme/contract-test/plan/v1.json",
+  "x-runx-packet-id": "acme/contract-test.plan.v1",
   "type": "object",
   "required": ["decision"],
   "properties": {"decision": {"type": "string"}},
@@ -131,7 +136,7 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
         named_emits: Some(BTreeMap::from([("plan".to_owned(), "plan".to_owned())])),
         packets: Some(BTreeMap::from([(
             "plan".to_owned(),
-            "runx.test.agent-plan.v1".to_owned(),
+            packet_id("acme/contract-test.plan.v1")?,
         )])),
         wrap_as: None,
         packet: None,
@@ -184,10 +189,11 @@ fn agent_invocation_applies_a_wrapped_packet_to_the_complete_result()
     let skill = temp_skill("Produce one bounded, evidence-backed plan.")?;
     fs::create_dir_all(skill.path().join("packets"))?;
     fs::write(
-        skill.path().join("packets/complete.schema.json"),
+        skill.path().join("packets/complete_result.v1.schema.json"),
         r#"{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "x-runx-packet-id": "runx.test.complete-agent-result.v1",
+  "$id": "https://schemas.runx.ai/packages/acme/contract-test/complete-result/v1.json",
+  "x-runx-packet-id": "acme/contract-test.complete_result.v1",
   "type": "object",
   "required": ["plan"],
   "properties": {
@@ -207,7 +213,7 @@ fn agent_invocation_applies_a_wrapped_packet_to_the_complete_result()
         named_emits: None,
         packets: None,
         wrap_as: Some("complete_result".to_owned()),
-        packet: Some("runx.test.complete-agent-result.v1".to_owned()),
+        packet: Some(packet_id("acme/contract-test.complete_result.v1")?),
     });
 
     let resolved =
@@ -321,7 +327,7 @@ fn agent_step_instructions_are_the_complete_canonical_skill_document()
 
     assert_eq!(resolved.envelope.instructions.as_ref(), manual);
     assert_eq!(
-        resolved.envelope.instructions_sha256.as_ref(),
+        resolved.envelope.instructions_digest.as_ref(),
         sha256_prefixed(manual.as_bytes())
     );
     assert_eq!(

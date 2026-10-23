@@ -72,8 +72,8 @@ pub(crate) fn verify(
     tools: &dyn ToolRunner,
 ) -> Result<(), String> {
     let principal = principal(connector, &instance.parameters, env, cwd, tools)?;
-    if principal.principal_ref(connector.manifest.id.as_str()) != instance.principal_ref.as_str()
-        || instance.account_ref.as_ref().map(|value| value.as_str())
+    if principal.principal_uri(connector.manifest.id.as_str()) != instance.principal_uri.as_str()
+        || instance.account_id.as_ref().map(|value| value.as_str())
             != Some(principal.login.as_str())
     {
         return Err("the browser session is now signed in as another account; confirm the intended session again".to_owned());
@@ -171,7 +171,7 @@ mod tests {
 
         let instance = confirm(&[], &alpha)?;
         assert_eq!(
-            instance.account_ref.as_ref().map(|value| value.as_str()),
+            instance.account_id.as_ref().map(|value| value.as_str()),
             Some("alpha")
         );
         verify(&connector, &instance, &env, root.path(), &alpha)?;

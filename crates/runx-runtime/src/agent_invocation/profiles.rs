@@ -189,7 +189,7 @@ fn read_profile_file(request: &SkillInvocation, path: &Path) -> Result<ProfileFi
         sharing,
         root_path: root.to_string_lossy().into_owned().into(),
         path: relative.into(),
-        sha256: sha256_prefixed(content.as_bytes()).into(),
+        digest: sha256_prefixed(content.as_bytes()).into(),
         content,
     })
 }
@@ -199,7 +199,7 @@ pub(super) fn bundled_profile(file_name: &str, content: &str) -> ProfileFile {
         sharing: runx_contracts::ContextSharing::ConfiguredModel,
         root_path: "runx://profiles".into(),
         path: file_name.to_owned().into(),
-        sha256: sha256_prefixed(content.as_bytes()).into(),
+        digest: sha256_prefixed(content.as_bytes()).into(),
         content: content.to_owned(),
     }
 }

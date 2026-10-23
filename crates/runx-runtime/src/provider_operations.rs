@@ -333,7 +333,7 @@ struct HostedReadback {
     operation: String,
     target: String,
     result: JsonValue,
-    readback_ref: String,
+    readback_uri: String,
     #[serde(default)]
     operation_id: Option<String>,
     #[serde(default)]
@@ -364,7 +364,7 @@ fn decode_readback(
         operation: response.operation,
         target: response.target,
         result: response.result,
-        readback_ref: response.readback_ref,
+        readback_uri: response.readback_uri,
         operation_id: response.operation_id,
         idempotency_key: response.idempotency_key,
     })

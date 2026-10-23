@@ -1,5 +1,5 @@
 skill: google-analytics
-version: "0.1.11"
+version: "0.1.12"
 
 catalog:
   kind: graph
@@ -166,7 +166,7 @@ harness:
             subset:
               report_evidence:
                 data:
-                  schema: runx.analytics.report.evidence.v1
+                  schema: runx/google-analytics.report_evidence.v1
                   decision: ready
                   provider: google-analytics
                   provider_status: not_called

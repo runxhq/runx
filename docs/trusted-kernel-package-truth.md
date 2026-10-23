@@ -2,7 +2,7 @@
 
 Status: current. The normative owner is
 [Runx system architecture](./architecture/runx-system.md). This document records
-Rust verification and dependency policy; language-package dispositions live in
+Rust verification and dependency policy; language-package decisions live in
 [TypeScript interop boundary](./ts-interop-boundary.md).
 
 ## Runtime authority

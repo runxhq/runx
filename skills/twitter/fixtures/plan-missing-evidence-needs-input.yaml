@@ -15,8 +15,8 @@ caller:
         acts: []
         gates:
           human_approval_required: true
-          approval_ref: null
-        evidence_refs: []
+          approval_id: null
+        evidence_locators: []
         open_questions: []
         blockers:
           - No evidence_json was supplied; post ids cannot be selected without a read of the archive or timeline.

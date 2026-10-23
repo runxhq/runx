@@ -2,7 +2,7 @@ export default function planSync(inputs) {
   const { repo, direction, scope, resources } = inputs;
   const blockers = [];
   const filters = { ...(resources.filters ?? {}), limit: resources.filters?.limit ?? 30 };
-  const refs = resources.refs ?? [];
+  const paths = resources.paths ?? [];
   const mutations = resources.mutations ?? [];
 
   let mutation = null;
@@ -17,7 +17,7 @@ export default function planSync(inputs) {
   }
 
   const call = direction === "pull"
-    ? pullOperation(repo, resources.kind, filters, refs)
+    ? pullOperation(repo, resources.kind, filters, paths)
     : direction === "push" ? writeOperation(repo, mutations) : null;
   if (direction === "pull" && blockers.length === 0 && call === null) blockers.push("pull requires a readable resource selector");
   if (direction === "push" && blockers.length === 0 && call === null) {
@@ -43,13 +43,13 @@ export default function planSync(inputs) {
       resource_selector: {
         kind: resources.kind,
         filters,
-        refs,
+        paths,
       },
       resources_touched: [],
       mutation,
       mutations,
       diff_summary: mutations.map((entry) => ({
-        ref: entry.ref,
+        path: entry.path,
         op: entry.op,
         fields: Object.keys(entry.payload).sort(),
       })),
@@ -63,14 +63,14 @@ export default function planSync(inputs) {
 }
 
 // The github operation a pull reads with, and its input: exact numbers when
-// the selector names refs, the filtered list otherwise.
+// the selector names paths, the filtered list otherwise.
 /** A cursor is the GitHub page a listing continues from. */
 function page(cursor) {
   return cursor === undefined ? undefined : Number(cursor);
 }
 
-function pullOperation(repository, kind, filters, refs) {
-  const numbers = refs.map((ref) => Number(String(ref).split("/")[1])).filter(Number.isInteger);
+function pullOperation(repository, kind, filters, paths) {
+  const numbers = paths.map((path) => Number(String(path).split("/")[1])).filter(Number.isInteger);
   const defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
   if (kind === "issues") {
     return numbers.length > 0
@@ -105,7 +105,7 @@ function pullOperation(repository, kind, filters, refs) {
       };
   }
   if (kind === "threads") {
-    const thread = String(filters.thread_ref ?? refs[0] ?? "");
+    const thread = String(filters.thread_path ?? paths[0] ?? "");
     const number = Number(thread.split("/")[1]);
     return Number.isInteger(number) && number > 0
       ? { operation: "comments.list", input: defined({ repository, number, per_page: filters.limit }) }
@@ -123,7 +123,7 @@ function writeOperation(repository, mutations) {
     calls.get(operation).input[field].push(item);
   };
   for (const mutation of mutations) {
-    const [first, second, third] = String(mutation.ref).split("/");
+    const [first, second, third] = String(mutation.path).split("/");
     if (first === "issues" && second === "comments") add("comments.update", "comments", { comment_id: Number(third), body: mutation.payload.body });
     else if (first === "issues" && second === undefined) add("issues.create", "issues", mutation.payload);
     else if (third === "comments") add("comments.create", "comments", { number: Number(second), body: mutation.payload.body });

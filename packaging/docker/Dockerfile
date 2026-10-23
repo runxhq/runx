@@ -17,14 +17,14 @@ ARG TARGETARCH
 RUN apk add --no-cache curl tar
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64) target=x86_64-unknown-linux-musl; expected_sha256="$SHA256_AMD64" ;; \
-      arm64) target=aarch64-unknown-linux-musl; expected_sha256="$SHA256_ARM64" ;; \
+      amd64) target=x86_64-unknown-linux-musl; expected_digest="$SHA256_AMD64" ;; \
+      arm64) target=aarch64-unknown-linux-musl; expected_digest="$SHA256_ARM64" ;; \
       *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    test -n "$expected_sha256"; \
+    test -n "$expected_digest"; \
     base="https://github.com/runxhq/runx/releases/download/cli-v${VERSION}"; \
     curl -fsSL "${base}/runx-${VERSION}-${target}.tar.gz" -o /tmp/runx.tgz; \
-    echo "$expected_sha256  /tmp/runx.tgz" | sha256sum -c -; \
+    echo "$expected_digest  /tmp/runx.tgz" | sha256sum -c -; \
     tar -xzf /tmp/runx.tgz -C /tmp; \
     install -Dm755 "/tmp/runx-${VERSION}-${target}/runx" /out/runx; \
     install -Dm755 "/tmp/runx-${VERSION}-${target}/runx-js-worker" /out/runx-js-worker

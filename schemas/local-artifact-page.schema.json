@@ -3,7 +3,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "artifact_ref": {
+    "artifact_uri": {
       "type": "string"
     },
     "data": {
@@ -45,7 +45,7 @@
     }
   },
   "required": [
-    "artifact_ref",
+    "artifact_uri",
     "media_type",
     "offset",
     "length",
@@ -55,6 +55,7 @@
     "whole_digest",
     "encoding"
   ],
+  "title": "LocalArtifactPage",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.local_artifact.page.v1"

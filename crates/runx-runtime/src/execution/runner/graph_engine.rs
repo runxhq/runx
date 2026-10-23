@@ -6,8 +6,8 @@ use std::path::Path;
 
 use runx_contracts::{ExecutionEvent, JsonValue, Reference};
 use runx_core::state_machine::{
-    GraphStepStatus, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphState,
-    create_sequential_graph_state,
+    GraphStepState, SequentialGraph, SequentialGraphEvent, SequentialGraphPlan,
+    create_sequential_graph,
 };
 use runx_parser::{ExecutionGraph, GraphStep, Operand, Source, StepKind};
 
@@ -28,7 +28,7 @@ pub(super) struct GraphExecution {
     graph_index: ExecutionGraphIndex,
     planning_cursor: usize,
     step_skill_cache: StepSkillCache,
-    state: SequentialGraphState,
+    progress: SequentialGraph,
     pub(super) runs: Vec<StepRun>,
     run_positions: BTreeMap<String, usize>,
     /// The step a host suspension holds; it resumes its attempt rather than
@@ -142,13 +142,13 @@ struct StepExecutionContext<'a, A> {
 impl GraphExecution {
     pub(super) fn new(graph: &ExecutionGraph) -> Self {
         let definitions = super::super::graph::step_definitions(graph);
-        let state = create_sequential_graph_state(graph.name.clone(), &definitions);
+        let progress = create_sequential_graph(graph.name.clone(), &definitions);
         let graph_index = ExecutionGraphIndex::new(graph, definitions);
         Self {
             graph_index,
             planning_cursor: 0,
             step_skill_cache: StepSkillCache::default(),
-            state,
+            progress,
             runs: Vec::new(),
             run_positions: BTreeMap::new(),
             suspended_step: None,
@@ -158,7 +158,7 @@ impl GraphExecution {
     }
 
     fn apply_state_event(&mut self, event: SequentialGraphEvent) {
-        self.graph_index.apply_event(&mut self.state, event);
+        self.graph_index.apply_event(&mut self.progress, event);
     }
 
     /// Rebuild a run's execution state from its record, applying each
@@ -173,13 +173,13 @@ impl GraphExecution {
             match fact {
                 Replayed::Step(run) => {
                     execution.graph_index.start_step(
-                        &mut execution.state,
+                        &mut execution.progress,
                         &run.step_id,
                         at.clone(),
                     );
                     if run.outcome.succeeded() {
                         execution.graph_index.succeed_step(
-                            &mut execution.state,
+                            &mut execution.progress,
                             at.clone(),
                             run.admission_witness.clone(),
                             Some(run.contract.clone()),
@@ -214,20 +214,23 @@ impl GraphExecution {
         if let Some(suspension) = &record.suspension
             && !matches!(suspension.hold, Hold::Retry { .. } | Hold::Claimed(_))
         {
-            execution
-                .graph_index
-                .start_step(&mut execution.state, &suspension.step_id, at.clone());
+            execution.graph_index.start_step(
+                &mut execution.progress,
+                &suspension.step_id,
+                at.clone(),
+            );
             execution.suspended_step = Some(suspension.step_id.clone());
             execution.suspended_hold = Some(suspension.hold.clone());
         }
         execution.planning_cursor =
-            replay_planning_cursor(&execution.state, execution.suspended_step.as_deref())?;
+            replay_planning_cursor(&execution.progress, execution.suspended_step.as_deref())?;
         Ok(execution)
     }
 
-    /// The final state of a sealed run: a run sealed `closed` completed.
-    pub(super) fn seal_state(&mut self, disposition: &runx_contracts::ClosureDisposition) {
-        if *disposition == runx_contracts::ClosureDisposition::Closed {
+    /// The final state of a sealed run: a run sealed `completed` completed
+    /// its graph.
+    pub(super) fn seal_state(&mut self, outcome: runx_contracts::RunOutcome) {
+        if outcome == runx_contracts::RunOutcome::Completed {
             self.complete_graph();
         }
     }
@@ -244,7 +247,7 @@ impl GraphExecution {
     {
         if let Some(step_id) = self.suspended_step.clone() {
             let attempt = self
-                .state
+                .progress
                 .steps
                 .iter()
                 .find(|step| step.step_id == step_id)
@@ -259,7 +262,7 @@ impl GraphExecution {
             self.advance_planning_cursor();
             let plan = self
                 .graph_index
-                .plan_transition(&self.state, self.planning_cursor);
+                .plan_transition(&self.progress, self.planning_cursor);
             if self.apply_plan(runtime, graph_dir, graph, host, plan)? {
                 break;
             }
@@ -268,7 +271,7 @@ impl GraphExecution {
     }
 
     fn advance_planning_cursor(&mut self) {
-        self.planning_cursor = terminal_prefix_cursor(&self.state, self.planning_cursor);
+        self.planning_cursor = terminal_prefix_cursor(&self.progress, self.planning_cursor);
     }
 
     /// Mark every step whose `when` condition the runtime has resolved to false
@@ -281,19 +284,19 @@ impl GraphExecution {
         graph: &ExecutionGraph,
     ) -> Result<(), RuntimeError> {
         let already_skipped = self
-            .state
+            .progress
             .steps
             .iter()
-            .filter(|step| step.status == GraphStepStatus::Skipped)
+            .filter(|step| step.state == GraphStepState::Skipped)
             .map(|step| step.step_id.clone())
             .collect();
         let mut skipped = Vec::new();
         for step_id in when_skipped_steps(graph, &self.runs, &already_skipped) {
             let is_pending = self
-                .state
+                .progress
                 .steps
                 .iter()
-                .any(|step| step.step_id == step_id && step.status == GraphStepStatus::Pending);
+                .any(|step| step.step_id == step_id && step.state == GraphStepState::Pending);
             if is_pending {
                 self.apply_state_event(SequentialGraphEvent::StepSkipped {
                     step_id: step_id.clone(),
@@ -605,14 +608,14 @@ impl GraphExecution {
             // The failed run is recorded even on terminal failure so the run
             // list agrees with the run record's step failure; a failed attempt
             // must never be silently absent from the execution record.
-            let disposition = run.receipt.seal.disposition.clone();
+            let outcome = run.receipt.seal.outcome;
             let reason = run.receipt.seal.reason;
             let refusal = run.refusal.clone().map(Box::new);
             self.push_run(runtime, run, answers)?;
-            if super::is_governed_step_closure(&disposition) {
+            if super::is_governed_step_closure(&outcome) {
                 return Err(RuntimeError::StepClosed {
                     step_id: plan.step_id.to_owned(),
-                    disposition,
+                    outcome,
                     reason,
                     summary: message,
                     refusal,
@@ -646,12 +649,12 @@ impl GraphExecution {
 
     pub(super) fn start_step<A>(&mut self, runtime: &Runtime<A>, step_id: &str) {
         self.graph_index
-            .start_step(&mut self.state, step_id, runtime.options.clock.now());
+            .start_step(&mut self.progress, step_id, runtime.options.clock.now());
     }
 
     pub(super) fn succeed_step<A>(&mut self, runtime: &Runtime<A>, run: &StepRun) {
         self.graph_index.succeed_step(
-            &mut self.state,
+            &mut self.progress,
             runtime.options.clock.now(),
             run.admission_witness.clone(),
             Some(run.contract.clone()),
@@ -710,7 +713,7 @@ impl GraphExecution {
     }
 
     pub(super) fn attempt(&self, step_id: &str) -> u32 {
-        self.state
+        self.progress
             .steps
             .iter()
             .find(|step| step.step_id == step_id)
@@ -764,7 +767,7 @@ impl GraphExecution {
     ) -> GraphRun {
         GraphRun {
             graph,
-            state: self.state,
+            progress: self.progress,
             steps: self.runs,
             receipt,
             stop: None,
@@ -788,12 +791,12 @@ impl GraphExecution {
     /// The attempt a terminal failure of `step_id` is recorded under: the
     /// suspended attempt it held, or the next one.
     pub(super) fn failure_attempt(&self, step_id: &str) -> u32 {
-        self.state
+        self.progress
             .steps
             .iter()
             .find(|step| step.step_id == step_id)
             .map_or(1, |step| {
-                if step.status == GraphStepStatus::Running {
+                if step.state == GraphStepState::Running {
                     step.attempts
                 } else {
                     step.attempts.saturating_add(1).max(1)
@@ -836,14 +839,14 @@ impl GraphExecution {
 }
 
 fn replay_planning_cursor(
-    state: &SequentialGraphState,
+    state: &SequentialGraph,
     suspended_step_id: Option<&str>,
 ) -> Result<usize, RuntimeError> {
     let mut found_pending = false;
     for step in state
         .steps
         .iter()
-        .filter(|step| step.status == GraphStepStatus::Running)
+        .filter(|step| step.state == GraphStepState::Running)
     {
         if found_pending || suspended_step_id != Some(step.step_id.as_str()) || step.attempts == 0 {
             return Err(RuntimeError::GraphPlanningFailed {
@@ -865,12 +868,12 @@ fn replay_planning_cursor(
     Ok(terminal_prefix_cursor(state, 0))
 }
 
-fn terminal_prefix_cursor(state: &SequentialGraphState, start: usize) -> usize {
+fn terminal_prefix_cursor(state: &SequentialGraph, start: usize) -> usize {
     let mut cursor = start.min(state.steps.len());
     while state.steps.get(cursor).is_some_and(|step| {
         matches!(
-            step.status,
-            GraphStepStatus::Succeeded | GraphStepStatus::Skipped
+            step.state,
+            GraphStepState::Succeeded | GraphStepState::Skipped
         )
     }) {
         cursor += 1;
@@ -1014,7 +1017,7 @@ where
         };
         if approval_run.skill != "ask"
             || !approval_run.outcome.succeeded()
-            || approval_run.receipt.seal.disposition != runx_contracts::ClosureDisposition::Closed
+            || approval_run.receipt.seal.outcome != runx_contracts::RunOutcome::Completed
             || operand_value(&guard.value, runs) != Some(&JsonValue::Bool(true))
         {
             continue;
@@ -1128,15 +1131,13 @@ mod tests {
     use std::collections::BTreeSet;
 
     use runx_core::state_machine::{
-        GraphStepStatus, SequentialGraphStepDefinition, create_sequential_graph_state,
+        GraphStepState, SequentialGraphStepDefinition, create_sequential_graph,
     };
     use runx_parser::{parse_graph_yaml, validate_graph};
 
     use super::{replay_planning_cursor, when_skipped_steps};
 
-    fn replay_state(
-        statuses: &[GraphStepStatus],
-    ) -> runx_core::state_machine::SequentialGraphState {
+    fn replay_state(statuses: &[GraphStepState]) -> runx_core::state_machine::SequentialGraph {
         let definitions = statuses
             .iter()
             .enumerate()
@@ -1145,9 +1146,9 @@ mod tests {
                 context_from: None,
             })
             .collect::<Vec<_>>();
-        let mut state = create_sequential_graph_state("graph", &definitions);
+        let mut state = create_sequential_graph("graph", &definitions);
         for (step, status) in state.steps.iter_mut().zip(statuses) {
-            step.status = status.clone();
+            step.state = status.clone();
         }
         state
     }
@@ -1155,10 +1156,10 @@ mod tests {
     #[test]
     fn replay_cursor_starts_at_the_first_non_terminal_step() {
         let state = replay_state(&[
-            GraphStepStatus::Succeeded,
-            GraphStepStatus::Skipped,
-            GraphStepStatus::Failed,
-            GraphStepStatus::Pending,
+            GraphStepState::Succeeded,
+            GraphStepState::Skipped,
+            GraphStepState::Failed,
+            GraphStepState::Pending,
         ]);
 
         assert_eq!(
@@ -1170,9 +1171,9 @@ mod tests {
     #[test]
     fn replay_cursor_rejects_running_state_anywhere() {
         let state = replay_state(&[
-            GraphStepStatus::Succeeded,
-            GraphStepStatus::Pending,
-            GraphStepStatus::Running,
+            GraphStepState::Succeeded,
+            GraphStepState::Pending,
+            GraphStepState::Running,
         ]);
 
         let error = replay_planning_cursor(&state, None).expect_err("a running step must fail");

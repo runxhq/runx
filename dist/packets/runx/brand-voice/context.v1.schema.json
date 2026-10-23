@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/brand-voice/context/v1.json",
+  "x-runx-packet-id": "runx/brand-voice.context.v1",
+  "additionalProperties": false,
+  "properties": {
+    "applicability": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        "boundaries": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "channels": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "channels",
+        "audience",
+        "boundaries"
+      ],
+      "type": "object"
+    },
+    "brand": {
+      "maxLength": 1000,
+      "type": "string"
+    },
+    "brand_voice": {
+      "additionalProperties": false,
+      "properties": {
+        "cadence": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "channel_adjustments": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "claim_rules": {
+          "additionalProperties": false,
+          "properties": {
+            "forbidden": {
+              "items": {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "requires_proof": {
+              "items": {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "safe": {
+              "items": {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            }
+          },
+          "required": [
+            "safe",
+            "requires_proof",
+            "forbidden"
+          ],
+          "type": "object"
+        },
+        "vocabulary": {
+          "additionalProperties": false,
+          "properties": {
+            "avoid": {
+              "items": {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 200,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "use": {
+              "items": {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 200,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "use",
+            "avoid"
+          ],
+          "type": "object"
+        },
+        "voice_principles": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "type": "array"
+        }
+      },
+      "required": [
+        "voice_principles",
+        "vocabulary",
+        "cadence",
+        "claim_rules",
+        "channel_adjustments"
+      ],
+      "type": "object"
+    },
+    "decision": {
+      "enum": [
+        "ready",
+        "needs_more_evidence"
+      ],
+      "type": "string"
+    },
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "bindings": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "rule": {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "source_ids": {
+                "items": {
+                  "pattern": "^source:[1-9][0-9]*$",
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "rule",
+              "source_ids"
+            ],
+            "type": "object"
+          },
+          "maxItems": 200,
+          "type": "array"
+        },
+        "evidence_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "approved",
+                  "rejected",
+                  "draft",
+                  "operator_note"
+                ],
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              "source_id": {
+                "pattern": "^source:[1-9][0-9]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source_id",
+              "kind",
+              "label"
+            ],
+            "type": "object"
+          },
+          "maxItems": 50,
+          "type": "array"
+        }
+      },
+      "required": [
+        "evidence_digest",
+        "sources",
+        "bindings"
+      ],
+      "type": "object"
+    },
+    "receipt_notes": {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "const": "context-only"
+        },
+        "mutation": {
+          "const": false
+        }
+      },
+      "required": [
+        "authority",
+        "mutation"
+      ],
+      "type": "object"
+    },
+    "redactions": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "stop_conditions": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "validation": {
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "message": {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "maxItems": 250,
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "findings"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "decision",
+    "brand",
+    "applicability",
+    "brand_voice",
+    "evidence",
+    "redactions",
+    "stop_conditions",
+    "receipt_notes",
+    "validation"
+  ],
+  "type": "object"
+}

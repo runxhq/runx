@@ -1,5 +1,7 @@
 pub(super) use runx_contracts::GitBlobDigest;
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{
+    GitBranch, GitDiff, GitLog, GitPatch, GitShow, GitStatus, JsonObject, JsonValue,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -45,37 +47,12 @@ pub(super) struct GitBlobDigestInput {
 
 impl CapabilityInput for GitBlobDigestInput {}
 
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct GitBranchOutput {
-    pub(super) repo_root: String,
-    pub(super) branch: String,
-    pub(super) detached: bool,
-}
-
-impl CapabilityOutput for GitBranchOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct GitStatusOutput {
-    pub(super) repo_root: String,
-    pub(super) clean: bool,
-    pub(super) entries: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) branch: Option<String>,
-}
-
-impl CapabilityOutput for GitStatusOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct GitDiffOutput {
-    pub(super) repo_root: String,
-    pub(super) base: String,
-    pub(super) files: Vec<String>,
-}
-
-impl CapabilityOutput for GitDiffOutput {}
+impl CapabilityOutput for GitBranch {}
+impl CapabilityOutput for GitStatus {}
+impl CapabilityOutput for GitDiff {}
+impl CapabilityOutput for GitLog {}
+impl CapabilityOutput for GitShow {}
+impl CapabilityOutput for GitPatch {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -112,27 +89,6 @@ impl CapabilityInput for GitLogInput {
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub(super) struct GitCommit {
-    pub(super) commit: String,
-    pub(super) author: String,
-    pub(super) date: String,
-    pub(super) subject: String,
-    pub(super) files: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct GitLogOutput {
-    pub(super) repo_root: String,
-    pub(super) revision: String,
-    pub(super) commits: Vec<GitCommit>,
-    pub(super) truncated: bool,
-}
-
-impl CapabilityOutput for GitLogOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
 pub(super) struct GitShowInput {
     pub(super) repo_root: String,
     pub(super) revision: String,
@@ -148,21 +104,6 @@ impl CapabilityInput for GitShowInput {
         ])
     }
 }
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct GitShowOutput {
-    pub(super) repo_root: String,
-    pub(super) revision: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) path: Option<String>,
-    pub(super) text: String,
-    pub(super) files: Vec<String>,
-    pub(super) omitted: Vec<String>,
-    pub(super) truncated: bool,
-}
-
-impl CapabilityOutput for GitShowOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -185,21 +126,6 @@ impl CapabilityInput for GitPatchInput {
         ])
     }
 }
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct GitPatchOutput {
-    pub(super) repo_root: String,
-    pub(super) base: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) head: Option<String>,
-    pub(super) patch: String,
-    pub(super) files: Vec<String>,
-    pub(super) omitted: Vec<String>,
-    pub(super) truncated: bool,
-}
-
-impl CapabilityOutput for GitPatchOutput {}
 
 const LOG_FIELDS: &[CapabilityField] = &[
     CapabilityField {
@@ -283,28 +209,27 @@ const BLOB_FIELDS: &[CapabilityField] = &[CapabilityField {
     description: "Exact UTF-8 blob contents to bind to Git's canonical blob identity.",
 }];
 
-static CURRENT_BRANCH: TypedNativeCapability<GitInput, GitBranchOutput> =
-    TypedNativeCapability::new(
-        CapabilityDefinition {
-            id: "git.current_branch",
-            owner: "runx-runtime/git",
-            summary: "Read the current branch or detached HEAD through native process supervision.",
-            scopes: &["git.read"],
-            effect: CapabilityEffect::Read,
-            approval: CapabilityApproval::None,
-            artifacts: CapabilityArtifacts::Wrapped {
-                output: "git_branch",
-                packet: "runx.git.branch.v1",
-            },
-            fields: ROOT_FIELDS,
+static CURRENT_BRANCH: TypedNativeCapability<GitInput, GitBranch> = TypedNativeCapability::new(
+    CapabilityDefinition {
+        id: "git.current_branch",
+        source: "runx-runtime/git",
+        summary: "Read the current branch or detached HEAD through native process supervision.",
+        scopes: &["git.read"],
+        effect: CapabilityEffect::Read,
+        approval: CapabilityApproval::None,
+        artifacts: CapabilityArtifacts::Wrapped {
+            output: "git_branch",
+            packet: "runx.git.branch.v1",
         },
-        super::current_branch,
-    );
+        fields: ROOT_FIELDS,
+    },
+    super::current_branch,
+);
 
-static STATUS: TypedNativeCapability<GitInput, GitStatusOutput> = TypedNativeCapability::new(
+static STATUS: TypedNativeCapability<GitInput, GitStatus> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "git.status",
-        owner: "runx-runtime/git",
+        source: "runx-runtime/git",
         summary: "Read bounded porcelain working-tree status without hooks, pagers, or locks.",
         scopes: &["git.read"],
         effect: CapabilityEffect::Read,
@@ -318,10 +243,10 @@ static STATUS: TypedNativeCapability<GitInput, GitStatusOutput> = TypedNativeCap
     super::status,
 );
 
-static DIFF: TypedNativeCapability<GitDiffInput, GitDiffOutput> = TypedNativeCapability::new(
+static DIFF: TypedNativeCapability<GitDiffInput, GitDiff> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "git.diff_name_only",
-        owner: "runx-runtime/git",
+        source: "runx-runtime/git",
         summary: "List changed paths against one verified Git commit without external drivers.",
         scopes: &["git.read"],
         effect: CapabilityEffect::Read,
@@ -339,7 +264,7 @@ static BLOB_DIGEST: TypedNativeCapability<GitBlobDigestInput, GitBlobDigestOutpu
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "git.blob_digest",
-            owner: "runx-runtime/git",
+            source: "runx-runtime/git",
             summary: "Compute the canonical Git blob SHA-1 for exact UTF-8 contents.",
             scopes: &[],
             effect: CapabilityEffect::Read,
@@ -353,10 +278,10 @@ static BLOB_DIGEST: TypedNativeCapability<GitBlobDigestInput, GitBlobDigestOutpu
         super::blob_digest,
     );
 
-static LOG: TypedNativeCapability<GitLogInput, GitLogOutput> = TypedNativeCapability::new(
+static LOG: TypedNativeCapability<GitLogInput, GitLog> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "git.log",
-        owner: "runx-runtime/git",
+        source: "runx-runtime/git",
         summary: "List commits with their authors, dates, subjects and changed files.",
         scopes: &["git.read"],
         effect: CapabilityEffect::Read,
@@ -370,10 +295,10 @@ static LOG: TypedNativeCapability<GitLogInput, GitLogOutput> = TypedNativeCapabi
     super::history::log,
 );
 
-static SHOW: TypedNativeCapability<GitShowInput, GitShowOutput> = TypedNativeCapability::new(
+static SHOW: TypedNativeCapability<GitShowInput, GitShow> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "git.show",
-        owner: "runx-runtime/git",
+        source: "runx-runtime/git",
         summary: "Show one commit with its patch, or one file as it was at a revision.",
         scopes: &["git.read"],
         effect: CapabilityEffect::Read,
@@ -387,10 +312,10 @@ static SHOW: TypedNativeCapability<GitShowInput, GitShowOutput> = TypedNativeCap
     super::history::show,
 );
 
-static PATCH: TypedNativeCapability<GitPatchInput, GitPatchOutput> = TypedNativeCapability::new(
+static PATCH: TypedNativeCapability<GitPatchInput, GitPatch> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "git.diff",
-        owner: "runx-runtime/git",
+        source: "runx-runtime/git",
         summary: "Show the patch between two revisions, or between a revision and the working tree.",
         scopes: &["git.read"],
         effect: CapabilityEffect::Read,

@@ -70,6 +70,29 @@ pub trait RunxSchema {
     fn accepted_schema() -> Value {
         Self::json_schema()
     }
+
+    /// Record this type's own schema under its name, then those of the named
+    /// types it holds. A type without a name records only what it holds.
+    fn named_schemas(_named: &mut NamedSchemas) {}
+}
+
+/// Every named contract type a schema reaches, by name, each with its own
+/// schema: its description as its type states it, never as a field that holds
+/// it restates it. Generated bindings declare one type for each.
+pub type NamedSchemas = BTreeMap<&'static str, Value>;
+
+/// Record `name`'s own schema once. Whether it was new: a type records what it
+/// holds only the first time, so a type that holds itself ends.
+pub fn record_named(
+    named: &mut NamedSchemas,
+    name: &'static str,
+    schema: impl FnOnce() -> Value,
+) -> bool {
+    if named.contains_key(name) {
+        return false;
+    }
+    named.insert(name, schema());
+    true
 }
 
 /// One object property: its wire name, schema, and whether it is required.
@@ -285,6 +308,27 @@ pub fn nullable(inner: Value) -> Value {
     json!({ "anyOf": [inner, { "type": "null" }] })
 }
 
+/// `schema` with its `title` set to the name of the contract type it is
+/// generated from, which generated bindings give the shape too.
+pub fn titled(mut schema: Value, title: &str) -> Value {
+    if let Value::Object(object) = &mut schema {
+        object.insert("title".to_owned(), Value::String(title.to_owned()));
+    }
+    schema
+}
+
+/// `schema` with its `description` set to what the contract's doc comment
+/// says of it.
+pub fn described(mut schema: Value, description: &str) -> Value {
+    if let Value::Object(object) = &mut schema {
+        object.insert(
+            "description".to_owned(),
+            Value::String(description.to_owned()),
+        );
+    }
+    schema
+}
+
 /// The omission predicate for a field left off the wire at its type's default.
 /// Wire as `#[serde(default, skip_serializing_if = "crate::schema::is_default")]`;
 /// the schema then excludes that default from the field's present form.
@@ -318,6 +362,8 @@ fn present_unless(mut schema: Value, omitted: &Value) -> Value {
     let Some(object) = schema.as_object_mut() else {
         return schema;
     };
+    // The present form admits less than the type does, so it is not the type.
+    object.remove("title");
     match omitted {
         Value::Array(items) if items.is_empty() => {
             object.insert("minItems".to_owned(), json!(1));
@@ -421,6 +467,10 @@ impl<T: RunxSchema> RunxSchema for Vec<T> {
     fn accepted_schema() -> Value {
         json!({ "type": "array", "items": T::accepted_schema() })
     }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        T::named_schemas(named);
+    }
 }
 
 /// A non-empty array (`minItems: 1`) for contract fields where an empty list
@@ -487,6 +537,10 @@ impl<T: RunxSchema> RunxSchema for NonEmptyVec<T> {
     fn accepted_schema() -> Value {
         non_empty(Vec::<T>::accepted_schema())
     }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        T::named_schemas(named);
+    }
 }
 
 /// An array schema that takes at least one item.
@@ -505,6 +559,10 @@ impl<T: RunxSchema> RunxSchema for Option<T> {
     fn accepted_schema() -> Value {
         T::accepted_schema()
     }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        T::named_schemas(named);
+    }
 }
 
 impl<T: RunxSchema> RunxSchema for Box<T> {
@@ -514,6 +572,10 @@ impl<T: RunxSchema> RunxSchema for Box<T> {
 
     fn accepted_schema() -> Value {
         T::accepted_schema()
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        T::named_schemas(named);
     }
 }
 
@@ -534,6 +596,10 @@ impl<K: SchemaMapKey, T: RunxSchema> RunxSchema for BTreeMap<K, T> {
 
     fn accepted_schema() -> Value {
         map_schema::<K>(T::accepted_schema())
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        T::named_schemas(named);
     }
 }
 
@@ -717,6 +783,16 @@ impl<T, const MIN_ITEMS: usize, const MAX_ITEMS: usize> BoundedVec<T, MIN_ITEMS,
     }
 }
 
+impl<T, const MIN_ITEMS: usize, const MAX_ITEMS: usize> std::ops::Deref
+    for BoundedVec<T, MIN_ITEMS, MAX_ITEMS>
+{
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl<'de, T, const MIN_ITEMS: usize, const MAX_ITEMS: usize> Deserialize<'de>
     for BoundedVec<T, MIN_ITEMS, MAX_ITEMS>
 where
@@ -744,6 +820,76 @@ impl<T: RunxSchema, const MIN_ITEMS: usize, const MAX_ITEMS: usize> RunxSchema
 
     fn accepted_schema() -> Value {
         bounded_array::<MIN_ITEMS, MAX_ITEMS>(T::accepted_schema())
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        T::named_schemas(named);
+    }
+}
+
+/// An unsigned integer whose inclusive bounds are enforced on the wire and
+/// emitted into the same JSON Schema inspected by operators and agents.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct BoundedU64<const MIN: u64, const MAX: u64>(u64);
+
+impl<const MIN: u64, const MAX: u64> BoundedU64<MIN, MAX> {
+    pub fn new(value: u64) -> Option<Self> {
+        (MIN..=MAX).contains(&value).then_some(Self(value))
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+impl<'de, const MIN: u64, const MAX: u64> Deserialize<'de> for BoundedU64<MIN, MAX> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = u64::deserialize(deserializer)?;
+        Self::new(value)
+            .ok_or_else(|| de::Error::custom(format!("integer must be between {MIN} and {MAX}")))
+    }
+}
+
+impl<const MIN: u64, const MAX: u64> RunxSchema for BoundedU64<MIN, MAX> {
+    fn json_schema() -> Value {
+        json!({ "type": "integer", "minimum": MIN, "maximum": MAX })
+    }
+}
+
+/// A boolean that is always `false`: a packet's statement that something did
+/// not happen, which the reader refuses to see claimed otherwise.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct False;
+
+impl Serialize for False {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_bool(false)
+    }
+}
+
+impl<'de> Deserialize<'de> for False {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if bool::deserialize(deserializer)? {
+            return Err(de::Error::custom("value must be false"));
+        }
+        Ok(Self)
+    }
+}
+
+impl RunxSchema for False {
+    fn json_schema() -> Value {
+        json!({ "const": false })
     }
 }
 

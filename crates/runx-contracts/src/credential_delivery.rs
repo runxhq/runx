@@ -62,7 +62,7 @@ pub struct CredentialDeliveryObservation {
     pub delivery_mode: Option<CredentialDeliveryMode>,
     pub credential_refs: Vec<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub material_ref_hash: Option<NonEmptyString>,
+    pub material_id_digest: Option<NonEmptyString>,
     pub delivered_roles: Vec<CredentialMaterialRole>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redaction_refs: Option<Vec<Reference>>,

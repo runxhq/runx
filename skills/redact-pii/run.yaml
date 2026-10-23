@@ -1,5 +1,5 @@
 skill: redact-pii
-version: "0.2.8"
+version: "0.2.9"
 catalog:
   kind: graph
   audience: public
@@ -90,7 +90,7 @@ runners:
           named_emits:
             redaction_report: redaction_report
           packets:
-            redaction_report: runx.redaction.report.v1
+            redaction_report: runx/redact-pii.report.v1
 
 harness:
   files: [fixtures/support/composed.graph]

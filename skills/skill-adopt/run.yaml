@@ -1,8 +1,8 @@
 skill: skill-adopt
-version: "0.4.7"
+version: "0.4.8"
 
 catalog:
-  owner: runx
+  publisher: runx
   kind: graph
   audience: builder
   visibility: public
@@ -27,7 +27,7 @@ runners:
       registry:
         type: json
         required: true
-        description: Registry owner, trust tier, and immutable version for the materialized package.
+        description: Registry publisher, trust tier, and immutable version for the materialized package.
       objective:
         type: string
         required: false
@@ -88,51 +88,13 @@ runners:
         outputs:
           binding_bundle:
             type: object
-            schema:
-              required: [decision, binding_path, source, files, validation, rationale, blockers, success_checkpoint]
-              additionalProperties: false
-              properties:
-                decision: { type: string, enum: [ready, reject] }
-                binding_path: { type: string, maxLength: 2000 }
-                source:
-                  type: object
-                  maxProperties: 50
-                  propertyNames: { minLength: 1, maxLength: 200 }
-                files:
-                  type: array
-                  maxItems: 2
-                  items:
-                    type: object
-                    required: [path, contents, sha256]
-                    additionalProperties: false
-                    properties:
-                      path: { type: string, minLength: 1, maxLength: 4000 }
-                      contents: { type: string, maxLength: 1048576 }
-                      sha256: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                validation:
-                  type: object
-                  required: [status]
-                  maxProperties: 3
-                  properties:
-                    status: { type: string, enum: [pass, hold] }
-                    inspect: { type: object, maxProperties: 100 }
-                    harness: { type: object, maxProperties: 100 }
-                rationale: { type: string, minLength: 1, maxLength: 10000 }
-                blockers: { type: array, maxItems: 250, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 4000 } }
-                success_checkpoint:
-                  type: object
-                  required: [milestone, description]
-                  additionalProperties: false
-                  properties:
-                    milestone: { type: string, enum: [binding_bundle_ready, binding_blocked] }
-                    description: { type: string, minLength: 1, maxLength: 4000 }
         inputs:
           source_request: $steps.plan-source.source_request
         artifacts:
           named_emits:
             binding_bundle: binding_bundle
           packets:
-            binding_bundle: runx.skill_overlay.v1
+            binding_bundle: runx/skill-adopt.overlay.v1
 
       - id: read-source
         label: read the bounded upstream skill
@@ -186,7 +148,7 @@ runners:
           named_emits:
             binding_bundle: binding_bundle
           packets:
-            binding_bundle: runx.skill_overlay.v1
+            binding_bundle: runx/skill-adopt.overlay.v1
 
       - id: profile
         label: design the least-authority binding profile
@@ -241,7 +203,7 @@ runners:
           named_emits:
             binding_bundle: binding_bundle
           packets:
-            binding_bundle: runx.skill_overlay.v1
+            binding_bundle: runx/skill-adopt.overlay.v1
 
       - id: validate
         label: inspect and harness the exact candidate natively
@@ -285,7 +247,7 @@ runners:
           named_emits:
             binding_bundle: binding_bundle
           packets:
-            binding_bundle: runx.skill_overlay.v1
+            binding_bundle: runx/skill-adopt.overlay.v1
 
       - id: digest-profile
         label: digest the exact native profile
@@ -323,7 +285,7 @@ runners:
           named_emits:
             binding_bundle: binding_bundle
           packets:
-            binding_bundle: runx.skill_overlay.v1
+            binding_bundle: runx/skill-adopt.overlay.v1
 
 harness:
   files: [fixtures/support/composed.graph]

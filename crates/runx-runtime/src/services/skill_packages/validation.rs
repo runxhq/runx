@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use runx_contracts::{JsonObject, JsonValue, SkillArchitectureDecision};
+use runx_contracts::{
+    JsonObject, JsonValue, SkillArchitectureDecision, SkillValidation, SkillValidationSchema,
+    SkillValidationVerdict,
+};
 
 use super::path::{canonical_directory, display_repo_path, invalid_skill_change};
 use super::staging::{InlineCandidateStage, ValidationReceiptStage, isolated_harness_env};
@@ -13,6 +16,12 @@ mod resources;
 
 use resources::{candidate_resource_usage, validate_architecture_resources};
 
+/// What validating a candidate package found.
+pub(super) struct CandidateValidation {
+    pub(super) inspect: JsonObject,
+    pub(super) harness: JsonObject,
+}
+
 pub(super) fn validate_candidate(
     repo_root: &Path,
     candidate: &Path,
@@ -20,16 +29,16 @@ pub(super) fn validate_candidate(
     effects: &RuntimeEffectRegistry,
     run_harness: bool,
     architecture: Option<&SkillArchitectureDecision>,
-) -> Result<JsonObject, RuntimeError> {
+) -> Result<CandidateValidation, RuntimeError> {
     let loaded = crate::load_validated_skill_package(candidate)?;
-    let resources = candidate_resource_usage(&loaded.package);
     if let Some(architecture) = architecture {
-        validate_architecture_resources(architecture, &resources)?;
+        validate_architecture_resources(architecture, &candidate_resource_usage(&loaded.package))?;
     }
-    let inspection = crate::inspect_skill_package(candidate, None, Some(env))
+    let inspect = crate::inspect_skill_package(candidate, None, Some(env))
         .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
         .and_then(|inspection| {
-            JsonValue::from_serialize(&inspection)
+            serde_json::to_value(&inspection)
+                .and_then(serde_json::from_value::<JsonObject>)
                 .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
         })?;
     let harness = if run_harness {
@@ -37,11 +46,7 @@ pub(super) fn validate_candidate(
     } else {
         skipped_harness()
     };
-    Ok(JsonObject::from([
-        ("inspect".to_owned(), inspection),
-        ("harness".to_owned(), harness),
-        ("resources".to_owned(), resources.as_json()),
-    ]))
+    Ok(CandidateValidation { inspect, harness })
 }
 
 fn run_candidate_harness(
@@ -49,7 +54,7 @@ fn run_candidate_harness(
     candidate: &Path,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
-) -> Result<JsonValue, RuntimeError> {
+) -> Result<JsonObject, RuntimeError> {
     let receipt_stage = ValidationReceiptStage::prepare(repo_root)?;
     let mut harness_env = isolated_harness_env(repo_root, env, receipt_stage.root());
     crate::services::merge_inferred_tool_roots(&mut harness_env, candidate);
@@ -74,30 +79,30 @@ fn run_candidate_harness(
         .map_err(|source| RuntimeError::json("projecting package harness report", source))
 }
 
-fn skipped_harness() -> JsonValue {
-    JsonValue::Object(JsonObject::from([
+fn skipped_harness() -> JsonObject {
+    JsonObject::from([
         ("attempted".to_owned(), JsonValue::Bool(false)),
         ("status".to_owned(), JsonValue::String("skipped".to_owned())),
         (
             "reason".to_owned(),
             JsonValue::String("needs_consequential_harness_approval".to_owned()),
         ),
-    ]))
+    ])
 }
 
 pub(crate) fn validate_skill_package(
     repo_root: &Path,
-    requested_ref: &str,
+    requested_path: &str,
     candidate_files: Option<&[JsonValue]>,
     allow_execute_harness: bool,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
-) -> Result<JsonObject, RuntimeError> {
+) -> Result<SkillValidation, RuntimeError> {
     let repo_root = canonical_directory(repo_root, "skill workspace")?;
     let stage = candidate_files
         .map(|files| InlineCandidateStage::prepare(&repo_root, files, env))
         .transpose()?;
-    let candidate_path = resolve_candidate_path(&repo_root, requested_ref, stage.as_ref())?;
+    let candidate_path = resolve_candidate_path(&repo_root, requested_path, stage.as_ref())?;
     let inspected = crate::inspect_skill_package(&candidate_path, None, Some(env));
     let run_harness = allow_execute_harness || safe_harness_execution(inspected.as_ref().ok());
     let inspected = inspected.and_then(|inspection| {
@@ -108,7 +113,7 @@ pub(crate) fn validate_skill_package(
                 source,
             })
     });
-    let resolved_ref = if stage.is_some() {
+    let resolved_path = if stage.is_some() {
         "inline-candidate".to_owned()
     } else {
         display_repo_path(&repo_root, &candidate_path)
@@ -116,8 +121,8 @@ pub(crate) fn validate_skill_package(
 
     let result = validate_candidate(&repo_root, &candidate_path, env, effects, run_harness, None);
     Ok(validation_result_report(
-        requested_ref,
-        &resolved_ref,
+        requested_path,
+        &resolved_path,
         inspected,
         run_harness,
         result,
@@ -125,71 +130,61 @@ pub(crate) fn validate_skill_package(
 }
 
 fn validation_result_report(
-    requested_ref: &str,
-    resolved_ref: &str,
-    inspected: Result<JsonValue, crate::SkillInspectionError>,
+    requested_path: &str,
+    resolved_path: &str,
+    inspected: Result<JsonObject, crate::SkillInspectionError>,
     run_harness: bool,
-    result: Result<JsonObject, RuntimeError>,
-) -> JsonObject {
-    match result {
+    result: Result<CandidateValidation, RuntimeError>,
+) -> SkillValidation {
+    let (verdict, inspect, harness) = match result {
         Ok(validation) => {
-            let harness = validation
-                .get("harness")
-                .cloned()
-                .unwrap_or(JsonValue::Null);
-            let verdict = if harness
-                .as_object()
-                .and_then(|value| value.get("status"))
-                .and_then(JsonValue::as_str)
+            let verdict = if validation.harness.get("status").and_then(JsonValue::as_str)
                 == Some("skipped")
             {
-                "needs_consequential_harness_approval"
+                SkillValidationVerdict::NeedsConsequentialHarnessApproval
             } else {
-                "tested"
+                SkillValidationVerdict::Tested
             };
-            skill_validation_report(
-                requested_ref,
-                resolved_ref,
-                verdict,
-                validation
-                    .get("inspect")
-                    .cloned()
-                    .unwrap_or(JsonValue::Null),
-                harness,
-            )
+            (verdict, validation.inspect, validation.harness)
         }
-        Err(error) => skill_validation_report(
-            requested_ref,
-            resolved_ref,
-            "validation_failed",
+        Err(error) => (
+            SkillValidationVerdict::ValidationFailed,
             failed_inspection(inspected),
-            JsonValue::Object(JsonObject::from([
+            JsonObject::from([
                 ("attempted".to_owned(), JsonValue::Bool(run_harness)),
                 ("status".to_owned(), JsonValue::String("failed".to_owned())),
                 ("reason".to_owned(), JsonValue::String(error.to_string())),
-            ])),
+            ]),
         ),
+    };
+    SkillValidation {
+        schema: SkillValidationSchema::V1,
+        requested_path: requested_path.into(),
+        resolved_path: resolved_path.into(),
+        verdict,
+        inspect,
+        harness,
     }
 }
 
-fn failed_inspection(inspected: Result<JsonValue, crate::SkillInspectionError>) -> JsonValue {
+fn failed_inspection(inspected: Result<JsonObject, crate::SkillInspectionError>) -> JsonObject {
     inspected.unwrap_or_else(|error| {
-        JsonValue::Object(JsonObject::from([
+        JsonObject::from([
             ("status".to_owned(), JsonValue::String("failed".to_owned())),
             ("error".to_owned(), JsonValue::String(error.to_string())),
-        ]))
+        ])
     })
 }
 
 fn resolve_candidate_path(
     repo_root: &Path,
-    requested_ref: &str,
+    requested_path: &str,
     stage: Option<&InlineCandidateStage>,
 ) -> Result<std::path::PathBuf, RuntimeError> {
     if let Some(stage) = stage {
         return Ok(stage.skill_dir.clone());
     }
-    let requested = Path::new(requested_ref);
+    let requested = Path::new(requested_path);
     let unresolved = if requested.is_absolute() {
         requested.to_path_buf()
     } else {
@@ -219,32 +214,6 @@ fn safe_harness_execution(inspection: Option<&runx_contracts::SkillInspection>) 
     inspection
         .and_then(|inspection| inspection.capabilities.as_ref())
         .is_none_or(|capabilities| matches!(capabilities.execution.as_str(), "read" | "plan"))
-}
-
-fn skill_validation_report(
-    requested_ref: &str,
-    resolved_ref: &str,
-    verdict: &str,
-    inspection: JsonValue,
-    harness: JsonValue,
-) -> JsonObject {
-    JsonObject::from([
-        (
-            "schema".to_owned(),
-            JsonValue::String("runx.skill.validation.v1".to_owned()),
-        ),
-        (
-            "requested_ref".to_owned(),
-            JsonValue::String(requested_ref.to_owned()),
-        ),
-        (
-            "resolved_ref".to_owned(),
-            JsonValue::String(resolved_ref.to_owned()),
-        ),
-        ("verdict".to_owned(), JsonValue::String(verdict.to_owned())),
-        ("inspect".to_owned(), inspection),
-        ("harness".to_owned(), harness),
-    ])
 }
 
 #[cfg(test)]
@@ -297,19 +266,14 @@ mod tests {
             false,
             None,
         )?;
-        assert!(
-            report
-                .get("inspect")
-                .and_then(runx_contracts::JsonValue::as_object)
-                .is_some()
-        );
+        assert!(!report.inspect.is_empty());
         Ok(())
     }
 
     fn architecture(domain_module: bool) -> SkillArchitectureDecision {
         serde_json::from_value(json!({
             "schema": "runx.skill.architecture_decision.v1",
-            "disposition": "build",
+            "choice": "build",
             "identity": {
                 "proposed_name": "demo",
                 "action": "create",

@@ -67,7 +67,7 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                     "hosted grant {grant_id} has no usable credential for its connector declaration; reconnect it"
                 ));
             }
-            if grant.principal_ref != instance.principal_ref.as_str() {
+            if grant.principal_uri != instance.principal_uri.as_str() {
                 return Err(format!(
                     "hosted grant {grant_id} is held by another principal than instance {}",
                     instance.instance_id
@@ -97,9 +97,6 @@ pub(crate) fn evidence(request: &CapabilityRequest<'_>) -> Result<Capability, St
                 Vec::new(),
             ))
         }
-        InstanceAuthority::Credential { .. } | InstanceAuthority::Reference { .. } => Err(
-            super::operation::credentials::bound_before_secrets(instance),
-        ),
         InstanceAuthority::Environment {
             credential,
             variable,
@@ -271,7 +268,7 @@ fn capability(
 }
 
 pub(crate) fn principal_reference(instance: &ConnectorInstance) -> Reference {
-    Reference::with_uri(ReferenceType::Principal, instance.principal_ref.as_str())
+    Reference::with_uri(ReferenceType::Principal, instance.principal_uri.as_str())
 }
 
 pub(crate) fn instance_reference(instance: &ConnectorInstance) -> Reference {

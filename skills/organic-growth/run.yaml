@@ -1,5 +1,5 @@
 skill: organic-growth
-version: "0.1.9"
+version: "0.1.10"
 
 catalog:
   kind: graph
@@ -32,7 +32,7 @@ harness:
         objective: Improve qualified organic acquisition for the Runx guides.
         site_url: https://example.com/
         search_evidence:
-          schema: runx.search.performance.evidence.v1
+          schema: runx/google-search-console.performance_evidence.v1
           decision: ready
           provider: google-search-console
           provider_status: readback_verified
@@ -54,7 +54,7 @@ harness:
           validation: { status: pass, findings: [] }
           evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         analytics_evidence:
-          schema: runx.analytics.report.evidence.v1
+          schema: runx/google-analytics.report_evidence.v1
           decision: ready
           provider: google-analytics
           provider_status: readback_verified
@@ -79,7 +79,7 @@ harness:
           validation: { status: pass, findings: [] }
           evidence_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
         site_evidence:
-          - source_ref: https://example.com/guides/runx
+          - source_uri: https://example.com/guides/runx
             kind: first_party_page
             content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
             summary: The guide explains installation but has no direct comparison table, author date, or linked implementation evidence.
@@ -171,7 +171,7 @@ harness:
         objective: Improve the guide.
         site_url: https://example.com/
         site_evidence:
-          - source_ref: https://example.com/guides/runx
+          - source_uri: https://example.com/guides/runx
             kind: first_party_page
             content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
             summary: The page contains an installation guide.

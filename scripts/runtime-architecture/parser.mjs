@@ -91,24 +91,26 @@ export function checkCanonicalParserOwnership(findings) {
     }
   }
 
-  const packetGeneratorPath = path.join(workspaceRoot, "scripts/generate-packet-schemas.ts");
-  const packetGenerator = existsSync(packetGeneratorPath)
-    ? readFileSync(packetGeneratorPath, "utf8")
+  // The packet collector reads core identities from the Rust-generated root
+  // schemas, package packets as the native parser admits them, and runner
+  // declarations as typed parser output.
+  const packetCollectorPath = path.join(workspaceRoot, "scripts/collect-packets.ts");
+  const packetCollector = existsSync(packetCollectorPath)
+    ? readFileSync(packetCollectorPath, "utf8")
     : "";
   for (const token of [
-    "ownedPacketContracts",
     'schema["x-runx-schema"]',
     'path.join(workspaceRoot, "schemas")',
-    "parsePacketSchemaDocumentsBatch",
-    "collectManifestContracts",
+    '["list", "packets", "--json"]',
+    "validateRunnerManifestYamlBatch",
   ]) {
-    if (!packetGenerator.includes(token)) {
-      findings.push(`${relative(packetGeneratorPath)} must discover Rust-owned packet identities from root schemas`);
+    if (!packetCollector.includes(token)) {
+      findings.push(`${relative(packetCollectorPath)} must read packets through the Rust contracts and the native parser`);
       break;
     }
   }
-  if (/\.raw\.document|\bcollectContracts\s*\(/u.test(packetGenerator)) {
-    findings.push(`${relative(packetGeneratorPath)} reparses raw runner manifests instead of using typed parser output`);
+  if (/\.raw\.document|\bcollectContracts\s*\(/u.test(packetCollector)) {
+    findings.push(`${relative(packetCollectorPath)} reparses raw runner manifests instead of using typed parser output`);
   }
 
   for (const filePath of walk(path.join(workspaceRoot, "scripts"))) {
@@ -140,8 +142,8 @@ export function checkCanonicalParserOwnership(findings) {
   for (const token of [
     "PacketSchemaCatalog",
     "parse_packet_schema_document",
-    "packet_schema_directories",
-    "discover_loaded_package",
+    "fn for_package",
+    "fn for_validated_package",
   ]) {
     if (!packetCatalog.includes(token)) {
       findings.push(`${relative(packetCatalogPath)} lacks canonical packet catalog token ${token}`);

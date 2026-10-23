@@ -2,31 +2,31 @@ import { TextDecoder } from "node:util";
 
 import { canonicalJsonStringify, sha256Prefixed } from "./canonical-json.js";
 import { asUnknownRecord } from "./internal.js";
-import {
-  validatePaidInvocationPaymentChallengeContract,
-  type PaidInvocationPaymentChallengeContract,
-} from "./schemas/paid-invocation.js";
-import type { ReferenceContract } from "./schemas/spine.js";
+import type {
+  PurchasePaymentChallengeContract,
+  ReferenceContract,
+  RunxX402PurchaseExtensionInfoContract,
+  X402PaymentPayloadContract,
+  X402PaymentRequiredContract,
+  X402PaymentRequirementsContract,
+  X402ResourceInfoContract,
+  X402SettleResponseContract,
+} from "./generated/contract-types.js";
+import { validatePurchasePaymentChallengeContract } from "./schemas/purchase.js";
 import {
   X402_SCHEMA_IDS,
-  validateRunxX402InvocationExtensionInfoContract,
+  validateRunxX402PurchaseExtensionInfoContract,
   validateX402PaymentPayloadContract,
   validateX402PaymentRequiredContract,
   validateX402SettleResponseContract,
-  type RunxX402ExtensionInfoContract,
   type RunxX402DiscoveryExtensionInfoContract,
-  type RunxX402InvocationExtensionContract,
-  type X402PaymentPayloadContract,
-  type X402PaymentRequiredContract,
-  type X402PaymentRequirementsContract,
-  type X402ResourceInfoContract,
-  type X402SettleResponseContract,
+  type RunxX402PurchaseExtensionContract,
 } from "./schemas/x402.js";
 
 export const X402_PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED" as const;
 export const X402_PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE" as const;
 export const X402_PAYMENT_RESPONSE_HEADER = "PAYMENT-RESPONSE" as const;
-export const RUNX_X402_INVOCATION_EXTENSION_KEY = "runx.invocation" as const;
+export const RUNX_X402_PURCHASE_EXTENSION_KEY = "runx.purchase" as const;
 export const X402_BAZAAR_EXTENSION_KEY = "bazaar" as const;
 export const X402_JSON_MEDIA_TYPE = "application/json" as const;
 export const MAX_X402_HEADER_BYTES = 65_536 as const;
@@ -40,10 +40,10 @@ export type X402PresentationErrorCode =
   | "reserved_extension"
   | "missing_discovery_extension"
   | "invalid_discovery_extension"
-  | "missing_runx_invocation"
-  | "runx_invocation_schema_mismatch"
+  | "missing_runx_purchase"
+  | "runx_purchase_schema_mismatch"
   | "requirement_mismatch"
-  | "runx_invocation_mismatch"
+  | "runx_purchase_mismatch"
   | "challenge_kind_mismatch"
   | "challenge_digest_mismatch";
 
@@ -52,13 +52,13 @@ const ERROR_MESSAGES: Readonly<Record<X402PresentationErrorCode, string>> = {
   invalid_base64: "x402 header is not standard base64",
   invalid_payload: "x402 header JSON is malformed or violates its contract",
   encoding_failed: "x402 value could not be encoded",
-  reserved_extension: "runx.invocation is reserved and cannot be supplied by a vendor",
+  reserved_extension: "runx.purchase is reserved and cannot be supplied by a seller",
   missing_discovery_extension: "x402 discovery requires a bazaar extension",
   invalid_discovery_extension: "x402 bazaar extension must use the v2 info/schema declaration",
-  missing_runx_invocation: "runx.invocation is absent",
-  runx_invocation_schema_mismatch: "runx.invocation does not match its published v1 schema",
+  missing_runx_purchase: "runx.purchase is absent",
+  runx_purchase_schema_mismatch: "runx.purchase does not match its published v1 schema",
   requirement_mismatch: "the retry selected requirements are not an exact offered requirement",
-  runx_invocation_mismatch: "the retry runx.invocation declaration changed",
+  runx_purchase_mismatch: "the retry runx.purchase declaration changed",
   challenge_kind_mismatch: "the rail-neutral challenge is not an x402 v2 JSON challenge",
   challenge_digest_mismatch: "the rail-neutral challenge payload digest does not match",
 };
@@ -73,14 +73,14 @@ export class X402PresentationError extends Error {
 
 export type ValidatedX402Retry = Readonly<{
   requirementIndex: number;
-  invocation: RunxX402ExtensionInfoContract;
+  info: RunxX402PurchaseExtensionInfoContract;
 }>;
 
 export type X402DiscoveryDescriptor = Readonly<{
   resource: X402ResourceInfoContract;
   accepts: readonly X402PaymentRequirementsContract[];
-  offerRevision: RunxX402DiscoveryExtensionInfoContract["offer_revision"];
-  packageDigest: RunxX402DiscoveryExtensionInfoContract["package_digest"];
+  offerVersion: RunxX402DiscoveryExtensionInfoContract["offer_version"];
+  bundleDigest: RunxX402DiscoveryExtensionInfoContract["bundle_digest"];
   extensions: Readonly<Record<string, unknown>>;
 }>;
 
@@ -184,7 +184,7 @@ function rebaseEmbeddedJsonSchema(
 
 /**
  * Assemble a standard external x402 response without asserting any Runx
- * invocation semantics. Product owners supply only their public resource and
+ * purchase semantics. Product owners supply only their public resource and
  * already-authorized payment requirements; Runx remains the protocol
  * validator and header encoder.
  */
@@ -205,30 +205,30 @@ export function assembleExternalX402PaymentRequired(input: Readonly<{
 }
 
 /**
- * The schema a `runx.invocation` declaration advertises: the published v1
+ * The schema a `runx.purchase` declaration advertises: the published v1
  * document by its resolvable `$id`. The external `{ info, schema }` form is
  * kept, the five-kilobyte document is not; a challenge has to fit one
- * portable HTTP header next to the vendor's own discovery declaration.
+ * portable HTTP header next to the seller's own discovery declaration.
  */
-export const RUNX_X402_INVOCATION_SCHEMA_REFERENCE: Readonly<Record<string, unknown>> = Object.freeze({
-  $ref: X402_SCHEMA_IDS.runxInvocationExtension,
+export const RUNX_X402_PURCHASE_SCHEMA_REFERENCE: Readonly<Record<string, unknown>> = Object.freeze({
+  $ref: X402_SCHEMA_IDS.runxPurchaseExtension,
 });
 
 export function assembleX402PaymentRequired(input: Readonly<{
   resource: X402ResourceInfoContract;
   accepts: readonly X402PaymentRequirementsContract[];
-  invocation: RunxX402ExtensionInfoContract;
+  info: RunxX402PurchaseExtensionInfoContract;
   error?: string | null;
   extensions?: Readonly<Record<string, unknown>>;
 }>): X402PaymentRequiredContract {
-  validateRunxX402InvocationExtensionInfoContract(input.invocation);
+  validateRunxX402PurchaseExtensionInfoContract(input.info);
   const extensions = { ...(input.extensions ?? {}) };
-  if (Object.hasOwn(extensions, RUNX_X402_INVOCATION_EXTENSION_KEY)) {
+  if (Object.hasOwn(extensions, RUNX_X402_PURCHASE_EXTENSION_KEY)) {
     throw new X402PresentationError("reserved_extension");
   }
-  const declaration: RunxX402InvocationExtensionContract = {
-    info: input.invocation,
-    schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
+  const declaration: RunxX402PurchaseExtensionContract = {
+    info: input.info,
+    schema: RUNX_X402_PURCHASE_SCHEMA_REFERENCE,
   };
   return assembleExternalX402PaymentRequired({
     resource: input.resource,
@@ -236,12 +236,12 @@ export function assembleX402PaymentRequired(input: Readonly<{
     ...(input.error === undefined ? {} : { error: input.error }),
     extensions: {
       ...extensions,
-      [RUNX_X402_INVOCATION_EXTENSION_KEY]: declaration,
+      [RUNX_X402_PURCHASE_EXTENSION_KEY]: declaration,
     },
   });
 }
 
-/** Effect-free discovery for a vendor resource that is not a Runx invocation. */
+/** Effect-free discovery for a seller's own resource that is not a Runx purchase. */
 export function x402ExternalDiscoveryHttpProjection(
   descriptor: X402ExternalDiscoveryDescriptor,
 ): X402DiscoveryHttpProjection {
@@ -262,7 +262,7 @@ export function x402ExternalDiscoveryHttpProjection(
 }
 
 /**
- * Build the inert, floor-priced discovery response a vendor can mount before
+ * Build the inert, floor-priced discovery response a seller can mount before
  * auth or body validation. This function has no clock, store, provider, or
  * network dependency and therefore cannot create product or payment state.
  */
@@ -273,10 +273,10 @@ export function x402DiscoveryHttpProjection(
   const body = assembleX402PaymentRequired({
     resource: descriptor.resource,
     accepts: descriptor.accepts,
-    invocation: {
+    info: {
       purpose: "discovery",
-      offer_revision: descriptor.offerRevision,
-      package_digest: descriptor.packageDigest,
+      offer_version: descriptor.offerVersion,
+      bundle_digest: descriptor.bundleDigest,
     },
     extensions: descriptor.extensions,
   });
@@ -293,9 +293,9 @@ export function bindX402PaymentRequiredChallenge(
   paymentRequired: X402PaymentRequiredContract,
   quoteRef: ReferenceContract,
   quoteExpiresAt: string,
-): PaidInvocationPaymentChallengeContract {
+): PurchasePaymentChallengeContract {
   const payload = validateX402PaymentRequiredContract(paymentRequired);
-  return validatePaidInvocationPaymentChallengeContract({
+  return validatePurchasePaymentChallengeContract({
     settlement_family: "x402",
     protocol_version: "2",
     media_type: X402_JSON_MEDIA_TYPE,
@@ -308,7 +308,7 @@ export function bindX402PaymentRequiredChallenge(
 }
 
 export function x402PaymentRequiredFromChallenge(
-  challenge: PaidInvocationPaymentChallengeContract,
+  challenge: PurchasePaymentChallengeContract,
 ): X402PaymentRequiredContract {
   if (
     challenge.settlement_family !== "x402"
@@ -345,7 +345,7 @@ function x402PaymentMethod(required: X402PaymentRequiredContract) {
 }
 
 /**
- * A payment commits to one offered requirement and to the runx.invocation
+ * A payment commits to one offered requirement and to the runx.purchase
  * binding. The resource and any discovery declaration are unsigned metadata
  * owned by whoever presented the challenge, so a seller's own door may relay
  * runx's challenge under its own resource and the payment it forwards settles
@@ -363,12 +363,12 @@ export function validateX402PaymentRetry(
   if (requirementIndex < 0) {
     throw new X402PresentationError("requirement_mismatch");
   }
-  const declared = parseRunxX402InvocationDeclaration(challenge.extensions);
-  const echoed = parseRunxX402InvocationDeclaration(retry.extensions);
+  const declared = parseRunxX402PurchaseDeclaration(challenge.extensions);
+  const echoed = parseRunxX402PurchaseDeclaration(retry.extensions);
   if (!jsonEquals(echoed, declared)) {
-    throw new X402PresentationError("runx_invocation_mismatch");
+    throw new X402PresentationError("runx_purchase_mismatch");
   }
-  return { requirementIndex, invocation: declared.info };
+  return { requirementIndex, info: declared.info };
 }
 
 export function selectedX402Requirement(
@@ -438,32 +438,32 @@ function decodeHeader<T>(value: string, validate: (value: unknown) => T): T {
 }
 
 /**
- * Read the `runx.invocation` declaration under `extensions`. The advertised
+ * Read the `runx.purchase` declaration under `extensions`. The advertised
  * schema must be exactly the published v1 schema by reference, the only form
  * any emitter assembles; an inline document or any other schema is refused.
  */
-export function parseRunxX402InvocationDeclaration(
+export function parseRunxX402PurchaseDeclaration(
   extensions: Readonly<Record<string, unknown>> | null | undefined,
-): RunxX402InvocationExtensionContract {
-  const value = extensions?.[RUNX_X402_INVOCATION_EXTENSION_KEY];
+): RunxX402PurchaseExtensionContract {
+  const value = extensions?.[RUNX_X402_PURCHASE_EXTENSION_KEY];
   const record = asUnknownRecord(value);
   if (!record) {
-    throw new X402PresentationError("missing_runx_invocation");
+    throw new X402PresentationError("missing_runx_purchase");
   }
   const keys = Object.keys(record).sort();
   if (keys.length !== 2 || keys[0] !== "info" || keys[1] !== "schema") {
     throw new X402PresentationError("invalid_payload");
   }
-  let info: RunxX402ExtensionInfoContract;
+  let info: RunxX402PurchaseExtensionInfoContract;
   try {
-    info = validateRunxX402InvocationExtensionInfoContract(record.info);
+    info = validateRunxX402PurchaseExtensionInfoContract(record.info);
   } catch {
     throw new X402PresentationError("invalid_payload");
   }
-  if (!jsonEquals(record.schema, RUNX_X402_INVOCATION_SCHEMA_REFERENCE)) {
-    throw new X402PresentationError("runx_invocation_schema_mismatch");
+  if (!jsonEquals(record.schema, RUNX_X402_PURCHASE_SCHEMA_REFERENCE)) {
+    throw new X402PresentationError("runx_purchase_schema_mismatch");
   }
-  return { info, schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE };
+  return { info, schema: RUNX_X402_PURCHASE_SCHEMA_REFERENCE };
 }
 
 function assertBazaarDiscoveryExtension(extensions: Readonly<Record<string, unknown>>): void {

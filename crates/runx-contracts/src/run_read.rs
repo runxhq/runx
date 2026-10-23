@@ -3,10 +3,10 @@
 //! from this read alone, without a checkpoint reader or an output stream.
 use serde::{Deserialize, Serialize};
 
-use crate::decision::ClosureDisposition;
 use crate::host_protocol::{ResolutionRequest, ResolutionResponseActor, TurnTarget};
+use crate::receipt::RunOutcome;
 use crate::schema::{NonEmptyString, RunxSchema};
-use crate::skill_output::ProjectArtifactRef;
+use crate::skill_output::ProjectArtifact;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum RunReadSchema {
@@ -47,7 +47,7 @@ pub struct RunReadSummary {
     pub runner: NonEmptyString,
     pub state: RunState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub disposition: Option<ClosureDisposition>,
+    pub outcome: Option<RunOutcome>,
     /// The execution package digest of the package the run loaded, not the
     /// registry's digest of the published package files a listing carries.
     pub package_digest: NonEmptyString,
@@ -160,7 +160,7 @@ pub enum RunEventFact {
         outcome: Box<RunCallOutcome>,
     },
     Sealed {
-        disposition: ClosureDisposition,
+        outcome: RunOutcome,
         receipt_id: NonEmptyString,
     },
     /// The person replaced the run's standing approvals for every later
@@ -249,7 +249,7 @@ pub struct RunCallOutput {
     /// other outputs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<NonEmptyString>,
-    pub artifact: ProjectArtifactRef,
+    pub artifact: ProjectArtifact,
 }
 
 #[cfg(test)]
@@ -290,7 +290,7 @@ mod tests {
         assert!(
             serde_json::from_value::<RunEventRecord>(serde_json::json!({
                 "stream": "run_1", "version": 1, "committed_at": "t",
-                "event": {"kind": "sealed", "disposition": "closed", "receipt_id": "sha256:x", "output": {}}
+                "event": {"kind": "sealed", "outcome": "completed", "receipt_id": "sha256:x", "output": {}}
             }))
             .is_err(),
             "an event never carries an output"

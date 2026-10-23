@@ -225,8 +225,8 @@ pub(super) fn ledger_entry_corpus() -> Vec<(&'static str, Value)> {
             "algorithm": "sha256",
             "canonicalization": "runx.stable-json.v1",
             "index": 0,
-            "previous_hash": null,
-            "entry_hash": hash,
+            "previous_digest": null,
+            "entry_digest": hash,
         },
         "entry": {
             "type": "run_event",
@@ -238,7 +238,7 @@ pub(super) fn ledger_entry_corpus() -> Vec<(&'static str, Value)> {
                 "step_id": null,
                 "producer": { "skill": "demo", "runner": "local" },
                 "created_at": "2026-01-01T00:00:00Z",
-                "hash": "sha256:abc",
+                "digest": "sha256:abc",
                 "size_bytes": 1,
                 "parent_artifact_id": null,
                 "receipt_id": null,
@@ -251,7 +251,7 @@ pub(super) fn ledger_entry_corpus() -> Vec<(&'static str, Value)> {
         ("full valid", {
             let mut v = valid.clone();
             v["chain"]["index"] = json!(1);
-            v["chain"]["previous_hash"] = json!(hash);
+            v["chain"]["previous_digest"] = json!(hash);
             v["entry"]["meta"]["step_id"] = json!("step_1");
             v["entry"]["meta"]["parent_artifact_id"] = json!("artifact_0");
             v["entry"]["meta"]["receipt_id"] = json!("rcpt_1");
@@ -278,7 +278,7 @@ pub(super) fn ledger_entry_corpus() -> Vec<(&'static str, Value)> {
             set_field(
                 valid.clone(),
                 "chain",
-                set_field(valid["chain"].clone(), "entry_hash", json!("not-a-hash")),
+                set_field(valid["chain"].clone(), "entry_digest", json!("not-a-hash")),
             ),
         ),
         (
@@ -331,180 +331,12 @@ pub(super) fn output_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn handoff_signal_corpus() -> Vec<(&'static str, Value)> {
+pub(super) fn packet_lock_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
-        "schema": "runx.handoff_signal.v1",
-        "signal_id": "sig_1",
-        "handoff_id": "ho_1",
-        "source": "issue_comment",
-        "disposition": "acknowledged",
-        "recorded_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["boundary_kind"] = json!("pull_request");
-            v["target_repo"] = json!("acme/widgets");
-            v["thread_locator"] = json!("acme/widgets#1");
-            v["actor"] = json!({ "actor_id": "u1", "display_name": "User", "role": "maintainer" });
-            v["notes"] = json!("looks good");
-            v["labels"] = json!(["bug"]);
-            v["source_ref"] = json!({ "type": "pull_request", "uri": "runx:pr:1", "label": "PR" });
-            v["metadata"] = json!({ "k": 1 });
-            v
-        }),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        ("missing signal_id", drop_field(valid.clone(), "signal_id")),
-        (
-            "missing disposition",
-            drop_field(valid.clone(), "disposition"),
-        ),
-        (
-            "empty signal_id",
-            set_field(valid.clone(), "signal_id", json!("")),
-        ),
-        (
-            "unknown source",
-            set_field(valid.clone(), "source", json!("smoke_signal")),
-        ),
-        (
-            "unknown disposition",
-            set_field(valid.clone(), "disposition", json!("ghosted")),
-        ),
-        (
-            "malformed recorded_at",
-            set_field(valid.clone(), "recorded_at", json!("nope")),
-        ),
-        (
-            "source_ref empty uri rejected",
-            set_field(
-                valid.clone(),
-                "source_ref",
-                json!({ "type": "pull_request", "uri": "" }),
-            ),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn handoff_state_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.handoff_state.v1",
-        "handoff_id": "ho_1",
-        "status": "awaiting_response",
-        "signal_count": 0,
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["boundary_kind"] = json!("pull_request");
-            v["target_repo"] = json!("acme/widgets");
-            v["last_signal_id"] = json!("sig_9");
-            v["last_signal_at"] = json!("2026-01-02T00:00:00Z");
-            v["last_signal_disposition"] = json!("merged");
-            v["suppression_record_id"] = json!("sup_1");
-            v["suppression_reason"] = json!("operator_block");
-            v["summary"] = json!("ongoing");
-            v
-        }),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        (
-            "missing handoff_id",
-            drop_field(valid.clone(), "handoff_id"),
-        ),
-        (
-            "missing signal_count",
-            drop_field(valid.clone(), "signal_count"),
-        ),
-        (
-            "empty handoff_id",
-            set_field(valid.clone(), "handoff_id", json!("")),
-        ),
-        (
-            "unknown status",
-            set_field(valid.clone(), "status", json!("ghosted")),
-        ),
-        // `signal_count` commits a `minimum: 0` bound the type-driven emitter
-        // does not model (same gap as `minItems`/`minProperties`); keep the
-        // corpus on the non-negative side so both validators agree.
-        (
-            "signal_count as string",
-            set_field(valid.clone(), "signal_count", json!("two")),
-        ),
-        (
-            "unknown suppression_reason",
-            set_field(valid.clone(), "suppression_reason", json!("mood")),
-        ),
-        (
-            "malformed last_signal_at",
-            set_field(valid.clone(), "last_signal_at", json!("nope")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn suppression_record_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.suppression_record.v1",
-        "record_id": "sup_1",
-        "scope": "contact",
-        "key": "user@example.com",
-        "reason": "requested_no_contact",
-        "recorded_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("minimal valid", valid.clone()),
-        ("full valid", {
-            let mut v = valid.clone();
-            v["expires_at"] = json!("2026-02-01T00:00:00Z");
-            v["source_signal_id"] = json!("sig_1");
-            v["notes"] = json!("per request");
-            v
-        }),
-        ("missing schema", drop_field(valid.clone(), "schema")),
-        ("missing record_id", drop_field(valid.clone(), "record_id")),
-        ("missing reason", drop_field(valid.clone(), "reason")),
-        (
-            "empty record_id",
-            set_field(valid.clone(), "record_id", json!("")),
-        ),
-        ("empty key", set_field(valid.clone(), "key", json!(""))),
-        (
-            "unknown scope",
-            set_field(valid.clone(), "scope", json!("galaxy")),
-        ),
-        (
-            "unknown reason",
-            set_field(valid.clone(), "reason", json!("mood")),
-        ),
-        (
-            "malformed expires_at",
-            set_field(valid.clone(), "expires_at", json!("nope")),
-        ),
-        (
-            "additional property",
-            set_field(valid.clone(), "bogus", json!(true)),
-        ),
-    ]
-}
-
-pub(super) fn packet_index_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.packet.index.v1",
+        "schema": "runx.packet.lock.v1",
         "packets": [{
-            "id": "p1",
-            "package": "@runxhq/skill",
-            "version": "1.0.0",
-            "path": "skills/p1",
-            "sha256": "abc",
+            "id": "runx/research.packet.v1",
+            "digest": format!("sha256:{}", "a".repeat(64)),
         }],
     });
     vec![
@@ -524,7 +356,23 @@ pub(super) fn packet_index_corpus() -> Vec<(&'static str, Value)> {
             set_field(
                 valid.clone(),
                 "packets",
-                json!([{ "package": "p", "version": "1", "path": "x", "sha256": "y" }]),
+                json!([{ "digest": format!("sha256:{}", "a".repeat(64)) }]),
+            ),
+        ),
+        (
+            "packet id outside the grammar",
+            set_field(
+                valid.clone(),
+                "packets",
+                json!([{ "id": "research.packet.v1", "digest": format!("sha256:{}", "a".repeat(64)) }]),
+            ),
+        ),
+        (
+            "packet digest not sha256",
+            set_field(
+                valid.clone(),
+                "packets",
+                json!([{ "id": "runx/research.packet.v1", "digest": "abc" }]),
             ),
         ),
         (
@@ -532,7 +380,7 @@ pub(super) fn packet_index_corpus() -> Vec<(&'static str, Value)> {
             set_field(
                 valid.clone(),
                 "packets",
-                json!([{ "id": "p1", "package": "p", "version": "1", "path": "x", "sha256": "y", "bogus": true }]),
+                json!([{ "id": "runx/research.packet.v1", "digest": format!("sha256:{}", "a".repeat(64)), "bogus": true }]),
             ),
         ),
         (
@@ -557,13 +405,13 @@ pub(super) fn registry_binding_corpus() -> Vec<(&'static str, Value)> {
             "source_of_truth": true,
         },
         "registry": {
-            "owner": "acme",
+            "publisher": "acme",
             "trust_tier": "first_party",
             "version": "1.0.0",
             "profile_path": "profiles/s1",
             "materialized_package_is_registry_artifact": true,
         },
-        "harness": { "status": "harness_verified", "case_count": 3 },
+        "harness": { "state": "harness_verified", "case_count": 3 },
     });
     vec![
         ("minimal valid", valid.clone()),
@@ -593,7 +441,7 @@ pub(super) fn registry_binding_corpus() -> Vec<(&'static str, Value)> {
                 valid.clone(),
                 "registry",
                 json!({
-                    "owner": "acme",
+                    "publisher": "acme",
                     "trust_tier": "platinum",
                     "version": "1.0.0",
                     "profile_path": "profiles/s1",
@@ -620,60 +468,6 @@ pub(super) fn registry_binding_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn review_receipt_output_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "verdict": "needs_update",
-        "failure_summary": "the harness step failed because the prompt drifted",
-        "improvement_proposals": [{
-            "target": "SKILL.md",
-            "change": "tighten the output contract",
-            "rationale": "prevents drift",
-            "risk": "none",
-        }],
-        "next_harness_checks": ["output parses", "verdict present"],
-    });
-    vec![
-        ("full valid", valid.clone()),
-        ("valid pass (empty proposals)", {
-            let mut v = valid.clone();
-            v["verdict"] = json!("pass");
-            v["improvement_proposals"] = json!([]);
-            v
-        }),
-        ("valid with open extras", {
-            let mut v = valid.clone();
-            v["extra"] = json!("ok");
-            v["improvement_proposals"] = json!([{ "target": "t", "change": "c", "extra": 1 }]);
-            v
-        }),
-        ("missing verdict", drop_field(valid.clone(), "verdict")),
-        (
-            "missing failure_summary",
-            drop_field(valid.clone(), "failure_summary"),
-        ),
-        (
-            "missing next_harness_checks",
-            drop_field(valid.clone(), "next_harness_checks"),
-        ),
-        (
-            "unknown verdict",
-            set_field(valid.clone(), "verdict", json!("maybe")),
-        ),
-        (
-            "proposal missing change",
-            set_field(
-                valid.clone(),
-                "improvement_proposals",
-                json!([{ "target": "SKILL.md" }]),
-            ),
-        ),
-        (
-            "next_harness_checks as object",
-            set_field(valid.clone(), "next_harness_checks", json!({})),
-        ),
-    ]
-}
-
 fn agent_context_meta() -> Value {
     json!({
         "artifact_id": "art_1",
@@ -681,7 +475,7 @@ fn agent_context_meta() -> Value {
         "step_id": null,
         "producer": { "skill": "demo", "runner": "local" },
         "created_at": "2026-01-01T00:00:00Z",
-        "hash": "sha256:abc",
+        "digest": "sha256:abc",
         "size_bytes": 12,
         "parent_artifact_id": null,
         "receipt_id": null,
@@ -693,7 +487,7 @@ pub(super) fn agent_context_envelope_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "run_id": "run_1",
         "skill": "demo",
-        "instructions_sha256": "sha256:5fe4c181ed14ea09fbb32d86087a29f22a9dd0c35c5fc7c5bc7f6a4270d719ef",
+        "instructions_digest": "sha256:5fe4c181ed14ea09fbb32d86087a29f22a9dd0c35c5fc7c5bc7f6a4270d719ef",
         "instructions": "do the thing",
         "inputs": {},
         "requirements": {
@@ -724,10 +518,10 @@ pub(super) fn agent_context_envelope_corpus() -> Vec<(&'static str, Value)> {
             }]);
             v["provenance"] = json!([{ "input": "a", "output": "b", "from_step": "s0" }]);
             v["context"] = json!({
-                "memory": { "root_path": "/r", "path": "MEMORY.md", "sha256": "abc", "content": "x" },
+                "memory": { "root_path": "/r", "path": "MEMORY.md", "digest": "abc", "content": "x" },
             });
             v["voice_profile"] =
-                json!({ "root_path": "/r", "path": "voice.md", "sha256": "abc", "content": "" });
+                json!({ "root_path": "/r", "path": "voice.md", "digest": "abc", "content": "" });
             v["execution_location"] =
                 json!({ "skill_directory": "/skills/demo", "tool_roots": ["/tools"] });
             v["output"] =
@@ -783,14 +577,15 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
         "issuer": {
             "type": "local",
             "kid": "fixture-key",
-            "public_key_sha256": "sha256:abc",
+            "public_key_digest": "sha256:abc",
+            "runx_version": "0.11.0",
         },
         "signature": { "alg": "Ed25519", "value": "sig:abc" },
         "digest": "sha256:abc",
         "subject": {
             "kind": "step",
             "ref": a_ref(),
-            "outcome": format!("sha256:{}", "3".repeat(64)),
+            "outcome_digest": format!("sha256:{}", "3".repeat(64)),
         },
         "authority": {
             "actor_ref": a_ref(),
@@ -803,7 +598,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
         "decisions": [],
         "acts": [],
         "seal": {
-            "disposition": "closed",
+            "outcome": "completed",
             "criteria": [],
         },
         "lineage": { "children": [] },
@@ -873,7 +668,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
             set_field(
                 valid.clone(),
                 "issuer",
-                json!({ "type": "verifier", "kid": "k", "public_key_sha256": "sha256:x" }),
+                json!({ "type": "verifier", "kid": "k", "public_key_digest": "sha256:x", "runx_version": "0.11.0" }),
             ),
         ),
         (
@@ -898,7 +693,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
             ),
         ),
         (
-            "missing subject outcome",
+            "missing subject outcome digest",
             set_field(
                 valid.clone(),
                 "subject",
@@ -913,7 +708,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                 json!({
                     "kind": "skill",
                     "ref": a_ref(),
-                    "outcome": format!("sha256:{}", "3".repeat(64)),
+                    "outcome_digest": format!("sha256:{}", "3".repeat(64)),
                 }),
             ),
         ),
@@ -923,7 +718,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                 valid.clone(),
                 "seal",
                 json!({
-                    "disposition": "closed",
+                    "outcome": "completed",
                     "summary": "closed",
                     "criteria": [],
                 }),
@@ -935,7 +730,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                 valid.clone(),
                 "seal",
                 json!({
-                    "disposition": "closed",
+                    "outcome": "completed",
                     "reason": "process_closed",
                     "criteria": [],
                 }),
@@ -951,7 +746,7 @@ pub(super) fn receipt_corpus() -> Vec<(&'static str, Value)> {
                 valid.clone(),
                 "seal",
                 json!({
-                    "disposition": "closed",
+                    "outcome": "completed",
                     "criteria": [{
                         "criterion_id": "c1",
                         "status": "verified",
@@ -1005,7 +800,7 @@ pub(super) fn operational_policy_corpus() -> Vec<(&'static str, Value)> {
             "scafld_required": true,
         }],
         "dedupe": {
-            "strategy": "source_fingerprint",
+            "strategy": "source_digest",
             "key_fields": ["source_id"],
             "on_duplicate": "reuse",
         },
@@ -1081,7 +876,7 @@ pub(super) fn operational_proposal_corpus() -> Vec<(&'static str, Value)> {
         "source_event_id": "slack_event_123",
         "idempotency": {
             "key": "operational-proposal:slack_event_123:tracking-to-change:api-owner",
-            "fingerprint": "sha256:proposal-123-source-action-target",
+            "digest": "sha256:proposal-123-source-action-target",
         },
         "source_ref": {
             "type": "thread",
@@ -1264,7 +1059,7 @@ pub(super) fn orchestrator_execution_context_corpus() -> Vec<(&'static str, Valu
         (
             "full binding",
             json!({
-                "workflow_ref": "workflow:demo",
+                "workflow": "workflow:demo",
                 "platform": "n8n",
                 "event_id": "evt_demo_001",
                 "idempotency_key": "evt_demo_001",
@@ -1411,25 +1206,25 @@ pub(super) fn authority_subset_proof_corpus() -> Vec<(&'static str, Value)> {
 pub(super) fn act_assignment_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "schema": "runx.act_assignment.v1",
-        "skill_ref": "skill:1",
+        "skill": "skill:1",
         "runner": "local",
         "requested_at": "2026-01-01T00:00:00Z",
         "host": { "kind": "cli" },
         "idempotency": {
             "algorithm": "sha256",
             "intent_key": "sha256:intent",
-            "content_hash": "sha256:content",
+            "content_digest": "sha256:content",
         },
     });
     vec![
         ("minimal valid", valid.clone()),
         ("full valid", {
             let mut v = valid.clone();
-            v["source_ref"] = json!("runx:signal:1");
+            v["source_uri"] = json!("runx:signal:1");
             v["input_overrides"] = json!({ "k": 1 });
             v["host"] = json!({
                 "kind": "github_issue_comment",
-                "trigger_ref": "owner/repo#1",
+                "trigger_uri": "https://github.com/owner/repo/issues/1",
                 "scope_set": ["issues:write"],
                 "actor": { "actor_id": "u1", "display_name": "User" },
             });
@@ -1437,20 +1232,17 @@ pub(super) fn act_assignment_corpus() -> Vec<(&'static str, Value)> {
                 "algorithm": "sha256",
                 "intent_key": "sha256:intent",
                 "trigger_key": "sha256:trigger",
-                "content_hash": "sha256:content",
+                "content_digest": "sha256:content",
             });
             v
         }),
-        ("missing skill_ref", drop_field(valid.clone(), "skill_ref")),
+        ("missing skill", drop_field(valid.clone(), "skill")),
         ("missing schema", drop_field(valid.clone(), "schema")),
         (
             "missing idempotency",
             drop_field(valid.clone(), "idempotency"),
         ),
-        (
-            "empty skill_ref",
-            set_field(valid.clone(), "skill_ref", json!("")),
-        ),
+        ("empty skill", set_field(valid.clone(), "skill", json!(""))),
         (
             "empty runner",
             set_field(valid.clone(), "runner", json!("")),
@@ -1683,7 +1475,7 @@ fn agent_context_envelope() -> Value {
     json!({
         "run_id": "run_1",
         "skill": "demo",
-        "instructions_sha256": "sha256:5fe4c181ed14ea09fbb32d86087a29f22a9dd0c35c5fc7c5bc7f6a4270d719ef",
+        "instructions_digest": "sha256:5fe4c181ed14ea09fbb32d86087a29f22a9dd0c35c5fc7c5bc7f6a4270d719ef",
         "instructions": "do the thing",
         "inputs": {},
         "requirements": {
@@ -1994,7 +1786,7 @@ pub(super) fn signal_corpus() -> Vec<(&'static str, Value)> {
         "body_preview": "some body",
         "observed_at": "2026-01-01T00:00:00Z",
         "evidence_refs": [a_ref()],
-        "fingerprint": {
+        "digest": {
             "algorithm": "sha256",
             "canonicalization": "json-c14n",
             "value": "abc",
@@ -2083,7 +1875,7 @@ pub(super) fn source_packet_corpus() -> Vec<(&'static str, Value)> {
         "redaction_status": "redacted",
         "workflow_inputs": { "severity": "high", "service": "charges" },
         "adapter_payload": { "raw_id": "1234", "channel": "ops" },
-        "fingerprint": {
+        "digest": {
             "algorithm": "sha256",
             "canonicalization": "json-c14n",
             "value": "abc",
@@ -2172,7 +1964,7 @@ fn a_ref() -> Value {
     json!({ "type": "act", "uri": "runx:act:1" })
 }
 
-fn hash_commitment() -> Value {
+fn digest_commitment() -> Value {
     json!({ "algorithm": "sha256", "value": "abc", "canonicalization": "json-c14n" })
 }
 
@@ -2266,70 +2058,6 @@ pub(super) fn doctor_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn redaction_corpus() -> Vec<(&'static str, Value)> {
-    let valid = json!({
-        "schema": "runx.redaction.v1",
-        "redaction_id": "red_1",
-        "policy_ref": a_ref(),
-        "redacted_fields": ["a", "b"],
-        "hash_commitments": [hash_commitment()],
-        "canonicalization": "json-c14n",
-        "performed_by_ref": a_ref(),
-        "performed_at": "2026-01-01T00:00:00Z",
-    });
-    vec![
-        ("full valid", valid.clone()),
-        (
-            "minimal valid",
-            json!({
-                "schema": "runx.redaction.v1",
-                "redaction_id": "red_1",
-                "policy_ref": a_ref(),
-                "redacted_fields": [],
-                "hash_commitments": [],
-                "canonicalization": "json-c14n",
-                "performed_by_ref": a_ref(),
-                "performed_at": "2026-01-01T00:00:00Z",
-            }),
-        ),
-        ("missing schema", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "schema");
-            v
-        }),
-        ("missing redaction_id", {
-            let mut v = valid.clone();
-            remove_field(&mut v, "redaction_id");
-            v
-        }),
-        ("empty redaction_id", {
-            let mut v = valid.clone();
-            v["redaction_id"] = json!("");
-            v
-        }),
-        ("empty canonicalization", {
-            let mut v = valid.clone();
-            v["canonicalization"] = json!("");
-            v
-        }),
-        ("empty redacted_fields item", {
-            let mut v = valid.clone();
-            v["redacted_fields"] = json!([""]);
-            v
-        }),
-        ("malformed performed_at", {
-            let mut v = valid.clone();
-            v["performed_at"] = json!("not-a-timestamp");
-            v
-        }),
-        ("additional property", {
-            let mut v = valid.clone();
-            v["bogus"] = json!(true);
-            v
-        }),
-    ]
-}
-
 pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "schema": "runx.artifact.v1",
@@ -2339,7 +2067,7 @@ pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
         "media_type": "text/plain",
         "created_at": "2026-01-01T00:00:00Z",
         "size_bytes": 12,
-        "hash": hash_commitment(),
+        "digest": digest_commitment(),
         "redaction_refs": [],
         "source_refs": [],
     });
@@ -2349,7 +2077,7 @@ pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
             let mut v = valid.clone();
             v["produced_by"] = json!({
                 "receipt_ref": a_ref(),
-                "act_ref": { "receipt_ref": a_ref(), "act_id": "act_1" },
+                "act": { "receipt_ref": a_ref(), "act_id": "act_1" },
             });
             v["data_ref"] = a_ref();
             v["summary"] = json!("a summary");
@@ -2368,7 +2096,7 @@ pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
         }),
         ("missing hash", {
             let mut v = valid.clone();
-            remove_field(&mut v, "hash");
+            remove_field(&mut v, "digest");
             v
         }),
         ("empty artifact_id", {
@@ -2388,7 +2116,7 @@ pub(super) fn artifact_corpus() -> Vec<(&'static str, Value)> {
         }),
         ("empty hash value", {
             let mut v = valid.clone();
-            v["hash"] = json!({ "algorithm": "sha256", "value": "", "canonicalization": "c" });
+            v["digest"] = json!({ "algorithm": "sha256", "value": "", "canonicalization": "c" });
             v
         }),
         ("additional property", {
@@ -2517,14 +2245,12 @@ pub(super) fn run_event_corpus() -> Vec<(&'static str, Value)> {
         ),
         (
             "valid seal",
-            event(
-                json!({ "kind": "sealed", "disposition": "superseded", "receipt_id": "sha256:run" }),
-            ),
+            event(json!({ "kind": "sealed", "outcome": "superseded", "receipt_id": "sha256:run" })),
         ),
         (
             "an event never carries an output",
             event(
-                json!({ "kind": "sealed", "disposition": "closed", "receipt_id": "sha256:run", "output": {} }),
+                json!({ "kind": "sealed", "outcome": "completed", "receipt_id": "sha256:run", "output": {} }),
             ),
         ),
         (
@@ -2546,8 +2272,8 @@ pub(super) fn run_event_corpus() -> Vec<(&'static str, Value)> {
                     "outputs": [{
                         "output": "file_read",
                         "artifact": {
-                            "schema": "runx.project_artifact_ref.v1",
-                            "ref": "runx:project-artifact:sha256:out",
+                            "schema": "runx.project_artifact.v1",
+                            "uri": "runx:project-artifact:sha256:out",
                             "digest": "sha256:out",
                             "bytes": 12,
                             "media_type": "application/json",
@@ -2603,7 +2329,7 @@ pub(super) fn run_read_corpus() -> Vec<(&'static str, Value)> {
                 "run",
                 json!({
                     "run_id": "run_1", "skill": "reply", "runner": "reply", "state": "sealed",
-                    "disposition": "closed", "receipt_id": "sha256:run",
+                    "outcome": "completed", "receipt_id": "sha256:run",
                     "package_digest": "sha256:package", "execution_closure_digest": "sha256:closure",
                     "driver": "managed", "driven": false,
                     "created_at": "2026-10-14T00:00:00Z", "updated_at": "2026-10-14T00:00:02Z",

@@ -1,4 +1,4 @@
-use runx_contracts::{ClosureDisposition, JsonValue, Receipt, ReceiptSchema, SealReason};
+use runx_contracts::{JsonValue, Receipt, ReceiptSchema, RunOutcome, SealReason};
 use runx_receipts::{
     ReceiptProofContextProvider, canonical_receipt_body_digest, canonical_receipt_digest,
     verify_receipt_proof,
@@ -16,14 +16,14 @@ use replayed_answers::assert_caller_answers_replayed;
 #[derive(Clone, Debug, PartialEq)]
 pub struct HarnessReplayReceipt {
     pub receipt_id: String,
-    pub subject_ref: String,
+    pub subject_uri: String,
     pub state: String,
-    pub disposition: ClosureDisposition,
+    pub outcome: RunOutcome,
     pub reason: Option<SealReason>,
     pub act_ids: Vec<String>,
     pub decision_ids: Vec<String>,
-    pub child_receipt_refs: Vec<String>,
-    pub verification_refs: Vec<String>,
+    pub child_receipt_uris: Vec<String>,
+    pub verification_uris: Vec<String>,
 }
 
 pub(super) fn assert_expectations(
@@ -92,16 +92,16 @@ pub(crate) fn assert_exchanges_requested(unrequested: &[String]) -> Result<(), H
     })
 }
 
-pub(super) fn status_from_disposition(disposition: &ClosureDisposition) -> HarnessExpectedStatus {
-    match disposition {
-        ClosureDisposition::Closed => HarnessExpectedStatus::Sealed,
-        ClosureDisposition::Deferred => HarnessExpectedStatus::NeedsAgent,
-        ClosureDisposition::Blocked => HarnessExpectedStatus::PolicyDenied,
-        ClosureDisposition::TimedOut
-        | ClosureDisposition::Declined
-        | ClosureDisposition::Failed
-        | ClosureDisposition::Killed
-        | ClosureDisposition::Superseded => HarnessExpectedStatus::Failure,
+pub(super) fn status_from_outcome(outcome: &RunOutcome) -> HarnessExpectedStatus {
+    match outcome {
+        RunOutcome::Completed => HarnessExpectedStatus::Sealed,
+        RunOutcome::Deferred => HarnessExpectedStatus::NeedsAgent,
+        RunOutcome::Blocked => HarnessExpectedStatus::PolicyDenied,
+        RunOutcome::TimedOut
+        | RunOutcome::Declined
+        | RunOutcome::Failed
+        | RunOutcome::Killed
+        | RunOutcome::Superseded => HarnessExpectedStatus::Failure,
     }
 }
 
@@ -126,7 +126,7 @@ pub(crate) fn assert_receipt_expectation(
         assert_equal(
             "expect.receipt.child_receipt_count",
             expected_count.to_string(),
-            summary.child_receipt_refs.len().to_string(),
+            summary.child_receipt_uris.len().to_string(),
         )?;
     }
     assert_receipt_digests(expected, actual)
@@ -136,11 +136,11 @@ fn assert_receipt_identity(
     expected: &ReceiptExpectation,
     summary: &HarnessReplayReceipt,
 ) -> Result<(), HarnessReplayError> {
-    if let Some(expected_subject_ref) = &expected.subject_ref {
+    if let Some(expected_subject_uri) = &expected.subject_uri {
         assert_equal(
-            "expect.receipt.subject_ref",
-            expected_subject_ref,
-            &summary.subject_ref,
+            "expect.receipt.subject_uri",
+            expected_subject_uri,
+            &summary.subject_uri,
         )?;
     }
     if let Some(expected_state) = &expected.state {
@@ -150,11 +150,11 @@ fn assert_receipt_identity(
             summary.state.as_str(),
         )?;
     }
-    if let Some(expected_disposition) = &expected.disposition {
+    if let Some(expected_outcome) = expected.outcome {
         assert_equal(
-            "expect.receipt.disposition",
-            disposition_name(expected_disposition),
-            disposition_name(&summary.disposition),
+            "expect.receipt.outcome",
+            expected_outcome.label(),
+            summary.outcome.label(),
         )?;
     }
     if let Some(expected_reason) = expected.reason {
@@ -183,14 +183,14 @@ fn assert_receipt_lists(
             &summary.decision_ids,
         ),
         (
-            "expect.receipt.child_receipt_refs",
-            &expected.child_receipt_refs,
-            &summary.child_receipt_refs,
+            "expect.receipt.child_receipt_uris",
+            &expected.child_receipt_uris,
+            &summary.child_receipt_uris,
         ),
         (
-            "expect.receipt.verification_refs",
-            &expected.verification_refs,
-            &summary.verification_refs,
+            "expect.receipt.verification_uris",
+            &expected.verification_uris,
+            &summary.verification_uris,
         ),
     ] {
         if let Some(expected) = expected {
@@ -247,16 +247,16 @@ fn receipt_digest_error(error: runx_receipts::ReceiptError) -> HarnessReplayErro
 }
 
 fn summarize_receipt(receipt: &Receipt) -> HarnessReplayReceipt {
-    let state = if matches!(receipt.seal.disposition, ClosureDisposition::Deferred) {
+    let state = if matches!(receipt.seal.outcome, RunOutcome::Deferred) {
         "deferred".to_owned()
     } else {
         "sealed".to_owned()
     };
     HarnessReplayReceipt {
         receipt_id: receipt.id.to_string(),
-        subject_ref: receipt.subject.reference.uri.clone().into_string(),
+        subject_uri: receipt.subject.reference.uri.clone().into_string(),
         state,
-        disposition: receipt.seal.disposition.clone(),
+        outcome: receipt.seal.outcome,
         reason: receipt.seal.reason,
         act_ids: receipt.acts.iter().map(|act| act.id.to_string()).collect(),
         decision_ids: receipt
@@ -264,13 +264,13 @@ fn summarize_receipt(receipt: &Receipt) -> HarnessReplayReceipt {
             .iter()
             .map(|decision| decision.decision_id.as_str().to_owned())
             .collect(),
-        child_receipt_refs: receipt
+        child_receipt_uris: receipt
             .lineage
             .children
             .iter()
             .map(|reference| reference.uri.clone().into_string())
             .collect(),
-        verification_refs: receipt
+        verification_uris: receipt
             .seal
             .criteria
             .iter()
@@ -313,19 +313,6 @@ fn assert_equal(
 fn schema_name(schema: &ReceiptSchema) -> &'static str {
     match schema {
         ReceiptSchema::V1 => "runx.receipt.v1",
-    }
-}
-
-fn disposition_name(disposition: &ClosureDisposition) -> &'static str {
-    match disposition {
-        ClosureDisposition::Closed => "closed",
-        ClosureDisposition::Deferred => "deferred",
-        ClosureDisposition::Superseded => "superseded",
-        ClosureDisposition::Declined => "declined",
-        ClosureDisposition::Blocked => "blocked",
-        ClosureDisposition::Failed => "failed",
-        ClosureDisposition::Killed => "killed",
-        ClosureDisposition::TimedOut => "timed_out",
     }
 }
 

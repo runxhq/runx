@@ -1,0 +1,52 @@
+{
+  "$id": "https://schemas.runx.ai/runx/git/show/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `git.show` reports: one revision, or one file at it, as bounded text.",
+  "properties": {
+    "files": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "omitted": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "path": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "revision": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "repo_root",
+    "revision",
+    "text",
+    "files",
+    "omitted",
+    "truncated"
+  ],
+  "title": "GitShow",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.git.show.v1"
+}

@@ -4,6 +4,7 @@
   "additionalProperties": false,
   "properties": {
     "choice": {
+      "description": "The decisions a governed call can carry out.",
       "enum": [
         "continue",
         "escalate",
@@ -12,6 +13,7 @@
         "decline",
         "monitor"
       ],
+      "title": "DecisionChoice",
       "type": "string"
     },
     "decision_id": {
@@ -19,6 +21,7 @@
       "type": "string"
     },
     "selected_act_id": {
+      "description": "The act the decision is carried out by. Its intent, target and artifacts are that act's.",
       "minLength": 1,
       "type": "string"
     }
@@ -28,6 +31,7 @@
     "choice",
     "selected_act_id"
   ],
+  "title": "Decision",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.decision.v1"

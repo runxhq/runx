@@ -11,9 +11,9 @@ inputs:
   target: example/service
   objective: choose today's remediation priority
   cve_evidence:
-    receipt_ref: runx:receipt:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    receipt_id: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     audit_result:
-      schema: runx.security.exact_cve_audit.v1
+      schema: runx/cve-audit.audit.v1
       target:
         name: example/service
         commit: 1111111111111111111111111111111111111111

@@ -3,7 +3,7 @@ use std::io::BufReader;
 use std::process::{Command, Stdio};
 
 use runx_js_worker::protocol::{
-    InvocationLimits, MAX_FRAME_BYTES, MAX_WORKER_POOL_SIZE, PROTOCOL_VERSION, WorkerDisposition,
+    InvocationLimits, MAX_FRAME_BYTES, MAX_WORKER_POOL_SIZE, PROTOCOL_VERSION, WorkerFate,
     WorkerInvocationRequest, WorkerRequest, WorkerResponse, read_frame, write_frame,
 };
 
@@ -188,7 +188,7 @@ fn packaged_worker_rejects_a_protocol_version_mismatch() -> Result<(), Box<dyn s
         Some(WorkerResponse::Failure {
             protocol_version: PROTOCOL_VERSION,
             invocation_id: None,
-            disposition: WorkerDisposition::Discard,
+            fate: WorkerFate::Discard,
             ..
         })
     ));

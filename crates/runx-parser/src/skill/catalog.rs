@@ -17,9 +17,9 @@ const CATALOG_FIELDS: &[&str] = &[
     "execution",
     "kind",
     "links",
-    "owner",
     "part_of",
     "provider",
+    "publisher",
     "role",
     "tags",
     "visibility",
@@ -184,10 +184,10 @@ pub struct CatalogMetadata {
     pub category: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
-    /// The registry namespace a contributed package publishes under; absent,
-    /// the package belongs to the publishing owner.
+    /// The publisher a contributed package publishes under; absent, the
+    /// package belongs to whoever publishes it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub owner: Option<String>,
+    pub publisher: Option<String>,
     /// Named reference URLs, such as the package's source repository.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub links: BTreeMap<String, String>,
@@ -538,7 +538,7 @@ pub(crate) fn validate_catalog_metadata(
         .map_err(|reason| FIELDS.validation_error(format!("{label}.category: {reason}")))?;
     }
     let tags = parse_catalog_tags(&value, label)?;
-    let owner = parse_catalog_owner(&value, label)?;
+    let publisher = parse_catalog_publisher(&value, label)?;
     let links = parse_catalog_links(&value, label)?;
     Ok(Some(CatalogMetadata {
         kind,
@@ -553,7 +553,7 @@ pub(crate) fn validate_catalog_metadata(
         approval,
         category,
         tags,
-        owner,
+        publisher,
         links,
     }))
 }
@@ -577,24 +577,27 @@ fn parse_catalog_tags(value: &JsonObject, label: &str) -> Result<Vec<String>, Va
     Ok(tags)
 }
 
-fn parse_catalog_owner(value: &JsonObject, label: &str) -> Result<Option<String>, ValidationError> {
-    let field = format!("{label}.owner");
-    let Some(owner) = FIELDS.optional_string(value.get("owner"), &field)? else {
+fn parse_catalog_publisher(
+    value: &JsonObject,
+    label: &str,
+) -> Result<Option<String>, ValidationError> {
+    let field = format!("{label}.publisher");
+    let Some(publisher) = FIELDS.optional_string(value.get("publisher"), &field)? else {
         return Ok(None);
     };
     // `^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$`
     let alphanumeric = |byte: &u8| byte.is_ascii_lowercase() || byte.is_ascii_digit();
-    let canonical = owner.as_bytes().first().is_some_and(alphanumeric)
-        && owner.as_bytes().last().is_some_and(alphanumeric)
-        && owner
+    let canonical = publisher.as_bytes().first().is_some_and(alphanumeric)
+        && publisher.as_bytes().last().is_some_and(alphanumeric)
+        && publisher
             .bytes()
             .all(|byte| alphanumeric(&byte) || matches!(byte, b'.' | b'_' | b'-'));
     if !canonical {
         return Err(FIELDS.validation_error(format!(
-            "{field} must be a canonical lowercase registry namespace."
+            "{field} must be a canonical lowercase publisher slug."
         )));
     }
-    Ok(Some(owner))
+    Ok(Some(publisher))
 }
 
 fn parse_catalog_links(

@@ -286,9 +286,9 @@ fn run_install(
             status: "success",
             registry: output::RegistryPayload::Install {
                 source,
-                r#ref: requested,
+                package: requested,
                 install: Box::new(install),
-                package_digest: candidate.package_digest.clone(),
+                bundle_digest: candidate.bundle_digest.clone(),
                 acquisition: acquisition.map(|acquired| output::InstallAcquisition {
                     publisher: acquired.publisher,
                     install_count: acquired.install_count,
@@ -364,7 +364,7 @@ fn run_publish(
                 &package.markdown,
                 PublishSkillMarkdownOptions {
                     ingest: IngestSkillOptions {
-                        owner: plan.publisher,
+                        publisher_slug: plan.publisher,
                         version: plan.version,
                         profile_document: package.profile_document,
                         package_files: package.package_files,

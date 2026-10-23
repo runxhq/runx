@@ -1,0 +1,1 @@
+{"description":"A change of terms is a typed domain refusal.","expectation":"valid","operation":"QuotePurchase","payload":{"code":"terms_changed","reason":"The offer version no longer matches.","status":"refused"},"schema_id":"runx.payment.quote_purchase.result.v1"}

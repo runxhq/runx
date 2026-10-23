@@ -170,7 +170,7 @@ fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std:
             slow.result,
             WorkerInvocationResult::Failure {
                 ref message,
-                disposition: runx_contracts::javascript_worker::WorkerDisposition::Discard,
+                fate: runx_contracts::javascript_worker::WorkerFate::Discard,
             } if message.contains("exceeded 1 ms wall limit")
         ),
         "timed-out invocation must be a typed wall-limit failure"

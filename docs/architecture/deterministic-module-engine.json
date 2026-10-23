@@ -128,7 +128,7 @@
         "in_memory_imports": "not_proven",
         "evidence": "The built module had zero imports and produced the expected JavaScript result in 1,000 fresh instances."
       },
-      "disposition": "rejected",
+      "verdict": "rejected",
       "reason": "It adds a second compilation/runtime layer, a 6.7 MB guest plus an 11.9 MB probe host, and roughly 220 MB probe RSS without improving the required session-worker contract enough to justify that operational cost."
     },
     {
@@ -176,7 +176,7 @@
         "in_memory_imports": "not_proven",
         "evidence": "The probe created 1,000 fresh runtime/context pairs with no process, fetch, or require globals and explicit heap/stack limits."
       },
-      "disposition": "rejected",
+      "verdict": "rejected",
       "reason": "It is the fastest and smallest probe, but it makes a C engine and per-target C toolchain part of the release and security surface, while deterministic clock and all-target hostile-module evidence remain unresolved."
     },
     {
@@ -225,7 +225,7 @@
         "in_memory_imports": "passed",
         "evidence": "The probe fixed Date at zero, exposed no process/fetch/require globals, stopped an infinite loop, resolved a relative in-memory module, and ran 1,000 fresh contexts."
       },
-      "disposition": "selected",
+      "verdict": "selected",
       "reason": "It is the only candidate that combines a memory-safe engine, no built-in host authority, deterministic clock control, in-memory modules, engine-level termination, and source-level portability across every Runx release target."
     }
   ],
@@ -265,5 +265,5 @@
       }
     ]
   },
-  "decision_sha256": "sha256:65d48defd9aab3d602d7c31ae105be3e3add6ea448a1a5ca623b114a88eac5e0"
+  "decision_digest": "sha256:ef613578387b86597edbb2d5a75db73cefb61b42526c33490da1625bd4000aa5"
 }

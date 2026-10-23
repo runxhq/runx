@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
-use crate::{ArtifactContract, EnvironmentRequirements, IdempotencyPolicy, InputDefinition};
+use crate::{ArtifactDeclaration, EnvironmentRequirements, IdempotencyPolicy, InputDefinition};
 
 pub const TOOL_MANIFEST_SCHEMA: &str = "runx.tool.manifest.v1";
 pub const TOOL_BUILD_REPORT_SCHEMA: &str = "runx.tool.build.v1";
@@ -61,7 +61,7 @@ pub struct ToolManifest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub artifacts: Option<ArtifactContract>,
+    pub artifacts: Option<ArtifactDeclaration>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency: Option<ToolIdempotencyPolicy>,
 }
@@ -104,8 +104,8 @@ pub struct RuntimeCommand {
 pub struct BuiltToolItem {
     pub path: String,
     pub manifest: String,
-    pub source_hash: String,
-    pub schema_hash: String,
+    pub source_digest: String,
+    pub schema_digest: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -137,7 +137,7 @@ pub struct ToolCatalogSearchResult {
     pub external_name: String,
     pub required_scopes: Vec<String>,
     pub tags: Vec<String>,
-    pub catalog_ref: String,
+    pub catalog_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -152,8 +152,6 @@ pub struct ToolCatalogSearchReport {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolInspectResult {
-    #[serde(rename = "ref")]
-    pub tool_ref: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -178,8 +176,7 @@ pub struct ToolInspectReport {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolInspectOptions {
-    #[serde(rename = "ref")]
-    pub tool_ref: String,
+    pub tool: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -199,7 +196,7 @@ pub struct ToolInspectProvenance {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub catalog_ref: Option<String>,
+    pub catalog_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -261,7 +258,7 @@ mod tests {
         assert_eq!(encoded["source"]["timeout_seconds"], 30);
         assert!(encoded.get("runtime").is_none());
         assert!(encoded.get("output").is_none());
-        assert!(encoded.get("source_hash").is_none());
+        assert!(encoded.get("source_digest").is_none());
         Ok(())
     }
 
@@ -322,8 +319,8 @@ mod tests {
               "built": [{
                 "path": "tools/demo/echo",
                 "manifest": "tools/demo/echo/manifest.json",
-                "source_hash": "sha256:source",
-                "schema_hash": "sha256:schema"
+                "source_digest": "sha256:source",
+                "schema_digest": "sha256:schema"
               }],
               "errors": []
             }"#,
@@ -348,11 +345,11 @@ mod tests {
               "external_name": "read",
               "required_scopes": ["fs.read"],
               "tags": ["native"],
-              "catalog_ref": "runx-runtime/filesystem:fs.read"
+              "catalog_id": "runx-runtime/filesystem:fs.read"
             }"#,
         )?;
 
-        assert_eq!(result.catalog_ref, "runx-runtime/filesystem:fs.read");
+        assert_eq!(result.catalog_id, "runx-runtime/filesystem:fs.read");
         assert_eq!(result.required_scopes, ["fs.read"]);
         Ok(())
     }
@@ -361,7 +358,6 @@ mod tests {
     fn tool_inspect_result_uses_provenance_shape() -> Result<(), serde_json::Error> {
         let result: ToolInspectResult = serde_json::from_str(
             r#"{
-              "ref": "fs.read",
               "name": "fs.read",
               "execution": "native",
               "inputs": {},
@@ -372,12 +368,12 @@ mod tests {
                 "origin": "native",
                 "source": "runx-runtime/filesystem",
                 "source_label": "runx-runtime/filesystem",
-                "catalog_ref": "runx-runtime/filesystem:fs.read"
+                "catalog_id": "runx-runtime/filesystem:fs.read"
               }
             }"#,
         )?;
 
-        assert_eq!(result.tool_ref, "fs.read");
+        assert_eq!(result.name, "fs.read");
         assert_eq!(
             result.provenance,
             ToolInspectProvenance {
@@ -386,7 +382,7 @@ mod tests {
                 source_label: Some("runx-runtime/filesystem".to_owned()),
                 namespace: None,
                 external_name: None,
-                catalog_ref: Some("runx-runtime/filesystem:fs.read".to_owned()),
+                catalog_id: Some("runx-runtime/filesystem:fs.read".to_owned()),
                 tool_id: None,
                 tags: None,
             }

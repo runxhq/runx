@@ -534,6 +534,33 @@ fn a_connector_that_cannot_be_read_fails_only_what_reaches_it() {
     assert!(scope.credential_variables().is_err());
 }
 
+/// A manifest whose YAML this runtime cannot parse, a leaf's or a surface's,
+/// is named where it lives and fails only what reaches it (#557).
+#[test]
+fn a_manifest_this_runtime_cannot_parse_fails_only_what_reaches_it() {
+    let root = tempfile::tempdir().unwrap();
+    let skill = root.path().join("skills/records");
+    std::fs::create_dir_all(&skill).unwrap();
+    let connectors = root.path().join("connectors");
+    write_plugin_connector(&connectors, "acme");
+    let unparsed = "schema: runx.connector.v1\nid: later\noperations:\n  read:\n    amount: !newer {units: 1}\n";
+    for directory in ["later", "vendor/later"] {
+        let dir = connectors.join(directory);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("connector.yaml"), unparsed).unwrap();
+    }
+    let scope = ConnectorScope::at(&skill).unwrap();
+
+    assert_eq!(scope.connector("acme").unwrap().name.as_str(), "acme");
+    for name in ["later", "vendor/later"] {
+        assert!(matches!(
+            scope.connector(name),
+            Err(ConnectorRegistryError::InvalidManifest { path, .. })
+                if path.ends_with(format!("{name}/connector.yaml"))
+        ));
+    }
+}
+
 /// A project install that does not load is skipped when the credential
 /// variables in reach are read: nothing can bind it, and a skill that only
 /// declares ordinary environment must not fail on it.

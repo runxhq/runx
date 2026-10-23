@@ -28,8 +28,8 @@ fn hosted_step_receipt_uses_real_ed25519_signature() -> Result<(), Box<dyn Error
 
     assert_eq!(receipt.issuer.kid, FIXTURE_KID);
     assert_eq!(
-        receipt.issuer.public_key_sha256,
-        signer.trusted_key().public_key_sha256()
+        receipt.issuer.public_key_digest,
+        signer.trusted_key().public_key_digest()
     );
     assert!(receipt.signature.value.starts_with("base64:"));
     assert!(!serde_json::to_string(&receipt)?.contains("QkJCQkJC"));
@@ -165,14 +165,16 @@ fn sealing_rejects_an_issuer_its_verifier_does_not_hold() -> Result<(), Box<dyn 
         issuer: ReceiptIssuer {
             issuer_type: ReceiptIssuerType::Hosted,
             kid: " ".into(),
-            public_key_sha256: signer.trusted_key().public_key_sha256().into(),
+            public_key_digest: signer.trusted_key().public_key_digest().into(),
+            runx_version: runx_runtime::RUNX_VERSION.into(),
         },
     };
     let wrong_hash = FixedSigner {
         issuer: ReceiptIssuer {
             issuer_type: ReceiptIssuerType::Hosted,
             kid: FIXTURE_KID.into(),
-            public_key_sha256: format!("sha256:{}", "1".repeat(64)).into(),
+            public_key_digest: format!("sha256:{}", "1".repeat(64)).into(),
+            runx_version: runx_runtime::RUNX_VERSION.into(),
         },
     };
 
@@ -213,9 +215,12 @@ fn verifier_reports_tamper_findings() -> Result<(), Box<dyn Error>> {
     assert_finding(&verification, ReceiptFindingCode::SignatureKeyMissing);
 
     let mut hash_mismatch = receipt.clone();
-    hash_mismatch.issuer.public_key_sha256 = format!("sha256:{}", "1".repeat(64)).into();
+    hash_mismatch.issuer.public_key_digest = format!("sha256:{}", "1".repeat(64)).into();
     let verification = verify_receipt_proof(&hash_mismatch, &proof_context(&verifier));
-    assert_finding(&verification, ReceiptFindingCode::SignatureKeyHashMismatch);
+    assert_finding(
+        &verification,
+        ReceiptFindingCode::SignatureKeyDigestMismatch,
+    );
 
     let mut missing_verifier = receipt;
     refresh_digest_and_signature(&mut missing_verifier, &signer)?;

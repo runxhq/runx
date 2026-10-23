@@ -108,12 +108,13 @@ impl LocalArtifactService {
             .as_file_mut()
             .sync_all()
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
-        let reference = artifact_reference(&self.namespace, media_type, bytes, &whole_digest);
+        let reference =
+            artifact_reference(&self.namespace, media_type, bytes, whole_digest.as_str());
         let descriptor = LocalArtifact {
             reference: reference.clone(),
             media_type: media_type.to_owned(),
             bytes,
-            whole_digest,
+            whole_digest: whole_digest.into_string(),
         };
         let stored = Arc::new(StoredArtifact {
             descriptor: descriptor.clone(),

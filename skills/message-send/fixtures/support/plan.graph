@@ -8,14 +8,14 @@ steps:
       principal: account:growth-demo
       provider_context:
         provider: slack
-        account_ref: acct_demo
+        account_id: acct_demo
         runtime_path: provider.send
         domain_verified: true
       audience:
         type: list
-        ref: newsletter-subscribers
-      content_ref:
-        draft_ref: campaign:jun-newsletter
+        locator: newsletter-subscribers
+      content:
+        draft_uri: campaign:jun-newsletter
         digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         subject_or_title: June product update
       consent_basis: Subscribers opted in to the newsletter list.

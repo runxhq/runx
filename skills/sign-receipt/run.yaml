@@ -1,8 +1,8 @@
 skill: sign-receipt
-version: "0.3.3"
+version: "0.3.4"
 
 catalog:
-  owner: runx
+  publisher: runx
   kind: skill
   audience: public
   visibility: public
@@ -23,7 +23,7 @@ runners:
       evidence:
         type: json
         required: true
-        description: Opaque references, sha256 digests, and what each reference proves.
+        description: Opaque references, sha256 digests, and what each locator proves.
       principal:
         type: string
         required: true

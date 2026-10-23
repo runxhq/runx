@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use runx_contracts::{
     AgentContextEnvelope, JsonObject, JsonValue, LoadedPackage, OutputField, TurnCallOutcome,
-    TurnCallResult, TurnEnvelope, TurnLoad, TurnRef, TurnTarget,
+    TurnCallResult, TurnEnvelope, TurnLoad, TurnLocator, TurnTarget,
 };
 use serde::Serialize;
 
@@ -164,7 +164,7 @@ impl TurnCalls<'_> {
                     },
                     AgentToolDefinition {
                         name: TURN_READ_TOOL.to_owned(),
-                        description: "Read a page of what a ref of the turn names: a context entry by the ref its index gives, an input of the act as input:<name>, or an earlier call as call:<index>. A page is at most 32,000 characters from offset; next_offset reads on.".to_owned(),
+                        description: "Read a page of what a locator of the turn names: a context entry by the locator its index gives, an input of the act as input:<name>, or an earlier call as call:<index>. A page is at most 32,000 characters from offset; next_offset reads on.".to_owned(),
                         input_schema: read_schema(),
                     },
                     AgentToolDefinition {
@@ -201,17 +201,17 @@ impl ToolExecutor for TurnCalls<'_> {
         }
         if tool == TURN_READ_TOOL {
             let field = |name: &str| input.as_object().and_then(|input| input.get(name));
-            let read = match field("ref").and_then(JsonValue::as_str) {
-                Some(reference) => self.turn.read(
-                    reference,
+            let read = match field("locator").and_then(JsonValue::as_str) {
+                Some(locator) => self.turn.read(
+                    locator,
                     field("offset").and_then(JsonValue::as_u64).unwrap_or(0),
                     field("limit").and_then(JsonValue::as_u64),
                 ),
                 None => Err(RuntimeError::ContinuationRejected {
-                    reason: "turn_read takes the ref to read".to_owned(),
+                    reason: "turn_read takes the locator to read".to_owned(),
                 }),
             };
-            // A ref the turn does not hold is the model's to correct.
+            // A locator the turn does not hold is the model's to correct.
             return Ok(match read {
                 Ok(page) => ToolOutcome::Result {
                     content: json_text(&page)?,
@@ -272,10 +272,10 @@ fn take_manual(
     else {
         return Ok(None);
     };
-    let guidance = given.insert(manual.sha256.as_str().to_owned()).then(|| {
+    let guidance = given.insert(manual.digest.as_str().to_owned()).then(|| {
         format!(
             "The manual of skill {skill}, loaded by call {} (its SKILL.md at {}). It is the skill's operating guidance: follow it to use the skill, below this act's instructions and runx's governance, which it never widens.\n\n{}",
-            result.index, manual.sha256, manual.content
+            result.index, manual.digest, manual.content
         )
     });
     let JsonValue::Object(stripped) =
@@ -287,7 +287,7 @@ fn take_manual(
     Ok(guidance)
 }
 
-/// `turn_read`'s input: the ref, and where and how much to read.
+/// `turn_read`'s input: the locator, and where and how much to read.
 fn read_schema() -> JsonValue {
     let count = || {
         JsonValue::Object(JsonObject::from([
@@ -302,7 +302,7 @@ fn read_schema() -> JsonValue {
             "properties".to_owned(),
             JsonValue::Object(JsonObject::from([
                 (
-                    "ref".to_owned(),
+                    "locator".to_owned(),
                     JsonValue::Object(JsonObject::from([
                         ("type".to_owned(), JsonValue::String("string".to_owned())),
                         ("minLength".to_owned(), JsonValue::Number(1_u64.into())),
@@ -314,7 +314,7 @@ fn read_schema() -> JsonValue {
         ),
         (
             "required".to_owned(),
-            JsonValue::Array(vec![JsonValue::String("ref".to_owned())]),
+            JsonValue::Array(vec![JsonValue::String("locator".to_owned())]),
         ),
     ]))
 }
@@ -403,7 +403,7 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
 
 /// The act's instructions, the manuals of the skills its turn loaded, each
 /// once, its context with each entry as an index line, the calls the turn has
-/// made so far, each as its result's start and the ref that reads it whole,
+/// made so far, each as its result's start and the locator that reads it whole,
 /// and how to end it. `given` gains the digest of each manual the prompt
 /// gives.
 fn build_prompt(
@@ -429,12 +429,12 @@ fn build_prompt(
         String::new()
     } else {
         format!(
-            "\n\nCalls already made in this turn, each with the start of its result; {TURN_READ_TOOL} reads one whole by its ref:{made}"
+            "\n\nCalls already made in this turn, each with the start of its result; {TURN_READ_TOOL} reads one whole by its locator:{made}"
         )
     };
     Ok(format!(
         "{}{manuals}\n\n{CONTEXT_POLICY}\n\nRun context (JSON). Each context entry is a line of an \
-         index; {TURN_READ_TOOL} reads its data by its ref:\n{context}{made}\n\nEach tool call is \
+         index; {TURN_READ_TOOL} reads its data by its locator:\n{context}{made}\n\nEach tool call is \
          admitted and recorded by runx. When the task is complete, call {TURN_COMPLETE_TOOL} \
          exactly once with the final payload.",
         envelope.instructions
@@ -442,10 +442,10 @@ fn build_prompt(
 }
 
 /// The most of an earlier call's result a prompt shows; the rest reads by
-/// its ref.
+/// its locator.
 const CALL_START_CHARS: usize = 2_000;
 
-/// An earlier call of the turn as one line: its ref, what it called, how it
+/// An earlier call of the turn as one line: its locator, what it called, how it
 /// ended, and the start of its result.
 fn call_line(call: &TurnCallResult) -> Result<String, ManagedAgentError> {
     let (status, result) = match &call.outcome {
@@ -468,7 +468,7 @@ fn call_line(call: &TurnCallResult) -> Result<String, ManagedAgentError> {
     })?;
     Ok(format!(
         "{} {target} {status}: {start}{rest}",
-        TurnRef::Call(call.index)
+        TurnLocator::Call(call.index)
     ))
 }
 
@@ -486,7 +486,7 @@ struct AgentPromptContext<'a> {
     step_id: &'a Option<runx_contracts::schema::NonEmptyString>,
     skill: &'a runx_contracts::schema::NonEmptyString,
     act: &'a Option<runx_contracts::CallAct>,
-    instructions_sha256: &'a runx_contracts::schema::NonEmptyString,
+    instructions_digest: &'a runx_contracts::schema::NonEmptyString,
     inputs: &'a JsonObject,
     requirements: &'a runx_contracts::AgentExecutionRequirements,
     current_context: &'a [runx_contracts::TurnContextLine],
@@ -517,7 +517,7 @@ impl<'a> From<&'a TurnEnvelope> for AgentPromptContext<'a> {
             step_id: &envelope.step_id,
             skill: &envelope.skill,
             act: &envelope.act,
-            instructions_sha256: &envelope.instructions_sha256,
+            instructions_digest: &envelope.instructions_digest,
             inputs: &envelope.inputs,
             requirements: &envelope.requirements,
             current_context: &envelope.current_context,
@@ -602,7 +602,7 @@ mod tests {
         let prompt = build_prompt(&TurnEnvelope::from(&envelope), &[], &mut BTreeSet::new())?;
 
         assert!(prompt.contains(CONTEXT_POLICY));
-        // Each context entry is an index line with its ref and summary, and
+        // Each context entry is an index line with its locator and summary, and
         // its data reaches the model only through turn_read.
         assert!(prompt.contains("runx.skill.context"));
         assert!(prompt.contains("\"current:0\"") && prompt.contains("\"historical:0\""));
@@ -661,7 +661,7 @@ mod tests {
         )?;
         assert!(prompt.contains("Calls already made in this turn"));
         assert!(prompt.contains("call:0") && prompt.contains("no reason given"));
-        // A long result shows its start, and the rest reads by its ref.
+        // A long result shows its start, and the rest reads by its locator.
         assert!(prompt.contains("call:1") && prompt.contains("more characters"));
         assert!(
             !prompt.contains("TAIL"),
@@ -682,7 +682,7 @@ mod tests {
                     package_digest: non_empty("sha256:package"),
                 },
                 manual: Some(runx_contracts::SkillManual {
-                    sha256: non_empty("sha256:manual"),
+                    digest: non_empty("sha256:manual"),
                     content: "Write each note in one line.".to_owned(),
                 }),
                 runners: Vec::new(),
@@ -734,7 +734,7 @@ mod tests {
             step_id: Some(non_empty("review")),
             skill: non_empty("review"),
             act: None,
-            instructions_sha256: non_empty("sha256:instructions"),
+            instructions_digest: non_empty("sha256:instructions"),
             instructions: non_empty(instructions),
             inputs,
             requirements: runx_contracts::AgentExecutionRequirements {
@@ -761,7 +761,7 @@ mod tests {
             sharing: runx_contracts::ContextSharing::ConfiguredModel,
             root_path: non_empty("/workspace"),
             path: non_empty(path),
-            sha256: non_empty(format!("sha256:{path}")),
+            digest: non_empty(format!("sha256:{path}")),
             content: content.to_owned(),
         }
     }
@@ -769,7 +769,7 @@ mod tests {
     fn context_entry() -> ContextEntry {
         let mut data = JsonObject::new();
         data.insert(
-            "ref".to_owned(),
+            "skill".to_owned(),
             JsonValue::String("registry:runx/taste-profile@1.0.0".to_owned()),
         );
         data.insert(
@@ -787,7 +787,7 @@ mod tests {
                 trust: runx_contracts::ContextTrust::SkillInstructions,
                 sharing: runx_contracts::ContextSharing::ConfiguredModel,
                 goal_id: None,
-                source_ref: None,
+                source_uri: None,
             },
             data,
             meta: ContextArtifactMeta {
@@ -799,7 +799,7 @@ mod tests {
                     runner: non_empty("skill-context"),
                 },
                 created_at: non_empty("2026-05-18T00:00:00Z"),
-                hash: non_empty("sha256:taste"),
+                digest: non_empty("sha256:taste"),
                 size_bytes: 23,
                 parent_artifact_id: None,
                 receipt_id: None,

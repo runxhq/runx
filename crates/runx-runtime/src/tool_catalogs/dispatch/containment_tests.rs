@@ -11,19 +11,19 @@ use crate::{
 };
 
 fn invoke(
-    tool_ref: &str,
+    tool: &str,
     inputs: JsonObject,
     workspace: &Path,
     credential_delivery: CredentialDelivery,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let scopes: Vec<String> = crate::tool_catalogs::native::required_scopes(tool_ref)
+    let scopes: Vec<String> = crate::tool_catalogs::native::required_scopes(tool)
         .map(|scopes| scopes.iter().map(|scope| (*scope).to_owned()).collect())
         .unwrap_or_default();
-    invoke_with_scopes(tool_ref, inputs, workspace, credential_delivery, &scopes)
+    invoke_with_scopes(tool, inputs, workspace, credential_delivery, &scopes)
 }
 
 fn invoke_with_scopes(
-    tool_ref: &str,
+    tool: &str,
     inputs: JsonObject,
     workspace: &Path,
     credential_delivery: CredentialDelivery,
@@ -36,7 +36,7 @@ fn invoke_with_scopes(
     let local_artifacts = crate::services::LocalArtifactService::default();
     dispatch_tool(
         ToolDispatchRequest {
-            tool_ref: Cow::Borrowed(tool_ref),
+            tool: Cow::Borrowed(tool),
             inputs: Cow::Owned(inputs),
             resolved_inputs: Cow::Owned(JsonObject::new()),
             scopes,

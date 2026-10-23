@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/github-issue-to-pr/host-result/v1.json",
+  "x-runx-packet-id": "runx/github-issue-to-pr.host_result.v1",
+  "type": "object",
+  "required": ["schema", "status", "repository", "issue_number", "repo_root", "branch", "commit", "files", "tests", "finalization", "publication", "errors"],
+  "properties": {
+    "schema": { "const": "runx/github-issue-to-pr.host_result.v1" },
+    "status": { "type": "string", "enum": ["completed", "blocked", "failed"] },
+    "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "issue_number": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "repo_root": { "type": "string", "minLength": 1 },
+    "branch": { "type": "string", "minLength": 1 },
+    "commit": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+    "files": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["command", "status", "evidence"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["passed", "failed"] },
+          "evidence": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "finalization": {
+      "type": "object",
+      "required": ["receipt_path", "contract_digest"],
+      "properties": {
+        "receipt_path": { "type": "string", "minLength": 1 },
+        "contract_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "publication": {
+      "type": "object",
+      "required": ["decision", "title", "body", "head", "base", "draft", "idempotency_key"],
+      "properties": {
+        "decision": { "type": "string", "enum": ["hold", "ready"] },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "head": { "type": "string" },
+        "base": { "type": "string" },
+        "draft": { "type": "boolean" },
+        "idempotency_key": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

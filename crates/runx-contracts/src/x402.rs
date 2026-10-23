@@ -1,8 +1,8 @@
 //! External x402 v2 wire contracts and the Runx-owned v1 declaration.
 //!
 //! External values deliberately preserve unknown fields for tolerant-reader
-//! interoperability. The `runx.invocation` declaration is strict and reuses
-//! the immutable commitment types owned by [`crate::paid_invocation`]. This
+//! interoperability. The `runx.purchase` declaration is strict and reuses
+//! the immutable commitment types owned by [`crate::purchase`]. This
 //! module is data-only: HTTP, base64, assembly, provider calls, and settlement
 //! behavior do not belong here.
 
@@ -12,10 +12,13 @@ use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Value, json};
 
-use crate::schema::{Identity, NonEmptyString, Property, RunxSchema, nullable, object_schema};
+use crate::schema::{
+    Identity, NamedSchemas, NonEmptyString, Property, RunxSchema, nullable, object_schema,
+    record_named, titled,
+};
 use crate::{
-    JsonObject, JsonValue, OfferRevisionRef, PaidInvocationCanonicalizerVersion,
-    PaymentIdempotencyBinding, Reference, Sha256Digest,
+    Digest, JsonObject, JsonValue, OfferVersionBinding, PaymentIdempotencyBinding,
+    PurchaseCanonicalizerVersion, Reference,
 };
 
 pub const X402_PROTOCOL_VERSION: u8 = 2;
@@ -26,7 +29,7 @@ pub const X402_UPSTREAM_PACKAGE_VERSION: &str = "2.27.0";
 pub const X402_PAYMENT_REQUIRED_HEADER: &str = "PAYMENT-REQUIRED";
 pub const X402_PAYMENT_SIGNATURE_HEADER: &str = "PAYMENT-SIGNATURE";
 pub const X402_PAYMENT_RESPONSE_HEADER: &str = "PAYMENT-RESPONSE";
-pub const RUNX_INVOCATION_EXTENSION_KEY: &str = "runx.invocation";
+pub const RUNX_PURCHASE_EXTENSION_KEY: &str = "runx.purchase";
 
 pub const X402_RESOURCE_INFO_SCHEMA_ID: &str =
     "https://schemas.runx.ai/external/x402/v2/resource-info.schema.json";
@@ -38,7 +41,7 @@ pub const X402_PAYMENT_PAYLOAD_SCHEMA_ID: &str =
     "https://schemas.runx.ai/external/x402/v2/payment-payload.schema.json";
 pub const X402_SETTLE_RESPONSE_SCHEMA_ID: &str =
     "https://schemas.runx.ai/external/x402/v2/settle-response.schema.json";
-pub const RUNX_X402_INVOCATION_EXTENSION_SCHEMA: &str = "runx.x402.invocation_extension.v1";
+pub const RUNX_X402_PURCHASE_EXTENSION_SCHEMA: &str = "runx.x402.purchase_extension.v1";
 
 /// The only external protocol version accepted or emitted by this package.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -292,7 +295,7 @@ pub struct X402ResourceInfo {
 
 impl RunxSchema for X402ResourceInfo {
     fn json_schema() -> Value {
-        external_object_schema(
+        let schema = external_object_schema(
             X402_RESOURCE_INFO_SCHEMA_ID,
             vec![
                 Property::new("url", NonEmptyString::json_schema(), true),
@@ -302,7 +305,12 @@ impl RunxSchema for X402ResourceInfo {
                 optional_nullable("tags", X402Tags::json_schema()),
                 optional_nullable("iconUrl", X402IconUrl::json_schema()),
             ],
-        )
+        );
+        titled(schema, "X402ResourceInfo")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(named, "X402ResourceInfo", Self::json_schema);
     }
 }
 
@@ -323,7 +331,7 @@ pub struct X402PaymentRequirements {
 
 impl RunxSchema for X402PaymentRequirements {
     fn json_schema() -> Value {
-        external_object_schema(
+        let schema = external_object_schema(
             X402_PAYMENT_REQUIREMENTS_SCHEMA_ID,
             vec![
                 Property::new("scheme", NonEmptyString::json_schema(), true),
@@ -334,7 +342,12 @@ impl RunxSchema for X402PaymentRequirements {
                 Property::new("maxTimeoutSeconds", X402PositiveNumber::json_schema(), true),
                 optional_nullable("extra", JsonObject::json_schema()),
             ],
-        )
+        );
+        titled(schema, "X402PaymentRequirements")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(named, "X402PaymentRequirements", Self::json_schema);
     }
 }
 
@@ -371,6 +384,10 @@ impl RunxSchema for X402AcceptedRequirements {
             "minItems": 1,
         })
     }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        X402PaymentRequirements::named_schemas(named);
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -389,7 +406,7 @@ pub struct X402PaymentRequired {
 
 impl RunxSchema for X402PaymentRequired {
     fn json_schema() -> Value {
-        external_object_schema(
+        let schema = external_object_schema(
             X402_PAYMENT_REQUIRED_SCHEMA_ID,
             vec![
                 Property::new("x402Version", X402Version2::json_schema(), true),
@@ -398,7 +415,15 @@ impl RunxSchema for X402PaymentRequired {
                 Property::new("accepts", X402AcceptedRequirements::json_schema(), true),
                 optional_nullable("extensions", JsonObject::json_schema()),
             ],
-        )
+        );
+        titled(schema, "X402PaymentRequired")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "X402PaymentRequired", Self::json_schema) {
+            X402ResourceInfo::named_schemas(named);
+            X402AcceptedRequirements::named_schemas(named);
+        }
     }
 }
 
@@ -418,7 +443,7 @@ pub struct X402PaymentPayload {
 
 impl RunxSchema for X402PaymentPayload {
     fn json_schema() -> Value {
-        external_object_schema(
+        let schema = external_object_schema(
             X402_PAYMENT_PAYLOAD_SCHEMA_ID,
             vec![
                 Property::new("x402Version", X402Version2::json_schema(), true),
@@ -427,7 +452,15 @@ impl RunxSchema for X402PaymentPayload {
                 Property::new("payload", JsonObject::json_schema(), true),
                 optional_nullable("extensions", JsonObject::json_schema()),
             ],
-        )
+        );
+        titled(schema, "X402PaymentPayload")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "X402PaymentPayload", Self::json_schema) {
+            X402ResourceInfo::named_schemas(named);
+            X402PaymentRequirements::named_schemas(named);
+        }
     }
 }
 
@@ -455,7 +488,7 @@ pub struct X402SettleResponse {
 
 impl RunxSchema for X402SettleResponse {
     fn json_schema() -> Value {
-        external_object_schema(
+        let schema = external_object_schema(
             X402_SETTLE_RESPONSE_SCHEMA_ID,
             vec![
                 Property::new("success", bool::json_schema(), true),
@@ -468,45 +501,47 @@ impl RunxSchema for X402SettleResponse {
                 optional_nullable("extensions", JsonObject::json_schema()),
                 optional_nullable("extra", JsonObject::json_schema()),
             ],
-        )
+        );
+        titled(schema, "X402SettleResponse")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(named, "X402SettleResponse", Self::json_schema);
     }
 }
 
-/// Strict Runx information advertised under the external `runx.invocation` key.
+/// Strict Runx information advertised under the external `runx.purchase` key.
 ///
 /// This is a declaration only. The authoritative challenge binding remains the
-/// `PaidInvocationPaymentChallenge` `quote_ref` and `payload_digest` pair.
+/// `PurchasePaymentChallenge` `quote_ref` and `payload_digest` pair.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "purpose", rename_all = "snake_case", deny_unknown_fields)]
-#[runx_schema(id = "runx.x402.invocation_extension.v1")]
-pub enum RunxX402InvocationExtensionInfo {
+#[runx_schema(id = "runx.x402.purchase_extension.v1")]
+pub enum RunxX402PurchaseExtensionInfo {
     Discovery {
-        offer_revision: OfferRevisionRef,
-        /// The registry's digest of the published package files
-        /// (`registry_package_digest`), not the execution package digest a run
-        /// records.
-        package_digest: Sha256Digest,
+        offer_version: OfferVersionBinding,
+        /// The registry's digest of the published bundle's files.
+        bundle_digest: Digest,
     },
-    Invocation {
-        invocation_id: NonEmptyString,
+    Purchase {
+        purchase_id: NonEmptyString,
         quote_ref: Box<Reference>,
-        offer_revision: OfferRevisionRef,
-        /// The execution package digest the purchase runs (`runx.skill-package.v1`
-        /// over the files a run loads), not the registry's digest of the published
-        /// package files that a listing binds.
-        package_digest: Sha256Digest,
-        input_digest: Sha256Digest,
-        canonicalizer_version: PaidInvocationCanonicalizerVersion,
+        offer_version: OfferVersionBinding,
+        /// The execution package digest the purchase runs
+        /// (`runx.skill-package.v1` over the files a run loads).
+        package_digest: Digest,
+        input_digest: Digest,
+        canonicalizer_version: PurchaseCanonicalizerVersion,
         idempotency: PaymentIdempotencyBinding,
     },
 }
 
 /// The standard external x402 `{ info, schema }` declaration, specialized to
-/// the strict Runx v1 invocation projection.
+/// the strict Runx v1 purchase projection.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RunxX402InvocationExtension {
-    pub info: RunxX402InvocationExtensionInfo,
+pub struct RunxX402PurchaseExtension {
+    pub info: RunxX402PurchaseExtensionInfo,
     pub schema: JsonObject,
 }
 
@@ -540,15 +575,15 @@ impl fmt::Display for X402Network {
 }
 
 /// Convert a typed extension declaration into the opaque external extension map value.
-pub fn runx_invocation_extension_value(
-    extension: &RunxX402InvocationExtension,
+pub fn runx_purchase_extension_value(
+    extension: &RunxX402PurchaseExtension,
 ) -> Result<JsonValue, serde_json::Error> {
     serde_json::from_value(serde_json::to_value(extension)?)
 }
 
 /// Decode the opaque external extension map value into the strict Runx declaration.
-pub fn parse_runx_invocation_extension(
+pub fn parse_runx_purchase_extension(
     value: JsonValue,
-) -> Result<RunxX402InvocationExtension, de::value::Error> {
+) -> Result<RunxX402PurchaseExtension, de::value::Error> {
     value.deserialize_into()
 }

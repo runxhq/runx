@@ -105,7 +105,7 @@ pub(super) fn hold<A>(
             JsonValue::String(step.id.clone()),
         )])),
         payload: None,
-        payload_ref: None,
+        payload_artifact: None,
     };
     let stale = changed(&effect);
     crate::approval::carry_payload(
@@ -288,7 +288,7 @@ pub(crate) fn covers(
     if gate.gate_type.as_deref() != Some("tool") {
         return Ok(false);
     }
-    let payload = match (&gate.payload, &gate.payload_ref) {
+    let payload = match (&gate.payload, &gate.payload_artifact) {
         (Some(payload), _) => payload.clone(),
         (None, Some(reference)) => crate::services::read_json_artifact(
             artifacts,

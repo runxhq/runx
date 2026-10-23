@@ -1,0 +1,115 @@
+{
+  "$id": "https://schemas.runx.ai/runx/fs/apply-bundle/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `fs.apply_bundle` returns: each file it wrote and each it deleted.",
+  "properties": {
+    "delete_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "deletes": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One file `fs.apply_bundle` deleted, or found already absent.",
+        "properties": {
+          "before_digest": {
+            "description": "What the file held before, when it existed.",
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "diff": {
+            "description": "The unified diff from what the file held to its removal; empty when it was already absent.",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "deleted",
+              "already_absent"
+            ],
+            "title": "FileDeleteStatus",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "status",
+          "diff"
+        ],
+        "title": "FileAppliedDelete",
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "journal": {
+      "description": "The run's journal entry holding what each file held before.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "write_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "writes": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One file `fs.apply_bundle` wrote.",
+        "properties": {
+          "before_digest": {
+            "description": "What the file held before, when it existed.",
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "bytes_written": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "content_digest": {
+            "description": "The digest of what the file now holds.",
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "diff": {
+            "description": "The unified diff from what the file held to what it holds now.",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "bytes_written",
+          "content_digest",
+          "diff"
+        ],
+        "title": "FileAppliedWrite",
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "repo_root",
+    "write_count",
+    "delete_count",
+    "writes",
+    "deletes"
+  ],
+  "title": "FileApplyBundle",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.fs.apply_bundle.v1"
+}

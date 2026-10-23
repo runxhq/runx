@@ -22,7 +22,7 @@ static INSPECT: TypedNativeCapability<InspectInput, AuthoringInspectOutput> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "runx.skill.inspect",
-            owner: "runx-runtime/authoring",
+            source: "runx-runtime/authoring",
             summary: "Inspect one package and its catalog without spawning a subprocess.",
             scopes: &["fs.read"],
             effect: CapabilityEffect::Read,
@@ -39,7 +39,7 @@ static INSPECT: TypedNativeCapability<InspectInput, AuthoringInspectOutput> =
 static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: VALIDATE_TOOL,
-        owner: "runx-runtime/authoring",
+        source: "runx-runtime/authoring",
         summary: "Validate and safely harness an existing or inline skill package.",
         scopes: &["fs.read"],
         effect: CapabilityEffect::Read,
@@ -56,7 +56,7 @@ static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNat
 static PLAN: TypedNativeCapability<PlanInput, PlanOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: PLAN_TOOL,
-        owner: "runx-runtime/authoring",
+        source: "runx-runtime/authoring",
         summary: "Validate and digest-bind one skill architecture decision.",
         scopes: &[],
         effect: CapabilityEffect::Read,
@@ -73,7 +73,7 @@ static PLAN: TypedNativeCapability<PlanInput, PlanOutput> = TypedNativeCapabilit
 static BIND: TypedNativeCapability<BindInput, BindOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: BIND_TOOL,
-        owner: "runx-runtime/authoring",
+        source: "runx-runtime/authoring",
         summary: "Bind one closed content draft to its native architecture plan.",
         scopes: &[],
         effect: CapabilityEffect::Read,
@@ -90,7 +90,7 @@ static BIND: TypedNativeCapability<BindInput, BindOutput> = TypedNativeCapabilit
 static APPLY: TypedNativeCapability<ApplyInput, ApplyOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: APPLY_TOOL,
-        owner: "runx-runtime/authoring",
+        source: "runx-runtime/authoring",
         summary: "Transactionally apply one validated, bounded skill change bundle.",
         scopes: &["fs.write", "fs.delete"],
         effect: CapabilityEffect::Mutate,

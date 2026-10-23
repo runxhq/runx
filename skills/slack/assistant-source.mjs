@@ -3,14 +3,14 @@ const text = (value) => typeof value === "string" ? value : "";
 const bounded = (value, max) => [...text(value)].slice(0, max).join("");
 
 export function decideAssistantRequest(inputs) {
-  const presentationRef = text(inputs.presentation_ref);
+  const presentationLocator = text(inputs.presentation_locator);
   const requestDigest = text(inputs.request_digest);
   const nonce = text(inputs.nonce);
-  const authorizedActor = text(inputs.authorized_actor_ref);
+  const authorizedActor = text(inputs.authorized_actor_id);
   const operation = object(inputs.provider_operation);
   const result = object(operation.result);
   if (operation.status !== "success" || operation.provider !== "slack" ||
-      operation.operation !== "thread.read" || result.thread_locator !== presentationRef ||
+      operation.operation !== "thread.read" || result.thread_locator !== presentationLocator ||
       !/^sha256:[0-9a-f]{64}$/u.test(requestDigest) || !/^[0-9a-f]{16}$/u.test(nonce) ||
       !/^[UW][A-Z0-9]{2,}$/u.test(authorizedActor)) {
     throw new Error("Slack decision read differs from the bound request or provider");
@@ -21,7 +21,7 @@ export function decideAssistantRequest(inputs) {
   const rootText = text(object(root).preview).replace(/\s+/gu, " ").trim();
   const requestMarker = `Approval needed for a paused Runx action. Request: ${nonce} Digest: ${requestDigest}`;
   if (!Array.isArray(messages) || messages.length < 1 || messages.length > 15 ||
-      object(root).message_locator !== presentationRef ||
+      object(root).message_locator !== presentationLocator ||
       !(rootAuthor.provider_actor_type === "app_or_bot" ||
         (rootAuthor.provider_actor_type === "user_account" && rootAuthor.external_id === authorizedActor)) ||
       !rootText.includes(requestMarker)) {
@@ -45,7 +45,7 @@ export function decideAssistantRequest(inputs) {
     if (!match) continue;
     const when = Date.parse(message.occurred_at);
     if (!Number.isFinite(when) || when <= rootTime ||
-        !text(message.message_locator).startsWith(presentationRef.slice(0, presentationRef.lastIndexOf("/") + 1))) {
+        !text(message.message_locator).startsWith(presentationLocator.slice(0, presentationLocator.lastIndexOf("/") + 1))) {
       throw new Error("Slack decision answer predates or escapes its presentation thread");
     }
     answers.push({ message, approved: match[1] === "approve" });
@@ -60,10 +60,10 @@ export function decideAssistantRequest(inputs) {
   const answer = answers[0];
   return { decision_observation: {
     status: "decided", request_digest: requestDigest, nonce,
-    presentation_ref: presentationRef,
-    actor_ref: authorizedActor,
+    presentation_locator: presentationLocator,
+    actor_id: authorizedActor,
     origin: "human_account",
-    evidence_ref: answer.message.message_locator,
+    evidence_locator: answer.message.message_locator,
     occurred_at: answer.message.occurred_at,
     approved: answer.approved,
   } };
@@ -116,12 +116,12 @@ export function prepareAssistantHydrate(inputs) {
   const locator = text(inputs.thread_locator);
   const match = /^slack:\/\/([^/]+)\/([^/]+)\/([^/]+)$/u.exec(locator);
   const cursor = inputs.cursor;
-  if (!match || !text(inputs.source_ref).startsWith(`slack://${match[1]}/${match[2]}/`) ||
+  if (!match || !text(inputs.source_locator).startsWith(`slack://${match[1]}/${match[2]}/`) ||
       (cursor !== null && cursor !== undefined && (!text(cursor) || cursor.length > 500))) {
     throw new Error("Slack hydration locator or cursor is invalid");
   }
   const action = object(inputs.action);
-  if (action.latest_message?.message_locator !== inputs.source_ref ||
+  if (action.latest_message?.message_locator !== inputs.source_locator ||
       action.thread_locator !== locator || action.status !== "open") {
     throw new Error("Slack source differs from the canonical open action");
   }
@@ -134,9 +134,9 @@ export function finishAssistantHydrate(inputs) {
   const locator = text(inputs.thread_locator);
   const tenant = locator.slice("slack://".length).split("/")[0];
   if (page.thread_locator !== locator ||
-      ![tenant, `slack:workspace:${tenant}`].includes(page.external_tenant_ref) ||
-      page.external_tenant_ref !== action.external_tenant_ref ||
-      page.connected_subject_ref !== action.connected_subject_ref) {
+      page.external_tenant_id !== tenant ||
+      page.external_tenant_id !== action.external_tenant_id ||
+      page.connected_subject_id !== action.connected_subject_id) {
     throw new Error("Slack thread readback differs from the admitted source");
   }
   if (!Array.isArray(page.messages) || page.messages.length > 15) {
@@ -154,19 +154,19 @@ export function finishAssistantHydrate(inputs) {
     const occurred = text(message.occurred_at);
     const author = text(object(message.author).external_id);
     if (!preview || [...preview].length > 1000 || !occurred || !author) complete = false;
-    if (message.message_locator === inputs.source_ref) {
+    if (message.message_locator === inputs.source_locator) {
       if (occurred !== action.latest_message?.occurred_at ||
-          author !== action.requester?.external_id || author === page.connected_subject_ref) {
+          author !== action.requester?.external_id || author === page.connected_subject_id) {
         throw new Error("Slack source occurrence changed during hydration");
       }
       source = bounded(preview, 1000);
       sourceMessage = { ...message, provider: "slack",
-        external_tenant_ref: page.external_tenant_ref,
-        connected_subject_ref: page.connected_subject_ref,
+        external_tenant_id: page.external_tenant_id,
+        connected_subject_id: page.connected_subject_id,
         thread_locator: locator };
     }
-    return { message_ref: message.message_locator, occurred_at: occurred,
-      author_ref: author, is_self: author === page.connected_subject_ref,
+    return { message_locator: message.message_locator, occurred_at: occurred,
+      author_id: author, is_self: author === page.connected_subject_id,
       text: bounded(preview, 1000) };
   });
   const cursor = page.next_cursor;
@@ -176,14 +176,14 @@ export function finishAssistantHydrate(inputs) {
   }
   return { assistant_context: {
       schema: "runx.source_packet.v1",
-      packet_id: `${inputs.source_ref}:${inputs.source_digest}`,
-      source_ref: { type: "event", uri: inputs.source_ref, provider: "slack" },
+      packet_id: `${inputs.source_locator}:${inputs.source_digest}`,
+      source_ref: { type: "event", uri: inputs.source_locator, provider: "slack" },
       signal_type: "conversation",
       title: "Conversation evidence",
       observed_at: inputs.action.latest_message.occurred_at,
       redaction_status: "unredacted",
       workflow_inputs: {
-    source_ref: inputs.source_ref,
+    source_locator: inputs.source_locator,
     source_digest: inputs.source_digest,
     thread_locator: locator,
     source_message: sourceMessage,

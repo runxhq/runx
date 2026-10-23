@@ -76,7 +76,7 @@
               "type": "string"
             },
             "kind": {
-              "const": "state-machine.createSequentialGraphState"
+              "const": "state-machine.createSequentialGraph"
             },
             "steps": {
               "items": {

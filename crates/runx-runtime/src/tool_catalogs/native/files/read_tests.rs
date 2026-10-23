@@ -24,14 +24,14 @@ fn a_read_returns_the_lines_it_asks_for_with_the_whole_files_lines_and_digest() 
     let whole = read_lines(serde_json::json!({"path": "notes.md"}))?;
     assert_eq!(whole.contents, text);
     assert!(!whole.truncated);
-    assert_eq!((whole.start_line, whole.total_lines), (1, 10));
+    assert_eq!((whole.start_line.get(), whole.total_lines), (1, 10));
     assert_eq!(whole.content_digest, digest(&text));
 
     let middle =
         read_lines(serde_json::json!({"path": "notes.md", "start_line": 4, "line_count": 3}))?;
     assert_eq!(middle.contents, "line 4\nline 5\nline 6\n");
     assert!(middle.truncated, "lines 7 to 10 follow");
-    assert_eq!((middle.start_line, middle.total_lines), (4, 10));
+    assert_eq!((middle.start_line.get(), middle.total_lines), (4, 10));
     // A part of the file still names the whole file's digest, which a write of it binds to.
     assert_eq!(middle.content_digest, digest(&text));
 

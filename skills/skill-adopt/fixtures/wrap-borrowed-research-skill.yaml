@@ -15,7 +15,7 @@ inputs:
     html_url: https://github.com/example/borrowed-skills/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md
     raw_url: https://raw.githubusercontent.com/example/borrowed-skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md
   registry:
-    owner: example
+    publisher: example
     trust_tier: community
     version: upstream-aaaaaaaa
 expect:

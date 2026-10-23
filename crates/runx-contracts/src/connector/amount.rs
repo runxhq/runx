@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::{Value, json};
 
 use super::{Template, TemplateInputs};
-use crate::schema::{NonEmptyString, RunxSchema};
+use crate::schema::{NamedSchemas, NonEmptyString, RunxSchema, record_named};
 use crate::{JsonValue, MAX_PORTABLE_INTEGER, OperationAmount};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -98,6 +98,12 @@ impl<'de> Deserialize<'de> for AmountRule {
 
 impl RunxSchema for AmountRule {
     fn json_schema() -> Value {
-        json!({"oneOf": [{"const":"none"}, AmountBinding::json_schema()]})
+        json!({"oneOf": [{"const":"none"}, AmountBinding::json_schema()], "title": "AmountRule"})
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "AmountRule", Self::json_schema) {
+            AmountBinding::named_schemas(named);
+        }
     }
 }

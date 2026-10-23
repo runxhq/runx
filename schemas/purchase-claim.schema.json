@@ -2,21 +2,27 @@
   "$id": "https://schemas.runx.ai/runx/payment/purchase-claim/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "What a buyer sends runx's claim route for a held value (`runx.payment.purchase_claim.v1`).",
   "properties": {
     "claim_url": {
+      "description": "The endpoint this claim is sent to: a claim is good for one endpoint.",
       "minLength": 1,
       "type": "string"
     },
     "issued_at": {
+      "description": "When the buyer signed; runx refuses a stale claim.",
       "minLength": 1,
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
       "type": "string"
     },
     "receipt_digest": {
+      "description": "The digest of runx's receipt for the fulfilled purchase, as the purchase gave it: a purchase has none until it is fulfilled.",
+      "maxLength": 71,
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
     "signature": {
+      "description": "The buyer's signature over the claim schema, the endpoint, the time and the receipt digest, as stable JSON.",
       "pattern": "^ed25519:[A-Za-z0-9_-]{85}[AQgw]$",
       "type": "string"
     }
@@ -27,6 +33,7 @@
     "issued_at",
     "signature"
   ],
+  "title": "PurchaseClaim",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.payment.purchase_claim.v1"

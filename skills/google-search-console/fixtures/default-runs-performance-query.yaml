@@ -55,5 +55,5 @@ expect:
             source_status: provider_readback
             property: sc-domain:example.com
             validation: { status: pass }
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: google-search-console, source_case: direct-default-success, source: skills-fixture }

@@ -1,5 +1,5 @@
 skill: brand-voice
-version: "0.2.7"
+version: "0.2.8"
 
 catalog:
   kind: graph
@@ -67,100 +67,11 @@ runners:
         outputs:
           brand_voice_packet:
             type: object
-            schema:
-              required: [decision, brand, applicability, brand_voice, evidence, redactions, stop_conditions, receipt_notes, validation]
-              additionalProperties: false
-              properties:
-                decision: { type: string, enum: [ready, needs_more_evidence] }
-                brand: { type: string, maxLength: 1000 }
-                applicability:
-                  type: object
-                  required: [channels, audience, boundaries]
-                  additionalProperties: false
-                  properties:
-                    channels: { type: array, maxItems: 50, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 200 } }
-                    audience: { type: string, maxLength: 1000 }
-                    boundaries: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 2000 } }
-                brand_voice:
-                  type: object
-                  required: [voice_principles, vocabulary, cadence, claim_rules, channel_adjustments]
-                  additionalProperties: false
-                  properties:
-                    voice_principles: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 2000 } }
-                    vocabulary:
-                      type: object
-                      required: [use, avoid]
-                      additionalProperties: false
-                      properties:
-                        use: { type: array, maxItems: 200, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 500 } }
-                        avoid: { type: array, maxItems: 200, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 500 } }
-                    cadence: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 2000 } }
-                    claim_rules:
-                      type: object
-                      required: [safe, requires_proof, forbidden]
-                      additionalProperties: false
-                      properties:
-                        safe: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 4000 } }
-                        requires_proof: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 4000 } }
-                        forbidden: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 4000 } }
-                    channel_adjustments: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 2000 } }
-                evidence:
-                  type: object
-                  required: [evidence_digest, sources, bindings]
-                  additionalProperties: false
-                  properties:
-                    evidence_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                    sources:
-                      type: array
-                      maxItems: 50
-                      items:
-                        type: object
-                        required: [source_ref, kind, label]
-                        additionalProperties: false
-                        properties:
-                          source_ref: { type: string, pattern: '^source:[1-9][0-9]*$' }
-                          kind: { type: string, enum: [approved, rejected, draft, operator_note] }
-                          label: { type: string, maxLength: 1000 }
-                    bindings:
-                      type: array
-                      maxItems: 200
-                      items:
-                        type: object
-                        required: [rule, source_refs]
-                        additionalProperties: false
-                        properties:
-                          rule: { type: string, minLength: 1, maxLength: 4000 }
-                          source_refs: { type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: { type: string, pattern: '^source:[1-9][0-9]*$' } }
-                redactions: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 2000 } }
-                stop_conditions: { type: array, maxItems: 100, items: { type: string, minLength: 1, maxLength: 2000 } }
-                receipt_notes:
-                  type: object
-                  required: [authority, mutation]
-                  additionalProperties: false
-                  properties:
-                    authority: { const: context-only }
-                    mutation: { const: false }
-                validation:
-                  type: object
-                  required: [status, findings]
-                  additionalProperties: false
-                  properties:
-                    status: { type: string, enum: [pass, fail] }
-                    findings:
-                      type: array
-                      maxItems: 250
-                      items:
-                        type: object
-                        required: [code, message]
-                        additionalProperties: false
-                        properties:
-                          code: { type: string, minLength: 1, maxLength: 200 }
-                          message: { type: string, minLength: 1, maxLength: 4000 }
         artifacts:
           named_emits:
             brand_voice_packet: brand_voice_packet
           packets:
-            brand_voice_packet: runx.context.brand_voice.v1
+            brand_voice_packet: runx/brand-voice.context.v1
 
       - id: synthesize
         when:
@@ -199,7 +110,7 @@ runners:
           named_emits:
             brand_voice_packet: brand_voice_packet
           packets:
-            brand_voice_packet: runx.context.brand_voice.v1
+            brand_voice_packet: runx/brand-voice.context.v1
 
 harness:
   files: [fixtures/support/forward-writing-context.graph]

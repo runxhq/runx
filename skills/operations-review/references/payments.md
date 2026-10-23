@@ -30,7 +30,7 @@ A payment rail adapter must make these fields explicit before settlement:
 
 - operation: charge, spend, invoice settlement, x402, refund, dispute, or readback;
 - amount and currency;
-- payer, payee, counterparty, or refund target;
+- payer, payee, or refund target;
 - network, rail, account, asset, or processor path;
 - cap, expiry, and idempotency key;
 - approval or payer-signature requirement;

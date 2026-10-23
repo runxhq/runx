@@ -29,7 +29,7 @@ caller:
             surface: "support"
         thread_locator: "support://request/983"
       closure:
-        disposition: "closed"
+        outcome: "completed"
         reason_code: "issue_intake_completed"
         summary: "Support question should be answered without a mutation lane."
       intake_report:
@@ -51,7 +51,7 @@ caller:
         created_at: "2026-05-15T00:00:00Z"
         dedupe:
           algorithm: "sha256"
-          fingerprint: "sha256:api-key-rotation-guidance"
+          digest: "sha256:api-key-rotation-guidance"
           source_locator: "support://request/983"
         outcome:
           state: "closed"
@@ -81,7 +81,7 @@ expect:
   receipt:
     schema: "runx.receipt.v1"
     state: "sealed"
-    disposition: "closed"
+    outcome: "completed"
 metadata:
   product_skill: "code-intake"
   source_case: "reply-only-question"

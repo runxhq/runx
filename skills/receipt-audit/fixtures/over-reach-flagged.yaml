@@ -6,36 +6,36 @@ inputs:
   receipt_id: rcpt_doc_bot_5582
   receipt_rows:
     - receipt_id: rcpt_doc_bot_5582
-      skill_ref: docs-bot
-      status: closed
+      skill: docs-bot
+      outcome: completed
       created_at: "2026-07-16T00:00:00Z"
       verification_status: verified
   receipt_details:
     - id: rcpt_doc_bot_5582
-      receipt_ref: runx:receipt:rcpt_doc_bot_5582
+      receipt_uri: runx:receipt:rcpt_doc_bot_5582
       subject_kind: graph
-      subject_ref: docs-bot
+      subject_uri: docs-bot
       created_at: "2026-07-16T00:00:00Z"
-      status: closed
+      outcome: completed
       verification:
         status: verified
       authority:
-        actor_ref: runx:principal:docs-bot
-        grant_refs:
+        actor_uri: runx:principal:docs-bot
+        grant_uris:
           - runx:grant:repo-read
-        scope_refs:
+        scope_uris:
           - runx:scope_admission:repo.read
           - runx:scope_admission:repo.write
         exercised_scopes:
           - scope: repo:read
             source: scope_ref
             term_id: null
-            resource_ref: runx:scope_admission:repo.read
+            resource_uri: runx:scope_admission:repo.read
           - scope: repo:write
             source: scope_ref
             term_id: null
-            resource_ref: runx:scope_admission:repo.write
-        approval_refs: []
+            resource_uri: runx:scope_admission:repo.write
+        approval_uris: []
         term_count: 0
         credential_ref_count: 0
       decisions: []
@@ -44,13 +44,13 @@ inputs:
           form: observation
           purpose: Push a commit.
           legitimacy: Claimed repository authority.
-          target_refs:
+          target_uris:
             - runx:repository:docs
-          artifact_refs: []
+          artifact_uris: []
           criterion_statuses: []
           context_ref_present: false
-      artifact_refs: []
-      lineage_refs: []
+      artifact_uris: []
+      lineage_uris: []
   granted_scopes:
     - repo:read
   objective: Audit whether the run exceeded its grant.
@@ -59,7 +59,7 @@ caller:
     audit:
       receipt_audit:
         decision: ready
-        run_ref: rcpt_doc_bot_5582
+        receipt_id: rcpt_doc_bot_5582
         granted_scopes:
           - repo:read
         exercised_scopes:
@@ -82,7 +82,7 @@ expect:
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: closed
+    outcome: completed
 metadata:
   public_skill: receipt-audit
   source_case: over-reach-flagged

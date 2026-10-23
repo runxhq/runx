@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/moltbook/post/v1.json",
+  "x-runx-packet-id": "runx/moltbook.post.v1",
+  "type": "object",
+  "properties": {
+    "post_payload": { "type": "object", "additionalProperties": true },
+    "moderation_notes": { "type": "object", "additionalProperties": true },
+    "publish_plan": { "type": "object", "additionalProperties": true },
+    "post": { "type": "object", "additionalProperties": true },
+    "handoff": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": true
+}

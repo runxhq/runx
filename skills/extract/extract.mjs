@@ -18,9 +18,9 @@ export function finalize(inputs) {
   }
   for (const pointer of leaves) if (!cited.has(pointer)) findings.push(`Missing source quotation: ${pointer}`);
   return { structured_extraction_result: {
-    schema: "runx.structured_extraction.result.v1",
+    schema: "runx/extract.result.v1",
     decision: findings.length ? "held" : "ready",
-    source_ref: inputs.source_ref,
+    source_id: inputs.source_id,
     source_digest: inputs.source_digest,
     schema_digest: validation.schema_digest,
     output_digest: inputs.output_digest,

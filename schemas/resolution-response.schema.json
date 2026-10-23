@@ -8,14 +8,18 @@
         "human",
         "agent"
       ],
+      "title": "ResolutionResponseActor",
       "type": "string"
     },
-    "payload": {}
+    "payload": {
+      "description": "Shallow response payload."
+    }
   },
   "required": [
     "actor",
     "payload"
   ],
+  "title": "ResolutionResponse",
   "type": "object",
   "x-runx-schema": "runx.resolution_response.v1"
 }

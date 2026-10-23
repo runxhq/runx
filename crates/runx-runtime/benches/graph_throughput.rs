@@ -4,9 +4,9 @@ use std::hint::black_box;
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 use runx_core::state_machine::{
-    GraphStatus, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphStepDefinition,
+    GraphState, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphStepDefinition,
     SequentialGraphStepIndex, StepAdmissionWitness, apply_sequential_graph_event_owned_indexed,
-    create_sequential_graph_state, create_sequential_graph_step_index,
+    create_sequential_graph, create_sequential_graph_step_index,
     plan_sequential_graph_transition_indexed_from, start_sequential_graph_step_indexed,
     succeed_sequential_graph_step_indexed,
 };
@@ -182,21 +182,21 @@ fn drive_state_machine(
     steps: &[SequentialGraphStepDefinition],
     step_index: &SequentialGraphStepIndex,
 ) -> usize {
-    let mut state = create_sequential_graph_state("throughput_graph", steps);
+    let mut graph = create_sequential_graph("throughput_graph", steps);
     let mut completed = 0usize;
     let mut planning_cursor = 0usize;
     loop {
-        while state.steps.get(planning_cursor).is_some_and(|step| {
+        while graph.steps.get(planning_cursor).is_some_and(|step| {
             matches!(
-                step.status,
-                runx_core::state_machine::GraphStepStatus::Succeeded
-                    | runx_core::state_machine::GraphStepStatus::Skipped
+                step.state,
+                runx_core::state_machine::GraphStepState::Succeeded
+                    | runx_core::state_machine::GraphStepState::Skipped
             )
         }) {
             planning_cursor += 1;
         }
         let plan = plan_sequential_graph_transition_indexed_from(
-            &state,
+            &graph,
             steps,
             step_index,
             planning_cursor,
@@ -205,17 +205,17 @@ fn drive_state_machine(
             SequentialGraphPlan::RunStep {
                 step_id, attempt, ..
             } => {
-                state = start_step(state, &step_id, step_index);
-                state = succeed_step(state, &step_id, attempt, step_index);
+                graph = start_step(graph, &step_id, step_index);
+                graph = succeed_step(graph, &step_id, attempt, step_index);
                 completed += 1;
             }
             SequentialGraphPlan::Complete => {
                 apply_sequential_graph_event_owned_indexed(
-                    &mut state,
+                    &mut graph,
                     SequentialGraphEvent::Complete,
                     step_index,
                 );
-                return completed + usize::from(state.status == GraphStatus::Succeeded);
+                return completed + usize::from(graph.state == GraphState::Succeeded);
             }
             SequentialGraphPlan::Blocked { .. } | SequentialGraphPlan::Failed { .. } => {
                 return completed;
@@ -225,23 +225,23 @@ fn drive_state_machine(
 }
 
 fn start_step(
-    mut state: runx_core::state_machine::SequentialGraphState,
+    mut graph: runx_core::state_machine::SequentialGraph,
     step_id: &str,
     step_index: &SequentialGraphStepIndex,
-) -> runx_core::state_machine::SequentialGraphState {
-    start_sequential_graph_step_indexed(&mut state, step_id, CREATED_AT.to_owned(), step_index);
-    state
+) -> runx_core::state_machine::SequentialGraph {
+    start_sequential_graph_step_indexed(&mut graph, step_id, CREATED_AT.to_owned(), step_index);
+    graph
 }
 
 fn succeed_step(
-    mut state: runx_core::state_machine::SequentialGraphState,
+    mut graph: runx_core::state_machine::SequentialGraph,
     step_id: &str,
     attempt: u32,
     step_index: &SequentialGraphStepIndex,
-) -> runx_core::state_machine::SequentialGraphState {
+) -> runx_core::state_machine::SequentialGraph {
     let receipt_id = format!("sha256:{step_id}_{attempt}");
     succeed_sequential_graph_step_indexed(
-        &mut state,
+        &mut graph,
         CREATED_AT.to_owned(),
         StepAdmissionWitness::local_runtime(step_id, receipt_id),
         Some(object([(
@@ -250,7 +250,7 @@ fn succeed_step(
         )])),
         step_index,
     );
-    state
+    graph
 }
 
 /// The public fixture identity a benchmark seals under, as a replayed run is.

@@ -1,0 +1,1 @@
+{"description":"Reusing an idempotency key for different terms is a typed domain refusal.","expectation":"valid","operation":"QuotePurchase","payload":{"code":"replay_conflict","reason":"The idempotency binding commits to other terms.","status":"refused"},"schema_id":"runx.payment.quote_purchase.result.v1"}

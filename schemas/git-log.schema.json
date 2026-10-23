@@ -1,0 +1,69 @@
+{
+  "$id": "https://schemas.runx.ai/runx/git/log/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `git.log` reports: the commits reachable from `revision`, newest first, and whether more were left out.",
+  "properties": {
+    "commits": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One commit as `git.log` reports it.",
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "commit": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "commit",
+          "author",
+          "date",
+          "subject",
+          "files"
+        ],
+        "title": "GitCommit",
+        "type": "object"
+      },
+      "maxItems": 200,
+      "minItems": 0,
+      "type": "array"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "revision": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "repo_root",
+    "revision",
+    "commits",
+    "truncated"
+  ],
+  "title": "GitLog",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.git.log.v1"
+}

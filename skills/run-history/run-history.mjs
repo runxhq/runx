@@ -41,16 +41,16 @@ export function finalizeHistory(inputs) {
   const sealed = runs.filter((row) => row.state === "sealed");
   const pending = runs.filter((row) => row.state === "paused");
   const filteredCatalog = catalogItems.filter((row) => matchesSkill(row.name));
-  const statuses = countBy(sealed, (row) => stringValue(row.disposition) || "unknown");
+  const outcomes = countBy(sealed, (row) => stringValue(row.outcome) || "unknown");
   const terminalCount = sealed.length;
-  const refusalCount = (statuses.blocked || 0) + (statuses.declined || 0);
+  const refusalCount = (outcomes.blocked || 0) + (outcomes.declined || 0);
   const testedCatalogEntries = filteredCatalog.filter((item) => numberValue(item.fixtures) + numberValue(item.harness_cases) > 0).length;
   const untestedCatalogEntries = filteredCatalog.length - testedCatalogEntries;
   const decision = terminalCount === 0 && pending.length === 0 ? "needs_more_evidence" : "ready";
 
   return {
     history_report: {
-      schema: "runx.history_report.v1",
+      schema: "runx/run-history.report.v1",
       decision,
       objective: prepared.objective,
       query: {
@@ -67,8 +67,8 @@ export function finalizeHistory(inputs) {
       runs: {
         terminal_count: terminalCount,
         pending_count: pending.length,
-        statuses,
-        closed_rate: rate(statuses.closed || 0, terminalCount),
+        outcomes,
+        completed_rate: rate(outcomes.completed || 0, terminalCount),
         refusal_rate: rate(refusalCount, terminalCount),
         top_subjects: topCounts(sealed, (row) => stringValue(row.skill) || "unknown", 10),
       },
@@ -78,21 +78,21 @@ export function finalizeHistory(inputs) {
         untested_entry_count: untestedCatalogEntries,
         coverage_rate: rate(testedCatalogEntries, filteredCatalog.length),
       },
-      recommendations: recommendations({ decision, statuses, refusalCount, untestedCatalogEntries }),
+      recommendations: recommendations({ decision, outcomes, refusalCount, untestedCatalogEntries }),
       limitations: [
-        "The run list exposes each run's state and sealed disposition, not its execution bodies.",
+        "The run list exposes each run's state and sealed outcome, not its execution bodies.",
         "Catalog coverage proves declared fixtures or inline cases, not live provider behavior.",
       ],
     },
   };
 }
 
-function recommendations({ decision, statuses, refusalCount, untestedCatalogEntries }) {
+function recommendations({ decision, outcomes, refusalCount, untestedCatalogEntries }) {
   if (decision === "needs_more_evidence") {
     return [{ lane: "none", action: "Run governed skills before treating an empty ledger as platform health." }];
   }
   const items = [];
-  if ((statuses.failed || 0) > 0 || (statuses.timed_out || 0) > 0) {
+  if ((outcomes.failed || 0) > 0 || (outcomes.timed_out || 0) > 0) {
     items.push({ lane: "diagnose-skill-run", action: "Diagnose representative failed or timed-out runs and route bounded fixes through skill-build improve." });
   }
   if (refusalCount > 0) {

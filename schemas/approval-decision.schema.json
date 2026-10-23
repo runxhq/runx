@@ -8,6 +8,7 @@
         "human",
         "agent"
       ],
+      "title": "ApprovalDecisionActor",
       "type": "string"
     },
     "approved": {
@@ -38,6 +39,7 @@
         "denied",
         "pending"
       ],
+      "title": "ApprovalDecisionStatus",
       "type": "string"
     }
   },
@@ -47,6 +49,7 @@
     "idempotency_key",
     "status"
   ],
+  "title": "ApprovalDecisionPacket",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.approval.decision.v1"

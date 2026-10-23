@@ -7,8 +7,8 @@ export function inspectProfile(inputs) {
     throw new Error("release profile digest is required");
   }
   const profile = parseObject(file.contents, "release profile");
-  if (profile.schema !== "runx.release.profile.v1") {
-    throw new Error("release profile schema must be runx.release.profile.v1");
+  if (profile.schema !== "runx/release.profile.v1") {
+    throw new Error("release profile schema must be runx/release.profile.v1");
   }
   const profileId = requiredText(profile.id, "profile id", 256);
   const channel = requiredText(inputs.channel, "channel", 128);
@@ -27,9 +27,9 @@ export function inspectProfile(inputs) {
   );
   return {
     release_context: {
-      schema: "runx.release.context.v1",
+      schema: "runx/release.context.v1",
       profile_id: profileId,
-      profile_ref: requiredText(file.path, "profile path", 2_000),
+      profile_path: requiredText(file.path, "profile path", 2_000),
       profile_digest: file.content_digest,
       project_root: requiredText(inputs.project_root, "project root", 4_000),
       channel,
@@ -43,7 +43,7 @@ export function inspectProfile(inputs) {
 
 export function interpretPhase(inputs) {
   const context = object(inputs.release_context);
-  if (context.schema !== "runx.release.context.v1") throw new Error("release_context is required");
+  if (context.schema !== "runx/release.context.v1") throw new Error("release_context is required");
   const phase = text(inputs.phase, 32);
   if (!["prepare", "publish", "verify"].includes(phase)) {
     throw new Error("phase must be prepare, publish, or verify");
@@ -88,7 +88,7 @@ export function interpretPhase(inputs) {
     errors.push({ code: `release.${phase}_status`, message: `provider output did not prove the required ${phase} state` });
   }
   const phaseResult = {
-    schema: "runx.release.phase_result.v1",
+    schema: "runx/release.phase_result.v1",
     phase,
     status,
     profile_id: context.profile_id,
@@ -120,7 +120,7 @@ export function finalizeBrief(inputs) {
   });
   const preparation = object(inputs.preparation);
   const notes = object(inputs.release_notes);
-  if (preparation.schema !== "runx.release.phase_result.v1" || preparation.phase !== "prepare") {
+  if (preparation.schema !== "runx/release.phase_result.v1" || preparation.phase !== "prepare") {
     throw new Error("preparation phase result is required");
   }
   if (preparation.command_digest !== context.commands.prepare.command_digest) {
@@ -150,11 +150,11 @@ export function finalizeBrief(inputs) {
   return {
     release_context: context,
     release_brief: {
-      schema: "runx.release.brief.v1",
+      schema: "runx/release.brief.v1",
       decision,
       profile_id: context.profile_id,
       profile_digest: context.profile_digest,
-      profile_ref: context.profile_ref,
+      profile_path: context.profile_path,
       channel: context.channel,
       version: context.version,
       last_tag: context.last_tag,
@@ -229,7 +229,7 @@ function normalizeCommand(value, phase, identity) {
 }
 
 function bindPlans(context, plans) {
-  if (context.schema !== "runx.release.context.v1") throw new Error("release_context is required");
+  if (context.schema !== "runx/release.context.v1") throw new Error("release_context is required");
   const commands = {};
   for (const phase of ["prepare", "publish", "verify"]) {
     const plan = plans[phase];
@@ -248,7 +248,7 @@ function normalizeObserved(value) {
     version: text(source.version, 128),
     channel: text(source.channel, 128),
     release_id: text(source.release_id, 512),
-    commit_ref: text(source.commit_ref, 512),
+    commit: text(source.commit, 512),
     locators: Array.isArray(source.locators)
       ? source.locators.slice(0, 50).map((item) => text(item, 2_000)).filter(Boolean)
       : [],

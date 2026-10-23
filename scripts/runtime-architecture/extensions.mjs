@@ -17,7 +17,6 @@ export function checkContractBindingOwnership(findings) {
   const bindings = [
     ["packages/contracts/src/schemas/registry.ts", [
       "registry-binding.schema.json",
-      "review-receipt-output.schema.json",
     ]],
     ["packages/contracts/src/schemas/operational-policy.ts", [
       "operational-policy.schema.json",

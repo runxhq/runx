@@ -1,4 +1,4 @@
-//! Decision contracts: choices and closure dispositions.
+//! Decision contracts: the choices a governed call can carry out.
 use serde::{Deserialize, Serialize};
 
 use crate::schema::{NonEmptyString, RunxSchema};
@@ -13,36 +13,6 @@ pub enum DecisionChoice {
     Close,
     Decline,
     Monitor,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ClosureDisposition {
-    Closed,
-    Deferred,
-    Superseded,
-    Declined,
-    Blocked,
-    Failed,
-    Killed,
-    TimedOut,
-}
-
-impl ClosureDisposition {
-    /// Stable string label, identical to the serde `snake_case` representation.
-    /// Single source of truth for the runtime's disposition strings.
-    pub fn label(&self) -> &'static str {
-        match self {
-            ClosureDisposition::Closed => "closed",
-            ClosureDisposition::Deferred => "deferred",
-            ClosureDisposition::Superseded => "superseded",
-            ClosureDisposition::Declined => "declined",
-            ClosureDisposition::Blocked => "blocked",
-            ClosureDisposition::Failed => "failed",
-            ClosureDisposition::Killed => "killed",
-            ClosureDisposition::TimedOut => "timed_out",
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

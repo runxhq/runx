@@ -1,21 +1,20 @@
 use super::super::types::{
-    GraphStatus, GraphStepStatus, SequentialGraphState, SequentialGraphStepDefinition,
-    SequentialGraphStepState,
+    GraphState, GraphStepState, SequentialGraph, SequentialGraphStep, SequentialGraphStepDefinition,
 };
 
 #[must_use]
-pub fn create_sequential_graph_state(
+pub fn create_sequential_graph(
     graph_id: impl Into<String>,
     steps: &[SequentialGraphStepDefinition],
-) -> SequentialGraphState {
-    SequentialGraphState {
+) -> SequentialGraph {
+    SequentialGraph {
         graph_id: graph_id.into(),
-        status: GraphStatus::Pending,
+        state: GraphState::Pending,
         steps: steps
             .iter()
-            .map(|step| SequentialGraphStepState {
+            .map(|step| SequentialGraphStep {
                 step_id: step.id.clone(),
-                status: GraphStepStatus::Pending,
+                state: GraphStepState::Pending,
                 attempts: 0,
                 started_at: None,
                 completed_at: None,

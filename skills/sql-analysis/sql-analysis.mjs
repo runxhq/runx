@@ -1,7 +1,7 @@
 // Relevance and evidence binding belong to the skill. The connector owns SQL
 // and drivers; native data.validate owns full parameter-schema validation.
-export function bindChoice({ question, source_ref, catalog, choice, max_rows }) {
-  if (catalog.source_ref !== source_ref || catalog.status !== "catalog" || catalog.executed !== false) {
+export function bindChoice({ question, source, catalog, choice, max_rows }) {
+  if (catalog.source !== source || catalog.status !== "catalog" || catalog.executed !== false) {
     throw new Error("The query catalog does not belong to this source or is not a catalog read.");
   }
   const query = catalog.queries.find((item) => item.id === choice.query_id);
@@ -9,7 +9,7 @@ export function bindChoice({ question, source_ref, catalog, choice, max_rows }) 
   return {
     candidate: {
       decision: ready ? "ready" : "no_suitable_query",
-      question, source_ref, dialect: catalog.dialect,
+      question, source, dialect: catalog.dialect,
       query_id: ready ? query.id : "",
       parameters: ready ? choice.parameters : {},
       max_rows: Math.min(max_rows, catalog.max_rows),
@@ -41,7 +41,7 @@ export function stopped({ plan }) {
 
 export function finish({ question, plan, provider_operation, interpretation }) {
   const result = provider_operation.result;
-  if (result.source_ref !== plan.source_ref || result.query_id !== plan.query_id
+  if (result.source !== plan.source || result.query_id !== plan.query_id
       || result.status !== "executed" || result.executed !== true
       || result.returned_rows !== result.rows.length || result.returned_rows > plan.max_rows) {
     throw new Error("Returned SQL evidence does not match the planned source, query and row ceiling.");

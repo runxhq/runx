@@ -6,7 +6,7 @@ use crate::{ParseError, ValidatedSkill, ValidationError, parse_skill_markdown, v
 pub struct SkillInstallOrigin {
     pub source: String,
     pub source_label: String,
-    pub r#ref: String,
+    pub package: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

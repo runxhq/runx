@@ -237,7 +237,7 @@ pub(super) fn run(
             true => Failure::ReadbackPending(reason),
             false => rejected("invalid_response", reason),
         })?;
-    let readback_ref = if call.mutation() && checks.readbacks.is_empty() {
+    let readback_uri = if call.mutation() && checks.readbacks.is_empty() {
         // This write's acknowledgement: the act it answers and what it said.
         let acknowledgement = canonical_stable_json(&serde_json::json!({
             "operation": call.operation,
@@ -265,7 +265,7 @@ pub(super) fn run(
         operation: call.operation.to_owned(),
         target: call.target.to_owned(),
         result,
-        readback_ref,
+        readback_uri,
         operation_id,
         idempotency_key: call.idempotency_key.map(str::to_owned),
     })
@@ -655,12 +655,12 @@ mod tests {
             |value: serde_json::Value| serde_json::from_value::<JsonValue>(value).expect("JSON");
         let expected: ReadbackMatch = serde_json::from_value(serde_json::json!({
             "expected":{"source":"template","value":[
-                {"rel":"self","method":"GET","href":{"$concat":["https://api.example.test/refunds/",{"$response":"write.json.refund_ref"}]}},
-                {"rel":"up","method":"GET","href":{"$concat":["https://api.example.test/captures/",{"$argument":"/payment_ref"}]}}
+                {"rel":"self","method":"GET","href":{"$concat":["https://api.example.test/refunds/",{"$response":"write.json.refund_id"}]}},
+                {"rel":"up","method":"GET","href":{"$concat":["https://api.example.test/captures/",{"$argument":"/payment_id"}]}}
             ]},"observed":"relationships.*"
         })).expect("match");
-        let arguments = parse(serde_json::json!({"payment_ref":"ORIGINAL"}));
-        let write = parse(serde_json::json!({"refund_ref":"REFUND1"}));
+        let arguments = parse(serde_json::json!({"payment_id":"ORIGINAL"}));
+        let write = parse(serde_json::json!({"refund_id":"REFUND1"}));
         let self_link = serde_json::json!({"rel":"self","method":"GET","href":"https://api.example.test/refunds/REFUND1"});
         let original_link = serde_json::json!({"rel":"up","method":"GET","href":"https://api.example.test/captures/ORIGINAL"});
         let matching = parse(serde_json::json!({"relationships":[original_link, self_link]}));

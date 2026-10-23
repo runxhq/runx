@@ -1,0 +1,47 @@
+{
+  "$id": "https://schemas.runx.ai/runx/packet/lock/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Every packet id published from one source tree, ordered by id.",
+  "properties": {
+    "packets": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One packet id and the digest of its schema's exact bytes.",
+        "properties": {
+          "digest": {
+            "maxLength": 71,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 200,
+            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "digest"
+        ],
+        "title": "PacketLockEntry",
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "enum": [
+        "runx.packet.lock.v1"
+      ],
+      "title": "PacketLockSchema",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "packets"
+  ],
+  "title": "PacketLock",
+  "type": "object",
+  "x-runx-schema": "runx.packet.lock.v1"
+}

@@ -18,7 +18,7 @@ fn an_edit_replaces_exact_text_once_or_everywhere_and_says_why_it_cannot() -> Te
         WorkspaceBounds::Agent,
         edit,
     )?;
-    assert_eq!(edited.replacements, 1);
+    assert_eq!(edited.replacements.get(), 1);
     assert_eq!(edited.before_digest, digest("fn one() {}\nfn two() {}\n"));
     assert_eq!(
         fs::read_to_string(root.join("lib.rs"))?,
@@ -55,7 +55,7 @@ fn an_edit_replaces_exact_text_once_or_everywhere_and_says_why_it_cannot() -> Te
         WorkspaceBounds::Agent,
         edit,
     )?;
-    assert_eq!(all.replacements, 2);
+    assert_eq!(all.replacements.get(), 2);
     assert!(
         invoke::<FileEditInput, _>(
             root,

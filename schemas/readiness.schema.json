@@ -10,23 +10,29 @@
     },
     "cost": {
       "additionalProperties": false,
+      "description": "What the provider charges per call, when the operation declares it.",
       "properties": {
         "per": {
+          "description": "When a call becomes billable.",
           "enum": [
             "request",
             "success"
           ],
+          "title": "CostBasis",
           "type": "string"
         },
         "source": {
+          "description": "Where the price was read.",
           "enum": [
             "docs",
             "rate_card",
             "observed"
           ],
+          "title": "CostSource",
           "type": "string"
         },
         "source_url": {
+          "description": "The page that states it, `https` only.",
           "minLength": 1,
           "type": "string"
         },
@@ -40,6 +46,7 @@
         "per",
         "source"
       ],
+      "title": "OperationCost",
       "type": "object"
     },
     "instance_id": {
@@ -57,9 +64,11 @@
         "hosted",
         "local"
       ],
+      "title": "Placement",
       "type": "string"
     },
     "ready": {
+      "description": "True when no check failed. Approval may still be owed at call time.",
       "type": "boolean"
     },
     "reasons": {
@@ -67,6 +76,7 @@
         "additionalProperties": false,
         "properties": {
           "check": {
+            "description": "The checks admission runs, in order; each refuses before the next.",
             "enum": [
               "requirement",
               "instance",
@@ -77,6 +87,7 @@
               "implementation",
               "tolerance"
             ],
+            "title": "AdmissionCheck",
             "type": "string"
           },
           "detail": {
@@ -90,6 +101,7 @@
               "required",
               "unknown"
             ],
+            "title": "CheckOutcome",
             "type": "string"
           },
           "refs": {
@@ -117,6 +129,7 @@
                     "effect_finality",
                     "credential_resolution"
                   ],
+                  "title": "ProofKind",
                   "type": "string"
                 },
                 "provider": {
@@ -124,6 +137,7 @@
                   "type": "string"
                 },
                 "type": {
+                  "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                   "enum": [
                     "thread",
                     "comment",
@@ -153,6 +167,7 @@
                     "connector_instance",
                     "connector_operation"
                   ],
+                  "title": "ReferenceType",
                   "type": "string"
                 },
                 "uri": {
@@ -164,6 +179,7 @@
                 "type",
                 "uri"
               ],
+              "title": "Reference",
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
@@ -176,11 +192,13 @@
           "outcome",
           "detail"
         ],
+        "title": "AdmissionReason",
         "type": "object"
       },
       "type": "array"
     },
     "requirement": {
+      "description": "The skill requirement key.",
       "minLength": 1,
       "type": "string"
     }
@@ -191,6 +209,7 @@
     "ready",
     "reasons"
   ],
+  "title": "Readiness",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.readiness.v1"

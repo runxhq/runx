@@ -23,7 +23,7 @@ caller:
           examples_to_avoid: []
         evidence_bindings:
           - rule: Invented preference.
-            source_refs: [source:unknown]
+            source_ids: [source:unknown]
             confidence: inferred
         redactions: []
         stop_conditions: []

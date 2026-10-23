@@ -49,11 +49,11 @@ runners:
 }
 
 fn trusted_manifest_env() -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
-    trusted_manifest_env_for_owner("acme", None)
+    trusted_manifest_env_for_publisher("acme", None)
 }
 
-pub(crate) fn trusted_manifest_env_for_owner(
-    owner: &str,
+pub(crate) fn trusted_manifest_env_for_publisher(
+    publisher: &str,
     source_authority: Option<&str>,
 ) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
     let key_pair = test_manifest_key_pair()?;
@@ -67,8 +67,8 @@ pub(crate) fn trusted_manifest_env_for_owner(
             STANDARD.encode(key_pair.public_key().as_ref()),
         ),
         (
-            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV.to_owned(),
-            owner.to_owned(),
+            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV.to_owned(),
+            publisher.to_owned(),
         ),
     ]
     .into_iter()
@@ -123,11 +123,11 @@ fn registry_version_path(
     skill_id: &str,
     version: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let (owner, name) = skill_id
+    let (publisher, name) = skill_id
         .split_once('/')
-        .ok_or("registry test skill id must be owner/name")?;
+        .ok_or("registry test skill id must be publisher/name")?;
     Ok(registry_dir
-        .join(owner)
+        .join(publisher)
         .join(name)
         .join(format!("{version}.json")))
 }
@@ -156,7 +156,7 @@ fn signed_manifest(
         schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
         subject: runx_contracts::RegistrySubject {
             kind: runx_contracts::RegistrySubjectKind::Skill,
-            subject_ref: skill_id.to_owned(),
+            name: skill_id.to_owned(),
         },
         version: version.to_owned(),
         content_digest,
@@ -366,7 +366,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
                     "summary": "Docs bug is bounded."
                 },
                 "closure": {
-                    "disposition": "declined"
+                    "outcome": "declined"
                 }
             }
         }
@@ -393,8 +393,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
     let output = object(&result.output, "skill run result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     assert_eq!(string_field(output, "run_id"), Some("code-intake-run"));
-    let closure = object_field(output, "closure").ok_or("missing closure")?;
-    assert_eq!(string_field(closure, "disposition"), Some("declined"));
+    assert_eq!(string_field(output, "outcome"), Some("declined"));
     let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
     // Receipt ids are content-addressed (`id = hash(canonical_body)`).
     assert!(receipt_id.starts_with("sha256:"));
@@ -410,12 +409,9 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
         serde_json::to_value(&receipt.schema)?,
         serde_json::json!("runx.receipt.v1")
     );
-    assert_eq!(serde_json::to_value(&receipt.seal.disposition)?, "declined");
+    assert_eq!(serde_json::to_value(receipt.seal.outcome)?, "declined");
     let step_receipt = crate::support::read_test_first_step_receipt(&receipt_dir, &receipt)?;
-    assert_eq!(
-        serde_json::to_value(&step_receipt.seal.disposition)?,
-        "declined"
-    );
+    assert_eq!(serde_json::to_value(step_receipt.seal.outcome)?, "declined");
     assert!(step_receipt.acts.is_empty());
     assert_eq!(
         serde_json::to_value(&step_receipt.seal.criteria[0].status)?,
@@ -461,7 +457,7 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
                     ]
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -516,8 +512,7 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
 }
 
 #[test]
-fn native_skill_run_preserves_deferred_closure_disposition()
--> Result<(), Box<dyn std::error::Error>> {
+fn native_skill_run_preserves_deferred_outcome() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
@@ -528,7 +523,7 @@ fn native_skill_run_preserves_deferred_closure_disposition()
                     "summary": "Docs bug needs more context."
                 },
                 "closure": {
-                    "disposition": "deferred"
+                    "outcome": "deferred"
                 }
             }
         }
@@ -554,12 +549,11 @@ fn native_skill_run_preserves_deferred_closure_disposition()
 
     let output = object(&result.output, "skill run result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
-    let closure = object_field(output, "closure").ok_or("missing closure")?;
-    assert_eq!(string_field(closure, "disposition"), Some("deferred"));
+    assert_eq!(string_field(output, "outcome"), Some("deferred"));
     assert!(object_field(output, "error").is_none());
     let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
     let receipt = crate::support::read_test_signed_receipt(&receipt_dir, receipt_id)?;
-    assert_eq!(serde_json::to_value(&receipt.seal.disposition)?, "deferred");
+    assert_eq!(serde_json::to_value(receipt.seal.outcome)?, "deferred");
 
     Ok(())
 }
@@ -577,7 +571,7 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
                     "summary": "Docs bug is bounded."
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -722,15 +716,16 @@ runners:
           named_emits:
             transformed: transformed
           packets:
-            transformed: runx.test.transformed.v1
+            transformed: acme/javascript-module-skill.transformed.v1
 "#,
     )?;
     fs::create_dir_all(skill_dir.join("packets"))?;
     fs::write(
-        skill_dir.join("packets/transformed.schema.json"),
+        skill_dir.join("packets/transformed.v1.schema.json"),
         r#"{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "x-runx-packet-id": "runx.test.transformed.v1",
+  "$id": "https://schemas.runx.ai/packages/acme/javascript-module-skill/transformed/v1.json",
+  "x-runx-packet-id": "acme/javascript-module-skill.transformed.v1",
   "type": "object",
   "required": ["value"],
   "properties": { "value": { "type": "string" } },
@@ -812,7 +807,7 @@ runners:
           named_emits:
             result: result
           packets:
-            result: runx.test.result.v1
+            result: acme/invalid-javascript-packet.result.v1
 "#,
     )?;
     fs::write(
@@ -820,10 +815,11 @@ runners:
         "export default () => ({ result: { value: 42 } });\n",
     )?;
     fs::write(
-        skill_dir.join("packets/result.schema.json"),
+        skill_dir.join("packets/result.v1.schema.json"),
         r#"{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "x-runx-packet-id": "runx.test.result.v1",
+  "$id": "https://schemas.runx.ai/packages/acme/invalid-javascript-packet/result/v1.json",
+  "x-runx-packet-id": "acme/invalid-javascript-packet.result.v1",
   "type": "object",
   "required": ["value"],
   "properties": { "value": { "type": "string" } },
@@ -850,8 +846,7 @@ runners:
     // The step's packet violation fails the step; the graph seals that
     // failure rather than a result.
     let output = object(&result.output, "skill run result")?;
-    let closure = object_field(output, "closure").ok_or("missing closure")?;
-    assert_eq!(string_field(closure, "disposition"), Some("failed"));
+    assert_eq!(string_field(output, "outcome"), Some("failed"));
     let failure = object_field(output, "result").ok_or("missing failure result")?;
     assert!(
         string_field(failure, "message")
@@ -874,7 +869,7 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
                     "summary": "Docs bug is bounded."
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -921,7 +916,7 @@ fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std
                     "summary": "Docs bug is bounded."
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -949,7 +944,7 @@ fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std
         answers,
     )?;
     assert_eq!(result.status, runx_runtime::RunStatus::Sealed);
-    assert_eq!(result.receipt_refs.len(), 1);
+    assert_eq!(result.receipt_ids.len(), 1);
 
     let output = object(&result.output, "skill run result")?;
     let receipt_id = string_field(output, "receipt_id").ok_or("missing receipt_id")?;
@@ -970,8 +965,8 @@ fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std
     );
     assert_eq!(receipt.issuer.kid.as_str(), home_key.kid());
     assert_eq!(
-        receipt.issuer.public_key_sha256,
-        home_key.public_key_sha256()
+        receipt.issuer.public_key_digest,
+        home_key.public_key_digest()
     );
     assert!(receipt.signature.value.starts_with("base64:"));
 
@@ -1132,7 +1127,7 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
                     "summary": "Graph fix authored."
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -1165,8 +1160,8 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
     let sealed = runx_runtime::run_record::sealed_run(&BTreeMap::new(), temp.path(), run_id)?
         .ok_or("the resumed run has no seal in its record")?;
     assert_eq!(
-        sealed.receipt.seal.disposition,
-        runx_contracts::ClosureDisposition::Closed,
+        sealed.receipt.seal.outcome,
+        runx_contracts::RunOutcome::Completed,
         "the run record must agree with the sealed graph receipt"
     );
 
@@ -1202,7 +1197,7 @@ fn native_graph_transition_gate_allows_declared_agent_output()
             "decide": {
                 "approved": true,
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -1330,7 +1325,7 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
             "decide": {
                 "approved": true,
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -1353,9 +1348,8 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
     })?;
     let output = object(&blocked.output, "blocked graph result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
-    let closure = object_field(output, "closure").ok_or("missing closure")?;
-    assert_eq!(string_field(closure, "disposition"), Some("blocked"));
-    assert_eq!(string_field(closure, "reason"), Some("graph_blocked"));
+    assert_eq!(string_field(output, "outcome"), Some("blocked"));
+    assert_eq!(string_field(output, "seal_reason"), Some("graph_blocked"));
     // Why the guard refused rides the run's output, outside the signed receipt.
     let refusal = object_field(output, "refusal").ok_or("missing refusal")?;
     assert!(
@@ -1415,7 +1409,7 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
                     "summary": "Nested agent fix authored."
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -1468,7 +1462,7 @@ Prefer clear product taste over ornamental flourish. Flag incoherent hierarchy,
 weak contrast, and interaction states that feel bolted on.
 "#,
         IngestSkillOptions {
-            owner: Some("runx".to_owned()),
+            publisher_slug: Some("runx".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some(FIXTURE_CREATED_AT.to_owned()),
             profile_document: Some(
@@ -1535,14 +1529,14 @@ runners:
         string_field(data, "description"),
         Some("Portable taste guidance for downstream agents.")
     );
-    assert!(string_field(data, "manual_sha256").is_some_and(|hash| hash.starts_with("sha256:")));
-    assert!(string_field(data, "profile_sha256").is_some_and(|hash| hash.starts_with("sha256:")));
+    assert!(string_field(data, "manual_digest").is_some_and(|hash| hash.starts_with("sha256:")));
+    assert!(string_field(data, "profile_digest").is_some_and(|hash| hash.starts_with("sha256:")));
     assert!(
         string_field(data, "content").is_some_and(|manual| manual.contains("# Taste Profile")
             && manual.contains("Prefer clear product taste"))
     );
     let meta = object_field(context_entry, "meta").ok_or("missing context meta")?;
-    assert!(string_field(meta, "hash").is_some_and(|hash| hash.starts_with("sha256:")));
+    assert!(string_field(meta, "digest").is_some_and(|digest| digest.starts_with("sha256:")));
 
     Ok(())
 }
@@ -1661,7 +1655,7 @@ description: Internal runtime helper.
 # Runtime Helper
 "#,
         IngestSkillOptions {
-            owner: Some("sourcey".to_owned()),
+            publisher_slug: Some("sourcey".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some(FIXTURE_CREATED_AT.to_owned()),
             profile_document: Some(
@@ -1812,7 +1806,7 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
                     "message": "Graph tool bug"
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -1887,7 +1881,7 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
                     "accepted": true
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -2000,7 +1994,7 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
                     }
                 },
                 "closure": {
-                    "disposition": "closed"
+                    "outcome": "completed"
                 }
             }
         }
@@ -2167,7 +2161,7 @@ fn native_graph_skill_run_requires_declared_graph_inputs() -> Result<(), Box<dyn
             .contains("runner input 'lead' is required")
     );
     let receipt = crate::support::read_test_signed_receipt(&receipt_dir, &receipt_id)?;
-    assert_eq!(serde_json::to_value(&receipt.seal.disposition)?, "blocked");
+    assert_eq!(serde_json::to_value(receipt.seal.outcome)?, "blocked");
     assert!(
         !receipt_dir.join("runs").exists(),
         "refusal must not leave an unusable continuation"
@@ -2586,7 +2580,7 @@ fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn
         &store,
         "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
         IngestSkillOptions {
-            owner: Some("acme".to_owned()),
+            publisher_slug: Some("acme".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some(FIXTURE_CREATED_AT.to_owned()),
             profile_document: Some(registry_child_profile_document()),
@@ -2668,7 +2662,7 @@ fn skill_inspection_reports_registry_refs_the_registry_directory_does_not_hold()
         &store,
         "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
         IngestSkillOptions {
-            owner: Some("acme".to_owned()),
+            publisher_slug: Some("acme".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some(FIXTURE_CREATED_AT.to_owned()),
             profile_document: Some(registry_child_profile_document()),
@@ -2701,7 +2695,7 @@ fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
         &store,
         "---\nname: registry-child\ndescription: Official registry-backed nested child.\n---\n# Registry Child\n",
         IngestSkillOptions {
-            owner: Some("runx".to_owned()),
+            publisher_slug: Some("runx".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some(FIXTURE_CREATED_AT.to_owned()),
             profile_document: Some(registry_child_profile_document()),
@@ -2715,7 +2709,7 @@ fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
         "registry:runx/registry-child@1.0.0",
     )?;
     let receipt_dir = temp.path().join("receipts");
-    let mut env = trusted_manifest_env_for_owner("runx", Some("official_runx"))?;
+    let mut env = trusted_manifest_env_for_publisher("runx", Some("official_runx"))?;
     env.insert(
         "RUNX_REGISTRY_DIR".to_owned(),
         registry_dir.to_string_lossy().into_owned(),
@@ -2760,7 +2754,7 @@ fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
         &store,
         "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
         IngestSkillOptions {
-            owner: Some("acme".to_owned()),
+            publisher_slug: Some("acme".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some(FIXTURE_CREATED_AT.to_owned()),
             profile_document: Some(registry_child_profile_document()),
@@ -2814,7 +2808,7 @@ fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
         &store,
         "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
         IngestSkillOptions {
-            owner: Some("acme".to_owned()),
+            publisher_slug: Some("acme".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some(FIXTURE_CREATED_AT.to_owned()),
             profile_document: Some(registry_child_profile_document()),
@@ -2925,7 +2919,7 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
 
     let recovered = run_skill(request.clone())?;
     assert_eq!(recovered.output, result.output);
-    assert_eq!(recovered.receipt_refs, result.receipt_refs);
+    assert_eq!(recovered.receipt_ids, result.receipt_ids);
     assert_eq!(fs::read_to_string(&count_file)?, "1");
 
     let mut drift = request.clone();
@@ -2949,7 +2943,7 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
     assert_eq!(fs::read_to_string(&count_file)?, "1");
 
     // A rewritten record fails its chain: the run holds instead of rerunning.
-    let store = temp.path().join(".runx/kernel.sqlite");
+    let store = temp.path().join(".runx/kernel-v2.sqlite");
     let database = rusqlite::Connection::open(&store)?;
     let original_event: Vec<u8> = database.query_row(
         "SELECT data FROM kernel_events WHERE kind = 'run' AND key = 'run_pinned_counter' AND version = 2",
@@ -2971,7 +2965,7 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
     )?;
     drop(database);
 
-    let receipt_id = result.receipt_refs.first().ok_or("missing graph receipt")?;
+    let receipt_id = result.receipt_ids.first().ok_or("missing graph receipt")?;
     let receipt_path = LocalReceiptStore::new(&receipt_dir).receipt_path(receipt_id)?;
     fs::write(receipt_path, b"{}")?;
     let error = run_skill(request)
@@ -4202,12 +4196,12 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
         })
     };
     let branched = answer(serde_json::json!({
-        "answers": { "decide": { "verdict": "go", "closure": { "disposition": "closed" } } }
+        "answers": { "decide": { "verdict": "go", "closure": { "outcome": "completed" } } }
     }))?;
     let branched = object(&branched.output, "branched when graph result")?;
     assert_eq!(string_field(branched, "status"), Some("needs_agent"));
     let sealed = answer(serde_json::json!({
-        "answers": { "branch_go": { "result": { "ok": true }, "closure": { "disposition": "closed" } } }
+        "answers": { "branch_go": { "result": { "ok": true }, "closure": { "outcome": "completed" } } }
     }))?;
     let output = object(&sealed.output, "sealed when graph result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
@@ -4239,11 +4233,11 @@ impl runx_runtime::RuntimeHttpTransport for RecordRegistry {
             .and_then(|rest| rest.strip_suffix("/record"))
             .and_then(|rest| {
                 let mut parts = rest.split('/');
-                let (owner, name, _, version) =
+                let (publisher, name, _, version) =
                     (parts.next()?, parts.next()?, parts.next()?, parts.next()?);
                 fs::read_to_string(
                     self.directory
-                        .join(owner)
+                        .join(publisher)
                         .join(name)
                         .join(format!("{version}.json")),
                 )
@@ -4269,7 +4263,7 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
         &FileRegistryStore::new(&hosted),
         "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
         IngestSkillOptions {
-            owner: Some("acme".to_owned()),
+            publisher_slug: Some("acme".to_owned()),
             version: Some("1.0.0".to_owned()),
             created_at: Some(FIXTURE_CREATED_AT.to_owned()),
             profile_document: Some(registry_child_profile_document()),

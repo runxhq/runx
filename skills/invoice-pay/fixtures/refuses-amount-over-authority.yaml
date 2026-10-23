@@ -9,7 +9,7 @@ operator_journeys:
     request: Pay this invoice for more than I authorized.
     expected_outcome: Refuse before any approval or payment because the amount exceeds the authority.
 inputs:
-  invoice_ref: INV-2026-0042
+  invoice_id: INV-2026-0042
   amount_minor: 4200
   currency: USD
   payee:
@@ -18,7 +18,7 @@ inputs:
     term_id: invoice-authority-1
     currency: USD
     max_amount_minor: 4000
-    counterparty: https://payee.example/v1/invoices/pay
+    resource_url: https://payee.example/v1/invoices/pay
   idempotency_seed: invoice-pay-test-0042
   connector: wallet/evm
   request:
@@ -26,7 +26,7 @@ inputs:
       url: https://payee.example/v1/invoices/pay
       method: POST
       body:
-        invoice_ref: INV-2026-0042
+        invoice_id: INV-2026-0042
     amount_minor: 4200
     pay_to: "0x00000000000000000000000000000000000000a1"
 expect:

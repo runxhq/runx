@@ -4,7 +4,7 @@ target: ..
 runner: operate
 inputs:
   objective: Check payment readiness and tell me what to do next.
-  scope_ref: workspace:example
+  scope: workspace:example
   dashboard_snapshot:
     health:
       api: ok
@@ -40,7 +40,7 @@ caller:
     operate:
       ops_desk_packet:
         decision: ready
-        scope_ref: workspace:example
+        scope: workspace:example
         objective: Check payment readiness and tell me what to do next.
         mode: read_only
         dashboard:
@@ -53,7 +53,7 @@ caller:
         - severity: warning
           area: providers
           summary: Secondary rail webhook readiness needs review, but primary rail funding is healthy.
-          evidence_refs:
+          evidence_paths:
           - provider_status.secondary_rail_webhook
         proposals:
         - action_id: secondary_rail_webhook_check
@@ -71,12 +71,12 @@ caller:
             readback: webhook delivery endpoint health and latest event status
           execution:
             interface: skill
-            lane_ref: operations-review
-            profile_ref: null
-            command_ref: null
-            workflow_ref: null
+            lane: operations-review
+            profile: null
+            command: null
+            workflow: null
             approval_gate: null
-            verifier_ref: provider.webhook_check
+            verifier: provider.webhook_check
         ordered_next_steps:
         - step: Run a secondary rail webhook health check before relying on secondary payouts.
           lane: provider.webhook_check

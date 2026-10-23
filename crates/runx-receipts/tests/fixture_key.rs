@@ -56,7 +56,8 @@ impl FixtureKey {
         ReceiptIssuer {
             issuer_type: self.issuer_type.clone(),
             kid: self.kid.clone().into(),
-            public_key_sha256: sha256_prefixed(self.public_key()).into(),
+            public_key_digest: sha256_prefixed(self.public_key()).into(),
+            runx_version: "0.11.0".into(),
         }
     }
 
@@ -121,8 +122,8 @@ impl SignatureVerifier for FixtureKeys<'_> {
             .iter()
             .find(|key| key.issuer_type == issuer.issuer_type && key.kid == issuer.kid.as_str())
             .ok_or(SignatureVerificationFailure::MissingKey)?;
-        if issuer.public_key_sha256.as_str() != sha256_prefixed(key.public_key()) {
-            return Err(SignatureVerificationFailure::KeyHashMismatch);
+        if issuer.public_key_digest.as_str() != sha256_prefixed(key.public_key()) {
+            return Err(SignatureVerificationFailure::KeyDigestMismatch);
         }
         let encoded = signature
             .value

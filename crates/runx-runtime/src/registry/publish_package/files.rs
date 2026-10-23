@@ -20,7 +20,7 @@ pub(super) fn collect_publish_package_files(
     loaded: &LoadedSkillPackage,
     env: &BTreeMap<String, String>,
     cwd: &Path,
-    packet_ids: &BTreeSet<String>,
+    packet_ids: &BTreeSet<runx_contracts::PacketId>,
 ) -> Result<CollectedPackage, RegistryPublishPackageError> {
     let mut files = BTreeMap::new();
     for relative in &loaded.package.consumed_files {
@@ -34,7 +34,7 @@ pub(super) fn collect_publish_package_files(
         })?;
         insert_source_file(&mut files, relative, contents)?;
     }
-    packet::append_declared_packet_schemas(&mut files, loaded, env, cwd, packet_ids)?;
+    packet::append_declared_packet_schemas(&mut files, loaded, packet_ids)?;
     let connectors = super::connectors::package_connectors(
         loaded,
         &mut files,

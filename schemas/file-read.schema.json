@@ -1,0 +1,59 @@
+{
+  "$id": "https://schemas.runx.ai/runx/fs/file-read/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `fs.read` returns: the lines read from one file, with the whole file's size, line count and digest.",
+  "properties": {
+    "bytes": {
+      "description": "The whole file's size.",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "content_digest": {
+      "description": "The whole file's digest, which a write of it names.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "contents": {
+      "description": "The lines read, from `start_line`, with their line endings.",
+      "type": "string"
+    },
+    "path": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "start_line": {
+      "description": "The first line read, counting from 1.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "total_lines": {
+      "description": "How many lines the whole file has.",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "truncated": {
+      "description": "The file goes on past the lines read.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "path",
+    "repo_root",
+    "contents",
+    "bytes",
+    "truncated",
+    "content_digest",
+    "start_line",
+    "total_lines"
+  ],
+  "title": "FileRead",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.fs.file_read.v1"
+}

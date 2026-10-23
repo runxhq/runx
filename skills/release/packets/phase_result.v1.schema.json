@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/release/phase-result/v1.json",
+  "x-runx-packet-id": "runx/release.phase_result.v1",
+  "additionalProperties": false,
+  "properties": {
+    "channel": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "command_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "errors": {
+      "items": {
+        "maxProperties": 20,
+        "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "exit_code": {
+          "type": "integer"
+        },
+        "stderr_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "stderr_truncated": {
+          "type": "boolean"
+        },
+        "stdout_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "stdout_truncated": {
+          "type": "boolean"
+        },
+        "timed_out": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "stdout_digest",
+        "stderr_digest",
+        "exit_code",
+        "timed_out",
+        "duration_ms",
+        "stdout_truncated",
+        "stderr_truncated"
+      ],
+      "type": "object"
+    },
+    "observed": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "checks": {
+          "additionalProperties": {
+            "maxLength": 500,
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "maxProperties": 100,
+          "propertyNames": {
+            "maxLength": 128,
+            "minLength": 1
+          },
+          "type": "object"
+        },
+        "commit": {
+          "maxLength": 512,
+          "type": "string"
+        },
+        "locators": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "release_id": {
+          "maxLength": 512,
+          "type": "string"
+        },
+        "status": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 128,
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "version",
+        "channel",
+        "release_id",
+        "commit",
+        "locators",
+        "checks"
+      ],
+      "type": "object"
+    },
+    "phase": {
+      "enum": [
+        "prepare",
+        "publish",
+        "verify"
+      ],
+      "type": "string"
+    },
+    "profile_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "profile_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "runx/release.phase_result.v1"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "command_completed",
+        "verified",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "phase",
+    "status",
+    "profile_id",
+    "profile_digest",
+    "command_digest",
+    "channel",
+    "version",
+    "observed",
+    "evidence",
+    "errors"
+  ],
+  "type": "object"
+}

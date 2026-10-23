@@ -315,7 +315,7 @@ impl Store<'_> {
                 let (heads, has_more) = backend.heads(&list)?;
                 model::heads_result(
                     name,
-                    list.data_source_ref,
+                    list.data_source_uri,
                     list.resource,
                     list.limit,
                     &heads,
@@ -378,8 +378,8 @@ impl Driver for Store<'_> {
         // it was decided against: `<resource>:<aggregate>:<version>` either way.
         let object = result.as_object();
         let field = |name: &str| object.and_then(|object| object.get(name));
-        let operation_id = match field("event_ref").and_then(JsonValue::as_str) {
-            Some(event_ref) => Some(event_ref.to_owned()),
+        let operation_id = match field("event_id").and_then(JsonValue::as_str) {
+            Some(event_id) => Some(event_id.to_owned()),
             None => match (
                 field("resource").and_then(JsonValue::as_str),
                 field("aggregate_id").and_then(JsonValue::as_str),

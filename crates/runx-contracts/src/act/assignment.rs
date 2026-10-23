@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::{JsonObject, JsonValue};
 
-mod hash;
+mod binding;
 
-use hash::{sha256_prefixed, stable_hash_json};
+use binding::{sha256_prefixed, stable_binding_json};
 
 pub const ACT_ASSIGNMENT_SCHEMA: &str = "runx.act_assignment.v1";
 pub const SHA256_ALGORITHM: &str = "sha256";
@@ -24,15 +24,15 @@ pub enum ActAssignmentSchema {
 pub enum ActAssignmentHostKind {
     Cli,
     Api,
-    /// A comment on a provider thread; `trigger_ref` locates it.
+    /// A comment on a provider thread; `trigger_uri` locates it.
     Comment,
     System,
 }
 
 // `ActAssignmentActor` / `ActAssignmentHost` fields stay `String`: they feed the
-// fixture-backed idempotency hash pipeline (`normalize_*`, `derive_*`), whose
+// fixture-backed idempotency digest pipeline (`normalize_*`, `derive_*`), whose
 // digests must not change. Builders normalize empty strings
-// away before hashing; the contract keeps the raw inbound envelope permissive.
+// away before digesting; the contract keeps the raw inbound envelope permissive.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ActAssignmentActor {
@@ -51,7 +51,7 @@ pub struct ActAssignmentActor {
 pub struct ActAssignmentHost {
     pub kind: ActAssignmentHostKind,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trigger_ref: Option<String>,
+    pub trigger_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope_set: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -65,7 +65,7 @@ pub struct ActAssignmentIdempotency {
     pub intent_key: NonEmptyString,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger_key: Option<NonEmptyString>,
-    pub content_hash: NonEmptyString,
+    pub content_digest: NonEmptyString,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -73,10 +73,10 @@ pub struct ActAssignmentIdempotency {
 #[runx_schema(id = "runx.act_assignment.v1")]
 pub struct ActAssignment {
     pub schema: ActAssignmentSchema,
-    pub skill_ref: NonEmptyString,
+    pub skill: NonEmptyString,
     pub runner: NonEmptyString,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_ref: Option<NonEmptyString>,
+    pub source_uri: Option<NonEmptyString>,
     pub requested_at: IsoDateTime,
     pub host: ActAssignmentHost,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -87,10 +87,10 @@ pub struct ActAssignment {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BuildActAssignment {
-    pub skill_ref: String,
+    pub skill: String,
     pub runner: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_ref: Option<String>,
+    pub source_uri: Option<String>,
     pub requested_at: String,
     pub host: ActAssignmentHost,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -101,30 +101,30 @@ impl BuildActAssignment {
     #[must_use]
     pub fn build(self) -> ActAssignment {
         let input_overrides = non_empty_object(self.input_overrides);
-        let source_ref = non_empty_string(self.source_ref);
+        let source_uri = non_empty_string(self.source_uri);
         let host = normalize_host(self.host);
-        let trigger_key = derive_trigger_key(host.kind.clone(), host.trigger_ref.clone());
-        let content_hash = derive_content_hash(input_overrides.clone());
+        let trigger_key = derive_trigger_key(host.kind.clone(), host.trigger_uri.clone());
+        let content_digest = derive_content_digest(input_overrides.clone());
 
         ActAssignment {
             schema: ActAssignmentSchema::V1,
-            skill_ref: self.skill_ref.clone().into(),
+            skill: self.skill.clone().into(),
             runner: self.runner.clone().into(),
-            source_ref: source_ref.clone().map(Into::into),
+            source_uri: source_uri.clone().map(Into::into),
             requested_at: self.requested_at.into(),
             host,
             input_overrides: input_overrides.clone(),
             idempotency: ActAssignmentIdempotency {
                 algorithm: SHA256_ALGORITHM.to_owned(),
                 intent_key: derive_intent_key(IntentKeyInput {
-                    skill_ref: self.skill_ref,
+                    skill: self.skill,
                     runner: self.runner,
-                    source_ref,
+                    source_uri,
                     input_overrides,
                 })
                 .into(),
                 trigger_key: trigger_key.map(Into::into),
-                content_hash: content_hash.into(),
+                content_digest: content_digest.into(),
             },
         }
     }
@@ -133,10 +133,10 @@ impl BuildActAssignment {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IntentKeyInput {
-    pub skill_ref: String,
+    pub skill: String,
     pub runner: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_ref: Option<String>,
+    pub source_uri: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_overrides: Option<JsonObject>,
 }
@@ -148,45 +148,46 @@ pub struct IntentKeyInput {
 /// integer numeric values.
 #[must_use]
 pub fn derive_intent_key(input: IntentKeyInput) -> String {
-    sha256_prefixed(&stable_hash_json(&intent_hash_payload(input)))
+    sha256_prefixed(&stable_binding_json(&intent_key_payload(input)))
 }
 
 /// Derives the stable trigger idempotency key when a non-empty trigger exists.
 ///
-/// The same fixture-backed hash envelope as [`derive_intent_key`] applies.
+/// The same fixture-backed digest envelope as [`derive_intent_key`] applies.
 #[must_use]
 pub fn derive_trigger_key(
     host_kind: ActAssignmentHostKind,
-    trigger_ref: Option<String>,
+    trigger_uri: Option<String>,
 ) -> Option<String> {
-    let trigger_ref = non_empty_string(trigger_ref)?;
+    let trigger_uri = non_empty_string(trigger_uri)?;
     let mut payload = BTreeMap::new();
     payload.insert(
         "host_kind".to_owned(),
         JsonValue::String(host_kind_to_string(&host_kind)),
     );
-    payload.insert("trigger_ref".to_owned(), JsonValue::String(trigger_ref));
-    Some(sha256_prefixed(&stable_hash_json(&JsonValue::Object(
+    payload.insert("trigger_uri".to_owned(), JsonValue::String(trigger_uri));
+    Some(sha256_prefixed(&stable_binding_json(&JsonValue::Object(
         payload,
     ))))
 }
 
-/// Derives the stable content hash for act assignment input overrides.
+/// Derives the stable content digest for act assignment input overrides.
 ///
-/// The same fixture-backed hash envelope as [`derive_intent_key`] applies.
+/// The same fixture-backed digest envelope as [`derive_intent_key`] applies.
 #[must_use]
-pub fn derive_content_hash(input_overrides: Option<JsonObject>) -> String {
-    sha256_prefixed(&stable_hash_json(&JsonValue::Object(
+pub fn derive_content_digest(input_overrides: Option<JsonObject>) -> String {
+    sha256_prefixed(&stable_binding_json(&JsonValue::Object(
         non_empty_object(input_overrides).unwrap_or_default(),
     )))
 }
 
-fn intent_hash_payload(input: IntentKeyInput) -> JsonValue {
+/// The intent key's preimage: the assignment's own field names and values.
+fn intent_key_payload(input: IntentKeyInput) -> JsonValue {
     let mut payload = BTreeMap::new();
-    payload.insert("skill_ref".to_owned(), JsonValue::String(input.skill_ref));
+    payload.insert("skill".to_owned(), JsonValue::String(input.skill));
     payload.insert("runner".to_owned(), JsonValue::String(input.runner));
-    if let Some(source_ref) = non_empty_string(input.source_ref) {
-        payload.insert("source_ref".to_owned(), JsonValue::String(source_ref));
+    if let Some(source_uri) = non_empty_string(input.source_uri) {
+        payload.insert("source_uri".to_owned(), JsonValue::String(source_uri));
     }
     if let Some(input_overrides) = non_empty_object(input.input_overrides) {
         payload.insert(
@@ -211,7 +212,7 @@ fn non_empty_object(value: Option<JsonObject>) -> Option<JsonObject> {
 fn normalize_host(host: ActAssignmentHost) -> ActAssignmentHost {
     ActAssignmentHost {
         kind: host.kind,
-        trigger_ref: non_empty_string(host.trigger_ref),
+        trigger_uri: non_empty_string(host.trigger_uri),
         scope_set: normalize_scope_set(host.scope_set),
         actor: normalize_actor(host.actor),
     }

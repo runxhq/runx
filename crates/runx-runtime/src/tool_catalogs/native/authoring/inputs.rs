@@ -60,7 +60,7 @@ impl CapabilityInput for BindInput {}
 pub(super) struct ValidateInput {
     pub(super) repo_root: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) skill_ref: Option<String>,
+    pub(super) skill_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) candidate_files: Option<Vec<JsonValue>>,
     pub(super) allow_execute_harness: bool,
@@ -117,7 +117,7 @@ pub(super) const BIND_FIELDS: &[CapabilityField] = &[
 pub(super) const VALIDATE_FIELDS: &[CapabilityField] = &[
     root_field(),
     field(
-        "skill_ref",
+        "skill_path",
         "Package path relative to the workspace or owning skill.",
     ),
     field(

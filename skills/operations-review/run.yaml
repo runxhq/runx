@@ -1,5 +1,5 @@
 skill: operations-review
-version: "0.3.11"
+version: "0.3.12"
 catalog:
   kind: skill
   audience: operator
@@ -21,7 +21,7 @@ runners:
         type: string
         required: true
         description: The bounded operator objective.
-      scope_ref:
+      scope:
         type: string
         required: true
         description: Project, workspace, account, product, or bounded operating surface being operated.
@@ -61,7 +61,7 @@ runners:
         task: operations-review
       inputs:
         objective: $input.objective
-        scope_ref: $input.scope_ref
+        scope: $input.scope
         dashboard_snapshot: $input.dashboard_snapshot
         receipt_summary: $input.receipt_summary
         provider_status: $input.provider_status
@@ -72,211 +72,11 @@ runners:
       outputs:
         ops_desk_packet:
           type: object
-          schema:
-            required:
-            - decision
-            - scope_ref
-            - objective
-            - mode
-            - dashboard
-            - findings
-            - proposals
-            - ordered_next_steps
-            - refused_reasons
-            - needs_input
-            - success_checkpoint
-            additionalProperties: false
-            properties:
-              decision:
-                type: string
-                enum:
-                - ready
-                - needs_input
-                - refused
-                - awaiting_approval
-              scope_ref:
-                type: string
-                minLength: 1
-              objective:
-                type: string
-                minLength: 1
-              mode:
-                type: string
-              dashboard:
-                type: object
-                properties:
-                  health:
-                    type: string
-                  money:
-                    type: string
-                  communications:
-                    type: string
-                  providers:
-                    type: string
-                  receipts:
-                    type: string
-                  access:
-                    type: string
-                  release:
-                    type: string
-                  registry:
-                    type: string
-                  deploy:
-                    type: string
-                additionalProperties: false
-              findings:
-                type: array
-                items:
-                  type: object
-                  required:
-                  - severity
-                  - area
-                  - summary
-                  - evidence_refs
-                  properties:
-                    severity:
-                      type: string
-                      enum:
-                      - info
-                      - warning
-                      - high
-                      - critical
-                    area:
-                      type: string
-                    summary:
-                      type: string
-                    evidence_refs:
-                      type: array
-                      items:
-                        type: string
-                  additionalProperties: false
-              proposals:
-                type: array
-                items:
-                  type: object
-                  required:
-                  - action_id
-                  - lane
-                  - reason
-                  - inputs_summary
-                  - consequence
-                  - approval_required
-                  - blockers
-                  - verification
-                  - execution
-                  properties:
-                    action_id:
-                      type: string
-                      minLength: 1
-                    lane:
-                      type: string
-                      minLength: 1
-                    reason:
-                      type: string
-                      minLength: 1
-                    inputs_summary:
-                      type: object
-                      additionalProperties: true
-                    consequence:
-                      type: string
-                    approval_required:
-                      type: boolean
-                    approval_prompt:
-                      type:
-                      - string
-                      - 'null'
-                    blockers:
-                      type: array
-                      items:
-                        type: string
-                    verification:
-                      type: object
-                      required:
-                      - expected_receipt
-                      - readback
-                      properties:
-                        expected_receipt:
-                          type:
-                          - string
-                          - 'null'
-                        expected_effect:
-                          type:
-                          - string
-                          - 'null'
-                        readback:
-                          type: string
-                      additionalProperties: false
-                    execution:
-                      type: object
-                      required:
-                      - interface
-                      - lane_ref
-                      - verifier_ref
-                      properties:
-                        interface:
-                          type: string
-                        lane_ref:
-                          type: string
-                        profile_ref:
-                          type:
-                          - string
-                          - 'null'
-                        command_ref:
-                          type:
-                          - string
-                          - 'null'
-                        workflow_ref:
-                          type:
-                          - string
-                          - 'null'
-                        approval_gate:
-                          type:
-                          - string
-                          - 'null'
-                        verifier_ref:
-                          type: string
-                      additionalProperties: false
-                  additionalProperties: false
-              ordered_next_steps:
-                type: array
-                items:
-                  type: object
-                  required:
-                  - step
-                  - lane
-                  - requires_confirmation
-                  properties:
-                    step:
-                      type: string
-                    lane:
-                      type: string
-                    requires_confirmation:
-                      type: boolean
-                  additionalProperties: false
-              refused_reasons:
-                type: array
-                items:
-                  type: string
-              needs_input:
-                type: array
-                items:
-                  type: string
-              success_checkpoint:
-                type: object
-                required:
-                - milestone
-                - description
-                properties:
-                  milestone:
-                    type: string
-                  description:
-                    type: string
-                additionalProperties: false
       artifacts:
         named_emits:
           ops_desk_packet: ops_desk_packet
         packets:
-          ops_desk_packet: runx.ops_desk.packet.v1
+          ops_desk_packet: runx/operations-review.desk.v1
     default: true
   review-action:
     description: Review one proposed action, its consequence, whether it needs approval, its blockers and the evidence that would prove it.
@@ -310,73 +110,13 @@ runners:
       outputs:
         action_review:
           type: object
-          schema:
-            required:
-            - decision
-            - consequence
-            - approval_required
-            - blockers
-            - execution_handoff
-            - verification
-            additionalProperties: false
-            properties:
-              decision:
-                type: string
-                enum:
-                - ready
-                - awaiting_approval
-                - needs_input
-                - refused
-              consequence:
-                type: string
-              approval_required:
-                type: boolean
-              blockers:
-                type: array
-                items:
-                  type: string
-              execution_handoff:
-                type: object
-                required:
-                - interface
-                - lane_ref
-                - verifier_ref
-                properties:
-                  interface:
-                    type: string
-                  lane_ref:
-                    type: string
-                  approval_gate:
-                    type:
-                    - string
-                    - 'null'
-                  verifier_ref:
-                    type: string
-                additionalProperties: false
-              verification:
-                type: object
-                required:
-                - expected_receipt
-                - readback
-                properties:
-                  expected_receipt:
-                    type:
-                    - string
-                    - 'null'
-                  expected_effect:
-                    type:
-                    - string
-                    - 'null'
-                  readback:
-                    type: string
-                additionalProperties: false
       artifacts:
         wrap_as: action_review_packet
-        packet: runx.ops_desk.action_review.v1
+        packet: runx/operations-review.action_review.v1
   operate_from_projection:
     description: Review the same way, reading a bounded product-owned projection first.
     inputs:
-      data_source_ref:
+      data_source_uri:
         type: string
         required: true
         description: Logical data source that stores the operating projection.
@@ -392,7 +132,7 @@ runners:
         type: string
         required: true
         description: The bounded operator objective.
-      scope_ref:
+      scope:
         type: string
         required: true
         description: Project, workspace, account, product, or bounded operating surface being operated.
@@ -427,7 +167,7 @@ runners:
     - id: read-state
       operation: store/projection.read
       input:
-        data_source_ref: $input.data_source_ref
+        data_source_uri: $input.data_source_uri
         resource: $input.resource
         aggregate_id: $input.aggregate_id
     - id: operate
@@ -435,7 +175,7 @@ runners:
       runner: operate
       inputs:
         objective: $input.objective
-        scope_ref: $input.scope_ref
+        scope: $input.scope
         receipt_summary: $input.receipt_summary
         provider_status: $input.provider_status
         approval_context: $input.approval_context
@@ -447,7 +187,7 @@ runners:
         named_emits:
           ops_desk_packet: ops_desk_packet
         packets:
-          ops_desk_packet: runx.ops_desk.packet.v1
+          ops_desk_packet: runx/operations-review.desk.v1
 harness:
   files:
   - fixtures/support/composed.graph

@@ -1,5 +1,5 @@
 skill: charge
-version: 0.7.2
+version: "0.7.3"
 catalog:
   kind: graph
   audience: operator
@@ -78,14 +78,14 @@ runners:
           account_id: acct_northstar
           amount_minor: 150
           currency: usd
-          payment_method_ref: pm_northstar
+          payment_method_id: pm_northstar
           reference: invoice-42
         idempotency_seed: northstar-invoice-42
       - connector: paypal
         request:
           api_host: api-m.sandbox.paypal.com
           account_id: YXZY75W2GKDQE
-          order_ref: ORDER42
+          order_id: ORDER42
           amount_decimal: "1.50"
           currency: USD
           precision: 2
@@ -138,12 +138,12 @@ runners:
           reason: Approve collecting this exact payment on the selected merchant account.
           type: payment_charge
         result_fields:
-          - payment_ref
+          - payment_id
           - amount_minor
           - amount_received
           - currency
           - status
-          - charge_ref
+          - charge_id
           - reference
         expected_result:
           status: succeeded
@@ -158,8 +158,8 @@ runners:
           reason: Approve capturing this exact buyer-approved order on the selected merchant account.
           type: payment_charge
         result_fields:
-          - payment_ref
-          - order_ref
+          - payment_id
+          - order_id
           - account_id
           - amount_decimal
           - currency
@@ -174,12 +174,12 @@ runners:
           reason: Approve settling this exact payment before the paid resource is released.
           type: payment_charge
         result_fields:
-          - payment_ref
+          - payment_id
           - resource
           - amount_minor
           - currency
           - status
-          - settlement_ref
+          - settlement_id
           - payer
           - pay_to
           - network
@@ -197,12 +197,12 @@ runners:
       - id: readback
         operation: coinbase/cdp/payment.x402.merchant.read
         result_fields:
-          - payment_ref
+          - payment_id
           - resource
           - amount_minor
           - currency
           - status
-          - settlement_ref
+          - settlement_id
           - payer
           - pay_to
           - network
@@ -210,9 +210,9 @@ runners:
           - settled_at
         input:
           resource: $input.request.resource
-          payment_ref: $steps.settle.provider_operation.result.payment_ref
+          payment_id: $steps.settle.provider_operation.result.payment_id
         expected_result:
-          payment_ref: $steps.settle.provider_operation.result.payment_ref
+          payment_id: $steps.settle.provider_operation.result.payment_id
           resource: $input.request.resource
           amount_minor: $input.request.amount_minor
           currency: $input.request.currency
@@ -305,7 +305,7 @@ runners:
         input: $input.request
         idempotency_key: $input.idempotency_seed
         result_fields:
-          - order_ref
+          - order_id
           - order_status
           - intent
           - account_id

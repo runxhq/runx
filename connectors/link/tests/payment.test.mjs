@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { execute, resourceBinding } from "../tools/link/payment/link.mjs";
 
 const input = {
-  action: "pay", phase: "perform", principal_ref: "runx:principal:link:account_1",
+  action: "pay", phase: "perform", principal_uri: "runx:principal:link:account_1",
   spend_request_id: "sr_one", amount_minor: 150, currency: "USD",
   payment_method_id: "pm_one", network_id: "net_merchant",
   resource_url: "https://merchant.example/invoke", challenge: "public-challenge",
@@ -83,7 +83,7 @@ test("a successful HTTP response does not substitute for independent payment rea
 test("the original provider observation confirms payment without another credential presentation", async () => {
   const h = harness({ request: { link_transaction_id: "tx_one", payment_status_details: { outcome: "success", amount: 150, currency: "usd" }, shared_payment_token: { id: "must-not-leave-cli" } } });
   const observed = await execute({ ...input, phase: "readback" }, h.cli);
-  assert.deepEqual(observed, { spend_request_id: "sr_one", amount_minor: 150, currency: "USD", status: "settled", payment_method_id: "pm_one", network_id: "net_merchant", resource_binding: resourceBinding(input), transaction_ref: "tx_one", payment_outcome: "success", paid_amount_minor: 150, paid_currency: "USD" });
+  assert.deepEqual(observed, { spend_request_id: "sr_one", amount_minor: 150, currency: "USD", status: "settled", payment_method_id: "pm_one", network_id: "net_merchant", resource_binding: resourceBinding(input), transaction_id: "tx_one", payment_outcome: "success", paid_amount_minor: 150, paid_currency: "USD" });
   assert.deepEqual(await execute(input, h.cli), { spend_request_id: "sr_one" });
   assert.equal(h.payments().length, 0);
   assert.ok(!JSON.stringify(observed).includes("must-not-leave-cli"));
@@ -142,7 +142,7 @@ test("readback refuses a substituted spend request and strips unsafe approval de
 });
 
 test("a spent authorization cannot be relabeled as another resource, body or challenge", async () => {
-  for (const patch of [{resource_url:'https://merchant.example/another-invoice'}, {body:'{"invoice_ref":"other"}'}, {challenge:'another-public-challenge'}]) {
+  for (const patch of [{resource_url:'https://merchant.example/another-invoice'}, {body:'{"invoice_id":"other"}'}, {challenge:'another-public-challenge'}]) {
     const h=harness({request:{link_transaction_id:'tx_original',payment_status_details:{outcome:'success',amount:150,currency:'usd'}}});
     assert.equal((await execute({...input,...patch},h.cli)).refused,"link_spend_request_resource_mismatch");
     assert.equal(h.payments().length,0);

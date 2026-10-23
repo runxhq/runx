@@ -18,8 +18,7 @@ use crate::RunxPaths;
 pub struct InstallRecord {
     /// `<publisher>/<name>@<version>` of a skill, `<name>@<version>` of a
     /// connector.
-    #[serde(rename = "ref")]
-    pub reference: String,
+    pub package: String,
     pub trust_tier: TrustTier,
 }
 
@@ -29,8 +28,7 @@ pub struct InstallRecord {
 pub struct TrustRecord {
     pub closure_digest: String,
     /// The package it is the closure of, as the load named it.
-    #[serde(rename = "ref")]
-    pub reference: String,
+    pub package: String,
     pub trust_tier: TrustTier,
 }
 

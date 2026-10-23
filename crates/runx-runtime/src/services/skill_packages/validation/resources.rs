@@ -1,6 +1,4 @@
-use runx_contracts::{
-    JsonNumber, JsonObject, JsonValue, SkillArchitectureDecision, SkillExecutionLane,
-};
+use runx_contracts::{SkillArchitectureDecision, SkillExecutionLane};
 use runx_parser::{StepKind, ToolTarget, ValidatedSkillPackage};
 
 use super::super::path::invalid_skill_change;
@@ -11,22 +9,6 @@ pub(super) struct CandidateResourceUsage {
     pub(super) process_spawns: u64,
     pub(super) network: bool,
     pub(super) domain_modules: bool,
-}
-
-impl CandidateResourceUsage {
-    pub(super) fn as_json(&self) -> JsonValue {
-        JsonValue::Object(JsonObject::from([
-            (
-                "process_spawns".to_owned(),
-                JsonValue::Number(JsonNumber::U64(self.process_spawns)),
-            ),
-            ("network".to_owned(), JsonValue::Bool(self.network)),
-            (
-                "domain_modules".to_owned(),
-                JsonValue::Bool(self.domain_modules),
-            ),
-        ]))
-    }
 }
 
 pub(super) fn candidate_resource_usage(package: &ValidatedSkillPackage) -> CandidateResourceUsage {

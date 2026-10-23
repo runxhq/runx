@@ -28,11 +28,11 @@ pub(super) enum RegistryPayload {
     },
     Install {
         source: &'static str,
-        r#ref: String,
+        package: String,
         install: Box<runx_runtime::registry::InstallLocalSkillResult>,
         /// The installed package's digest, when the registry states one.
         #[serde(skip_serializing_if = "Option::is_none")]
-        package_digest: Option<String>,
+        bundle_digest: Option<String>,
         /// What the hosted registry reported acquiring it.
         #[serde(skip_serializing_if = "Option::is_none")]
         acquisition: Option<InstallAcquisition>,
@@ -170,7 +170,7 @@ pub(super) fn render_connector_publish(
     format!(
         "\n  registry publish {}\n  connector        {}@{}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  install          {}\n  page             {}\n\n",
         published.status,
-        published.name,
+        published.connector,
         published.version,
         published.content_digest,
         published.manifest_digest,
@@ -185,9 +185,9 @@ pub(super) fn render_connector_install(
 ) -> String {
     format!(
         "\n  registry install {}@{}\n{}  status           {}\n  content digest   {}\n  manifest digest  {}\n  trust            {}\n  destination      {}\n\n",
-        install.name,
+        install.connector,
         install.version,
-        newest_unread_line(install.name.as_str(), install.newest_unread.as_ref()),
+        newest_unread_line(install.connector.as_str(), install.newest_unread.as_ref()),
         install_status_label(&install.status),
         install.content_digest,
         install.manifest_digest,

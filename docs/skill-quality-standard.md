@@ -212,8 +212,8 @@ operator.
   for the complete value at a named reusable skill, runtime, SDK, provider,
   receipt, or registry boundary, never as a way to make inspection richer;
 - graph intermediates and one-run implementation values do not mint packet ids;
-  every distributed packet has an active producer and consumer or an explicit
-  public native owner, and generated artifacts are removed with that ownership;
+  every package packet is declared by its own package and validated by at
+  least one fixture's run;
 - a named packet describes its semantic fields or references a canonical typed
   contract; bare `type: object`, unconstrained `{}`, and opaque bags do not pass
   as complete inspection merely because a packet id exists. Open JSON is valid
@@ -222,9 +222,10 @@ operator.
 - object explicitness is recursive: every nested `type: object` declares
   properties or an explicit `additionalProperties` policy. Use `type: json` for
   deliberately arbitrary JSON instead of presenting it as a typed object;
-- a producing output's inline `schema` owns nested properties, required fields,
-  enums, and bounds once; parser admission, agent context, runtime validation,
-  packet distribution, exports, and harness replay consume that declaration;
+- a runner-local output's inline `schema` owns its nested properties, required
+  fields, enums, and bounds once; an output bound to a packet declares only its
+  type, and the packet file owns its shape for parser admission, agent
+  context, runtime validation, exports, and harness replay;
 
 - runners, typed inputs and outputs, and default selection;
 - agent-versus-deterministic step boundaries;
@@ -240,13 +241,15 @@ terminal producer owns the output and packet contract.
 
 ## Packet versions and native catalog drift
 
-Public packet ids use lowercase
-`<publisher>.<name>[.<name>...].vN`, where `N` is a positive integer without
-leading zeroes. Runx-owned packets use the `runx` publisher namespace; product
-and extension owners retain their own namespace. Runtime capability admission
-enforces this shape; `.v1` is not an informal label. Contracts change in
-place, with every intentional native catalog change visible in the generated
-capability snapshot. Do not add V2, aliases, or compatibility readers.
+A packet id names its owner. A package's is
+`<publisher>/<package>.<name>.vN`, the package id and the packet's name in
+dotted snake_case; a core packet's is `runx.<name>.vN`. `N` is a positive
+integer without leading zeroes, and the parser refuses any other form. A
+published package packet never changes bytes: a change is a new version
+beside the old one, recorded in `packets.lock.json`. Core packets change with
+the runx that carries them, every intentional native catalog change visible
+in the generated capability snapshot. Do not add aliases or compatibility
+readers.
 
 It does not own static model instructions. Keep those exclusively in the
 owning `SKILL.md`; the runtime supplies the current task and contracts
@@ -341,7 +344,7 @@ entry path and is reported separately in catalog reviews.
 
 Registry ownership is provenance, not a maintainer convenience. A public
 package accepted from a contributor preserves that publisher namespace in
-`run.yaml` as `catalog.owner`; packages without the field belong to the
+`run.yaml` as `catalog.publisher`; packages without the field belong to the
 first-party `runx` namespace. The field guides repository release
 tooling but grants no publish authority. Moving a package between namespaces
 requires an explicit ownership transfer, never an automatic rewrite during

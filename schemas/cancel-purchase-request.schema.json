@@ -1,0 +1,39 @@
+{
+  "$id": "https://schemas.runx.ai/runx/payment/cancel-purchase/request/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "idempotency": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_digest": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "key": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "binding_digest"
+      ],
+      "title": "PaymentIdempotencyBinding",
+      "type": "object"
+    },
+    "purchase_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "purchase_id",
+    "idempotency"
+  ],
+  "title": "CancelPurchaseRequest",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.payment.cancel_purchase.request.v1"
+}

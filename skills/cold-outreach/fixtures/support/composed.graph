@@ -14,8 +14,8 @@ steps:
         recipient: operator@example.org
         status: eligible
         suppressed: false
-        policy_ref: policy:outreach
-        evidence_refs: ['decision:recipient-1']
+        policy_id: policy:outreach
+        evidence_ids: ['decision:recipient-1']
       evidence_pack:
         decision: ready
         research_brief:
@@ -36,7 +36,7 @@ steps:
         source_evidence:
         - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
           content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          source_ref: https://example.com/evidence
+          source_uri: https://example.com/evidence
           source_kind: fetch
           provenance: {observed_at: '2026-07-17T00:00:00Z', bytes: 0, status: 200, redirects: []}
         index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
@@ -54,9 +54,9 @@ steps:
           channel_adjustments: []
         evidence:
           evidence_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
-          sources: [{source_ref: 'source:1', kind: approved, label: Approved community post}]
+          sources: [{source_id: 'source:1', kind: approved, label: Approved community post}]
           bindings:
-          - {rule: Lead with the reader's own work., source_refs: ['source:1']}
+          - {rule: Lead with the reader's own work., source_ids: ['source:1']}
         redactions: []
         stop_conditions: []
         receipt_notes: {authority: context-only, mutation: false}

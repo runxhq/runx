@@ -155,7 +155,7 @@ fn skill_fixtures_match_expected() -> Result<(), String> {
 }
 
 #[test]
-fn catalog_carries_category_tags_owner_and_links() -> Result<(), String> {
+fn catalog_carries_category_tags_publisher_and_links() -> Result<(), String> {
     let manifest = validate_runner_manifest(
         parse_runner_manifest_yaml(
             r#"
@@ -167,7 +167,7 @@ catalog:
   role: canonical
   category: content
   tags: [docs, writing]
-  owner: zhtwangk
+  publisher: zhtwangk
   links:
     source: https://github.com/example/docs-demo
 runners:
@@ -184,7 +184,7 @@ runners:
     let catalog = manifest.catalog.ok_or("catalog should be present")?;
     assert_eq!(catalog.category.as_deref(), Some("content"));
     assert_eq!(catalog.tags, vec!["docs".to_owned(), "writing".to_owned()]);
-    assert_eq!(catalog.owner.as_deref(), Some("zhtwangk"));
+    assert_eq!(catalog.publisher.as_deref(), Some("zhtwangk"));
     assert_eq!(
         catalog.links.get("source").map(String::as_str),
         Some("https://github.com/example/docs-demo")
@@ -193,9 +193,9 @@ runners:
 }
 
 #[test]
-fn catalog_rejects_noncanonical_owner_and_non_https_links() -> Result<(), String> {
+fn catalog_rejects_noncanonical_publisher_and_non_https_links() -> Result<(), String> {
     for (field, value) in [
-        ("owner", "ZHTWangK"),
+        ("publisher", "ZHTWangK"),
         ("links", "{source: http://example.com/repo}"),
         ("tags", "[docs, docs]"),
     ] {

@@ -16,7 +16,7 @@ steps:
       scope_ceiling: []
       capabilities: Draft grounded copy from admitted evidence.
     evidence:
-    - source_ref: issue:docs-drift
+    - source_id: issue:docs-drift
       text: The setup guide omits the new explicit connection selection.
 - id: digest
   tool: data.digest

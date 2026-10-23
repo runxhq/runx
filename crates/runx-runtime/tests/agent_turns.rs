@@ -383,7 +383,7 @@ fn a_turns_context_is_an_index_each_entry_of_which_reads_by_its_ref() -> TestRes
     let [line] = status.invocation.envelope.current_context.as_slice() else {
         return Err(format!("one context entry: {status:?}").into());
     };
-    assert_eq!(line.reference.as_str(), "current:0");
+    assert_eq!(line.locator.as_str(), "current:0");
     assert_eq!(
         line.summary.as_ref().map(|summary| summary.as_str()),
         Some("Context skill house-style: How the house writes.")
@@ -1146,9 +1146,8 @@ fn a_delegation_bounds_how_deep_child_runs_nest() -> TestResult {
     let parent = write_parent_skill(other.path())?;
     let sealed = start_bounded(other.path(), parent, bounded(None, Some(0)))?;
     let output = object(&sealed.output)?;
-    let closure = object(output.get("closure").ok_or("missing closure")?)?;
-    assert_eq!(text(closure, "disposition"), Some("blocked"));
-    assert_eq!(text(closure, "reason"), Some("authority_denied"));
+    assert_eq!(text(output, "outcome"), Some("blocked"));
+    assert_eq!(text(output, "seal_reason"), Some("authority_denied"));
     // Why authority refused rides the run's output, outside the signed receipt.
     let refusal = object(output.get("refusal").ok_or("missing refusal")?)?;
     assert!(
@@ -1749,8 +1748,7 @@ fn an_act_that_fails_says_why_and_its_skill_call_settles_failed() -> TestResult 
     // The calling agent fails its own act; the run seals failed.
     let sealed = turn.fail(TURN, "nothing to answer with")?;
     let output = object(&sealed.output)?;
-    let closure = object(output.get("closure").ok_or("missing closure")?)?;
-    assert_eq!(text(closure, "disposition"), Some("failed"), "{output:?}");
+    assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
     Ok(())
 }
 
@@ -1775,11 +1773,6 @@ runners:
           value: $input.packet.digest
           encoding: utf8_text
 "#,
-    )?;
-    std::fs::create_dir_all(reader.join("packets"))?;
-    std::fs::write(
-        reader.join("packets/runx.data.digest.v1.schema.json"),
-        r#"{"$schema":"https://json-schema.org/draft/2020-12/schema","x-runx-packet-id":"runx.data.digest.v1","type":"object","required":["algorithm","digest"],"properties":{"algorithm":{"const":"sha256"},"digest":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"}},"additionalProperties":false}"#,
     )?;
     let skill_dir = root.join("packet-turn");
     crate::support::write_test_skill_package(
@@ -1944,7 +1937,7 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
         .iter()
         .find(|evidence| evidence.reference_type == runx_contracts::ReferenceType::Artifact)
         .ok_or("the receipt names the input's artifact")?;
-    assert_eq!(fed.uri.as_str(), reference.r#ref);
+    assert_eq!(fed.uri.as_str(), reference.uri);
     assert_eq!(
         fed.label.as_ref().map(|label| label.as_str()),
         Some("packet")

@@ -6,7 +6,7 @@ operator_journeys:
   - mode: standalone
     confusors:
       - pay
-      - purchase-policy-check
+      - procurement-policy-check
     request: Pay this invoice.
     expected_outcome: Check the invoice against the authority and pay it through pay with resource readback.
   - mode: composed
@@ -17,7 +17,7 @@ operator_journeys:
     must_not_repeat:
       - Do not pay the invoice a second time under a new identity.
 inputs:
-  invoice_ref: INV-2026-0042
+  invoice_id: INV-2026-0042
   amount_minor: 4200
   currency: EUR
   payee:
@@ -26,7 +26,7 @@ inputs:
     term_id: invoice-authority-1
     currency: USD
     max_amount_minor: 5000
-    counterparty: https://payee.example/v1/invoices/pay
+    resource_url: https://payee.example/v1/invoices/pay
   idempotency_seed: invoice-pay-test-0042
   connector: wallet/evm
   request:
@@ -34,7 +34,7 @@ inputs:
       url: https://payee.example/v1/invoices/pay
       method: POST
       body:
-        invoice_ref: INV-2026-0042
+        invoice_id: INV-2026-0042
     amount_minor: 4200
     pay_to: "0x00000000000000000000000000000000000000a1"
 expect:

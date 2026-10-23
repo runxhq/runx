@@ -31,8 +31,8 @@ pub struct RunxConfigFile {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum RunxSecretRecord {
-    /// Sealed in this home under `material_ref`.
-    Stored { material_ref: String },
+    /// Sealed in this home under `material_id`.
+    Stored { material_id: String },
     /// In a secrets manager at `reference`, read through its CLI on every
     /// use and only where setting it pinned (an AWS ARN, a Vault address).
     Reference {
@@ -69,14 +69,14 @@ pub struct RunxPublicConfig {
     /// Default operator credential used by connect, provider effects, and
     /// hosted artifact operations.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub api_token_ref: Option<String>,
+    pub api_token_material_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub principal_id: Option<String>,
     /// Narrow credential used only by receipt and skill publication.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_api_base_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub publish_api_token_ref: Option<String>,
+    pub publish_api_token_material_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_principal_id: Option<String>,
 }
@@ -282,7 +282,9 @@ pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, Confi
             path: config_path.to_path_buf(),
         });
     };
-    let upgraded = upgrade_to_secrets(object, config_path)?;
+    let reshaped = upgrade_to_secrets(object, config_path)?;
+    let renamed = upgrade_material_names(object);
+    let upgraded = reshaped || renamed;
     let config: RunxConfigFile =
         serde_json::from_value(value).map_err(|error| ConfigError::InvalidConfig {
             path: config_path.to_path_buf(),
@@ -292,6 +294,41 @@ pub fn load_runx_config_file(config_path: &Path) -> Result<RunxConfigFile, Confi
         write_runx_config_file(config_path, &config)?;
     }
     Ok(config)
+}
+
+/// Rename the sealed-material ids a home written by runx 0.10 names as
+/// references: `secrets.<name>.stored.material_ref`, `public.api_token_ref`
+/// and `public.publish_api_token_ref`. Only keys move, and a key whose new
+/// name is already present stays, so the typed read refuses the file rather
+/// than choose between two ids. `false` when nothing was renamed.
+fn upgrade_material_names(config: &mut serde_json::Map<String, Value>) -> bool {
+    let rename = |object: &mut serde_json::Map<String, Value>, from: &str, to: &str| {
+        if object.contains_key(to) {
+            return false;
+        }
+        let Some(value) = object.remove(from) else {
+            return false;
+        };
+        object.insert(to.to_owned(), value);
+        true
+    };
+    let mut renamed = false;
+    if let Some(public) = config.get_mut("public").and_then(Value::as_object_mut) {
+        renamed |= rename(public, "api_token_ref", "api_token_material_id");
+        renamed |= rename(
+            public,
+            "publish_api_token_ref",
+            "publish_api_token_material_id",
+        );
+    }
+    if let Some(secrets) = config.get_mut("secrets").and_then(Value::as_object_mut) {
+        for record in secrets.values_mut() {
+            if let Some(stored) = record.get_mut("stored").and_then(Value::as_object_mut) {
+                renamed |= rename(stored, "material_ref", "material_id");
+            }
+        }
+    }
+    renamed
 }
 
 /// The home file before `runx secret`: connector credential profiles, each
@@ -348,8 +385,8 @@ fn upgrade_to_secrets(
         (Some(reference), _) => Some(serde_json::json!({
             "reference": {"reference": reference, "pinned": text("api_key_pinned")}
         })),
-        (None, Some(material_ref)) => {
-            Some(serde_json::json!({"stored": {"material_ref": material_ref}}))
+        (None, Some(material_id)) => {
+            Some(serde_json::json!({"stored": {"material_id": material_id}}))
         }
         (None, None) => None,
     };
@@ -361,7 +398,7 @@ fn upgrade_to_secrets(
     for (name, profile) in profiles.map(|held| held.profiles).unwrap_or_default() {
         secrets.insert(
             name,
-            serde_json::json!({"stored": {"material_ref": profile.secret_ref}}),
+            serde_json::json!({"stored": {"material_id": profile.secret_ref}}),
         );
     }
     if let Some(record) = agent_key {
@@ -489,18 +526,18 @@ pub fn lookup_runx_config_value(config: &RunxConfigFile, key: ConfigKey) -> Opti
 pub fn mask_runx_config_file(config: &RunxConfigFile) -> RunxConfigFile {
     let mut masked = config.clone();
     if let Some(public) = masked.public.as_mut()
-        && public.api_token_ref.is_some()
+        && public.api_token_material_id.is_some()
     {
-        public.api_token_ref = Some("[encrypted]".to_owned());
+        public.api_token_material_id = Some("[encrypted]".to_owned());
     }
     if let Some(public) = masked.public.as_mut()
-        && public.publish_api_token_ref.is_some()
+        && public.publish_api_token_material_id.is_some()
     {
-        public.publish_api_token_ref = Some("[encrypted]".to_owned());
+        public.publish_api_token_material_id = Some("[encrypted]".to_owned());
     }
     for record in masked.secrets.values_mut() {
-        if let RunxSecretRecord::Stored { material_ref } = record {
-            *material_ref = "[encrypted]".to_owned();
+        if let RunxSecretRecord::Stored { material_id } = record {
+            *material_id = "[encrypted]".to_owned();
         }
     }
     masked
@@ -554,8 +591,8 @@ mod tests {
 
         let config = load_runx_config_file(&path)?;
 
-        let stored = |material_ref: &str| RunxSecretRecord::Stored {
-            material_ref: material_ref.to_owned(),
+        let stored = |material_id: &str| RunxSecretRecord::Stored {
+            material_id: material_id.to_owned(),
         };
         let named = |name: &str| SecretName::new(name).ok_or("a secret name");
         assert_eq!(
@@ -582,6 +619,50 @@ mod tests {
             !written.contains("credentials") && !written.contains("api_key_ref"),
             "{written}"
         );
+        assert_eq!(
+            load_runx_config_file(&path)?,
+            config,
+            "upgraded once, read as it is after"
+        );
+        Ok(())
+    }
+
+    /// A home runx 0.10 wrote names its sealed material as references; its
+    /// secrets and logins keep their sealed files under the 0.11 names.
+    #[test]
+    fn a_home_runx_010_wrote_keeps_its_secrets_and_logins_under_material_ids()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let home = tempfile::tempdir()?;
+        let path = home.path().join("config.json");
+        fs::write(
+            &path,
+            r#"{
+              "public": {"api_token_ref": "public_api_token_1", "publish_api_token_ref": "public_api_token_2", "principal_id": "runx:principal:operator"},
+              "secrets": {"github": {"stored": {"material_ref": "local_secret_3"}}, "vault": {"reference": {"reference": "aws-sm://team/env#KEY"}}}
+            }"#,
+        )?;
+
+        let config = load_runx_config_file(&path)?;
+
+        let public = config.public.as_ref().ok_or("public settings")?;
+        assert_eq!(
+            public.api_token_material_id.as_deref(),
+            Some("public_api_token_1")
+        );
+        assert_eq!(
+            public.publish_api_token_material_id.as_deref(),
+            Some("public_api_token_2")
+        );
+        assert_eq!(
+            config
+                .secrets
+                .get(&SecretName::new("github").ok_or("a secret name")?),
+            Some(&RunxSecretRecord::Stored {
+                material_id: "local_secret_3".to_owned()
+            })
+        );
+        let written = fs::read_to_string(&path)?;
+        assert!(!written.contains("_ref\""), "{written}");
         assert_eq!(
             load_runx_config_file(&path)?,
             config,

@@ -1,0 +1,52 @@
+{
+  "$id": "https://schemas.runx.ai/runx/git/patch/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `git.patch` reports: the patch from `base` to `head`, or to the work tree, as bounded text.",
+  "properties": {
+    "base": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "head": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "omitted": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "patch": {
+      "type": "string"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "repo_root",
+    "base",
+    "patch",
+    "files",
+    "omitted",
+    "truncated"
+  ],
+  "title": "GitPatch",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.git.patch.v1"
+}

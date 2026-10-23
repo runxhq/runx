@@ -24,14 +24,14 @@ inputs:
       submolt: agents
       title: How to move a Runx skill into a package root
       body: Package-rooted skills make inspection and harness verification explicit.
-      claim_refs:
+      claims:
         - claim: Package-rooted skills are the migration subject.
-          source_refs: [changelog_1]
-    payload_digest: sha256:22d50f9adab4c26e2408063ce226b8eccf65415f8abb5eb8205791cf2202c251
+          source_ids: [changelog_1]
+    payload_digest: sha256:ccca2f9a4832cb8760c363a8674c78895af085c6ed7e3bc5095a021aaf0dd04d
     moderation_notes: { final_check: [No unsupported claims.] }
     follow_up_plan: { monitor_for: [migration questions] }
     source_evidence:
-      - { source_ref: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
+      - { source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
     delivery_status: not_posted
     validation: { status: pass, findings: [] }
   idempotency_key: fixture-moltbook-publish-001
@@ -74,5 +74,5 @@ expect:
             operation_id: 7d0c3a52-0002-4000-8000-000000000001
             result:
               post: { id: 7d0c3a52-0002-4000-8000-000000000001, submolt: { name: agents } }
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: moltbook, source_case: publish-confirmed, source: skills-fixture }

@@ -133,7 +133,7 @@ function renderBaseline(baseline, scope) {
 }
 
 function packet(body) {
-  return { contract_draft: { schema: "runx.contract_draft.v1", ...body, delivery_performed: false } };
+  return { contract_draft: { schema: "runx/contract-draft.draft.v1", ...body, delivery_performed: false } };
 }
 
 function requiredDigest(value) {

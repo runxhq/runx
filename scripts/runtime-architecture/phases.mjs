@@ -34,30 +34,30 @@ export function checkServiceBoundary(findings) {
 
 export function checkExecutionSplit(findings, root = workspaceRoot) {
   const runner = "crates/runx-runtime/src/execution/runner";
-  for (const owner of ["step_handlers.rs", "step_handlers/output.rs", "step_handlers/host_resolution.rs"]) {
-    const relativePath = `${runner}/${owner}`;
+  for (const handler of ["step_handlers.rs", "step_handlers/output.rs", "step_handlers/host_resolution.rs"]) {
+    const relativePath = `${runner}/${handler}`;
     const filePath = path.join(root, relativePath);
     if (!existsSync(filePath)) {
       findings.push(`Missing current execution owner ${relativePath}.`);
       continue;
     }
-    findings.push(...checkExecutionSource(owner, productionRustSource(readFileSync(filePath, "utf8"))));
+    findings.push(...checkExecutionSource(handler, productionRustSource(readFileSync(filePath, "utf8"))));
   }
 }
 
-export function checkExecutionSource(owner, source) {
+export function checkExecutionSource(handler, source) {
   const findings = [];
   // Check responsibility crossings, not file size. The concrete handler retains
   // the ordered admit/invoke/seal sequence; its data helpers must not perform it.
-  const forbidden = owner === "step_handlers.rs"
+  const forbidden = handler === "step_handlers.rs"
     ? /\brequest_approval\b/u
-    : owner === "step_handlers/host_resolution.rs"
+    : handler === "step_handlers/host_resolution.rs"
       ? /\b(?:SkillAdapter|BorrowedSkillAdapter|seal_step|prepare_effect_execution|resolve_inputs)\b/u
       : /\b(?:SkillAdapter|BorrowedSkillAdapter|Host|request_approval|seal_step|prepare_effect_execution|LocalReceiptStore)\b|\bcrate::(?:host|receipts|effects)::|\bstd::(?:fs|net|process)::/u;
   if (forbidden.test(source)) {
-    findings.push(`${owner} crosses its execution responsibility boundary (${forbidden}).`);
+    findings.push(`${handler} crosses its execution responsibility boundary (${forbidden}).`);
   }
-  if (owner === "step_handlers.rs") {
+  if (handler === "step_handlers.rs") {
     for (const child of ["output", "host_resolution"]) {
       if (!new RegExp(`\\bmod\\s+${child}\\s*;`, "u").test(source)) {
         findings.push(`step_handlers.rs must declare its ${child} owner.`);

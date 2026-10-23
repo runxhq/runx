@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
 use super::{
-    MAX_TIMEOUT_MS, MIN_TIMEOUT_MS, OutputMode, PreparedCommand, TOOL, capability::CommandInput,
-    invalid_input,
+    CommandOutputMode, MAX_TIMEOUT_MS, MIN_TIMEOUT_MS, PreparedCommand, TOOL,
+    capability::CommandInput, invalid_input,
 };
 use crate::RuntimeError;
 use crate::tool_catalogs::native::NativeInvocation;
@@ -66,7 +66,7 @@ fn command_identity(
     cwd_relative: &str,
     explicit_env: &BTreeMap<String, String>,
     timeout_ms: u64,
-    output_mode: OutputMode,
+    output_mode: CommandOutputMode,
 ) -> JsonValue {
     JsonValue::Object(JsonObject::from([
         ("command".to_owned(), JsonValue::String(command.to_owned())),
@@ -120,11 +120,11 @@ fn timeout_ms(value: u64) -> Result<u64, RuntimeError> {
     Ok(value)
 }
 
-fn output_mode(value: &str) -> Result<OutputMode, RuntimeError> {
+fn output_mode(value: &str) -> Result<CommandOutputMode, RuntimeError> {
     match value {
-        "digest" => Ok(OutputMode::Digest),
-        "text" => Ok(OutputMode::Text),
-        "json" => Ok(OutputMode::Json),
+        "digest" => Ok(CommandOutputMode::Digest),
+        "text" => Ok(CommandOutputMode::Text),
+        "json" => Ok(CommandOutputMode::Json),
         _ => Err(invalid_input(
             TOOL,
             "output_mode must be digest, text, or json",

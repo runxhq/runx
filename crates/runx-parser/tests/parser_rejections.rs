@@ -90,8 +90,8 @@ fn tool_manifests_reject_generated_parallel_contract_fields() -> Result<(), Stri
         "output",
         "runx",
         "runtime",
-        "schema_hash",
-        "source_hash",
+        "schema_digest",
+        "source_digest",
         "toolkit_version",
     ] {
         let raw = parse_tool_manifest_yaml(&format!(

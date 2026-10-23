@@ -320,7 +320,7 @@ fn doctor_registry_json_reports_readiness_without_key_material()
             "RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64",
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         )
-        .env("RUNX_REGISTRY_MANIFEST_TRUST_OWNER", "acme")
+        .env("RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER", "acme")
         .output()?;
 
     assert!(output.status.success());
@@ -384,7 +384,7 @@ fn doctor_registry_json_warns_on_partial_trust_key_config() -> Result<(), Box<dy
     let rendered = serde_json::to_string(&report)?;
     assert!(rendered.contains("partial_operator_key_config"));
     assert!(rendered.contains("RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID"));
-    assert!(rendered.contains("RUNX_REGISTRY_MANIFEST_TRUST_OWNER"));
+    assert!(rendered.contains("RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER"));
     assert!(!rendered.contains("raw-public-key-material"));
     assert!(diagnostic_has_repair(&report, "runx.registry.trust_keys"));
     Ok(())
@@ -448,7 +448,7 @@ const REGISTRY_ENV_NAMES: &[&str] = &[
     "RUNX_INSTALLATION_ID",
     "RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID",
     "RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64",
-    "RUNX_REGISTRY_MANIFEST_TRUST_OWNER",
+    "RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER",
 ];
 
 fn temp_root(name: &str) -> PathBuf {

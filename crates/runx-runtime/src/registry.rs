@@ -63,7 +63,7 @@ pub use source_authority::{
 };
 pub use trust_anchor::{
     REGISTRY_SIGNED_MANIFEST_SCHEMA, RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-    RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV, RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV,
+    RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV, RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
     RegistryManifestKeyError, RegistryManifestTrustEnvError, RegistryManifestTrustScope,
     RegistryManifestVerificationFailure, TrustedRegistryManifestKey,
     default_trusted_registry_manifest_keys, registry_manifest_key_allows,

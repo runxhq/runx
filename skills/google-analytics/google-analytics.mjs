@@ -86,7 +86,7 @@ export function normalizeReport(inputs) {
 
   return {
     report_draft: {
-      schema: "runx.analytics.report.evidence.v1",
+      schema: "runx/google-analytics.report_evidence.v1",
       decision: findings.length > 0
         ? "blocked"
         : caveats.length > 0

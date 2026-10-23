@@ -13,9 +13,8 @@ use std::time::Instant;
 use output::{build_ephemeral_step_output, build_step_output_projection, contract_output_claim};
 
 use runx_contracts::{
-    ApprovalGate, CallAct, ClosureDisposition, ExecutionEvent, JsonObject, JsonValue,
-    ProvenanceEntry, Receipt, Reference, ResolutionRequest, ResolutionResponse,
-    ResolutionResponseActor,
+    ApprovalGate, CallAct, ExecutionEvent, JsonObject, JsonValue, ProvenanceEntry, Receipt,
+    Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RunOutcome,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_parser::{AskGate, GraphStep, SkillArtifactContract, StepKind, ToolTarget};
@@ -45,7 +44,7 @@ use crate::agent_invocation::agent_act_resolution_request;
 use crate::approval::ApprovalResolution;
 use crate::effects::EffectStepRequest;
 use crate::effects::ResolvedEffectTarget;
-use crate::execution::disposition::agent_answer_disposition_or_closed;
+use crate::execution::outcome::agent_answer_outcome_or_completed;
 use crate::execution::output_projection::{StepOutputProjection, project_step_claim};
 use crate::host::Host;
 use crate::observations::ContractChecks;
@@ -196,7 +195,7 @@ where
     let effect_request = EffectStepRequest {
         step,
         target: ResolvedEffectTarget {
-            tool_ref: step.catalog_tool(),
+            tool: step.catalog_tool(),
         },
         inputs: &inputs,
         env: &runtime.options.env,
@@ -240,7 +239,7 @@ where
     // A runner the registry sells is bought from its seller, never run here.
     if let Some(paid) = request.step.skill().and_then(|target| {
         crate::kernel::purchase::PaidRunner::reached(
-            &target.reference,
+            &target.skill,
             skill.version.as_deref(),
             &skill.runner.name,
             skill.offer.as_ref(),
@@ -376,8 +375,8 @@ where
     // The step closes as its child sealed: a child that stopped short
     // stops its step with the same closure, carrying every receipt it made.
     let child_seal = &run.receipt.seal;
-    let closure = (child_seal.disposition != ClosureDisposition::Closed).then(|| StepSealClosure {
-        disposition: child_seal.disposition.clone(),
+    let closure = (child_seal.outcome != RunOutcome::Completed).then_some(StepSealClosure {
+        outcome: child_seal.outcome,
         reason: child_seal.reason,
     });
     let result = super::graph_terminal_result(&run)?;
@@ -399,12 +398,12 @@ where
     )?;
     if output.succeeded() {
         // The packets the step declares are checked against the artifacts it
-        // holds, as its parent adopted them.
+        // holds, as its parent adopted them; the parent declares them, so
+        // they resolve from the parent's package.
         output.observations.contract = crate::output_contract::artifact_contract_checks(
             &projection.outputs,
             request.step.artifacts.as_ref(),
-            &skill.directory,
-            &env,
+            request.graph_dir,
         )?;
     }
     let refusal = run.refusal.clone();
@@ -562,7 +561,6 @@ where
     let skill_name = invocation.skill_name.clone();
     let raw_output = invocation.outputs.clone();
     let skill_directory = invocation.skill_directory.clone();
-    let invocation_env = invocation.env.clone();
     let mut output = if matches!(invocation.executable, Executable::Worker(_)) {
         // A worker runs the modules its run admitted.
         let package = runtime.options.package(&invocation.skill_directory)?;
@@ -601,7 +599,6 @@ where
             raw_output.as_ref(),
             step.artifacts.as_ref().or(extra_artifacts),
             &skill_directory,
-            &invocation_env,
         )?;
     }
     Ok(RegularSkillStepOutput {
@@ -853,19 +850,19 @@ fn seal_agent_act_step<A>(
         contract_checks,
         calls,
     } = request;
-    let disposition = agent_answer_disposition_value(step, &response.payload)?;
+    let outcome = agent_answer_outcome_value(step, &response.payload)?;
     // The turn's receipt names each call the agent made, in order.
     let lineage = StepReceiptLineage::of_turn(&calls);
     // The answer was verified against its output contract whatever closure it
     // claims, so an act that declines or defers still returns its outputs. An
     // act that failed has no result.
-    let projection = if disposition == ClosureDisposition::Failed {
+    let projection = if outcome == RunOutcome::Failed {
         project_step_claim(JsonObject::new(), None)
     } else {
         let answer = InvocationOutput::runtime_success(response.payload.clone(), 0);
         build_step_output_projection(step, &answer, extra_outputs, extra_artifacts)?
     };
-    let mut output = agent_task_output(response, &disposition)?;
+    let mut output = agent_task_output(response, &outcome)?;
     output.observations.contract = contract_checks;
     let receipt = seal_executed_step(
         StepSeal {
@@ -881,7 +878,7 @@ fn seal_agent_act_step<A>(
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
             closure: Some(StepSealClosure {
-                disposition,
+                outcome,
                 reason: None,
             }),
         },
@@ -1011,7 +1008,7 @@ where
     // the turn stays open for a corrected answer. An act that failed returns
     // no outputs to check; its step fails with its reason.
     let contract_checks =
-        if agent_answer_disposition_value(step, &response.payload)? == ClosureDisposition::Failed {
+        if agent_answer_outcome_value(step, &response.payload)? == RunOutcome::Failed {
             ContractChecks::default()
         } else {
             agent_contract_checks_with_artifacts(
@@ -1019,7 +1016,6 @@ where
                 &response.payload,
                 step.artifacts.as_ref(),
                 graph_dir,
-                &runtime.options.env,
             )
             .map_err(|error| match error {
                 RuntimeError::SkillFailed { message, .. } => RuntimeError::ContinuationRejected {
@@ -1079,11 +1075,11 @@ where
         authority,
         loaded_skill: _,
     } = request;
-    let tool_ref = step
+    let tool = step
         .catalog_tool()
         .ok_or_else(|| RuntimeError::InvalidRunStep {
             step_id: step.id.clone(),
-            reason: "tool step missing tool reference".to_owned(),
+            reason: "tool step missing tool name".to_owned(),
         })?;
     let call = crate::tool_catalogs::ToolCall::new(
         runtime.options.run.run_id(),
@@ -1092,7 +1088,7 @@ where
         runtime.options.run_authority.as_ref(),
     );
     let tool_request = crate::tool_catalogs::dispatch::ToolDispatchRequest {
-        tool_ref: Cow::Borrowed(tool_ref),
+        tool: Cow::Borrowed(tool),
         inputs: Cow::Owned(inputs),
         resolved_inputs: Cow::Owned(JsonObject::new()),
         scopes: &step.scopes,
@@ -1100,7 +1096,7 @@ where
         skill_directory: graph_dir,
         credential_delivery: &crate::credentials::CredentialDelivery::none(),
         local_artifacts: &runtime.local_artifacts,
-        skill_name: tool_ref,
+        skill_name: tool,
         allow_explicit_manifest_path: true,
         effect_admission: authority.as_ref().map(StepAuthorityContext::admission),
         bounds: crate::services::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
@@ -1117,7 +1113,7 @@ where
     // runx runs as a process included, holds it alone.
     let _pass = runtime
         .options
-        .effect_pass(crate::tool_catalogs::native::only_reads(tool_ref));
+        .effect_pass(crate::tool_catalogs::native::only_reads(tool));
     let output = crate::tool_catalogs::dispatch::dispatch_tool(
         tool_request,
         &runtime.options.effects,
@@ -1133,7 +1129,7 @@ where
             attempt,
             admission_refs,
             authority: authority.as_ref(),
-            skill: format!("tool:{tool_ref}"),
+            skill: format!("tool:{tool}"),
             call: None,
         },
         output,
@@ -1186,6 +1182,16 @@ where
         &runtime.options.effects,
     )?;
     let projection = build_step_output_projection(step, &output, None, artifacts)?;
+    if output.succeeded() {
+        // The packets the step declares, or else its tool's own, are checked
+        // against the artifacts it holds, as any step's are.
+        output.observations.contract.packet_schemas =
+            crate::packet_validation::verify_declared_packets(
+                &projection.outputs,
+                step.artifacts.as_ref().or(artifacts),
+                graph_dir,
+            )?;
+    }
     let ephemeral_contract = build_ephemeral_step_output(step, &output, None, artifacts);
     let effect_claim = contract_output_claim(&projection);
     let seal_authority = authority
@@ -1277,7 +1283,7 @@ where
         let output = crate::tool_catalogs::dispatch::dispatch_connector_tool(
             manifest,
             &crate::tool_catalogs::dispatch::ToolDispatchRequest {
-                tool_ref: Cow::Borrowed(tool),
+                tool: Cow::Borrowed(tool),
                 inputs: Cow::Owned(inputs),
                 resolved_inputs: Cow::Owned(JsonObject::new()),
                 scopes,
@@ -1417,9 +1423,9 @@ where
 
 fn agent_task_output(
     response: ResolutionResponse,
-    disposition: &ClosureDisposition,
+    outcome: &RunOutcome,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let succeeded = *disposition == ClosureDisposition::Closed;
+    let succeeded = *outcome == RunOutcome::Completed;
     // A failure says why, in the closure's reason.
     let reason = response
         .payload
@@ -1434,8 +1440,8 @@ fn agent_task_output(
         InvocationOutput::runtime_success(response.payload, 0)
     } else {
         let message = match reason {
-            Some(reason) => format!("agent act closed with {}: {reason}", disposition.label()),
-            None => format!("agent act closed with {}", disposition.label()),
+            Some(reason) => format!("agent act ended {}: {reason}", outcome.label()),
+            None => format!("agent act ended {}", outcome.label()),
         };
         InvocationOutput::runtime_failure(response.payload, message, 0)
     })
@@ -1454,11 +1460,11 @@ fn resolution_event_data(
     Ok(JsonValue::Object(data))
 }
 
-fn agent_answer_disposition_value(
+fn agent_answer_outcome_value(
     step: &GraphStep,
     answer: &JsonValue,
-) -> Result<ClosureDisposition, RuntimeError> {
-    agent_answer_disposition_or_closed(answer).map_err(|error| RuntimeError::InvalidRunStep {
+) -> Result<RunOutcome, RuntimeError> {
+    agent_answer_outcome_or_completed(answer).map_err(|error| RuntimeError::InvalidRunStep {
         step_id: step.id.clone(),
         reason: format!("{error}"),
     })
@@ -1727,7 +1733,7 @@ pub(super) fn approval_gate(ask: &AskGate, inputs: &JsonObject) -> ApprovalGate 
         gate_type: ask.gate_type.clone(),
         summary: (!inputs.is_empty()).then(|| inputs.clone()),
         payload: None,
-        payload_ref: None,
+        payload_artifact: None,
     }
 }
 
@@ -1763,7 +1769,10 @@ pub(super) fn approval_outputs(
     // The canonical artifact envelope: the packet it declares, and its data.
     let mut packet = JsonObject::new();
     if let Some(packet_id) = artifact_packet(step)? {
-        packet.insert("schema".to_owned(), JsonValue::String(packet_id));
+        packet.insert(
+            "schema".to_owned(),
+            JsonValue::String(packet_id.into_string()),
+        );
     }
     packet.insert("data".to_owned(), JsonValue::Object(data));
 
@@ -1803,7 +1812,9 @@ pub(super) fn artifact_wrap_as(step: &GraphStep) -> Result<&str, RuntimeError> {
     Ok(artifacts.wrap_as.as_deref().unwrap_or("approval"))
 }
 
-pub(super) fn artifact_packet(step: &GraphStep) -> Result<Option<String>, RuntimeError> {
+pub(super) fn artifact_packet(
+    step: &GraphStep,
+) -> Result<Option<runx_contracts::PacketId>, RuntimeError> {
     Ok(step
         .artifacts
         .as_ref()
@@ -1824,7 +1835,7 @@ where
     let closure = match &error {
         #[cfg(feature = "agent")]
         RuntimeError::ManagedAgentResolution { source, .. } => Some(StepSealClosure {
-            disposition: ClosureDisposition::Failed,
+            outcome: RunOutcome::Failed,
             reason: Some(source.reason()),
         }),
         _ => None,
@@ -1872,7 +1883,7 @@ where
         attempt,
         skill: step
             .skill()
-            .map_or(step.id.as_str(), |target| target.reference.as_str())
+            .map_or(step.id.as_str(), |target| target.skill.as_str())
             .to_owned(),
         runner: step_runner(step),
         contract: projection.outputs,
@@ -1927,9 +1938,9 @@ name: worker-requirements
 steps:
   - id: compute
     scopes:
-      - "vendor.operation:v3"
+      - "provider.operation:v3"
       - "opaque capability with spaces"
-      - "vendor.operation:v3"
+      - "provider.operation:v3"
     tool:
       module: compute.mjs
       environment:
@@ -1947,9 +1958,9 @@ steps:
         assert_eq!(
             requirements.scopes,
             [
-                "vendor.operation:v3",
+                "provider.operation:v3",
                 "opaque capability with spaces",
-                "vendor.operation:v3"
+                "provider.operation:v3"
             ]
         );
         assert_eq!(requirements.environment.required, ["REGION"]);

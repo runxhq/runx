@@ -7,34 +7,34 @@ export function finalizeAttention(inputs) {
   const draft = object(inputs.draft);
   const evidence = array(inputs.evidence);
   const asOf = parseTime(inputs.as_of);
-  const refs = new Map(evidence.map((item) => [text(item.source_ref), item]));
-  const dispositions = new Map(array(inputs.current_actions).map((item) => [text(item.source_ref), item]));
+  const sourcesById = new Map(evidence.map((item) => [text(item.source_id), item]));
+  const actionStates = new Map(array(inputs.current_actions).map((item) => [text(item.source_id), item]));
   const allowed = new Set(array(inputs.allowed_action_ids).map(text));
   const routes = new Map(array(inputs.work_routes).map((route) => [text(route.route_id), route]));
   const findings = [];
   if (routes.size !== array(inputs.work_routes).length) findings.push("work routes contain duplicates");
-  if (!Number.isFinite(asOf) || refs.size !== evidence.length) findings.push("evaluation time or source references are invalid");
+  if (!Number.isFinite(asOf) || sourcesById.size !== evidence.length) findings.push("evaluation time or source references are invalid");
   const min = Number(inputs.min_check_minutes);
   const max = Number(inputs.max_check_minutes);
   if (!Number.isInteger(min) || !Number.isInteger(max) || min > max) findings.push("next-check bounds are invalid");
   const selected = [];
   const seen = new Set();
   for (const raw of array(draft.items)) {
-    const ref = text(raw?.source_ref);
+    const sourceId = text(raw?.source_id);
     const priority = text(raw?.priority);
-    const source = refs.get(ref);
-    const state = object(dispositions.get(ref));
-    if (!source || seen.has(ref) || !["high", "medium", "low"].includes(priority)) {
+    const source = sourcesById.get(sourceId);
+    const action = object(actionStates.get(sourceId));
+    if (!source || seen.has(sourceId) || !["high", "medium", "low"].includes(priority)) {
       findings.push("draft item cites an unknown, repeated or invalid source");
       continue;
     }
-    if (state.disposition && state.disposition !== "open") {
-      findings.push("draft item selects an action already dispositioned");
+    if (action.state && action.state !== "open") {
+      findings.push("draft item selects an action already handled");
       continue;
     }
-    seen.add(ref);
+    seen.add(sourceId);
     selected.push({
-      source_ref: ref,
+      source_id: sourceId,
       source_digest: text(source.source_digest),
       source_kind: text(source.source_kind),
       priority,
@@ -48,18 +48,18 @@ export function finalizeAttention(inputs) {
   const candidateRoutes = new Set(routes.keys());
   const admittedWork = proposedWork.filter((item) => candidateRoutes.has(text(item?.route_id)));
   for (const raw of admittedWork) {
-    const sourceRef = text(raw?.source_ref);
+    const sourceId = text(raw?.source_id);
     const routeId = text(raw?.route_id);
-    const targetRef = text(raw?.target_ref);
-    const key = JSON.stringify([sourceRef, routeId, targetRef]);
+    const targetLocator = text(raw?.target_locator);
+    const key = JSON.stringify([sourceId, routeId, targetLocator]);
     const route = routes.get(routeId);
-    const source = refs.get(sourceRef);
-    const state = object(dispositions.get(sourceRef));
-    if (!route || !source || targetRef !== text(source.thread_locator || source.source_ref)
+    const source = sourcesById.get(sourceId);
+    const action = object(actionStates.get(sourceId));
+    if (!route || !source || targetLocator !== text(source.thread_locator || source.source_id)
         || (array(route.source_kinds).length && !array(route.source_kinds).includes(text(source.source_kind)))
         || !raw.inputs || typeof raw.inputs !== "object" || Array.isArray(raw.inputs)
         || !Number.isSafeInteger(raw.due_at_unix_seconds) || raw.due_at_unix_seconds < 0
-        || !seen.has(sourceRef) || (state.disposition && state.disposition !== "open") || seenWork.has(key)) {
+        || !seen.has(sourceId) || (action.state && action.state !== "open") || seenWork.has(key)) {
       findings.push("work proposal is not an exact candidate for an open selected source");
       continue;
     }
@@ -68,7 +68,7 @@ export function finalizeAttention(inputs) {
     const fixed = object(route.fixed_inputs);
     const inputs = Object.fromEntries(Object.entries(raw.inputs)
       .filter(([key]) => !Object.hasOwn(fixed, key)));
-    work.push({ source_ref: sourceRef, source_digest: text(source.source_digest), route_id: routeId, target_ref: targetRef, inputs, due_at_unix_seconds: raw.due_at_unix_seconds });
+    work.push({ source_id: sourceId, source_digest: text(source.source_digest), route_id: routeId, target_locator: targetLocator, inputs, due_at_unix_seconds: raw.due_at_unix_seconds });
   }
   if (work.length > 3 || work.length !== admittedWork.length) findings.push("work proposals exceed the limit or contain an invalid selection");
   const proposedActions = array(draft.recommended_action_ids).map(text);
@@ -85,7 +85,7 @@ export function finalizeAttention(inputs) {
   const valid = findings.length === 0;
   const decision = !valid ? "held" : selected.length > 0 ? "ready" : "idle";
   const brief = decision === "ready"
-    ? selected.map((item) => `${item.priority.toUpperCase()}: ${item.summary} (${item.source_ref})`).join("\n")
+    ? selected.map((item) => `${item.priority.toUpperCase()}: ${item.summary} (${item.source_id})`).join("\n")
     : "";
   return {
     attention_packet: {

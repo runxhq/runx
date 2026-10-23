@@ -19,7 +19,7 @@ inputs:
   connector: stripe
   request:
     account_id: acct_northstar
-    payment_ref: pi_northstar
+    payment_id: pi_northstar
     amount_minor: 100
     currency: usd
   idempotency_seed: northstar-refund-42
@@ -49,7 +49,7 @@ caller:
         method: POST
         url: https://api.stripe.com/v1/refunds
         body:
-          text: amount=100&metadata%5Brunx_effect_key%5D=runx%3Asha256%3Aea7a3cf80378e74506c76e9dcfe5940140aab8031f9880f74ba06e88bbf5a20a&payment_intent=pi_northstar
+          text: amount=100&metadata%5Brunx_effect_key%5D=runx%3Asha256%3A78bbf0a0d9d6bc79a1e58e455e0b184bea6ac4d3251f51c9d3f46c3d8326a59c&payment_intent=pi_northstar
       response:
         status: 200
         headers:

@@ -205,6 +205,8 @@ macro_rules! identifier {
     };
 }
 
+pub(crate) use identifier;
+
 identifier!(
     /// A connector's name and its identity everywhere: `stripe`,
     /// `google/calendar`. Who published a version is provenance, never part
@@ -366,5 +368,11 @@ impl Digest {
     #[must_use]
     pub fn of(bytes: &[u8]) -> Self {
         Self(crate::sha256_prefixed(bytes))
+    }
+
+    /// The digest a streamed SHA-256 finished with.
+    #[must_use]
+    pub fn from_sha256(hash: [u8; 32]) -> Self {
+        Self(format!("sha256:{}", crate::hex_lower(&hash)))
     }
 }

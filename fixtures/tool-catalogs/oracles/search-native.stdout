@@ -18,7 +18,7 @@
         "native",
         "runx"
       ],
-      "catalog_ref": "fs.read"
+      "catalog_id": "fs.read"
     },
     {
       "tool_id": "native/fs.read_bundle",
@@ -35,7 +35,7 @@
         "native",
         "runx"
       ],
-      "catalog_ref": "fs.read_bundle"
+      "catalog_id": "fs.read_bundle"
     }
   ]
 }

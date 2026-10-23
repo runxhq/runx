@@ -1,5 +1,5 @@
 name: reddit-vote-admission
-owner: runx
+publisher: runx
 steps:
 - id: configure
   skill: ../..

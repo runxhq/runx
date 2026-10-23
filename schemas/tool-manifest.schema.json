@@ -5,6 +5,7 @@
   "properties": {
     "artifacts": {
       "additionalProperties": false,
+      "description": "How a successful execution result is exposed to downstream graph context.",
       "properties": {
         "emits": {
           "items": {
@@ -19,10 +20,14 @@
           "type": "object"
         },
         "packet": {
+          "maxLength": 200,
+          "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
           "type": "string"
         },
         "packets": {
           "additionalProperties": {
+            "maxLength": 200,
+            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
             "type": "string"
           },
           "type": "object"
@@ -31,6 +36,7 @@
           "type": "string"
         }
       },
+      "title": "ArtifactDeclaration",
       "type": "object"
     },
     "description": {
@@ -43,11 +49,13 @@
           "type": "string"
         }
       },
+      "title": "IdempotencyPolicy",
       "type": "object"
     },
     "inputs": {
       "additionalProperties": {
         "additionalProperties": false,
+        "description": "One declared input shared by skills, local tools, inspection, and runtime materialization. Keeping this at the contract boundary prevents each parser or catalog surface from inventing its own type/default semantics.",
         "properties": {
           "artifact": {
             "type": "boolean"
@@ -57,6 +65,9 @@
             "type": "string"
           },
           "packet": {
+            "description": "Canonical packet contract for a JSON-valued input. The runtime resolves this identifier through the packet-schema catalog before inspection or execution; authors never duplicate the packet schema inline.",
+            "maxLength": 200,
+            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
             "type": "string"
           },
           "required": {
@@ -64,6 +75,7 @@
           },
           "schema": {
             "additionalProperties": {},
+            "description": "Additional JSON Schema 2020-12 keywords for this input. The scalar `type`, description, and default above remain the canonical top-level declaration; this object owns nested shape, bounds, enums, examples, and composition without creating a second schema file.",
             "type": "object"
           },
           "type": {
@@ -74,6 +86,7 @@
           "type",
           "required"
         ],
+        "title": "InputDefinition",
         "type": "object"
       },
       "minProperties": 1,
@@ -86,6 +99,7 @@
       "enum": [
         "runx.tool.manifest.v1"
       ],
+      "title": "ToolManifestSchema",
       "type": "string"
     },
     "scopes": {
@@ -97,6 +111,7 @@
     },
     "source": {
       "additionalProperties": false,
+      "description": "A tool's executable: a trusted host process. runx controls its argv, cwd, environment and lifetime, but does not confine it.",
       "properties": {
         "args": {
           "items": {
@@ -113,6 +128,7 @@
         },
         "environment": {
           "additionalProperties": false,
+          "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
           "minProperties": 1,
           "properties": {
             "optional": {
@@ -138,6 +154,7 @@
             "stdin",
             "none"
           ],
+          "title": "ToolCommandInputMode",
           "type": "string"
         },
         "timeout_seconds": {
@@ -148,6 +165,7 @@
       "required": [
         "command"
       ],
+      "title": "ToolSource",
       "type": "object"
     },
     "version": {
@@ -159,6 +177,7 @@
     "name",
     "source"
   ],
+  "title": "ToolManifest",
   "type": "object",
   "x-runx-schema": "runx.tool.manifest.v1"
 }

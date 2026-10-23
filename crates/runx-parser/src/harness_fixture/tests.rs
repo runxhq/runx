@@ -14,7 +14,7 @@ expect:
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: closed
+    outcome: completed
   output:
     subset: { status: ready }
 "#,
@@ -39,8 +39,8 @@ fn inline_expectations_use_the_conventional_contract() -> Result<(), HarnessFixt
                     JsonValue::String("runx.receipt.v1".to_owned()),
                 ),
                 (
-                    "disposition".to_owned(),
-                    JsonValue::String("closed".to_owned()),
+                    "outcome".to_owned(),
+                    JsonValue::String("completed".to_owned()),
                 ),
             ])),
         ),
@@ -64,8 +64,8 @@ fn inline_expectations_use_the_conventional_contract() -> Result<(), HarnessFixt
         expectation
             .receipt
             .as_ref()
-            .and_then(|receipt| receipt.disposition.as_ref()),
-        Some(&ClosureDisposition::Closed)
+            .and_then(|receipt| receipt.outcome.as_ref()),
+        Some(&RunOutcome::Completed)
     );
     assert!(expectation.step_outputs.contains_key("inspect"));
     Ok(())

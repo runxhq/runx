@@ -24,6 +24,7 @@
               },
               "free_text": {
                 "const": true,
+                "description": "Whether the person may answer in their own words.",
                 "type": "boolean"
               },
               "id": {
@@ -31,6 +32,7 @@
                 "type": "string"
               },
               "options": {
+                "description": "What the person may choose, the recommended first.",
                 "items": {
                   "additionalProperties": false,
                   "properties": {
@@ -45,6 +47,7 @@
                   "required": [
                     "label"
                   ],
+                  "title": "QuestionOption",
                   "type": "object"
                 },
                 "minItems": 1,
@@ -58,6 +61,7 @@
                 "type": "boolean"
               },
               "type": {
+                "description": "`choice` when it offers options, `text` otherwise.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -68,6 +72,7 @@
               "required",
               "type"
             ],
+            "title": "Question",
             "type": "object",
             "x-runx-schema": "runx.question.v1"
           },
@@ -88,16 +93,20 @@
           "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
+          "description": "The gate an approval request asks a person to pass, and why.",
           "properties": {
             "id": {
               "minLength": 1,
               "type": "string"
             },
-            "payload": {},
-            "payload_ref": {
-              "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+            "payload": {
+              "description": "What executes once the gate is approved, when it is at most 64 KiB. A host recomputes `summary.payload_digest` over it before it offers Approve; the request's digest binds it with the rest of the gate."
+            },
+            "payload_artifact": {
+              "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
+              "description": "What executes, when it is larger: a project artifact whose bytes are its canonical JSON.",
               "properties": {
                 "bytes": {
                   "minimum": 0,
@@ -112,26 +121,29 @@
                 "path": {
                   "type": "string"
                 },
-                "ref": {
-                  "type": "string"
-                },
                 "schema": {
                   "enum": [
-                    "runx.project_artifact_ref.v1"
+                    "runx.project_artifact.v1"
                   ],
+                  "title": "ProjectArtifactSchema",
+                  "type": "string"
+                },
+                "uri": {
+                  "description": "`runx:project-artifact:` and the artifact's digest.",
                   "type": "string"
                 }
               },
               "required": [
                 "schema",
-                "ref",
+                "uri",
                 "digest",
                 "bytes",
                 "media_type",
                 "path"
               ],
+              "title": "ProjectArtifact",
               "type": "object",
-              "x-runx-schema": "runx.project_artifact_ref.v1"
+              "x-runx-schema": "runx.project_artifact.v1"
             },
             "reason": {
               "minLength": 1,
@@ -139,6 +151,7 @@
             },
             "summary": {
               "additionalProperties": {},
+              "description": "Shallow summary payload. `payload_digest` in it is the stable digest (`runx.stable-json.v1`) of what executes once the gate is approved.",
               "type": "object"
             },
             "type": {
@@ -149,6 +162,7 @@
             "id",
             "reason"
           ],
+          "title": "ApprovalGate",
           "type": "object",
           "x-runx-schema": "runx.approval_gate.v1"
         },
@@ -182,14 +196,17 @@
           "properties": {
             "allowance": {
               "additionalProperties": false,
+              "description": "What the agent may call while its turn is open.",
               "properties": {
                 "asks": {
                   "const": true,
+                  "description": "Whether the turn may ask the human.",
                   "type": "boolean"
                 },
                 "operations": {
                   "items": {
                     "additionalProperties": false,
+                    "description": "One connector operation a turn may call, named by the requirement that binds its instance.",
                     "properties": {
                       "operation": {
                         "minLength": 1,
@@ -204,12 +221,14 @@
                       "requirement",
                       "operation"
                     ],
+                    "title": "AllowedOperation",
                     "type": "object"
                   },
                   "minItems": 1,
                   "type": "array"
                 },
                 "skills": {
+                  "description": "Child skills by ref, and the catalog rules a load is admitted under.",
                   "items": {
                     "anyOf": [
                       {
@@ -218,22 +237,26 @@
                       },
                       {
                         "additionalProperties": false,
+                        "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                         "properties": {
                           "catalog": {
                             "additionalProperties": false,
                             "properties": {
                               "trust": {
+                                "description": "The lowest tier a load admits on its own; a package below it waits on the person's trust.",
                                 "enum": [
                                   "first_party",
                                   "verified",
                                   "community"
                                 ],
+                                "title": "TrustTier",
                                 "type": "string"
                               }
                             },
                             "required": [
                               "trust"
                             ],
+                            "title": "CatalogTrust",
                             "type": "object"
                           },
                           "project": {
@@ -241,14 +264,18 @@
                             "type": "boolean"
                           }
                         },
+                        "title": "CatalogRule",
                         "type": "object"
                       }
-                    ]
+                    ],
+                    "description": "One entry of an allowance's `skills`: a child skill by name, or a catalog rule, which admits the skills and connectors a `load` call finds.",
+                    "title": "SkillAllowance"
                   },
                   "minItems": 1,
                   "type": "array"
                 },
                 "tools": {
+                  "description": "Catalog tool names.",
                   "items": {
                     "minLength": 1,
                     "type": "string"
@@ -257,6 +284,7 @@
                   "type": "array"
                 }
               },
+              "title": "TurnAllowance",
               "type": "object"
             },
             "envelope": {
@@ -266,8 +294,10 @@
               "properties": {
                 "act": {
                   "additionalProperties": false,
+                  "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
                   "properties": {
                     "decision": {
+                      "description": "The decision the call carries out.",
                       "enum": [
                         "continue",
                         "escalate",
@@ -276,9 +306,11 @@
                         "decline",
                         "monitor"
                       ],
+                      "title": "DecisionChoice",
                       "type": "string"
                     },
                     "form": {
+                      "description": "What kind of act the call is.",
                       "enum": [
                         "reply",
                         "review"
@@ -286,19 +318,23 @@
                       "type": "string"
                     },
                     "previous": {
+                      "description": "The receipt of the act this one follows.",
                       "maxLength": 71,
                       "pattern": "^sha256:[0-9a-f]{64}$",
                       "type": "string"
                     },
                     "purpose": {
+                      "description": "Why the call is made.",
                       "minLength": 1,
                       "type": "string"
                     },
                     "reason": {
+                      "description": "What a reader is told about this particular call.",
                       "minLength": 1,
                       "type": "string"
                     },
                     "target": {
+                      "description": "The locator of what the act is about.",
                       "minLength": 1,
                       "type": "string"
                     }
@@ -306,15 +342,22 @@
                   "required": [
                     "purpose"
                   ],
+                  "title": "CallAct",
                   "type": "object"
                 },
                 "context": {
                   "additionalProperties": false,
+                  "description": "The optional conventions and project instructions context block.",
                   "properties": {
                     "conventions": {
                       "additionalProperties": false,
+                      "description": "A resolved profile sourced from a workspace file (memory, conventions, voice).",
                       "properties": {
                         "content": {
+                          "type": "string"
+                        },
+                        "digest": {
+                          "minLength": 1,
                           "type": "string"
                         },
                         "path": {
@@ -325,15 +368,12 @@
                           "minLength": 1,
                           "type": "string"
                         },
-                        "sha256": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
                         "sharing": {
                           "enum": [
                             "local_only",
                             "configured_model"
                           ],
+                          "title": "ContextSharing",
                           "type": "string"
                         }
                       },
@@ -341,16 +381,23 @@
                         "sharing",
                         "root_path",
                         "path",
-                        "sha256",
+                        "digest",
                         "content"
                       ],
+                      "title": "ProfileFile",
                       "type": "object"
                     },
                     "instructions": {
+                      "description": "The project's instructions: each `AGENTS.md` and `CLAUDE.md` from the repository root that contains the workspace down to the workspace, in that order, each `path` relative to the repository root.",
                       "items": {
                         "additionalProperties": false,
+                        "description": "A resolved profile sourced from a workspace file (memory, conventions, voice).",
                         "properties": {
                           "content": {
+                            "type": "string"
+                          },
+                          "digest": {
+                            "minLength": 1,
                             "type": "string"
                           },
                           "path": {
@@ -361,15 +408,12 @@
                             "minLength": 1,
                             "type": "string"
                           },
-                          "sha256": {
-                            "minLength": 1,
-                            "type": "string"
-                          },
                           "sharing": {
                             "enum": [
                               "local_only",
                               "configured_model"
                             ],
+                            "title": "ContextSharing",
                             "type": "string"
                           }
                         },
@@ -377,9 +421,10 @@
                           "sharing",
                           "root_path",
                           "path",
-                          "sha256",
+                          "digest",
                           "content"
                         ],
+                        "title": "ProfileFile",
                         "type": "object"
                       },
                       "minItems": 1,
@@ -387,8 +432,13 @@
                     },
                     "memory": {
                       "additionalProperties": false,
+                      "description": "The workspace's `MEMORY.md`, in envelopes recorded before hosts carried memory themselves. runx writes none: memory a host supplies travels as admitted context entries.",
                       "properties": {
                         "content": {
+                          "type": "string"
+                        },
+                        "digest": {
+                          "minLength": 1,
                           "type": "string"
                         },
                         "path": {
@@ -399,15 +449,12 @@
                           "minLength": 1,
                           "type": "string"
                         },
-                        "sha256": {
-                          "minLength": 1,
-                          "type": "string"
-                        },
                         "sharing": {
                           "enum": [
                             "local_only",
                             "configured_model"
                           ],
+                          "title": "ContextSharing",
                           "type": "string"
                         }
                       },
@@ -415,17 +462,20 @@
                         "sharing",
                         "root_path",
                         "path",
-                        "sha256",
+                        "digest",
                         "content"
                       ],
+                      "title": "ProfileFile",
                       "type": "object"
                     }
                   },
+                  "title": "AgentContextProfiles",
                   "type": "object"
                 },
                 "current_context": {
                   "items": {
                     "additionalProperties": false,
+                    "description": "A single artifact context entry. `type` is required-but-nullable.",
                     "properties": {
                       "data": {
                         "additionalProperties": {},
@@ -433,6 +483,7 @@
                       },
                       "meta": {
                         "additionalProperties": false,
+                        "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
                         "properties": {
                           "artifact_id": {
                             "minLength": 1,
@@ -442,7 +493,7 @@
                             "minLength": 1,
                             "type": "string"
                           },
-                          "hash": {
+                          "digest": {
                             "minLength": 1,
                             "type": "string"
                           },
@@ -459,6 +510,7 @@
                           },
                           "producer": {
                             "additionalProperties": false,
+                            "description": "The producer of a context artifact.",
                             "properties": {
                               "runner": {
                                 "minLength": 1,
@@ -473,6 +525,7 @@
                               "skill",
                               "runner"
                             ],
+                            "title": "ContextArtifactProducer",
                             "type": "object"
                           },
                           "receipt_id": {
@@ -515,16 +568,18 @@
                           "step_id",
                           "producer",
                           "created_at",
-                          "hash",
+                          "digest",
                           "size_bytes",
                           "parent_artifact_id",
                           "receipt_id",
                           "redacted"
                         ],
+                        "title": "ContextArtifactMeta",
                         "type": "object"
                       },
                       "scope": {
                         "additionalProperties": false,
+                        "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
                         "properties": {
                           "goal_id": {
                             "anyOf": [
@@ -547,6 +602,7 @@
                               "retrieved_history",
                               "hypothesis"
                             ],
+                            "title": "ContextPurpose",
                             "type": "string"
                           },
                           "sharing": {
@@ -554,9 +610,10 @@
                               "local_only",
                               "configured_model"
                             ],
+                            "title": "ContextSharing",
                             "type": "string"
                           },
-                          "source_ref": {
+                          "source_uri": {
                             "anyOf": [
                               {
                                 "minLength": 1,
@@ -573,6 +630,7 @@
                               "skill_instructions",
                               "untrusted_evidence"
                             ],
+                            "title": "ContextTrust",
                             "type": "string"
                           }
                         },
@@ -581,11 +639,13 @@
                           "trust",
                           "sharing",
                           "goal_id",
-                          "source_ref"
+                          "source_uri"
                         ],
+                        "title": "ContextScope",
                         "type": "object"
                       },
                       "summary": {
+                        "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
                         "minLength": 1,
                         "type": "string"
                       },
@@ -601,9 +661,11 @@
                         ]
                       },
                       "version": {
+                        "description": "The artifact context entry version. Committed as `const: \"1\"`.",
                         "enum": [
                           "1"
                         ],
+                        "title": "ContextEntryVersion",
                         "type": "string"
                       }
                     },
@@ -614,12 +676,14 @@
                       "data",
                       "meta"
                     ],
+                    "title": "ContextEntry",
                     "type": "object"
                   },
                   "type": "array"
                 },
                 "execution_location": {
                   "additionalProperties": false,
+                  "description": "Where the skill executes from on disk.",
                   "properties": {
                     "skill_directory": {
                       "minLength": 1,
@@ -636,11 +700,13 @@
                   "required": [
                     "skill_directory"
                   ],
+                  "title": "ExecutionLocation",
                   "type": "object"
                 },
                 "historical_context": {
                   "items": {
                     "additionalProperties": false,
+                    "description": "A single artifact context entry. `type` is required-but-nullable.",
                     "properties": {
                       "data": {
                         "additionalProperties": {},
@@ -648,6 +714,7 @@
                       },
                       "meta": {
                         "additionalProperties": false,
+                        "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
                         "properties": {
                           "artifact_id": {
                             "minLength": 1,
@@ -657,7 +724,7 @@
                             "minLength": 1,
                             "type": "string"
                           },
-                          "hash": {
+                          "digest": {
                             "minLength": 1,
                             "type": "string"
                           },
@@ -674,6 +741,7 @@
                           },
                           "producer": {
                             "additionalProperties": false,
+                            "description": "The producer of a context artifact.",
                             "properties": {
                               "runner": {
                                 "minLength": 1,
@@ -688,6 +756,7 @@
                               "skill",
                               "runner"
                             ],
+                            "title": "ContextArtifactProducer",
                             "type": "object"
                           },
                           "receipt_id": {
@@ -730,16 +799,18 @@
                           "step_id",
                           "producer",
                           "created_at",
-                          "hash",
+                          "digest",
                           "size_bytes",
                           "parent_artifact_id",
                           "receipt_id",
                           "redacted"
                         ],
+                        "title": "ContextArtifactMeta",
                         "type": "object"
                       },
                       "scope": {
                         "additionalProperties": false,
+                        "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
                         "properties": {
                           "goal_id": {
                             "anyOf": [
@@ -762,6 +833,7 @@
                               "retrieved_history",
                               "hypothesis"
                             ],
+                            "title": "ContextPurpose",
                             "type": "string"
                           },
                           "sharing": {
@@ -769,9 +841,10 @@
                               "local_only",
                               "configured_model"
                             ],
+                            "title": "ContextSharing",
                             "type": "string"
                           },
-                          "source_ref": {
+                          "source_uri": {
                             "anyOf": [
                               {
                                 "minLength": 1,
@@ -788,6 +861,7 @@
                               "skill_instructions",
                               "untrusted_evidence"
                             ],
+                            "title": "ContextTrust",
                             "type": "string"
                           }
                         },
@@ -796,11 +870,13 @@
                           "trust",
                           "sharing",
                           "goal_id",
-                          "source_ref"
+                          "source_uri"
                         ],
+                        "title": "ContextScope",
                         "type": "object"
                       },
                       "summary": {
+                        "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
                         "minLength": 1,
                         "type": "string"
                       },
@@ -816,9 +892,11 @@
                         ]
                       },
                       "version": {
+                        "description": "The artifact context entry version. Committed as `const: \"1\"`.",
                         "enum": [
                           "1"
                         ],
+                        "title": "ContextEntryVersion",
                         "type": "string"
                       }
                     },
@@ -829,6 +907,7 @@
                       "data",
                       "meta"
                     ],
+                    "title": "ContextEntry",
                     "type": "object"
                   },
                   "type": "array"
@@ -841,7 +920,8 @@
                   "minLength": 1,
                   "type": "string"
                 },
-                "instructions_sha256": {
+                "instructions_digest": {
+                  "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
                   "minLength": 1,
                   "type": "string"
                 },
@@ -849,6 +929,7 @@
                   "additionalProperties": {
                     "anyOf": [
                       {
+                        "description": "A declared output value type.",
                         "enum": [
                           "string",
                           "number",
@@ -858,10 +939,12 @@
                           "object",
                           "null"
                         ],
+                        "title": "OutputType",
                         "type": "string"
                       },
                       {
                         "additionalProperties": false,
+                        "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
                         "properties": {
                           "description": {
                             "type": "string"
@@ -877,9 +960,11 @@
                           },
                           "schema": {
                             "additionalProperties": {},
+                            "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
                             "type": "object"
                           },
                           "type": {
+                            "description": "A declared output value type.",
                             "enum": [
                               "string",
                               "number",
@@ -889,6 +974,7 @@
                               "object",
                               "null"
                             ],
+                            "title": "OutputType",
                             "type": "string"
                           },
                           "wrap_as": {
@@ -896,16 +982,22 @@
                             "type": "string"
                           }
                         },
+                        "title": "OutputFieldSpec",
                         "type": "object"
                       }
-                    ]
+                    ],
+                    "description": "A single output field declaration: either a bare type name or a typed spec.",
+                    "title": "OutputField"
                   },
                   "type": "object"
                 },
-                "output_schema": {},
+                "output_schema": {
+                  "description": "Exact root JSON Schema for the final result, including any declared packet contract. `output` remains the concise field index used by hosts; this schema is the validator offered to managed agents."
+                },
                 "provenance": {
                   "items": {
                     "additionalProperties": false,
+                    "description": "One input/output provenance edge.",
                     "properties": {
                       "artifact_id": {
                         "type": "string"
@@ -929,18 +1021,22 @@
                       "input",
                       "output"
                     ],
+                    "title": "ProvenanceEntry",
                     "type": "object"
                   },
                   "type": "array"
                 },
                 "requirements": {
                   "additionalProperties": false,
+                  "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
                   "properties": {
                     "declaration": {
                       "additionalProperties": false,
+                      "description": "Parser-owned projection of all execution requirements for one act.",
                       "properties": {
                         "environment": {
                           "additionalProperties": false,
+                          "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
                           "minProperties": 1,
                           "properties": {
                             "optional": {
@@ -968,11 +1064,13 @@
                           "type": "array"
                         }
                       },
+                      "title": "ExecutionRequirements",
                       "type": "object"
                     },
                     "environment": {
                       "items": {
                         "additionalProperties": false,
+                        "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
                         "properties": {
                           "available": {
                             "type": "boolean"
@@ -989,6 +1087,7 @@
                           "required",
                           "available"
                         ],
+                        "title": "EnvironmentRequirementStatus",
                         "type": "object"
                       },
                       "minItems": 1,
@@ -1004,12 +1103,14 @@
                             "native_capability",
                             "remote_provider"
                           ],
+                          "title": "ExecutionBoundaryKind",
                           "type": "string"
                         }
                       },
                       "required": [
                         "kind"
                       ],
+                      "title": "ExecutionBoundaryObservation",
                       "type": "object"
                     }
                   },
@@ -1017,6 +1118,7 @@
                     "declaration",
                     "execution_boundary"
                   ],
+                  "title": "AgentExecutionRequirements",
                   "type": "object"
                 },
                 "run_id": {
@@ -1037,8 +1139,13 @@
                 },
                 "voice_profile": {
                   "additionalProperties": false,
+                  "description": "A resolved profile sourced from a workspace file (memory, conventions, voice).",
                   "properties": {
                     "content": {
+                      "type": "string"
+                    },
+                    "digest": {
+                      "minLength": 1,
                       "type": "string"
                     },
                     "path": {
@@ -1049,15 +1156,12 @@
                       "minLength": 1,
                       "type": "string"
                     },
-                    "sha256": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
                     "sharing": {
                       "enum": [
                         "local_only",
                         "configured_model"
                       ],
+                      "title": "ContextSharing",
                       "type": "string"
                     }
                   },
@@ -1065,16 +1169,17 @@
                     "sharing",
                     "root_path",
                     "path",
-                    "sha256",
+                    "digest",
                     "content"
                   ],
+                  "title": "ProfileFile",
                   "type": "object"
                 }
               },
               "required": [
                 "run_id",
                 "skill",
-                "instructions_sha256",
+                "instructions_digest",
                 "instructions",
                 "inputs",
                 "requirements",
@@ -1083,6 +1188,7 @@
                 "provenance",
                 "trust_boundary"
               ],
+              "title": "AgentContextEnvelope",
               "type": "object",
               "x-runx-schema": "runx.agent_context_envelope.v1"
             },
@@ -1091,10 +1197,12 @@
               "type": "string"
             },
             "role": {
+              "description": "The kind of agent the step asks for.",
               "minLength": 1,
               "type": "string"
             },
             "task": {
+              "description": "The act it performs.",
               "minLength": 1,
               "type": "string"
             }
@@ -1106,6 +1214,7 @@
             "envelope",
             "allowance"
           ],
+          "title": "AgentActInvocation",
           "type": "object",
           "x-runx-schema": "runx.agent_act_invocation.v1"
         },
@@ -1123,6 +1232,7 @@
     },
     {
       "additionalProperties": false,
+      "description": "A step or call waits to run again. A bounded retry (`retry_after_seconds` above zero) is runx's own: the driver that reaches it after the delay runs it. A claimed call that never settled (`retry_after_seconds` zero) runs again only on a person's acknowledgement, `{\"retry\": true}`, and only when it can be resent.",
       "properties": {
         "id": {
           "minLength": 1,
@@ -1137,6 +1247,7 @@
           "type": "string"
         },
         "resend": {
+          "description": "Whether a claimed call can be sent again with the same input: its provider deduplicates it, or it only reads. One that cannot is never resent; its run can only be closed with the call unconfirmed.",
           "enum": [
             "unsafe"
           ],
@@ -1157,6 +1268,7 @@
     },
     {
       "additionalProperties": false,
+      "description": "A call reached a paid runner and waits on the person's exact decision: they answer `approved` and the method they pay with (`choice`).",
       "properties": {
         "id": {
           "minLength": 1,
@@ -1170,6 +1282,7 @@
           "$id": "https://schemas.runx.ai/runx/purchase-request/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
+          "description": "What a person decides when a call reaches a paid runner: one quote's exact offer version, seller and price, and each payment method that can pay it. The request's digest binds all of it, so an answer pays only this quote, before it expires.",
           "properties": {
             "amount_minor": {
               "maximum": 9007199254740991,
@@ -1181,14 +1294,17 @@
               "type": "string"
             },
             "input_digest": {
+              "maxLength": 71,
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
             },
             "methods": {
+              "description": "Never empty: a call no method can pay fails instead of asking.",
               "items": {
                 "anyOf": [
                   {
                     "additionalProperties": false,
+                    "description": "The account's runx balance, which covers the price: the price moves inside runx's ledger, with no settlement per call.",
                     "properties": {
                       "available_micro": {
                         "minimum": 0,
@@ -1213,6 +1329,7 @@
                   },
                   {
                     "additionalProperties": false,
+                    "description": "A hosted payment grant whose connector pays on the quote's network and asset.",
                     "properties": {
                       "choice": {
                         "minLength": 1,
@@ -1232,8 +1349,10 @@
                       },
                       "option": {
                         "additionalProperties": false,
+                        "description": "One exact quoted option. Its provider attempt retains this binding through settlement and recovery; this is not another payment or purchase identity.",
                         "properties": {
                           "payload_digest": {
+                            "maxLength": 71,
                             "pattern": "^sha256:[0-9a-f]{64}$",
                             "type": "string"
                           },
@@ -1248,6 +1367,7 @@
                           "settlement_family",
                           "payload_digest"
                         ],
+                        "title": "PurchasePaymentOptionBinding",
                         "type": "object"
                       },
                       "total_minor": {
@@ -1266,16 +1386,19 @@
                     ],
                     "type": "object"
                   }
-                ]
+                ],
+                "description": "One way the buyer can pay. An answer's `choice` names it: the balance by `runx:balance`, a payment grant by the choice binding its instance and quoted option.",
+                "title": "PurchaseMethod"
               },
               "type": "array"
             },
-            "offer": {
-              "$id": "https://schemas.runx.ai/runx/payment/offer-revision-ref/v1.json",
+            "offer_version": {
+              "$id": "https://schemas.runx.ai/runx/payment/offer-version-binding/v1.json",
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "input_schema_digest": {
+                  "maxLength": 71,
                   "pattern": "^sha256:[0-9a-f]{64}$",
                   "type": "string"
                 },
@@ -1284,42 +1407,46 @@
                   "type": "string"
                 },
                 "output_schema_digest": {
+                  "maxLength": 71,
                   "pattern": "^sha256:[0-9a-f]{64}$",
                   "type": "string"
                 },
-                "revision": {
+                "profile_digest": {
+                  "description": "The digest of the profile that declares the offer at that version.",
+                  "maxLength": 71,
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "version": {
+                  "description": "The package version the offer is sold at.",
                   "minLength": 1,
-                  "type": "string"
-                },
-                "revision_digest": {
-                  "pattern": "^sha256:[0-9a-f]{64}$",
                   "type": "string"
                 }
               },
               "required": [
                 "offer_id",
-                "revision",
-                "revision_digest",
+                "version",
+                "profile_digest",
                 "input_schema_digest",
                 "output_schema_digest"
               ],
+              "title": "OfferVersionBinding",
               "type": "object",
-              "x-runx-schema": "runx.payment.offer_revision_ref.v1"
+              "x-runx-schema": "runx.payment.offer_version_binding.v1"
             },
             "package_digest": {
+              "description": "The execution package digest the purchase runs (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
+              "maxLength": 71,
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
             },
             "quote": {
               "additionalProperties": false,
+              "description": "The quote decided on, including its protocol-owned display terms and the exact challenge binding. An absent network is not an EVM network default.",
               "properties": {
                 "expires_at": {
                   "minLength": 1,
                   "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-                  "type": "string"
-                },
-                "invocation_id": {
-                  "minLength": 1,
                   "type": "string"
                 },
                 "payment_options": {
@@ -1333,8 +1460,10 @@
                       },
                       "option": {
                         "additionalProperties": false,
+                        "description": "One exact quoted option. Its provider attempt retains this binding through settlement and recovery; this is not another payment or purchase identity.",
                         "properties": {
                           "payload_digest": {
+                            "maxLength": 71,
                             "pattern": "^sha256:[0-9a-f]{64}$",
                             "type": "string"
                           },
@@ -1349,10 +1478,12 @@
                           "settlement_family",
                           "payload_digest"
                         ],
+                        "title": "PurchasePaymentOptionBinding",
                         "type": "object"
                       },
                       "payment_method": {
                         "additionalProperties": false,
+                        "description": "Protocol-owned discovery and display terms. These do not authorize a payment: the settlement executor verifies the complete challenge itself.",
                         "properties": {
                           "asset": {
                             "minLength": 1,
@@ -1374,6 +1505,7 @@
                         "required": [
                           "method"
                         ],
+                        "title": "PurchasePaymentMethod",
                         "type": "object"
                       },
                       "quote_ref": {
@@ -1400,6 +1532,7 @@
                               "effect_finality",
                               "credential_resolution"
                             ],
+                            "title": "ProofKind",
                             "type": "string"
                           },
                           "provider": {
@@ -1407,6 +1540,7 @@
                             "type": "string"
                           },
                           "type": {
+                            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                             "enum": [
                               "thread",
                               "comment",
@@ -1436,6 +1570,7 @@
                               "connector_instance",
                               "connector_operation"
                             ],
+                            "title": "ReferenceType",
                             "type": "string"
                           },
                           "uri": {
@@ -1447,6 +1582,7 @@
                           "type",
                           "uri"
                         ],
+                        "title": "Reference",
                         "type": "object",
                         "x-runx-schema": "runx.reference.v1"
                       }
@@ -1456,23 +1592,29 @@
                       "expires_at",
                       "quote_ref"
                     ],
+                    "title": "PurchasePaymentOption",
                     "type": "object"
                   },
                   "type": "array"
+                },
+                "purchase_id": {
+                  "minLength": 1,
+                  "type": "string"
                 }
               },
               "required": [
-                "invocation_id",
+                "purchase_id",
                 "expires_at",
                 "payment_options"
               ],
+              "title": "PurchaseQuote",
               "type": "object"
             },
             "runner": {
               "minLength": 1,
               "type": "string"
             },
-            "seller": {
+            "seller_ref": {
               "$id": "https://schemas.runx.ai/runx/reference/v1.json",
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1496,6 +1638,7 @@
                     "effect_finality",
                     "credential_resolution"
                   ],
+                  "title": "ProofKind",
                   "type": "string"
                 },
                 "provider": {
@@ -1515,6 +1658,7 @@
                 "type",
                 "uri"
               ],
+              "title": "PrincipalReference",
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
@@ -1526,15 +1670,16 @@
           "required": [
             "skill",
             "runner",
-            "offer",
+            "offer_version",
             "package_digest",
-            "seller",
+            "seller_ref",
             "amount_minor",
             "currency",
             "input_digest",
             "quote",
             "methods"
           ],
+          "title": "PurchaseRequest",
           "type": "object",
           "x-runx-schema": "runx.purchase_request.v1"
         }
@@ -1547,5 +1692,6 @@
       "type": "object"
     }
   ],
+  "title": "ResolutionRequest",
   "x-runx-schema": "runx.resolution_request.v1"
 }

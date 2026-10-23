@@ -16,42 +16,52 @@ use super::{Backend, StoreError, Streams, append_in};
 
 /// "RUNS": a runx store, distinct from the kernel store's "RUNK".
 const APPLICATION_ID: i64 = 0x5255_4e53;
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS runx_events (
-  data_source_ref TEXT NOT NULL,
+  data_source_uri TEXT NOT NULL,
   resource TEXT NOT NULL,
   aggregate_id TEXT NOT NULL,
   version INTEGER NOT NULL,
   idempotency_key TEXT NOT NULL,
-  event_ref TEXT NOT NULL,
+  event_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_digest TEXT NOT NULL,
   event_json TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  PRIMARY KEY (data_source_ref, resource, aggregate_id, version),
-  UNIQUE (data_source_ref, resource, aggregate_id, idempotency_key)
+  PRIMARY KEY (data_source_uri, resource, aggregate_id, version),
+  UNIQUE (data_source_uri, resource, aggregate_id, idempotency_key)
 );
 CREATE TABLE IF NOT EXISTS runx_stream_heads (
-  data_source_ref TEXT NOT NULL,
+  data_source_uri TEXT NOT NULL,
   resource TEXT NOT NULL,
   aggregate_id TEXT NOT NULL,
   version INTEGER NOT NULL,
-  event_ref TEXT NOT NULL,
+  event_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_digest TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
   event_json TEXT NOT NULL,
   committed_at TEXT NOT NULL,
   projection_digest TEXT NOT NULL,
-  PRIMARY KEY (data_source_ref, resource, aggregate_id)
+  PRIMARY KEY (data_source_uri, resource, aggregate_id)
 );
 CREATE INDEX IF NOT EXISTS runx_stream_heads_recent
-  ON runx_stream_heads (data_source_ref, resource, committed_at DESC, aggregate_id ASC);
+  ON runx_stream_heads (data_source_uri, resource, committed_at DESC, aggregate_id ASC);
 CREATE INDEX IF NOT EXISTS runx_stream_heads_type_recent
-  ON runx_stream_heads (data_source_ref, resource, event_type, committed_at DESC, aggregate_id ASC);
+  ON runx_stream_heads (data_source_uri, resource, event_type, committed_at DESC, aggregate_id ASC);
+"#;
+
+/// Version 1 named a record's `data_source_uri` and `event_id` columns
+/// `data_source_ref` and `event_ref`. SQLite carries the renames into the
+/// keys and indexes that name them.
+const MIGRATE_FROM_1: &str = r#"
+ALTER TABLE runx_events RENAME COLUMN data_source_ref TO data_source_uri;
+ALTER TABLE runx_events RENAME COLUMN event_ref TO event_id;
+ALTER TABLE runx_stream_heads RENAME COLUMN data_source_ref TO data_source_uri;
+ALTER TABLE runx_stream_heads RENAME COLUMN event_ref TO event_id;
 "#;
 
 pub(super) struct Sqlite {
@@ -87,6 +97,7 @@ impl Sqlite {
         let user_version = pragma(&self.connection, "user_version")?;
         match (application_id, user_version) {
             (APPLICATION_ID, SCHEMA_VERSION) => return Ok(()),
+            (APPLICATION_ID, 1) => return self.migrate(MIGRATE_FROM_1),
             (0, 0) => {}
             (APPLICATION_ID, version) => {
                 return Err(StoreError::corrupt(format!(
@@ -127,6 +138,23 @@ impl Sqlite {
         transaction
             .commit()
             .map_err(|error| database("committing the schema", &error))
+    }
+
+    /// Bring a store of an earlier version to this one in one transaction.
+    fn migrate(&mut self, steps: &str) -> Result<(), StoreError> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| database("starting the migration", &error))?;
+        transaction
+            .execute_batch(steps)
+            .map_err(|error| database("migrating the schema", &error))?;
+        transaction
+            .pragma_update(None, "user_version", SCHEMA_VERSION)
+            .map_err(|error| database("versioning the store", &error))?;
+        transaction
+            .commit()
+            .map_err(|error| database("committing the migration", &error))
     }
 }
 
@@ -171,11 +199,11 @@ impl Backend for Sqlite {
         let source = request.source;
         let (sql, limit) = match request.after_version {
             Some(_) => (
-                "SELECT event_ref, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_ref = ?1 AND resource = ?2 AND aggregate_id = ?3 AND version > ?4 ORDER BY version ASC LIMIT ?5",
+                "SELECT event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_uri = ?1 AND resource = ?2 AND aggregate_id = ?3 AND version > ?4 ORDER BY version ASC LIMIT ?5",
                 request.limit + 1,
             ),
             None => (
-                "SELECT event_ref, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_ref = ?1 AND resource = ?2 AND aggregate_id = ?3 AND version > ?4 ORDER BY version DESC LIMIT ?5",
+                "SELECT event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_uri = ?1 AND resource = ?2 AND aggregate_id = ?3 AND version > ?4 ORDER BY version DESC LIMIT ?5",
                 request.limit,
             ),
         };
@@ -186,7 +214,7 @@ impl Backend for Sqlite {
         let mut events = statement
             .query_map(
                 params![
-                    source.data_source_ref,
+                    source.data_source_uri,
                     source.resource,
                     source.aggregate_id,
                     integer(request.after_version.unwrap_or(0))?,
@@ -207,10 +235,10 @@ impl Backend for Sqlite {
     fn heads(&mut self, request: &ListHeads<'_>) -> Result<(Vec<StreamHead>, bool), StoreError> {
         let cursor = model::decode_cursor(request.cursor)?;
         let mut sql = String::from(
-            "SELECT aggregate_id, event_ref, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_stream_heads WHERE data_source_ref = ? AND resource = ?",
+            "SELECT aggregate_id, event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_stream_heads WHERE data_source_uri = ? AND resource = ?",
         );
         let mut values = vec![
-            SqlValue::Text(request.data_source_ref.to_owned()),
+            SqlValue::Text(request.data_source_uri.to_owned()),
             SqlValue::Text(request.resource.to_owned()),
         ];
         if !request.event_types.is_empty() {
@@ -285,14 +313,14 @@ impl Streams for SqliteStreams<'_> {
         let version = integer(record.version)?;
         self.0
             .execute(
-                "INSERT INTO runx_events (data_source_ref, resource, aggregate_id, version, idempotency_key, event_ref, event_type, event_digest, event_json, committed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                "INSERT INTO runx_events (data_source_uri, resource, aggregate_id, version, idempotency_key, event_id, event_type, event_digest, event_json, committed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
-                    source.data_source_ref,
+                    source.data_source_uri,
                     source.resource,
                     source.aggregate_id,
                     version,
                     record.idempotency_key,
-                    record.event_ref,
+                    record.event_id,
                     record.event_type,
                     record.event_digest,
                     event_json,
@@ -302,13 +330,13 @@ impl Streams for SqliteStreams<'_> {
             .map_err(|error| database("inserting the event", &error))?;
         self.0
             .execute(
-                "INSERT INTO runx_stream_heads (data_source_ref, resource, aggregate_id, version, event_ref, event_type, event_digest, idempotency_key, event_json, committed_at, projection_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11) ON CONFLICT (data_source_ref, resource, aggregate_id) DO UPDATE SET version = excluded.version, event_ref = excluded.event_ref, event_type = excluded.event_type, event_digest = excluded.event_digest, idempotency_key = excluded.idempotency_key, event_json = excluded.event_json, committed_at = excluded.committed_at, projection_digest = excluded.projection_digest",
+                "INSERT INTO runx_stream_heads (data_source_uri, resource, aggregate_id, version, event_id, event_type, event_digest, idempotency_key, event_json, committed_at, projection_digest) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11) ON CONFLICT (data_source_uri, resource, aggregate_id) DO UPDATE SET version = excluded.version, event_id = excluded.event_id, event_type = excluded.event_type, event_digest = excluded.event_digest, idempotency_key = excluded.idempotency_key, event_json = excluded.event_json, committed_at = excluded.committed_at, projection_digest = excluded.projection_digest",
                 params![
-                    source.data_source_ref,
+                    source.data_source_uri,
                     source.resource,
                     source.aggregate_id,
                     version,
-                    record.event_ref,
+                    record.event_id,
                     record.event_type,
                     record.event_digest,
                     record.idempotency_key,
@@ -325,8 +353,8 @@ impl Streams for SqliteStreams<'_> {
 fn projection(connection: &Connection, source: Source<'_>) -> Result<Projection, StoreError> {
     let head = connection
         .query_row(
-            "SELECT version, event_ref, event_type, event_digest, projection_digest FROM runx_stream_heads WHERE data_source_ref = ?1 AND resource = ?2 AND aggregate_id = ?3",
-            params![source.data_source_ref, source.resource, source.aggregate_id],
+            "SELECT version, event_id, event_type, event_digest, projection_digest FROM runx_stream_heads WHERE data_source_uri = ?1 AND resource = ?2 AND aggregate_id = ?3",
+            params![source.data_source_uri, source.resource, source.aggregate_id],
             |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
@@ -339,13 +367,13 @@ fn projection(connection: &Connection, source: Source<'_>) -> Result<Projection,
         )
         .optional()
         .map_err(|error| database("reading the stream projection", &error))?;
-    let Some((version, event_ref, event_type, event_digest, projection_digest)) = head else {
+    let Some((version, event_id, event_type, event_digest, projection_digest)) = head else {
         return model::empty_projection();
     };
     Ok(Projection {
         version: u64::try_from(version)
             .map_err(|_| StoreError::corrupt("a stream head has a negative version"))?,
-        last_event_ref: Some(event_ref),
+        last_event_id: Some(event_id),
         last_event_type: Some(event_type),
         last_event_digest: Some(event_digest),
         projection_digest,
@@ -359,9 +387,9 @@ fn existing(
 ) -> Result<Option<EventRecord>, StoreError> {
     connection
         .query_row(
-            "SELECT event_ref, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_ref = ?1 AND resource = ?2 AND aggregate_id = ?3 AND idempotency_key = ?4",
+            "SELECT event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json FROM runx_events WHERE data_source_uri = ?1 AND resource = ?2 AND aggregate_id = ?3 AND idempotency_key = ?4",
             params![
-                source.data_source_ref,
+                source.data_source_uri,
                 source.resource,
                 source.aggregate_id,
                 idempotency_key
@@ -380,7 +408,7 @@ fn record_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<EventRe
     let event = serde_json::from_str::<JsonObject>(&event_json)
         .map_err(|error| corrupt(offset + 6, Box::new(error)))?;
     Ok(EventRecord {
-        event_ref: row.get(offset)?,
+        event_id: row.get(offset)?,
         version: u64::try_from(row.get::<_, i64>(offset + 1)?)
             .map_err(|error| corrupt(offset + 1, Box::new(error)))?,
         event_type: row.get(offset + 2)?,

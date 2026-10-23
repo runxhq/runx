@@ -25,7 +25,7 @@ struct EmbeddedRuntimeBoundaryTarget {
     allowed_package_imports: Vec<String>,
     forbidden_package_imports: Vec<String>,
     boundary: String,
-    sdk_disposition: String,
+    sdk_role: String,
     trusted_executor: String,
     typescript_role: String,
 }
@@ -69,7 +69,7 @@ fn sdk_decodes_embedded_runtime_service_fixture_without_typescript_fallback()
     assert_eq!(fixture.target.boundary, "runx-runtime-service");
     assert_eq!(fixture.target.trusted_executor, "runx-runtime");
     assert_eq!(fixture.target.typescript_role, "client_only");
-    assert_eq!(fixture.target.sdk_disposition, "runx-sdk-cli-backed");
+    assert_eq!(fixture.target.sdk_role, "runx-sdk-cli-backed");
     assert!(fixture.semantics.contains(&"host_continuation".to_owned()));
     assert!(fixture.semantics.contains(&"auth_resolution".to_owned()));
     // The runtime resolves a connector's credential itself; a paused run

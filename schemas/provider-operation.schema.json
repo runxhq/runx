@@ -2,20 +2,24 @@
   "$id": "https://schemas.runx.ai/runx/provider/operation/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "The provider-neutral packet emitted after a provider operation has been projected and, for mutations, independently read back. Provider adapters own the shape of `result`; Runx owns this envelope and its identity fields.",
   "properties": {
     "access": {
       "type": "string"
     },
-    "account_ref": {
+    "account_id": {
       "type": "string"
     },
     "cost": {
       "additionalProperties": false,
+      "description": "What a priced call cost; absent when the operation declares no cost.",
       "properties": {
         "payer": {
+          "description": "Who pays a priced call.",
           "enum": [
             "provider_account"
           ],
+          "title": "CostPayer",
           "type": "string"
         },
         "quoted_usd_micro": {
@@ -31,12 +35,13 @@
         "quoted_usd_micro",
         "payer"
       ],
+      "title": "CallCost",
       "type": "object"
     },
     "finality": {
       "type": "string"
     },
-    "grant_ref": {
+    "grant_uri": {
       "type": "string"
     },
     "host": {
@@ -46,12 +51,14 @@
       "type": "string"
     },
     "implementation_digest": {
+      "description": "The local implementation that ran; absent for hosted calls.",
       "type": "string"
     },
     "operation": {
       "type": "string"
     },
     "operation_digest": {
+      "description": "What the operation meant when the call was admitted.",
       "type": "string"
     },
     "operation_id": {
@@ -60,13 +67,13 @@
     "plan_digest": {
       "type": "string"
     },
-    "principal_ref": {
+    "principal_uri": {
       "type": "string"
     },
     "provider": {
       "type": "string"
     },
-    "readback_ref": {
+    "readback_uri": {
       "type": "string"
     },
     "result": {},
@@ -94,8 +101,9 @@
     "target",
     "result",
     "transport",
-    "readback_ref"
+    "readback_uri"
   ],
+  "title": "ProviderOperationPacket",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.provider.operation.v1"

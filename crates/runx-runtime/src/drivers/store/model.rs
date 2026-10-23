@@ -10,7 +10,7 @@ use super::request::{Source, validate_aggregate_id, validate_event_type};
 
 #[derive(Clone, Debug)]
 pub(super) struct EventRecord {
-    pub event_ref: String,
+    pub event_id: String,
     pub version: u64,
     pub event_type: String,
     pub event: JsonObject,
@@ -22,7 +22,7 @@ pub(super) struct EventRecord {
 #[derive(Clone, Debug)]
 pub(super) struct Projection {
     pub version: u64,
-    pub last_event_ref: Option<String>,
+    pub last_event_id: Option<String>,
     pub last_event_type: Option<String>,
     pub last_event_digest: Option<String>,
     pub projection_digest: String,
@@ -83,7 +83,7 @@ pub(super) fn record(
     let event_type = event_type(event);
     validate_event_type(&event_type)?;
     Ok(EventRecord {
-        event_ref: format!("{}:{}:{version}", source.resource, source.aggregate_id),
+        event_id: format!("{}:{}:{version}", source.resource, source.aggregate_id),
         version,
         event_type,
         event: event.clone(),
@@ -96,7 +96,7 @@ pub(super) fn record(
 pub(super) fn empty_projection() -> Result<Projection, StoreError> {
     Ok(Projection {
         version: 0,
-        last_event_ref: None,
+        last_event_id: None,
         last_event_type: None,
         last_event_digest: None,
         projection_digest: digest(&JsonValue::Object(JsonObject::from([
@@ -109,7 +109,7 @@ pub(super) fn empty_projection() -> Result<Projection, StoreError> {
 pub(super) fn advance(current: &Projection, event: &EventRecord) -> Result<Projection, StoreError> {
     Ok(Projection {
         version: event.version,
-        last_event_ref: Some(event.event_ref.clone()),
+        last_event_id: Some(event.event_id.clone()),
         last_event_type: Some(event.event_type.clone()),
         last_event_digest: Some(event.event_digest.clone()),
         projection_digest: digest(&JsonValue::Object(JsonObject::from([
@@ -183,7 +183,7 @@ pub(super) fn number(value: u64) -> JsonValue {
 
 pub(super) fn record_object(record: &EventRecord) -> JsonObject {
     JsonObject::from([
-        ("event_ref".to_owned(), text(&record.event_ref)),
+        ("event_id".to_owned(), text(&record.event_id)),
         ("version".to_owned(), number(record.version)),
         ("event_type".to_owned(), text(&record.event_type)),
         ("event".to_owned(), JsonValue::Object(record.event.clone())),
@@ -193,7 +193,8 @@ pub(super) fn record_object(record: &EventRecord) -> JsonObject {
     ])
 }
 
-/// A stored record back from its object form.
+/// A record back from the object [`record_object`] wrote, as a backend that
+/// keeps JSON stores it.
 #[cfg(feature = "store")]
 pub(super) fn record_from_object(value: &JsonValue) -> Result<EventRecord, StoreError> {
     let object = value
@@ -207,7 +208,7 @@ pub(super) fn record_from_object(value: &JsonValue) -> Result<EventRecord, Store
             .ok_or_else(|| StoreError::corrupt(format!("a stored event has no {name}")))
     };
     Ok(EventRecord {
-        event_ref: field("event_ref")?,
+        event_id: field("event_id")?,
         version: object
             .get("version")
             .and_then(unsigned)
@@ -232,8 +233,8 @@ fn projection_object(projection: &Projection, source: Source<'_>) -> JsonObject 
         ("version".to_owned(), number(projection.version)),
         ("event_count".to_owned(), number(projection.version)),
         (
-            "last_event_ref".to_owned(),
-            optional(&projection.last_event_ref),
+            "last_event_id".to_owned(),
+            optional(&projection.last_event_id),
         ),
         (
             "last_event_type".to_owned(),
@@ -309,7 +310,7 @@ fn effect(
     versions(result, before, after);
     result.insert("status".to_owned(), text(status));
     result.insert("idempotency_key".to_owned(), text(&record.idempotency_key));
-    result.insert("event_ref".to_owned(), text(&record.event_ref));
+    result.insert("event_id".to_owned(), text(&record.event_id));
     result.insert("event_digest".to_owned(), text(&record.event_digest));
     result.insert(
         "result_digest".to_owned(),
@@ -337,7 +338,7 @@ fn conflict(
         "idempotency_key".to_owned(),
         text(&proposed.idempotency_key),
     );
-    result.insert("event_ref".to_owned(), JsonValue::Null);
+    result.insert("event_id".to_owned(), JsonValue::Null);
     result.insert("event_digest".to_owned(), text(&proposed.event_digest));
     result.insert("result_digest".to_owned(), text(&digest(&stop)?));
     result.insert(
@@ -418,7 +419,7 @@ pub(super) fn projection_result(
 
 pub(super) fn heads_result(
     backend: &str,
-    data_source_ref: &str,
+    data_source_uri: &str,
     resource: &str,
     limit: usize,
     heads: &[StreamHead],
@@ -455,7 +456,7 @@ pub(super) fn heads_result(
         })
         .collect::<Vec<_>>();
     let source = Source {
-        data_source_ref,
+        data_source_uri,
         resource,
         aggregate_id: "stream-heads",
     };
@@ -484,7 +485,7 @@ pub(super) fn heads_result(
 fn envelope(backend: &str, source: Source<'_>, operation: &str) -> Result<JsonObject, StoreError> {
     Ok(JsonObject::from([
         ("schema".to_owned(), text("runx.data.operation_result.v1")),
-        ("data_source_ref".to_owned(), text(source.data_source_ref)),
+        ("data_source_uri".to_owned(), text(source.data_source_uri)),
         ("provider".to_owned(), text("store")),
         ("operation".to_owned(), text(operation)),
         ("resource".to_owned(), text(source.resource)),
@@ -494,8 +495,8 @@ fn envelope(backend: &str, source: Source<'_>, operation: &str) -> Result<JsonOb
             JsonValue::Object(JsonObject::from([
                 ("backend".to_owned(), text(backend)),
                 (
-                    "data_source_ref_digest".to_owned(),
-                    text(&digest(&text(source.data_source_ref))?),
+                    "data_source_uri_digest".to_owned(),
+                    text(&digest(&text(source.data_source_uri))?),
                 ),
                 ("resource".to_owned(), text(source.resource)),
                 ("aggregate_id".to_owned(), text(source.aggregate_id)),
@@ -512,7 +513,7 @@ fn versions(result: &mut JsonObject, before: u64, after: u64) {
 fn read(result: &mut JsonObject) {
     result.insert("status".to_owned(), text("read"));
     result.insert("idempotency_key".to_owned(), JsonValue::Null);
-    result.insert("event_ref".to_owned(), JsonValue::Null);
+    result.insert("event_id".to_owned(), JsonValue::Null);
     result.insert("event_digest".to_owned(), JsonValue::Null);
 }
 

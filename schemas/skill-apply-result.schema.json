@@ -21,6 +21,7 @@
         "no_change",
         "needs_core"
       ],
+      "title": "SkillChangeDecision",
       "type": "string"
     },
     "deleted_paths": {
@@ -31,6 +32,7 @@
       "type": "array"
     },
     "package_digest": {
+      "description": "The execution package digest of the applied package, not the registry's digest of its published package files.",
       "minLength": 1,
       "type": "string"
     },
@@ -49,6 +51,7 @@
       "enum": [
         "runx.skill.apply_result.v1"
       ],
+      "title": "SkillApplyResultSchema",
       "type": "string"
     },
     "target_dir": {
@@ -101,6 +104,7 @@
             "executable_files",
             "executable_lines"
           ],
+          "title": "SkillPackageMetrics",
           "type": "object"
         },
         "base_digest": {
@@ -148,6 +152,7 @@
             "executable_files",
             "executable_lines"
           ],
+          "title": "SkillPackageMetrics",
           "type": "object"
         },
         "candidate_digest": {
@@ -171,6 +176,7 @@
                   "passed",
                   "skipped"
                 ],
+                "title": "SkillValidationCheckStatus",
                 "type": "string"
               }
             },
@@ -179,6 +185,7 @@
               "status",
               "detail"
             ],
+            "title": "SkillValidationCheck",
             "type": "object"
           },
           "type": "array"
@@ -217,6 +224,7 @@
             "executable_files",
             "executable_lines"
           ],
+          "title": "SkillPackageDelta",
           "type": "object"
         },
         "plan_digest": {
@@ -234,6 +242,7 @@
           "enum": [
             "runx.skill.validation_result.v1"
           ],
+          "title": "SkillValidationResultSchema",
           "type": "string"
         },
         "target_dir": {
@@ -253,6 +262,7 @@
         "delta",
         "residual_risks"
       ],
+      "title": "SkillValidationResult",
       "type": "object",
       "x-runx-schema": "runx.skill.validation_result.v1"
     },
@@ -262,6 +272,7 @@
         "needs_core",
         "validated_and_applied"
       ],
+      "title": "SkillApplyVerdict",
       "type": "string"
     }
   },
@@ -277,6 +288,7 @@
     "deleted_paths",
     "residual_risks"
   ],
+  "title": "SkillApplyResult",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.skill.apply_result.v1"

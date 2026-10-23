@@ -1,34 +1,31 @@
 use runx_contracts::JsonObject;
 
 use super::super::types::{
-    GraphStatus, GraphStepStatus, SequentialGraphEvent, SequentialGraphState,
-    SequentialGraphStepState, StepAdmissionWitness,
+    GraphState, GraphStepState, SequentialGraph, SequentialGraphEvent, SequentialGraphStep,
+    StepAdmissionWitness,
 };
 use super::index::SequentialGraphStepIndex;
 
 #[must_use]
 pub fn transition_sequential_graph(
-    state: &SequentialGraphState,
+    graph: &SequentialGraph,
     event: &SequentialGraphEvent,
-) -> SequentialGraphState {
-    let mut next = state.clone();
+) -> SequentialGraph {
+    let mut next = graph.clone();
     apply_sequential_graph_event(&mut next, event);
     next
 }
 
-pub fn apply_sequential_graph_event(
-    state: &mut SequentialGraphState,
-    event: &SequentialGraphEvent,
-) {
-    apply_sequential_graph_event_owned_with_index(state, event.clone(), None);
+pub fn apply_sequential_graph_event(graph: &mut SequentialGraph, event: &SequentialGraphEvent) {
+    apply_sequential_graph_event_owned_with_index(graph, event.clone(), None);
 }
 
 pub fn apply_sequential_graph_event_indexed(
-    state: &mut SequentialGraphState,
+    graph: &mut SequentialGraph,
     event: &SequentialGraphEvent,
     step_index: &SequentialGraphStepIndex,
 ) {
-    apply_sequential_graph_event_owned_with_index(state, event.clone(), Some(step_index));
+    apply_sequential_graph_event_owned_with_index(graph, event.clone(), Some(step_index));
 }
 
 /// Apply an owned event without cloning its payload.
@@ -38,80 +35,80 @@ pub fn apply_sequential_graph_event_indexed(
 /// the borrowed APIs remain available for callers that need to retain an
 /// event for replay.
 pub fn apply_sequential_graph_event_owned_indexed(
-    state: &mut SequentialGraphState,
+    graph: &mut SequentialGraph,
     event: SequentialGraphEvent,
     step_index: &SequentialGraphStepIndex,
 ) {
-    apply_sequential_graph_event_owned_with_index(state, event, Some(step_index));
+    apply_sequential_graph_event_owned_with_index(graph, event, Some(step_index));
 }
 
 fn apply_sequential_graph_event_owned_with_index(
-    state: &mut SequentialGraphState,
+    graph: &mut SequentialGraph,
     event: SequentialGraphEvent,
     step_index: Option<&SequentialGraphStepIndex>,
 ) {
     match event {
         SequentialGraphEvent::StartStep { step_id, at } => {
-            start_sequential_graph_step(state, &step_id, at, step_index);
+            start_sequential_graph_step(graph, &step_id, at, step_index);
         }
         SequentialGraphEvent::StepSucceeded {
             at,
             admission_witness,
             outputs,
-        } => succeed_sequential_graph_step(state, at, *admission_witness, outputs, step_index),
+        } => succeed_sequential_graph_step(graph, at, *admission_witness, outputs, step_index),
         SequentialGraphEvent::StepFailed { step_id, at, error } => {
-            update_step_in_place(state, &step_id, step_index, |step| {
+            update_step_in_place(graph, &step_id, step_index, |step| {
                 fail_step_in_place(step, at, error);
             });
         }
         SequentialGraphEvent::StepSkipped { step_id, at } => {
-            update_step_in_place(state, &step_id, step_index, |step| {
+            update_step_in_place(graph, &step_id, step_index, |step| {
                 skip_step_in_place(step, at);
             });
         }
-        SequentialGraphEvent::Complete if is_graph_complete(state) => {
-            state.status = GraphStatus::Succeeded;
+        SequentialGraphEvent::Complete if is_graph_complete(graph) => {
+            graph.state = GraphState::Succeeded;
         }
         SequentialGraphEvent::Complete => {}
         SequentialGraphEvent::FailGraph { .. } => {
-            state.status = GraphStatus::Failed;
+            graph.state = GraphState::Failed;
         }
     }
 }
 
 pub fn start_sequential_graph_step_indexed(
-    state: &mut SequentialGraphState,
+    graph: &mut SequentialGraph,
     step_id: &str,
     at: String,
     step_index: &SequentialGraphStepIndex,
 ) {
-    start_sequential_graph_step(state, step_id, at, Some(step_index));
+    start_sequential_graph_step(graph, step_id, at, Some(step_index));
 }
 
 pub fn succeed_sequential_graph_step_indexed(
-    state: &mut SequentialGraphState,
+    graph: &mut SequentialGraph,
     at: String,
     admission_witness: StepAdmissionWitness,
     outputs: Option<JsonObject>,
     step_index: &SequentialGraphStepIndex,
 ) {
-    succeed_sequential_graph_step(state, at, admission_witness, outputs, Some(step_index));
+    succeed_sequential_graph_step(graph, at, admission_witness, outputs, Some(step_index));
 }
 
 fn start_sequential_graph_step(
-    state: &mut SequentialGraphState,
+    graph: &mut SequentialGraph,
     step_id: &str,
     at: String,
     step_index: Option<&SequentialGraphStepIndex>,
 ) {
-    update_step_in_place(state, step_id, step_index, |step| {
+    update_step_in_place(graph, step_id, step_index, |step| {
         start_step_in_place(step, at);
     });
-    state.status = GraphStatus::Running;
+    graph.state = GraphState::Running;
 }
 
 fn succeed_sequential_graph_step(
-    state: &mut SequentialGraphState,
+    graph: &mut SequentialGraph,
     at: String,
     admission_witness: StepAdmissionWitness,
     outputs: Option<JsonObject>,
@@ -125,19 +122,19 @@ fn succeed_sequential_graph_step(
         receipt_id,
         ..
     } = admission_witness;
-    update_step_in_place(state, &step_id, step_index, |step| {
+    update_step_in_place(graph, &step_id, step_index, |step| {
         succeed_step_in_place(step, at, receipt_id, outputs);
     });
 }
 
-fn start_step_in_place(step: &mut SequentialGraphStepState, at: String) {
+fn start_step_in_place(step: &mut SequentialGraphStep, at: String) {
     if matches!(
-        step.status,
-        GraphStepStatus::Running | GraphStepStatus::Succeeded
+        step.state,
+        GraphStepState::Running | GraphStepState::Succeeded
     ) {
         return;
     }
-    step.status = GraphStepStatus::Running;
+    step.state = GraphStepState::Running;
     step.attempts += 1;
     step.started_at = Some(at);
     step.completed_at = None;
@@ -146,54 +143,54 @@ fn start_step_in_place(step: &mut SequentialGraphStepState, at: String) {
 }
 
 fn succeed_step_in_place(
-    step: &mut SequentialGraphStepState,
+    step: &mut SequentialGraphStep,
     at: String,
     receipt_id: String,
     outputs: Option<JsonObject>,
 ) {
-    if step.status != GraphStepStatus::Running {
+    if step.state != GraphStepState::Running {
         return;
     }
-    step.status = GraphStepStatus::Succeeded;
+    step.state = GraphStepState::Succeeded;
     step.completed_at = Some(at);
     step.receipt_id = Some(receipt_id);
     step.outputs = outputs;
     step.error = None;
 }
 
-fn fail_step_in_place(step: &mut SequentialGraphStepState, at: String, error: String) {
-    if step.status != GraphStepStatus::Running {
+fn fail_step_in_place(step: &mut SequentialGraphStep, at: String, error: String) {
+    if step.state != GraphStepState::Running {
         return;
     }
-    step.status = GraphStepStatus::Failed;
+    step.state = GraphStepState::Failed;
     step.completed_at = Some(at);
     step.outputs = None;
     step.error = Some(error);
 }
 
-fn skip_step_in_place(step: &mut SequentialGraphStepState, at: String) {
-    if step.status != GraphStepStatus::Pending {
+fn skip_step_in_place(step: &mut SequentialGraphStep, at: String) {
+    if step.state != GraphStepState::Pending {
         return;
     }
-    step.status = GraphStepStatus::Skipped;
+    step.state = GraphStepState::Skipped;
     step.completed_at = Some(at);
     step.outputs = None;
     step.error = None;
 }
 
 fn update_step_in_place(
-    state: &mut SequentialGraphState,
+    graph: &mut SequentialGraph,
     step_id: &str,
     step_index: Option<&SequentialGraphStepIndex>,
-    update: impl FnOnce(&mut SequentialGraphStepState),
+    update: impl FnOnce(&mut SequentialGraphStep),
 ) {
     let position = step_index.and_then(|index| index.position(step_id));
     let step = match position {
-        Some(position) => state
+        Some(position) => graph
             .steps
             .get_mut(position)
             .filter(|step| step.step_id == step_id),
-        None if step_index.is_none() => state.steps.iter_mut().find(|step| step.step_id == step_id),
+        None if step_index.is_none() => graph.steps.iter_mut().find(|step| step.step_id == step_id),
         None => None,
     };
     if let Some(step) = step {
@@ -201,11 +198,11 @@ fn update_step_in_place(
     }
 }
 
-fn is_graph_complete(state: &SequentialGraphState) -> bool {
-    state.steps.iter().all(|step| {
+fn is_graph_complete(graph: &SequentialGraph) -> bool {
+    graph.steps.iter().all(|step| {
         !matches!(
-            step.status,
-            GraphStepStatus::Pending | GraphStepStatus::Running
+            step.state,
+            GraphStepState::Pending | GraphStepState::Running
         )
     })
 }
@@ -220,7 +217,7 @@ mod tests {
     };
     use crate::state_machine::{
         SequentialGraphEvent, SequentialGraphStepDefinition, StepAdmissionWitness,
-        create_sequential_graph_state, create_sequential_graph_step_index,
+        create_sequential_graph, create_sequential_graph_step_index,
     };
 
     #[test]
@@ -230,7 +227,7 @@ mod tests {
             context_from: None,
         }];
         let index = create_sequential_graph_step_index(&definitions);
-        let mut borrowed = create_sequential_graph_state("graph", &definitions);
+        let mut borrowed = create_sequential_graph("graph", &definitions);
         let mut owned = borrowed.clone();
         let mut direct = borrowed.clone();
         let events = vec![

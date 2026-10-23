@@ -24,7 +24,7 @@ fn store() -> (tempfile::TempDir, Arc<KernelStore>) {
 fn start(log: &RunLog, inputs: &JsonObject) {
     log.begin(StartRequest {
         skill: "triage",
-        skill_ref: "skills/triage",
+        skill_path: "skills/triage",
         runner: "default",
         package_digest: "sha256:package",
         execution_closure_digest: "sha256:closure",
@@ -94,7 +94,7 @@ fn agent_act(id: &str) -> ResolutionRequest {
         step_id: Some("answer".into()),
         skill: "turn-demo".into(),
         act: None,
-        instructions_sha256: "sha256:instructions".into(),
+        instructions_digest: "sha256:instructions".into(),
         instructions: "Answer.".into(),
         inputs: JsonObject::new(),
         requirements: runx_contracts::AgentExecutionRequirements {
@@ -135,7 +135,7 @@ fn approval(id: &str) -> ResolutionRequest {
             gate_type: None,
             summary: None,
             payload: None,
-            payload_ref: None,
+            payload_artifact: None,
         }),
     }
 }
@@ -222,7 +222,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
             .unwrap()
             .begin(StartRequest {
                 skill: "triage",
-                skill_ref: "skills/triage",
+                skill_path: "skills/triage",
                 runner: "default",
                 package_digest: "sha256:package",
                 execution_closure_digest: "sha256:closure",

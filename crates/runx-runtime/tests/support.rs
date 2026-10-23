@@ -169,7 +169,7 @@ pub(crate) fn read_test_first_step_receipt(
 
 /// Makes `root` a plugin holding copies of the kernel fixture connectors
 /// `ids`, such as `fixture/chat`: how a project reaches connectors without a
-/// registry. No test reaches a vendor connector.
+/// registry. No test reaches a live provider connector.
 pub(crate) fn plugin_with_fixture_connectors(root: &Path, ids: &[&str]) -> std::io::Result<()> {
     fn copy(from: &Path, to: &Path) -> std::io::Result<()> {
         fs::create_dir_all(to)?;

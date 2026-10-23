@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
-use crate::{ActRef, HashCommitment, JsonObject, Reference};
+use crate::{ActAddress, DigestAlgorithm, JsonObject, Reference};
 
 pub const ARTIFACT_SCHEMA: &str = "runx.artifact.v1";
 
@@ -10,6 +10,15 @@ pub const ARTIFACT_SCHEMA: &str = "runx.artifact.v1";
 pub enum ArtifactSchema {
     #[serde(rename = "runx.artifact.v1")]
     V1,
+}
+
+/// An artifact's digest and how its bytes were canonicalized for it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DigestCommitment {
+    pub algorithm: DigestAlgorithm,
+    pub value: NonEmptyString,
+    pub canonicalization: NonEmptyString,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -20,7 +29,7 @@ pub struct ArtifactProducedBy {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub harness_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub act_ref: Option<ActRef>,
+    pub act: Option<ActAddress>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,7 +47,7 @@ pub struct Artifact {
     pub media_type: NonEmptyString,
     pub created_at: IsoDateTime,
     pub size_bytes: u64,
-    pub hash: HashCommitment,
+    pub digest: DigestCommitment,
     #[serde(default)]
     pub redaction_refs: Vec<Reference>,
     #[serde(default)]

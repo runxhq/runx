@@ -12,48 +12,61 @@ use super::model::{self, Appended, EventRecord, Projection, StreamHead};
 use super::request::{Append, ListHeads, ReadEvents, Source};
 use super::{Backend, StoreError, Streams, append_in};
 
-const SCHEMA_VERSION: i32 = 1;
+const SCHEMA_VERSION: i32 = 2;
 
-const SCHEMA: &str = r#"
+const VERSION_TABLE: &str = r#"
 CREATE TABLE IF NOT EXISTS runx_store_schema (
   version INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS runx_store_events (
-  data_source_ref TEXT NOT NULL,
+"#;
+
+const SCHEMA: &str = r#"
+CREATE TABLE runx_store_events (
+  data_source_uri TEXT NOT NULL,
   resource TEXT NOT NULL,
   aggregate_id TEXT NOT NULL,
   version BIGINT NOT NULL,
   idempotency_key TEXT NOT NULL,
-  event_ref TEXT NOT NULL,
+  event_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_digest TEXT NOT NULL,
   event_json TEXT NOT NULL,
   committed_at TEXT NOT NULL,
-  PRIMARY KEY (data_source_ref, resource, aggregate_id, version),
-  UNIQUE (data_source_ref, resource, aggregate_id, idempotency_key)
+  PRIMARY KEY (data_source_uri, resource, aggregate_id, version),
+  UNIQUE (data_source_uri, resource, aggregate_id, idempotency_key)
 );
-CREATE TABLE IF NOT EXISTS runx_store_heads (
-  data_source_ref TEXT NOT NULL,
+CREATE TABLE runx_store_heads (
+  data_source_uri TEXT NOT NULL,
   resource TEXT NOT NULL,
   aggregate_id TEXT NOT NULL,
   version BIGINT NOT NULL,
-  event_ref TEXT NOT NULL,
+  event_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_digest TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
   event_json TEXT NOT NULL,
   committed_at TEXT NOT NULL,
   projection_digest TEXT NOT NULL,
-  PRIMARY KEY (data_source_ref, resource, aggregate_id)
+  PRIMARY KEY (data_source_uri, resource, aggregate_id)
 );
-CREATE INDEX IF NOT EXISTS runx_store_heads_recent
-  ON runx_store_heads (data_source_ref, resource, committed_at DESC, aggregate_id ASC);
-CREATE INDEX IF NOT EXISTS runx_store_heads_type_recent
-  ON runx_store_heads (data_source_ref, resource, event_type, committed_at DESC, aggregate_id ASC);
+CREATE INDEX runx_store_heads_recent
+  ON runx_store_heads (data_source_uri, resource, committed_at DESC, aggregate_id ASC);
+CREATE INDEX runx_store_heads_type_recent
+  ON runx_store_heads (data_source_uri, resource, event_type, committed_at DESC, aggregate_id ASC);
+"#;
+
+/// Version 1 named a record's `data_source_uri` and `event_id` columns
+/// `data_source_ref` and `event_ref`. Postgres carries the renames into the
+/// keys and indexes that name them.
+const MIGRATE_FROM_1: &str = r#"
+ALTER TABLE runx_store_events RENAME COLUMN data_source_ref TO data_source_uri;
+ALTER TABLE runx_store_events RENAME COLUMN event_ref TO event_id;
+ALTER TABLE runx_store_heads RENAME COLUMN data_source_ref TO data_source_uri;
+ALTER TABLE runx_store_heads RENAME COLUMN event_ref TO event_id;
 "#;
 
 const EVENT_COLUMNS: &str =
-    "event_ref, version, event_type, event_digest, idempotency_key, committed_at, event_json";
+    "event_id, version, event_type, event_digest, idempotency_key, committed_at, event_json";
 
 pub(super) struct Postgres {
     client: Client,
@@ -90,13 +103,21 @@ impl Postgres {
             .batch_execute("SELECT pg_advisory_xact_lock(hashtextextended('runx_store_schema', 0))")
             .map_err(|error| database("locking the schema", &error))?;
         transaction
-            .batch_execute(SCHEMA)
+            .batch_execute(VERSION_TABLE)
             .map_err(|error| database("creating the schema", &error))?;
         let versions = transaction
             .query("SELECT version FROM runx_store_schema", &[])
             .map_err(|error| database("reading the schema version", &error))?;
-        match versions.as_slice() {
+        match versions
+            .iter()
+            .map(|row| row.get::<_, i32>(0))
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
             [] => {
+                transaction
+                    .batch_execute(SCHEMA)
+                    .map_err(|error| database("creating the schema", &error))?;
                 transaction
                     .execute(
                         "INSERT INTO runx_store_schema (version) VALUES ($1)",
@@ -104,7 +125,18 @@ impl Postgres {
                     )
                     .map_err(|error| database("versioning the schema", &error))?;
             }
-            [row] if row.get::<_, i32>(0) == SCHEMA_VERSION => {}
+            [SCHEMA_VERSION] => {}
+            [1] => {
+                transaction
+                    .batch_execute(MIGRATE_FROM_1)
+                    .map_err(|error| database("migrating the schema", &error))?;
+                transaction
+                    .execute(
+                        "UPDATE runx_store_schema SET version = $1",
+                        &[&SCHEMA_VERSION],
+                    )
+                    .map_err(|error| database("versioning the schema", &error))?;
+            }
             _ => {
                 return Err(StoreError::corrupt(format!(
                     "the store's schema is not version {SCHEMA_VERSION}"
@@ -146,7 +178,7 @@ impl Backend for Postgres {
             .map_err(|error| database("starting the append", &error))?;
         let source = request.source;
         let stream =
-            serde_json::to_string(&(source.data_source_ref, source.resource, source.aggregate_id))
+            serde_json::to_string(&(source.data_source_uri, source.resource, source.aggregate_id))
                 .map_err(|error| StoreError::invalid(format!("encoding the stream: {error}")))?;
         transaction
             .execute(
@@ -178,10 +210,10 @@ impl Backend for Postgres {
             .client
             .query(
                 &format!(
-                    "SELECT {EVENT_COLUMNS} FROM runx_store_events WHERE data_source_ref = $1 AND resource = $2 AND aggregate_id = $3 AND version > $4 ORDER BY version {order} LIMIT $5"
+                    "SELECT {EVENT_COLUMNS} FROM runx_store_events WHERE data_source_uri = $1 AND resource = $2 AND aggregate_id = $3 AND version > $4 ORDER BY version {order} LIMIT $5"
                 ),
                 &[
-                    &source.data_source_ref,
+                    &source.data_source_uri,
                     &source.resource,
                     &source.aggregate_id,
                     &after,
@@ -215,10 +247,10 @@ impl Backend for Postgres {
             .client
             .query(
                 &format!(
-                    "SELECT aggregate_id, {EVENT_COLUMNS} FROM runx_store_heads WHERE data_source_ref = $1 AND resource = $2 AND (cardinality($3::text[]) = 0 OR event_type = ANY($3)) AND ($4::text IS NULL OR committed_at < $4 OR (committed_at = $4 AND aggregate_id > $5)) ORDER BY committed_at DESC, aggregate_id ASC LIMIT $6"
+                    "SELECT aggregate_id, {EVENT_COLUMNS} FROM runx_store_heads WHERE data_source_uri = $1 AND resource = $2 AND (cardinality($3::text[]) = 0 OR event_type = ANY($3)) AND ($4::text IS NULL OR committed_at < $4 OR (committed_at = $4 AND aggregate_id > $5)) ORDER BY committed_at DESC, aggregate_id ASC LIMIT $6"
                 ),
                 &[
-                    &request.data_source_ref,
+                    &request.data_source_uri,
                     &request.resource,
                     &event_types,
                     &cursor_at,
@@ -276,14 +308,14 @@ impl Streams for PostgresStreams<'_> {
         let version = integer(record.version)?;
         self.0
             .execute(
-                "INSERT INTO runx_store_events (data_source_ref, resource, aggregate_id, version, idempotency_key, event_ref, event_type, event_digest, event_json, committed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                "INSERT INTO runx_store_events (data_source_uri, resource, aggregate_id, version, idempotency_key, event_id, event_type, event_digest, event_json, committed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
                 &[
-                    &source.data_source_ref,
+                    &source.data_source_uri,
                     &source.resource,
                     &source.aggregate_id,
                     &version,
                     &record.idempotency_key,
-                    &record.event_ref,
+                    &record.event_id,
                     &record.event_type,
                     &record.event_digest,
                     &event_json,
@@ -293,13 +325,13 @@ impl Streams for PostgresStreams<'_> {
             .map_err(|error| database("inserting the event", &error))?;
         self.0
             .execute(
-                "INSERT INTO runx_store_heads (data_source_ref, resource, aggregate_id, version, event_ref, event_type, event_digest, idempotency_key, event_json, committed_at, projection_digest) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (data_source_ref, resource, aggregate_id) DO UPDATE SET version = excluded.version, event_ref = excluded.event_ref, event_type = excluded.event_type, event_digest = excluded.event_digest, idempotency_key = excluded.idempotency_key, event_json = excluded.event_json, committed_at = excluded.committed_at, projection_digest = excluded.projection_digest",
+                "INSERT INTO runx_store_heads (data_source_uri, resource, aggregate_id, version, event_id, event_type, event_digest, idempotency_key, event_json, committed_at, projection_digest) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (data_source_uri, resource, aggregate_id) DO UPDATE SET version = excluded.version, event_id = excluded.event_id, event_type = excluded.event_type, event_digest = excluded.event_digest, idempotency_key = excluded.idempotency_key, event_json = excluded.event_json, committed_at = excluded.committed_at, projection_digest = excluded.projection_digest",
                 &[
-                    &source.data_source_ref,
+                    &source.data_source_uri,
                     &source.resource,
                     &source.aggregate_id,
                     &version,
-                    &record.event_ref,
+                    &record.event_id,
                     &record.event_type,
                     &record.event_digest,
                     &record.idempotency_key,
@@ -319,8 +351,8 @@ fn projection(
 ) -> Result<Projection, StoreError> {
     let row = client
         .query_opt(
-            "SELECT version, event_ref, event_type, event_digest, projection_digest FROM runx_store_heads WHERE data_source_ref = $1 AND resource = $2 AND aggregate_id = $3",
-            &[&source.data_source_ref, &source.resource, &source.aggregate_id],
+            "SELECT version, event_id, event_type, event_digest, projection_digest FROM runx_store_heads WHERE data_source_uri = $1 AND resource = $2 AND aggregate_id = $3",
+            &[&source.data_source_uri, &source.resource, &source.aggregate_id],
         )
         .map_err(|error| database("reading the stream projection", &error))?;
     let Some(row) = row else {
@@ -329,7 +361,7 @@ fn projection(
     Ok(Projection {
         version: u64::try_from(row.get::<_, i64>(0))
             .map_err(|_| StoreError::corrupt("a stream head has a negative version"))?,
-        last_event_ref: Some(row.get(1)),
+        last_event_id: Some(row.get(1)),
         last_event_type: Some(row.get(2)),
         last_event_digest: Some(row.get(3)),
         projection_digest: row.get(4),
@@ -344,10 +376,10 @@ fn existing(
     client
         .query_opt(
             &format!(
-                "SELECT {EVENT_COLUMNS} FROM runx_store_events WHERE data_source_ref = $1 AND resource = $2 AND aggregate_id = $3 AND idempotency_key = $4"
+                "SELECT {EVENT_COLUMNS} FROM runx_store_events WHERE data_source_uri = $1 AND resource = $2 AND aggregate_id = $3 AND idempotency_key = $4"
             ),
             &[
-                &source.data_source_ref,
+                &source.data_source_uri,
                 &source.resource,
                 &source.aggregate_id,
                 &idempotency_key,
@@ -361,7 +393,7 @@ fn existing(
 fn record_at(row: &Row, offset: usize) -> Result<EventRecord, StoreError> {
     let event_json: String = row.get(offset + 6);
     Ok(EventRecord {
-        event_ref: row.get(offset),
+        event_id: row.get(offset),
         version: u64::try_from(row.get::<_, i64>(offset + 1))
             .map_err(|_| StoreError::corrupt("an event has a negative version"))?,
         event_type: row.get(offset + 2),

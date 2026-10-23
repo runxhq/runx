@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/diagnose-skill-run/diagnosis/v1.json",
+  "x-runx-packet-id": "runx/diagnose-skill-run.diagnosis.v1",
+  "type": "object",
+  "properties": {
+    "verdict": { "type": "string" },
+    "failure_summary": { "type": "string" },
+    "improvement_proposals": { "type": "array" },
+    "next_harness_checks": { "type": "array" },
+    "evidence": { "type": "array" }
+  },
+  "additionalProperties": true
+}

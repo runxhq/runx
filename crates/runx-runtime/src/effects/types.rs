@@ -129,7 +129,7 @@ pub trait RuntimeEffect: Send + Sync {
 
 #[derive(Clone, Copy)]
 pub struct EffectToolRequest<'a> {
-    pub tool_ref: &'a str,
+    pub tool: &'a str,
     pub observed_at: &'a str,
     pub inputs: &'a JsonObject,
     pub env: &'a BTreeMap<String, String>,
@@ -152,7 +152,7 @@ pub struct EffectStepRequest<'a> {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ResolvedEffectTarget<'a> {
-    pub tool_ref: Option<&'a str>,
+    pub tool: Option<&'a str>,
 }
 
 pub struct EffectOutputRequest<'a> {

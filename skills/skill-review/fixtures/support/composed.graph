@@ -4,7 +4,7 @@ steps:
     skill: ../..
     runner: review
     inputs:
-      skill_ref: fixtures/subject
+      skill: fixtures/subject
       objective: Decide whether the subject has bounded evidence and stop behavior
       test_constraints: Run only local read-only harnesses.
   - id: digest

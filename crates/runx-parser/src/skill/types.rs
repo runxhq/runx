@@ -15,7 +15,7 @@ pub struct RawSkillIr {
 }
 
 pub use runx_contracts::{
-    ArtifactContract as SkillArtifactContract, IdempotencyPolicy as SkillIdempotencyPolicy,
+    ArtifactDeclaration as SkillArtifactContract, IdempotencyPolicy as SkillIdempotencyPolicy,
     InputDefinition as SkillInput,
 };
 

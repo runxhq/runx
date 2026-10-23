@@ -16,7 +16,7 @@ pub struct NativeCapabilitySnapshot {
 #[derive(Serialize)]
 struct SnapshotCapability {
     id: &'static str,
-    owner: &'static str,
+    source: &'static str,
     scopes: Vec<&'static str>,
     effect: &'static str,
     approval: &'static str,
@@ -43,7 +43,7 @@ pub fn native_capability_snapshot() -> NativeCapabilitySnapshot {
             scopes.sort_unstable();
             SnapshotCapability {
                 id: definition.id,
-                owner: definition.owner,
+                source: definition.source,
                 scopes,
                 effect: match definition.effect {
                     CapabilityEffect::Read => "read",

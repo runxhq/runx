@@ -1,5 +1,5 @@
 skill: contact-consent-review
-version: "0.1.8"
+version: "0.1.9"
 
 catalog:
   kind: graph
@@ -12,7 +12,7 @@ catalog:
   approval: none
 
 input_definitions:
-  data_source_ref:
+  data_source_uri:
     type: string
     required: true
     description: Logical consent-ledger source selected by the operator.
@@ -89,7 +89,7 @@ harness:
             - Do not collect engagement evidence again.
             - Do not send a message.
       inputs:
-        data_source_ref: local://contact-consent-review/decay
+        data_source_uri: local://contact-consent-review/decay
         resource: contact_consent_events
         aggregate_id: contact:decay
         expected_version: 0
@@ -113,7 +113,7 @@ harness:
     - name: list-hygiene-suppresses-hard-bounce
       runner: judge
       inputs:
-        data_source_ref: local://contact-consent-review/hard-bounce
+        data_source_uri: local://contact-consent-review/hard-bounce
         resource: contact_consent_events
         aggregate_id: contact:hard-bounce
         expected_version: 0
@@ -136,7 +136,7 @@ harness:
     - name: list-hygiene-verifies-clean-recent-contact
       runner: judge
       inputs:
-        data_source_ref: local://contact-consent-review/current
+        data_source_uri: local://contact-consent-review/current
         resource: contact_consent_events
         aggregate_id: contact:current
         expected_version: 0
@@ -160,7 +160,7 @@ harness:
     - name: list-hygiene-preserves-existing-suppression
       runner: judge
       inputs:
-        data_source_ref: local://contact-consent-review/suppressed
+        data_source_uri: local://contact-consent-review/suppressed
         resource: contact_consent_events
         aggregate_id: contact:suppressed
         expected_version: 0
@@ -183,7 +183,7 @@ harness:
     - name: list-hygiene-stops-stale-evidence
       runner: judge
       inputs:
-        data_source_ref: local://contact-consent-review/stale
+        data_source_uri: local://contact-consent-review/stale
         resource: contact_consent_events
         aggregate_id: contact:stale
         expected_version: 0
@@ -207,7 +207,7 @@ harness:
     - name: list-hygiene-stops-unsubscribe-marker
       runner: judge
       inputs:
-        data_source_ref: local://contact-consent-review/unsubscribed
+        data_source_uri: local://contact-consent-review/unsubscribed
         resource: contact_consent_events
         aggregate_id: contact:unsubscribed
         expected_version: 0
@@ -230,7 +230,7 @@ harness:
     - name: list-hygiene-rejects-negative-metrics
       runner: judge
       inputs:
-        data_source_ref: local://contact-consent-review/invalid
+        data_source_uri: local://contact-consent-review/invalid
         resource: contact_consent_events
         aggregate_id: contact:invalid
         expected_version: 0
@@ -248,7 +248,7 @@ runners:
   judge:
     default: true
     inputs:
-      data_source_ref: { definition: data_source_ref }
+      data_source_uri: { definition: data_source_uri }
       resource: { definition: resource }
       aggregate_id: { definition: aggregate_id }
       expected_version: { definition: expected_version }
@@ -257,7 +257,7 @@ runners:
       hygiene_policy: { definition: hygiene_policy }
       consent_evidence: { definition: consent_evidence }
     examples:
-      - data_source_ref: local://contact-consent-review/example
+      - data_source_uri: local://contact-consent-review/example
         resource: contact_consent_events
         aggregate_id: contact:example
         expected_version: 0
@@ -270,13 +270,13 @@ runners:
       - id: read-contact
         operation: store/projection.read
         input:
-          data_source_ref: $input.data_source_ref
+          data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
 
       - id: decide
         inputs:
-          data_source_ref: $input.data_source_ref
+          data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
@@ -291,10 +291,10 @@ runners:
             type: object
             schema:
               additionalProperties: false
-              required: [aggregate_id, data_source_ref, resource, expected_version, idempotency_key, observed_state, projection_version, projection_digest, decision, reason_code, append_allowed, event]
+              required: [aggregate_id, data_source_uri, resource, expected_version, idempotency_key, observed_state, projection_version, projection_digest, decision, reason_code, append_allowed, event]
               properties:
                 aggregate_id: { type: string }
-                data_source_ref: { type: string }
+                data_source_uri: { type: string }
                 resource: { type: string }
                 expected_version: { type: integer, minimum: 0 }
                 idempotency_key: { type: string }
@@ -340,7 +340,7 @@ runners:
         operation: store/events.append
         idempotency_key: $input.idempotency_key
         input:
-          data_source_ref: $input.data_source_ref
+          data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
@@ -349,7 +349,7 @@ runners:
       - id: readback
         operation: store/projection.read
         input:
-          data_source_ref: $input.data_source_ref
+          data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
 
@@ -380,18 +380,18 @@ runners:
                 recorded_transition:
                   type: object
                   additionalProperties: false
-                  required: [recorded, state, aggregate_id, data_source_ref, resource, idempotency_key, write_status, before_version, after_version, event_ref, event_digest, projection_digest]
+                  required: [recorded, state, aggregate_id, data_source_uri, resource, idempotency_key, write_status, before_version, after_version, event_id, event_digest, projection_digest]
                   properties:
                     recorded: { type: boolean }
                     state: { type: [string, "null"], enum: [re_permission, suppress, null] }
                     aggregate_id: { type: string }
-                    data_source_ref: { type: string }
+                    data_source_uri: { type: string }
                     resource: { type: string }
                     idempotency_key: { type: [string, "null"] }
                     write_status: { type: string, enum: [committed, idempotent_replay, not_attempted] }
                     before_version: { type: integer, minimum: 0 }
                     after_version: { type: integer, minimum: 0 }
-                    event_ref: { type: [string, "null"] }
+                    event_id: { type: [string, "null"] }
                     event_digest: { type: [string, "null"] }
                     projection_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
                 escalation:
@@ -440,18 +440,18 @@ runners:
                 recorded_transition:
                   type: object
                   additionalProperties: false
-                  required: [recorded, state, aggregate_id, data_source_ref, resource, idempotency_key, write_status, before_version, after_version, event_ref, event_digest, projection_digest]
+                  required: [recorded, state, aggregate_id, data_source_uri, resource, idempotency_key, write_status, before_version, after_version, event_id, event_digest, projection_digest]
                   properties:
                     recorded: { type: boolean }
                     state: { type: [string, "null"], enum: [re_permission, suppress, null] }
                     aggregate_id: { type: string }
-                    data_source_ref: { type: string }
+                    data_source_uri: { type: string }
                     resource: { type: string }
                     idempotency_key: { type: [string, "null"] }
                     write_status: { type: string, enum: [committed, idempotent_replay, not_attempted] }
                     before_version: { type: integer, minimum: 0 }
                     after_version: { type: integer, minimum: 0 }
-                    event_ref: { type: [string, "null"] }
+                    event_id: { type: [string, "null"] }
                     event_digest: { type: [string, "null"] }
                     projection_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
                 escalation:

@@ -3,12 +3,12 @@
 Runx uses a small exit-code surface so scripts can branch without parsing
 human output.
 
-For `runx skill` and `runx resume`, the signed closure remains available on
-stdout regardless of process status. The complete closure matrix is:
+For `runx skill` and `runx resume`, the signed outcome remains available on
+stdout regardless of process status. The complete outcome matrix is:
 
-| Closure disposition | Exit code |
+| Outcome | Exit code |
 | --- | ---: |
-| `closed` | 0 |
+| `completed` | 0 |
 | `deferred` | 2 |
 | `superseded` | 1 |
 | `declined` | 1 |
@@ -20,7 +20,7 @@ stdout regardless of process status. The complete closure matrix is:
 ## Exit Code 0: Sealed
 
 The command completed successfully. A sealed skill result exits 0 only when its
-closure disposition is `closed`; Runx preserves every other terminal result as
+outcome is `completed`; Runx preserves every other terminal result as
 a signed receipt while returning the process status shown above.
 
 Common follow-up:
@@ -45,7 +45,7 @@ Common fixes:
 - Read the stderr message first; it should name the failing command or policy.
 - Re-run with `--json` when the command supports it.
 - For harness failures, inspect `assertionErrors` in the JSON output.
-- For `runx skill owner/name@version`, unsigned manifests, unknown trust keys,
+- For `runx skill publisher/name@version`, unsigned manifests, unknown trust keys,
   digest mismatches, and profile digest mismatches fail here before execution.
 
 ## Exit Code 2: Resolution Required

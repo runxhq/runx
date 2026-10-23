@@ -361,16 +361,13 @@ fn prepared_entry_provenance(
                 "local-path".to_owned()
             }
         }),
-        source_label: resolved
-            .registry_source_fingerprint
-            .clone()
-            .unwrap_or_else(|| {
-                if resolved.kind == SkillRefKind::Bundled {
-                    "Bundled Runx core".to_owned()
-                } else {
-                    resolved.runnable_path.to_string_lossy().into_owned()
-                }
-            }),
+        source_label: resolved.registry_source_digest.clone().unwrap_or_else(|| {
+            if resolved.kind == SkillRefKind::Bundled {
+                "Bundled Runx core".to_owned()
+            } else {
+                resolved.runnable_path.to_string_lossy().into_owned()
+            }
+        }),
         skill_id: resolved.skill_id.clone(),
         version: resolved.version.clone(),
         digest: resolved.digest.clone(),
@@ -575,8 +572,8 @@ fn entry_provenance(resolved: &ResolvedSkillRef) -> Option<JsonObject> {
     );
     insert_optional(
         &mut provenance,
-        "registry_source_fingerprint",
-        resolved.registry_source_fingerprint.as_ref(),
+        "registry_source_digest",
+        resolved.registry_source_digest.as_ref(),
     );
     insert_optional(
         &mut provenance,
@@ -666,7 +663,7 @@ fn input_contract_detail(error: &OrchestratorError) -> Option<JsonObject> {
         _ => return None,
     };
     let runx_runtime::RuntimeError::InputContract {
-        owner,
+        declared_by,
         input,
         path,
         accepted_schema,
@@ -676,7 +673,10 @@ fn input_contract_detail(error: &OrchestratorError) -> Option<JsonObject> {
         return None;
     };
     let mut detail = JsonObject::from([
-        ("owner".to_owned(), JsonValue::String((*owner).to_owned())),
+        (
+            "declared_by".to_owned(),
+            JsonValue::String((*declared_by).to_owned()),
+        ),
         ("input".to_owned(), JsonValue::String(input.clone())),
         ("path".to_owned(), JsonValue::String(path.clone())),
         (

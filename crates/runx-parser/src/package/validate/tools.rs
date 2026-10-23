@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use runx_core::policy::admit_agent_tool_ref;
+use runx_core::policy::admit_agent_tool;
 
 use crate::{ProcessTool, ValidatedTool, parse_tool_manifest_json, validate_tool_manifest};
 
@@ -59,7 +59,7 @@ fn validate_manifest(path: &str, contents: &str) -> Result<ValidatedTool, SkillP
 }
 
 fn validate_tool_identity(path: &str, tool: &ValidatedTool) -> Result<(), SkillPackageError> {
-    let admission = admit_agent_tool_ref(&tool.name);
+    let admission = admit_agent_tool(&tool.name);
     if !admission.allowed {
         return Err(SkillPackageError::invalid(
             format!("{path}.name"),

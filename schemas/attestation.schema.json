@@ -1,0 +1,203 @@
+{
+  "$id": "https://schemas.runx.ai/runx/attestation/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `receipt.attest` returns: one claim about an action outside runx, bound to opaque evidence and digested for the parent receipt to seal. A field the tool could not admit is null and a gap says why; a `ready_to_seal` attestation has no gaps.",
+  "properties": {
+    "action": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "attestation_digest": {
+      "description": "The digest of the action, claim, principal, evidence and scope.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "claim": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decision": {
+      "description": "Whether the attestation can be sealed, or what it waits on.",
+      "enum": [
+        "ready_to_seal",
+        "needs_more_evidence",
+        "needs_agent"
+      ],
+      "title": "AttestationDecision",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One opaque evidence locator, its digest, and what it is asserted to prove.",
+        "properties": {
+          "digest": {
+            "anyOf": [
+              {
+                "maxLength": 71,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proves": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "locator",
+          "digest",
+          "proves"
+        ],
+        "title": "AttestationEvidence",
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array"
+    },
+    "gaps": {
+      "items": {
+        "additionalProperties": false,
+        "description": "Why an attestation is not ready to seal.",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "AttestationGap",
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "principal": {
+      "anyOf": [
+        {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "proof_boundary": {
+      "additionalProperties": false,
+      "description": "What an attestation does not prove: runx called no provider, appended to no external ledger, and verified nothing outside itself. The parent receipt's seal is the only signature evidence.",
+      "properties": {
+        "external_action_verified": {
+          "const": false
+        },
+        "external_ledger_status": {
+          "enum": [
+            "not_requested"
+          ],
+          "title": "ExternalLedgerNotRequested",
+          "type": "string"
+        },
+        "provider_status": {
+          "enum": [
+            "not_called"
+          ],
+          "title": "ProviderNotCalled",
+          "type": "string"
+        },
+        "runtime_seal_status": {
+          "enum": [
+            "pending_parent_receipt"
+          ],
+          "title": "RuntimeSealPending",
+          "type": "string"
+        }
+      },
+      "required": [
+        "external_action_verified",
+        "provider_status",
+        "external_ledger_status",
+        "runtime_seal_status"
+      ],
+      "title": "AttestationProofBoundary",
+      "type": "object"
+    },
+    "schema": {
+      "enum": [
+        "runx.attestation.v1"
+      ],
+      "title": "AttestationSchema",
+      "type": "string"
+    },
+    "scope": {
+      "additionalProperties": {},
+      "description": "Who or what may rely on the claim.",
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "decision",
+    "action",
+    "claim",
+    "principal",
+    "evidence",
+    "scope",
+    "attestation_digest",
+    "gaps",
+    "proof_boundary"
+  ],
+  "title": "Attestation",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.attestation.v1"
+}

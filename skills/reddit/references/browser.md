@@ -21,9 +21,9 @@ checkout, `connectors/reddit`):
 ```bash
 python3 -B tools/reddit/brave/brave.py tabs
 python3 -B tools/reddit/brave/brave.py bind example_builder \
-  --browser-pid 12345 --window-id 111 --tab-id 222 --profile-ref reddit-builder
+  --browser-pid 12345 --window-id 111 --tab-id 222 --profile reddit-builder
 runx connector use reddit --session \
-  --parameter account=example_builder --parameter profile_ref=reddit-builder
+  --parameter account=example_builder --parameter profile=reddit-builder
 ```
 
 Use the actual IDs returned by `tabs`, not those illustrative numbers. These two

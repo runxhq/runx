@@ -25,7 +25,7 @@ use runx_contracts::{
 use runx_core::state_machine::AuthorityAdmissionWitness;
 use runx_parser::{DuplicatePolicy, GraphStep};
 
-use super::admission::{self, AdmissionDisposition, AdmitError, Admitted, Context, Evaluation};
+use super::admission::{self, AdmissionDecision, AdmitError, Admitted, Context, Evaluation};
 use super::connectors::ConnectorScope;
 use super::custody::{
     Acknowledgement, ApprovalActor, ApprovalRecord, Attempt, CustodyError, EffectCustody,
@@ -608,7 +608,7 @@ impl RuntimeEffect for OperationEffect {
             approval: None,
             evidence_refs: Vec::new(),
         };
-        if context.admitted.admission.disposition == AdmissionDisposition::NeedsResolution {
+        if context.admitted.admission.decision == AdmissionDecision::NeedsResolution {
             match approve(&context, step, host)? {
                 Lane::Approved(approved) => {
                     context
@@ -685,10 +685,10 @@ impl RuntimeEffect for OperationEffect {
         }
         // A write the provider cannot read back is acknowledged: its
         // evidence never stands as the effect's finality.
-        let readback_ref =
-            field("readback_ref").ok_or_else(|| state("the packet has no readback"))?;
+        let readback_uri =
+            field("readback_uri").ok_or_else(|| state("the packet has no readback"))?;
         refs.push(verification(
-            readback_ref.to_owned(),
+            readback_uri.to_owned(),
             provider,
             if context.admitted.operation().finality() == "acknowledged" {
                 ProofKind::EffectEvidence
@@ -777,7 +777,7 @@ pub(crate) fn packet_artifacts() -> runx_parser::SkillArtifactContract {
         )])),
         packets: Some(BTreeMap::from([(
             "provider_operation".to_owned(),
-            "runx.provider.operation.v1".to_owned(),
+            runx_contracts::ProviderOperationPacket::packet_id(),
         )])),
         wrap_as: None,
         packet: None,
@@ -1070,7 +1070,7 @@ fn prepare(
     match instance.placement {
         Placement::Hosted => {
             let session = context.placements.hosted.session(env, cwd)?;
-            if session.principal_ref != instance.principal_ref.as_str() {
+            if session.principal_uri != instance.principal_uri.as_str() {
                 return Err(
                     "the authenticated principal is not the instance's principal".to_owned(),
                 );
@@ -1088,9 +1088,6 @@ fn prepare(
                 ..
             } => credentials::from_environment(env, &admitted.connector, credential, variable)
                 .map(|secret| Session::Local(Some(secret))),
-            InstanceAuthority::Credential { .. } | InstanceAuthority::Reference { .. } => {
-                Err(credentials::bound_before_secrets(instance))
-            }
             InstanceAuthority::Session {
                 session: runx_contracts::connector::SessionKind::Command,
                 ..
@@ -1103,8 +1100,8 @@ fn prepare(
                     super::session::ManagedCommandSession::of(&admitted.connector.manifest)
                         .ok_or("the connector no longer declares its managed-command session")?;
                 let principal = managed.principal(env, cwd)?;
-                if principal.principal_ref(admitted.connector.manifest.id.as_str())
-                    != instance.principal_ref.as_str()
+                if principal.principal_uri(admitted.connector.manifest.id.as_str())
+                    != instance.principal_uri.as_str()
                 {
                     return Err("the CLI is signed in as another account; confirm the connector session again".to_owned());
                 }
@@ -1149,8 +1146,8 @@ fn signed_in(
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(&digest)
         .cloned();
-    let (principal_ref, login) = match cached {
-        Some(principal_ref) => (principal_ref, None),
+    let (principal_uri, login) = match cached {
+        Some(principal_uri) => (principal_uri, None),
         None => {
             let transport =
                 context
@@ -1162,17 +1159,17 @@ fn signed_in(
                         | Failure::ReadbackPending(reason) => reason,
                     })?;
             let principal = session.principal(&token, transport.as_ref())?;
-            let principal_ref = principal.principal_ref(manifest.id.as_str());
+            let principal_uri = principal.principal_uri(manifest.id.as_str());
             context
                 .placements
                 .principals
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .insert(digest, principal_ref.clone());
-            (principal_ref, Some(principal.login))
+                .insert(digest, principal_uri.clone());
+            (principal_uri, Some(principal.login))
         }
     };
-    if principal_ref != instance.principal_ref.as_str() {
+    if principal_uri != instance.principal_uri.as_str() {
         return Err(format!(
             "{} is signed in as {}, not the account instance {} is pinned to; confirm it again with `runx connector use {} --session`",
             manifest.id,
@@ -1247,7 +1244,7 @@ fn dispatch(
                 ..
             }
         )
-        .then_some(admitted.instance.principal_ref.as_str()),
+        .then_some(admitted.instance.principal_uri.as_str()),
         env,
         held: operation
             .holds
@@ -1411,7 +1408,7 @@ fn dispatch(
                         ..
                     } => admitted
                         .instance
-                        .account_ref
+                        .account_id
                         .as_ref()
                         .map(|value| value.as_str()),
                     _ => None,
@@ -2009,9 +2006,9 @@ fn finish(
                 access: operation.access().as_str(),
                 finality: operation.finality(),
                 transport,
-                principal_ref: instance.principal_ref.as_str(),
+                principal_uri: instance.principal_uri.as_str(),
                 grant_id: admitted.capability.grant_id.as_deref(),
-                account_ref: instance.account_ref.as_deref(),
+                account_id: instance.account_id.as_deref(),
                 intent_digest: admitted.intent_digest().as_str(),
                 operation_digest: admitted.intent().operation_digest.as_str(),
                 implementation_digest,
@@ -2165,8 +2162,8 @@ fn human(
             JsonValue::String(intent.instance_id.as_str().to_owned()),
         ),
         (
-            "principal_ref".to_owned(),
-            JsonValue::String(admitted.instance.principal_ref.as_str().to_owned()),
+            "principal_uri".to_owned(),
+            JsonValue::String(admitted.instance.principal_uri.as_str().to_owned()),
         ),
         (
             "target".to_owned(),
@@ -2194,13 +2191,13 @@ fn human(
     ]);
     if let Some(grant_id) = &admitted.capability.grant_id {
         summary.insert(
-            "grant_ref".to_owned(),
+            "grant_uri".to_owned(),
             JsonValue::String(format!("runx:grant:{grant_id}")),
         );
     }
-    if let Some(account) = &admitted.instance.account_ref {
+    if let Some(account) = &admitted.instance.account_id {
         summary.insert(
-            "account_ref".to_owned(),
+            "account_id".to_owned(),
             JsonValue::String(account.as_str().to_owned()),
         );
     }
@@ -2226,7 +2223,7 @@ fn human(
             .or_else(|| Some("operation".to_owned())),
         summary: Some(summary),
         payload: None,
-        payload_ref: None,
+        payload_artifact: None,
     };
     // What executes is the operation's input, the value `payload_digest`
     // already names.

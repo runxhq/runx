@@ -1,7 +1,7 @@
 use proptest::prelude::*;
 use runx_core::state_machine::{
-    GraphStatus, GraphStepStatus, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphState,
-    SequentialGraphStepDefinition, SequentialGraphStepState, StepAdmissionWitness,
+    GraphState, GraphStepState, SequentialGraph, SequentialGraphEvent, SequentialGraphPlan,
+    SequentialGraphStep, SequentialGraphStepDefinition, StepAdmissionWitness,
     plan_sequential_graph_transition, transition_sequential_graph,
 };
 
@@ -26,7 +26,7 @@ proptest! {
     ) {
         let failed = transition_sequential_graph(&state, &SequentialGraphEvent::FailGraph { error });
 
-        prop_assert_eq!(failed.status, GraphStatus::Failed);
+        prop_assert_eq!(failed.state, GraphState::Failed);
     }
 
     #[test]
@@ -35,20 +35,20 @@ proptest! {
         has_blocking_step in any::<bool>(),
     ) {
         if has_blocking_step {
-            state.steps[0].status = GraphStepStatus::Pending;
+            state.steps[0].state = GraphStepState::Pending;
             let next = transition_sequential_graph(&state, &SequentialGraphEvent::Complete);
 
             prop_assert_eq!(next, state);
         } else {
             for (index, step) in state.steps.iter_mut().enumerate() {
-                step.status = if index % 2 == 0 {
-                    GraphStepStatus::Succeeded
+                step.state = if index % 2 == 0 {
+                    GraphStepState::Succeeded
                 } else {
-                    GraphStepStatus::Failed
+                    GraphStepState::Failed
                 };
             }
             let mut expected = state.clone();
-            expected.status = GraphStatus::Succeeded;
+            expected.state = GraphState::Succeeded;
             let next = transition_sequential_graph(&state, &SequentialGraphEvent::Complete);
 
             prop_assert_eq!(next, expected);
@@ -63,12 +63,12 @@ fn a_pending_step_is_planned_as_its_first_attempt() {
         id: "first".to_owned(),
         context_from: None,
     }];
-    let state = SequentialGraphState {
+    let state = SequentialGraph {
         graph_id: "graph".to_owned(),
-        status: GraphStatus::Pending,
-        steps: vec![SequentialGraphStepState {
+        state: GraphState::Pending,
+        steps: vec![SequentialGraphStep {
             step_id: "first".to_owned(),
-            status: GraphStepStatus::Pending,
+            state: GraphStepState::Pending,
             attempts: 0,
             started_at: None,
             completed_at: None,
@@ -90,23 +90,23 @@ fn a_pending_step_is_planned_as_its_first_attempt() {
     );
 }
 
-fn sequential_graph_state() -> impl Strategy<Value = SequentialGraphState> {
+fn sequential_graph_state() -> impl Strategy<Value = SequentialGraph> {
     (
         safe_string(),
-        graph_status(),
+        graph_state(),
         prop::collection::vec(sequential_step_state(), 1..4),
     )
-        .prop_map(|(graph_id, status, steps)| SequentialGraphState {
+        .prop_map(|(graph_id, state, steps)| SequentialGraph {
             graph_id,
-            status,
+            state,
             steps,
         })
 }
 
-fn sequential_step_state() -> impl Strategy<Value = SequentialGraphStepState> {
+fn sequential_step_state() -> impl Strategy<Value = SequentialGraphStep> {
     (
         safe_string(),
-        graph_step_status(),
+        graph_step_state(),
         0_u32..4,
         prop::option::of(safe_string()),
         prop::option::of(safe_string()),
@@ -114,10 +114,10 @@ fn sequential_step_state() -> impl Strategy<Value = SequentialGraphStepState> {
         prop::option::of(safe_string()),
     )
         .prop_map(
-            |(step_id, status, attempts, started_at, completed_at, receipt_id, error)| {
-                SequentialGraphStepState {
+            |(step_id, state, attempts, started_at, completed_at, receipt_id, error)| {
+                SequentialGraphStep {
                     step_id,
-                    status,
+                    state,
                     attempts,
                     started_at,
                     completed_at,
@@ -151,21 +151,21 @@ fn sequential_graph_event() -> impl Strategy<Value = SequentialGraphEvent> {
     ]
 }
 
-fn graph_status() -> impl Strategy<Value = GraphStatus> {
+fn graph_state() -> impl Strategy<Value = GraphState> {
     prop_oneof![
-        Just(GraphStatus::Pending),
-        Just(GraphStatus::Running),
-        Just(GraphStatus::Succeeded),
-        Just(GraphStatus::Failed),
+        Just(GraphState::Pending),
+        Just(GraphState::Running),
+        Just(GraphState::Succeeded),
+        Just(GraphState::Failed),
     ]
 }
 
-fn graph_step_status() -> impl Strategy<Value = GraphStepStatus> {
+fn graph_step_state() -> impl Strategy<Value = GraphStepState> {
     prop_oneof![
-        Just(GraphStepStatus::Pending),
-        Just(GraphStepStatus::Running),
-        Just(GraphStepStatus::Succeeded),
-        Just(GraphStepStatus::Failed),
+        Just(GraphStepState::Pending),
+        Just(GraphStepState::Running),
+        Just(GraphStepState::Succeeded),
+        Just(GraphStepState::Failed),
     ]
 }
 

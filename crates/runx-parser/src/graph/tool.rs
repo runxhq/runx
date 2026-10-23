@@ -3,7 +3,7 @@
 
 use runx_contracts::javascript_worker::{MAX_INPUT_BYTES, MAX_WALL_MILLISECONDS};
 use runx_contracts::{JsonObject, JsonValue};
-use runx_core::policy::admit_agent_tool_ref;
+use runx_core::policy::admit_agent_tool;
 
 use super::helpers::{
     number_to_non_negative_integer, optional_number, optional_object, optional_string,
@@ -38,10 +38,10 @@ pub(super) fn validate_tool_target(
 ) -> Result<ToolTarget, ValidationError> {
     match value {
         JsonValue::String(reference) => {
-            let admission = admit_agent_tool_ref(reference);
+            let admission = admit_agent_tool(reference);
             if !admission.allowed {
                 return Err(validation_error(format!(
-                    "{field} {reference:?} is not an admissible catalog tool ref: {}.",
+                    "{field} {reference:?} is not an admissible catalog tool name: {}.",
                     admission.reason
                 )));
             }
@@ -57,7 +57,7 @@ pub(super) fn validate_tool_target(
             }
         }
         _ => Err(validation_error(format!(
-            "{field} must be a catalog tool reference or a worker or process declaration."
+            "{field} must be a catalog tool name or a worker or process declaration."
         ))),
     }
 }

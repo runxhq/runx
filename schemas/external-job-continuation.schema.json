@@ -2,6 +2,7 @@
   "$id": "https://schemas.runx.ai/runx/external-job-continuation/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Where one purchased external job stands: its stage and state, its attempts against their limit and deadline, and how it ended.",
   "properties": {
     "attempts": {
       "minimum": 0,
@@ -22,14 +23,18 @@
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
       "type": "string"
     },
-    "execution_binding": {
+    "executor_binding": {
       "additionalProperties": false,
+      "description": "An exact execution package: the skill and runner, and the digests of the package and closure that run.",
       "properties": {
         "execution_closure_digest": {
+          "maxLength": 71,
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
         "package_digest": {
+          "description": "The execution package digest a run records (`runx.skill-package.v1` over the files a run loads), not the registry's digest of the published package files that a listing binds.",
+          "maxLength": 71,
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -48,6 +53,7 @@
         "package_digest",
         "execution_closure_digest"
       ],
+      "title": "PaidSkillExecutorBinding",
       "type": "object"
     },
     "failure": {
@@ -72,84 +78,12 @@
         "message",
         "retryable"
       ],
+      "title": "ExternalJobFailure",
       "type": "object"
-    },
-    "invocation_ref": {
-      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "additionalProperties": false,
-      "properties": {
-        "label": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "locator": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "observed_at": {
-          "minLength": 1,
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-          "type": "string"
-        },
-        "proof_kind": {
-          "enum": [
-            "effect_evidence",
-            "effect_finality",
-            "credential_resolution"
-          ],
-          "type": "string"
-        },
-        "provider": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "thread",
-            "comment",
-            "event",
-            "tracking_item",
-            "change_request",
-            "repository",
-            "signal",
-            "run",
-            "act",
-            "receipt",
-            "artifact",
-            "verification",
-            "harness",
-            "host",
-            "surface",
-            "target",
-            "skill_binding",
-            "principal",
-            "scope_admission",
-            "grant",
-            "mandate",
-            "credential",
-            "webhook_delivery",
-            "redaction_policy",
-            "external_url",
-            "connector_instance",
-            "connector_operation"
-          ],
-          "type": "string"
-        },
-        "uri": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "uri"
-      ],
-      "type": "object",
-      "x-runx-schema": "runx.reference.v1"
     },
     "last_failure": {
       "additionalProperties": false,
+      "description": "The most recent retryable failure while the job is still active, so a stalled continuation is diagnosable before it dead-letters.",
       "properties": {
         "code": {
           "maxLength": 96,
@@ -170,6 +104,7 @@
         "message",
         "retryable"
       ],
+      "title": "ExternalJobFailure",
       "type": "object"
     },
     "max_attempts": {
@@ -183,6 +118,7 @@
       "type": "string"
     },
     "operation_identity": {
+      "maxLength": 71,
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
@@ -210,6 +146,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -229,6 +166,7 @@
         "type",
         "uri"
       ],
+      "title": "PrincipalReference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -256,6 +194,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -263,6 +202,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -292,6 +232,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -303,6 +244,85 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
+      "type": "object",
+      "x-runx-schema": "runx.reference.v1"
+    },
+    "purchase_ref": {
+      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "locator": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "observed_at": {
+          "minLength": 1,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+          "type": "string"
+        },
+        "proof_kind": {
+          "enum": [
+            "effect_evidence",
+            "effect_finality",
+            "credential_resolution"
+          ],
+          "title": "ProofKind",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+          "enum": [
+            "thread",
+            "comment",
+            "event",
+            "tracking_item",
+            "change_request",
+            "repository",
+            "signal",
+            "run",
+            "act",
+            "receipt",
+            "artifact",
+            "verification",
+            "harness",
+            "host",
+            "surface",
+            "target",
+            "skill_binding",
+            "principal",
+            "scope_admission",
+            "grant",
+            "mandate",
+            "credential",
+            "webhook_delivery",
+            "redaction_policy",
+            "external_url",
+            "connector_instance",
+            "connector_operation"
+          ],
+          "title": "ReferenceType",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "uri"
+      ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -330,6 +350,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -337,6 +358,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -366,6 +388,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -377,6 +400,55 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
+      "type": "object",
+      "x-runx-schema": "runx.reference.v1"
+    },
+    "seller_ref": {
+      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "locator": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "observed_at": {
+          "minLength": 1,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+          "type": "string"
+        },
+        "proof_kind": {
+          "enum": [
+            "effect_evidence",
+            "effect_finality",
+            "credential_resolution"
+          ],
+          "title": "ProofKind",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": {
+          "const": "principal",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "uri"
+      ],
+      "title": "PrincipalReference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -404,6 +476,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -411,6 +484,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -440,6 +514,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -451,6 +526,7 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -461,9 +537,10 @@
         "materialize",
         "finalize"
       ],
+      "title": "ExternalJobStage",
       "type": "string"
     },
-    "status": {
+    "state": {
       "enum": [
         "runnable",
         "waiting_external",
@@ -472,9 +549,11 @@
         "superseded",
         "dead_letter"
       ],
+      "title": "ExternalJobState",
       "type": "string"
     },
     "terminal_evidence_digest": {
+      "maxLength": 71,
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
@@ -502,6 +581,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -509,6 +589,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -538,6 +619,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -549,10 +631,11 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
-    "terminal_execution_receipt_ref": {
+    "terminal_receipt_ref": {
       "$id": "https://schemas.runx.ai/runx/reference/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
@@ -576,6 +659,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -583,6 +667,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -612,6 +697,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -623,6 +709,7 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -630,70 +717,25 @@
       "minLength": 1,
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
       "type": "string"
-    },
-    "vendor_ref": {
-      "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "additionalProperties": false,
-      "properties": {
-        "label": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "locator": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "observed_at": {
-          "minLength": 1,
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-          "type": "string"
-        },
-        "proof_kind": {
-          "enum": [
-            "effect_evidence",
-            "effect_finality",
-            "credential_resolution"
-          ],
-          "type": "string"
-        },
-        "provider": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": {
-          "const": "principal",
-          "type": "string"
-        },
-        "uri": {
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "uri"
-      ],
-      "type": "object",
-      "x-runx-schema": "runx.reference.v1"
     }
   },
   "required": [
     "continuation_id",
     "principal_ref",
-    "vendor_ref",
-    "invocation_ref",
+    "seller_ref",
+    "purchase_ref",
     "source_run_ref",
-    "execution_binding",
+    "executor_binding",
     "operation_identity",
     "stage",
-    "status",
+    "state",
     "attempts",
     "max_attempts",
     "deadline_at",
     "created_at",
     "updated_at"
   ],
+  "title": "ExternalJobContinuation",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.external_job_continuation.v1"

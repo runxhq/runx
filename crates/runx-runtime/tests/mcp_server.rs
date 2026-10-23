@@ -7,9 +7,9 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "mcp")]
-use runx_contracts::{ClosureDisposition, ReceiptSchema};
 use runx_contracts::{JsonObject, JsonValue};
+#[cfg(feature = "mcp")]
+use runx_contracts::{ReceiptSchema, RunOutcome};
 #[cfg(feature = "mcp")]
 #[cfg(feature = "mcp")]
 use runx_runtime::adapters::mcp::McpServerExecutionOptions;
@@ -362,7 +362,7 @@ fn mcp_server_single_skill_call_writes_sealed_receipt() -> Result<(), Box<dyn st
         .read_exact(receipt_id, signature_config.signature_policy())?;
     assert_ne!(receipt.created_at, FIXTURE_CREATED_AT);
     assert_eq!(receipt.schema, ReceiptSchema::V1);
-    assert_eq!(receipt.seal.disposition, ClosureDisposition::Closed);
+    assert_eq!(receipt.seal.outcome, RunOutcome::Completed);
     assert_eq!(receipt.id, *receipt_id);
     Ok(())
 }
@@ -682,21 +682,21 @@ fn mcp_server_mid_session_transport_error_keeps_recorded_diagnostic()
 }
 
 #[test]
-fn mcp_server_uses_typed_disposition_even_when_json_claims_success()
+fn mcp_server_uses_typed_outcome_even_when_json_claims_success()
 -> Result<(), Box<dyn std::error::Error>> {
-    for disposition in [
-        ClosureDisposition::Failed,
-        ClosureDisposition::Declined,
-        ClosureDisposition::Blocked,
-        ClosureDisposition::Killed,
-        ClosureDisposition::TimedOut,
+    for outcome in [
+        RunOutcome::Failed,
+        RunOutcome::Declined,
+        RunOutcome::Blocked,
+        RunOutcome::Killed,
+        RunOutcome::TimedOut,
     ] {
         let result = runx_runtime::execution::orchestrator::RunResult {
             status: runx_runtime::execution::orchestrator::RunStatus::Sealed,
-            disposition: Some(disposition),
+            outcome: Some(outcome),
             output: JsonValue::Object(runx_status("succeeded")),
-            receipt_refs: vec!["receipt-1".to_owned()],
-            child_receipt_refs: Vec::new(),
+            receipt_ids: vec!["receipt-1".to_owned()],
+            child_receipt_uris: Vec::new(),
             pending_requests: Vec::new(),
             diagnostics: Vec::new(),
         };
@@ -708,10 +708,10 @@ fn mcp_server_uses_typed_disposition_even_when_json_claims_success()
     let deferred = mcp_tool_result_from_run_result(
         runx_runtime::execution::orchestrator::RunResult {
             status: runx_runtime::execution::orchestrator::RunStatus::Failed,
-            disposition: Some(ClosureDisposition::Deferred),
+            outcome: Some(RunOutcome::Deferred),
             output: JsonValue::Object(runx_status("failed")),
-            receipt_refs: vec!["receipt-deferred".to_owned()],
-            child_receipt_refs: Vec::new(),
+            receipt_ids: vec!["receipt-deferred".to_owned()],
+            child_receipt_uris: Vec::new(),
             pending_requests: Vec::new(),
             diagnostics: Vec::new(),
         },

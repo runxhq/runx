@@ -4,7 +4,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use crate::RuntimeError;
 
 use super::session::{WorkerLaunchPlan, WorkerSession};
-use super::{WorkerDisposition, lock, worker_error};
+use super::{WorkerFate, lock, worker_error};
 
 pub(super) struct WorkerPool {
     state: Mutex<PoolState>,
@@ -97,15 +97,15 @@ impl WorkerPool {
             .fetch_max(state.in_flight, Ordering::Relaxed);
     }
 
-    fn release(&self, mut session: WorkerSession, disposition: WorkerDisposition) {
-        if disposition == WorkerDisposition::Discard {
+    fn release(&self, mut session: WorkerSession, fate: WorkerFate) {
+        if fate == WorkerFate::Discard {
             session.terminate();
         }
         if let Ok(mut state) = self.state.lock() {
             state.in_flight = state.in_flight.saturating_sub(1);
-            match disposition {
-                WorkerDisposition::Reuse => state.idle.push(session),
-                WorkerDisposition::Discard => {
+            match fate {
+                WorkerFate::Reuse => state.idle.push(session),
+                WorkerFate::Discard => {
                     state.total = state.total.saturating_sub(1);
                     drop(session);
                 }
@@ -126,7 +126,7 @@ impl WorkerPool {
 pub(super) struct WorkerLease<'a> {
     pool: &'a WorkerPool,
     session: Option<WorkerSession>,
-    disposition: WorkerDisposition,
+    fate: WorkerFate,
 }
 
 impl<'a> WorkerLease<'a> {
@@ -134,7 +134,7 @@ impl<'a> WorkerLease<'a> {
         Self {
             pool,
             session: Some(session),
-            disposition: WorkerDisposition::Reuse,
+            fate: WorkerFate::Reuse,
         }
     }
 
@@ -145,14 +145,14 @@ impl<'a> WorkerLease<'a> {
     }
 
     pub(super) fn poison(&mut self) {
-        self.disposition = WorkerDisposition::Discard;
+        self.fate = WorkerFate::Discard;
     }
 }
 
 impl Drop for WorkerLease<'_> {
     fn drop(&mut self) {
         if let Some(session) = self.session.take() {
-            self.pool.release(session, self.disposition);
+            self.pool.release(session, self.fate);
         }
     }
 }

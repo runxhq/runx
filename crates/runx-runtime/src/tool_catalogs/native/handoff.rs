@@ -81,7 +81,7 @@ const fn field(name: &'static str, description: &'static str) -> CapabilityField
 static PREPARE: TypedNativeCapability<HandoffInput, HandoffOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: TOOL,
-        owner: "runx-runtime/control",
+        source: "runx-runtime/control",
         summary: "Validate and normalize a provider-neutral workflow handoff without performing network I/O.",
         scopes: &[],
         effect: CapabilityEffect::Read,
@@ -240,9 +240,6 @@ fn reject_delivered_credential_material(
         context.principal_id.as_deref(),
         context.workflow.as_deref(),
         context.workflow_id.as_deref(),
-        context.workflow_ref.as_deref(),
-        context.source_workflow.as_deref(),
-        context.upstream_execution_id.as_deref(),
         context.upstream_run_id.as_deref(),
         context.platform.as_deref(),
         context.event_id.as_deref(),

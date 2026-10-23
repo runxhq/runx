@@ -7,7 +7,7 @@ description: Adopt a pinned third-party SKILL.md as an exact native Runx binding
 
 Adopt a third-party skill without pretending that upstream prose is already a
 Runx package. Skill Adopt binds one immutable upstream `SKILL.md` to a least-authority
-execution profile under `bindings/<owner>/<skill>/`. The upstream manual remains
+execution profile under `bindings/<publisher>/<skill>/`. The upstream manual remains
 unchanged and readable; the binding adds only the executable contract and
 provenance needed by Runx.
 

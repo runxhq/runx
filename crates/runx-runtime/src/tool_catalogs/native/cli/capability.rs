@@ -1,4 +1,4 @@
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{CliHelp, CliHelpFlag, JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -7,7 +7,6 @@ use crate::{
 };
 
 use super::super::capability::{NativeCapability, TypedNativeCapability};
-use super::CliHelpOutput;
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -16,7 +15,7 @@ pub(super) struct CaptureHelpInput {
     pub(super) command: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) args: Vec<String>,
-    pub(super) help_flag: String,
+    pub(super) help_flag: CliHelpFlag,
     pub(super) cwd: String,
 }
 
@@ -56,23 +55,22 @@ const FIELDS: &[CapabilityField] = &[
     },
 ];
 
-static CAPTURE_HELP: TypedNativeCapability<CaptureHelpInput, CliHelpOutput> =
-    TypedNativeCapability::new(
-        CapabilityDefinition {
-            id: "cli.capture_help",
-            owner: "runx-runtime/cli",
-            summary: "Capture bounded CLI help through exact argv in a contained directory.",
-            scopes: &["cli.read"],
-            effect: CapabilityEffect::Read,
-            approval: CapabilityApproval::None,
-            artifacts: CapabilityArtifacts::Wrapped {
-                output: "cli_help",
-                packet: "runx.cli.help.v1",
-            },
-            fields: FIELDS,
+static CAPTURE_HELP: TypedNativeCapability<CaptureHelpInput, CliHelp> = TypedNativeCapability::new(
+    CapabilityDefinition {
+        id: "cli.capture_help",
+        source: "runx-runtime/cli",
+        summary: "Capture bounded CLI help through exact argv in a contained directory.",
+        scopes: &["cli.read"],
+        effect: CapabilityEffect::Read,
+        approval: CapabilityApproval::None,
+        artifacts: CapabilityArtifacts::Wrapped {
+            output: "cli_help",
+            packet: "runx.cli.help.v1",
         },
-        super::capture_help,
-    );
+        fields: FIELDS,
+    },
+    super::capture_help,
+);
 
 pub(in crate::tool_catalogs::native) const CAPABILITIES: &[&dyn NativeCapability] =
     &[&CAPTURE_HELP];

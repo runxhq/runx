@@ -397,7 +397,7 @@ fn build_http_client(config: TransportConfig) -> Result<reqwest::Client, String>
     // http1-only client is a bot tell. The response cap measures DECODED
     // bytes (read_limited_response_body), so a decompression bomb stays bounded.
     let builder = reqwest::Client::builder()
-        .user_agent(format!("runx/{}", crate::EXECUTION_RUNTIME_RELEASE))
+        .user_agent(format!("runx/{}", crate::RUNX_VERSION))
         .redirect(reqwest::redirect::Policy::none())
         .timeout(config.request_timeout)
         .connect_timeout(config.connect_timeout)
@@ -1551,7 +1551,7 @@ mod tests {
             .join()
             .map_err(|_| RuntimeHttpTestError::ServerThread)??;
 
-        let runx = format!("user-agent: runx/{}", crate::EXECUTION_RUNTIME_RELEASE);
+        let runx = format!("user-agent: runx/{}", crate::RUNX_VERSION);
         assert!(requests[0].contains(&runx), "{}", requests[0]);
         assert!(
             requests[1].contains("user-agent: provider-client/1.0"),

@@ -9,8 +9,8 @@ import {
   paidSkillPricedArtifactRef,
   paidSkillPriceProblem,
 } from "./paid-skill-price.js";
-import type { PaidSkillPriceContract } from "./schemas/paid-invocation.js";
-import { paidSkillListingV1Schema } from "./schemas/paid-invocation.js";
+import type { PaidSkillPriceContract } from "./generated/contract-types.js";
+import { paidSkillListingV1Schema } from "./schemas/purchase.js";
 import { validateContractSchema } from "./internal.js";
 
 type Expected = { readonly amount_minor?: number; readonly error?: string };
@@ -36,10 +36,10 @@ const vectors = JSON.parse(readFileSync(
 /** A price is valid when its schema and its own invariants both accept it, as in Rust. */
 function priceIsValid(price: PaidSkillPriceContract): boolean {
   const offer = {
-    offer_revision: {
+    offer_version: {
       offer_id: "acme/skill#run",
-      revision: "1",
-      revision_digest: `sha256:${"a".repeat(64)}`,
+      version: "1",
+      profile_digest: `sha256:${"a".repeat(64)}`,
       input_schema_digest: `sha256:${"b".repeat(64)}`,
       output_schema_digest: `sha256:${"c".repeat(64)}`,
     },
@@ -53,8 +53,8 @@ function priceIsValid(price: PaidSkillPriceContract): boolean {
       version: "1",
       skill_digest: `sha256:${"a".repeat(64)}`,
       profile_digest: `sha256:${"b".repeat(64)}`,
-      package_digest: `sha256:${"c".repeat(64)}`,
-      vendor_ref: { type: "principal", uri: "runx:principal:acme" },
+      bundle_digest: `sha256:${"c".repeat(64)}`,
+      seller_ref: { type: "principal", uri: "runx:principal:acme" },
       offers: { run: offer },
     }, "listing");
   } catch {
@@ -94,7 +94,7 @@ describe("what a paid runner acts on", () => {
       "ausca:agent-inbox",
       { $result: "/inbox_id" },
       { $concat: ["ausca:agent-inbox/", { $parameter: "/inbox_id" }] },
-      { $concat: [{ $argument: "/inbox_id" }, { $runx: "invocation" }] },
+      { $concat: [{ $argument: "/inbox_id" }, { $runx: "purchase" }] },
     ]) {
       expect(paidSkillActsOnProblem(actsOn(target)), JSON.stringify(target)).toBeDefined();
     }

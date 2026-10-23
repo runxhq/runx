@@ -94,9 +94,9 @@ fn run_inspect(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ToolCliOutput, ToolCliError> {
-    let tool_ref = plan.ref_or_query.ok_or_else(|| {
-        ToolCliError::Usage("runx tool inspect requires a tool reference".to_owned())
-    })?;
+    let tool = plan
+        .ref_or_query
+        .ok_or_else(|| ToolCliError::Usage("runx tool inspect requires a tool name".to_owned()))?;
     let root = runx_runtime::RunxPaths::resolve(env, cwd)
         .workspace()
         .to_path_buf();
@@ -110,7 +110,7 @@ fn run_inspect(
     let report = inspect_tool_with_effects(
         &ToolInspectOptions {
             root,
-            tool_ref,
+            tool,
             source: plan.source,
             search_from_directory,
             tool_roots,
@@ -165,7 +165,7 @@ fn render_search_results(results: &[runx_contracts::tools::ToolCatalogSearchResu
         lines.push(format!("  {}  {}", result.name, result.source_label));
         lines.push(format!("  namespace {}", result.namespace));
         lines.push(format!("  external  {}", result.external_name));
-        lines.push(format!("  catalog   {}", result.catalog_ref));
+        lines.push(format!("  catalog   {}", result.catalog_id));
         if !result.required_scopes.is_empty() {
             lines.push(format!("  scopes    {}", result.required_scopes.join(", ")));
         }

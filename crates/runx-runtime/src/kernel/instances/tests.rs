@@ -30,8 +30,8 @@ fn hosted(id: &str, connector: &LoadedConnector) -> ConnectorInstance {
         manifest_digest: connector.manifest_digest.clone(),
         connector_digest: connector.connector_digest.clone(),
         placement: Placement::Hosted,
-        principal_ref: "runx:principal:operator".into(),
-        account_ref: Some("T123/U456".into()),
+        principal_uri: "runx:principal:operator".into(),
+        account_id: Some("T123/U456".into()),
         authority: InstanceAuthority::HostedGrant {
             grant_id: "grant_slack".into(),
         },

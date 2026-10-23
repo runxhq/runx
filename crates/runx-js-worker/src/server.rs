@@ -5,9 +5,8 @@ use thiserror::Error;
 
 use crate::engine::{EngineError, evaluate};
 use crate::protocol::{
-    JAVASCRIPT_STACK_BYTES, MAX_FRAME_BYTES, PROTOCOL_VERSION, ProtocolError, WorkerDisposition,
-    WorkerFailureCode, WorkerInvocationRequest, WorkerRequest, WorkerResponse, read_frame,
-    write_frame,
+    JAVASCRIPT_STACK_BYTES, MAX_FRAME_BYTES, PROTOCOL_VERSION, ProtocolError, WorkerFailureCode,
+    WorkerFate, WorkerInvocationRequest, WorkerRequest, WorkerResponse, read_frame, write_frame,
 };
 
 #[derive(Debug, Error)]
@@ -50,7 +49,7 @@ pub fn serve() -> Result<(), WorkerServerError> {
                     invocation_id: None,
                     code: WorkerFailureCode::InvalidProtocol,
                     message: "worker protocol handshake mismatch".to_owned(),
-                    disposition: WorkerDisposition::Discard,
+                    fate: WorkerFate::Discard,
                 },
                 MAX_FRAME_BYTES,
             )?;
@@ -64,7 +63,7 @@ pub fn serve() -> Result<(), WorkerServerError> {
                 None,
                 WorkerFailureCode::InvalidProtocol,
                 "worker handshake may occur only once",
-                WorkerDisposition::Discard,
+                WorkerFate::Discard,
             )?;
             break;
         };
@@ -84,7 +83,7 @@ pub fn serve() -> Result<(), WorkerServerError> {
                 Some(invocation_id),
                 WorkerFailureCode::InvalidProtocol,
                 "worker invocation protocol mismatch",
-                WorkerDisposition::Discard,
+                WorkerFate::Discard,
             )?;
             break;
         }
@@ -132,7 +131,7 @@ fn engine_failure(invocation_id: String, error: &EngineError) -> WorkerResponse 
         // typed module/execution failure therefore invalidates only this
         // invocation; process retirement is reserved for protocol or process
         // lifecycle failures.
-        disposition: WorkerDisposition::Reuse,
+        fate: WorkerFate::Reuse,
     }
 }
 
@@ -141,7 +140,7 @@ fn send_failure(
     invocation_id: Option<String>,
     code: WorkerFailureCode,
     message: &str,
-    disposition: WorkerDisposition,
+    fate: WorkerFate,
 ) -> Result<(), WorkerServerError> {
     write_frame(
         writer,
@@ -150,7 +149,7 @@ fn send_failure(
             invocation_id,
             code,
             message: message.to_owned(),
-            disposition,
+            fate,
         },
         MAX_FRAME_BYTES,
     )?;

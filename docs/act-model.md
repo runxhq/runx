@@ -15,22 +15,23 @@ The act model lives in `crates/runx-contracts`:
   check's status and the references that prove it; the runtime writes no
   prose about it.
 - **Decision** (`src/decision.rs`): a governed choice a call's caller states,
-  naming the act that carries it out. A seal's **`ClosureDisposition`** is
-  `closed`, `deferred`, `superseded`, `declined`, `blocked`, `failed`,
-  `killed` or `timed_out`. When the disposition alone does not say why, the
-  seal adds a **`SealReason`** from a closed vocabulary, such as
-  `graph_step_failed`, `authority_denied` or `input_contract_invalid`.
+  naming the act that carries it out.
 - **Signal** (`src/signal.rs`): an inbound observation, with a `SignalSchema`
   and a `SignalTrustLevel`. Receipts do not carry signals.
 - **Receipt** (`src/receipt.rs`): the sealed, flat record of a run node. It
   inlines `decisions: Vec<Decision>` and `acts: Vec<ReceiptAct>`, a `seal`,
-  `authority`, `subject` (what ran, and the digest of its outcome: whether it
-  succeeded, the outputs it declared and its direct children's ids) and
-  `lineage`. It holds only what its issuer observed or was given, each value
-  once, as typed facts. Its wire form is exact: every array is written, an
-  absent value is omitted rather than `null`, and readers refuse any other
-  form, so every verifier hashes the same bytes. Its `id` is the digest of its
-  body without the id.
+  `authority`, `subject` (what ran, and its `outcome_digest`: how it ended,
+  the outputs it declared and its direct children's ids), `lineage`, and an
+  `issuer` that names its key and the `runx_version` that signed it. A seal's
+  **`RunOutcome`** is `completed`, `deferred`, `superseded`, `declined`,
+  `blocked`, `failed`, `killed` or `timed_out`. When the outcome alone does
+  not say why, the seal adds a **`SealReason`** from a closed vocabulary,
+  such as `graph_step_failed`, `authority_denied` or
+  `input_contract_invalid`. A receipt holds only what its issuer observed or
+  was given, each value once, as typed facts. Its wire form is exact: every
+  array is written, an absent value is omitted rather than `null`, and
+  readers refuse any other form, so every verifier hashes the same bytes. Its
+  `id` is the digest of its body without the id.
 
 ## Calls and acts
 

@@ -19,6 +19,7 @@
     "digest",
     "bytes"
   ],
+  "title": "GitBlobDigest",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.git.blob_digest.v1"

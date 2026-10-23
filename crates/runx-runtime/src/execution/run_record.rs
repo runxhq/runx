@@ -33,8 +33,8 @@ use std::sync::{Arc, Mutex};
 
 pub use runx_contracts::RunState;
 use runx_contracts::{
-    CallAct, ClosureDisposition, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest,
-    RunCallOutput, RunDriver, StandingApproval, TurnTarget,
+    CallAct, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest, RunCallOutput,
+    RunDriver, RunListEntry, RunOutcome, StandingApproval, TurnTarget,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
@@ -106,7 +106,7 @@ struct StandingEvent {
 pub(crate) struct Started {
     pub skill: String,
     /// The path the skill was loaded from, for `runx resume`.
-    pub skill_ref: String,
+    pub skill_path: String,
     pub runner: String,
     pub package_digest: String,
     pub execution_closure_digest: String,
@@ -333,7 +333,7 @@ struct AnsweredEvent {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SealedEvent {
-    disposition: ClosureDisposition,
+    outcome: RunOutcome,
     /// The run's receipt.
     receipt_id: String,
     /// Blob: the run's receipt.
@@ -452,7 +452,7 @@ pub(crate) enum Replayed {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Sealed {
-    pub disposition: ClosureDisposition,
+    pub outcome: RunOutcome,
     pub receipt: Receipt,
     pub terminal_result: Option<JsonValue>,
 }
@@ -713,7 +713,7 @@ impl RunLog {
         .transpose()?;
         let event = Started {
             skill: started.skill.to_owned(),
-            skill_ref: started.skill_ref.to_owned(),
+            skill_path: started.skill_path.to_owned(),
             runner: started.runner.to_owned(),
             package_digest: started.package_digest.to_owned(),
             execution_closure_digest: started.execution_closure_digest.to_owned(),
@@ -1115,7 +1115,7 @@ impl RunLog {
         let receipt_blob = Blob::json(receipt)?;
         let terminal_result = terminal_result.map(Blob::json).transpose()?;
         let event = SealedEvent {
-            disposition: receipt.seal.disposition.clone(),
+            outcome: receipt.seal.outcome,
             receipt_id: receipt.id.to_string(),
             receipt: receipt_blob.digest().to_owned(),
             terminal_result: terminal_result
@@ -1217,7 +1217,7 @@ impl RunLog {
 /// What a top-level run is started with.
 pub(crate) struct StartRequest<'a> {
     pub skill: &'a str,
-    pub skill_ref: &'a str,
+    pub skill_path: &'a str,
     pub runner: &'a str,
     pub package_digest: &'a str,
     pub execution_closure_digest: &'a str,
@@ -1290,12 +1290,12 @@ pub(crate) fn input_digest(input: &JsonObject) -> Result<String, RunRecordError>
 }
 
 /// Where a run stands from its latest event: its state, and a sealed run's
-/// disposition and receipt id.
-fn standing(latest: &RunEvent) -> (RunState, Option<ClosureDisposition>, Option<String>) {
+/// outcome and receipt id.
+fn standing(latest: &RunEvent) -> (RunState, Option<RunOutcome>, Option<String>) {
     match latest {
         RunEvent::Sealed(sealed) => (
             RunState::Sealed,
-            Some(sealed.disposition.clone()),
+            Some(sealed.outcome),
             Some(sealed.receipt_id.clone()),
         ),
         RunEvent::Suspended(_)
@@ -1513,7 +1513,7 @@ fn replay(
             RunEvent::Sealed(sealed) => {
                 record.suspension = None;
                 record.sealed = Some(Sealed {
-                    disposition: sealed.disposition,
+                    outcome: sealed.outcome,
                     receipt: store.blob_json(&sealed.receipt)?,
                     terminal_result: sealed
                         .terminal_result
@@ -1782,25 +1782,6 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
     }
 }
 
-/// One row of the run listing.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct RunSummary {
-    pub run_id: String,
-    pub skill: String,
-    pub runner: String,
-    pub state: RunState,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disposition: Option<ClosureDisposition>,
-    /// The request a paused run's step is held on: its turn's act, or what
-    /// it asked.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pending_request_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub receipt_id: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
 /// Which runs to list. Text filters match case-insensitively.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RunFilter {
@@ -1808,7 +1789,7 @@ pub struct RunFilter {
     pub query: Option<String>,
     /// A substring of the skill.
     pub skill: Option<String>,
-    /// `running`, `paused` or `sealed`, or a sealed run's disposition.
+    /// `running`, `paused` or `sealed`, or a sealed run's outcome.
     pub state: Option<String>,
     /// Runs started at or after this RFC 3339 instant.
     pub since: Option<String>,
@@ -1836,7 +1817,7 @@ const RUN_PAGE: usize = 200;
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct RunListing {
     pub projector_id: String,
-    pub runs: Vec<RunSummary>,
+    pub runs: Vec<RunListEntry>,
 }
 
 /// The workspace's top-level runs, most recently advanced first. A page reads
@@ -1903,9 +1884,9 @@ pub fn list_runs(
                 && state.as_ref().is_none_or(|state| {
                     summary.state.label() == state
                         || summary
-                            .disposition
+                            .outcome
                             .as_ref()
-                            .is_some_and(|disposition| disposition.label() == state)
+                            .is_some_and(|outcome| outcome.label() == state)
                 })
                 && since.is_none_or(|since| started.is_some_and(|started| started >= since))
                 && until.is_none_or(|until| started.is_some_and(|started| started <= until));
@@ -1923,7 +1904,7 @@ pub fn list_runs(
     Ok(listing(runs))
 }
 
-fn listing(runs: Vec<RunSummary>) -> RunListing {
+fn listing(runs: Vec<RunListEntry>) -> RunListing {
     RunListing {
         projector_id: RUN_LISTING_PROJECTOR_ID.to_owned(),
         runs,
@@ -1945,7 +1926,7 @@ pub fn paused_requests(
 pub struct PausedRun {
     pub run_id: String,
     pub skill: String,
-    pub skill_ref: String,
+    pub skill_path: String,
     pub runner: String,
     pub package_digest: String,
     pub execution_closure_digest: String,
@@ -1978,7 +1959,7 @@ pub fn paused_run(
     Ok(Some(PausedRun {
         run_id: run_id.to_owned(),
         skill: started.skill,
-        skill_ref: started.skill_ref,
+        skill_path: started.skill_path,
         runner: started.runner,
         package_digest: started.package_digest,
         execution_closure_digest: started.execution_closure_digest,
@@ -2019,7 +2000,7 @@ pub fn sealed_run(
 
 // Function rationale: a listing row reads only the run's first and latest
 // events, so a page costs the same however long its runs are.
-fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunSummary>, RunRecordError> {
+fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunListEntry>, RunRecordError> {
     let Some(first) = store.first::<RunEvent>(&head.key)? else {
         return Ok(None);
     };
@@ -2029,22 +2010,22 @@ fn summarize(store: &KernelStore, head: &Head) -> Result<Option<RunSummary>, Run
     let Some(latest) = standing_event(store, &head.key)? else {
         return Ok(None);
     };
-    let (state, disposition, receipt_id) = standing(&latest.event);
+    let (state, outcome, receipt_id) = standing(&latest.event);
     let pending_request_id = match latest.event {
         RunEvent::Suspended(_) => held(store, &head.key)?.map(|held| held.request.id),
         RunEvent::Call(call) => Some(call.turn.request_id),
         _ => None,
     };
-    Ok(Some(RunSummary {
-        run_id: head.key.clone(),
-        skill: started.skill,
-        runner: started.runner,
+    Ok(Some(RunListEntry {
+        run_id: head.key.as_str().into(),
+        skill: started.skill.into(),
+        runner: started.runner.into(),
         state,
-        disposition,
-        pending_request_id,
-        receipt_id,
-        created_at: started.created_at,
-        updated_at: head.updated_at.clone(),
+        outcome,
+        pending_request_id: pending_request_id.map(Into::into),
+        receipt_id: receipt_id.map(Into::into),
+        created_at: started.created_at.into(),
+        updated_at: head.updated_at.as_str().into(),
     }))
 }
 

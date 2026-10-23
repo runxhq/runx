@@ -9,22 +9,22 @@ caller:
         route:
           domain: authentication
           rationale: The question joins API-key scope policy with analytics access.
-          source_refs:
+          source_ids:
             - auth-docs
             - campaigns-docs
         source_matches:
-          - source_ref: auth-docs
+          - source_id: auth-docs
             matching_signal: API keys scoped to read-only
             reason: Defines key scope behavior.
-          - source_ref: campaigns-docs
+          - source_id: campaigns-docs
             matching_signal: campaign analytics
             reason: Defines the requested read surface.
         owner_recommendation:
-          owner_ref: security-team
+          owner_id: security-team
           rationale: Authentication scope ownership is primary.
           escalation_required: false
         next_skill:
-          skill_ref: research
+          skill: research
           rationale: Resolve the bounded answer from both validated sources.
 expect:
   status: sealed

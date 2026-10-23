@@ -6,13 +6,13 @@ inputs:
   dispute_event:
     dispute_id: dp_test_002
     provider: stripe
-    provider_charge_ref: ch_test_002
+    provider_charge_id: ch_test_002
     amount_minor: 800
     currency: USD
     reason_code: fraudulent
   original_receipt_id: sha256:2c3b94c6be1f20464433c981aa0f4785da797f9907a31bf6e161479e778ffa29
-  evidence_refs:
-    - ref: evidence:provider:002
+  evidence:
+    - locator: evidence:provider:002
       digest: sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890
       kind: provider
       summary: Provider event reference.

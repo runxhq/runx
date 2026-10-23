@@ -30,11 +30,11 @@ const INSPECT: &str = "artifact.inspect";
 pub(crate) const TRUSTED_RUN_ID_ENV: &str = "RUNX_HOSTED_ARTIFACT_TRUSTED_RUN_ID";
 /// What runx states of every artifact it holds.
 const EVIDENCE: [&str; 5] = [
-    "artifact_ref",
+    "artifact_uri",
     "content_digest",
     "media_type",
     "size_bytes",
-    "principal_ref",
+    "principal_uri",
 ];
 
 /// What confirms an allocation: reading its reference back shows the same
@@ -117,11 +117,11 @@ impl Artifact<'_> {
         Ok(evidence)
     }
 
-    /// What runx holds under `artifact_ref`.
-    fn inspect(&self, artifact_ref: &str) -> Result<JsonObject, Unperformed> {
+    /// What runx holds under `artifact_uri`.
+    fn inspect(&self, artifact_uri: &str) -> Result<JsonObject, Unperformed> {
         let answer = self.send(
             INSPECT,
-            JsonObject::from([("artifact_ref".to_owned(), text(artifact_ref))]),
+            JsonObject::from([("artifact_uri".to_owned(), text(artifact_uri))]),
         )?;
         self.evidence(answer)
     }
@@ -145,7 +145,7 @@ impl Artifact<'_> {
         if answer.status != "success" || answer.operation != operation {
             return Err(malformed("runx answered for another artifact operation"));
         }
-        if answer.principal_ref.as_deref() != Some(self.session.principal_ref.as_str()) {
+        if answer.principal_uri.as_deref() != Some(self.session.principal_uri.as_str()) {
             return Err(malformed(
                 "runx acted for another principal than the signed-in account",
             ));
@@ -159,13 +159,13 @@ impl Artifact<'_> {
         let JsonValue::Object(mut evidence) = answer.result else {
             return Err(malformed("runx stated no artifact"));
         };
-        let artifact_ref = evidence.get("artifact_ref").and_then(JsonValue::as_str);
-        if !artifact_ref.is_some_and(valid_artifact_ref) || artifact_ref != Some(&answer.target) {
+        let artifact_uri = evidence.get("artifact_uri").and_then(JsonValue::as_str);
+        if !artifact_uri.is_some_and(valid_artifact_ref) || artifact_uri != Some(&answer.target) {
             return Err(malformed("runx stated no valid artifact reference"));
         }
         evidence.insert(
-            "principal_ref".to_owned(),
-            text(&self.session.principal_ref),
+            "principal_uri".to_owned(),
+            text(&self.session.principal_uri),
         );
         Ok(evidence)
     }
@@ -179,9 +179,9 @@ impl Driver for Artifact<'_> {
     fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, String> {
         match check {
             Check::Readback { .. } => {
-                let artifact_ref =
-                    artifact_ref(write).ok_or("the acknowledgement names no artifact")?;
-                self.inspect(artifact_ref)
+                let artifact_uri =
+                    artifact_uri(write).ok_or("the acknowledgement names no artifact")?;
+                self.inspect(artifact_uri)
                     .map(observed)
                     .map_err(Unperformed::reason)
             }
@@ -194,8 +194,8 @@ impl Driver for Artifact<'_> {
         write: &JsonValue,
         _confirmed: &[JsonValue],
     ) -> Result<(JsonValue, Option<String>), String> {
-        let artifact_ref = artifact_ref(write).map(str::to_owned);
-        Ok((write.clone(), artifact_ref))
+        let artifact_uri = artifact_uri(write).map(str::to_owned);
+        Ok((write.clone(), artifact_uri))
     }
 }
 
@@ -252,10 +252,10 @@ fn run_id<'a>(call: &'a AdmittedCall<'_>) -> Result<&'a str, Unperformed> {
         .ok_or_else(|| not_sent("the call runs in no run".to_owned()))
 }
 
-fn artifact_ref(write: &JsonValue) -> Option<&str> {
+fn artifact_uri(write: &JsonValue) -> Option<&str> {
     write
         .as_object()
-        .and_then(|write| write.get("artifact_ref"))
+        .and_then(|write| write.get("artifact_uri"))
         .and_then(JsonValue::as_str)
 }
 

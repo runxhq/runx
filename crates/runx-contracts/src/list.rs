@@ -66,7 +66,7 @@ pub enum RunxListVisibility {
 pub struct RunxListEmit {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub packet: Option<String>,
+    pub packet: Option<crate::PacketId>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]

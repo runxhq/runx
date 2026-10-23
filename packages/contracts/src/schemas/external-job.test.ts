@@ -8,8 +8,8 @@ import {
   validateExternalJobScheduleIntentContract,
   validateExternalJobStageRequestContract,
   validateExternalJobStageResultContract,
-  type ExternalJobContinuationContract,
 } from "./external-job.js";
+import type { ExternalJobContinuationContract } from "../generated/contract-types.js";
 
 const DIGEST_A = `sha256:${"a".repeat(64)}` as const;
 const DIGEST_B = `sha256:${"b".repeat(64)}` as const;
@@ -18,10 +18,10 @@ function runnable(): ExternalJobContinuationContract {
   return {
     continuation_id: "job_ocr_1",
     principal_ref: { type: "principal", uri: "runx:principal:ausca" },
-    vendor_ref: { type: "principal", uri: "runx:principal:ausca" },
-    invocation_ref: { type: "target", uri: "runx:paid-invocation:ocr_1" },
+    seller_ref: { type: "principal", uri: "runx:principal:ausca" },
+    purchase_ref: { type: "target", uri: "runx:purchase:ocr_1" },
     source_run_ref: { type: "act", uri: "runx:run:initial-run-1" },
-    execution_binding: {
+    executor_binding: {
       skill: "ausca-document-ocr",
       runner: "async",
       package_digest: DIGEST_A,
@@ -29,7 +29,7 @@ function runnable(): ExternalJobContinuationContract {
     },
     operation_identity: DIGEST_B,
     stage: "start",
-    status: "runnable",
+    state: "runnable",
     attempts: 0,
     max_attempts: 6,
     next_attempt_at: "2026-08-27T00:00:00Z",
@@ -53,7 +53,7 @@ describe("external job continuation contract", () => {
     expect(() => validateExternalJobContinuationContract({
       ...runnable(),
       stage: "inspect",
-      status: "waiting_external",
+      state: "waiting_external",
     })).toThrow("requires inspect and a provider job reference");
   });
 
@@ -61,7 +61,7 @@ describe("external job continuation contract", () => {
     expect(() => validateExternalJobContinuationContract({
       ...runnable(),
       stage: "finalize",
-      status: "superseded",
+      state: "superseded",
       next_attempt_at: undefined,
       provider_job_ref: { type: "target", uri: "runx:aws:transcribe:job-1" },
       result_artifact_ref: { type: "artifact", uri: "runx:artifact:result-1" },
@@ -74,7 +74,7 @@ describe("external job continuation contract", () => {
     const succeeded = {
       ...runnable(),
       stage: "finalize" as const,
-      status: "succeeded" as const,
+      state: "succeeded" as const,
       next_attempt_at: undefined,
       provider_job_ref: { type: "target" as const, uri: "runx:aws:textract-analysis:job-1" },
       result_artifact_ref: { type: "artifact" as const, uri: "runx:artifact:result-1" },
@@ -85,11 +85,11 @@ describe("external job continuation contract", () => {
       .toThrow("requires finalized artifact and evidence");
     expect(validateExternalJobContinuationContract({
       ...succeeded,
-      terminal_execution_receipt_ref: {
+      terminal_receipt_ref: {
         type: "receipt",
         uri: `runx:receipt:sha256:${"c".repeat(64)}`,
       },
-    }).status).toBe("succeeded");
+    }).state).toBe("succeeded");
   });
 
   it("bounds attempts and dead-letter failures", () => {
@@ -99,20 +99,20 @@ describe("external job continuation contract", () => {
     })).toThrow("between zero and max_attempts");
     expect(validateExternalJobContinuationContract({
       ...runnable(),
-      status: "dead_letter",
+      state: "dead_letter",
       next_attempt_at: undefined,
       failure: { code: "poison_input", message: "Input cannot be resumed.", retryable: false },
-    }).status).toBe("dead_letter");
+    }).state).toBe("dead_letter");
   });
 
   it("validates the durable schedule and exact package stage boundary", () => {
     const schedule = {
       continuation_id: "job_ocr_1",
       principal_ref: runnable().principal_ref,
-      vendor_ref: runnable().vendor_ref,
-      invocation_ref: runnable().invocation_ref,
+      seller_ref: runnable().seller_ref,
+      purchase_ref: runnable().purchase_ref,
       source_run_ref: runnable().source_run_ref,
-      execution_binding: runnable().execution_binding,
+      executor_binding: runnable().executor_binding,
       operation_identity: DIGEST_B,
       checkpoint: { input_artifact_ref: "runx:artifact:input-1" },
       max_attempts: 6,
@@ -175,10 +175,10 @@ describe("external job continuation contract", () => {
     expect(() => validateExternalJobScheduleContract({
       continuation_id: "job_ocr_1",
       principal_ref: runnable().principal_ref,
-      vendor_ref: runnable().vendor_ref,
-      invocation_ref: runnable().invocation_ref,
+      seller_ref: runnable().seller_ref,
+      purchase_ref: runnable().purchase_ref,
       source_run_ref: runnable().source_run_ref,
-      execution_binding: runnable().execution_binding,
+      executor_binding: runnable().executor_binding,
       operation_identity: DIGEST_B,
       checkpoint: { payload: "x".repeat(70_000) },
       max_attempts: 6,

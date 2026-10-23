@@ -11,7 +11,7 @@
     "issue_url": "https://github.com/example/project/issues/482"
   },
   "signal": {
-    "fingerprint": "sha256:example-source-482",
+    "digest": "sha256:example-source-482",
     "title": "API webhook retries fail when metadata is missing",
     "summary": "A sanitized source thread reports that example/api retries fail without metadata propagation."
   },

@@ -1,0 +1,58 @@
+{
+  "$id": "https://schemas.runx.ai/runx/fs/file-edit/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `fs.edit` returns: how many places the edits replaced, and the file's digest before and after.",
+  "properties": {
+    "before_digest": {
+      "description": "The digest of the content the edits replaced.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "bytes_written": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "content_digest": {
+      "description": "The digest of what the file now holds.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "diff": {
+      "description": "The unified diff from what the file held to what it holds now.",
+      "type": "string"
+    },
+    "journal": {
+      "description": "The run's journal entry holding what the file held.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "path": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "replacements": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "path",
+    "repo_root",
+    "replacements",
+    "before_digest",
+    "content_digest",
+    "bytes_written",
+    "diff"
+  ],
+  "title": "FileEdit",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.fs.file_edit.v1"
+}

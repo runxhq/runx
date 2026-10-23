@@ -127,7 +127,7 @@ pub fn implementation_digest(
 #[derive(Serialize)]
 struct ToolPackageFile<'a> {
     path: &'a str,
-    sha256: String,
+    digest: String,
 }
 
 /// A connector tool package's digest: each file's package-relative POSIX
@@ -139,7 +139,7 @@ pub fn tool_package_digest<'a>(
         .into_iter()
         .map(|(path, bytes)| ToolPackageFile {
             path,
-            sha256: crate::sha256_hex(bytes),
+            digest: crate::sha256_prefixed(bytes),
         })
         .collect::<Vec<_>>();
     files.sort_by(|left, right| left.path.cmp(right.path));

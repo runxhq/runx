@@ -136,7 +136,7 @@ kind gets a private context projection path.
 CLI and MCP calls share `execution::orchestrator::LocalOrchestrator` and
 `execution::skill_front`. Preparation admits an immutable package and source
 closure once for that invocation; a continuation revalidates its binding.
-Typed run disposition controls success, refusal, approval, and agent handoff.
+Typed run outcome controls success, refusal, approval, and agent handoff.
 An arbitrary JSON `status` field is output data, never execution authority.
 Continuation state binds the original input, package identity, and exact
 resolution answers; transport fronts do not reconstruct a second workflow.

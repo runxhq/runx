@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
-    RunxX402InvocationExtensionInfo, X402_UPSTREAM_COMMIT, X402_UPSTREAM_PACKAGE,
+    RunxX402PurchaseExtensionInfo, X402_UPSTREAM_COMMIT, X402_UPSTREAM_PACKAGE,
     X402_UPSTREAM_PACKAGE_VERSION, X402PaymentPayload, X402PaymentRequired, X402SettleResponse,
     sha256_prefixed,
 };
@@ -57,15 +57,15 @@ fn manifest_and_pin_bind_exact_repository_bytes() -> Result<(), Box<dyn std::err
     let manifest = manifest()?;
     for entry in array_field(&manifest, "schemas")? {
         let bytes = fs::read(schema_root().join(string_field(entry, "file")?))?;
-        assert_eq!(string_field(entry, "sha256")?, sha256_prefixed(&bytes));
+        assert_eq!(string_field(entry, "digest")?, sha256_prefixed(&bytes));
     }
     for entry in array_field(&manifest, "vectors")? {
         let bytes = fs::read(fixture_root().join(string_field(entry, "file")?))?;
-        assert_eq!(string_field(entry, "sha256")?, sha256_prefixed(&bytes));
+        assert_eq!(string_field(entry, "digest")?, sha256_prefixed(&bytes));
     }
     let pin_bytes = fs::read(fixture_root().join("upstream-pin.json"))?;
     assert_eq!(
-        string_field(&manifest, "pin_sha256")?,
+        string_field(&manifest, "pin_digest")?,
         sha256_prefixed(&pin_bytes)
     );
     assert_eq!(pin_bytes.last(), Some(&b'\n'));
@@ -118,7 +118,7 @@ fn fixture_manifest_is_exhaustive_and_protocol_versions_do_not_drift()
         array_field(&manifest, "schemas")?
             .iter()
             .any(|entry| entry.get("schema_id").and_then(Value::as_str)
-                == Some("runx.x402.invocation_extension.v1"))
+                == Some("runx.x402.purchase_extension.v1"))
     );
     Ok(())
 }
@@ -137,7 +137,7 @@ fn external_contract_is_tolerant_and_runx_extension_is_strict()
     );
 
     let internal: Value = serde_json::from_slice(&fs::read(
-        schema_root().join("runx-x402-invocation-extension-v1.schema.json"),
+        schema_root().join("runx-x402-purchase-extension-v1.schema.json"),
     )?)?;
     for variant in internal
         .get("anyOf")
@@ -175,8 +175,8 @@ fn rust_valid(kind: &str, value: &Value) -> bool {
         "payment-required" => serde_json::from_value::<X402PaymentRequired>(value.clone()).is_ok(),
         "payment-payload" => serde_json::from_value::<X402PaymentPayload>(value.clone()).is_ok(),
         "settle-response" => serde_json::from_value::<X402SettleResponse>(value.clone()).is_ok(),
-        "runx_invocation_extension" => {
-            serde_json::from_value::<RunxX402InvocationExtensionInfo>(value.clone()).is_ok()
+        "runx_purchase_extension" => {
+            serde_json::from_value::<RunxX402PurchaseExtensionInfo>(value.clone()).is_ok()
         }
         _ => false,
     }

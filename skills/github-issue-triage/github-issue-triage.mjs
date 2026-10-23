@@ -36,17 +36,17 @@ export function finalizeDiscovery(inputs) {
     return {
       id,
       reason: required(candidate.reason, `candidate ${id} reason`),
-      source_ref: id,
+      source_locator: id,
     };
   });
   return {
     issue_triage_queue: {
-      schema: "runx.issue.triage_queue.v1",
+      schema: "runx/github-issue-triage.queue.v1",
       decision: "ready",
       query: index.query,
       issue_candidates: selected,
       selection_rationale: object(inputs.selection_rationale),
-      evidence_refs: [requiredDigest(index.snapshot_digest, "issue_index.snapshot_digest")],
+      evidence_digests: [requiredDigest(index.snapshot_digest, "issue_index.snapshot_digest")],
       provider_status: "supplied_snapshot",
     },
   };
@@ -67,8 +67,8 @@ export function admitIssue(inputs) {
   return {
     issue_evidence: {
       ...evidence,
-      source_ref: text(issue.source_ref)
-        || text(providerOperation.readback_ref)
+      source_locator: text(issue.source_locator)
+        || text(providerOperation.readback_uri)
         || text(providerOperation.operation_id)
         || "supplied:issue_snapshot",
       digest: snapshotDigest,
@@ -120,13 +120,13 @@ export function finalizeResponse(inputs) {
   const ready = findings.length === 0;
   return {
     issue_triage_packet: {
-      schema: "runx.issue.triage.v1",
+      schema: "runx/github-issue-triage.triage.v1",
       decision: ready ? "draft_ready" : "blocked",
       issue_profile: profile,
       response_strategy: object(inputs.response_strategy),
       response_draft: { channel, body },
       follow_up_actions: actions,
-      evidence_refs: text(evidence.digest) ? [evidence.digest] : [],
+      evidence_digests: text(evidence.digest) ? [evidence.digest] : [],
       delivery_status: "not_sent",
       provider_status: text(evidence.provider_status) || "supplied_snapshot",
       validation: { status: ready ? "pass" : "fail", findings },

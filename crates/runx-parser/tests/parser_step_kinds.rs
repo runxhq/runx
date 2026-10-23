@@ -160,7 +160,10 @@ fn an_ask_step_yields_the_approval_decision_packet() -> Result<(), String> {
     let artifacts = step.artifacts.as_ref().ok_or("ask declares no packet")?;
     assert_eq!(artifacts.wrap_as.as_deref(), Some("approval_decision"));
     assert_eq!(
-        artifacts.packet.as_deref(),
+        artifacts
+            .packet
+            .as_ref()
+            .map(runx_contracts::PacketId::as_str),
         Some("runx.approval.decision.v1")
     );
     assert!(step.inputs.contains_key("version"));

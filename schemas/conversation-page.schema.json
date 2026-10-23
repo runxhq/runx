@@ -25,6 +25,7 @@
       "enum": [
         "runx.conversation_page.v1"
       ],
+      "title": "ConversationPageSchema",
       "type": "string"
     }
   },
@@ -33,6 +34,7 @@
     "items",
     "next_cursor"
   ],
+  "title": "ConversationPage",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.conversation_page.v1"

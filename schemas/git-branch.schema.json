@@ -1,0 +1,27 @@
+{
+  "$id": "https://schemas.runx.ai/runx/git/branch/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `git.branch` reports: the branch a repository has checked out, or that its HEAD is detached.",
+  "properties": {
+    "branch": {
+      "type": "string"
+    },
+    "detached": {
+      "type": "boolean"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "repo_root",
+    "branch",
+    "detached"
+  ],
+  "title": "GitBranch",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.git.branch.v1"
+}

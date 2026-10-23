@@ -10,7 +10,7 @@ use crate::RuntimeError;
 
 const MAX_COMMAND_ARGS: usize = 128;
 const MAX_COMMAND_ARG_BYTES: usize = 8 * 1024;
-const MAX_ENV: usize = 64;
+const MAX_ENV: usize = runx_contracts::COMMAND_MAX_ENV;
 const MAX_ENV_VALUE_BYTES: usize = 8 * 1024;
 
 /// What a call asks to run.
@@ -168,7 +168,5 @@ fn relative_path(tool: &str, root: &Path, path: &Path) -> Result<String, Runtime
 }
 
 fn valid_env_name(value: &str) -> bool {
-    let mut chars = value.chars();
-    matches!(chars.next(), Some('_' | 'A'..='Z'))
-        && chars.all(|character| matches!(character, '_' | 'A'..='Z' | '0'..='9'))
+    runx_contracts::ProcessEnvName::new(value).is_some()
 }

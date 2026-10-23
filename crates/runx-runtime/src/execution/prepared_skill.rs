@@ -112,7 +112,7 @@ pub struct PreparedInputSummary {
     pub name: String,
     pub value_type: String,
     pub canonical_bytes: usize,
-    pub sha256: String,
+    pub digest: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -131,7 +131,7 @@ pub struct PreparedRequestSummary {
 pub struct PreparedGovernanceSummary {
     pub declared_steps: usize,
     pub conditional_steps: usize,
-    pub tool_refs: Vec<String>,
+    pub tools: Vec<String>,
     pub authority_scopes: Vec<String>,
     pub execution_boundaries: Vec<ExecutionBoundaryKind>,
     pub gates: Vec<String>,
@@ -166,7 +166,7 @@ pub struct PreparedSkillRunReport {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PreparedArtifactGuard {
     pub path: PathBuf,
-    pub sha256: String,
+    pub digest: String,
 }
 
 #[derive(Clone)]
@@ -247,7 +247,7 @@ impl PreparedSkillRun {
             .iter()
             .map(|guard| {
                 let path = fs::canonicalize(&guard.path).unwrap_or_else(|_| guard.path.clone());
-                (path.to_string_lossy().into_owned(), guard.sha256.clone())
+                (path.to_string_lossy().into_owned(), guard.digest.clone())
             })
             .collect::<BTreeMap<_, _>>();
         PreparedContext::apply(
@@ -301,11 +301,11 @@ impl PreparedSkillRun {
                 )
             })?;
             let actual = sha256_prefixed(&content);
-            if actual != guard.sha256 {
+            if actual != guard.digest {
                 return Err(SkillRunError::Invalid(format!(
                     "prepared artifact drift at {}: expected {}, actual {}",
                     guard.path.display(),
-                    guard.sha256,
+                    guard.digest,
                     actual
                 )));
             }
@@ -699,7 +699,7 @@ fn request_summary(
                     name: name.clone(),
                     value_type: json_type(value).to_owned(),
                     canonical_bytes: bytes.len(),
-                    sha256: sha256_prefixed(&bytes),
+                    digest: sha256_prefixed(&bytes),
                 }
             })
             .collect(),
@@ -722,8 +722,8 @@ fn json_type(value: &JsonValue) -> &'static str {
 fn governance_summary(chain: &SkillOperatorContextChain) -> PreparedGovernanceSummary {
     let mut summary = PreparedGovernanceSummary::default();
     summarize_node(&chain.entry, &mut summary);
-    summary.tool_refs.sort();
-    summary.tool_refs.dedup();
+    summary.tools.sort();
+    summary.tools.dedup();
     summary.authority_scopes.sort();
     summary.authority_scopes.dedup();
     summary.execution_boundaries.sort();
@@ -749,7 +749,7 @@ fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGoverna
         } else {
             summary.declared_steps += 1;
         }
-        summary.tool_refs.extend(step.tool_refs.iter().cloned());
+        summary.tools.extend(step.tools.iter().cloned());
         if let Some(observation) = step.execution_boundary {
             summary.execution_boundaries.push(observation.kind);
         }
@@ -780,21 +780,21 @@ fn artifact_guards(chain: &SkillOperatorContextChain) -> Vec<PreparedArtifactGua
     collect_node_guards(&chain.entry, &mut guards);
     guards
         .into_iter()
-        .map(|(path, sha256)| PreparedArtifactGuard { path, sha256 })
+        .map(|(path, digest)| PreparedArtifactGuard { path, digest })
         .collect()
 }
 
 fn collect_node_guards(node: &SkillOperatorContextNode, guards: &mut BTreeMap<PathBuf, String>) {
     if let Some(path) = &node.skill_markdown.path {
-        guards.insert(path.clone(), node.skill_markdown.sha256.clone());
+        guards.insert(path.clone(), node.skill_markdown.digest.clone());
     }
     let manifest_path = node.package.directory.join(runx_parser::PROFILE_FILE);
     if let Ok(content) = fs::read(&manifest_path) {
         guards.insert(manifest_path, sha256_prefixed(&content));
     }
     for tool in &node.tools {
-        if let (Some(path), Some(sha256)) = (&tool.path, &tool.sha256) {
-            guards.insert(path.clone(), sha256.clone());
+        if let (Some(path), Some(digest)) = (&tool.path, &tool.digest) {
+            guards.insert(path.clone(), digest.clone());
         }
     }
     for step in &node.steps {
@@ -803,7 +803,7 @@ fn collect_node_guards(node: &SkillOperatorContextNode, guards: &mut BTreeMap<Pa
                 context.artifact.get("path").and_then(JsonValue::as_str),
                 context
                     .artifact
-                    .get("manual_sha256")
+                    .get("manual_digest")
                     .and_then(JsonValue::as_str),
             ) {
                 guards.insert(PathBuf::from(path), digest.to_owned());
@@ -815,7 +815,7 @@ fn collect_node_guards(node: &SkillOperatorContextNode, guards: &mut BTreeMap<Pa
                     .and_then(JsonValue::as_str),
                 context
                     .artifact
-                    .get("profile_sha256")
+                    .get("profile_digest")
                     .and_then(JsonValue::as_str),
             ) {
                 guards.insert(PathBuf::from(path), digest.to_owned());
@@ -1122,7 +1122,7 @@ mod tests {
         let temp = tempdir()?;
         write_skill(
             temp.path(),
-            "    inputs:\n      data_source_ref:\n        type: string\n        required: false\n        default: local://runx/default\n",
+            "    inputs:\n      data_source_uri:\n        type: string\n        required: false\n        default: local://runx/default\n",
             "# Prepared",
         )?;
 
@@ -1133,7 +1133,7 @@ mod tests {
         )?;
 
         assert_eq!(
-            prepared.request().inputs.get("data_source_ref"),
+            prepared.request().inputs.get("data_source_uri"),
             Some(&JsonValue::String("local://runx/default".to_owned()))
         );
         Ok(())
@@ -1487,7 +1487,7 @@ runners:
         use crate::receipts::{
             RuntimeReceiptSignatureConfig, SealedCall, StepSeal, StepSealClosure, seal_step,
         };
-        use runx_contracts::ClosureDisposition;
+        use runx_contracts::RunOutcome;
 
         let signature = RuntimeReceiptSignatureConfig::fixture()?;
 
@@ -1517,7 +1517,7 @@ runners:
                     child_receipts: &[],
                     descendant_receipts: &[],
                     closure: Some(StepSealClosure {
-                        disposition: ClosureDisposition::Closed,
+                        outcome: RunOutcome::Completed,
                         reason: None,
                     }),
                 },

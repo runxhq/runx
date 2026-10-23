@@ -25,7 +25,7 @@ steps:
         source_evidence:
           - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
             content_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
-            source_ref: local://runx/receipt-architecture
+            source_uri: local://runx/receipt-architecture
             source_kind: local_file
             provenance: { path: docs/receipt-architecture.md }
         index_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
@@ -43,13 +43,13 @@ steps:
         evidence:
           evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
           sources:
-            - { source_ref: "source:1", kind: approved, label: Approved Runx engineering note. }
+            - { source_id: "source:1", kind: approved, label: Approved Runx engineering note. }
           bindings:
-            - { rule: Lead with governed action and proof., source_refs: ["source:1"] }
-            - { rule: receipt, source_refs: ["source:1"] }
-            - { rule: magic, source_refs: ["source:1"] }
-            - { rule: Concise engineering sentences., source_refs: ["source:1"] }
-            - { rule: Receipts bind actions to authority evidence., source_refs: ["source:1"] }
+            - { rule: Lead with governed action and proof., source_ids: ["source:1"] }
+            - { rule: receipt, source_ids: ["source:1"] }
+            - { rule: magic, source_ids: ["source:1"] }
+            - { rule: Concise engineering sentences., source_ids: ["source:1"] }
+            - { rule: Receipts bind actions to authority evidence., source_ids: ["source:1"] }
         redactions: []
         stop_conditions: []
         receipt_notes: { authority: context-only, mutation: false }
@@ -68,12 +68,12 @@ steps:
         evidence:
           evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
           sources:
-            - { source_ref: "source:1", kind: liked, label: Operator-approved surface. }
+            - { source_id: "source:1", kind: liked, label: Operator-approved surface. }
           bindings:
-            - { rule: Make the workflow visible., source_refs: ["source:1"], confidence: explicit }
-            - { rule: Dense operational surfaces., source_refs: ["source:1"], confidence: explicit }
-            - { rule: Decorative filler., source_refs: ["source:1"], confidence: explicit }
-            - { rule: Choose operational clarity., source_refs: ["source:1"], confidence: explicit }
+            - { rule: Make the workflow visible., source_ids: ["source:1"], confidence: explicit }
+            - { rule: Dense operational surfaces., source_ids: ["source:1"], confidence: explicit }
+            - { rule: Decorative filler., source_ids: ["source:1"], confidence: explicit }
+            - { rule: Choose operational clarity., source_ids: ["source:1"], confidence: explicit }
         redactions: []
         stop_conditions: []
         receipt_notes: { authority: context-only, mutation: false }

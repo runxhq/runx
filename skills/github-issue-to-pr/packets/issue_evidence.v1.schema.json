@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/github-issue-to-pr/issue-evidence/v1.json",
+  "x-runx-packet-id": "runx/github-issue-to-pr.issue_evidence.v1",
+  "type": "object",
+  "required": ["schema", "repository", "number", "title", "state", "body", "url", "labels", "assignees", "source"],
+  "properties": {
+    "schema": { "const": "runx/github-issue-to-pr.issue_evidence.v1" },
+    "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "number": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "state": { "type": "string", "enum": ["open", "closed"] },
+    "body": { "type": "string" },
+    "url": { "type": "string", "minLength": 1 },
+    "labels": { "type": "array", "items": { "type": "string" } },
+    "assignees": { "type": "array", "items": { "type": "string" } },
+    "source": {
+      "type": "object",
+      "required": ["provider", "transport", "principal_uri", "readback_uri"],
+      "properties": {
+        "provider": { "const": "github" },
+        "transport": { "type": "string", "enum": ["local_http", "runx_connect"] },
+        "principal_uri": { "type": "string", "minLength": 1 },
+        "readback_uri": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

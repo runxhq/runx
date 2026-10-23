@@ -1,7 +1,7 @@
 skill: receipt-audit
-version: "0.3.11"
+version: "0.3.12"
 catalog:
-  owner: runx
+  publisher: runx
   kind: graph
   audience: operator
   visibility: public
@@ -58,35 +58,6 @@ runners:
         outputs:
           receipt_audit:
             type: object
-            schema:
-              required: [decision, run_ref, granted_scopes, exercised_scopes, refusals, findings, verdict, rationale, recommendations, success_checkpoint]
-              additionalProperties: false
-              properties:
-                decision: { type: string, enum: [ready, needs_more_evidence] }
-                run_ref: { type: string }
-                granted_scopes: { type: array, items: { type: string }, uniqueItems: true }
-                exercised_scopes: { type: array, items: { type: string }, uniqueItems: true }
-                refusals: { type: array, items: { type: string } }
-                findings:
-                  type: array
-                  items:
-                    type: object
-                    required: [id, severity, message]
-                    additionalProperties: false
-                    properties:
-                      id: { type: string, minLength: 1 }
-                      severity: { type: string, enum: [info, warning, error] }
-                      message: { type: string, minLength: 1 }
-                verdict: { type: string, enum: [clean, anomaly, needs_more_evidence] }
-                rationale: { type: string, minLength: 1 }
-                recommendations: { type: array, items: { type: string } }
-                success_checkpoint:
-                  type: object
-                  required: [milestone, description]
-                  additionalProperties: false
-                  properties:
-                    milestone: { type: string, minLength: 1 }
-                    description: { type: string, minLength: 1 }
         inputs:
           receipt_evidence: $steps.evidence.ledger_answer_packet
           receipt_id: $input.receipt_id
@@ -97,7 +68,7 @@ runners:
           receipt_details: $input.receipt_details
         artifacts:
           wrap_as: receipt_audit_packet
-          packet: runx.receipt_audit.v1
+          packet: runx/receipt-audit.audit.v1
 
 harness:
   files: [fixtures/support/composed.graph]

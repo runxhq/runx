@@ -7,12 +7,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use runx_contracts::{JsonObject, JsonValue, RunCallOutcome, RunEventFact, TurnTarget};
+use runx_contracts::schema::{NonEmptyString, NonEmptyVec};
+use runx_contracts::{
+    Digest, FileBoundDelete, FileBundleDelete, FileBundleWrite, FileInverseBundle, JsonObject,
+    JsonValue, RunCallOutcome, RunEventFact, TurnTarget,
+};
 use serde::{Deserialize, Serialize};
 
 use super::super::NativeInvocation;
 use super::super::capability::TypedNativeCapability;
-use super::capability::{BoundDelete, BundleDelete, BundleWrite};
 use crate::paths::RunxPaths;
 use crate::{
     CapabilityApproval, CapabilityArtifacts, CapabilityDefinition, CapabilityEffect,
@@ -37,18 +40,7 @@ pub(in crate::tool_catalogs::native) struct FileInverseInput {
 
 impl CapabilityInput for FileInverseInput {}
 
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(in crate::tool_catalogs::native) struct FileInverseOutput {
-    /// The root the edits changed, relative to the workspace.
-    pub(super) repo_root: String,
-    pub(super) writes: Vec<BundleWrite>,
-    pub(super) deletes: Vec<BundleDelete>,
-    /// The calls it undoes, in the order the run made them.
-    pub(super) calls: Vec<String>,
-}
-
-impl CapabilityOutput for FileInverseOutput {}
+impl CapabilityOutput for FileInverseBundle {}
 
 /// One edit call, as the run recorded it.
 struct Edit {
@@ -59,7 +51,7 @@ struct Edit {
 
 fn inverse(
     invocation: &NativeInvocation<'_, FileInverseInput>,
-) -> Result<FileInverseOutput, RuntimeError> {
+) -> Result<FileInverseBundle, RuntimeError> {
     let inputs = invocation.inputs;
     let refused = |message: String| super::super::invalid_input(INVERSE_TOOL, message);
     if inputs.call_ids.is_empty() {
@@ -112,30 +104,47 @@ fn inverse(
             relative => relative,
         })
         .map_err(|_| refused(format!("{} lies outside the workspace", root.display())))?;
+    let named = |value: String, what: &str| {
+        NonEmptyString::new(value)
+            .ok_or_else(|| refused(format!("an edit recorded an empty {what}")))
+    };
     let mut writes = Vec::new();
     let mut deletes = Vec::new();
     for (path, held) in before {
-        let now = after.get(&path).cloned().flatten();
+        let now = after
+            .get(&path)
+            .cloned()
+            .flatten()
+            .map(|digest| {
+                Digest::new(digest)
+                    .ok_or_else(|| refused(format!("{path} recorded no sha256 digest")))
+            })
+            .transpose()?;
         match (held, now) {
-            (Some(contents), now) => writes.push(BundleWrite {
+            (Some(contents), now) => writes.push(FileBundleWrite {
                 contents: String::from_utf8(contents)
                     .map_err(|_| refused(format!("{path} held content that is not text")))?,
                 create: now.is_none(),
                 expected_digest: now,
-                path,
+                path: named(path, "path")?,
             }),
-            (None, Some(digest)) => deletes.push(BundleDelete::Bound(BoundDelete {
-                path,
+            (None, Some(digest)) => deletes.push(FileBundleDelete::Bound(FileBoundDelete {
+                path: named(path, "path")?,
                 expected_digest: digest,
             })),
             (None, None) => {}
         }
     }
-    Ok(FileInverseOutput {
-        repo_root,
+    let calls = edits
+        .into_iter()
+        .map(|edit| named(edit.call_id, "call id"))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(FileInverseBundle {
+        repo_root: named(repo_root, "root")?,
         writes,
         deletes,
-        calls: edits.into_iter().map(|edit| edit.call_id).collect(),
+        calls: NonEmptyVec::new(calls)
+            .ok_or_else(|| refused("the calls changed nothing".to_owned()))?,
     })
 }
 
@@ -257,28 +266,20 @@ fn recorded_edits(
     Ok(edits)
 }
 
-/// What each file an edit's output names holds after it: its `sha256:`
-/// digest, or none for a file it deleted. A write reports its digest as bare
-/// hex, an edit with its prefix.
+/// What each file an edit's output names holds after it: its
+/// `content_digest`, or none for a file it deleted.
 fn after_digests(output: &JsonObject) -> Vec<(String, Option<String>)> {
     let text = |value: &JsonValue, field: &str| {
         value
             .as_object()
             .and_then(|object| object.get(field))
             .and_then(JsonValue::as_str)
-            .map(|text| match text.strip_prefix("sha256:") {
-                Some(_) => text.to_owned(),
-                None if field == "sha256" => format!("sha256:{text}"),
-                None => text.to_owned(),
-            })
+            .map(str::to_owned)
     };
     let value = JsonValue::Object(output.clone());
     let mut files = Vec::new();
     if let Some(path) = text(&value, "path") {
-        files.push((
-            path,
-            text(&value, "sha256").or_else(|| text(&value, "content_digest")),
-        ));
+        files.push((path, text(&value, "content_digest")));
     }
     for write in output
         .get("writes")
@@ -287,7 +288,7 @@ fn after_digests(output: &JsonObject) -> Vec<(String, Option<String>)> {
         .flatten()
     {
         if let Some(path) = text(write, "path") {
-            files.push((path, text(write, "sha256")));
+            files.push((path, text(write, "content_digest")));
         }
     }
     for delete in output
@@ -318,11 +319,11 @@ const INVERSE_FIELDS: &[CapabilityField] = &[
     },
 ];
 
-pub(super) static INVERSE: TypedNativeCapability<FileInverseInput, FileInverseOutput> =
+pub(super) static INVERSE: TypedNativeCapability<FileInverseInput, FileInverseBundle> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: INVERSE_TOOL,
-            owner: "runx-runtime/fs",
+            source: "runx-runtime/fs",
             summary: "The bundle that undoes a run's edit calls: what each file held before them, bound to what it holds after them, for fs.apply_bundle to apply whole.",
             scopes: &["fs.read"],
             effect: CapabilityEffect::Read,

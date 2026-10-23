@@ -62,11 +62,11 @@ runners:
             },
         ],
         tools: vec!["fs.read".into(), "git.status".into()],
-        skills: vec![SkillAllowance::Ref("./label".into())],
+        skills: vec![SkillAllowance::Skill("./label".into())],
         asks: true,
     };
     assert_eq!(manifest.tools, ["fs.read", "git.status"]);
-    assert_eq!(manifest.skills, [SkillAllowance::Ref("./label".into())]);
+    assert_eq!(manifest.skills, [SkillAllowance::Skill("./label".into())]);
     assert!(manifest.asks);
     for step in &manifest.runners["review"].graph.steps {
         let StepKind::Agent(agent) = &step.kind else {
@@ -136,7 +136,7 @@ runners:
     assert_eq!(
         manifest.skills,
         [
-            SkillAllowance::Ref("./label".into()),
+            SkillAllowance::Skill("./label".into()),
             SkillAllowance::Rule(CatalogRule {
                 catalog: Some(CatalogTrust {
                     trust: TrustTier::Verified,
@@ -152,7 +152,7 @@ runners:
     let allowance = allowance(&manifest, "work")?;
     assert_eq!(
         allowance
-            .skill_refs()
+            .named_skills()
             .map(|r| r.as_str())
             .collect::<Vec<_>>(),
         ["./label"]
@@ -342,12 +342,12 @@ steps:
         .map_err(|error| error.to_string())?,
     )
     .err()
-    .ok_or_else(|| "expected graph tool ref rejection".to_owned())?;
+    .ok_or_else(|| "expected graph tool name rejection".to_owned())?;
 
     assert!(
         error
             .to_string()
-            .contains("not an admissible catalog tool ref"),
+            .contains("not an admissible catalog tool name"),
         "{error}"
     );
     Ok(())

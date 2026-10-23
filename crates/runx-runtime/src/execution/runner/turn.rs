@@ -15,9 +15,9 @@ use runx_contracts::connector::{OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AgentActInvocation, AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject,
-    JsonValue, LoadedPackage, ProjectArtifactRef, ProvenanceEntry, Reference, ReferenceType,
+    JsonValue, LoadedPackage, ProjectArtifact, ProvenanceEntry, Reference, ReferenceType,
     ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad,
-    TurnReadPage, TurnRef, TurnStatus, TurnTarget, TurnTool,
+    TurnLocator, TurnReadPage, TurnStatus, TurnTarget, TurnTool,
 };
 use runx_parser::{
     AgentTask, AskGate, ConnectorRequirement, GraphStep, LoadStep, LoadTarget, OperationStepTarget,
@@ -65,22 +65,22 @@ pub trait Turn {
         })
     }
 
-    /// A page of what `reference` names in this turn: an entry of its act's
-    /// context, an input of its act, or a call it made. A ref the turn does
-    /// not hold is refused, so a read never reaches past its turn.
+    /// A page of what `locator` names in this turn: an entry of its act's
+    /// context, an input of its act, or a call it made. A locator the turn
+    /// does not hold is refused, so a read never reaches past its turn.
     fn read(
         &self,
-        reference: &str,
+        locator: &str,
         offset: u64,
         limit: Option<u64>,
     ) -> Result<TurnReadPage, RuntimeError> {
         let refused = || RuntimeError::ContinuationRejected {
             reason: format!(
-                "turn {} holds no {reference}: read a ref its status lists, an input of its act as input:<name>, or one of its calls as call:<index>",
+                "turn {} holds no {locator}: read a locator its status lists, an input of its act as input:<name>, or one of its calls as call:<index>",
                 self.invocation().id
             ),
         };
-        let named = TurnRef::parse(reference).ok_or_else(refused)?;
+        let named = TurnLocator::parse(locator).ok_or_else(refused)?;
         let envelope = &self.invocation().envelope;
         let entry = |entries: &[runx_contracts::ContextEntry], index: usize| {
             entries
@@ -88,10 +88,10 @@ pub trait Turn {
                 .map(|entry| JsonValue::Object(entry.data.clone()))
         };
         let value = match &named {
-            TurnRef::Current(index) => entry(&envelope.current_context, *index),
-            TurnRef::Historical(index) => entry(&envelope.historical_context, *index),
-            TurnRef::Input(name) => envelope.inputs.get(name).cloned(),
-            TurnRef::Call(index) => self
+            TurnLocator::Current(index) => entry(&envelope.current_context, *index),
+            TurnLocator::Historical(index) => entry(&envelope.historical_context, *index),
+            TurnLocator::Input(name) => envelope.inputs.get(name).cloned(),
+            TurnLocator::Call(index) => self
                 .calls()?
                 .into_iter()
                 .find(|call| call.index == *index)
@@ -406,7 +406,7 @@ where
                     skill,
                     runner: None,
                     bound: None,
-                } => allowance.skill_refs().any(|listed| listed == skill),
+                } => allowance.named_skills().any(|listed| listed == skill),
                 TurnTarget::Skill { .. } => self.loaded_offers(target)?,
                 TurnTarget::Ask => allowance.asks,
                 TurnTarget::Load => allowance.rules().next().is_some(),
@@ -755,7 +755,7 @@ where
             )
             .and_then(|reference| {
                 serde_json::to_value(reference)
-                    .and_then(serde_json::from_value::<ProjectArtifactRef>)
+                    .and_then(serde_json::from_value::<ProjectArtifact>)
                     .map_err(|error| error.to_string())
             })
             .map_err(|message| RuntimeError::effect_state("persisting a call's output", message))
@@ -949,7 +949,7 @@ where
                     .transpose()?;
                 let target = match runner {
                     Some(runner) => SkillTarget {
-                        reference: skill.as_str().to_owned(),
+                        skill: skill.as_str().to_owned(),
                         runner: Some(runner.as_str().to_owned()),
                     },
                     None => turn_skill_target(skill.as_str()),
@@ -1042,7 +1042,7 @@ where
         if given.is_empty() {
             return Ok(Vec::new());
         }
-        let (owner, declared) = self.declared_inputs(step, target)?;
+        let (declared_by, declared) = self.declared_inputs(step, target)?;
         let options = &self.scope.runtime.options;
         let artifacts =
             crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir).artifacts();
@@ -1056,7 +1056,7 @@ where
             };
             let named = step.inputs[&name]
                 .clone()
-                .deserialize_into::<ProjectArtifactRef>()
+                .deserialize_into::<ProjectArtifact>()
                 .map_err(|error| {
                     format!("input {name} is not a project artifact reference: {error}")
                 })?;
@@ -1086,7 +1086,7 @@ where
             } else {
                 packet
             };
-            crate::input_contract::admit_input_value(owner, &name, input, &value)
+            crate::input_contract::admit_input_value(declared_by, &name, input, &value)
                 .map_err(|error| error.to_string())?;
             step.inputs.insert(name.clone(), value);
             fed.push(Fed {
@@ -1101,7 +1101,7 @@ where
                     provider: Some("runx".into()),
                     locator: Some(reference.digest.clone().into()),
                     label: Some(name.into()),
-                    ..Reference::with_uri(ReferenceType::Artifact, reference.r#ref.clone())
+                    ..Reference::with_uri(ReferenceType::Artifact, reference.uri.clone())
                 },
             });
         }
@@ -1197,7 +1197,7 @@ where
         operation_descriptor(allowed, declared, &connectors, &described)
     }
 
-    /// A listed child skill's tool, named for its ref.
+    /// A listed child skill's tool, named for the skill.
     fn skill_tool(&self, target: TurnTarget, name: String) -> Result<TurnTool, RuntimeError> {
         let call = self
             .call_step(0, &target, &JsonObject::new())
@@ -1350,13 +1350,13 @@ where
             })?;
         let directory = crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir)
             .workspace()
-            .join(&target.reference);
+            .join(&target.skill);
         let changed = |reason: String| RuntimeError::AuthorityDenied {
             verb: runx_contracts::AuthorityVerb::Execute,
             step_id: step.id.clone(),
             reason: format!(
                 "skill {} is not what the turn loaded: {reason}",
-                target.reference
+                target.skill
             ),
         };
         let package = std::sync::Arc::new(
@@ -1441,7 +1441,7 @@ where
                 tools.push(self.operation_tool(&connectors, allowed)?);
             }
         }
-        for skill in allowance.skill_refs() {
+        for skill in allowance.named_skills() {
             tools.push(self.skill_tool(
                 TurnTarget::Skill {
                     skill: skill.clone(),
@@ -1454,7 +1454,7 @@ where
         if allowance.rules().next().is_some() {
             tools.push(offered(
                 "load",
-                "Load a skill or connector the turn's catalog rules admit: {skill, runner?} by ref, or {connector} by name. A skill's load answers with its manual (how to use it) and its runners, each with its purpose and inputs; it binds the runner named, or the skill's only runner, and with no runner named a skill of several binds none, so read the manual and load again naming one. Each runner or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier waits on the person's trust."
+                "Load a skill or connector the turn's catalog rules admit: {skill, runner?}, or {connector} by name. A skill's load answers with its manual (how to use it) and its runners, each with its purpose and inputs; it binds the runner named, or the skill's only runner, and with no runner named a skill of several binds none, so read the manual and load again naming one. Each runner or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier waits on the person's trust."
                     .to_owned(),
                 load_schema()?,
                 TurnTarget::Load,
@@ -1616,7 +1616,7 @@ fn is_artifact_ref(value: &JsonValue) -> bool {
         .as_object()
         .and_then(|object| object.get("schema"))
         .and_then(JsonValue::as_str)
-        == Some("runx.project_artifact_ref.v1")
+        == Some("runx.project_artifact.v1")
 }
 
 fn reason(text: String) -> NonEmptyString {
@@ -1791,7 +1791,7 @@ fn load_target(input: &JsonObject) -> Result<LoadTarget, String> {
         ));
     }
     match (text("skill")?, text("runner")?, text("connector")?) {
-        (Some(reference), runner, None) => Ok(LoadTarget::Skill { reference, runner }),
+        (Some(skill), runner, None) => Ok(LoadTarget::Skill { skill, runner }),
         (None, None, Some(name)) => Ok(LoadTarget::Connector { name }),
         _ => {
             Err("a load names a skill, with its runner if it wants one, or a connector".to_owned())
@@ -1807,7 +1807,7 @@ pub(super) fn loaded_tool_name(package: &str, runner: &str) -> String {
     format!("skill__{name}__{runner}")
 }
 
-/// A load's input: a skill by ref with an optional runner, or a connector by
+/// A load's input: a skill with an optional runner, or a connector by
 /// name.
 fn load_schema() -> Result<JsonObject, RuntimeError> {
     let text = serde_json::json!({"type": "string", "minLength": 1});

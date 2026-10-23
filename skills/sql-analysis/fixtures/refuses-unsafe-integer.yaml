@@ -4,9 +4,9 @@ target: ..
 runner: plan
 inputs:
   question: Read this exact account id.
-  source_ref: analytics:test
+  source: analytics:test
   catalog:
-    source_ref: analytics:test
+    source: analytics:test
     dialect: postgres
     status: catalog
     executed: false

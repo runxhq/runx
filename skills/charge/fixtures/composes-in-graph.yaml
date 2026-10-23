@@ -28,12 +28,12 @@ caller:
         target: https://seller.example/v1/reports/launch
         access: mutate
         result:
-          payment_ref: x402pay_test_001
+          payment_id: x402pay_test_001
           resource: https://seller.example/v1/reports/launch
           amount_minor: 125
           currency: USD
           status: settled
-          settlement_ref: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          settlement_id: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
           payer: "0x0000000000000000000000000000000000000001"
           pay_to: "0x0000000000000000000000000000000000000002"
           network: eip155:8453
@@ -43,12 +43,12 @@ caller:
         target: https://seller.example/v1/reports/launch
         access: read
         result:
-          payment_ref: x402pay_test_001
+          payment_id: x402pay_test_001
           resource: https://seller.example/v1/reports/launch
           amount_minor: 125
           currency: USD
           status: settled
-          settlement_ref: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          settlement_id: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
           payer: "0x0000000000000000000000000000000000000001"
           pay_to: "0x0000000000000000000000000000000000000002"
           network: eip155:8453

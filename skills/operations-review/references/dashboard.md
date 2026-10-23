@@ -56,7 +56,7 @@ card:
   area: health | money | communications | providers | receipts | access | deploy
   status: ok | needs_attention | blocked | unknown
   headline: string
-  evidence_refs: [string]
+  evidence_paths: [string]
   primary_action:
     action_id: string
     lane: string

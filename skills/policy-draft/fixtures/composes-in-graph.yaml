@@ -95,11 +95,11 @@ caller:
               scafld_required: true
               base_branch: main
           dedupe:
-            strategy: source_fingerprint
+            strategy: source_digest
             key_fields:
               - source.provider
               - source.locator
-              - signal.fingerprint
+              - signal.digest
             on_duplicate: reuse
           outcomes:
             observe_provider: true

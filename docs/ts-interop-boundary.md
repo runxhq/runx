@@ -58,7 +58,7 @@ Rust runtime. Each crossing has a contract surface that owns the wire shape.
    or another language without a core fork.
 
 No fifth boundary is added without updating this document. Each package
-disposition is named here. Stable-boundary edits to consume new
+decision is named here. Stable-boundary edits to consume new
 `runx-contracts` versions are normal maintenance.
 
 ### Shipped vs defined, and current boundary debt
@@ -91,9 +91,9 @@ implied.
   submitted hosted execution invokes the native worker boundary. It is not a
   duplicate local MCP skill executor.
 
-## OSS package dispositions
+## OSS package decisions
 
-| Package | Disposition |
+| Package | Decision |
 | --- | --- |
 | `@runxhq/contracts` | Publishes portable packet definitions and the generated TypeScript view of Rust-owned wire schemas, maintained with fixture cross-validation. |
 | `@runxhq/extension-sdk` | Owns only the process tool helpers needed by genuine external extensions. It does not author skills or own trusted local execution. |

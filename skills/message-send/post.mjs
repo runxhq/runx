@@ -12,7 +12,7 @@ export function prepareNotification(inputs) {
   }
   if (!principal) findings.push({ code: "slack.principal.missing", message: "principal is required" });
 
-  const suppliedRef = text(content.content_ref);
+  const suppliedUri = text(content.content_uri);
   const suppliedDigest = text(content.digest);
   const message = text(content.message);
   const contentMode = message ? "inline" : "reference";
@@ -20,10 +20,10 @@ export function prepareNotification(inputs) {
     if (message.length > 4000) {
       findings.push({ code: "slack.message.too_large", message: "message exceeds 4000 characters" });
     }
-  } else if (!suppliedRef || !isDigest(suppliedDigest)) {
+  } else if (!suppliedUri || !isDigest(suppliedDigest)) {
     findings.push({
       code: "slack.content.unbound",
-      message: "content requires message or content_ref with sha256 digest",
+      message: "content requires message or content_uri with sha256 digest",
     });
   }
 
@@ -32,7 +32,7 @@ export function prepareNotification(inputs) {
       principal,
       channel,
       content_mode: contentMode,
-      supplied_ref: suppliedRef,
+      supplied_uri: suppliedUri,
       supplied_digest: suppliedDigest,
       findings,
     },
@@ -49,14 +49,14 @@ export function bindNotification(inputs) {
   if (!isDigest(contentDigest)) {
     findings.push({ code: "slack.content.digest_missing", message: "native content digest is missing" });
   }
-  const contentRef = inline ? `inline:${contentDigest}` : text(admission.supplied_ref);
+  const contentUri = inline ? `inline:${contentDigest}` : text(admission.supplied_uri);
 
   return {
     slack_context: {
       decision: findings.length === 0 ? "ready" : "blocked",
       principal: text(admission.principal),
       channel: text(admission.channel),
-      content_ref: contentRef,
+      content_uri: contentUri,
       content_digest: contentDigest,
       findings,
     },
@@ -77,10 +77,10 @@ export function finalizeNotification(inputs) {
     if (text(sendPlan.channel) !== "chat") {
       findings.push({ code: "slack.channel_kind.mismatch", message: "the send plan's channel is not chat" });
     }
-    if (text(sendPlan.principal?.ref) !== text(context.principal)) {
+    if (text(sendPlan.principal?.uri) !== text(context.principal)) {
       findings.push({ code: "slack.principal.mismatch", message: "the send plan's principal does not match" });
     }
-    if (text(sendPlan.audience?.ref) !== text(context.channel)) {
+    if (text(sendPlan.audience?.locator) !== text(context.channel)) {
       findings.push({ code: "slack.audience.mismatch", message: "the send plan's audience does not match" });
     }
     if (text(sendPlan.content?.digest) !== text(context.content_digest)) {
@@ -121,7 +121,7 @@ export function reconcileExactNotification(inputs) {
   const channel = text(inputs.channel_locator);
   const occurredAt = Date.parse(text(message.occurred_at));
   const attemptAt = Date.parse(text(inputs.failed_at));
-  if (plan.schema !== "runx.notify.v1" || plan.decision !== "ready_for_provider"
+  if (plan.schema !== "runx/message-send.notification_plan.v1" || plan.decision !== "ready_for_provider"
       || plan.provider !== "slack" || plan.channel !== channel
       || plan.content_digest !== text(object(inputs.digest_result).digest)
       || read.schema !== "runx.provider.operation.v1" || read.status !== "success"
@@ -129,12 +129,12 @@ export function reconcileExactNotification(inputs) {
       || read.finality !== "confirmed" || result.thread_locator !== locator
       || messages.length !== 1 || message.message_locator !== locator
       || !locator.startsWith(`${channel}/`)
-      || message.author?.external_id !== result.connected_subject_ref
+      || message.author?.external_id !== result.connected_subject_id
       || !Number.isFinite(occurredAt) || !Number.isFinite(attemptAt)
       || occurredAt < attemptAt - 300000
       || !observed || observed.length >= 2000
       || slackDisplayedText(observed) !== slackDisplayedText(expected)
-      || !text(read.readback_ref).startsWith("runx:provider-readback:sha256:")) {
+      || !text(read.readback_uri).startsWith("runx:provider-readback:sha256:")) {
     throw new Error("Slack post could not be reconciled to the exact pending notification");
   }
   // The post is reconciled from the thread read that observed it; that read
@@ -143,7 +143,7 @@ export function reconcileExactNotification(inputs) {
     message_locator: locator, conversation_locator: channel,
     content_digest: plan.content_digest, occurred_at: message.occurred_at,
     normalization: "slack_bounded_preview", provider_result_digest: read.result_digest,
-    readback_ref: read.readback_ref,
+    readback_uri: read.readback_uri,
   } };
 }
 
@@ -161,12 +161,12 @@ export function prepareNotificationReadback(inputs) {
 function notificationPacket(context, sendPlan, findings) {
   const ready = context.decision === "ready" && findings.length === 0;
   return {
-      schema: "runx.notify.v1",
+      schema: "runx/message-send.notification_plan.v1",
       decision: ready ? "ready_for_provider" : "blocked",
       provider: "slack",
       principal: text(context.principal),
       channel: text(context.channel),
-      content_ref: text(context.content_ref),
+      content_uri: text(context.content_uri),
       content_digest: text(context.content_digest),
       send_plan: sendPlan,
       provider_status: "not_called",

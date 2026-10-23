@@ -7,7 +7,6 @@ pub use runx_contracts::{
     RunxListEmit, RunxListItem, RunxListItemKind, RunxListReport, RunxListRequestedKind,
     RunxListSchema, RunxListSource, RunxListStatus, RunxListVisibility,
 };
-use serde::Deserialize;
 
 use crate::RuntimeError;
 use crate::filesystem::{read_dir_sorted, read_to_string};
@@ -306,7 +305,7 @@ fn skill_scopes(manifest: &runx_parser::SkillRunnerManifest) -> Option<Vec<Strin
 }
 
 fn skill_emits(manifest: &runx_parser::SkillRunnerManifest) -> Option<Vec<RunxListEmit>> {
-    let mut emits = BTreeSet::<(String, Option<String>)>::new();
+    let mut emits = BTreeSet::<(String, Option<runx_contracts::PacketId>)>::new();
     for step in manifest
         .runners
         .values()
@@ -328,83 +327,38 @@ fn skill_emits(manifest: &runx_parser::SkillRunnerManifest) -> Option<Vec<RunxLi
     })
 }
 
-// Function rationale: packet discovery keeps glob expansion,
-// schema-id extraction, and duplicate-id diagnostics in one deterministic pass.
+/// The packets each workspace package owns, as the parser admitted them with
+/// the package. A package that does not admit lists each file in its
+/// `packets/` as invalid, since none of them resolves.
 fn discover_packet_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
-    let package_json_path = root.join("package.json");
-    if !package_json_path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let source = read_to_string(&package_json_path)?;
-    let package_json = match serde_json::from_str::<PackageJson>(&source) {
-        Ok(package_json) => package_json,
-        Err(_) => {
-            return Ok(vec![invalid_item(
-                RunxListItemKind::Packet,
-                "package.json".to_owned(),
-                "package.json".to_owned(),
-                "runx.packet.package.invalid",
-            )]);
-        }
-    };
-
     let mut items = Vec::new();
-    let mut catalog = crate::packet_schemas::PacketSchemaCatalog::default();
-    for packet_glob in package_json
-        .runx
-        .as_ref()
-        .map(|runx| runx.packets.as_slice())
-        .unwrap_or_default()
-    {
-        let files = expand_local_glob(root, packet_glob)?;
-        if files.is_empty() {
-            items.push(invalid_item(
-                RunxListItemKind::Packet,
-                packet_glob.clone(),
-                "package.json".to_owned(),
-                "runx.packet.ref.missing",
-            ));
+    for skill_dir in crate::skill_package::discover_workspace_skill_package_dirs(root)? {
+        let Ok(loaded) = crate::load_validated_skill_package(&skill_dir) else {
+            for entry in read_dir_sorted(&skill_dir.join("packets"))? {
+                if entry.is_file {
+                    let path = project_path(root, &entry.path);
+                    items.push(invalid_item(
+                        RunxListItemKind::Packet,
+                        path.clone(),
+                        path,
+                        "runx.packet.package.invalid",
+                    ));
+                }
+            }
             continue;
-        }
-        for file_path in files {
-            let relative_path = project_path(root, &file_path);
-            let schema = match crate::packet_schemas::read_packet_schema(&file_path) {
-                Ok(Some(schema)) => schema,
-                Ok(None) => {
-                    items.push(invalid_item(
-                        RunxListItemKind::Packet,
-                        relative_path.clone(),
-                        relative_path,
-                        "runx.packet.id.mismatch",
-                    ));
-                    continue;
-                }
-                Err(_) => {
-                    items.push(invalid_item(
-                        RunxListItemKind::Packet,
-                        relative_path.clone(),
-                        relative_path,
-                        "runx.packet.schema.invalid",
-                    ));
-                    continue;
-                }
-            };
-            let packet_id = schema.schema.packet_id.clone();
-            if catalog.insert(schema).is_err() {
-                items.push(invalid_item(
-                    RunxListItemKind::Packet,
-                    packet_id,
-                    relative_path,
-                    "runx.packet.id.collision",
-                ));
+        };
+        for (packet_id, packet) in &loaded.package.packets {
+            let own = packet_id
+                .file_name()
+                .is_some_and(|file_name| packet.path == format!("packets/{file_name}"));
+            if !own {
                 continue;
             }
             items.push(RunxListItem {
                 kind: RunxListItemKind::Packet,
-                name: packet_id,
+                name: packet_id.to_string(),
                 source: RunxListSource::Local,
-                path: relative_path,
+                path: project_path(root, &loaded.package_root.join(&packet.path)),
                 status: RunxListStatus::Ok,
                 visibility: None,
                 description: None,
@@ -425,11 +379,11 @@ fn discover_packet_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeE
 fn discover_overlay_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
     let overlays_root = root.join("skills-overlays");
     let mut items = Vec::new();
-    for vendor_entry in read_dir_sorted(&overlays_root)? {
-        if !vendor_entry.is_dir {
+    for publisher_entry in read_dir_sorted(&overlays_root)? {
+        if !publisher_entry.is_dir {
             continue;
         }
-        for skill_entry in read_dir_sorted(&vendor_entry.path)? {
+        for skill_entry in read_dir_sorted(&publisher_entry.path)? {
             if !skill_entry.is_dir {
                 continue;
             }
@@ -440,7 +394,7 @@ fn discover_overlay_list_items(root: &Path) -> Result<Vec<RunxListItem>, Runtime
             let contents = read_to_string(&profile_path)?;
             items.push(RunxListItem {
                 kind: RunxListItemKind::Overlay,
-                name: format!("{}/{}", vendor_entry.name, skill_entry.name),
+                name: format!("{}/{}", publisher_entry.name, skill_entry.name),
                 source: RunxListSource::Local,
                 path: project_path(root, &profile_path),
                 status: RunxListStatus::Ok,
@@ -483,39 +437,6 @@ fn invalid_item(
         steps: None,
         wraps: None,
     }
-}
-
-#[derive(Deserialize)]
-struct PackageJson {
-    runx: Option<PackageRunxConfig>,
-}
-
-#[derive(Deserialize)]
-struct PackageRunxConfig {
-    #[serde(default)]
-    packets: Vec<String>,
-}
-
-fn expand_local_glob(root: &Path, glob: &str) -> Result<Vec<PathBuf>, RuntimeError> {
-    if !glob.contains('*') {
-        let path = root.join(glob);
-        return Ok(path.exists().then_some(path).into_iter().collect());
-    }
-
-    let normalized = glob.replace('\\', "/");
-    let Some(star) = normalized.find('*') else {
-        return Ok(Vec::new());
-    };
-    let base = &normalized[..star];
-    let base_dir = base.rfind('/').map_or("", |slash| &base[..=slash]);
-    let suffix = &normalized[star + 1..];
-    let mut files = read_dir_sorted(&root.join(base_dir))?
-        .into_iter()
-        .filter(|entry| entry.is_file && display_path(&entry.path).ends_with(suffix))
-        .map(|entry| entry.path)
-        .collect::<Vec<_>>();
-    files.sort();
-    Ok(files)
 }
 
 fn fallback_skill_name(root: &Path, skill_dir: &Path) -> String {
@@ -579,19 +500,19 @@ mod tests {
     #[test]
     fn overlay_wraps_reads_plain_wraps_line() {
         assert_eq!(
-            overlay_wraps("name: demo\n  wraps: vendor/base\n"),
-            Some("vendor/base".to_owned())
+            overlay_wraps("name: demo\n  wraps: acme/base\n"),
+            Some("acme/base".to_owned())
         );
     }
 
     #[test]
-    fn named_emit_lists_only_explicit_packet_binding() {
+    fn named_emit_lists_only_explicit_packet_binding() -> Result<(), &'static str> {
         let artifacts = runx_parser::SkillArtifactContract {
             emits: None,
             named_emits: Some(BTreeMap::from([("plan".to_owned(), "plan".to_owned())])),
             packets: Some(BTreeMap::from([(
                 "plan".to_owned(),
-                "runx.plan.v1".to_owned(),
+                runx_contracts::PacketId::new("runx.plan.v1").ok_or("packet id")?,
             )])),
             wrap_as: None,
             packet: None,
@@ -601,9 +522,10 @@ mod tests {
             tool_emits(&artifacts),
             vec![RunxListEmit {
                 name: "plan".to_owned(),
-                packet: Some("runx.plan.v1".to_owned()),
+                packet: runx_contracts::PacketId::new("runx.plan.v1"),
             }]
         );
+        Ok(())
     }
 
     #[test]

@@ -1,7 +1,7 @@
 skill: least-privilege
-version: "0.3.10"
+version: "0.3.11"
 catalog:
-  owner: runx
+  publisher: runx
   kind: graph
   audience: operator
   visibility: public
@@ -63,51 +63,11 @@ runners:
         outputs:
           audit_report:
             type: object
-            schema:
-              required: [status, subject, evidence, scope_diff, retained_grant, not_recorded_scopes, reviewer_action]
-              additionalProperties: false
-              properties:
-                status: { type: string, enum: [needs_more_evidence, review_required] }
-                subject: { type: string, minLength: 1 }
-                evidence:
-                  type: object
-                  required: [receipt_ids, matched_receipt_ids, missing_receipt_ids, missing_detail_ids, invalid_detail_ids, chain_verification, observation_source, limitations]
-                  additionalProperties: false
-                  properties:
-                    receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
-                    matched_receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
-                    missing_receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
-                    missing_detail_ids: { type: array, items: { type: string }, uniqueItems: true }
-                    invalid_detail_ids: { type: array, items: { type: string }, uniqueItems: true }
-                    chain_verification: { type: object, additionalProperties: true }
-                    observation_source: { type: string, enum: [native_receipt_detail, none] }
-                    limitations: { type: array, items: { type: string } }
-                scope_diff:
-                  type: array
-                  items:
-                    type: object
-                    required: [granted_scope, classification, recorded_authority, rationale]
-                    additionalProperties: false
-                    properties:
-                      granted_scope: { type: string }
-                      classification: { type: string, enum: [recorded, not_recorded, defer] }
-                      recorded_authority:
-                        type: object
-                        required: [receipt_count, receipt_refs, sources]
-                        additionalProperties: false
-                        properties:
-                          receipt_count: { type: integer, minimum: 0 }
-                          receipt_refs: { type: array, items: { type: string }, uniqueItems: true }
-                          sources: { type: array, items: { type: string }, uniqueItems: true }
-                      rationale: { type: string }
-                retained_grant: { type: array, items: { type: string }, uniqueItems: true }
-                not_recorded_scopes: { type: array, items: { type: string }, uniqueItems: true }
-                reviewer_action: { type: string, enum: [review_policy_and_coverage, gather_verified_evidence] }
           attenuation_proposals: array
           verdict: string
         artifacts:
           wrap_as: least_privilege_packet
-          packet: runx.security.least_privilege.v1
+          packet: runx/least-privilege.audit.v1
 
 harness:
   files: [fixtures/support/composed.graph]

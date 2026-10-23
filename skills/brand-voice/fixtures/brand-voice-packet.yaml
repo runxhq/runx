@@ -49,9 +49,9 @@ caller:
           channel_adjustments: [Homepage copy can be concise but still evidence-bound.]
         evidence_bindings:
           - rule: Lead with governed action and proof.
-            source_refs: [source:1]
+            source_ids: [source:1]
           - rule: Runx receipts bind operator actions to authority evidence.
-            source_refs: [source:1]
+            source_ids: [source:1]
         redactions: []
         stop_conditions: [Require new evidence before adding a new factual claim.]
 expect:

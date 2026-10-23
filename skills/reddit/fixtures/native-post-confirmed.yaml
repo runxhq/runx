@@ -7,7 +7,7 @@ setup:
   parameters:
     reddit:
       account: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
 inputs: {}
 expect:
   status: sealed
@@ -26,7 +26,7 @@ caller:
       operation: session
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
     result:
       id: example_builder
       login: example_builder
@@ -39,13 +39,13 @@ caller:
       session_account: example_builder
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
       phase: perform
-      idempotency_key: runx:sha256:ee24914ddf52f9130f0aa0755b272d7b0f2fa9c8740de3227380cc66602762b5
+      idempotency_key: runx:sha256:040bfa7290ed22a70b2f01a8a962ab9f4613ac16312a16e9dc9f539c665e90c1
       title: How do you trace a request across services?
     result:
       account_id: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
       parent_url: https://old.reddit.com/r/learnprogramming/submit
       permalink: https://old.reddit.com/r/learnprogramming/comments/abc123/topic/
       title: How do you trace a request across services?
@@ -60,13 +60,13 @@ caller:
       session_account: example_builder
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
       phase: readback
-      idempotency_key: runx:sha256:ee24914ddf52f9130f0aa0755b272d7b0f2fa9c8740de3227380cc66602762b5
+      idempotency_key: runx:sha256:040bfa7290ed22a70b2f01a8a962ab9f4613ac16312a16e9dc9f539c665e90c1
       title: How do you trace a request across services?
       acknowledgement:
         account_id: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
         parent_url: https://old.reddit.com/r/learnprogramming/submit
         permalink: https://old.reddit.com/r/learnprogramming/comments/abc123/topic/
         title: How do you trace a request across services?
@@ -74,7 +74,7 @@ caller:
         visibility: visible_to_account
     result:
       account_id: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
       parent_url: https://old.reddit.com/r/learnprogramming/submit
       permalink: https://old.reddit.com/r/learnprogramming/comments/abc123/topic/
       title: How do you trace a request across services?

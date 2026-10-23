@@ -1,0 +1,136 @@
+{
+  "$id": "https://schemas.runx.ai/runx/command/execution/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `command.execute` returns: how the command ended, its bounded output and the digest of each stream.",
+  "properties": {
+    "command_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "cwd": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "decision": {
+      "description": "How an execution ended: it completed, it failed, or it was stopped.",
+      "enum": [
+        "completed",
+        "failed",
+        "stopped"
+      ],
+      "title": "CommandDecision",
+      "type": "string"
+    },
+    "duration_ms": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "errors": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One reason an execution failed.",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "CommandError",
+        "type": "object"
+      },
+      "maxItems": 4,
+      "minItems": 0,
+      "type": "array"
+    },
+    "exit_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "json": {
+      "description": "The parsed output in `json` mode; null otherwise."
+    },
+    "schema": {
+      "enum": [
+        "runx.command.execution.v1"
+      ],
+      "title": "CommandExecutionSchema",
+      "type": "string"
+    },
+    "stderr": {
+      "type": "string"
+    },
+    "stderr_bytes": {
+      "maximum": 8388608,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "stderr_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "stderr_truncated": {
+      "type": "boolean"
+    },
+    "stdout": {
+      "description": "The stream's text in `text` mode; empty otherwise.",
+      "type": "string"
+    },
+    "stdout_bytes": {
+      "maximum": 8388608,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "stdout_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "stdout_truncated": {
+      "type": "boolean"
+    },
+    "timed_out": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema",
+    "decision",
+    "command_digest",
+    "cwd",
+    "exit_code",
+    "timed_out",
+    "duration_ms",
+    "stdout",
+    "stderr",
+    "stdout_digest",
+    "stderr_digest",
+    "stdout_bytes",
+    "stderr_bytes",
+    "stdout_truncated",
+    "stderr_truncated",
+    "json",
+    "errors"
+  ],
+  "title": "CommandExecution",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.command.execution.v1"
+}

@@ -25,16 +25,16 @@ inputs:
     - rcpt_campaign_1
   receipt_rows:
     - receipt_id: rcpt_campaign_1
-      skill_ref: growth/lifecycle-campaign-send
-      status: closed
+      skill: growth/lifecycle-campaign-send
+      outcome: completed
       created_at: "2026-07-01T00:00:00Z"
       verification_status: verified
   receipt_details:
     - id: rcpt_campaign_1
       subject_kind: skill
-      subject_ref: growth/lifecycle-campaign-send
+      subject_uri: growth/lifecycle-campaign-send
       created_at: "2026-07-01T00:00:00Z"
-      status: closed
+      outcome: completed
       verification:
         status: verified
       authority:

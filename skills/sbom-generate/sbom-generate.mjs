@@ -15,7 +15,7 @@ export function makeSbom(inputs) {
   if (findings.length > 0) {
     return {
       sbom_result: {
-        schema: "runx.sbom.v1",
+        schema: "runx/sbom-generate.sbom.v1",
         decision: "refused",
         lockfile_type: lockfileType,
         lockfile_digest: digest,
@@ -46,7 +46,7 @@ export function makeSbom(inputs) {
   const projectVersion = firstString(rootPackage.version, lockfile.version, "0.0.0");
   return {
     sbom_result: {
-      schema: "runx.sbom.v1",
+      schema: "runx/sbom-generate.sbom.v1",
       decision: "generated",
       lockfile_type: lockfileType,
       lockfile_digest: digest,

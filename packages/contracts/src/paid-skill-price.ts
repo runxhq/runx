@@ -1,9 +1,12 @@
 import { canonicalJsonStringify } from "./canonical-json.js";
 import type {
   PaidSkillActsOnContract,
-  PaidSkillPriceChoiceContract,
+  PaidSkillPriceCaseContract,
   PaidSkillPriceContract,
-} from "./schemas/paid-invocation.js";
+} from "./generated/contract-types.js";
+
+/** A selector value a price case matches: a string, a portable integer or a boolean. */
+type PaidSkillPriceChoiceContract = PaidSkillPriceCaseContract["when"][number];
 
 /**
  * Paid skill prices, as the Rust contract computes them:
@@ -82,7 +85,7 @@ export function paidSkillPricedInputs(price: PaidSkillPriceContract): readonly s
 const STORED_ARTIFACT_REF = /^runx:artifact:sha256:[0-9a-f]{64}$/u;
 
 /**
- * The stored artifact an `artifact_bytes` price reads: the `artifact_ref` its
+ * The stored artifact an `artifact_bytes` price reads: the `artifact_uri` its
  * input holds. Its committed size, looked up by the caller, is what the call
  * costs.
  */
@@ -93,7 +96,7 @@ export function paidSkillPricedArtifactRef(
   if (price.model !== "artifact_bytes" || !Object.hasOwn(inputs, price.artifact_input)) return undefined;
   const value = inputs[price.artifact_input];
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-  const reference = (value as Record<string, unknown>).artifact_ref;
+  const reference = (value as Record<string, unknown>).artifact_uri;
   return typeof reference === "string" && STORED_ARTIFACT_REF.test(reference) ? reference : undefined;
 }
 

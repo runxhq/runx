@@ -96,7 +96,7 @@ mod tests {
         name: String,
         value: JsonValue,
         expected_canonical_json: String,
-        expected_sha256: String,
+        expected_digest: String,
     }
 
     #[test]
@@ -148,7 +148,7 @@ mod tests {
             );
             assert_eq!(
                 sha256_prefixed(actual.as_bytes()),
-                case.expected_sha256,
+                case.expected_digest,
                 "{} sha256 drifted",
                 case.name
             );

@@ -58,7 +58,7 @@ runx history <receipt-id> --json
 
 The `runx.receipt_inspection.v1` projection should show the receipt status,
 authority, decisions, acts, the seal's criteria (and its reason, when the
-disposition alone does not say why), and local issuer verification. It does
+outcome alone does not say why), and local issuer verification. It does
 not reproduce the execution input or output body.
 
 ## Verify The Receipt
@@ -95,7 +95,7 @@ export RUNX_RECEIPT_SIGN_ISSUER_TYPE="hosted"
 All three variables must be set together. `RUNX_RECEIPT_SIGN_ISSUER_TYPE` must
 be `hosted` or `ci`; a local identity is only ever the home's own key. When
 configured, the runtime signs each receipt body digest with Ed25519 and writes
-the matching public key hash in the issuer metadata. `runx history <receipt-id>`
+the matching public key digest in the issuer metadata. `runx history <receipt-id>`
 and `runx verify` trust this home's own key and the configured signer's public
 key, so the operator that created the receipts does not configure the same key
 twice.

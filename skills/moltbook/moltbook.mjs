@@ -8,7 +8,7 @@ export function admitFeed(inputs) {
   const maxAgeHours = Number(inputs.max_age_hours ?? 168);
   const blockers = [];
   const sources = [];
-  const refs = new Set();
+  const seen = new Set();
 
   if (!objective) blockers.push("objective is missing");
   if (!Number.isFinite(asOf)) blockers.push("as_of is invalid");
@@ -19,12 +19,12 @@ export function admitFeed(inputs) {
   if (Number.isFinite(asOf) && Number.isFinite(maxAgeHours)) {
     supplied.slice(0, 100).forEach((raw, position) => {
       const item = object(raw);
-      const ref = text(item.source_ref);
+      const sourceId = text(item.source_id);
       const topic = text(item.topic);
       const summary = text(item.summary);
       const observedText = text(item.observed_at);
       const observedAt = Date.parse(observedText);
-      if (!ref || refs.has(ref) || !topic || !summary || !Number.isFinite(observedAt)) {
+      if (!sourceId || seen.has(sourceId) || !topic || !summary || !Number.isFinite(observedAt)) {
         blockers.push(`feed_snapshot[${position}] is incomplete or duplicated`);
         return;
       }
@@ -33,9 +33,9 @@ export function admitFeed(inputs) {
         blockers.push(`feed_snapshot[${position}] is stale or future-dated`);
         return;
       }
-      refs.add(ref);
+      seen.add(sourceId);
       sources.push({
-        source_ref: ref,
+        source_id: sourceId,
         topic,
         summary,
         observed_at: observedText,
@@ -57,7 +57,7 @@ export function finalizeScan(inputs) {
   const index = object(inputs.feed_index);
   const draft = object(inputs.scan_draft);
   const sources = Array.isArray(index.sources) ? index.sources : [];
-  const refs = new Set(sources.map((source) => text(source.source_ref)));
+  const known = new Set(sources.map((source) => text(source.source_id)));
   const evidenceDigest = text(inputs.evidence_digest);
   const findings = strings(index.blockers).map((message) => ({ code: "moltbook.feed.invalid", message }));
   const requested = text(draft.decision);
@@ -70,8 +70,8 @@ export function finalizeScan(inputs) {
   }
   if (index.decision === "ready" && requested === "ready") {
     for (const value of [draft.opportunity_report, draft.post_outline]) {
-      const cited = strings(value?.source_refs);
-      if (cited.length === 0 || cited.some((ref) => !refs.has(ref))) {
+      const cited = strings(value?.source_ids);
+      if (cited.length === 0 || cited.some((sourceId) => !known.has(sourceId))) {
         findings.push({ code: "moltbook.scan.unbound", message: "scan artifact cites unknown feed evidence" });
       }
     }
@@ -85,7 +85,7 @@ export function finalizeScan(inputs) {
       moderation_notes: ready ? object(draft.moderation_notes) : {},
       follow_up_plan: ready ? object(draft.follow_up_plan) : {},
       source_evidence: sources.map((source) => ({
-        source_ref: text(source.source_ref),
+        source_id: text(source.source_id),
         observed_at: text(source.observed_at),
       })),
       evidence_digest: evidenceDigest,
@@ -99,7 +99,7 @@ export function admitScan(inputs) {
   const packet = unwrap(inputs.scan_packet);
   const outline = object(inputs.outline);
   const evidence = Array.isArray(packet.source_evidence) ? packet.source_evidence : [];
-  const refs = evidence.map((item) => text(item.source_ref)).filter(Boolean);
+  const sourceIds = evidence.map((item) => text(item.source_id)).filter(Boolean);
   const blockers = [];
   if (packet.decision !== "ready" || packet.validation?.status !== "pass") {
     blockers.push("scan packet is not validated and ready");
@@ -113,7 +113,7 @@ export function admitScan(inputs) {
     post_context: {
       decision: blockers.length === 0 ? "ready" : "needs_more_evidence",
       outline,
-      source_refs: refs,
+      source_ids: sourceIds,
       source_evidence: evidence,
       blockers,
     },
@@ -124,7 +124,7 @@ export function finalizePost(inputs) {
   const context = object(inputs.post_context);
   const draft = object(inputs.post_draft);
   const submolt = text(inputs.submolt);
-  const known = new Set(strings(context.source_refs));
+  const known = new Set(strings(context.source_ids));
   const findings = strings(context.blockers).map((message) => ({
     code: "moltbook.post.context.invalid",
     message,
@@ -144,10 +144,10 @@ export function finalizePost(inputs) {
     if (characters(payload.title) > 300 || characters(payload.body) > 40000) {
       findings.push({ code: "moltbook.post.payload.too_long", message: "post title or body exceeds Moltbook's limits" });
     }
-    const refs = Array.isArray(payload.claim_refs) ? payload.claim_refs : [];
-    if (refs.length === 0 || refs.some((entry) => {
-      const sourceRefs = strings(entry?.source_refs);
-      return sourceRefs.length === 0 || sourceRefs.some((ref) => !known.has(ref));
+    const claims = Array.isArray(payload.claims) ? payload.claims : [];
+    if (claims.length === 0 || claims.some((entry) => {
+      const sourceIds = strings(entry?.source_ids);
+      return sourceIds.length === 0 || sourceIds.some((sourceId) => !known.has(sourceId));
     })) {
       findings.push({ code: "moltbook.post.claim.unbound", message: "post claims cite unknown evidence" });
     }
@@ -178,7 +178,7 @@ function feedFromPosts(posts) {
     const post = object(raw);
     const id = text(post.id);
     return {
-      source_ref: id ? `moltbook:post:${id}` : "",
+      source_id: id ? `moltbook:post:${id}` : "",
       topic: text(post.title),
       summary: text(post.content) || text(post.url) || text(post.title),
       observed_at: text(post.created_at),

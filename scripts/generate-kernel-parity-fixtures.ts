@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   evaluateRustKernelInputSync,
   type SequentialGraphEvent,
-  type SequentialGraphState,
+  type SequentialGraph,
   type SequentialGraphStepDefinition,
 } from "./rust-kernel-eval.js";
 
@@ -175,26 +175,26 @@ function evaluateKernelFixtureInputUnchecked(input: KernelFixture["input"]): unk
   return evaluateRustKernelInputSync(input);
 }
 
-function createSequentialGraphState(
+function createSequentialGraph(
   graphId: string,
   steps: readonly SequentialGraphStepDefinition[],
-): SequentialGraphState {
+): SequentialGraph {
   return evaluateRustKernelInputSync({
-    kind: "state-machine.createSequentialGraphState",
+    kind: "state-machine.createSequentialGraph",
     graphId,
     steps,
-  }) as SequentialGraphState;
+  }) as SequentialGraph;
 }
 
 function transitionSequentialGraph(
-  state: SequentialGraphState,
+  state: SequentialGraph,
   event: SequentialGraphEvent,
-): SequentialGraphState {
+): SequentialGraph {
   return evaluateRustKernelInputSync({
     kind: "state-machine.transitionSequentialGraph",
     state,
     event,
-  }) as SequentialGraphState;
+  }) as SequentialGraph;
 }
 
 export function normalizeForFixture(value: unknown): unknown {
@@ -264,7 +264,7 @@ function fixtureCases(): readonly KernelFixtureCase[] {
     { id: "first" },
     { id: "second", contextFrom: ["first"] },
   ];
-  const pendingGraph = createSequentialGraphState("gx_fixture", linearSteps);
+  const pendingGraph = createSequentialGraph("gx_fixture", linearSteps);
   const startedGraph = transitionSequentialGraph(pendingGraph, {
     type: "start_step",
     stepId: "first",
@@ -344,7 +344,7 @@ function fixtureCases(): readonly KernelFixtureCase[] {
     {
       name: "sequential-create-graph",
       input: {
-        kind: "state-machine.createSequentialGraphState",
+        kind: "state-machine.createSequentialGraph",
         graphId: "gx_fixture",
         steps: linearSteps,
       },

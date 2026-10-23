@@ -606,14 +606,8 @@ fn instance_summary(instance: &ConnectorInstance) -> String {
     let source = match &instance.authority {
         InstanceAuthority::Secret { secret, .. } => format!(" from secret {secret}"),
         InstanceAuthority::Environment { variable, .. } => format!(" from {variable}"),
-        InstanceAuthority::Credential { profile, .. } => {
-            format!(" from profile {profile}, bound before runx secret")
-        }
-        InstanceAuthority::Reference { reference, .. } => {
-            format!(" from {reference}, bound before runx secret")
-        }
         _ => instance
-            .account_ref
+            .account_id
             .as_ref()
             .map(|account| format!(" as {account}"))
             .unwrap_or_default(),

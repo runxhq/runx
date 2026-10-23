@@ -1,5 +1,5 @@
 skill: attention-review
-version: "0.4.12"
+version: "0.4.13"
 
 catalog:
   kind: graph
@@ -21,7 +21,7 @@ harness:
           request: Decide whether these new personal mailbox and chat observations warrant a private update.
           expected_outcome: Return source-bound attention and an undelivered private brief intent.
         - mode: composed
-          request: Reassess the already collected observations and current action dispositions.
+          request: Reassess the already collected observations and current action states.
           expected_outcome: Reuse supplied evidence without rereading providers or sending a message.
           prior_evidence:
             - The bounded mailbox and chat observations supplied in the fixture.
@@ -32,7 +32,7 @@ harness:
         objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00.123456Z"
         evidence:
-          - source_ref: mail-thread-1
+          - source_id: mail-thread-1
             source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
             source_kind: mail
             observed_at: "2026-10-02T09:55:00Z"
@@ -46,7 +46,7 @@ harness:
           judge:
             draft:
               decision: brief
-              items: [{ source_ref: mail-thread-1, priority: high }]
+              items: [{ source_id: mail-thread-1, priority: high }]
               recommended_action_ids: [private_update]
               next_check_minutes: 20
       expect:
@@ -68,16 +68,16 @@ harness:
         objective: Check new personal observations without an authorized delivery action.
         as_of: "2026-10-02T10:00:00Z"
         evidence:
-          - source_ref: mail-1
+          - source_id: mail-1
             source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
             thread_locator: https://github.com/example/project/pull/12
             source_kind: mail
             observed_at: "2026-10-02T09:55:00Z"
             summary: A colleague asks for a decision.
-        current_actions: [{ source_ref: mail-1, disposition: open }]
+        current_actions: [{ source_id: mail-1, state: open }]
         allowed_action_ids: []
         work_routes:
-          - { source_ref: mail-1, source_digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', route_id: pr_status, target_ref: 'https://github.com/example/project/pull/12' }
+          - { source_id: mail-1, source_digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12' }
         min_check_minutes: 15
         max_check_minutes: 60
       caller:
@@ -85,9 +85,9 @@ harness:
           judge:
             draft:
               decision: idle
-              items: [{ source_ref: mail-1, priority: high }]
+              items: [{ source_id: mail-1, priority: high }]
               recommended_action_ids: [private_update]
-              work_proposals: [{ source_ref: mail-1, route_id: conversation, target_ref: mail-thread-1, inputs: {}, due_at_unix_seconds: 0 }]
+              work_proposals: [{ source_id: mail-1, route_id: conversation, target_locator: mail-thread-1, inputs: {}, due_at_unix_seconds: 0 }]
               next_check_minutes: 20
       expect:
         status: sealed
@@ -108,16 +108,16 @@ harness:
         objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00Z"
         evidence:
-          - source_ref: chat-1
+          - source_id: chat-1
             source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
             thread_locator: https://github.com/example/project/pull/12
             source_kind: chat
             observed_at: "2026-10-02T09:55:00Z"
             summary: A colleague requests review of a pull request.
-        current_actions: [{ source_ref: chat-1, disposition: open }]
+        current_actions: [{ source_id: chat-1, state: open }]
         allowed_action_ids: []
         work_routes:
-          - { source_ref: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_ref: 'https://github.com/example/project/pull/12' }
+          - { source_id: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12' }
         min_check_minutes: 15
         max_check_minutes: 60
       caller:
@@ -125,9 +125,9 @@ harness:
           judge:
             draft:
               decision: brief
-              items: [{ source_ref: chat-1, priority: medium }]
+              items: [{ source_id: chat-1, priority: medium }]
               recommended_action_ids: []
-              work_proposals: [{ source_ref: chat-1, route_id: pr_status, target_ref: 'https://github.com/example/project/pull/12', inputs: {}, due_at_unix_seconds: 0 }]
+              work_proposals: [{ source_id: chat-1, route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12', inputs: {}, due_at_unix_seconds: 0 }]
               next_check_minutes: 20
       expect:
         status: sealed
@@ -139,7 +139,7 @@ harness:
                 data:
                   decision: ready
                   work_proposals:
-                    - { source_ref: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_ref: 'https://github.com/example/project/pull/12' }
+                    - { source_id: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12' }
                   validation: { status: pass }
         receipt: { schema: runx.receipt.v1 }
 
@@ -148,17 +148,17 @@ harness:
         objective: Reassess the observed request using a verified pull-request status.
         as_of: "2026-10-02T10:05:00Z"
         evidence:
-          - source_ref: chat-1
+          - source_id: chat-1
             source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
             thread_locator: https://github.com/example/project/pull/12
             source_kind: chat
             observed_at: "2026-10-02T09:55:00Z"
             summary: A colleague asks to review a pull request.
-        current_actions: [{ source_ref: chat-1, disposition: open }]
+        current_actions: [{ source_id: chat-1, state: open }]
         allowed_action_ids: []
         work_routes: []
         work_results:
-          - { source_ref: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_ref: 'https://github.com/example/project/pull/12', kind: github_pr_status, status: closed, summary: 'Pull request closed: Example change', source_complete: true, checked_at: '2026-10-02T10:04:00Z', receipt: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }
+          - { source_id: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12', kind: github_pr_status, status: closed, summary: 'Pull request closed: Example change', source_complete: true, checked_at: '2026-10-02T10:04:00Z', receipt: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }
         min_check_minutes: 15
         max_check_minutes: 60
       caller:
@@ -188,16 +188,16 @@ harness:
         objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00Z"
         evidence:
-          - source_ref: chat-1
+          - source_id: chat-1
             source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
             thread_locator: https://github.com/example/project/pull/13
             source_kind: chat
             observed_at: "2026-10-02T09:55:00Z"
             summary: A colleague requests review of a pull request.
-        current_actions: [{ source_ref: chat-1, disposition: open }]
+        current_actions: [{ source_id: chat-1, state: open }]
         allowed_action_ids: []
         work_routes:
-          - { source_ref: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_ref: 'https://github.com/example/project/pull/13' }
+          - { source_id: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_locator: 'https://github.com/example/project/pull/13' }
         min_check_minutes: 15
         max_check_minutes: 60
       caller:
@@ -205,9 +205,9 @@ harness:
           judge:
             draft:
               decision: brief
-              items: [{ source_ref: chat-1, priority: medium }]
+              items: [{ source_id: chat-1, priority: medium }]
               recommended_action_ids: []
-              work_proposals: [{ source_ref: chat-1, route_id: pr_status, target_ref: 'https://github.com/example/project/pull/12', inputs: {}, due_at_unix_seconds: 0 }]
+              work_proposals: [{ source_id: chat-1, route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12', inputs: {}, due_at_unix_seconds: 0 }]
               next_check_minutes: 20
       expect:
         status: sealed
@@ -226,7 +226,7 @@ harness:
         objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00Z"
         evidence:
-          - source_ref: chat-1
+          - source_id: chat-1
             source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
             source_kind: chat
             observed_at: "2026-10-02T09:55:00Z"
@@ -240,7 +240,7 @@ harness:
           judge:
             draft:
               decision: brief
-              items: [{ source_ref: invented, priority: high }]
+              items: [{ source_id: invented, priority: high }]
               recommended_action_ids: [private_update]
               next_check_minutes: 20
       expect:
@@ -256,17 +256,17 @@ harness:
                   validation: { status: fail }
         receipt: { schema: runx.receipt.v1 }
 
-    - name: attention-review-preserves-inbox-disposition
+    - name: attention-review-preserves-inbox-state
       inputs:
         objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00Z"
         evidence:
-          - source_ref: mail-thread-1
+          - source_id: mail-thread-1
             source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
             source_kind: mail
             observed_at: "2026-10-02T09:55:00Z"
             summary: A colleague asks for a decision on the release note.
-        current_actions: [{ source_ref: mail-thread-1, disposition: waiting }]
+        current_actions: [{ source_id: mail-thread-1, state: waiting }]
         allowed_action_ids: [private_update]
         min_check_minutes: 15
         max_check_minutes: 60
@@ -275,7 +275,7 @@ harness:
           judge:
             draft:
               decision: brief
-              items: [{ source_ref: mail-thread-1, priority: high }]
+              items: [{ source_id: mail-thread-1, priority: high }]
               recommended_action_ids: [private_update]
               next_check_minutes: 20
       expect:
@@ -313,10 +313,10 @@ runners:
           maxItems: 20
           items:
             type: object
-            required: [source_ref, source_digest, source_kind, observed_at, summary]
+            required: [source_id, source_digest, source_kind, observed_at, summary]
             additionalProperties: false
             properties:
-              source_ref: { type: string, minLength: 1, maxLength: 300 }
+              source_id: { type: string, minLength: 1, maxLength: 300 }
               source_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
               thread_locator: { type: string, minLength: 1, maxLength: 1000 }
               source_kind: { type: string, enum: [mail, chat, task, other] }
@@ -325,16 +325,16 @@ runners:
       current_actions:
         type: array
         required: true
-        description: Current dispositions for admitted source references.
+        description: Current states for admitted source references.
         schema:
           maxItems: 20
           items:
             type: object
-            required: [source_ref, disposition]
+            required: [source_id, state]
             additionalProperties: false
             properties:
-              source_ref: { type: string, minLength: 1, maxLength: 300 }
-              disposition: { type: string, enum: [open, waiting, followed_up, resolved, dismissed] }
+              source_id: { type: string, minLength: 1, maxLength: 300 }
+              state: { type: string, enum: [open, waiting, followed_up, resolved, dismissed] }
       allowed_action_ids:
         type: array
         required: true
@@ -363,13 +363,13 @@ runners:
           maxItems: 20
           items:
             type: object
-            required: [source_ref, source_digest, route_id, target_ref, kind, status, summary, source_complete, checked_at, receipt]
+            required: [source_id, source_digest, route_id, target_locator, kind, status, summary, source_complete, checked_at, receipt]
             additionalProperties: false
             properties:
-              source_ref: { type: string, minLength: 1, maxLength: 300 }
+              source_id: { type: string, minLength: 1, maxLength: 300 }
               source_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
               route_id: { type: string, minLength: 1, maxLength: 64 }
-              target_ref: { type: string, minLength: 1, maxLength: 300 }
+              target_locator: { type: string, minLength: 1, maxLength: 300 }
               kind: { type: string, minLength: 1, maxLength: 64 }
               status: { type: string, minLength: 1, maxLength: 64 }
               summary: { type: string, minLength: 1, maxLength: 1000 }
@@ -389,7 +389,7 @@ runners:
     examples:
       - objective: Check new personal observations.
         as_of: "2026-10-02T10:00:00Z"
-        evidence: [{ source_ref: mail-thread-1, source_digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', source_kind: mail, observed_at: '2026-10-02T09:55:00Z', summary: A colleague asks for a decision. }]
+        evidence: [{ source_id: mail-thread-1, source_digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', source_kind: mail, observed_at: '2026-10-02T09:55:00Z', summary: A colleague asks for a decision. }]
         current_actions: []
         allowed_action_ids: [private_update]
         min_check_minutes: 15

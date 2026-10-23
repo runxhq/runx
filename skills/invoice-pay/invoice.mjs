@@ -1,6 +1,6 @@
 /** Bind caller-supplied invoice terms; this does not authenticate the invoice. */
 export function admitInvoice(input) {
-  const reference = input.invoice_ref;
+  const reference = input.invoice_id;
   if (typeof reference !== "string" || !reference.trim() || reference !== reference.trim() || reference.length > 256) {
     throw new Error("Invalid invoice reference.");
   }

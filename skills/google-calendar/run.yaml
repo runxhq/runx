@@ -1,5 +1,5 @@
 skill: google-calendar
-version: "0.1.9"
+version: "0.1.10"
 catalog:
   kind: graph
   audience: public
@@ -110,7 +110,7 @@ runners:
     description: Read the upcoming window of a selected calendar for one scheduled goal occurrence and return the assistant's work result for it.
     inputs:
       calendar_id: { definition: calendar_id }
-      occurrence_ref:
+      occurrence_uri:
         type: string
         required: true
         description: Exact scheduled goal occurrence admitted by the local operator.
@@ -123,7 +123,7 @@ runners:
     result_from: [finish]
     steps:
       - id: window
-        inputs: { calendar_id: $input.calendar_id, occurrence_ref: $input.occurrence_ref, window_hours: $input.window_hours }
+        inputs: { calendar_id: $input.calendar_id, occurrence_uri: $input.occurrence_uri, window_hours: $input.window_hours }
         tool: { module: google-calendar.mjs, export: prepareAssistantWindow }
         outputs: { calendar_window: object }
       - id: read
@@ -136,7 +136,7 @@ runners:
       - id: finish
         inputs:
           calendar_id: $input.calendar_id
-          occurrence_ref: $input.occurrence_ref
+          occurrence_uri: $input.occurrence_uri
           window: $steps.window.calendar_window
           calendar_context: $steps.read.calendar_context
         tool: { module: google-calendar.mjs, export: finishAssistantBrief }

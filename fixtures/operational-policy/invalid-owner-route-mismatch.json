@@ -58,7 +58,7 @@
     }
   ],
   "dedupe": {
-    "strategy": "source_fingerprint",
+    "strategy": "source_digest",
     "key_fields": [
       "source.locator"
     ],

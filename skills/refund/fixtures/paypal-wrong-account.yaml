@@ -20,7 +20,7 @@ inputs:
   request:
     api_host: api-m.sandbox.paypal.com
     account_id: YXZY75W2GKDQE
-    payment_ref: CAPTURE42
+    payment_id: CAPTURE42
     amount_decimal: "1.00"
     currency: USD
     precision: 2

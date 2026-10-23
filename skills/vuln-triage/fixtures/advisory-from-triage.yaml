@@ -18,7 +18,7 @@ operator_journeys:
 inputs:
   audience: affected_users
   triage_packet:
-    schema: runx.security.vulnerability_scan.v1
+    schema: runx/vuln-triage.scan.v1
     decision: remediate
     target: example/service
     dependency_inventory:
@@ -49,7 +49,7 @@ inputs:
       verdict: remediate
       summary: Prioritize the verified direct dependency finding.
     evidence_binding:
-      receipt_ref: runx:receipt:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      receipt_id: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       evidence_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     validation:
       status: pass

@@ -11,7 +11,7 @@ caller:
     architect:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
-        disposition: needs_core
+        choice: needs_core
         objective: Add a digest-bound compare-and-swap bundle primitive required by two existing skills.
         operator_value: Give independent skills one atomic stale-write-safe mutation primitive.
         knowledge_contract:

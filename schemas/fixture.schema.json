@@ -29,6 +29,7 @@
         "agent",
         "repo-integration"
       ],
+      "title": "FixtureLane",
       "type": "string"
     },
     "name": {
@@ -53,6 +54,7 @@
     "target",
     "expect"
   ],
+  "title": "Fixture",
   "type": "object",
   "x-runx-schema": "runx.fixture.v1"
 }

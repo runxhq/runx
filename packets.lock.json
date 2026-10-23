@@ -1,0 +1,245 @@
+{
+  "schema": "runx.packet.lock.v1",
+  "packets": [
+    {
+      "id": "runx/brand-voice.context.v1",
+      "digest": "sha256:9934bfa51b4ab7dee6a3f3bc9b9fdbf3afccc2af2f378ae0a3857449ffdf55f1"
+    },
+    {
+      "id": "runx/code-intake.intake.v1",
+      "digest": "sha256:e31041db3f8098f85e5e291ffa2a6044d13c3a3d91d79e418e13ca40155e6f6f"
+    },
+    {
+      "id": "runx/code-plan.work_plan.v1",
+      "digest": "sha256:cdae7840313b390b7e8397aa3d1d6c599ef1d41a3d092f6621d9b9efda325bc5"
+    },
+    {
+      "id": "runx/contract-draft.draft.v1",
+      "digest": "sha256:f2ef88e44c032225767001a8608c2c8804d4c34adc4fe6383648faa9d7ab4ce2"
+    },
+    {
+      "id": "runx/conversation-review.review.v1",
+      "digest": "sha256:1c5e8546a000f9076b01ecf61cd9bb69da9bd5173de45787fa51fa1d5ff75c7a"
+    },
+    {
+      "id": "runx/crm-update-plan.proposal.v1",
+      "digest": "sha256:886350fe1ec605c19a85acdde05f694de860fbd98d928e0860b382e71b23ea91"
+    },
+    {
+      "id": "runx/cve-audit.audit.v1",
+      "digest": "sha256:5904c2c9b012d1ce3fa2a5cc0c474291cbf1b4d78d665eb98e10e109f90f6c00"
+    },
+    {
+      "id": "runx/cve-audit.delivery.v1",
+      "digest": "sha256:503e9d44358900b2a8ebf049a0c69161c804f8792be41216d89147c30e3f7c04"
+    },
+    {
+      "id": "runx/cve-audit.evidence.v1",
+      "digest": "sha256:f622313604bd234761eae1eb0536b4a09788039d20e4432679e760f5aa79991f"
+    },
+    {
+      "id": "runx/cve-audit.report.v1",
+      "digest": "sha256:3270dcb633644bad243d8525b2e7a781506183a4839ea5197f8005707b163bc9"
+    },
+    {
+      "id": "runx/cve-audit.verification.v1",
+      "digest": "sha256:0c4360413ae4b0609b7eed9277ce76e1621a8171a713cf107eb40cf5139304f2"
+    },
+    {
+      "id": "runx/diagnose-skill-run.diagnosis.v1",
+      "digest": "sha256:04f60190d0cb33bc3290b92ad6b353e6938a9d09c6444354bb812c3e38622fbb"
+    },
+    {
+      "id": "runx/dispute-respond.response.v1",
+      "digest": "sha256:e3f4defe96ba11a4e06f5de475f381d7b9692b43631ac7b14d6f1f30c3e7e0aa"
+    },
+    {
+      "id": "runx/extract.result.v1",
+      "digest": "sha256:3fd69311e19403fbac653dc9383b52695943f7260ffb6e0356e902153fb46f9e"
+    },
+    {
+      "id": "runx/ghostwrite.draft.v1",
+      "digest": "sha256:07d1c7e71c4d5f3f68d5cc8d03fb38f7a7c2fda40c929273da0e5de5d64e4bec"
+    },
+    {
+      "id": "runx/ghostwrite.handoff.v1",
+      "digest": "sha256:e81cb9e03e1a6aa4d20f04a6e9559b7394a20fe4fe3a457cb44c3d439c77527c"
+    },
+    {
+      "id": "runx/ghostwrite.publish.v1",
+      "digest": "sha256:f2ca1bd224d915b1bf4c514cfcf88604f72a353ab9a61f339e35920a0c3e23e9"
+    },
+    {
+      "id": "runx/github-issue-to-pr.host_result.v1",
+      "digest": "sha256:c9db22c9c78b274a2934ce469d38e29aa653eaaabb1a4d2a292750a4c4a3453a"
+    },
+    {
+      "id": "runx/github-issue-to-pr.issue_evidence.v1",
+      "digest": "sha256:cdb9980cedde4910fac46a13e6607a815e3999c40c5ab9713e73812c9dfdfbdb"
+    },
+    {
+      "id": "runx/github-issue-to-pr.result.v1",
+      "digest": "sha256:5826a5fd4d7ae5e19d6e4638d356b25ff661fc961dd519b850449238e8f39a6f"
+    },
+    {
+      "id": "runx/github-issue-triage.queue.v1",
+      "digest": "sha256:556c3bb217bc55fa253b24238862b4748905981e8883e1851f201a84bacb7436"
+    },
+    {
+      "id": "runx/github-issue-triage.triage.v1",
+      "digest": "sha256:b7367c269df060ab65196b02a86a4e88143b6fb5ba4d1d432513116dcc475909"
+    },
+    {
+      "id": "runx/github.sync_plan.v1",
+      "digest": "sha256:d4d807cb9bf43a2ff3467849490905ec6ab361c22e750db7ed4cec6dd641c3f7"
+    },
+    {
+      "id": "runx/knowledge-router.route.v1",
+      "digest": "sha256:44741addd76f9c4ac7dbc6f41dd90845911cbb3517be13dfbb5db0f7c7837bb0"
+    },
+    {
+      "id": "runx/lead-enrichment.enrichment.v1",
+      "digest": "sha256:efe1bcdb56e63d36e3aa76e11365fe066349e77154e3f6f43a86fd06734ad3eb"
+    },
+    {
+      "id": "runx/lead-qualify.qualification.v1",
+      "digest": "sha256:33e568ddaaaa1fdd5e25da8046eaa3e2c387139095db66c1e6087b538ff41339"
+    },
+    {
+      "id": "runx/least-privilege.audit.v1",
+      "digest": "sha256:e247c128a0e747aec813551a2baff4b4f7d7a2508643acf16ec4a70069e302a7"
+    },
+    {
+      "id": "runx/message-send.notification_plan.v1",
+      "digest": "sha256:6b74cf5faac4ce14c267e1a089f1d4277828ce6952ad0657fe8c28b4078f3943"
+    },
+    {
+      "id": "runx/message-send.plan.v1",
+      "digest": "sha256:00e5877942eeefe50d0f641a517a4cce983e291d4bafe2543b406d7dc7be233a"
+    },
+    {
+      "id": "runx/moltbook.post.v1",
+      "digest": "sha256:10af580b2f38907f2f8170b474d57e25fb21c460ab8397e8d5b5a11d79d164fc"
+    },
+    {
+      "id": "runx/moltbook.scan.v1",
+      "digest": "sha256:ab3e7928fe4ee3d2509ab0aa6e2fa7f8ef40efa0fe5d812f2fde4f49edc93ab0"
+    },
+    {
+      "id": "runx/operations-review.action_review.v1",
+      "digest": "sha256:d8c3e95d1b126d81857588e4043582c4915e0db8d24c6e9a0ff1629f93eb6333"
+    },
+    {
+      "id": "runx/operations-review.desk.v1",
+      "digest": "sha256:a0830db633ef6bf028161aff001d3510d5b302800ed49c1ea44ba791562b96f4"
+    },
+    {
+      "id": "runx/policy-draft.proposal.v1",
+      "digest": "sha256:fda93dfbf6e4cbbdd211b6ecb89a966d4c9efd82abfd90dd47776cff43eb12c0"
+    },
+    {
+      "id": "runx/postmortem-draft.postmortem.v1",
+      "digest": "sha256:6b104c8a7561ca6679a351bbc7d4b0431d63911906db3908e001b421b7ffa9cd"
+    },
+    {
+      "id": "runx/prior-art.report.v1",
+      "digest": "sha256:0c23a711b49143bd6f9ca53007f4ca748f4ac98dfd38638e19d9f8e99a59dd52"
+    },
+    {
+      "id": "runx/privacy-request-review.verdict.v1",
+      "digest": "sha256:e7dd8595701a4daba1512f6773ff72fa058cfe8484dd605638421487ac45c937"
+    },
+    {
+      "id": "runx/procurement-policy-check.approval.v1",
+      "digest": "sha256:ab1a90ab5c1102680635f83b15576be72fb652eebe2dfd18b7610d54ba0bb6eb"
+    },
+    {
+      "id": "runx/receipt-audit.audit.v1",
+      "digest": "sha256:16c81511048a30674bdc46cee45ffc1fce1860f9b06508a3e4eccdcf71684cd0"
+    },
+    {
+      "id": "runx/receipt-query.answer.v1",
+      "digest": "sha256:3fec815849fb55f55c6a096ec836a688022a2195a15bcda704022977bff10b24"
+    },
+    {
+      "id": "runx/redact-pii.report.v1",
+      "digest": "sha256:23520294d708f692fb53a842a08502e28a2b685eccbd1064b564b4fb58b9827f"
+    },
+    {
+      "id": "runx/release.brief.v1",
+      "digest": "sha256:20ca51be80b0ca833a51d1db40a99a0dc0a46ecd8dd18e5382ba35fd8ff6e0fd"
+    },
+    {
+      "id": "runx/release.context.v1",
+      "digest": "sha256:d0f587d2d7596d9c51a60b2d2ede7d0299667bdd56b2101c93364b1072c5dd41"
+    },
+    {
+      "id": "runx/release.phase_result.v1",
+      "digest": "sha256:f2ac0213001cd8b9ae89b05060e12b2c04e91cecd1314e62587ab2071fa611dd"
+    },
+    {
+      "id": "runx/research.packet.v1",
+      "digest": "sha256:6b0564813d7530d6102a60a3d3080c9bda96fd9186213db45fe3af2e66e33a4e"
+    },
+    {
+      "id": "runx/run-history.report.v1",
+      "digest": "sha256:b8f8e3e25f7176218dd3c5de11b1d31848cabfc6031f42194936e762ab66e500"
+    },
+    {
+      "id": "runx/sbom-generate.sbom.v1",
+      "digest": "sha256:f9cc2f1ab8db131056b8addf5e63a63afea7942c3ff4bcb510cd818476094723"
+    },
+    {
+      "id": "runx/schema-check.check.v1",
+      "digest": "sha256:a0eaa1560401321df824b6d0c4bc135797c9bed6dba0de1cb2917a003f410333"
+    },
+    {
+      "id": "runx/skill-adopt.overlay.v1",
+      "digest": "sha256:b8ec1ca1d50bfac40e22a904465a132c6d901cbf41ffe9ece917a164931bb2bc"
+    },
+    {
+      "id": "runx/skill-review.evaluation.v1",
+      "digest": "sha256:8d29bf460c658e17bdd4ea1a5e692087ed9a3817a505691d6f924247a9450801"
+    },
+    {
+      "id": "runx/sql-analysis.plan.v1",
+      "digest": "sha256:f9534b5b20b6f53a3bb8e6d92ef3ada713f2fb0e8c1afdaa27595856eccca7b9"
+    },
+    {
+      "id": "runx/support-triage.reply.v1",
+      "digest": "sha256:0b18d0dba2eb0a9e7a26c2795bf9121cd56fc35435dc91ae9c09ece83d64b9de"
+    },
+    {
+      "id": "runx/taste-profile.context.v1",
+      "digest": "sha256:2eb131ab9569f2eaef60f9284db7d456b3243d57a15719593a7e37f55ac67261"
+    },
+    {
+      "id": "runx/team-delegate.delegation.v1",
+      "digest": "sha256:d23ad0da7b657db2dd64aa877c1e848af1d1793eb99f8742d8720ab1a17f031c"
+    },
+    {
+      "id": "runx/twitter.evidence.v1",
+      "digest": "sha256:944878eb99e42a1b6775daec43e8a831b14f00424032f03d8b83c323226c8ace"
+    },
+    {
+      "id": "runx/twitter.execution.v1",
+      "digest": "sha256:0b726fc2d8ca7c0f5a966a0fc929f46e4b4d1f83af7868a891898326cb39b3eb"
+    },
+    {
+      "id": "runx/twitter.plan.v1",
+      "digest": "sha256:a51afcc64d124c9bf9c19635013c271b426df1832278a670e4407c3ce99f97dd"
+    },
+    {
+      "id": "runx/twitter.selection.v1",
+      "digest": "sha256:de1627eb81e8b5cc5eb2da24368113686d69d19d2a723b85799879de65070eaf"
+    },
+    {
+      "id": "runx/vuln-triage.advisory.v1",
+      "digest": "sha256:162d45ee325bb6d36978a3dc01bf24b150ddbbc33963db781e8f847cd26c193e"
+    },
+    {
+      "id": "runx/vuln-triage.scan.v1",
+      "digest": "sha256:86d8742885c806e1bddde6439eb3cf0041dfccf1a6acbedcfa5e8e57f585cf14"
+    }
+  ]
+}

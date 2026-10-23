@@ -8,11 +8,11 @@ use crate::observations::{ContractChecks, Observations};
 use crate::{RuntimeError, StepRun};
 use runx_contracts::connector::Digest;
 use runx_contracts::{
-    ClosureDisposition, Criterion, CriterionBinding, CriterionStatus, Decision, DecisionChoice,
+    Criterion, CriterionBinding, CriterionStatus, Decision, DecisionChoice,
     ExecutionBoundaryObservation, JsonObject, JsonValue, Lineage, Receipt, ReceiptAct,
     ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer, ReceiptSchema,
-    Reference, ReferenceType, Seal, SealReason, SignatureAlgorithm, Subject, SubjectKind,
-    canonical_stable_json,
+    Reference, ReferenceType, RunOutcome, Seal, SealReason, SignatureAlgorithm, Subject,
+    SubjectKind, canonical_stable_json,
 };
 use runx_receipts::{
     ReceiptProofContext, ReceiptProofContextProvider, ReceiptSignature, ReceiptTreeConfig,
@@ -32,26 +32,24 @@ pub fn step_receipt(
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     step_receipt_with_declared_claim_and_policy(
-        StepReceiptWithDisposition::with_default_closure(
-            scope, step_id, attempt, output, created_at,
-        ),
+        StepReceiptWithOutcome::with_default_closure(scope, step_id, attempt, output, created_at),
         claim,
         signature_policy,
     )
 }
 
-pub(crate) struct StepReceiptWithDisposition<'a> {
+pub(crate) struct StepReceiptWithOutcome<'a> {
     pub(crate) scope: RunScope<'a>,
     pub(crate) step_id: &'a str,
     pub(crate) attempt: u32,
     pub(crate) output: &'a InvocationOutput,
     pub(crate) created_at: &'a str,
-    pub(crate) disposition: ClosureDisposition,
+    pub(crate) outcome: RunOutcome,
     pub(crate) reason: Option<SealReason>,
 }
 
 struct StepReceiptSeal<'a> {
-    params: StepReceiptWithDisposition<'a>,
+    params: StepReceiptWithOutcome<'a>,
     claim: &'a JsonObject,
     admission_refs: Vec<Reference>,
     child_receipts: &'a [Receipt],
@@ -61,9 +59,9 @@ struct StepReceiptSeal<'a> {
     signature_policy: RuntimeReceiptSignaturePolicy<'a>,
 }
 
-impl<'a> StepReceiptWithDisposition<'a> {
+impl<'a> StepReceiptWithOutcome<'a> {
     /// A step-receipt request whose closure is derived from the output (the
-    /// process-exit default): `Closed`/`Failed` by exit status, with no
+    /// process-exit default): `Completed`/`Failed` by exit status, with no
     /// reason. This is the single source of that derivation for the
     /// process-exit step receipts.
     pub(crate) fn with_default_closure(
@@ -73,28 +71,25 @@ impl<'a> StepReceiptWithDisposition<'a> {
         output: &'a InvocationOutput,
         created_at: &'a str,
     ) -> Self {
-        let StepSealClosure {
-            disposition,
-            reason,
-        } = StepSealClosure::default_for(output);
+        let StepSealClosure { outcome, reason } = StepSealClosure::default_for(output);
         Self {
             scope,
             step_id,
             attempt,
             output,
             created_at,
-            disposition,
+            outcome,
             reason,
         }
     }
 }
 
 pub(crate) fn step_receipt_with_declared_claim_and_policy(
-    params: StepReceiptWithDisposition<'_>,
+    params: StepReceiptWithOutcome<'_>,
     claim: &JsonObject,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
-    step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
+    step_receipt_with_outcome_projection_authority_and_policy(StepReceiptSeal {
         params,
         claim,
         admission_refs: Vec::new(),
@@ -106,7 +101,7 @@ pub(crate) fn step_receipt_with_declared_claim_and_policy(
     })
 }
 
-fn step_receipt_with_disposition_projection_authority_and_policy(
+fn step_receipt_with_outcome_projection_authority_and_policy(
     request: StepReceiptSeal<'_>,
 ) -> Result<Receipt, RuntimeError> {
     let StepReceiptSeal {
@@ -119,13 +114,13 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         call,
         signature_policy,
     } = request;
-    let StepReceiptWithDisposition {
+    let StepReceiptWithOutcome {
         scope,
         step_id,
         attempt,
         output,
         created_at,
-        disposition,
+        outcome,
         reason,
     } = params;
     let evidence = step_evidence(&output.observations, admission_refs);
@@ -152,11 +147,11 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         .iter()
         .map(child_receipt_reference)
         .collect::<Vec<_>>();
-    let outcome = outcome_digest(&disposition, claim, &children)?;
+    let digest = outcome_digest(outcome, claim, &children)?;
     let mut seal_criteria = vec![step_outcome_criterion(output, &evidence)];
     seal_criteria.extend(verification);
     let seal = Seal {
-        disposition,
+        outcome,
         reason,
         criteria: seal_criteria,
     };
@@ -165,7 +160,7 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
         scope,
         node: Node::Step { step_id, attempt },
         kind: SubjectKind::Step,
-        outcome,
+        outcome_digest: digest,
         created_at,
         decisions,
         acts: act.into_iter().collect(),
@@ -191,9 +186,9 @@ fn step_receipt_with_disposition_projection_authority_and_policy(
 /// The single step-receipt seal. Every runtime step (regular skill, tool,
 /// approval, agent act, replay, error) seals through here, so the act,
 /// decision, and authority assembly lives in exactly one place. `closure` is
-/// `None` for process-exit steps (the disposition is derived from the output)
-/// and `Some` for steps that carry their own disposition, e.g. an agent act
-/// that closes `Deferred` on a successful turn.
+/// `None` for process-exit steps (the outcome is derived from the output)
+/// and `Some` for steps that carry their own outcome, e.g. an agent act
+/// that ends `Deferred` on a successful turn.
 pub(crate) struct StepSeal<'a> {
     pub(crate) scope: RunScope<'a>,
     pub(crate) step_id: &'a str,
@@ -219,20 +214,20 @@ pub(crate) struct StepSeal<'a> {
     pub(crate) closure: Option<StepSealClosure>,
 }
 
-/// A step's own disposition, and the reason it closed that way when one
+/// A step's own outcome, and the reason it ended that way when one
 /// applies, when it does not derive them from a process exit.
 pub(crate) struct StepSealClosure {
-    pub(crate) disposition: ClosureDisposition,
+    pub(crate) outcome: RunOutcome,
     pub(crate) reason: Option<SealReason>,
 }
 
 impl StepSealClosure {
-    /// The process-exit default closure derived from the output: `Closed`/`Failed`
+    /// The process-exit default closure derived from the output: `Completed`/`Failed`
     /// by exit status, with no reason beyond the exit. The single source of
     /// this derivation.
     pub(crate) fn default_for(output: &InvocationOutput) -> Self {
         Self {
-            disposition: disposition(output),
+            outcome: outcome(output),
             reason: None,
         }
     }
@@ -256,18 +251,16 @@ pub(crate) fn seal_step(
         descendant_receipts,
         closure,
     } = params;
-    let StepSealClosure {
-        disposition,
-        reason,
-    } = closure.unwrap_or_else(|| StepSealClosure::default_for(output));
-    step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
-        params: StepReceiptWithDisposition {
+    let StepSealClosure { outcome, reason } =
+        closure.unwrap_or_else(|| StepSealClosure::default_for(output));
+    step_receipt_with_outcome_projection_authority_and_policy(StepReceiptSeal {
+        params: StepReceiptWithOutcome {
             scope,
             step_id,
             attempt,
             output,
             created_at,
-            disposition,
+            outcome,
             reason,
         },
         claim,
@@ -298,14 +291,14 @@ fn step_outcome_criterion(output: &InvocationOutput, evidence: &StepEvidence) ->
 /// One verified criterion for each contract check the runtime ran.
 fn contract_criteria(checks: &ContractChecks) -> Vec<CriterionBinding> {
     let mut result = Vec::new();
-    if let Some(digest) = &checks.output_contract_sha256 {
+    if let Some(digest) = &checks.output_contract_digest {
         push_verified_criterion(
             &mut result,
             Criterion::OutputContractVerified,
             vec![verification_ref(Criterion::OutputContractVerified, digest)],
         );
     }
-    if let Some(digest) = &checks.voice_profile_sha256 {
+    if let Some(digest) = &checks.voice_profile_digest {
         push_verified_criterion(
             &mut result,
             Criterion::VoiceProfileApplied,
@@ -324,7 +317,7 @@ fn contract_criteria(checks: &ContractChecks) -> Vec<CriterionBinding> {
                         ReferenceType::Verification,
                         format!(
                             "runx:verification:packet_schema_verified:{}:{}",
-                            check.packet, check.schema_sha256
+                            check.packet, check.schema_digest
                         ),
                     )
                 })
@@ -370,14 +363,14 @@ pub fn graph_receipt(
 }
 
 pub(crate) struct GraphClosure {
-    pub(crate) disposition: ClosureDisposition,
+    pub(crate) outcome: RunOutcome,
     pub(crate) reason: Option<SealReason>,
 }
 
 impl GraphClosure {
     pub(crate) fn completed() -> Self {
         Self {
-            disposition: ClosureDisposition::Closed,
+            outcome: RunOutcome::Completed,
             reason: None,
         }
     }
@@ -428,18 +421,18 @@ fn build_graph_receipt(
     created_at: &str,
     closure: &GraphClosure,
 ) -> Result<UnsealedReceipt, RuntimeError> {
-    let outcome = outcome_digest(&closure.disposition, &JsonObject::new(), &children)?;
+    let digest = outcome_digest(closure.outcome, &JsonObject::new(), &children)?;
     Ok(build_unsealed_receipt(BuildReceipt {
         issuer,
         scope,
         node: Node::Graph,
         kind: SubjectKind::Graph,
-        outcome,
+        outcome_digest: digest,
         created_at,
         decisions: Vec::new(),
         acts: Vec::new(),
         seal: Seal {
-            disposition: closure.disposition.clone(),
+            outcome: closure.outcome,
             reason: closure.reason,
             criteria: Vec::new(),
         },
@@ -448,26 +441,26 @@ fn build_graph_receipt(
     }))
 }
 
-// A subject's outcome binds how it closed (its seal's disposition, the one
+// A subject's outcome digest binds how it ended (its seal's outcome, the one
 // rule for steps and graphs alike), the claim it sealed (the outputs it
-// declared; a graph declares none) and the ids of its direct child receipts. Raw transport values, diagnostics, and child proof envelopes
-// remain excluded: a replay of the same declared claim and child identities
-// keeps its outcome, while a changed nested execution propagates to every
-// ancestor.
+// declared; a graph declares none) and the ids of its direct child receipts.
+// Raw transport values, diagnostics, and child proof envelopes remain
+// excluded: a replay of the same declared claim and child identities keeps
+// its digest, while a changed nested execution propagates to every ancestor.
 fn outcome_digest(
-    disposition: &ClosureDisposition,
+    outcome: RunOutcome,
     claim: &JsonObject,
     children: &[Reference],
 ) -> Result<Digest, RuntimeError> {
-    let mut outcome = JsonObject::from([
+    let mut material = JsonObject::from([
         (
-            "disposition".to_owned(),
-            JsonValue::String(disposition.label().to_owned()),
+            "outcome".to_owned(),
+            JsonValue::String(outcome.label().to_owned()),
         ),
         ("claim".to_owned(), JsonValue::Object(claim.clone())),
     ]);
     if !children.is_empty() {
-        outcome.insert(
+        material.insert(
             "children".to_owned(),
             JsonValue::Array(
                 children
@@ -477,20 +470,20 @@ fn outcome_digest(
             ),
         );
     }
-    let material = canonical_stable_json(&JsonValue::Object(outcome)).map_err(|error| {
+    let canonical = canonical_stable_json(&JsonValue::Object(material)).map_err(|error| {
         RuntimeError::ReceiptInvalid {
             message: error.to_string(),
         }
     })?;
-    Ok(Digest::of(material.as_bytes()))
+    Ok(Digest::of(canonical.as_bytes()))
 }
 
 pub(crate) fn validate_step_receipt_claim(
     receipt: &Receipt,
     claim: &JsonObject,
 ) -> Result<(), RuntimeError> {
-    if receipt.subject.outcome
-        == outcome_digest(&receipt.seal.disposition, claim, &receipt.lineage.children)?
+    if receipt.subject.outcome_digest
+        == outcome_digest(receipt.seal.outcome, claim, &receipt.lineage.children)?
     {
         return Ok(());
     }
@@ -552,8 +545,8 @@ struct BuildReceipt<'a> {
     scope: RunScope<'a>,
     node: Node<'a>,
     kind: SubjectKind,
-    /// The digest of the subject's outcome.
-    outcome: Digest,
+    /// The digest of how the subject ended.
+    outcome_digest: Digest,
     created_at: &'a str,
     decisions: Vec<Decision>,
     acts: Vec<ReceiptAct>,
@@ -601,7 +594,7 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
         scope,
         node,
         kind,
-        outcome,
+        outcome_digest,
         created_at,
         decisions,
         acts,
@@ -622,7 +615,7 @@ fn build_unsealed_receipt(parts: BuildReceipt<'_>) -> UnsealedReceipt {
             value: UNSEALED.into(),
         },
         digest: UNSEALED.into(),
-        subject: subject(scope, subject_uri, kind, outcome),
+        subject: subject(scope, subject_uri, kind, outcome_digest),
         authority: local_authority(authority),
         decisions,
         acts,
@@ -644,13 +637,13 @@ fn decision(node_id: &str, choice: DecisionChoice, act: &ReceiptAct) -> Decision
 }
 
 /// The run node a receipt seals, labelled with the graph that ran.
-fn subject(scope: RunScope<'_>, uri: String, kind: SubjectKind, outcome: Digest) -> Subject {
+fn subject(scope: RunScope<'_>, uri: String, kind: SubjectKind, outcome_digest: Digest) -> Subject {
     let mut reference = Reference::with_uri(ReferenceType::Run, uri);
     reference.label = Some(scope.graph_name.into());
     Subject {
         kind,
         reference,
-        outcome,
+        outcome_digest,
     }
 }
 
@@ -724,11 +717,11 @@ fn step_evidence(observations: &Observations, admission_refs: Vec<Reference>) ->
     evidence
 }
 
-fn disposition(output: &InvocationOutput) -> ClosureDisposition {
+fn outcome(output: &InvocationOutput) -> RunOutcome {
     if output.succeeded() {
-        ClosureDisposition::Closed
+        RunOutcome::Completed
     } else {
-        ClosureDisposition::Failed
+        RunOutcome::Failed
     }
 }
 
@@ -957,13 +950,14 @@ mod tests {
     fn contract_verification_is_bound_into_the_seal_and_a_calls_act() -> Result<(), TestError> {
         let mut output = InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 1);
         output.observations.contract = ContractChecks {
-            output_contract_sha256: Some("sha256:output".to_owned()),
-            voice_profile_sha256: Some("sha256:voice".to_owned()),
+            output_contract_digest: Some("sha256:output".to_owned()),
+            voice_profile_digest: Some("sha256:voice".to_owned()),
             packet_schemas: BTreeMap::from([(
                 "plan".to_owned(),
                 crate::observations::PacketCheck {
-                    packet: "runx.test.plan.v1".to_owned(),
-                    schema_sha256: "sha256:packet".to_owned(),
+                    packet: runx_contracts::PacketId::new("acme/planner.plan.v1")
+                        .ok_or_else(|| TestError("a packet id".to_owned()))?,
+                    schema_digest: "sha256:packet".to_owned(),
                 },
             )]),
         };
@@ -982,32 +976,31 @@ mod tests {
         assert!(receipt.acts.is_empty() && receipt.decisions.is_empty());
         assert_eq!(receipt.seal.criteria.len(), 4);
         // A governed call's act carries the same criteria.
-        let call =
-            step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
-                params: StepReceiptWithDisposition::with_default_closure(
-                    test_scope("agent_graph"),
-                    "call_step",
-                    1,
-                    &output,
-                    "2026-05-28T00:00:00Z",
-                ),
-                claim: &JsonObject::new(),
-                admission_refs: Vec::new(),
-                child_receipts: &[],
-                descendant_receipts: &[],
-                authority: SealAuthority::default(),
-                call: Some(SealedCall {
-                    operation_intent: None,
-                    act: None,
-                    description: "Post one message.".into(),
-                    legitimacy: runx_contracts::TermLegitimacy::for_term("term_call")
-                        .ok_or_else(|| TestError("a term id names a legitimacy".to_owned()))?,
-                    target_ref: None,
-                    effects: Vec::new(),
-                    context_ref: None,
-                }),
-                signature_policy: fixture()?.signature_policy(),
-            })?;
+        let call = step_receipt_with_outcome_projection_authority_and_policy(StepReceiptSeal {
+            params: StepReceiptWithOutcome::with_default_closure(
+                test_scope("agent_graph"),
+                "call_step",
+                1,
+                &output,
+                "2026-05-28T00:00:00Z",
+            ),
+            claim: &JsonObject::new(),
+            admission_refs: Vec::new(),
+            child_receipts: &[],
+            descendant_receipts: &[],
+            authority: SealAuthority::default(),
+            call: Some(SealedCall {
+                operation_intent: None,
+                act: None,
+                description: "Post one message.".into(),
+                legitimacy: runx_contracts::TermLegitimacy::for_term("term_call")
+                    .ok_or_else(|| TestError("a term id names a legitimacy".to_owned()))?,
+                target_ref: None,
+                effects: Vec::new(),
+                context_ref: None,
+            }),
+            signature_policy: fixture()?.signature_policy(),
+        })?;
         assert_eq!(call.acts[0].intent.purpose.as_str(), "Post one message.");
         assert_eq!(call.acts[0].criterion_bindings.len(), 4);
         assert!(call.decisions.is_empty(), "an unstated decision seals none");
@@ -1031,7 +1024,7 @@ mod tests {
     #[test]
     fn an_answer_that_claims_checks_a_boundary_or_evidence_seals_none() -> Result<(), TestError> {
         let claims = serde_json::json!({
-            "contract_verification": { "output_contract_sha256": "sha256:forged" },
+            "contract_verification": { "output_contract_digest": "sha256:forged" },
             "execution_boundary": { "kind": "native_capability" },
             "credential_delivery_observations": [],
             "runx_effect_verification_refs": { "refs": [] }
@@ -1126,9 +1119,9 @@ mod tests {
 
     fn identity_receipt(stdout: &str, claim: JsonObject) -> Result<Receipt, TestError> {
         let output = successful_output(stdout);
-        Ok(
-            step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
-                params: StepReceiptWithDisposition::with_default_closure(
+        Ok(step_receipt_with_outcome_projection_authority_and_policy(
+            StepReceiptSeal {
+                params: StepReceiptWithOutcome::with_default_closure(
                     test_scope("identity_graph"),
                     "identity_step",
                     1,
@@ -1142,8 +1135,8 @@ mod tests {
                 authority: SealAuthority::default(),
                 call: None,
                 signature_policy: fixture()?.signature_policy(),
-            })?,
-        )
+            },
+        )?)
     }
 
     #[test]
@@ -1172,11 +1165,17 @@ mod tests {
         let changed = identity_receipt("{\"a\":\"1\",\"b\":\"2\"}", claim("1", "3"))?;
 
         assert_eq!(first.id, other_transport.id);
-        assert_eq!(first.subject.outcome, other_transport.subject.outcome);
+        assert_eq!(
+            first.subject.outcome_digest,
+            other_transport.subject.outcome_digest
+        );
         assert_eq!(first.id, reordered.id);
-        assert_eq!(first.subject.outcome, reordered.subject.outcome);
+        assert_eq!(
+            first.subject.outcome_digest,
+            reordered.subject.outcome_digest
+        );
         assert_ne!(first.id, changed.id);
-        assert_ne!(first.subject.outcome, changed.subject.outcome);
+        assert_ne!(first.subject.outcome_digest, changed.subject.outcome_digest);
         Ok(())
     }
 
@@ -1191,8 +1190,8 @@ mod tests {
         };
         let outer = |child: &Receipt| {
             let output = successful_output("outer transport");
-            step_receipt_with_disposition_projection_authority_and_policy(StepReceiptSeal {
-                params: StepReceiptWithDisposition::with_default_closure(
+            step_receipt_with_outcome_projection_authority_and_policy(StepReceiptSeal {
+                params: StepReceiptWithOutcome::with_default_closure(
                     test_scope("outer_graph"),
                     "outer_step",
                     1,
@@ -1228,16 +1227,16 @@ mod tests {
         let claim = JsonObject::new();
 
         assert_eq!(
-            outcome_digest(&ClosureDisposition::Closed, &claim, &[first.clone()])?,
-            outcome_digest(&ClosureDisposition::Closed, &claim, &[same_id_new_digest])?
+            outcome_digest(RunOutcome::Completed, &claim, &[first.clone()])?,
+            outcome_digest(RunOutcome::Completed, &claim, &[same_id_new_digest])?
         );
         assert_ne!(
-            outcome_digest(&ClosureDisposition::Closed, &claim, &[first.clone()])?,
-            outcome_digest(&ClosureDisposition::Closed, &claim, &[second])?
+            outcome_digest(RunOutcome::Completed, &claim, &[first.clone()])?,
+            outcome_digest(RunOutcome::Completed, &claim, &[second])?
         );
         assert_ne!(
-            outcome_digest(&ClosureDisposition::Closed, &claim, &[first.clone()])?,
-            outcome_digest(&ClosureDisposition::Failed, &claim, &[first])?
+            outcome_digest(RunOutcome::Completed, &claim, &[first.clone()])?,
+            outcome_digest(RunOutcome::Failed, &claim, &[first])?
         );
         Ok(())
     }
@@ -1280,7 +1279,7 @@ mod tests {
                 observed_at: None,
                 proof_kind: Some(ProofKind::CredentialResolution),
             }],
-            material_ref_hash: Some("sha256:material-ref-hash".into()),
+            material_id_digest: Some("sha256:material-ref-hash".into()),
             delivered_roles: vec![CredentialMaterialRole::ApiKey],
             redaction_refs: None,
             observed_at: "2026-05-28T00:00:00Z".into(),

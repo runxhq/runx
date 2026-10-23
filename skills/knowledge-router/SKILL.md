@@ -69,9 +69,9 @@ the honest outcome.
 ### `knowledge-router-propose`
 
 Route the question through only the supplied knowledge catalog. Return route_proposal with
-verdict, route, source_matches, owner_recommendation, and next_skill. Every selected source_ref,
-owner_ref, and skill_ref must exactly match a supplied id. Choose the smallest useful source
-set. Use needs_more_context with no selected refs when the catalog cannot support a route. Use
+verdict, route, source_matches, owner_recommendation, and next_skill. Every selected source_id,
+owner_id, and skill must exactly match a supplied id. Choose the smallest useful source
+set. Use needs_more_context with no selected ids when the catalog cannot support a route. Use
 manual_review for consequential legal, billing, security, privacy, or destructive decisions, not
 merely because the topic belongs to those domains. Do not answer the question or perform the
 follow-up skill.

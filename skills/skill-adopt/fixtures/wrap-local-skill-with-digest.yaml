@@ -11,7 +11,7 @@ operator_journeys:
     request: Continue adoption from this reviewed upstream skill and pinned provenance.
     expected_outcome: Reuse the supplied source and provenance to return the same validated binding bundle without reassessing or refetching upstream.
     prior_evidence:
-      - The reviewed upstream SKILL.md, commit, blob SHA, registry owner, and scope intent supplied in the fixture.
+      - The reviewed upstream SKILL.md, commit, blob SHA, registry publisher, and scope intent supplied in the fixture.
     must_not_repeat:
       - Do not fetch the upstream repository again.
       - Do not repeat third-party skill assessment already supplied by skill-review.
@@ -28,7 +28,7 @@ inputs:
     html_url: https://github.com/example/borrowed-skills/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md
     raw_url: https://raw.githubusercontent.com/example/borrowed-skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md
   registry:
-    owner: example
+    publisher: example
     trust_tier: community
     version: upstream-aaaaaaaa
   objective: Govern the borrowed summarizer through a native Runx binding.
@@ -112,7 +112,7 @@ expect:
             binding_path: bindings/example/summarize
             source:
               name: summarize
-              sha256: sha256:c7f551aad2e356ba7114910b7ecf27832dd195fcce49a7b3b329de03a7814e71
+              content_digest: sha256:c7f551aad2e356ba7114910b7ecf27832dd195fcce49a7b3b329de03a7814e71
               git_blob_sha: 66cececa3c93fc6b128e9d4341ecfe2a208cd2b9
             files:
               - path: bindings/example/summarize/binding.json

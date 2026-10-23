@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::JsonObject;
-use crate::schema::{Property, RunxSchema, object_schema};
+use crate::schema::{NamedSchemas, Property, RunxSchema, object_schema, record_named, titled};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "kebab-case")]
@@ -63,6 +63,12 @@ impl RunxSchema for Fixture {
             );
             object.insert("x-runx-schema".to_owned(), json!("runx.fixture.v1"));
         }
-        schema
+        titled(schema, "Fixture")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "Fixture", Self::json_schema) {
+            FixtureLane::named_schemas(named);
+        }
     }
 }

@@ -4,17 +4,17 @@ use crate::ValidationError;
 
 #[derive(Clone, Copy)]
 pub(crate) struct JsonFieldReader {
-    owner: &'static str,
+    object: &'static str,
 }
 
 impl JsonFieldReader {
-    pub(crate) const fn new(owner: &'static str) -> Self {
-        Self { owner }
+    pub(crate) const fn new(object: &'static str) -> Self {
+        Self { object }
     }
 
     pub(crate) fn validation_error(&self, message: impl Into<String>) -> ValidationError {
         ValidationError::InvalidField {
-            field: self.owner.to_owned(),
+            field: self.object.to_owned(),
             message: message.into(),
         }
     }

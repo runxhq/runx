@@ -104,7 +104,7 @@ function proveQuickstart() {
   if (
     output.status !== "sealed"
     || output.result?.message !== "Hello, Runx."
-    || output.closure?.disposition !== "closed"
+    || output.outcome !== "completed"
   ) {
     throw new Error(`the README quickstart did not seal its greeting: ${JSON.stringify(output)}`);
   }
@@ -285,10 +285,10 @@ runners:
   }
   const output = parseJson(result.stdout, "operator context");
   const request = output.requests?.[0];
-  if (request?.request_digest !== request?.artifact_ref?.digest) {
+  if (request?.request_digest !== request?.artifact?.digest) {
     throw new Error("agent request digest does not match its artifact");
   }
-  const envelope = readArtifact(request?.artifact_ref).invocation?.envelope;
+  const envelope = readArtifact(request?.artifact).invocation?.envelope;
   const instructions = envelope?.instructions;
   if (
     typeof instructions !== "string"
@@ -298,7 +298,7 @@ runners:
     throw new Error("agent envelope omitted the complete skill manual");
   }
   const digest = `sha256:${createHash("sha256").update(instructions).digest("hex")}`;
-  if (envelope.instructions_sha256 !== digest) {
+  if (envelope.instructions_digest !== digest) {
     throw new Error("agent instructions digest does not match the delivered manual");
   }
   return true;
@@ -387,7 +387,7 @@ runners:
     "--json",
   ]);
   const resumed = parseJson(resumedResult.stdout, "approval resume");
-  const diagnostics = readArtifact(resumed.diagnostics_ref);
+  const diagnostics = readArtifact(resumed.diagnostics_artifact);
   const actor = diagnostics.context?.step_outputs?.approve?.approval_decision?.data?.actor;
   const proof = path.join(root, "approval-proof.txt");
   if (
@@ -604,7 +604,7 @@ function isolatedEnvironment() {
     RUNX_REGISTRY_DIR: registry,
     RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID: signingKey.keyId,
     RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64: signingKey.publicKeyBase64,
-    RUNX_REGISTRY_MANIFEST_TRUST_OWNER: "acme",
+    RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER: "acme",
   };
 }
 
@@ -617,7 +617,7 @@ function parseJson(value, context) {
 }
 
 function readArtifact(reference) {
-  if (reference?.schema !== "runx.project_artifact_ref.v1") {
+  if (reference?.schema !== "runx.project_artifact.v1") {
     throw new Error("candidate omitted the expected project artifact reference");
   }
   const bytes = readFileSync(path.resolve(root, reference.path));

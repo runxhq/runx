@@ -1,0 +1,255 @@
+{
+  "$id": "https://schemas.runx.ai/runx/x402/purchase-extension/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_digest": {
+          "description": "The registry's digest of the published bundle's files.",
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "offer_version": {
+          "$id": "https://schemas.runx.ai/runx/payment/offer-version-binding/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "input_schema_digest": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "offer_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "output_schema_digest": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "profile_digest": {
+              "description": "The digest of the profile that declares the offer at that version.",
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "version": {
+              "description": "The package version the offer is sold at.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "offer_id",
+            "version",
+            "profile_digest",
+            "input_schema_digest",
+            "output_schema_digest"
+          ],
+          "title": "OfferVersionBinding",
+          "type": "object",
+          "x-runx-schema": "runx.payment.offer_version_binding.v1"
+        },
+        "purpose": {
+          "const": "discovery",
+          "type": "string"
+        }
+      },
+      "required": [
+        "purpose",
+        "offer_version",
+        "bundle_digest"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalizer_version": {
+          "description": "The sole V1 canonicalization identifier for digest-bound inputs.",
+          "enum": [
+            "runx.receipt.c14n.v1"
+          ],
+          "title": "PurchaseCanonicalizerVersion",
+          "type": "string"
+        },
+        "idempotency": {
+          "additionalProperties": false,
+          "properties": {
+            "binding_digest": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "key": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "binding_digest"
+          ],
+          "title": "PaymentIdempotencyBinding",
+          "type": "object"
+        },
+        "input_digest": {
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "offer_version": {
+          "$id": "https://schemas.runx.ai/runx/payment/offer-version-binding/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "input_schema_digest": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "offer_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "output_schema_digest": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "profile_digest": {
+              "description": "The digest of the profile that declares the offer at that version.",
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "version": {
+              "description": "The package version the offer is sold at.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "offer_id",
+            "version",
+            "profile_digest",
+            "input_schema_digest",
+            "output_schema_digest"
+          ],
+          "title": "OfferVersionBinding",
+          "type": "object",
+          "x-runx-schema": "runx.payment.offer_version_binding.v1"
+        },
+        "package_digest": {
+          "description": "The execution package digest the purchase runs (`runx.skill-package.v1` over the files a run loads).",
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "purchase_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "purpose": {
+          "const": "purchase",
+          "type": "string"
+        },
+        "quote_ref": {
+          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "locator": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "observed_at": {
+              "minLength": 1,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+              "type": "string"
+            },
+            "proof_kind": {
+              "enum": [
+                "effect_evidence",
+                "effect_finality",
+                "credential_resolution"
+              ],
+              "title": "ProofKind",
+              "type": "string"
+            },
+            "provider": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+              "enum": [
+                "thread",
+                "comment",
+                "event",
+                "tracking_item",
+                "change_request",
+                "repository",
+                "signal",
+                "run",
+                "act",
+                "receipt",
+                "artifact",
+                "verification",
+                "harness",
+                "host",
+                "surface",
+                "target",
+                "skill_binding",
+                "principal",
+                "scope_admission",
+                "grant",
+                "mandate",
+                "credential",
+                "webhook_delivery",
+                "redaction_policy",
+                "external_url",
+                "connector_instance",
+                "connector_operation"
+              ],
+              "title": "ReferenceType",
+              "type": "string"
+            },
+            "uri": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "uri"
+          ],
+          "title": "Reference",
+          "type": "object",
+          "x-runx-schema": "runx.reference.v1"
+        }
+      },
+      "required": [
+        "purpose",
+        "purchase_id",
+        "quote_ref",
+        "offer_version",
+        "package_digest",
+        "input_digest",
+        "canonicalizer_version",
+        "idempotency"
+      ],
+      "type": "object"
+    }
+  ],
+  "description": "Strict Runx information advertised under the external `runx.purchase` key.\n\nThis is a declaration only. The authoritative challenge binding remains the `PurchasePaymentChallenge` `quote_ref` and `payload_digest` pair.",
+  "title": "RunxX402PurchaseExtensionInfo",
+  "x-runx-schema": "runx.x402.purchase_extension.v1"
+}

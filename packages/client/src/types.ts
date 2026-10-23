@@ -1,4 +1,4 @@
-import type { AgentContextEnvelopeContract, ProcessListContract, ProcessOutputContract, ProjectArtifactRefContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, RunxProcessContract, StandingApprovalContract, RunxListReportContract, SkillInspectionContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
+import type { AgentContextEnvelopeContract, ProcessListContract, ProcessOutputContract, ProjectArtifactContract, ReceiptContract, ReferenceContract, ResumeDocumentContract, RunReadContract, RunxProcessContract, StandingApprovalContract, RunxListReportContract, SkillInspectionContract, SkillOutputContract, WaitedRequestContract } from "@runxhq/contracts";
 
 export interface RunxClientConfig {
   readonly command: string;
@@ -228,7 +228,7 @@ export interface RunxClient {
   readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeHarnessOutput> };
   readonly artifacts: {
     /** A project artifact by its reference, confined to the project and checked against its digest. */
-    read(reference: ProjectArtifactRefContract, options?: { readonly maxBytes?: number }): Promise<unknown>;
+    read(reference: ProjectArtifactContract, options?: { readonly maxBytes?: number }): Promise<unknown>;
   };
   readonly secrets: {
     /**

@@ -48,11 +48,11 @@ Operator rules:
 - Exported Claude/Codex skills are shims. If invoked directly by path, the CLI
   resolves the generated source marker back to the governed runx skill; stale
   shims fail closed with an instruction to rerun `runx export`.
-- Runnable registry skills use explicit `owner/name@version` refs with optional
+- Runnable registry skills use explicit `publisher/name@version` refs with optional
   `--registry`. A bare name resolves a local path, then an installed or
   workspace skill, then a bundled skill, then the registry's root name: one
   segment the registry assigns to a verified publisher's skill, resolved to its
-  canonical `owner/name`. A package's `registry:` refs always name `owner/name`.
+  canonical `publisher/name`. A package's `registry:` refs always name `publisher/name`.
   Unsigned or digest-mismatched registry packages are search/read metadata only
   and fail before execution.
 - `runx registry search` and `runx registry install <ref>` print a compact
@@ -71,9 +71,9 @@ Cloud orchestrator packages should call the hosted API, not shell out:
 
 - `POST /v1/skills/{skill}/run` is the connector-friendly `Run Skill` action.
   The `skill` path parameter is the skill reference; use a URL-encoded slash for
-  `owner/name` refs. The JSON body contains `inputs` and optional
+  `publisher/name` refs. The JSON body contains `inputs` and optional
   `idempotency_key`.
-- `POST /v1/skills/{owner}/{name}/run` is the clean owner-scoped route for
+- `POST /v1/skills/{publisher}/{name}/run` is the clean publisher-scoped route for
   registry skills.
 - `POST /v1/runs` remains the canonical hosted submission route when the caller
   prefers body-level `skill`.
@@ -88,18 +88,12 @@ Cloud orchestrator packages should call the hosted API, not shell out:
 - Directory clients should call real runx skills, not privileged special-case
   routes. The local outbound skill is `webhook-handoff`; the
   hosted n8n/Zapier clients should submit the same kind of governed skill run
-  through `POST /v1/skills/{owner}/{name}/run`.
+  through `POST /v1/skills/{publisher}/{name}/run`.
 - Do not add a new durable packet family just for orchestrator handoff. The
   handoff skills emit a receipt-backed `handoff_context` artifact and the
-  outbound HTTP step supplies effect evidence. Existing `runx.handoff_signal.v1`
-  and `runx.handoff_state.v1` remain the lifecycle packets if receiver replies
-  or post-handoff state need to be modeled later. Do not use those lifecycle
-  packets as the webhook body unless the run also has durable lifecycle state:
-  `handoff_id`, `signal_id`, `recorded_at`, `boundary_kind`, target locator,
-  source/source ref, disposition, actor, and enough receiver status to maintain
-  `signal_count`, `last_signal_id`, and `last_signal_disposition`. Without that
-  state, using `runx.handoff_signal.v1` would hide missing lifecycle semantics
-  inside `metadata` and weaken the packet.
+  outbound HTTP step supplies effect evidence. If receiver replies or
+  post-handoff state need modelling later, the skill that tracks them owns
+  that packet; core carries no handoff lifecycle packet.
 
 The remaining directory blocker is production posture: deployed HTTPS,
 reviewable credentials/test accounts, docs, support pages, and a conservative

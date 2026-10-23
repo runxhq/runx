@@ -112,7 +112,7 @@ impl Outcome {
 
 fn append(key: &str, aggregate: &str, expected: u64, label: &str, at: &str) -> serde_json::Value {
     serde_json::json!({
-        "data_source_ref": "local://board",
+        "data_source_uri": "local://board",
         "resource": "items",
         "aggregate_id": aggregate,
         "expected_version": expected,
@@ -190,11 +190,11 @@ fn scenario(store: &Harness) -> Vec<String> {
     }
 
     let stream = serde_json::json!({
-        "data_source_ref": "local://board", "resource": "items", "aggregate_id": "a",
+        "data_source_uri": "local://board", "resource": "items", "aggregate_id": "a",
     });
     let tail = store
         .call("events.read", serde_json::json!({
-            "data_source_ref": "local://board", "resource": "items", "aggregate_id": "a", "limit": 2,
+            "data_source_uri": "local://board", "resource": "items", "aggregate_id": "a", "limit": 2,
         }))
         .unwrap();
     let versions = |outcome: &Outcome| {
@@ -211,7 +211,7 @@ fn scenario(store: &Harness) -> Vec<String> {
         .call(
             "events.read",
             serde_json::json!({
-                "data_source_ref": "local://board", "resource": "items", "aggregate_id": "a",
+                "data_source_uri": "local://board", "resource": "items", "aggregate_id": "a",
                 "limit": 2, "after_version": 0,
             }),
         )
@@ -227,7 +227,7 @@ fn scenario(store: &Harness) -> Vec<String> {
         .call(
             "heads.list",
             serde_json::json!({
-                "data_source_ref": "local://board", "resource": "items", "limit": 1,
+                "data_source_uri": "local://board", "resource": "items", "limit": 1,
             }),
         )
         .unwrap();
@@ -252,7 +252,7 @@ fn scenario(store: &Harness) -> Vec<String> {
     assert_eq!(newest(&first_page), "b");
     let second_page = store
         .call("heads.list", serde_json::json!({
-            "data_source_ref": "local://board", "resource": "items", "limit": 1, "cursor": cursor,
+            "data_source_uri": "local://board", "resource": "items", "limit": 1, "cursor": cursor,
         }))
         .unwrap();
     assert_eq!(newest(&second_page), "a");
@@ -267,6 +267,63 @@ fn the_workspace_store_keeps_streams_beside_the_kernel() {
     scenario(&Harness::workspace(root.path()));
     let paths = crate::paths::RunxPaths::resolve(&BTreeMap::new(), root.path());
     assert!(paths.workspace_store().is_file());
+}
+
+/// What a store answers of the scenario's streams once they are written.
+fn reads(store: &Harness) -> Vec<JsonValue> {
+    [
+        (
+            "events.read",
+            serde_json::json!({
+                "data_source_uri": "local://board", "resource": "items", "aggregate_id": "a",
+                "limit": 10, "after_version": 0,
+            }),
+        ),
+        (
+            "projection.read",
+            serde_json::json!({
+                "data_source_uri": "local://board", "resource": "items", "aggregate_id": "a",
+            }),
+        ),
+        (
+            "heads.list",
+            serde_json::json!({
+                "data_source_uri": "local://board", "resource": "items", "limit": 10,
+            }),
+        ),
+    ]
+    .into_iter()
+    .map(|(operation, arguments)| store.call(operation, arguments).unwrap().result)
+    .collect()
+}
+
+/// A version 1 workspace store, which named the `data_source_uri` and
+/// `event_id` columns `data_source_ref` and `event_ref`, reads after its one
+/// migration as it read before.
+#[test]
+fn a_version_1_sqlite_store_reads_as_it_did_after_its_migration() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Harness::workspace(root.path());
+    scenario(&store);
+    let before = reads(&store);
+    let path = crate::paths::RunxPaths::resolve(&BTreeMap::new(), root.path()).workspace_store();
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "ALTER TABLE runx_events RENAME COLUMN data_source_uri TO data_source_ref;
+             ALTER TABLE runx_events RENAME COLUMN event_id TO event_ref;
+             ALTER TABLE runx_stream_heads RENAME COLUMN data_source_uri TO data_source_ref;
+             ALTER TABLE runx_stream_heads RENAME COLUMN event_id TO event_ref;
+             PRAGMA user_version = 1;",
+        )
+        .unwrap();
+
+    assert_eq!(reads(&store), before);
+    let version: i64 = rusqlite::Connection::open(&path)
+        .unwrap()
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 2);
 }
 
 #[test]
@@ -287,7 +344,7 @@ fn a_sqlite_store_refuses_a_file_that_is_not_a_store() {
         .call(
             "projection.read",
             serde_json::json!({
-                "data_source_ref": "local://board", "resource": "items", "aggregate_id": "a",
+                "data_source_uri": "local://board", "resource": "items", "aggregate_id": "a",
             }),
         )
         .err()
@@ -303,7 +360,7 @@ fn a_store_url_never_carries_a_password() {
         .call(
             "projection.read",
             serde_json::json!({
-                "data_source_ref": "local://board", "resource": "items", "aggregate_id": "a",
+                "data_source_uri": "local://board", "resource": "items", "aggregate_id": "a",
             }),
         )
         .err()
@@ -311,7 +368,8 @@ fn a_store_url_never_carries_a_password() {
     assert!(refused.contains("credential"), "{refused}");
 }
 
-/// Postgres and Redis keep the same streams to the same digests as SQLite.
+/// Postgres and Redis keep the same streams to the same digests as SQLite, and
+/// a version 1 store of each reads after its migration as it read before.
 /// They run against `RUNX_TEST_POSTGRES_URL` and `RUNX_TEST_REDIS_URL`, each a
 /// database the test may write to, when set.
 #[cfg(feature = "store")]
@@ -327,7 +385,71 @@ fn every_backend_keeps_the_same_streams() {
         let store = Harness::at(isolated.path(), &url);
         clear(&url);
         assert_eq!(scenario(&store), reference, "{variable}");
+        // A version 1 store reads after its one migration as it read before.
+        let before = reads(&store);
+        to_version_1(&url);
+        assert_eq!(reads(&store), before, "{variable}");
         clear(&url);
+    }
+}
+
+/// Rewrite a store the scenario wrote under the names version 1 kept.
+#[cfg(feature = "store")]
+fn to_version_1(url: &str) {
+    if url.starts_with("redis") {
+        let mut connection = redis::Client::open(url).unwrap().get_connection().unwrap();
+        let keys = redis::Commands::scan_match::<_, String>(&mut connection, "runx:store:{*")
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        for key in keys {
+            let rest = key.split_once("}:").unwrap().1;
+            let back =
+                |text: &str, to: &str, from: &str| super::redis::renamed(text, to, from).unwrap();
+            match rest.split(':').next() {
+                Some("events") => {
+                    let records: Vec<String> =
+                        redis::Commands::lrange(&mut connection, &key, 0, -1).unwrap();
+                    let records = records
+                        .iter()
+                        .map(|record| back(record, "event_id", "event_ref"))
+                        .collect::<Vec<_>>();
+                    redis::pipe()
+                        .atomic()
+                        .del(&key)
+                        .rpush(&key, records)
+                        .query::<()>(&mut connection)
+                        .unwrap();
+                }
+                Some("keys" | "heads") => {
+                    let entries: Vec<(String, String)> =
+                        redis::Commands::hgetall(&mut connection, &key).unwrap();
+                    for (field, record) in entries {
+                        let record = back(&record, "event_id", "event_ref");
+                        redis::Commands::hset::<_, _, _, ()>(&mut connection, &key, field, record)
+                            .unwrap();
+                    }
+                }
+                Some("projection") => {
+                    let projection: String = redis::Commands::get(&mut connection, &key).unwrap();
+                    let projection = back(&projection, "last_event_id", "last_event_ref");
+                    redis::Commands::set::<_, _, ()>(&mut connection, &key, projection).unwrap();
+                }
+                _ => {}
+            }
+        }
+        redis::Commands::del::<_, ()>(&mut connection, "runx:store:schema").unwrap();
+    } else {
+        let mut client = postgres::Client::connect(url, postgres::NoTls).unwrap();
+        client
+            .batch_execute(
+                "ALTER TABLE runx_store_events RENAME COLUMN data_source_uri TO data_source_ref;
+                 ALTER TABLE runx_store_events RENAME COLUMN event_id TO event_ref;
+                 ALTER TABLE runx_store_heads RENAME COLUMN data_source_uri TO data_source_ref;
+                 ALTER TABLE runx_store_heads RENAME COLUMN event_id TO event_ref;
+                 UPDATE runx_store_schema SET version = 1;",
+            )
+            .unwrap();
     }
 }
 

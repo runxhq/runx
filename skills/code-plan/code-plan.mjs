@@ -184,7 +184,7 @@ function validateWorkspacePlan(value, changeSet, objectiveSummary, findings, con
       }
       requiredString(request.task_id, `${requestPath}.task_id`);
       requiredString(request.objective, `${requestPath}.objective`);
-      strings(request.shared_context_refs, `${requestPath}.shared_context_refs`);
+      strings(request.shared_context_paths, `${requestPath}.shared_context_paths`);
       const validationCommands = strings(request.validation_commands, `${requestPath}.validation_commands`);
       for (const [commandIndex, command] of validationCommands.entries()) {
         if (isPlaceholderCommand(command)) {

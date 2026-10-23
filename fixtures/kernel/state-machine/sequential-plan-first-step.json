@@ -13,16 +13,16 @@
     "kind": "state-machine.planSequentialGraphTransition",
     "state": {
       "graphId": "gx_fixture",
-      "status": "pending",
+      "state": "pending",
       "steps": [
         {
           "attempts": 0,
-          "status": "pending",
+          "state": "pending",
           "stepId": "first"
         },
         {
           "attempts": 0,
-          "status": "pending",
+          "state": "pending",
           "stepId": "second"
         }
       ]

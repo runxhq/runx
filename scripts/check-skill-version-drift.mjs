@@ -144,6 +144,7 @@ function isPublishableRelative(relative) {
     return false;
   }
   const fileName = parts.at(-1) ?? "";
+  if (parts[0] === "packets") return fileName.endsWith(".schema.json");
   if (parts.includes("fixtures")) {
     return fileName.endsWith(".mjs") || fileName.endsWith(".js");
   }
@@ -215,6 +216,7 @@ function git(args) {
 function runSelfTests() {
   assert(isPublishableRelative("SKILL.md"), "SKILL.md is publishable");
   assert(isPublishableRelative("references/operator.md"), "reference markdown is publishable");
+  assert(isPublishableRelative("packets/plan.v1.schema.json"), "a package packet is publishable");
   assert(!isPublishableRelative("fixtures/evidence.json"), "ordinary fixtures are not package material");
   assert(
     isPublishableRelative("fixtures/helper.mjs"),

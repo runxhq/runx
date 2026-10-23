@@ -46,7 +46,7 @@ fn native_catalog_allowed(source: Option<&str>, effects: &crate::RuntimeEffectRe
         effects
             .capabilities()
             .iter()
-            .any(|capability| capability.definition().owner.eq_ignore_ascii_case(source))
+            .any(|capability| capability.definition().source.eq_ignore_ascii_case(source))
     })
 }
 

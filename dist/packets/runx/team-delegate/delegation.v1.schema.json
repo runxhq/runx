@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/team-delegate/delegation/v1.json",
+  "x-runx-packet-id": "runx/team-delegate.delegation.v1",
+  "additionalProperties": false,
+  "properties": {
+    "assignments": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance": {
+            "items": {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "authority_status": {
+            "const": "not_granted"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "source_id": {
+                  "maxLength": 2000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "text": {
+                  "maxLength": 50000,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source_id",
+                "text"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "input_context": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "member": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "needed_scope": {
+            "items": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "runner": {
+            "type": "string"
+          },
+          "skill": {
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "task": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "verification": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "member",
+          "task",
+          "input_context",
+          "source_ids",
+          "needed_scope",
+          "acceptance",
+          "verification",
+          "skill",
+          "runner",
+          "evidence",
+          "authority_status"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "decision": {
+      "enum": [
+        "proposed",
+        "needs_input",
+        "held"
+      ]
+    },
+    "execution_status": {
+      "const": "not_started"
+    },
+    "input_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "missing_context": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "type": "array"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "rationale": {
+      "maxLength": 5000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema": {
+      "const": "runx/team-delegate.delegation.v1"
+    },
+    "validation": {
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "findings"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "decision",
+    "rationale",
+    "assignments",
+    "missing_context",
+    "schema",
+    "objective",
+    "input_digest",
+    "execution_status",
+    "validation"
+  ],
+  "type": "object"
+}

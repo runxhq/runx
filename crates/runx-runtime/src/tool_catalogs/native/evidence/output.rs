@@ -31,7 +31,7 @@ struct SourceIndex {
 struct IndexedSource {
     source_digest: String,
     content_digest: String,
-    source_ref: String,
+    source_uri: String,
     source_kind: String,
     extracted: String,
     provenance: SourceProvenance,
@@ -42,7 +42,7 @@ struct IndexedSource {
 struct SourceEvidence {
     evidence_digest: String,
     content_digest: String,
-    source_ref: String,
+    source_uri: String,
     source_kind: String,
     provenance: SourceProvenance,
 }

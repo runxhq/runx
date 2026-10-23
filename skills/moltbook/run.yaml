@@ -1,5 +1,5 @@
 skill: moltbook
-version: "0.4.11"
+version: "0.4.12"
 
 catalog:
   kind: skill
@@ -22,10 +22,10 @@ input_definitions:
       maxItems: 100
       items:
         type: object
-        required: [source_ref, topic, summary, observed_at]
+        required: [source_id, topic, summary, observed_at]
         additionalProperties: false
         properties:
-          source_ref: { type: string, minLength: 1, maxLength: 512 }
+          source_id: { type: string, minLength: 1, maxLength: 512 }
           topic: { type: string, minLength: 1, maxLength: 500 }
           summary: { type: string, minLength: 1, maxLength: 10000 }
           observed_at: { type: string, format: date-time }
@@ -43,7 +43,7 @@ input_definitions:
           minItems: 1
           maxItems: 20
           items: { type: string, minLength: 1, maxLength: 1000 }
-        source_refs:
+        source_ids:
           type: array
           uniqueItems: true
           items: { type: string, minLength: 1, maxLength: 512 }
@@ -63,8 +63,8 @@ harness:
         as_of: "2026-07-17T12:00:00Z"
         max_age_hours: 48
         feed_snapshot:
-          - { source_ref: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z" }
-          - { source_ref: feedback_1, topic: migration, summary: Builders requested clearer migration guidance., observed_at: "2026-07-16T11:00:00Z" }
+          - { source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z" }
+          - { source_id: feedback_1, topic: migration, summary: Builders requested clearer migration guidance., observed_at: "2026-07-16T11:00:00Z" }
       caller:
         answers:
           analyze:
@@ -73,11 +73,11 @@ harness:
               opportunity_report:
                 topic: package skill migration
                 rationale: Current product change and operator demand support a practical migration post.
-                source_refs: [changelog_1, feedback_1]
+                source_ids: [changelog_1, feedback_1]
               post_outline:
                 headline: How to move a Runx skill into a package root
                 beats: [What changed, How to migrate, How to verify]
-                source_refs: [changelog_1, feedback_1]
+                source_ids: [changelog_1, feedback_1]
               moderation_notes: { sensitivity: low, tone: direct and useful }
               follow_up_plan: { monitor_for: [migration questions] }
       expect:
@@ -100,7 +100,7 @@ harness:
         as_of: "2026-07-17T12:00:00Z"
         max_age_hours: 24
         feed_snapshot:
-          - { source_ref: old_1, topic: old, summary: Old product update., observed_at: "2026-07-10T10:00:00Z" }
+          - { source_id: old_1, topic: old, summary: Old product update., observed_at: "2026-07-10T10:00:00Z" }
       expect:
         status: sealed
         steps: [admit, digest, reject]
@@ -130,13 +130,13 @@ harness:
           opportunity_report:
             topic: package skill migration
             rationale: Current demand supports a practical post.
-            source_refs: [changelog_1]
+            source_ids: [changelog_1]
           post_outline:
             headline: How to move a Runx skill into a package root
             beats: [What changed, How to migrate]
-            source_refs: [changelog_1]
+            source_ids: [changelog_1]
           source_evidence:
-            - { source_ref: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
+            - { source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
           evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           delivery_status: not_posted
           validation: { status: pass, findings: [] }
@@ -156,8 +156,8 @@ harness:
                 submolt: agents
                 title: How to move a Runx skill into a package root
                 body: Package-rooted skills make inspection and harness verification explicit.
-                claim_refs:
-                  - { claim: Package-rooted skills are the migration subject., source_refs: [changelog_1] }
+                claims:
+                  - { claim: Package-rooted skills are the migration subject., source_ids: [changelog_1] }
               moderation_notes: { final_check: [No unsupported claims.] }
               follow_up_plan: { monitor_for: [migration questions] }
       expect:
@@ -278,7 +278,7 @@ runners:
           named_emits:
             moltbook_scan_packet: moltbook_scan_packet
           packets:
-            moltbook_scan_packet: runx.moltbook.scan.v1
+            moltbook_scan_packet: runx/moltbook.scan.v1
 
       - id: analyze
         when:
@@ -315,7 +315,7 @@ runners:
           named_emits:
             moltbook_scan_packet: moltbook_scan_packet
           packets:
-            moltbook_scan_packet: runx.moltbook.scan.v1
+            moltbook_scan_packet: runx/moltbook.scan.v1
 
   scan:
     description: Find at most one opportunity in a feed snapshot you already captured, for replay or offline work.
@@ -345,7 +345,7 @@ runners:
         as_of: "2026-07-17T12:00:00Z"
         max_age_hours: 48
         feed_snapshot:
-          - source_ref: changelog_1
+          - source_id: changelog_1
             topic: package skills
             summary: Runx now enforces package-rooted skills.
             observed_at: "2026-07-16T10:00:00Z"
@@ -383,7 +383,7 @@ runners:
           named_emits:
             moltbook_scan_packet: moltbook_scan_packet
           packets:
-            moltbook_scan_packet: runx.moltbook.scan.v1
+            moltbook_scan_packet: runx/moltbook.scan.v1
 
       - id: analyze
         when:
@@ -419,14 +419,14 @@ runners:
           named_emits:
             moltbook_scan_packet: moltbook_scan_packet
           packets:
-            moltbook_scan_packet: runx.moltbook.scan.v1
+            moltbook_scan_packet: runx/moltbook.scan.v1
 
   post:
     description: Draft a post for the opportunity a scan chose, within Moltbook's limits and the scan's evidence. Publishes nothing.
     inputs:
       scan_packet:
         type: json
-        packet: runx.moltbook.scan.v1
+        packet: runx/moltbook.scan.v1
         required: true
         description: Validated ready Moltbook scan packet.
       outline:
@@ -450,13 +450,13 @@ runners:
           opportunity_report:
             topic: package skill migration
             rationale: Current demand supports a practical post.
-            source_refs: [changelog_1]
+            source_ids: [changelog_1]
           post_outline:
             headline: How to move a Runx skill into a package root
             beats: [What changed, How to migrate]
-            source_refs: [changelog_1]
+            source_ids: [changelog_1]
           source_evidence:
-            - { source_ref: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
+            - { source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
           evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           delivery_status: not_posted
           validation: { status: pass, findings: [] }
@@ -519,7 +519,7 @@ runners:
           named_emits:
             moltbook_post_packet: moltbook_post_packet
           packets:
-            moltbook_post_packet: runx.moltbook.post.v1
+            moltbook_post_packet: runx/moltbook.post.v1
 
       - id: finalize-post
         when:
@@ -537,16 +537,16 @@ runners:
           named_emits:
             moltbook_post_packet: moltbook_post_packet
           packets:
-            moltbook_post_packet: runx.moltbook.post.v1
+            moltbook_post_packet: runx/moltbook.post.v1
 
   publish:
     description: Publish a drafted post to its submolt once, after exact approval, and read it back.
     inputs:
       post_packet:
         type: json
-        packet: runx.moltbook.post.v1
+        packet: runx/moltbook.post.v1
         required: true
-        description: Exact validated runx.moltbook.post.v1 payload to publish.
+        description: Exact validated runx/moltbook.post.v1 payload to publish.
       idempotency_key:
         type: string
         required: true
@@ -559,14 +559,14 @@ runners:
             submolt: agents
             title: How to move a Runx skill into a package root
             body: Package-rooted skills make inspection and harness verification explicit.
-            claim_refs:
+            claims:
               - claim: Package-rooted skills are the migration subject.
-                source_refs: [changelog_1]
+                source_ids: [changelog_1]
           payload_digest: sha256:22d50f9adab4c26e2408063ce226b8eccf65415f8abb5eb8205791cf2202c251
           moderation_notes: { final_check: [No unsupported claims.] }
           follow_up_plan: { monitor_for: [migration questions] }
           source_evidence:
-            - { source_ref: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
+            - { source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
           delivery_status: not_posted
           validation: { status: pass, findings: [] }
         idempotency_key: fixture-moltbook-publish-001

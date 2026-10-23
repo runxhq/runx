@@ -36,11 +36,11 @@ const MAX_PAGED_ITEMS: usize = 10_000;
 const MAX_PAGED_BYTES: usize = 32 * 1024 * 1024;
 const MAX_PAGED_DURATION: std::time::Duration = std::time::Duration::from_secs(120);
 
-/// What the kernel renders a request's paid invocation as when the request
+/// What the kernel renders a request's purchase as when the request
 /// goes through runx Connect. There the kernel renders only to check the
 /// request before anything leaves; Connect renders it again with the
-/// invocation it alone holds, so this stand-in never reaches a provider.
-const CONNECT_INVOCATION: &str = "runx-connect-invocation";
+/// purchase it alone holds, so this stand-in never reaches a provider.
+const CONNECT_PURCHASE: &str = "runx-connect-purchase";
 
 /// Where a rendered request goes.
 pub(crate) enum Egress<'a> {
@@ -291,10 +291,10 @@ impl Http<'_> {
             responses,
             item,
             idempotency_key: self.call.idempotency_key,
-            // Sent directly there is no paid invocation, so a request that
+            // Sent directly there is no purchase, so a request that
             // sends one fails closed.
-            invocation_id: match self.egress {
-                Egress::Connect(_) => Some(CONNECT_INVOCATION),
+            purchase_id: match self.egress {
+                Egress::Connect(_) => Some(CONNECT_PURCHASE),
                 Egress::Direct(_) => None,
             },
             ..TemplateInputs::default()
@@ -543,8 +543,8 @@ pub(crate) struct DeclaredCall<'a> {
     pub arguments: &'a JsonValue,
     pub parameters: Option<&'a JsonObject>,
     pub idempotency_key: Option<&'a str>,
-    /// The paid invocation Connect holds for the call's run.
-    pub invocation_id: Option<&'a str>,
+    /// The purchase Connect holds for the call's run.
+    pub purchase_id: Option<&'a str>,
     pub item: Option<usize>,
     pub responses: Option<&'a BTreeMap<String, JsonObject>>,
 }
@@ -567,7 +567,7 @@ pub(crate) fn render_declared(
         arguments: Some(call.arguments),
         parameters: call.parameters,
         idempotency_key: call.idempotency_key,
-        invocation_id: call.invocation_id,
+        purchase_id: call.purchase_id,
         ..TemplateInputs::default()
     };
     let item = call
@@ -1388,7 +1388,7 @@ mod tests {
                     arguments: &arguments,
                     parameters: Some(&parameters),
                     idempotency_key: corpus["idempotency_key"].as_str(),
-                    invocation_id: case["invocation_id"].as_str(),
+                    purchase_id: case["purchase_id"].as_str(),
                     item: case["item"]
                         .as_u64()
                         .map(|item| usize::try_from(item).map_err(|error| error.to_string()))
@@ -1442,15 +1442,12 @@ mod tests {
                 &declared.map_err(|error| format!("{name}: as Connect renders it: {error}"))?,
                 "as Connect renders it",
             )?;
-            // Only runx Connect supplies the paid invocation; the kernel never
+            // Only runx Connect supplies the purchase; the kernel never
             // holds it, so a request that sends it never renders to send
             // directly. Through Connect the kernel's rendering checks it, with
             // a stand-in Connect replaces.
-            if case.get("invocation_id").is_some() {
-                assert!(
-                    rendered.is_err(),
-                    "{name}: the kernel holds no paid invocation"
-                );
+            if case.get("purchase_id").is_some() {
+                assert!(rendered.is_err(), "{name}: the kernel holds no purchase");
                 let gateway = Gateway {
                     connector_binding: &binding,
                     session: &session,
@@ -1473,8 +1470,8 @@ mod tests {
                 let expected = serde_json::to_string(&case["expected"]["body"])
                     .map_err(|error| error.to_string())?
                     .replace(
-                        &case["invocation_id"].to_string(),
-                        &serde_json::Value::from(CONNECT_INVOCATION).to_string(),
+                        &case["purchase_id"].to_string(),
+                        &serde_json::Value::from(CONNECT_PURCHASE).to_string(),
                     );
                 assert_eq!(
                     body,

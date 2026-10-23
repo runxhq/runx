@@ -9,7 +9,7 @@
 //!
 //! Kernel streams (effects, approvals, resolutions, instances) are written
 //! only through crate-private APIs. Hosts persist their own records through
-//! [`HostRecords`], which confines them to a `host.<owner>.` namespace: the
+//! [`HostRecords`], which confines them to a `host.<name>.` namespace: the
 //! kernel stores them faithfully and never interprets them.
 //!
 //! Values too large or too shared for an event live in content-addressed
@@ -34,7 +34,11 @@ use thiserror::Error;
 mod schema;
 
 /// The store's file name inside the project `.runx` directory.
-pub const KERNEL_STORE_FILE: &str = "kernel.sqlite";
+pub const KERNEL_STORE_FILE: &str = "kernel-v2.sqlite";
+
+/// The store file runx 0.10 wrote. 0.11 renamed every record it holds and
+/// reads none of them; the file stays where it is, for runx 0.10.
+pub const RETIRED_KERNEL_STORE_FILE: &str = "kernel.sqlite";
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_KEY_BYTES: usize = 512;
@@ -197,6 +201,11 @@ pub enum KernelStoreError {
     Codec(String),
     #[error("kernel store at {path} is not a runx kernel store")]
     Foreign { path: PathBuf },
+    #[error(
+        "runx 0.10 left provider effects in flight in {path} ({}). runx 0.11 starts a new kernel log and cannot finish them: finish or reconcile these runs with runx 0.10, or move {path} aside to discard them",
+        .acts.join(", ")
+    )]
+    RetiredEffectsInFlight { path: PathBuf, acts: Vec<String> },
     #[error("kernel store at {path} failed while {operation}: {source}")]
     Database {
         path: PathBuf,
@@ -267,6 +276,16 @@ impl KernelStore {
             return Ok(store);
         }
         stores.retain(|_, store| store.strong_count() > 0);
+        if !path.exists() {
+            let retired = root.join(RETIRED_KERNEL_STORE_FILE);
+            let acts = schema::retired_effects_in_flight(&retired)?;
+            if !acts.is_empty() {
+                return Err(KernelStoreError::RetiredEffectsInFlight {
+                    path: retired,
+                    acts,
+                });
+            }
+        }
         let connection = schema::open(&path)?;
         let store = Arc::new(Self {
             path: path.clone(),
@@ -564,19 +583,20 @@ impl KernelStore {
         serde_json::from_slice(&self.blob(digest)?).map_err(KernelStoreError::encode)
     }
 
-    /// The records a host persists, confined to its own namespace.
-    pub fn host(self: &Arc<Self>, owner: &str) -> Result<HostRecords, KernelStoreError> {
-        let valid = !owner.is_empty()
-            && owner.len() <= 64
-            && owner
+    /// The records the host named `name` persists, confined to its own
+    /// namespace.
+    pub fn host(self: &Arc<Self>, name: &str) -> Result<HostRecords, KernelStoreError> {
+        let valid = !name.is_empty()
+            && name.len() <= 64
+            && name
                 .bytes()
                 .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
         if !valid {
-            return Err(KernelStoreError::InvalidNamespace(owner.to_owned()));
+            return Err(KernelStoreError::InvalidNamespace(name.to_owned()));
         }
         Ok(HostRecords {
             store: Arc::clone(self),
-            prefix: format!("host.{owner}."),
+            prefix: format!("host.{name}."),
         })
     }
 

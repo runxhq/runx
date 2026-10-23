@@ -5,21 +5,21 @@ steps:
     runner: review-action
     inputs:
       action_packet:
-        action_id: refund_vendor_123
+        action_id: refund_payer_123
         lane: payment.refund
         consequence: money_movement
         amount_cents: 2500
         rail: rail-demo
-        settlement_ref: hfr_a1a4b34d30076835ce88807d391951ac
+        settlement_id: hfr_a1a4b34d30076835ce88807d391951ac
         approval_required: true
         execution:
           interface: skill
-          lane_ref: refund
-          profile_ref: null
-          command_ref: null
-          workflow_ref: null
+          lane: refund
+          profile: null
+          command: null
+          workflow: null
           approval_gate: payment.refund.approval
-          verifier_ref: ledger.query
+          verifier: ledger.query
       receipt_summary:
         receipts:
           - id: hfr_a1a4b34d30076835ce88807d391951ac

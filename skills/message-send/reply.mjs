@@ -17,10 +17,10 @@ export function prepareReply(inputs) {
   const digest = text(object(inputs.digest).digest);
   const idempotencyKey = uuidFromTurn(inputs.turn_id);
   const ready = source.schema === "runx.source_packet.v1"
-    && source.source_ref?.uri === evidence.source_ref
+    && source.source_ref?.uri === evidence.source_locator
     && evidence.source_complete === true && thread.coverage_incomplete === false
     && evidence.thread_locator === target && thread.thread_locator === target
-    && evidence.source_ref.startsWith(`${provider}://`)
+    && evidence.source_locator.startsWith(`${provider}://`)
     && /^sha256:[0-9a-f]{64}$/.test(evidence.source_digest)
     && /^sha256:[0-9a-f]{64}$/.test(digest)
     && !!idempotencyKey && !!message.trim() && message === message.trim() && message.length <= 4000;
@@ -44,7 +44,7 @@ export function prepareReadback(inputs) {
 
 export function holdReply(inputs) {
   const plan = object(inputs.reply_plan);
-  return { work_result: { disposition: "held", summary: text(plan.reason) || "Reply could not be bound.",
+  return { work_result: { state: "held", summary: text(plan.reason) || "Reply could not be bound.",
     completion_evidence: [], followups: [] } };
 }
 
@@ -58,11 +58,11 @@ export function finishReply(inputs) {
     && observed.thread_locator === plan.target && observed.content_digest === plan.content_digest;
   if (readback.status !== "success" || readback.finality !== "confirmed" ||
       readback.provider !== plan.provider || readback.target !== plan.target || !same) {
-    return { work_result: { disposition: "held",
+    return { work_result: { state: "held",
       summary: "Provider accepted the reply, but exact delivery readback is incomplete; reconcile this message before further action.",
       completion_evidence: [], followups: [] } };
   }
-  return { work_result: { disposition: "satisfied",
+  return { work_result: { state: "satisfied",
     summary: "The approved reply was read back in its bound thread.",
-    completion_evidence: [`${observed.message_locator}@${plan.content_digest}`, readback.readback_ref], followups: [] } };
+    completion_evidence: [`${observed.message_locator}@${plan.content_digest}`, readback.readback_uri], followups: [] } };
 }

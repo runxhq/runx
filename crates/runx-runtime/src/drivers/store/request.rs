@@ -10,7 +10,7 @@ use super::StoreError;
 /// The stream an event belongs to.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Source<'a> {
-    pub data_source_ref: &'a str,
+    pub data_source_uri: &'a str,
     pub resource: &'a str,
     pub aggregate_id: &'a str,
 }
@@ -38,7 +38,7 @@ pub(super) struct ReadEvents<'a> {
 }
 
 pub(super) struct ListHeads<'a> {
-    pub data_source_ref: &'a str,
+    pub data_source_uri: &'a str,
     pub resource: &'a str,
     pub event_types: Vec<&'a str>,
     pub limit: usize,
@@ -48,7 +48,7 @@ pub(super) struct ListHeads<'a> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AppendInput {
-    data_source_ref: String,
+    data_source_uri: String,
     resource: String,
     aggregate_id: String,
     expected_version: u64,
@@ -60,7 +60,7 @@ pub(super) struct AppendInput {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ReadEventsInput {
-    data_source_ref: String,
+    data_source_uri: String,
     resource: String,
     aggregate_id: String,
     #[serde(default = "default_limit")]
@@ -72,7 +72,7 @@ pub(super) struct ReadEventsInput {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ReadProjectionInput {
-    data_source_ref: String,
+    data_source_uri: String,
     resource: String,
     aggregate_id: String,
 }
@@ -80,7 +80,7 @@ pub(super) struct ReadProjectionInput {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ListHeadsInput {
-    data_source_ref: String,
+    data_source_uri: String,
     resource: String,
     #[serde(default)]
     event_types: Vec<String>,
@@ -127,7 +127,7 @@ impl Input {
     pub(super) fn request<'a>(&'a self, key: Option<&'a str>) -> Result<Request<'a>, StoreError> {
         Ok(match self {
             Self::Append(input) => {
-                let source = source(&input.data_source_ref, &input.resource, &input.aggregate_id)?;
+                let source = source(&input.data_source_uri, &input.resource, &input.aggregate_id)?;
                 let idempotency_key =
                     key.ok_or_else(|| StoreError::invalid("an append needs an idempotency key"))?;
                 token("idempotency_key", idempotency_key, 256, true)?;
@@ -150,7 +150,7 @@ impl Input {
                 })
             }
             Self::ReadEvents(input) => {
-                let source = source(&input.data_source_ref, &input.resource, &input.aggregate_id)?;
+                let source = source(&input.data_source_uri, &input.resource, &input.aggregate_id)?;
                 if input
                     .after_version
                     .is_some_and(|version| version > MAX_PORTABLE_INTEGER)
@@ -166,12 +166,12 @@ impl Input {
                 })
             }
             Self::ReadProjection(input) => Request::ReadProjection(source(
-                &input.data_source_ref,
+                &input.data_source_uri,
                 &input.resource,
                 &input.aggregate_id,
             )?),
             Self::ListHeads(input) => {
-                token("data_source_ref", &input.data_source_ref, 512, true)?;
+                token("data_source_uri", &input.data_source_uri, 512, true)?;
                 identifier("resource", &input.resource, false)?;
                 if input.event_types.len() > 20 {
                     return Err(StoreError::invalid(
@@ -187,7 +187,7 @@ impl Input {
                     }
                 }
                 Request::ListHeads(ListHeads {
-                    data_source_ref: &input.data_source_ref,
+                    data_source_uri: &input.data_source_uri,
                     resource: &input.resource,
                     event_types,
                     limit: bounded_limit(input.limit, 100)?,
@@ -199,15 +199,15 @@ impl Input {
 }
 
 fn source<'a>(
-    data_source_ref: &'a str,
+    data_source_uri: &'a str,
     resource: &'a str,
     aggregate_id: &'a str,
 ) -> Result<Source<'a>, StoreError> {
-    token("data_source_ref", data_source_ref, 512, true)?;
+    token("data_source_uri", data_source_uri, 512, true)?;
     identifier("resource", resource, false)?;
     identifier("aggregate_id", aggregate_id, true)?;
     Ok(Source {
-        data_source_ref,
+        data_source_uri,
         resource,
         aggregate_id,
     })

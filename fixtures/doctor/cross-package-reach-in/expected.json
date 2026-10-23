@@ -9,13 +9,13 @@
   "diagnostics": [
     {
       "id": "runx.structure.cross_package_reach_in",
-      "instance_id": "sha256:11aae09c0e0732ec663793a0c712026c463f08c63c39f569bd899e6491d9b3c2",
+      "instance_id": "sha256:cb8706f8cc961f61f748c27659e2b9c3beb83c97b8c2e9f8c2ecbd2272aeff22",
       "severity": "error",
       "title": "Cross-package src reach-in is forbidden",
       "message": "packages/sample/src/index.ts imports ../../core/src/index.js, reaching into packages/core/src directly.",
       "target": {
-        "kind": "workspace",
-        "ref": "packages/sample/src/index.ts"
+        "id": "packages/sample/src/index.ts",
+        "kind": "workspace"
       },
       "location": {
         "path": "packages/sample/src/index.ts"

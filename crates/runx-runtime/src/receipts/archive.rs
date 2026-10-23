@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use runx_contracts::{ClosureDisposition, Receipt, SealReason};
+use runx_contracts::{Receipt, SealReason};
 use runx_core::policy::parse_rfc3339_moment;
 use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContextProvider, signed_display_identity, verify_receipt_proof,
@@ -28,7 +28,8 @@ pub const RECEIPT_REF_PREFIX: &str = "runx:receipt:";
 pub struct ReceiptFilter {
     pub query: Option<String>,
     pub skill: Option<String>,
-    pub status: Option<String>,
+    /// How the receipt's subject ended.
+    pub outcome: Option<String>,
     pub issuer: Option<String>,
     pub actor: Option<String>,
     pub since: Option<String>,
@@ -49,14 +50,15 @@ pub struct ReceiptListing {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReceiptRow {
     pub id: String,
-    pub receipt_ref: String,
+    pub receipt_uri: String,
     /// The signed subject: the run, or one node of it.
-    pub subject_ref: String,
+    pub subject_uri: String,
     /// The graph that ran.
     pub name: String,
-    pub status: String,
+    /// How the receipt's subject ended.
+    pub outcome: String,
     pub created_at: String,
-    /// Why the receipt's seal closed as it did, when its disposition alone
+    /// Why the receipt's subject ended as it did, when its outcome alone
     /// does not say.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<SealReason>,
@@ -133,10 +135,6 @@ pub fn exact_receipt_id(reference: &str) -> String {
         .to_owned()
 }
 
-pub(crate) fn closure_status(disposition: &ClosureDisposition) -> String {
-    disposition.label().to_owned()
-}
-
 pub(crate) fn verification_status(
     receipt: &Receipt,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
@@ -164,13 +162,13 @@ fn row(receipt: &Receipt, signature_policy: RuntimeReceiptSignaturePolicy<'_>) -
         .reference
         .label
         .as_ref()
-        .map_or_else(|| identity.subject_ref.clone(), ToString::to_string);
+        .map_or_else(|| identity.subject_uri.clone(), ToString::to_string);
     ReceiptRow {
         id: receipt.id.to_string(),
-        receipt_ref: receipt_uri(&receipt.id),
-        subject_ref: identity.subject_ref,
+        receipt_uri: receipt_uri(&receipt.id),
+        subject_uri: identity.subject_uri,
         name,
-        status: closure_status(&receipt.seal.disposition),
+        outcome: receipt.seal.outcome.label().to_owned(),
         created_at: receipt.created_at.to_string(),
         reason: receipt.seal.reason,
         issuer_type: identity.issuer_type,
@@ -194,7 +192,7 @@ fn child_receipt_ids(receipts: &[Receipt]) -> BTreeSet<String> {
 struct ResolvedFilter {
     query: Option<String>,
     skill: Option<String>,
-    status: Option<String>,
+    outcome: Option<String>,
     issuer: Option<String>,
     actor: Option<String>,
     since: Option<Timestamp>,
@@ -208,7 +206,7 @@ impl ResolvedFilter {
         Ok(Self {
             query: normalized(&filter.query),
             skill: normalized(&filter.skill),
-            status: normalized(&filter.status),
+            outcome: normalized(&filter.outcome),
             issuer: normalized(&filter.issuer),
             actor: normalized(&filter.actor),
             since: parse_date_filter("since", &filter.since)?,
@@ -220,7 +218,7 @@ impl ResolvedFilter {
 
     fn matches(&self, row: &ReceiptRow) -> bool {
         let name = row.name.to_lowercase();
-        let subject = row.subject_ref.to_lowercase();
+        let subject = row.subject_uri.to_lowercase();
         self.query.as_ref().is_none_or(|query| {
             name.contains(query)
                 || subject.contains(query)
@@ -232,9 +230,9 @@ impl ResolvedFilter {
                     .is_some_and(|actor| actor.to_lowercase().contains(query))
         }) && self.skill.as_ref().is_none_or(|skill| name.contains(skill))
             && self
-                .status
+                .outcome
                 .as_ref()
-                .is_none_or(|status| row.status.to_lowercase() == *status)
+                .is_none_or(|outcome| row.outcome.to_lowercase() == *outcome)
             && self
                 .issuer
                 .as_ref()

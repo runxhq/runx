@@ -60,6 +60,7 @@ async function runSweep(options) {
   const workspaceDir = path.join(tempRoot, "workspace");
   mkdirSync(workspaceDir, { recursive: true });
   const results = [];
+  let exercised = new Set();
 
   try {
     for (const skill of skills) {
@@ -81,6 +82,7 @@ async function runSweep(options) {
             : "FAIL";
       process.stderr.write(`[harness-sweep] ${label} ${skill.name} ${result.elapsed_ms}ms\n`);
     }
+    exercised = exercisedPacketIds(path.join(tempRoot, "receipts"));
   } finally {
     if (!options.keepTemp) {
       rmSync(tempRoot, { recursive: true, force: true });
@@ -104,6 +106,13 @@ async function runSweep(options) {
     passedSkillCount,
     required,
   });
+  // Every package packet is validated by at least one fixture's run. Only a
+  // sweep of every skill can say so.
+  const packets = workspacePacketIds();
+  const unexercised = packets.filter((id) => !exercised.has(id));
+  if (!options.skills && unexercised.length > 0) {
+    failures.push(`no fixture validates ${unexercised.length} package packet(s): ${unexercised.join(", ")}`);
+  }
 
   return {
     schema,
@@ -117,6 +126,9 @@ async function runSweep(options) {
     failed_skill_count: failed.length,
     allowed_failure_count: allowedFailureCount,
     allowed_failures: [...allowed].sort(),
+    packet_count: packets.length,
+    exercised_packet_count: packets.length - unexercised.length,
+    unexercised_packets: unexercised,
     elapsed_ms: Math.round(performance.now() - started),
     package_timeout_ms: options.timeoutMs ?? defaultPackageTimeoutMs,
     runx_bin: path.relative(repoRoot, runxBin),
@@ -124,6 +136,35 @@ async function runSweep(options) {
     failures,
     skills: results,
   };
+}
+
+/** The packet ids the receipts under `root` sealed a packet check for. */
+function exercisedPacketIds(root) {
+  const ids = new Set();
+  const visit = (directory) => {
+    for (const entry of existsSync(directory) ? readdirSync(directory, { withFileTypes: true }) : []) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(entryPath);
+      else if (entry.name.endsWith(".json")) {
+        for (const match of readFileSync(entryPath, "utf8").matchAll(/packet_schema_verified:([^:"]+):/gu)) {
+          ids.add(match[1]);
+        }
+      }
+    }
+  };
+  visit(root);
+  return ids;
+}
+
+/** Every packet a workspace package owns, by id. */
+function workspacePacketIds() {
+  const skillsRoot = path.join(repoRoot, "skills");
+  return readdirSync(skillsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(path.join(skillsRoot, entry.name, "packets")))
+    .flatMap((entry) => readdirSync(path.join(skillsRoot, entry.name, "packets"), { withFileTypes: true })
+      .filter((file) => file.isFile() && file.name.endsWith(".schema.json"))
+      .map((file) => JSON.parse(readFileSync(path.join(skillsRoot, entry.name, "packets", file.name), "utf8"))["x-runx-packet-id"]))
+    .sort();
 }
 
 function sweepFailures({

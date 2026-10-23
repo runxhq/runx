@@ -94,9 +94,10 @@ pub struct ResolvedSkillRef {
     pub version: Option<String>,
     pub digest: Option<String>,
     pub profile_digest: Option<String>,
+    /// The execution package digest the invocation pins, when it pins one.
     pub package_digest: Option<String>,
     pub registry_source: Option<String>,
-    pub registry_source_fingerprint: Option<String>,
+    pub registry_source_digest: Option<String>,
     pub trust_state: Option<RegistryTrustState>,
     pub trust_tier: Option<String>,
     pub registry_key_id: Option<String>,
@@ -158,7 +159,7 @@ fn fetch_unheld_registry_refs(
             // a root name may move and is never one.
             split_skill_id(&parsed.skill_id).map_err(|_| {
                 format!(
-                    "fetching {reference}: a package names a registry skill as '<owner>/<name>'"
+                    "fetching {reference}: a package names a registry skill as '<publisher>/<name>'"
                 )
             })?;
             match resolve_registry_skill(
@@ -214,7 +215,7 @@ fn resolve_skill_ref(
     if runx_parser::registry_ref(&raw_ref).is_some() {
         if split_skill_id(&parsed.skill_id).is_err() {
             return Err(format!(
-                "Registry ref '{raw_ref}' names no publisher. A registry ref is '<owner>/<name>'; run a root name as `runx skill {}`.",
+                "Registry ref '{raw_ref}' names no publisher. A registry ref is '<publisher>/<name>'; run a root name as `runx skill {}`.",
                 parsed.skill_id
             ));
         }
@@ -268,7 +269,7 @@ fn resolve_bare_skill_ref(
             .map_err(String::from);
     }
     Err(format!(
-        "could not resolve skill ref '{}'; tried {}, {} and the registry's root names. Search with `runx registry search {}` or run a registry ref directly with `runx skill <owner>/<name>@<version>`.",
+        "could not resolve skill ref '{}'; tried {}, {} and the registry's root names. Search with `runx registry search {}` or run a registry ref directly with `runx skill <publisher>/<name>@<version>`.",
         skill_ref.display(),
         cwd.join("skills").join(skill_ref).display(),
         crate::RunxPaths::resolve(options.env, cwd)
@@ -361,7 +362,7 @@ fn resolve_registry_skill(
         RegistryTarget::Remote { registry_url } => Some(registry_url.clone()),
         RegistryTarget::Local { .. } => None,
     };
-    let source_fingerprint = registry_source_fingerprint(&target);
+    let source_digest = registry_source_digest(&target);
     let source_authority = target.manifest_source_authority();
     // A fetched skill is added to the project's added skills, once per
     // version, like any other; one read for inspection, to the home's cache.
@@ -398,7 +399,7 @@ fn resolve_registry_skill(
         // A registry ref runs only what its registry signed, before anything
         // is written.
         let identity = registry_identity(&candidate)
-            .map_err(|_| InstallError::UnsignedManifest(candidate.r#ref.clone()))?;
+            .map_err(|_| InstallError::UnsignedManifest(candidate.package.clone()))?;
         Ok((
             identity,
             crate::registry::install_local_skill(&candidate, &install_options)?,
@@ -428,12 +429,12 @@ fn resolve_registry_skill(
         version: identity.version,
         digest: Some(install.digest),
         profile_digest: install.profile_digest,
-        // Registry package-file digests cover only auxiliary registry files.
-        // Execution package digests cover the complete validated package and
-        // are bound separately by `runx skill --package-digest`.
+        // The registry's bundle digest covers the published bundle's files;
+        // the execution package digest covers the validated package a run
+        // loads and is bound separately by `runx skill --package-digest`.
         package_digest: None,
         registry_source: Some(source_description),
-        registry_source_fingerprint: Some(source_fingerprint),
+        registry_source_digest: Some(source_digest),
         trust_state: Some(RegistryTrustState::Trusted),
         trust_tier: install.trust_tier.map(|tier| tier.as_str().to_owned()),
         registry_key_id: candidate
@@ -451,14 +452,14 @@ fn registry_identity(candidate: &InstallCandidate) -> Result<RegistryIdentity, S
     let manifest = candidate.signed_manifest.as_ref().ok_or_else(|| {
         format!(
             "registry signed manifest is required for {}",
-            candidate.r#ref
+            candidate.package
         )
     })?;
     Ok(RegistryIdentity {
         skill_id: candidate
             .skill_id
             .clone()
-            .or_else(|| Some(manifest.subject.subject_ref.clone())),
+            .or_else(|| Some(manifest.subject.name.clone())),
         version: candidate
             .version
             .clone()
@@ -475,12 +476,12 @@ struct RegistryIdentity {
 
 fn canonicalize_candidate_ref(candidate: &mut InstallCandidate) {
     if let (Some(skill_id), Some(version)) = (&candidate.skill_id, &candidate.version) {
-        candidate.r#ref = format!("{skill_id}@{version}");
+        candidate.package = format!("{skill_id}@{version}");
     }
 }
 
-fn registry_source_fingerprint(target: &RegistryTarget) -> String {
-    let source = target.fingerprint_source();
+fn registry_source_digest(target: &RegistryTarget) -> String {
+    let source = target.source_uri();
     sha256_prefixed(source.as_bytes())
         .trim_start_matches("sha256:")
         .chars()
@@ -505,7 +506,7 @@ fn local_resolved(kind: SkillRefKind, runnable_path: PathBuf) -> ResolvedSkillRe
         profile_digest: None,
         package_digest: None,
         registry_source: None,
-        registry_source_fingerprint: None,
+        registry_source_digest: None,
         trust_state: None,
         trust_tier: None,
         registry_key_id: None,
@@ -571,7 +572,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn explicit_registry_ref_requires_owner_and_name() {
+    fn explicit_registry_ref_requires_publisher_and_name() {
         assert!(is_explicit_registry_ref("acme/echo", "acme/echo"));
         assert!(is_explicit_registry_ref("registry:acme/echo", "acme/echo"));
         assert!(!is_explicit_registry_ref("./echo", "./echo"));
@@ -631,7 +632,7 @@ mod tests {
         };
 
         assert!(error.contains("runx registry search missing-skill"));
-        assert!(error.contains("runx skill <owner>/<name>@<version>"));
+        assert!(error.contains("runx skill <publisher>/<name>@<version>"));
         Ok(())
     }
 }

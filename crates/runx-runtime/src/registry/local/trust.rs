@@ -280,7 +280,6 @@ pub(super) fn search_result_for_version(
         name: version.name.clone(),
         summary: version.description.clone(),
         category: version.category.clone(),
-        owner: version.owner.clone(),
         version: Some(version.version.clone()),
         digest: Some(version.digest.clone()),
         source: Some("runx-registry".to_owned()),
@@ -312,7 +311,6 @@ pub(super) fn detail_for_version(
     let link = runx_link_for_version(version, registry_url)?;
     Ok(RegistrySkillDetail {
         skill_id: version.skill_id.clone(),
-        owner: version.owner.clone(),
         name: version.name.clone(),
         description: version.description.clone(),
         category: version.category.clone(),
@@ -322,7 +320,7 @@ pub(super) fn detail_for_version(
         markdown: version.markdown.clone(),
         profile_digest: version.profile_digest.clone(),
         package_files: version.package_files.clone(),
-        package_digest: version.package_digest.clone(),
+        bundle_digest: version.bundle_digest.clone(),
         paid_listing: version.paid_listing.clone(),
         runner_names: version.runner_names.clone(),
         trust_tier: version.trust_tier,
@@ -337,11 +335,7 @@ pub(super) fn detail_for_version(
 }
 
 pub(super) fn searchable_text(version: &RegistrySkillVersion) -> String {
-    let mut parts = vec![
-        version.skill_id.clone(),
-        version.name.clone(),
-        version.owner.clone(),
-    ];
+    let mut parts = vec![version.skill_id.clone(), version.name.clone()];
     if let Some(description) = &version.description {
         parts.push(description.clone());
     }

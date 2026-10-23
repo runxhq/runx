@@ -56,7 +56,7 @@ export {
   REGISTRY_MANIFEST_SIGNATURE_PREFIX,
   REGISTRY_SIGNED_MANIFEST_SCHEMA,
   isConnectorName,
-  isRegistrySubjectRef,
+  isRegistrySubjectName,
   registryContentDigest,
   registrySignedManifestPayload,
   registrySignedManifestSigns,
@@ -100,10 +100,10 @@ export {
 } from "./canonical-json.js";
 
 export {
-  fingerprintQuotePaidInvocationRequest,
-  fingerprintExecutePaidInvocationRequest,
-  fingerprintCancelPaidInvocationRequest,
-} from "./paid-invocation-fingerprint.js";
+  digestQuotePurchaseRequest,
+  digestExecutePurchaseRequest,
+  digestCancelPurchaseRequest,
+} from "./purchase-request-digest.js";
 export {
   PaidSkillPriceError,
   type PaidSkillPriceErrorCode,
@@ -115,22 +115,22 @@ export {
 } from "./paid-skill-price.js";
 export {
   PURCHASE_CLAIM_SCHEMA,
-  PURCHASE_READ_SCHEMA,
-  isPurchaserKey,
+  PURCHASE_READ_REQUEST_SCHEMA,
+  isBuyerKey,
   type PurchaseClaimContract,
   purchaseClaimMessage,
   purchaseClaimV1Schema,
-  purchaseReadMessage,
+  purchaseReadRequestMessage,
   validatePurchaseClaimContract,
-  verifyPurchaserSignature,
+  verifyBuyerSignature,
 } from "./purchase-claim.js";
 
 export {
   X402_PAYMENT_REQUIRED_HEADER,
   X402_PAYMENT_SIGNATURE_HEADER,
   X402_PAYMENT_RESPONSE_HEADER,
-  RUNX_X402_INVOCATION_EXTENSION_KEY,
-  RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
+  RUNX_X402_PURCHASE_EXTENSION_KEY,
+  RUNX_X402_PURCHASE_SCHEMA_REFERENCE,
   X402_BAZAAR_EXTENSION_KEY,
   X402_JSON_MEDIA_TYPE,
   MAX_X402_HEADER_BYTES,
@@ -138,7 +138,7 @@ export {
   X402PresentationError,
   assembleExternalX402PaymentRequired,
   assembleX402PaymentRequired,
-  parseRunxX402InvocationDeclaration,
+  parseRunxX402PurchaseDeclaration,
   declareExternalX402JsonPostDiscovery,
   x402ExternalDiscoveryHttpProjection,
   x402DiscoveryHttpProjection,
@@ -171,6 +171,9 @@ export {
   type Static,
 } from "./internal.js";
 
+// Every contract type, generated from the Rust type that owns its schema.
+export type * from "./generated/contract-types.js";
+
 export {
   skillArchitectureDecisionV1Schema,
   skillArchitecturePlanV1Schema,
@@ -184,72 +187,23 @@ export {
   validateSkillChangeBundleContract,
   validateSkillValidationResultContract,
   validateSkillApplyResultContract,
-  type SkillArchitectureDecisionContract,
-  type SkillArchitecturePlanContract,
-  type SkillChangeDraftContract,
-  type SkillChangeBundleContract,
-  type SkillValidationResultContract,
-  type SkillApplyResultContract,
 } from "./schemas/skill-authoring.js";
 
-
 export {
-  credentialDeliveryModeSchema,
-  credentialDeliveryPurposeSchema,
-  credentialMaterialRoleSchema,
-  credentialDeliveryObservationStatusSchema,
   credentialDeliveryObservationV1Schema,
   validateCredentialDeliveryObservationContract,
-  type CredentialDeliveryObservationContract,
 } from "./schemas/credential-delivery.js";
 
 export {
-  dataOperationResultStatuses,
-  dataOperationResultStatusSchema,
-  dataOperationStopConditionSchema,
   dataOperationResultV1Schema,
   validateDataOperationResultContract,
-  type DataOperationStopConditionContract,
-  type DataOperationResultContract,
 } from "./schemas/data-operation.js";
 
-export {
-  outputScalarSchema,
-  outputObjectEntrySchema,
-  outputEntrySchema,
-  outputSchema,
-  validateOutputContract,
-  type OutputScalarContract,
-  type OutputObjectEntryContract,
-  type OutputEntryContract,
-  type OutputContract,
-} from "./schemas/output.js";
+export { outputSchema, validateOutputContract } from "./schemas/output.js";
 
 export {
-  artifactProducerSchema,
-  artifactMetaSchema,
-  artifactEnvelopeSchema,
-  type ArtifactProducerContract,
-  type ArtifactMetaContract,
-  type ArtifactEnvelopeContract,
-} from "./schemas/artifact.js";
-
-export {
-  agentContextProvenanceSchema,
-  contextDocumentSchema,
-  contextSchema,
-  executionLocationSchema,
-  environmentRequirementsSchema,
-  executionRequirementsSchema,
-  agentExecutionRequirementsSchema,
   agentContextEnvelopeSchema,
   validateAgentContextEnvelopeContract,
-  type AgentContextProvenanceContract,
-  type ContextDocumentContract,
-  type ContextContract,
-  type ExecutionLocationContract,
-  type AgentExecutionRequirementsContract,
-  type AgentContextEnvelopeContract,
 } from "./schemas/context.js";
 
 export {
@@ -259,21 +213,9 @@ export {
   validateAgentActInvocationContract,
   validateQuestionContract,
   validateApprovalGateContract,
-  type AgentActInvocationContract,
-  type QuestionContract,
-  type ApprovalGateContract,
-  type TurnAllowanceContract,
 } from "./schemas/agent-act.js";
 
-export {
-  skillInspectionSchema,
-  validateSkillInspectionContract,
-  type InspectedInputContract,
-  type InspectedOutputContract,
-  type OperatorJourneyContract,
-  type RunnerInspectionContract,
-  type SkillInspectionContract,
-} from "./schemas/skill-inspection.js";
+export { skillInspectionSchema, validateSkillInspectionContract } from "./schemas/skill-inspection.js";
 
 export {
   turnCallSchema,
@@ -284,20 +226,6 @@ export {
   validateTurnLoadContract,
   validateTurnStatusContract,
   validateTurnReadContract,
-  type TurnContextLineContract,
-  type TurnEnvelopeContract,
-  type TurnInvocationContract,
-  type TurnReadPageContract,
-  type BoundClosureContract,
-  type LoadedPackageContract,
-  type LoadedRunnerContract,
-  type SkillManualContract,
-  type TurnLoadContract,
-  type TurnTargetContract,
-  type TurnCallOutcomeContract,
-  type TurnCallContract,
-  type TurnToolContract,
-  type TurnStatusContract,
 } from "./schemas/turn.js";
 
 export {
@@ -307,15 +235,6 @@ export {
   validateProcessContract,
   validateProcessOutputContract,
   validateProcessListContract,
-  type TerminalSizeContract,
-  type ProcessStateContract,
-  type ProcessKindContract,
-  type ProcessExitReasonContract,
-  type ProcessExitContract,
-  type RunxProcessContract,
-  type ProcessStreamContract,
-  type ProcessOutputContract,
-  type ProcessListContract,
 } from "./schemas/process.js";
 
 export {
@@ -323,23 +242,9 @@ export {
   runEventSchema,
   validateRunReadContract,
   validateRunEventContract,
-  type RunStateContract,
-  type RunDriverContract,
-  type WaitedRequestContract,
-  type RunHoldContract,
-  type RunCallOutcomeContract,
-  type RunCallOutputContract,
-  type RunEventFactContract,
-  type RunEventContract,
-  type RunReadContract,
 } from "./schemas/run-read.js";
 
-export {
-  resumeDocumentSchema,
-  validateResumeDocumentContract,
-  type ResumeDocumentContract,
-  type StandingApprovalContract,
-} from "./schemas/resume.js";
+export { resumeDocumentSchema, validateResumeDocumentContract } from "./schemas/resume.js";
 
 export {
   resolutionRequestSchema,
@@ -348,31 +253,10 @@ export {
   validateResolutionRequestContract,
   validateResolutionResponseContract,
   validateActResultEnvelopeContract,
-  type InputResolutionRequestContract,
-  type ApprovalResolutionRequestContract,
-  type AgentActResolutionRequestContract,
-  type RetryResolutionRequestContract,
-  type PurchaseResolutionRequestContract,
-  type PurchaseRequestContract,
-  type PurchaseMethodContract,
   PURCHASE_BALANCE_CHOICE,
-  type ResolutionRequestContract,
-  type ResolutionResponseContract,
-  type ActResultTerminalStatusContract,
-  type ActResultSignalContract,
-  type ActResultTerminalEnvelopeContract,
-  type ActResultNeedsAgentEnvelopeContract,
-  type ActResultEnvelopeContract,
 } from "./schemas/resolution.js";
 
-export {
-  registryBindingSchema,
-  reviewReceiptOutputSchema,
-  validateRegistryBindingContract,
-  validateReviewReceiptOutputContract,
-  type RegistryBindingContract,
-  type ReviewReceiptOutputContract,
-} from "./schemas/registry.js";
+export { registryBindingSchema, validateRegistryBindingContract } from "./schemas/registry.js";
 
 export {
   doctorRepairSchema,
@@ -381,11 +265,6 @@ export {
   doctorSummarySchema,
   doctorV1Schema,
   validateDoctorReportContract,
-  type DoctorRepairContract,
-  type DoctorLocationContract,
-  type DoctorDiagnosticContract,
-  type DoctorSummaryContract,
-  type DoctorReportContract,
 } from "./schemas/doctor.js";
 
 export {
@@ -395,14 +274,6 @@ export {
   runxListItemSchema,
   listV1Schema,
   validateRunxListReportContract,
-  type RunxListRequestedKindContract,
-  type RunxListItemKindContract,
-  type RunxListSourceContract,
-  type RunxListVisibilityContract,
-  type RunxListEmitContract,
-  type CatalogRunnerContract,
-  type RunxListItemContract,
-  type RunxListReportContract,
 } from "./schemas/list.js";
 
 export {
@@ -417,20 +288,17 @@ export {
   externalJobScheduleIntentFromOutput,
   validateExternalJobStageRequestContract,
   validateExternalJobStageResultContract,
-  type ExternalJobCheckpointContract,
-  type ExternalJobContinuationContract,
-  type ExternalJobFailureContract,
-  type ExternalJobScheduleContract,
-  type ExternalJobScheduleIntentContract,
-  type ExternalJobStageContract,
-  type ExternalJobStageRequestContract,
-  type ExternalJobStageResultContract,
-  type ExternalJobStatusContract,
 } from "./schemas/external-job.js";
 
 export {
   receiptV1Schema,
-  type ReceiptContract,
+  receiptSubjectSchema,
+  receiptEnforcementSchema,
+  receiptAuthoritySchema,
+  receiptCriterionSchema,
+  receiptActSchema,
+  receiptSealSchema,
+  receiptLineageSchema,
   validateReceiptContract,
   RECEIPT_CANONICALIZATION,
   RECEIPT_TREE_LIMITS,
@@ -438,77 +306,42 @@ export {
 
 export {
   paidSkillListingV1Schema,
-  paidInvocationV1Schema,
-  offerRevisionRefV1Schema,
-  quotePaidInvocationRequestV1Schema,
-  quotePaidInvocationResultV1Schema,
-  quotePaidInvocationMediaType,
-  executePaidInvocationRequestV1Schema,
-  executePaidInvocationResultV1Schema,
-  getPaidInvocationRequestV1Schema,
-  getPaidInvocationResultV1Schema,
   purchaseV1Schema,
-  cancelPaidInvocationRequestV1Schema,
-  cancelPaidInvocationResultV1Schema,
+  offerVersionBindingV1Schema,
+  quotePurchaseRequestV1Schema,
+  quotePurchaseResultV1Schema,
+  quotePurchaseMediaType,
+  executePurchaseRequestV1Schema,
+  executePurchaseResultV1Schema,
+  getPurchaseRequestV1Schema,
+  getPurchaseResultV1Schema,
+  purchaseReadV1Schema,
+  cancelPurchaseRequestV1Schema,
+  cancelPurchaseResultV1Schema,
   paymentIdempotencyBindingSchema,
-  paidInvocationPaymentChallengeSchema,
-  paidInvocationPaymentOptionRefSchema,
+  purchasePaymentChallengeSchema,
+  purchasePaymentOptionBindingSchema,
   validateRunxPrincipalId,
   principalReferenceFromRunxPrincipalId,
   validatePaidSkillListingContract,
-  validatePaidInvocationContract,
-  validateOfferRevisionRefContract,
-  validatePaymentIdempotencyBindingContract,
-  validatePaidInvocationPaymentChallengeContract,
-  validatePaidInvocationPaymentOptionRefContract,
-  validateQuotePaidInvocationRequestContract,
-  validateQuotePaidInvocationResultContract,
-  validateExecutePaidInvocationRequestContract,
-  validateExecutePaidInvocationResultContract,
-  validateGetPaidInvocationRequestContract,
-  validateGetPaidInvocationResultContract,
   validatePurchaseContract,
-  validateCancelPaidInvocationRequestContract,
-  validateCancelPaidInvocationResultContract,
-  type RunxPrincipalId,
-  type Sha256DigestContract,
-  type CurrencyCodeContract,
-  type SettlementFamilyContract,
-  type PaidInvocationCanonicalizerVersionContract,
-  type PaidInvocationPaymentStateContract,
-  type PaidInvocationExecutionStateContract,
-  type PaidInvocationOutcomeGateContract,
-  type PaidInvocationRefusalCodeContract,
-  type PrincipalReferenceContract,
-  type PaymentReferenceContract,
-  type PaymentIdempotencyBindingContract,
-  type OfferRevisionRefContract,
-  type PaidSkillExecutorBindingContract,
-  type PaidSkillActsOnContract,
-  type PaidSkillOfferTermsContract,
-  type PaidSkillPriceChoiceContract,
-  type PaidSkillPriceContract,
-  type PaidSkillRunnerOfferContract,
-  type PaidSkillListingContract,
-  type PaidInvocationContract,
-  type PaidInvocationPaymentChallengeContract,
-  type PaidInvocationPaymentMethodContract,
-  type PaidInvocationPaymentOptionRefContract,
-  selectPaidInvocationPaymentOption,
-  type QuotePaidInvocationRequestContract,
-  type PaidInvocationRefusalContract,
-  type QuotePaidInvocationResultContract,
-  type ExecutePaidInvocationRequestContract,
-  type PaidInvocationAdmissionResultContract,
-  type ExecutePaidInvocationResultContract,
-  type GetPaidInvocationRequestContract,
-  type GetPaidInvocationResultContract,
-  type PurchaseContract,
-  type PurchaseHoldContract,
+  validateOfferVersionBindingContract,
+  validatePaymentIdempotencyBindingContract,
+  validatePurchasePaymentChallengeContract,
+  validatePurchasePaymentOptionBindingContract,
+  validateQuotePurchaseRequestContract,
+  validateQuotePurchaseResultContract,
+  validateExecutePurchaseRequestContract,
+  validateExecutePurchaseResultContract,
+  validateGetPurchaseRequestContract,
+  validateGetPurchaseResultContract,
+  validatePurchaseReadContract,
+  validateCancelPurchaseRequestContract,
+  validateCancelPurchaseResultContract,
+  selectPurchasePaymentOption,
   RUNX_BALANCE_SETTLEMENT_FAMILY,
-  type CancelPaidInvocationRequestContract,
-  type CancelPaidInvocationResultContract,
-} from "./schemas/paid-invocation.js";
+  type RunxPrincipalId,
+} from "./schemas/purchase.js";
 
 export {
   X402_PROTOCOL_VERSION,
@@ -521,22 +354,15 @@ export {
   x402PaymentRequiredV2Schema,
   x402PaymentPayloadV2Schema,
   x402SettleResponseV2Schema,
-  runxX402InvocationExtensionInfoV1Schema,
+  runxX402PurchaseExtensionInfoV1Schema,
   validateX402ResourceInfoContract,
   validateX402PaymentRequirementsContract,
   validateX402PaymentRequiredContract,
   validateX402PaymentPayloadContract,
   validateX402SettleResponseContract,
-  validateRunxX402InvocationExtensionInfoContract,
-  type X402ResourceInfoContract,
-  type X402PaymentRequirementsContract,
-  type X402PaymentRequiredContract,
-  type X402PaymentPayloadContract,
-  type X402SettleResponseContract,
+  validateRunxX402PurchaseExtensionInfoContract,
   type RunxX402DiscoveryExtensionInfoContract,
-  type RunxX402InvocationExtensionInfoContract,
-  type RunxX402ExtensionInfoContract,
-  type RunxX402InvocationExtensionContract,
+  type RunxX402PurchaseExtensionContract,
 } from "./schemas/x402.js";
 
 export {
@@ -553,96 +379,39 @@ export {
   projectOperationalPolicyReadback,
   type OperationalPolicyAdmission,
   type OperationalPolicyAdmissionRequest,
-  type OperationalPolicyValidationFinding,
-  type OperationalPolicyReadback,
-  type OperationalPolicySourceProviderContract,
-  type OperationalPolicyActionContract,
-  type OperationalPolicyRunnerKindContract,
-  type OperationalPolicyRunnerStateContract,
-  type OperationalPolicyContract,
 } from "./schemas/operational-policy.js";
 
 export {
   operationalProposalSchema,
   operationalProposalSchemaVersion,
   validateOperationalProposalContract,
-  type OperationalProposalAuthorityContract,
-  type OperationalProposalContract,
-  type OperationalProposalHumanGateContract,
-  type OperationalProposalIdempotencyContract,
-  type OperationalProposalOutcomeContract,
-  type OperationalProposalRecommendedActionContract,
-  type OperationalProposalReferenceContract,
-  type OperationalProposalReferenceLinkContract,
-  type OperationalProposalRedactionStatusContract,
-  type OperationalProposalEscalationExtensionContract,
-  type OperationalProposalExtensionsContract,
 } from "./schemas/operational-proposal.js";
 
 export {
-  validateArtifactEnvelopeContract,
-} from "./schemas/artifact.js";
-
-export {
-  ledgerRecordSchemaVersion,
+  ledgerEntrySchemaVersion,
   ledgerChainSchemaVersion,
-  ledgerHashAlgorithm,
+  ledgerDigestAlgorithm,
   ledgerCanonicalization,
+  ledgerEntrySchema,
   ledgerChainSchema,
-  ledgerRecordSchema,
-  validateLedgerRecordContract,
-  type LedgerChainContract,
-  type LedgerRecordContract,
+  ledgerPayloadSchema,
+  validateLedgerEntryContract,
+  validateLedgerPayloadContract,
 } from "./schemas/ledger.js";
 
-export {
-  hostedReceiptManifestSchema,
-  hostedReceiptIndexEntrySchema,
-  hostedArtifactIndexEntrySchema,
-  validateHostedReceiptManifestContract,
-  type HostedReceiptManifestContract,
-  type HostedReceiptIndexEntryContract,
-  type HostedArtifactIndexEntryContract,
-} from "./schemas/hosted-receipt-manifest.js";
+export { fixtureV1Schema } from "./schemas/fixture.js";
 
-export {
-  fixtureV1Schema,
-  type FixtureContract,
-} from "./schemas/fixture.js";
+export { toolManifestV1Schema } from "./schemas/tool-manifest.js";
 
-export {
-  toolManifestV1Schema,
-  type ToolManifestContract,
-} from "./schemas/tool-manifest.js";
+export { packetLockV1Schema, packetLockEntrySchema } from "./schemas/packet-lock.js";
 
-export {
-  packetIndexV1Schema,
-  type PacketIndexEntryContract,
-  type PacketIndexContract,
-} from "./schemas/packet-index.js";
-
-export {
-  actAssignmentActorSchema,
-  actAssignmentHostSchema,
-  actAssignmentIdempotencySchema,
-  actAssignmentV1Schema,
-  validateActAssignmentContract,
-  type ActAssignmentActorContract,
-  type ActAssignmentHostContract,
-  type ActAssignmentIdempotencyContract,
-  type ActAssignmentContract,
-} from "./schemas/act-assignment.js";
-
-export {
-  executionBoundaryObservationSchema,
-  type ExecutionBoundaryObservationContract,
-} from "./schemas/execution-boundary.js";
+export { actAssignmentV1Schema, validateActAssignmentContract } from "./schemas/act-assignment.js";
 
 export {
   referenceTypes,
   signalTypes,
   signalTrustLevels,
-  closureDispositions,
+  runOutcomes,
   decisionChoices,
   actForms,
   criterionStatuses,
@@ -650,11 +419,10 @@ export {
   authorityResourceFamilies,
   authorityVerbs,
   proofKinds,
-  redactionCommitmentAlgorithms,
   referenceTypeSchema,
   signalTypeSchema,
   signalTrustLevelSchema,
-  closureDispositionSchema,
+  runOutcomeSchema,
   decisionChoiceSchema,
   actFormSchema,
   criterionStatusSchema,
@@ -662,13 +430,11 @@ export {
   authorityResourceFamilySchema,
   authorityVerbSchema,
   proofKindSchema,
-  redactionCommitmentAlgorithmSchema,
   referenceSchema,
   referenceLinkSchema,
   nullableReferenceSchema,
-  actReferenceSchema,
-  hashCommitmentSchema,
-  redactionSchema,
+  actAddressSchema,
+  digestCommitmentSchema,
   duplicateCandidateSchema,
   linksSchema,
   signalAuthenticitySchema,
@@ -689,74 +455,15 @@ export {
   validateAuthoritySubsetProofContract,
   validateDecisionContract,
   validateSpineArtifactContract,
-  validateRedactionContract,
-  type ReferenceTypeContract,
-  type SignalTypeContract,
-  type SignalTrustLevelContract,
-  type ClosureDispositionContract,
-  type DecisionChoiceContract,
-  type ActFormContract,
-  type CriterionStatusContract,
-  type CriterionContract,
-  type AuthorityResourceFamilyContract,
-  type AuthorityVerbContract,
-  type ProofKindContract,
-  type ReferenceContract,
-  type ReferenceLinkContract,
-  type ActReferenceContract,
-  type HashCommitmentContract,
-  type RedactionContract,
-  type LinksContract,
-  type SignalAuthenticityContract,
-  type SignalContract,
-  type AuthorityBoundsContract,
-  type AuthorityApprovalContract,
-  type AuthorityTermContract,
-  type AuthoritySubsetProofContract,
-  type IntentContract,
-  type CriterionBindingContract,
-  type DecisionContract,
-  type ArtifactContract,
-  type ReceiptIssuerContract,
-  type ReceiptSignatureContract,
 } from "./schemas/spine.js";
 
 export {
-  handoffSignalV1Schema,
-  handoffStateV1Schema,
-  suppressionRecordV1Schema,
-  validateHandoffSignalContract,
-  validateHandoffStateContract,
-  validateSuppressionRecordContract,
-  type HandoffSignalContract,
-  type HandoffStateContract,
-  type SuppressionRecordContract,
-} from "./schemas/handoff.js";
+  skillOutputV1Schema,
+  projectArtifactV1Schema,
+  validateSkillOutputContract,
+  validateProjectArtifactContract,
+} from "./schemas/skill-output.js";
 
-import { agentContextEnvelopeSchema } from "./schemas/context.js";
-import { agentActInvocationSchema, approvalGateSchema, questionSchema } from "./schemas/agent-act.js";
-import { credentialDeliveryObservationV1Schema } from "./schemas/credential-delivery.js";
-import { outputSchema } from "./schemas/output.js";
-import { actResultEnvelopeSchema, resolutionRequestSchema, resolutionResponseSchema } from "./schemas/resolution.js";
-import { doctorV1Schema } from "./schemas/doctor.js";
-import { listV1Schema } from "./schemas/list.js";
-import { receiptV1Schema } from "./schemas/receipt.js";
-import { fixtureV1Schema } from "./schemas/fixture.js";
-import { toolManifestV1Schema } from "./schemas/tool-manifest.js";
-import { packetIndexV1Schema } from "./schemas/packet-index.js";
-import { actAssignmentV1Schema } from "./schemas/act-assignment.js";
-import {
-  artifactSchema,
-  authoritySubsetProofSchema,
-  decisionSchema,
-  redactionSchema,
-  referenceSchema,
-  signalSchema,
-} from "./schemas/spine.js";
-import { ledgerRecordSchema } from "./schemas/ledger.js";
-import { handoffSignalV1Schema, handoffStateV1Schema, suppressionRecordV1Schema } from "./schemas/handoff.js";
-import { operationalPolicySchema } from "./schemas/operational-policy.js";
-import { operationalProposalSchema } from "./schemas/operational-proposal.js";
 import {
   externalJobContinuationV1Schema,
   externalJobScheduleV1Schema,
@@ -766,18 +473,18 @@ import {
 } from "./schemas/external-job.js";
 import {
   paidSkillListingV1Schema,
-  paidInvocationV1Schema,
-  offerRevisionRefV1Schema,
-  quotePaidInvocationRequestV1Schema,
-  quotePaidInvocationResultV1Schema,
-  executePaidInvocationRequestV1Schema,
-  executePaidInvocationResultV1Schema,
-  getPaidInvocationRequestV1Schema,
-  getPaidInvocationResultV1Schema,
   purchaseV1Schema,
-  cancelPaidInvocationRequestV1Schema,
-  cancelPaidInvocationResultV1Schema,
-} from "./schemas/paid-invocation.js";
+  offerVersionBindingV1Schema,
+  quotePurchaseRequestV1Schema,
+  quotePurchaseResultV1Schema,
+  executePurchaseRequestV1Schema,
+  executePurchaseResultV1Schema,
+  getPurchaseRequestV1Schema,
+  getPurchaseResultV1Schema,
+  purchaseReadV1Schema,
+  cancelPurchaseRequestV1Schema,
+  cancelPurchaseResultV1Schema,
+} from "./schemas/purchase.js";
 import { dataOperationResultV1Schema } from "./schemas/data-operation.js";
 import { runxSchemaArtifacts } from "./schema-artifacts.js";
 
@@ -811,7 +518,7 @@ export const runxContractSchemas = {
   receipt: runxSchemaArtifacts["receipt.schema.json"],
   fixture: runxSchemaArtifacts["fixture.schema.json"],
   toolManifest: runxSchemaArtifacts["tool-manifest.schema.json"],
-  packetIndex: runxSchemaArtifacts["packet-index.schema.json"],
+  packetLock: runxSchemaArtifacts["packet-lock.schema.json"],
   actAssignment: runxSchemaArtifacts["act-assignment.schema.json"],
   reference: runxSchemaArtifacts["reference.schema.json"],
   referenceLink: runxSchemaArtifacts["reference-link.schema.json"],
@@ -819,11 +526,7 @@ export const runxContractSchemas = {
   signal: runxSchemaArtifacts["signal.schema.json"],
   decision: runxSchemaArtifacts["decision.schema.json"],
   artifact: runxSchemaArtifacts["artifact.schema.json"],
-  redaction: runxSchemaArtifacts["redaction.schema.json"],
   ledgerEntry: runxSchemaArtifacts["ledger-entry.schema.json"],
-  handoffSignal: runxSchemaArtifacts["handoff-signal.schema.json"],
-  handoffState: runxSchemaArtifacts["handoff-state.schema.json"],
-  suppressionRecord: runxSchemaArtifacts["suppression-record.schema.json"],
   operationalPolicy: runxSchemaArtifacts["operational-policy.schema.json"],
   operationalProposal: runxSchemaArtifacts["operational-proposal.schema.json"],
   externalJobContinuation: externalJobContinuationV1Schema,
@@ -832,24 +535,21 @@ export const runxContractSchemas = {
   externalJobStageRequest: externalJobStageRequestV1Schema,
   externalJobStageResult: externalJobStageResultV1Schema,
   paidSkillListing: paidSkillListingV1Schema,
-  paidInvocation: paidInvocationV1Schema,
-  offerRevisionRef: offerRevisionRefV1Schema,
-  quotePaidInvocationRequest: quotePaidInvocationRequestV1Schema,
-  quotePaidInvocationResult: quotePaidInvocationResultV1Schema,
-  executePaidInvocationRequest: executePaidInvocationRequestV1Schema,
-  executePaidInvocationResult: executePaidInvocationResultV1Schema,
-  getPaidInvocationRequest: getPaidInvocationRequestV1Schema,
-  getPaidInvocationResult: getPaidInvocationResultV1Schema,
   purchase: purchaseV1Schema,
-  cancelPaidInvocationRequest: cancelPaidInvocationRequestV1Schema,
-  cancelPaidInvocationResult: cancelPaidInvocationResultV1Schema,
+  offerVersionBinding: offerVersionBindingV1Schema,
+  quotePurchaseRequest: quotePurchaseRequestV1Schema,
+  quotePurchaseResult: quotePurchaseResultV1Schema,
+  executePurchaseRequest: executePurchaseRequestV1Schema,
+  executePurchaseResult: executePurchaseResultV1Schema,
+  getPurchaseRequest: getPurchaseRequestV1Schema,
+  getPurchaseResult: getPurchaseResultV1Schema,
+  purchaseRead: purchaseReadV1Schema,
+  cancelPurchaseRequest: cancelPurchaseRequestV1Schema,
+  cancelPurchaseResult: cancelPurchaseResultV1Schema,
 } as const;
 
 export const runxAuxiliarySchemas = {
   registryBinding: runxSchemaArtifacts["registry-binding.schema.json"],
-  reviewReceiptOutput: runxSchemaArtifacts["review-receipt-output.schema.json"],
 } as const;
 
 export const runxGeneratedSchemaArtifacts = runxSchemaArtifacts;
-
-export { skillOutputV1Schema, projectArtifactRefV1Schema, validateSkillOutputContract, validateProjectArtifactRefContract, type SkillOutputContract, type ProjectArtifactRefContract } from "./schemas/skill-output.js";

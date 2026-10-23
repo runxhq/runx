@@ -21,15 +21,15 @@ inputs:
   dispute_event:
     dispute_id: dp_test_001
     provider: stripe
-    provider_charge_ref: ch_test_001
+    provider_charge_id: ch_test_001
     amount_minor: 800
     currency: USD
     reason_code: product_not_received
     response_due_at: "2026-08-01T00:00:00Z"
   original_receipt_id: sha256:fc1bb8c2027c1b0a76d8095a1d6c112e37a4f4d144991be4d505ec21314ccd39
   prior_refund_receipt_ids: []
-  evidence_refs:
-    - ref: evidence:delivery:001
+  evidence:
+    - locator: evidence:delivery:001
       digest: sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
       kind: delivery
       summary: Provider delivery log for the paid result.
@@ -40,7 +40,7 @@ caller:
         posture: contest
         response_summary: Contest using the linked charge receipt and delivery evidence.
         cited_receipt_ids: [sha256:fc1bb8c2027c1b0a76d8095a1d6c112e37a4f4d144991be4d505ec21314ccd39]
-        cited_evidence_refs: [evidence:delivery:001]
+        cited_evidence_locators: [evidence:delivery:001]
         open_questions: []
 expect:
   status: sealed

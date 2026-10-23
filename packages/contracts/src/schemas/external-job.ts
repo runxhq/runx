@@ -1,121 +1,14 @@
-import {
-  type DeepReadonly,
-  generatedSchema,
-  validateContractSchema,
-} from "../internal.js";
+import { generatedSchema, validateContractSchema } from "../internal.js";
 import { canonicalJsonStringify } from "../canonical-json.js";
 import type {
-  PaidSkillExecutorBindingContract,
-  PrincipalReferenceContract,
-  Sha256DigestContract,
-} from "./paid-invocation.js";
-import type { ReferenceContract } from "./spine.js";
-
-export type ExternalJobStageContract =
-  | "start"
-  | "inspect"
-  | "materialize"
-  | "finalize";
-
-export type ExternalJobStatusContract =
-  | "runnable"
-  | "waiting_external"
-  | "succeeded"
-  | "failed"
-  | "superseded"
-  | "dead_letter";
-
-export type ExternalJobFailureContract = DeepReadonly<{
-  code: string;
-  message: string;
-  retryable: boolean;
-}>;
-
-export type ExternalJobCheckpointContract = DeepReadonly<Record<string, unknown>>;
-
-export type ExternalJobContinuationContract = DeepReadonly<{
-  continuation_id: string;
-  principal_ref: PrincipalReferenceContract;
-  vendor_ref: PrincipalReferenceContract;
-  invocation_ref: ReferenceContract;
-  source_run_ref: ReferenceContract;
-  execution_binding: PaidSkillExecutorBindingContract;
-  operation_identity: Sha256DigestContract;
-  stage: ExternalJobStageContract;
-  status: ExternalJobStatusContract;
-  attempts: number;
-  max_attempts: number;
-  next_attempt_at?: string;
-  deadline_at: string;
-  provider_job_ref?: ReferenceContract;
-  result_artifact_ref?: ReferenceContract;
-  terminal_execution_receipt_ref?: ReferenceContract;
-  terminal_evidence_ref?: ReferenceContract;
-  terminal_evidence_digest?: Sha256DigestContract;
-  failure?: ExternalJobFailureContract;
-  last_failure?: ExternalJobFailureContract;
-  created_at: string;
-  updated_at: string;
-}>;
-
-export type ExternalJobScheduleContract = DeepReadonly<{
-  continuation_id: string;
-  principal_ref: PrincipalReferenceContract;
-  vendor_ref: PrincipalReferenceContract;
-  invocation_ref: ReferenceContract;
-  source_run_ref: ReferenceContract;
-  execution_binding: PaidSkillExecutorBindingContract;
-  operation_identity: Sha256DigestContract;
-  checkpoint: ExternalJobCheckpointContract;
-  max_attempts: number;
-  next_attempt_at: string;
-  deadline_at: string;
-  created_at: string;
-}>;
-
-export type ExternalJobScheduleIntentContract = DeepReadonly<{
-  schema: "runx.external_job_schedule_intent.v1";
-  stage_runner: string;
-  checkpoint: ExternalJobCheckpointContract;
-  max_attempts: number;
-  initial_delay_ms: number;
-  deadline_ms: number;
-}>;
-
-export type ExternalJobStageRequestContract = DeepReadonly<{
-  continuation: ExternalJobContinuationContract;
-  checkpoint: ExternalJobCheckpointContract;
-  operation_key: Sha256DigestContract;
-}>;
-
-export type ExternalJobStageResultContract = DeepReadonly<
-  | {
-      status: "waiting";
-      provider_job_ref: ReferenceContract;
-      checkpoint: ExternalJobCheckpointContract;
-      retry_after_ms: number;
-    }
-  | {
-      status: "materialize";
-      provider_job_ref: ReferenceContract;
-      checkpoint: ExternalJobCheckpointContract;
-      retry_after_ms: number;
-    }
-  | {
-      status: "ready";
-      provider_job_ref: ReferenceContract;
-      result_artifact_ref: ReferenceContract;
-      evidence_ref: ReferenceContract;
-      evidence_digest: Sha256DigestContract;
-    }
-  | {
-      status: "provider_failed";
-      provider_job_ref: ReferenceContract;
-      evidence_ref: ReferenceContract;
-      evidence_digest: Sha256DigestContract;
-      failure: ExternalJobFailureContract;
-    }
->;
+  ExternalJobCheckpointContract,
+  ExternalJobContinuationContract,
+  ExternalJobScheduleContract,
+  ExternalJobScheduleIntentContract,
+  ExternalJobStageRequestContract,
+  ExternalJobStageResultContract,
+  ReferenceContract,
+} from "../generated/contract-types.js";
 
 export const externalJobContinuationV1Schema =
   generatedSchema<ExternalJobContinuationContract>("external-job-continuation.schema.json");
@@ -250,15 +143,15 @@ function validateSemantics(
   }
 
   const terminal = ["succeeded", "failed", "superseded", "dead_letter"]
-    .includes(continuation.status);
+    .includes(continuation.state);
   if (terminal === Boolean(continuation.next_attempt_at)) {
     throw new Error(`${label} must schedule exactly non-terminal state.`);
   }
-  if (continuation.status === "waiting_external") {
+  if (continuation.state === "waiting_external") {
     if (continuation.stage !== "inspect" || !continuation.provider_job_ref) {
       throw new Error(`${label} waiting_external state requires inspect and a provider job reference.`);
     }
-  } else if (continuation.status === "runnable") {
+  } else if (continuation.state === "runnable") {
     if (continuation.stage === "inspect") {
       throw new Error(`${label} inspect state must be waiting_external.`);
     }
@@ -270,7 +163,7 @@ function validateSemantics(
   if (!terminal) {
     if (
       continuation.result_artifact_ref
-      || continuation.terminal_execution_receipt_ref
+      || continuation.terminal_receipt_ref
       || continuation.terminal_evidence_ref
       || continuation.terminal_evidence_digest
       || continuation.failure
@@ -279,11 +172,11 @@ function validateSemantics(
     }
     return;
   }
-  if (continuation.status === "succeeded") {
+  if (continuation.state === "succeeded") {
     if (
       continuation.stage !== "finalize"
       || !continuation.result_artifact_ref
-      || !continuation.terminal_execution_receipt_ref
+      || !continuation.terminal_receipt_ref
       || !continuation.terminal_evidence_ref
       || !continuation.terminal_evidence_digest
       || continuation.failure
@@ -291,19 +184,19 @@ function validateSemantics(
       throw new Error(`${label} succeeded state requires finalized artifact and evidence.`);
     }
     referenceType(
-      continuation.terminal_execution_receipt_ref,
+      continuation.terminal_receipt_ref,
       "receipt",
-      `${label}.terminal_execution_receipt_ref`,
+      `${label}.terminal_receipt_ref`,
     );
     return;
   }
-  if (continuation.terminal_execution_receipt_ref) {
+  if (continuation.terminal_receipt_ref) {
     throw new Error(`${label} non-success terminal state cannot expose an execution receipt.`);
   }
   if (continuation.result_artifact_ref) {
     throw new Error(`${label} non-success terminal state cannot expose a result artifact.`);
   }
-  if (continuation.status === "dead_letter") {
+  if (continuation.state === "dead_letter") {
     if (!continuation.failure || continuation.failure.retryable) {
       throw new Error(`${label} dead_letter state requires a non-retryable bounded failure.`);
     }
@@ -312,10 +205,10 @@ function validateSemantics(
   if (!continuation.terminal_evidence_ref || !continuation.terminal_evidence_digest) {
     throw new Error(`${label} terminal provider outcome requires exact evidence.`);
   }
-  if (continuation.status === "failed" && (!continuation.failure || continuation.failure.retryable)) {
+  if (continuation.state === "failed" && (!continuation.failure || continuation.failure.retryable)) {
     throw new Error(`${label} failed state requires a terminal failure.`);
   }
-  if (continuation.status === "superseded" && continuation.failure) {
+  if (continuation.state === "superseded" && continuation.failure) {
     throw new Error(`${label} superseded state cannot claim provider failure.`);
   }
 }
@@ -323,13 +216,13 @@ function validateSemantics(
 function validateIdentityReferences(
   value: Pick<
     ExternalJobContinuationContract,
-    "invocation_ref" | "source_run_ref"
+    "purchase_ref" | "source_run_ref"
   >,
   label: string,
 ): void {
-  referenceType(value.invocation_ref, "target", `${label}.invocation_ref`);
-  if (!value.invocation_ref.uri.startsWith("runx:paid-invocation:")) {
-    throw new Error(`${label}.invocation_ref must identify a paid invocation.`);
+  referenceType(value.purchase_ref, "target", `${label}.purchase_ref`);
+  if (!value.purchase_ref.uri.startsWith("runx:purchase:")) {
+    throw new Error(`${label}.purchase_ref must identify a purchase.`);
   }
   referenceType(value.source_run_ref, "act", `${label}.source_run_ref`);
   if (!value.source_run_ref.uri.startsWith("runx:run:")) {

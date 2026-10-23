@@ -200,6 +200,14 @@ mod tests {
         RegistryPublishPackageRequest, prepare_loaded_package, prepare_registry_publish_package,
     };
 
+    /// An open object packet schema under `id`, at its canonical `$id`.
+    fn test_packet(id: &str) -> String {
+        let url = runx_contracts::PacketId::new(id)
+            .map(|id| id.schema_url())
+            .unwrap_or_default();
+        format!(r#"{{"$id":"{url}","x-runx-packet-id":"{id}","type":"object"}}"#)
+    }
+
     #[test]
     fn publish_package_accepts_a_manual_only_registry_listing()
     -> Result<(), Box<dyn std::error::Error>> {
@@ -261,7 +269,7 @@ runners:
           plan: object
         artifacts:
           wrap_as: packet
-          packet: runx.test.publish-shape.v1
+          packet: acme/publish-shape.plan.v1
 "#,
         )?;
         fs::write(
@@ -304,8 +312,8 @@ runners:
         )?;
         fs::create_dir_all(root.join("packets"))?;
         fs::write(
-            root.join("packets/publish-shape.schema.json"),
-            "{\"x-runx-packet-id\":\"runx.test.publish-shape.v1\",\"type\":\"object\"}\n",
+            root.join("packets/plan.v1.schema.json"),
+            test_packet("acme/publish-shape.plan.v1"),
         )?;
 
         let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
@@ -323,7 +331,7 @@ runners:
         assert!(paths.contains(&"references/operator.md"));
         assert!(paths.contains(&"context/review/SKILL.md"));
         assert!(paths.contains(&"context/review/run.yaml"));
-        assert!(paths.contains(&"packets/publish-shape.schema.json"));
+        assert!(paths.contains(&"packets/plan.v1.schema.json"));
         assert!(!paths.contains(&"notes.txt"));
         assert!(!paths.contains(&".env"));
         assert!(paths.contains(&"fixtures/helper.mjs"));
@@ -376,7 +384,7 @@ runners:
         skill: ../sibling
         artifacts:
           wrap_as: sibling_packet
-          packet: runx.test.sibling.v1
+          packet: acme/root.sibling.v1
 "#,
         )?;
         fs::write(
@@ -400,7 +408,7 @@ runners:
       provider_operation:
         type: json
         required: true
-        packet: runx.test.provider-operation.v1
+        packet: acme/provider.operation.v1
     steps:
       - id: verify
         agent: { role: agent, task: verify }
@@ -412,23 +420,30 @@ runners:
           named_emits:
             verification: verification
           packets:
-            verification: runx.test.verification.v1
+            verification: acme/sibling.verification.v1
 "#,
         )?;
-        fs::create_dir_all(temp.path().join("dist/packets"))?;
-        for (name, packet) in [
-            ("provider-operation", "runx.test.provider-operation.v1"),
-            ("verification", "runx.test.verification.v1"),
-        ] {
-            fs::write(
-                temp.path().join(format!("dist/packets/{name}.schema.json")),
-                format!(r#"{{"x-runx-packet-id":"{packet}","type":"object"}}"#),
-            )?;
-        }
+        // The sibling reads a packet a third workspace package owns, and
+        // owns its own; a workspace build output is never a packet source.
+        let provider = catalog.join("provider");
+        fs::create_dir_all(provider.join("packets"))?;
+        fs::write(
+            provider.join("SKILL.md"),
+            "---\nname: provider\ndescription: Provider fixture.\n---\n# Provider\n",
+        )?;
+        fs::write(
+            provider.join("packets/operation.v1.schema.json"),
+            test_packet("acme/provider.operation.v1"),
+        )?;
+        fs::create_dir_all(sibling.join("packets"))?;
+        fs::write(
+            sibling.join("packets/verification.v1.schema.json"),
+            test_packet("acme/sibling.verification.v1"),
+        )?;
         fs::create_dir_all(root.join("packets"))?;
         fs::write(
-            root.join("packets/sibling.schema.json"),
-            "{\"x-runx-packet-id\":\"runx.test.sibling.v1\",\"type\":\"object\"}\n",
+            root.join("packets/sibling.v1.schema.json"),
+            test_packet("acme/root.sibling.v1"),
         )?;
 
         let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
@@ -437,26 +452,25 @@ runners:
             env: &BTreeMap::new(),
             cwd: &root,
         })?;
-        assert!(
-            package
-                .package_files()
-                .iter()
-                .any(|file| file.path == "packets/sibling.schema.json")
-        );
         let package_paths = package
             .package_files()
             .iter()
             .map(|file| file.path.as_str())
             .collect::<Vec<_>>();
         assert!(package_paths.contains(&"runx.package.json"));
+        assert!(package_paths.contains(&"packets/sibling.v1.schema.json"));
         assert!(package_paths.contains(&"dependencies/1/SKILL.md"));
         assert!(package_paths.contains(&"dependencies/1/run.yaml"));
-        for schema in ["provider-operation", "verification"] {
-            assert!(
-                package_paths
-                    .contains(&format!("dependencies/1/packets/{schema}.schema.json").as_str())
-            );
-        }
+        assert!(package_paths.contains(&"dependencies/1/packets/verification.v1.schema.json"));
+        assert!(
+            package_paths
+                .contains(&"dependencies/1/packets/acme/provider/operation.v1.schema.json")
+        );
+        assert!(
+            !package_paths
+                .iter()
+                .any(|path| path.contains("provider/SKILL.md"))
+        );
         let harness_path = package
             .harness
             .as_ref()
@@ -464,7 +478,11 @@ runners:
             .path();
         assert!(harness_path.join("dependencies/1/SKILL.md").is_file());
         assert!(harness_path.join("dependencies/1/run.yaml").is_file());
-        assert!(harness_path.join("packets/sibling.schema.json").is_file());
+        assert!(
+            harness_path
+                .join("packets/sibling.v1.schema.json")
+                .is_file()
+        );
         let report = package.run_harness(&crate::LocalOrchestrator::default(), &BTreeMap::new())?;
         assert_eq!(report.status, "passed");
         assert_eq!(report.case_names, ["sibling"]);
@@ -645,7 +663,7 @@ runners:
       plan:
         type: json
         required: true
-        packet: runx.test.input-plan.v1
+        packet: acme/planner.input_plan.v1
     examples:
       - plan: { operation: inspect }
     steps:
@@ -655,23 +673,39 @@ runners:
           plan: $input.plan
 "#,
         )?;
-        fs::create_dir_all(temp.path().join("dist/packets"))?;
+        let owner = temp.path().join("skills/planner/packets");
+        fs::create_dir_all(&owner)?;
+        let input_plan = |operation: &str| {
+            format!(
+                r#"{{"$id":"https://schemas.runx.ai/packages/acme/planner/input-plan/v1.json","x-runx-packet-id":"acme/planner.input_plan.v1","type":"object","required":["operation"],"properties":{{"operation":{{"const":"{operation}"}}}},"additionalProperties":false}}"#
+            )
+        };
         fs::write(
-            temp.path().join("dist/packets/input-plan.schema.json"),
-            r#"{"x-runx-packet-id":"runx.test.input-plan.v1","type":"object","required":["operation"],"properties":{"operation":{"const":"inspect"}},"additionalProperties":false}"#,
+            owner.join("input_plan.v1.schema.json"),
+            input_plan("inspect"),
         )?;
 
         let loaded = crate::load_validated_skill_package(&root)?;
         fs::write(
-            temp.path().join("dist/packets/input-plan.schema.json"),
-            r#"{"x-runx-packet-id":"runx.test.input-plan.v1","type":"object","required":["operation"],"properties":{"operation":{"const":"mutate"}},"additionalProperties":false}"#,
+            owner.join("input_plan.v1.schema.json"),
+            input_plan("mutate"),
         )?;
         let package = prepare_loaded_package(&loaded, &BTreeMap::new(), temp.path())?;
 
+        // The bundle carries the bytes admitted at load, pinned under the
+        // owner's name, and no core packet.
         assert!(package.package_files().iter().any(|file| {
-            file.path == "packets/input-plan.schema.json"
+            file.path == "packets/acme/planner/input_plan.v1.schema.json"
                 && file.content.contains(r#""const":"inspect""#)
         }));
+        assert_eq!(
+            package
+                .package_files()
+                .iter()
+                .filter(|file| file.path.starts_with("packets/"))
+                .count(),
+            1
+        );
         Ok(())
     }
 
@@ -697,7 +731,7 @@ runners:
           plan: object
         artifacts:
           wrap_as: packet
-          packet: runx.test.missing.v1
+          packet: acme/missing-packet.plan.v1
 "#,
         )?;
         fs::write(
@@ -853,7 +887,7 @@ operations:
             package.metadata.connectors,
             vec![
                 super::super::RegistryConnectorMetadata {
-                    name: acme.name.clone(),
+                    connector: acme.name.clone(),
                     version: super::prepare_registry_connector_package(
                         &temp.path().join("connectors/acme-ops")
                     )?
@@ -864,12 +898,12 @@ operations:
                     operations: vec!["item.sync".to_owned()],
                 },
                 super::super::RegistryConnectorMetadata {
-                    name: web.name.clone(),
+                    connector: web.name.clone(),
                     version: package
                         .metadata
                         .connectors
                         .iter()
-                        .find(|binding| binding.name == "web")
+                        .find(|binding| binding.connector == "web")
                         .ok_or("web binding missing")?
                         .version
                         .clone(),
@@ -982,7 +1016,7 @@ operations:
             .metadata
             .connectors
             .into_iter()
-            .find(|binding| binding.name.as_str() == "acme-ops")
+            .find(|binding| binding.connector.as_str() == "acme-ops")
             .ok_or("binding missing")?;
         assert_eq!(connector.manifest_digest, binding.manifest_digest);
         assert_eq!(connector.connector_digest, binding.connector_digest);

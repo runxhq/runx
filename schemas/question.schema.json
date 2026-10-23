@@ -8,6 +8,7 @@
     },
     "free_text": {
       "const": true,
+      "description": "Whether the person may answer in their own words.",
       "type": "boolean"
     },
     "id": {
@@ -15,6 +16,7 @@
       "type": "string"
     },
     "options": {
+      "description": "What the person may choose, the recommended first.",
       "items": {
         "additionalProperties": false,
         "properties": {
@@ -29,6 +31,7 @@
         "required": [
           "label"
         ],
+        "title": "QuestionOption",
         "type": "object"
       },
       "minItems": 1,
@@ -42,6 +45,7 @@
       "type": "boolean"
     },
     "type": {
+      "description": "`choice` when it offers options, `text` otherwise.",
       "minLength": 1,
       "type": "string"
     }
@@ -52,6 +56,7 @@
     "required",
     "type"
   ],
+  "title": "Question",
   "type": "object",
   "x-runx-schema": "runx.question.v1"
 }

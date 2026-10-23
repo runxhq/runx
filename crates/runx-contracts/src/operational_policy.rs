@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::JsonValue;
-use crate::schema::{Identity, IsoDateTime, NonEmptyString, Property, RunxSchema, object_schema};
+use crate::schema::{
+    Identity, IsoDateTime, NamedSchemas, NonEmptyString, Property, RunxSchema, object_schema,
+    record_named, titled,
+};
 
 mod evaluate;
 
@@ -75,7 +78,7 @@ impl fmt::Display for OperationalPolicyRunnerState {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OperationalPolicyDedupeStrategy {
-    SourceFingerprint,
+    SourceDigest,
     ProviderSearch,
     Branch,
 }
@@ -229,7 +232,7 @@ pub struct OperationalPolicyAutomationPermissions {
 
 impl RunxSchema for OperationalPolicy {
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new("schema", OperationalPolicySchema::json_schema(), true),
                 Property::new(
@@ -276,13 +279,27 @@ impl RunxSchema for OperationalPolicy {
                 logical: "runx.operational_policy.v1",
                 url: None,
             }),
-        )
+        );
+        titled(schema, "OperationalPolicy")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "OperationalPolicy", Self::json_schema) {
+            OperationalPolicySchema::named_schemas(named);
+            OperationalPolicySourceRule::named_schemas(named);
+            OperationalPolicyRunnerRule::named_schemas(named);
+            OperationalPolicyOwnerRoute::named_schemas(named);
+            OperationalPolicyTargetRule::named_schemas(named);
+            OperationalPolicyDedupePolicy::named_schemas(named);
+            OperationalPolicyOutcomePolicy::named_schemas(named);
+            OperationalPolicyAutomationPermissions::named_schemas(named);
+        }
     }
 }
 
 impl RunxSchema for OperationalPolicySourceRule {
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new("source_id", id_schema(), true),
                 Property::new("provider", NonEmptyString::json_schema(), true),
@@ -306,13 +323,21 @@ impl RunxSchema for OperationalPolicySourceRule {
             ],
             true,
             None,
-        )
+        );
+        titled(schema, "OperationalPolicySourceRule")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "OperationalPolicySourceRule", Self::json_schema) {
+            OperationalPolicyAction::named_schemas(named);
+            OperationalPolicySourceThreadPolicy::named_schemas(named);
+        }
     }
 }
 
 impl RunxSchema for OperationalPolicyRunnerRule {
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new("runner_id", id_schema(), true),
                 Property::new("kind", NonEmptyString::json_schema(), true),
@@ -327,13 +352,21 @@ impl RunxSchema for OperationalPolicyRunnerRule {
             ],
             true,
             None,
-        )
+        );
+        titled(schema, "OperationalPolicyRunnerRule")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "OperationalPolicyRunnerRule", Self::json_schema) {
+            OperationalPolicyRunnerState::named_schemas(named);
+            OperationalPolicyAction::named_schemas(named);
+        }
     }
 }
 
 impl RunxSchema for OperationalPolicyOwnerRoute {
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new("route_id", id_schema(), true),
                 Property::new(
@@ -347,13 +380,18 @@ impl RunxSchema for OperationalPolicyOwnerRoute {
             ],
             true,
             None,
-        )
+        );
+        titled(schema, "OperationalPolicyOwnerRoute")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(named, "OperationalPolicyOwnerRoute", Self::json_schema);
     }
 }
 
 impl RunxSchema for OperationalPolicyTargetRule {
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new("repo", repo_slug_schema(), true),
                 Property::new("runner_ids", non_empty_array(id_schema()), true),
@@ -368,13 +406,20 @@ impl RunxSchema for OperationalPolicyTargetRule {
             ],
             true,
             None,
-        )
+        );
+        titled(schema, "OperationalPolicyTargetRule")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "OperationalPolicyTargetRule", Self::json_schema) {
+            OperationalPolicyAction::named_schemas(named);
+        }
     }
 }
 
 impl RunxSchema for OperationalPolicyDedupePolicy {
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new(
                     "strategy",
@@ -394,13 +439,21 @@ impl RunxSchema for OperationalPolicyDedupePolicy {
             ],
             true,
             None,
-        )
+        );
+        titled(schema, "OperationalPolicyDedupePolicy")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        if record_named(named, "OperationalPolicyDedupePolicy", Self::json_schema) {
+            OperationalPolicyDedupeStrategy::named_schemas(named);
+            OperationalPolicyDuplicateBehavior::named_schemas(named);
+        }
     }
 }
 
 impl RunxSchema for OperationalPolicyAutomationPermissions {
     fn json_schema() -> Value {
-        object_schema(
+        let schema = object_schema(
             vec![
                 Property::new("auto_merge", const_bool(false), true),
                 Property::new("mutate_target_repo", bool::json_schema(), true),
@@ -408,7 +461,16 @@ impl RunxSchema for OperationalPolicyAutomationPermissions {
             ],
             true,
             None,
-        )
+        );
+        titled(schema, "OperationalPolicyAutomationPermissions")
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(
+            named,
+            "OperationalPolicyAutomationPermissions",
+            Self::json_schema,
+        );
     }
 }
 
@@ -448,11 +510,12 @@ fn adapter_policy_schema() -> Value {
     })
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OperationalPolicyValidationFinding {
-    pub code: String,
-    pub path: String,
-    pub message: String,
+    pub code: NonEmptyString,
+    pub path: NonEmptyString,
+    pub message: NonEmptyString,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -520,7 +583,8 @@ impl fmt::Display for OperationalPolicyError {
 
 impl std::error::Error for OperationalPolicyError {}
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OperationalPolicyReadback {
     pub policy_id: String,
     pub schema_version: OperationalPolicySchema,
@@ -533,7 +597,8 @@ pub struct OperationalPolicyReadback {
     pub permissions: OperationalPolicyAutomationPermissions,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OperationalPolicySourceReadback {
     pub source_id: String,
     pub provider: NonEmptyString,
@@ -543,7 +608,8 @@ pub struct OperationalPolicySourceReadback {
     pub publish_mode: OperationalPolicyPublishMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OperationalPolicyRunnerReadback {
     pub runner_id: String,
     pub kind: NonEmptyString,
@@ -553,7 +619,8 @@ pub struct OperationalPolicyRunnerReadback {
     pub scafld_required: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
 pub struct OperationalPolicyTargetReadback {
     pub repo: String,
     pub runner_ids: Vec<String>,

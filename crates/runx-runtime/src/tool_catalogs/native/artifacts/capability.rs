@@ -37,7 +37,7 @@ impl CapabilityInput for ArtifactAdmitInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ArtifactReadInput {
-    pub(super) artifact_ref: String,
+    pub(super) artifact_uri: String,
     pub(super) offset: u64,
     pub(super) max_bytes: u64,
     pub(super) encoding: String,
@@ -86,7 +86,7 @@ const ADMIT_FIELDS: &[CapabilityField] = &[
 
 const READ_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "artifact_ref",
+        name: "artifact_uri",
         description: "Opaque invocation-scoped reference returned by artifact.admit.",
     },
     CapabilityField {
@@ -107,7 +107,7 @@ static ADMIT: TypedNativeCapability<ArtifactAdmitInput, ArtifactAdmitOutput> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "artifact.admit",
-            owner: "runx-runtime/local-artifacts",
+            source: "runx-runtime/local-artifacts",
             summary: "Bind one contained local file to an immutable opaque artifact reference.",
             scopes: &["fs.read"],
             effect: CapabilityEffect::Read,
@@ -125,7 +125,7 @@ static READ: TypedNativeCapability<ArtifactReadInput, ArtifactReadOutput> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "artifact.read",
-            owner: "runx-runtime/local-artifacts",
+            source: "runx-runtime/local-artifacts",
             summary: "Read one exact bounded page from a previously admitted local artifact.",
             scopes: &["fs.read"],
             effect: CapabilityEffect::Read,

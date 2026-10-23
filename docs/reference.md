@@ -181,12 +181,12 @@ consequential decision under `answers`; that section records agent or
 caller-supplied work and cannot resolve an approval gate. Runx rejects an agent
 response presented to an approval request.
 
-A host ends a run instead with `{"close": {"disposition": "declined"}}`
+A host ends a run instead with `{"close": {"outcome": "declined"}}`
 (a person stopped it) or `"superseded"` (a new attempt replaced it). The close
 comes alone. It seals any run that is not sealed and that no process drives,
 whether it waits at an act or stopped between steps, from its record alone:
 nothing is bound first, so a package that changed since the run started never
-traps it open. The run seals with that disposition and the seal reason
+traps it open. The run seals with that outcome and the seal reason
 `host_closed`; it is allowed while a retry waits, and an effect the run left
 unconfirmed stays unconfirmed.
 
@@ -203,15 +203,15 @@ once.
 tools over stdio, scoped to that run alone. `runx mcp <skill-ref...>` serves
 the same tools beside its skills, over the runs its own skill calls open. The tools are fixed and take a turn's address: `turn_list` shows
 everything the run waits on, each open turn as a line, `turn_status` reads a
-turn, `turn_read` reads what a ref of it names, `turn_call` makes a call in it
-and `turn_complete` ends it. `turn_status` gives the act's instructions and
-inputs whole and its context as an index: each entry's ref, type, summary,
-scope and size, never its data. `turn_read {turn, ref, offset?, limit?}` reads
-an entry by its ref (`current:<n>`, `historical:<n>`), an input of the act as
-`input:<name>`, or a call of the turn as `call:<index>`: a string as it is,
-anything else as JSON, a page of at most 32,000 characters with the
-`next_offset` that reads on from what it delivered. A ref the turn does not
-hold is refused. A turn's address is the id of the step
+turn, `turn_read` reads what a locator of it names, `turn_call` makes a call in
+it and `turn_complete` ends it. `turn_status` gives the act's instructions and
+inputs whole and its context as an index: each entry's locator, type, summary,
+scope and size, never its data. `turn_read {turn, locator, offset?, limit?}`
+reads an entry by its locator (`current:<n>`, `historical:<n>`), an input of
+the act as `input:<name>`, or a call of the turn as `call:<index>`: a string
+as it is, anything else as JSON, a page of at most 32,000 characters with the
+`next_offset` that reads on from what it delivered. A locator the turn does
+not hold is refused. A turn's address is the id of the step
 that asks it, as an approval's is its gate. A turn that a call opens in a child
 skill is addressed by the child's place in the run, as in `answer/0#report`,
 and is worked on the same connection. `turn_status` lists the calls a turn may make, one per entry of
@@ -337,17 +337,18 @@ normally copy; Ctrl-C is the interrupt.
 
 `runx skill ... --json` and `runx resume ... --json` return the canonical
 `runx.skill_run.v1` envelope. A sealed run has one caller-facing `result`, a compact
-`trace` for graph runs, the terminal `closure`, and the `receipt_id` needed for
-independent inspection:
+`trace` for graph runs, its `outcome` (with a `seal_reason` when the outcome
+alone does not say why), and the `receipt_id` needed for independent
+inspection:
 
 ```json
 {
   "schema": "runx.skill_run.v1",
   "status": "sealed",
+  "outcome": "completed",
   "skill_name": "example",
   "run_id": "run_example_123",
   "receipt_id": "sha256:...",
-  "closure": { "disposition": "closed" },
   "result": {},
   "trace": {
     "graph": "example-read",
@@ -368,8 +369,8 @@ independent inspection:
 a graph's terminal successful producer. When a guard or an authority refused a
 step, `refusal` carries why (`code` and `message`) beside what the steps
 produced; a failed run's `result` is its failure. Neither is part of the signed
-receipt, whose seal records the typed `disposition` and, when the
-disposition alone does not say why, a `reason` from a closed vocabulary. `trace` deliberately carries
+receipt, whose seal records the typed `outcome` and, when the outcome alone
+does not say why, a `reason` from a closed vocabulary. `trace` deliberately carries
 references rather than step payloads. Intermediate graph state, child receipts,
 and the full signed receipt are written to the local Runx state and receipt
 stores; process output identity is committed by the receipt. Inspect proof
@@ -482,7 +483,7 @@ writes and projection reads.
 
 Graphs call the store's operations, `events.append`, `events.read`,
 `projection.read` and `heads.list`, as operation steps.
-Each call's `data_source_ref` names a logical source inside the workspace's
+Each call's `data_source_uri` names a logical source inside the workspace's
 store. With no store instance confirmed, that is the workspace store, a SQLite
 file at `.runx/store.sqlite`; `runx connector use store --parameter url=...`
 moves the workspace's streams to another SQLite file, Postgres or Redis.
@@ -563,7 +564,7 @@ operation's own declared approval.
 is approved: an operation its input, a local effect what the floor shows, an ask
 its `{reason}`. `summary.payload_digest` is that value's stable digest
 (`runx.stable-json.v1`); the value rides as `payload` up to 64 KiB and beyond
-that as `payload_ref`, a project artifact holding its canonical JSON. A host
+that as `payload_artifact`, a project artifact holding its canonical JSON. A host
 recomputes the digest before it offers Approve.
 
 **Processes that outlive a call.** `process.start {command, args, cwd, env,
@@ -717,11 +718,11 @@ Connectors are published only to a hosted registry: the runx catalog unless
 
 The packages you write sit beside your source; the packages runx adds sit in
 the project directory, `.runx/` (or `RUNX_PROJECT_DIR`). `skills/` holds the
-skills you write (`skills/<name>/`, or `skills/<owner>/<name>/` for your own
+skills you write (`skills/<name>/`, or `skills/<publisher>/<name>/` for your own
 copy of a registry skill) and `connectors/` your own connectors
 (`connectors/<name>/`). `.runx/added-skills/` holds every skill added from a
 registry by `runx registry install`, by running a registry ref or as a
-registry step's child (`<owner>/<name>/<version>/`), and the core skills this
+registry step's child (`<publisher>/<name>/<version>/`), and the core skills this
 release carries, added as `runx/<name>/<version>/` when first used.
 `.runx/added-connectors/` holds installed connectors (`<name>/<version>/`) and
 the runtime capability connectors (`store`, `web`, `artifact`) a skill uses,
@@ -937,14 +938,14 @@ lanes as the UI.
 Each ships as a portable `SKILL.md` plus a colocated execution profile at
 `skills/<skill>/run.yaml` when it exposes deterministic runners or inline harness
 coverage. Upstream skills that runx does not own keep their execution profiles
-under `bindings/<owner>/<skill>/run.yaml` with adjacent `binding.json`
+under `bindings/<publisher>/<skill>/run.yaml` with adjacent `binding.json`
 governance metadata. Bare skill names resolve to the workspace's own skills or
 to the core skills this release carries, which are added under
 `.runx/added-skills/runx/<name>/<version>/` when first used. Every other
-package runs by its `owner/name[@version]` ref, optionally with `--registry`
-and `--digest`, unless your own copy at `skills/<owner>/<name>/` answers it;
+package runs by its `publisher/name[@version]` ref, optionally with `--registry`
+and `--digest`, unless your own copy at `skills/<publisher>/<name>/` answers it;
 only a trusted, signed registry package is added to the project, at
-`.runx/added-skills/<owner>/<name>/<version>/`. A ref without a version takes
+`.runx/added-skills/<publisher>/<name>/<version>/`. A ref without a version takes
 the newest version this runx reads: when the registry's current version needs
 another runx, the newest older version this one reads is used instead, and the
 output's `newest_unread` names the version passed over and why. A version named
@@ -981,7 +982,7 @@ steps:
 
 This uses the same explicit local-registry rule: set `RUNX_REGISTRY_DIR`, sync or
 publish the skill into that registry first. A registry child is added to the
-project's `skills/<owner>/<name>/<version>/` like any other added skill.
+project's `skills/<publisher>/<name>/<version>/` like any other added skill.
 
 Any runnable skill package can also be exposed locally as an MCP tool with:
 
@@ -1169,9 +1170,9 @@ replay, not actual driver behavior; run provider integration checks separately.
 The fixture does not relax the host's process policy or affect ordinary runs.
 `provider_responses` stands in for runx Connect: it
 holds the case's grant, renders a hosted operation's declared requests as
-Connect does, with its `invocation_id` as the paid invocation, and sends them
-to the case's `http_exchanges`. Without an `invocation_id`, a request that
-sends the paid invocation fails closed. A case that stops on a request it did not answer names
+Connect does, with its `purchase_id` as the purchase, and sends them
+to the case's `http_exchanges`. Without a `purchase_id`, a request that
+sends the purchase fails closed. A case that stops on a request it did not answer names
 that request in its status mismatch. No caller fixture is available to
 skill inputs, environment configuration, or ordinary live runs.
 

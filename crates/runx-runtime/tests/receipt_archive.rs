@@ -96,17 +96,17 @@ fn history_lists_receipts_newest_first_with_safe_refs_and_filters()
         history
             .receipts
             .iter()
-            .map(|receipt| receipt.receipt_ref.clone())
+            .map(|receipt| receipt.receipt_uri.clone())
             .collect::<Vec<_>>(),
         expected_order
     );
-    assert_eq!(history.receipts[0].subject_ref, SIGNED_RUNTIME_SUBJECT);
+    assert_eq!(history.receipts[0].subject_uri, SIGNED_RUNTIME_SUBJECT);
     assert_eq!(history.receipts[0].issuer_type, "local");
     // A step that made no admitted call states no actor.
     assert_eq!(history.receipts[1].actor, None);
     assert!(
         history.receipts[0]
-            .receipt_ref
+            .receipt_uri
             .starts_with(RECEIPT_REF_PREFIX)
     );
     assert_no_local_paths(&serde_json::to_string(&history)?);
@@ -184,7 +184,7 @@ fn history_filter_matches_actor_status_skill_and_date() -> Result<(), Box<dyn st
         &workspace,
         &ReceiptFilter {
             skill: Some("receipt-archive".to_owned()),
-            status: Some("closed".to_owned()),
+            outcome: Some("completed".to_owned()),
             actor: Some(ADMITTED_ACTOR.to_owned()),
             until: Some("2026-05-18T23:59:59Z".to_owned()),
             ..ReceiptFilter::default()
@@ -198,7 +198,7 @@ fn history_filter_matches_actor_status_skill_and_date() -> Result<(), Box<dyn st
 }
 
 #[test]
-fn history_filter_intersects_skill_status_issuer_and_date_range()
+fn history_filter_intersects_skill_outcome_issuer_and_date_range()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let workspace = temp.path().join("workspace");
@@ -214,7 +214,7 @@ fn history_filter_intersects_skill_status_issuer_and_date_range()
 
     store.write_receipt(
         &generated_runtime_receipt_with(
-            "rcpt_wrong_status",
+            "rcpt_wrong_outcome",
             InvocationStatus::Failure,
             "2026-05-18T12:30:00Z",
         )?,
@@ -235,7 +235,7 @@ fn history_filter_intersects_skill_status_issuer_and_date_range()
         &workspace,
         &ReceiptFilter {
             skill: Some("receipt-archive".to_owned()),
-            status: Some("CLOSED".to_owned()),
+            outcome: Some("COMPLETED".to_owned()),
             issuer: Some("LOCAL".to_owned()),
             since: Some("2026-05-18T00:00:00Z".to_owned()),
             until: Some("2026-05-19T00:00:00Z".to_owned()),

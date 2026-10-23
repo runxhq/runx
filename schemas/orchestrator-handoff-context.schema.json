@@ -41,13 +41,8 @@
             "principal_id": {
               "type": "string"
             },
-            "source_workflow": {
-              "type": "string"
-            },
-            "upstream_execution_id": {
-              "type": "string"
-            },
             "upstream_run_id": {
+              "description": "The orchestrator's own id for the run that made the call.",
               "type": "string"
             },
             "workflow": {
@@ -55,11 +50,9 @@
             },
             "workflow_id": {
               "type": "string"
-            },
-            "workflow_ref": {
-              "type": "string"
             }
           },
+          "title": "OrchestratorExecutionContext",
           "type": "object",
           "x-runx-schema": "runx.orchestrator.execution_context.v1"
         },
@@ -86,6 +79,7 @@
         "source",
         "idempotency_key"
       ],
+      "title": "OrchestratorHandoffDelivery",
       "type": "object"
     },
     "event_id": {
@@ -109,6 +103,7 @@
         "audience",
         "source"
       ],
+      "title": "OrchestratorHandoffBinding",
       "type": "object"
     },
     "idempotency": {
@@ -125,6 +120,7 @@
         "key",
         "receiver_should_dedupe"
       ],
+      "title": "OrchestratorHandoffIdempotency",
       "type": "object"
     },
     "platform": {
@@ -152,6 +148,7 @@
         "receiver_response_must_be_captured",
         "delivered_credential_material_absent"
       ],
+      "title": "OrchestratorReceiptExpectations",
       "type": "object"
     },
     "receiver": {
@@ -180,6 +177,7 @@
         "require_event_id",
         "reject_duplicate_event_id"
       ],
+      "title": "OrchestratorReceiverValidation",
       "type": "object"
     },
     "status": {
@@ -196,6 +194,7 @@
     "receiver_validation",
     "receipt_expectations"
   ],
+  "title": "OrchestratorHandoffContext",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.orchestrator.handoff_context.v1"

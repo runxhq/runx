@@ -1,0 +1,29 @@
+{
+  "$id": "https://schemas.runx.ai/runx/data/digest/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `data.digest` returns: the SHA-256 digest of canonical JSON or of exact UTF-8 text.",
+  "properties": {
+    "algorithm": {
+      "description": "The algorithm a content digest was taken with.",
+      "enum": [
+        "sha256"
+      ],
+      "title": "DigestAlgorithm",
+      "type": "string"
+    },
+    "digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "algorithm",
+    "digest"
+  ],
+  "title": "DataDigest",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.data.digest.v1"
+}

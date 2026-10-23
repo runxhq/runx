@@ -14,7 +14,7 @@ export function admitPayment(input) {
   if (typeof currency !== "string" || !/^[A-Z]{3}$/.test(currency) || authority.currency !== currency) {
     throw new Error("Payment and parent currency differ. No FX conversion is implied.");
   }
-  if (authority.counterparty !== resource) throw new Error("The parent does not authorize this exact counterparty.");
+  if (authority.resource_url !== resource) throw new Error("The parent does not authorize this exact resource.");
   if (!Number.isSafeInteger(authority.max_amount_minor) || authority.max_amount_minor < amount) {
     throw new Error("Payment exceeds the supplied parent maximum.");
   }

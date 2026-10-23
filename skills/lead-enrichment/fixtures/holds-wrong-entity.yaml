@@ -2,13 +2,13 @@ name: holds-wrong-entity
 kind: skill
 target: ..
 inputs:
-  subject: {ref: 'lead:example', kind: person}
+  subject: {id: 'lead:example', kind: person}
   as_of: '2026-10-10T00:00:00Z'
   requested_fields: [company.industry, person.title]
   sources:
-  - source_ref: crm:lead
+  - source_id: crm:lead
     source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-    subject_ref: lead:another
+    subject_id: lead:another
     observed_at: '2026-10-09T00:00:00Z'
     match_confidence: high
     facts:
@@ -33,4 +33,4 @@ operator_journeys:
   request: Reuse these collected professional observations for the requested lead.
   expected_outcome: Keep supplied source identity and freshness; reject the other entity rather than invent a match.
   prior_evidence: [Bounded caller-supplied structured source observations.]
-  must_not_repeat: [Do not fetch the same evidence again or query an enrichment vendor.]
+  must_not_repeat: [Do not fetch the same evidence again or query an enrichment provider.]

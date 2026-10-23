@@ -31,7 +31,7 @@ const findings: Finding[] = [];
 
 stampPackageJson(packageJsonPath, options, findings);
 stampCargoPackage(cargoCliPackagePath, options, findings);
-stampRustConstant(runtimeSourcePath, "EXECUTION_RUNTIME_RELEASE", options, findings);
+stampRustConstant(runtimeSourcePath, "RUNX_VERSION", options, findings);
 stampCargoLock(cargoLockPath, ["runx-cli"], options, findings);
 
 if (findings.length > 0) {

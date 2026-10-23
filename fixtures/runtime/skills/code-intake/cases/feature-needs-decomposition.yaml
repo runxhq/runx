@@ -42,7 +42,7 @@ caller:
             surface: "mcp"
         thread_locator: "support://request/982"
       closure:
-        disposition: "closed"
+        outcome: "completed"
         reason_code: "issue_intake_completed"
         summary: "Feature request needs a planning lane before mutation."
       intake_report:
@@ -91,7 +91,7 @@ caller:
         created_at: "2026-05-15T00:00:00Z"
         dedupe:
           algorithm: "sha256"
-          fingerprint: "sha256:abandoned-cart-recovery"
+          digest: "sha256:abandoned-cart-recovery"
           source_locator: "support://request/982"
         schema: "runx.signal.v1"
         signal_id: "sig_abandoned_cart_982"
@@ -118,7 +118,7 @@ expect:
   receipt:
     schema: "runx.receipt.v1"
     state: "sealed"
-    disposition: "closed"
+    outcome: "completed"
 metadata:
   product_skill: "code-intake"
   source_case: "feature-needs-decomposition"

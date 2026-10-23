@@ -16,7 +16,7 @@ inputs:
   resources:
     kind: issues
     mutations:
-      - { ref: issues/241, op: update, payload: { labels: [triage] } }
+      - { path: issues/241, op: update, payload: { labels: [triage] } }
   idempotency_key: runxhq/runx:issues/241:labels:triage
 caller:
   http_exchanges:

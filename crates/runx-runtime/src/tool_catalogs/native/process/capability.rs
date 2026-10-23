@@ -173,7 +173,7 @@ const PROCESS: CapabilityArtifacts = CapabilityArtifacts::Wrapped {
 static START: TypedNativeCapability<ProcessStartInput, RunxProcess> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "process.start",
-        owner: "runx-runtime/process",
+        source: "runx-runtime/process",
         summary: "Start a long-running process under runx supervision: it outlives the call, and later calls read, write and stop it.",
         scopes: &["process.exec"],
         effect: CapabilityEffect::Mutate,
@@ -188,7 +188,7 @@ static START: TypedNativeCapability<ProcessStartInput, RunxProcess> = TypedNativ
 static READ: TypedNativeCapability<ProcessReadInput, ProcessOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "process.read",
-        owner: "runx-runtime/process",
+        source: "runx-runtime/process",
         summary: "Read a process's output after a cursor, stdout and stderr tagged, and whether it still runs.",
         scopes: &["process.exec"],
         effect: CapabilityEffect::Read,
@@ -205,7 +205,7 @@ static READ: TypedNativeCapability<ProcessReadInput, ProcessOutput> = TypedNativ
 static WRITE: TypedNativeCapability<ProcessWriteInput, RunxProcess> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "process.write",
-        owner: "runx-runtime/process",
+        source: "runx-runtime/process",
         summary: "Write to a running process's stdin or terminal.",
         scopes: &["process.exec"],
         effect: CapabilityEffect::Mutate,
@@ -220,7 +220,7 @@ static WRITE: TypedNativeCapability<ProcessWriteInput, RunxProcess> = TypedNativ
 static RESIZE: TypedNativeCapability<ProcessResizeInput, RunxProcess> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "process.resize",
-        owner: "runx-runtime/process",
+        source: "runx-runtime/process",
         summary: "Resize a running process's terminal.",
         scopes: &["process.exec"],
         effect: CapabilityEffect::Mutate,
@@ -235,7 +235,7 @@ static RESIZE: TypedNativeCapability<ProcessResizeInput, RunxProcess> = TypedNat
 static STOP: TypedNativeCapability<ProcessIdInput, RunxProcess> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "process.stop",
-        owner: "runx-runtime/process",
+        source: "runx-runtime/process",
         summary: "Stop a process: terminate it, then kill it, and return it exited.",
         scopes: &["process.exec"],
         effect: CapabilityEffect::Mutate,
@@ -250,7 +250,7 @@ static STOP: TypedNativeCapability<ProcessIdInput, RunxProcess> = TypedNativeCap
 static LIST: TypedNativeCapability<ProcessListInput, ProcessList> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "process.list",
-        owner: "runx-runtime/process",
+        source: "runx-runtime/process",
         summary: "List the processes this run's actor started in the project, most recently changed first.",
         scopes: &["process.exec"],
         effect: CapabilityEffect::Read,

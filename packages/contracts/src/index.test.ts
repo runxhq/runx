@@ -12,26 +12,22 @@ import {
   dataOperationResultV1Schema,
   doctorV1Schema,
   fixtureV1Schema,
-  handoffSignalV1Schema,
-  handoffStateV1Schema,
-  ledgerRecordSchema,
+  ledgerEntrySchema,
   listV1Schema,
   outputSchema,
-  packetIndexV1Schema,
+  packetLockV1Schema,
   questionSchema,
   registryBindingSchema,
-  reviewReceiptOutputSchema,
   resolutionRequestSchema,
   resolutionResponseSchema,
   receiptV1Schema,
   paidSkillListingV1Schema,
-  paidInvocationV1Schema,
-  quotePaidInvocationRequestV1Schema,
-  cancelPaidInvocationResultV1Schema,
+  purchaseV1Schema,
+  quotePurchaseRequestV1Schema,
+  cancelPurchaseResultV1Schema,
   runxContractSchemas,
   runxAuxiliarySchemas,
   runxGeneratedSchemaArtifacts,
-  suppressionRecordV1Schema,
   toolManifestV1Schema,
   contractSchemaMatches,
   validateActResultEnvelopeContract,
@@ -41,13 +37,9 @@ import {
   validateDataOperationResultContract,
   validateActAssignmentContract,
   validateDoctorReportContract,
-  validateHandoffSignalContract,
-  validateHandoffStateContract,
   validateReceiptContract,
   validateRegistryBindingContract,
   validateRunxListReportContract,
-  validateReviewReceiptOutputContract,
-  validateSuppressionRecordContract,
   validateOperationalPolicyContract,
   validateOperationalPolicySemantics,
   validateOperationalProposalContract,
@@ -76,18 +68,18 @@ describe("@runxhq/contracts", () => {
     expect((toolManifestV1Schema.required as readonly string[])).not.toContain("version");
   });
 
-  it("publishes paid-invocation V1 through the curated contract registry", () => {
+  it("publishes purchase V1 through the curated contract registry", () => {
     expect(RUNX_LOGICAL_SCHEMAS.paidSkillListing)
       .toBe("runx.marketplace.paid_skill_listing.v1");
     expect(RUNX_CONTRACT_IDS.paidSkillListing)
       .toBe("https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json");
     expect(paidSkillListingV1Schema).toBe(runxContractSchemas.paidSkillListing);
-    expect(RUNX_LOGICAL_SCHEMAS.paidInvocation).toBe("runx.payment.paid_invocation.v1");
-    expect(RUNX_CONTRACT_IDS.paidInvocation)
-      .toBe("https://schemas.runx.ai/runx/payment/paid-invocation/v1.json");
-    expect(paidInvocationV1Schema).toBe(runxContractSchemas.paidInvocation);
-    expect(quotePaidInvocationRequestV1Schema).toBe(runxContractSchemas.quotePaidInvocationRequest);
-    expect(cancelPaidInvocationResultV1Schema).toBe(runxContractSchemas.cancelPaidInvocationResult);
+    expect(RUNX_LOGICAL_SCHEMAS.purchase).toBe("runx.payment.purchase.v1");
+    expect(RUNX_CONTRACT_IDS.purchase)
+      .toBe("https://schemas.runx.ai/runx/payment/purchase/v1.json");
+    expect(purchaseV1Schema).toBe(runxContractSchemas.purchase);
+    expect(quotePurchaseRequestV1Schema).toBe(runxContractSchemas.quotePurchaseRequest);
+    expect(cancelPurchaseResultV1Schema).toBe(runxContractSchemas.cancelPurchaseResult);
   });
 
   it("exports Rust-generated artifacts for control schema facades", () => {
@@ -105,17 +97,15 @@ describe("@runxhq/contracts", () => {
     expect(doctorV1Schema).toBe(runxContractSchemas.doctor);
     expect(listV1Schema).toBe(runxContractSchemas.list);
     expect(fixtureV1Schema).toBe(runxContractSchemas.fixture);
-    expect(packetIndexV1Schema).toBe(runxContractSchemas.packetIndex);
+    expect(packetLockV1Schema).toBe(runxContractSchemas.packetLock);
     expect(actAssignmentV1Schema).toBe(runxContractSchemas.actAssignment);
-    expect(ledgerRecordSchema).toBe(runxContractSchemas.ledgerEntry);
-    expect(handoffSignalV1Schema).toBe(runxContractSchemas.handoffSignal);
-    expect(handoffStateV1Schema).toBe(runxContractSchemas.handoffState);
-    expect(suppressionRecordV1Schema).toBe(runxContractSchemas.suppressionRecord);
+    expect(ledgerEntrySchema).toBe(runxContractSchemas.ledgerEntry);
   });
 
   it("keeps fixture lanes aligned with authoring plan", () => {
     const fixtureProperties = runxContractSchemas.fixture.properties as Record<string, unknown> | undefined;
     expect(fixtureProperties?.lane).toEqual({
+      title: "FixtureLane",
       type: "string",
       enum: ["deterministic", "agent", "repo-integration"],
     });
@@ -124,7 +114,7 @@ describe("@runxhq/contracts", () => {
   it("validates governed data operation result packets", () => {
     const committed = validateDataOperationResultContract({
       schema: RUNX_LOGICAL_SCHEMAS.dataOperationResult,
-      data_source_ref: "tenant://acme/board",
+      data_source_uri: "tenant://acme/board",
       provider: "store",
       operation: "events.append",
       resource: "board_events",
@@ -133,7 +123,7 @@ describe("@runxhq/contracts", () => {
       before_version: 2,
       after_version: 3,
       idempotency_key: "posting-123:claim:agent-9",
-      event_ref: "board_events:posting-123:3",
+      event_id: "board_events:posting-123:3",
       event_digest: "sha256:event",
       result_digest: "sha256:result",
       projection_digest: "sha256:projection",
@@ -152,7 +142,7 @@ describe("@runxhq/contracts", () => {
 
     const conflict = validateDataOperationResultContract({
       schema: RUNX_LOGICAL_SCHEMAS.dataOperationResult,
-      data_source_ref: "tenant://acme/board",
+      data_source_uri: "tenant://acme/board",
       provider: "store",
       operation: "events.append",
       resource: "board_events",
@@ -161,7 +151,7 @@ describe("@runxhq/contracts", () => {
       before_version: 4,
       after_version: 4,
       idempotency_key: "posting-123:claim:agent-9",
-      event_ref: null,
+      event_id: null,
       event_digest: "sha256:event",
       result_digest: "sha256:conflict",
       projection_digest: "sha256:projection",
@@ -186,6 +176,7 @@ describe("@runxhq/contracts", () => {
   it("accepts typed proof kinds on references", () => {
     expect(proofKinds).toEqual(["effect_evidence", "effect_finality", "credential_resolution"]);
     expect(proofKindSchema).toEqual({
+      title: "ProofKind",
       type: "string",
       enum: ["effect_evidence", "effect_finality", "credential_resolution"],
     });
@@ -240,7 +231,7 @@ describe("@runxhq/contracts", () => {
     expect(validateAgentContextEnvelopeContract({
       run_id: "rx_contract",
       skill: "demo.skill",
-      instructions_sha256: `sha256:${"a".repeat(64)}`,
+      instructions_digest: `sha256:${"a".repeat(64)}`,
       instructions: "Do the work.",
       inputs: {},
       requirements: {
@@ -264,7 +255,7 @@ describe("@runxhq/contracts", () => {
     expect(() => validateAgentContextEnvelopeContract({
       run_id: "rx_contract",
       skill: "demo.skill",
-      instructions_sha256: `sha256:${"a".repeat(64)}`,
+      instructions_digest: `sha256:${"a".repeat(64)}`,
       instructions: "Do the work.",
       inputs: {},
       requirements: {
@@ -284,7 +275,7 @@ describe("@runxhq/contracts", () => {
       run_id: "rx_contract",
       step_id: "plan",
       skill: "demo.plan",
-      instructions_sha256: `sha256:${"a".repeat(64)}`,
+      instructions_digest: `sha256:${"a".repeat(64)}`,
       instructions: "Do the work.",
       inputs: {},
       requirements: {
@@ -333,20 +324,13 @@ describe("@runxhq/contracts", () => {
 
   it("owns generated auxiliary schemas", () => {
     expect(registryBindingSchema.$id).toBe(RUNX_CONTRACT_IDS.registryBinding);
-    expect(reviewReceiptOutputSchema.$id).toBe(RUNX_CONTRACT_IDS.reviewReceiptOutput);
     expect(runxAuxiliarySchemas.registryBinding).toBe(runxGeneratedSchemaArtifacts["registry-binding.schema.json"]);
-    expect(runxAuxiliarySchemas.reviewReceiptOutput).toBe(runxGeneratedSchemaArtifacts["review-receipt-output.schema.json"]);
     expect(runxAuxiliarySchemas.registryBinding.$id).toBe(registryBindingSchema.$id);
-    expect(runxAuxiliarySchemas.reviewReceiptOutput.$id).toBe(reviewReceiptOutputSchema.$id);
     expect(runxGeneratedSchemaArtifacts["doctor.schema.json"]).toBe(runxContractSchemas.doctor);
     expect(runxGeneratedSchemaArtifacts["act-assignment.schema.json"]).toBe(runxContractSchemas.actAssignment);
     expect(runxGeneratedSchemaArtifacts["receipt.schema.json"]).toBe(runxContractSchemas.receipt);
-    expect(runxGeneratedSchemaArtifacts["handoff-signal.schema.json"]).toBe(runxContractSchemas.handoffSignal);
-    expect(runxGeneratedSchemaArtifacts["handoff-state.schema.json"]).toBe(runxContractSchemas.handoffState);
-    expect(runxGeneratedSchemaArtifacts["suppression-record.schema.json"]).toBe(runxContractSchemas.suppressionRecord);
     expect(runxGeneratedSchemaArtifacts["operational-policy.schema.json"]).toBe(runxContractSchemas.operationalPolicy);
     expect(runxGeneratedSchemaArtifacts["operational-proposal.schema.json"]).toBe(runxContractSchemas.operationalProposal);
-    expect(runxGeneratedSchemaArtifacts["review-receipt-output.schema.json"].$id).toBe(reviewReceiptOutputSchema.$id);
   });
 
   it("owns operational policy for issue intake and source-thread routing", () => {
@@ -389,7 +373,7 @@ describe("@runxhq/contracts", () => {
         scafld_required: true,
       }],
       dedupe: {
-        strategy: "source_fingerprint",
+        strategy: "source_digest",
         key_fields: ["source_locator", "target_repo"],
         on_duplicate: "reuse",
       },
@@ -429,7 +413,7 @@ describe("@runxhq/contracts", () => {
       source_event_id: "slack_event_123",
       idempotency: {
         key: "operational-proposal:slack_event_123:tracking-to-change:api-owner",
-        fingerprint: "sha256:proposal-123-source-action-target",
+        digest: "sha256:proposal-123-source-action-target",
       },
       source_ref: {
         type: "thread",
@@ -590,7 +574,8 @@ describe("@runxhq/contracts", () => {
       issuer: {
         type: "local",
         kid: "key_1",
-        public_key_sha256: "sha256:key",
+        public_key_digest: "sha256:key",
+        runx_version: "0.11.0",
       },
       signature: {
         alg: "Ed25519",
@@ -600,7 +585,7 @@ describe("@runxhq/contracts", () => {
       subject: {
         kind: "step",
         ref: { type: "run", uri: "runx:run:run_123#reply@1" },
-        outcome: `sha256:${"3".repeat(64)}`,
+        outcome_digest: `sha256:${"3".repeat(64)}`,
       },
       authority: {
         actor_ref: principalRef,
@@ -636,7 +621,7 @@ describe("@runxhq/contracts", () => {
         artifact_refs: [{ type: "comment", uri: "github://runxhq/example/issues/comments/1", provider: "github" }],
       }],
       seal: {
-        disposition: "closed",
+        outcome: "completed",
         criteria: [outcome],
       },
       lineage: {
@@ -674,13 +659,6 @@ describe("@runxhq/contracts", () => {
   });
 
   it("validates auxiliary schema payloads", () => {
-    expect(validateReviewReceiptOutputContract({
-      verdict: "pass",
-      failure_summary: "No harness failure.",
-      improvement_proposals: [],
-      next_harness_checks: ["runx harness"],
-    })).toMatchObject({ verdict: "pass" });
-
     expect(validateRegistryBindingContract({
       schema: "runx.registry_binding.v1",
       state: "registry_bound",
@@ -699,14 +677,14 @@ describe("@runxhq/contracts", () => {
         source_of_truth: true,
       },
       registry: {
-        owner: "runx",
+        publisher: "runx",
         trust_tier: "first_party",
         version: "1.0.0",
         profile_path: "run.yaml",
         materialized_package_is_registry_artifact: true,
       },
       harness: {
-        status: "harness_verified",
+        state: "harness_verified",
         case_count: 1,
       },
     })).toMatchObject({ schema: "runx.registry_binding.v1" });
@@ -729,73 +707,17 @@ describe("@runxhq/contracts", () => {
         source_of_truth: false,
       },
       registry: {
-        owner: "runx",
+        publisher: "runx",
         trust_tier: "first_party",
         version: "1.0.0",
         profile_path: "run.yaml",
         materialized_package_is_registry_artifact: true,
       },
       harness: {
-        status: "harness_verified",
+        state: "harness_verified",
         case_count: 1,
       },
     })).toThrow(/runx\/registry-binding\/v1\.json/);
-  });
-
-  it("owns generic post-handoff contracts for reusable outreach state", () => {
-    expect(RUNX_CONTRACT_IDS.handoffSignal).toBe("https://schemas.runx.ai/runx/handoff-signal/v1.json");
-    expect(runxContractSchemas.handoffSignal.$id).toBe(RUNX_CONTRACT_IDS.handoffSignal);
-    expect(validateHandoffSignalContract({
-      schema: "runx.handoff_signal.v1",
-      signal_id: "sig_1",
-      handoff_id: "docs-pr:example/repo:001",
-      boundary_kind: "external_maintainer",
-      target_repo: "example/repo",
-      target_locator: "github://example/repo/pulls/42",
-      thread_locator: "github://example/repo/pulls/42",
-      outbox_entry_id: "pull_request:docs-refresh-example-repo",
-      source: "pull_request_comment",
-      disposition: "requested_changes",
-      recorded_at: "2026-04-24T02:30:00Z",
-      actor: {
-        actor_id: "maintainer",
-        role: "maintainer",
-      },
-      source_ref: {
-        type: "comment",
-        uri: "https://github.com/example/repo/pull/42#issuecomment-1",
-      },
-    })).toMatchObject({
-      handoff_id: "docs-pr:example/repo:001",
-      disposition: "requested_changes",
-    });
-
-    expect(validateHandoffStateContract({
-      schema: "runx.handoff_state.v1",
-      handoff_id: "docs-pr:example/repo:001",
-      target_repo: "example/repo",
-      status: "needs_revision",
-      signal_count: 2,
-      last_signal_id: "sig_1",
-      last_signal_at: "2026-04-24T02:30:00Z",
-      last_signal_disposition: "requested_changes",
-    })).toMatchObject({
-      status: "needs_revision",
-      signal_count: 2,
-    });
-
-    expect(validateSuppressionRecordContract({
-      schema: "runx.suppression_record.v1",
-      record_id: "sup_1",
-      scope: "contact",
-      key: "mailto:maintainer@example.org",
-      reason: "requested_no_contact",
-      recorded_at: "2026-04-24T02:31:00Z",
-      source_signal_id: "sig_2",
-    })).toMatchObject({
-      scope: "contact",
-      reason: "requested_no_contact",
-    });
   });
 
   it("owns a generic act assignment envelope contract for host-neutral invocation", () => {
@@ -804,13 +726,13 @@ describe("@runxhq/contracts", () => {
 
     expect(validateActAssignmentContract({
       schema: "runx.act_assignment.v1",
-      skill_ref: "outreach",
+      skill: "outreach",
       runner: "rerun",
-      source_ref: "github://sourcey/sourcey.com/issues/3",
+      source_uri: "github://sourcey/sourcey.com/issues/3",
       requested_at: "2026-04-25T13:45:00Z",
       host: {
         kind: "comment",
-        trigger_ref: "https://github.com/sourcey/sourcey.com/issues/3#issuecomment-1",
+        trigger_uri: "https://github.com/sourcey/sourcey.com/issues/3#issuecomment-1",
         scope_set: ["docs.write", "thread:push"],
         actor: {
           actor_id: "auscaster",
@@ -826,10 +748,10 @@ describe("@runxhq/contracts", () => {
         algorithm: "sha256",
         intent_key: "sha256:intent",
         trigger_key: "sha256:trigger",
-        content_hash: "sha256:content",
+        content_digest: "sha256:content",
       },
     })).toMatchObject({
-      skill_ref: "outreach",
+      skill: "outreach",
       runner: "rerun",
       host: {
         kind: "comment",
@@ -843,12 +765,12 @@ describe("@runxhq/contracts", () => {
   it("routes public schema validation through Rust-generated artifacts", () => {
     const rustAuthoritativeAssignment = {
       schema: "runx.act_assignment.v1",
-      skill_ref: "outreach",
+      skill: "outreach",
       runner: "rerun",
       requested_at: "2026-04-25T13:45:00Z",
       host: {
         kind: "api",
-        trigger_ref: "",
+        trigger_uri: "",
         scope_set: [""],
         actor: {
           actor_id: "",
@@ -857,7 +779,7 @@ describe("@runxhq/contracts", () => {
       idempotency: {
         algorithm: "sha256",
         intent_key: "sha256:intent",
-        content_hash: "sha256:content",
+        content_digest: "sha256:content",
       },
     };
 
@@ -910,7 +832,7 @@ describe("@runxhq/contracts", () => {
         path: "tools/demo/echo/manifest.json",
         status: "ok",
         scopes: ["repo:status"],
-        emits: [{ name: "result", packet: "demo.result" }],
+        emits: [{ name: "result", packet: "acme/demo.result.v1" }],
         fixtures: 1,
       }],
     })).toMatchObject({

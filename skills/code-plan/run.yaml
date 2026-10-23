@@ -1,5 +1,5 @@
 skill: code-plan
-version: "0.2.12"
+version: "0.2.13"
 catalog:
   kind: graph
   audience: builder
@@ -103,7 +103,7 @@ harness:
                         task_id: abandoned-cart-api
                         objective: Implement and publish the backend contract.
                         depends_on: []
-                        shared_context_refs:
+                        shared_context_paths:
                           - change_set.shared_invariants
                         validation_commands:
                           - bundle exec rspec spec/services/abandoned_cart_spec.rb
@@ -120,7 +120,7 @@ harness:
                         objective: Update the app against the frozen contract.
                         depends_on:
                           - implement-api
-                        shared_context_refs:
+                        shared_context_paths:
                           - freeze-api-contract
                         validation_commands:
                           - npm test
@@ -407,4 +407,4 @@ runners:
           validation: object
         artifacts:
           wrap_as: work_plan
-          packet: runx.builder.work_plan.v1
+          packet: runx/code-plan.work_plan.v1

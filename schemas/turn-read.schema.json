@@ -2,8 +2,14 @@
   "$id": "https://schemas.runx.ai/runx/turn-read/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "One page of what a turn's locator names, as text: a string as it is, any other value as pretty JSON. Offsets count characters.",
   "properties": {
+    "locator": {
+      "minLength": 1,
+      "type": "string"
+    },
     "next_offset": {
+      "description": "Where the next page starts: the offset after the last character this page delivered. None when this page reaches the end.",
       "minimum": 0,
       "type": "integer"
     },
@@ -11,24 +17,22 @@
       "minimum": 0,
       "type": "integer"
     },
-    "ref": {
-      "minLength": 1,
-      "type": "string"
-    },
     "text": {
       "type": "string"
     },
     "total": {
+      "description": "How many characters the whole holds.",
       "minimum": 0,
       "type": "integer"
     }
   },
   "required": [
-    "ref",
+    "locator",
     "offset",
     "text",
     "total"
   ],
+  "title": "TurnReadPage",
   "type": "object",
   "x-runx-schema": "runx.turn_read.v1"
 }

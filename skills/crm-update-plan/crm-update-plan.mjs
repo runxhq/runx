@@ -44,7 +44,7 @@ export function finalizeUpdates(inputs) {
   const decision = failed ? "refused" : updates.length > 0 ? "proposed" : "no_action";
   return {
     crm_update_proposal: {
-      schema: "runx.crm_update_proposal.v1",
+      schema: "runx/crm-update-plan.proposal.v1",
       decision,
       reason: failed
         ? "Refused: the reconciliation draft does not reconcile deterministically with the supplied records and transcript."

@@ -5,14 +5,17 @@
   "properties": {
     "allowance": {
       "additionalProperties": false,
+      "description": "What the agent may call while its turn is open.",
       "properties": {
         "asks": {
           "const": true,
+          "description": "Whether the turn may ask the human.",
           "type": "boolean"
         },
         "operations": {
           "items": {
             "additionalProperties": false,
+            "description": "One connector operation a turn may call, named by the requirement that binds its instance.",
             "properties": {
               "operation": {
                 "minLength": 1,
@@ -27,12 +30,14 @@
               "requirement",
               "operation"
             ],
+            "title": "AllowedOperation",
             "type": "object"
           },
           "minItems": 1,
           "type": "array"
         },
         "skills": {
+          "description": "Child skills by ref, and the catalog rules a load is admitted under.",
           "items": {
             "anyOf": [
               {
@@ -41,22 +46,26 @@
               },
               {
                 "additionalProperties": false,
+                "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                 "properties": {
                   "catalog": {
                     "additionalProperties": false,
                     "properties": {
                       "trust": {
+                        "description": "The lowest tier a load admits on its own; a package below it waits on the person's trust.",
                         "enum": [
                           "first_party",
                           "verified",
                           "community"
                         ],
+                        "title": "TrustTier",
                         "type": "string"
                       }
                     },
                     "required": [
                       "trust"
                     ],
+                    "title": "CatalogTrust",
                     "type": "object"
                   },
                   "project": {
@@ -64,14 +73,18 @@
                     "type": "boolean"
                   }
                 },
+                "title": "CatalogRule",
                 "type": "object"
               }
-            ]
+            ],
+            "description": "One entry of an allowance's `skills`: a child skill by name, or a catalog rule, which admits the skills and connectors a `load` call finds.",
+            "title": "SkillAllowance"
           },
           "minItems": 1,
           "type": "array"
         },
         "tools": {
+          "description": "Catalog tool names.",
           "items": {
             "minLength": 1,
             "type": "string"
@@ -80,6 +93,7 @@
           "type": "array"
         }
       },
+      "title": "TurnAllowance",
       "type": "object"
     },
     "envelope": {
@@ -89,8 +103,10 @@
       "properties": {
         "act": {
           "additionalProperties": false,
+          "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
           "properties": {
             "decision": {
+              "description": "The decision the call carries out.",
               "enum": [
                 "continue",
                 "escalate",
@@ -99,9 +115,11 @@
                 "decline",
                 "monitor"
               ],
+              "title": "DecisionChoice",
               "type": "string"
             },
             "form": {
+              "description": "What kind of act the call is.",
               "enum": [
                 "reply",
                 "review"
@@ -109,19 +127,23 @@
               "type": "string"
             },
             "previous": {
+              "description": "The receipt of the act this one follows.",
               "maxLength": 71,
               "pattern": "^sha256:[0-9a-f]{64}$",
               "type": "string"
             },
             "purpose": {
+              "description": "Why the call is made.",
               "minLength": 1,
               "type": "string"
             },
             "reason": {
+              "description": "What a reader is told about this particular call.",
               "minLength": 1,
               "type": "string"
             },
             "target": {
+              "description": "The locator of what the act is about.",
               "minLength": 1,
               "type": "string"
             }
@@ -129,15 +151,22 @@
           "required": [
             "purpose"
           ],
+          "title": "CallAct",
           "type": "object"
         },
         "context": {
           "additionalProperties": false,
+          "description": "The optional conventions and project instructions context block.",
           "properties": {
             "conventions": {
               "additionalProperties": false,
+              "description": "A resolved profile sourced from a workspace file (memory, conventions, voice).",
               "properties": {
                 "content": {
+                  "type": "string"
+                },
+                "digest": {
+                  "minLength": 1,
                   "type": "string"
                 },
                 "path": {
@@ -148,15 +177,12 @@
                   "minLength": 1,
                   "type": "string"
                 },
-                "sha256": {
-                  "minLength": 1,
-                  "type": "string"
-                },
                 "sharing": {
                   "enum": [
                     "local_only",
                     "configured_model"
                   ],
+                  "title": "ContextSharing",
                   "type": "string"
                 }
               },
@@ -164,16 +190,23 @@
                 "sharing",
                 "root_path",
                 "path",
-                "sha256",
+                "digest",
                 "content"
               ],
+              "title": "ProfileFile",
               "type": "object"
             },
             "instructions": {
+              "description": "The project's instructions: each `AGENTS.md` and `CLAUDE.md` from the repository root that contains the workspace down to the workspace, in that order, each `path` relative to the repository root.",
               "items": {
                 "additionalProperties": false,
+                "description": "A resolved profile sourced from a workspace file (memory, conventions, voice).",
                 "properties": {
                   "content": {
+                    "type": "string"
+                  },
+                  "digest": {
+                    "minLength": 1,
                     "type": "string"
                   },
                   "path": {
@@ -184,15 +217,12 @@
                     "minLength": 1,
                     "type": "string"
                   },
-                  "sha256": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
                   "sharing": {
                     "enum": [
                       "local_only",
                       "configured_model"
                     ],
+                    "title": "ContextSharing",
                     "type": "string"
                   }
                 },
@@ -200,9 +230,10 @@
                   "sharing",
                   "root_path",
                   "path",
-                  "sha256",
+                  "digest",
                   "content"
                 ],
+                "title": "ProfileFile",
                 "type": "object"
               },
               "minItems": 1,
@@ -210,8 +241,13 @@
             },
             "memory": {
               "additionalProperties": false,
+              "description": "The workspace's `MEMORY.md`, in envelopes recorded before hosts carried memory themselves. runx writes none: memory a host supplies travels as admitted context entries.",
               "properties": {
                 "content": {
+                  "type": "string"
+                },
+                "digest": {
+                  "minLength": 1,
                   "type": "string"
                 },
                 "path": {
@@ -222,15 +258,12 @@
                   "minLength": 1,
                   "type": "string"
                 },
-                "sha256": {
-                  "minLength": 1,
-                  "type": "string"
-                },
                 "sharing": {
                   "enum": [
                     "local_only",
                     "configured_model"
                   ],
+                  "title": "ContextSharing",
                   "type": "string"
                 }
               },
@@ -238,17 +271,20 @@
                 "sharing",
                 "root_path",
                 "path",
-                "sha256",
+                "digest",
                 "content"
               ],
+              "title": "ProfileFile",
               "type": "object"
             }
           },
+          "title": "AgentContextProfiles",
           "type": "object"
         },
         "current_context": {
           "items": {
             "additionalProperties": false,
+            "description": "A single artifact context entry. `type` is required-but-nullable.",
             "properties": {
               "data": {
                 "additionalProperties": {},
@@ -256,6 +292,7 @@
               },
               "meta": {
                 "additionalProperties": false,
+                "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
                 "properties": {
                   "artifact_id": {
                     "minLength": 1,
@@ -265,7 +302,7 @@
                     "minLength": 1,
                     "type": "string"
                   },
-                  "hash": {
+                  "digest": {
                     "minLength": 1,
                     "type": "string"
                   },
@@ -282,6 +319,7 @@
                   },
                   "producer": {
                     "additionalProperties": false,
+                    "description": "The producer of a context artifact.",
                     "properties": {
                       "runner": {
                         "minLength": 1,
@@ -296,6 +334,7 @@
                       "skill",
                       "runner"
                     ],
+                    "title": "ContextArtifactProducer",
                     "type": "object"
                   },
                   "receipt_id": {
@@ -338,16 +377,18 @@
                   "step_id",
                   "producer",
                   "created_at",
-                  "hash",
+                  "digest",
                   "size_bytes",
                   "parent_artifact_id",
                   "receipt_id",
                   "redacted"
                 ],
+                "title": "ContextArtifactMeta",
                 "type": "object"
               },
               "scope": {
                 "additionalProperties": false,
+                "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
                 "properties": {
                   "goal_id": {
                     "anyOf": [
@@ -370,6 +411,7 @@
                       "retrieved_history",
                       "hypothesis"
                     ],
+                    "title": "ContextPurpose",
                     "type": "string"
                   },
                   "sharing": {
@@ -377,9 +419,10 @@
                       "local_only",
                       "configured_model"
                     ],
+                    "title": "ContextSharing",
                     "type": "string"
                   },
-                  "source_ref": {
+                  "source_uri": {
                     "anyOf": [
                       {
                         "minLength": 1,
@@ -396,6 +439,7 @@
                       "skill_instructions",
                       "untrusted_evidence"
                     ],
+                    "title": "ContextTrust",
                     "type": "string"
                   }
                 },
@@ -404,11 +448,13 @@
                   "trust",
                   "sharing",
                   "goal_id",
-                  "source_ref"
+                  "source_uri"
                 ],
+                "title": "ContextScope",
                 "type": "object"
               },
               "summary": {
+                "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
                 "minLength": 1,
                 "type": "string"
               },
@@ -424,9 +470,11 @@
                 ]
               },
               "version": {
+                "description": "The artifact context entry version. Committed as `const: \"1\"`.",
                 "enum": [
                   "1"
                 ],
+                "title": "ContextEntryVersion",
                 "type": "string"
               }
             },
@@ -437,12 +485,14 @@
               "data",
               "meta"
             ],
+            "title": "ContextEntry",
             "type": "object"
           },
           "type": "array"
         },
         "execution_location": {
           "additionalProperties": false,
+          "description": "Where the skill executes from on disk.",
           "properties": {
             "skill_directory": {
               "minLength": 1,
@@ -459,11 +509,13 @@
           "required": [
             "skill_directory"
           ],
+          "title": "ExecutionLocation",
           "type": "object"
         },
         "historical_context": {
           "items": {
             "additionalProperties": false,
+            "description": "A single artifact context entry. `type` is required-but-nullable.",
             "properties": {
               "data": {
                 "additionalProperties": {},
@@ -471,6 +523,7 @@
               },
               "meta": {
                 "additionalProperties": false,
+                "description": "Metadata for a context artifact. `step_id`, `parent_artifact_id`, and `receipt_id` are required-but-nullable (present on the wire, possibly null).",
                 "properties": {
                   "artifact_id": {
                     "minLength": 1,
@@ -480,7 +533,7 @@
                     "minLength": 1,
                     "type": "string"
                   },
-                  "hash": {
+                  "digest": {
                     "minLength": 1,
                     "type": "string"
                   },
@@ -497,6 +550,7 @@
                   },
                   "producer": {
                     "additionalProperties": false,
+                    "description": "The producer of a context artifact.",
                     "properties": {
                       "runner": {
                         "minLength": 1,
@@ -511,6 +565,7 @@
                       "skill",
                       "runner"
                     ],
+                    "title": "ContextArtifactProducer",
                     "type": "object"
                   },
                   "receipt_id": {
@@ -553,16 +608,18 @@
                   "step_id",
                   "producer",
                   "created_at",
-                  "hash",
+                  "digest",
                   "size_bytes",
                   "parent_artifact_id",
                   "receipt_id",
                   "redacted"
                 ],
+                "title": "ContextArtifactMeta",
                 "type": "object"
               },
               "scope": {
                 "additionalProperties": false,
+                "description": "Declares how context may be interpreted and where it may be shared. These labels never grant execution authority or manufacture a human decision.",
                 "properties": {
                   "goal_id": {
                     "anyOf": [
@@ -585,6 +642,7 @@
                       "retrieved_history",
                       "hypothesis"
                     ],
+                    "title": "ContextPurpose",
                     "type": "string"
                   },
                   "sharing": {
@@ -592,9 +650,10 @@
                       "local_only",
                       "configured_model"
                     ],
+                    "title": "ContextSharing",
                     "type": "string"
                   },
-                  "source_ref": {
+                  "source_uri": {
                     "anyOf": [
                       {
                         "minLength": 1,
@@ -611,6 +670,7 @@
                       "skill_instructions",
                       "untrusted_evidence"
                     ],
+                    "title": "ContextTrust",
                     "type": "string"
                   }
                 },
@@ -619,11 +679,13 @@
                   "trust",
                   "sharing",
                   "goal_id",
-                  "source_ref"
+                  "source_uri"
                 ],
+                "title": "ContextScope",
                 "type": "object"
               },
               "summary": {
+                "description": "What the entry is, in a line, as its producer declares it: what a model reads in an index to choose whether to read the entry's data.",
                 "minLength": 1,
                 "type": "string"
               },
@@ -639,9 +701,11 @@
                 ]
               },
               "version": {
+                "description": "The artifact context entry version. Committed as `const: \"1\"`.",
                 "enum": [
                   "1"
                 ],
+                "title": "ContextEntryVersion",
                 "type": "string"
               }
             },
@@ -652,6 +716,7 @@
               "data",
               "meta"
             ],
+            "title": "ContextEntry",
             "type": "object"
           },
           "type": "array"
@@ -664,7 +729,8 @@
           "minLength": 1,
           "type": "string"
         },
-        "instructions_sha256": {
+        "instructions_digest": {
+          "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
           "minLength": 1,
           "type": "string"
         },
@@ -672,6 +738,7 @@
           "additionalProperties": {
             "anyOf": [
               {
+                "description": "A declared output value type.",
                 "enum": [
                   "string",
                   "number",
@@ -681,10 +748,12 @@
                   "object",
                   "null"
                 ],
+                "title": "OutputType",
                 "type": "string"
               },
               {
                 "additionalProperties": false,
+                "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
                 "properties": {
                   "description": {
                     "type": "string"
@@ -700,9 +769,11 @@
                   },
                   "schema": {
                     "additionalProperties": {},
+                    "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
                     "type": "object"
                   },
                   "type": {
+                    "description": "A declared output value type.",
                     "enum": [
                       "string",
                       "number",
@@ -712,6 +783,7 @@
                       "object",
                       "null"
                     ],
+                    "title": "OutputType",
                     "type": "string"
                   },
                   "wrap_as": {
@@ -719,16 +791,22 @@
                     "type": "string"
                   }
                 },
+                "title": "OutputFieldSpec",
                 "type": "object"
               }
-            ]
+            ],
+            "description": "A single output field declaration: either a bare type name or a typed spec.",
+            "title": "OutputField"
           },
           "type": "object"
         },
-        "output_schema": {},
+        "output_schema": {
+          "description": "Exact root JSON Schema for the final result, including any declared packet contract. `output` remains the concise field index used by hosts; this schema is the validator offered to managed agents."
+        },
         "provenance": {
           "items": {
             "additionalProperties": false,
+            "description": "One input/output provenance edge.",
             "properties": {
               "artifact_id": {
                 "type": "string"
@@ -752,18 +830,22 @@
               "input",
               "output"
             ],
+            "title": "ProvenanceEntry",
             "type": "object"
           },
           "type": "array"
         },
         "requirements": {
           "additionalProperties": false,
+          "description": "Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context.",
           "properties": {
             "declaration": {
               "additionalProperties": false,
+              "description": "Parser-owned projection of all execution requirements for one act.",
               "properties": {
                 "environment": {
                   "additionalProperties": false,
+                  "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
                   "minProperties": 1,
                   "properties": {
                     "optional": {
@@ -791,11 +873,13 @@
                   "type": "array"
                 }
               },
+              "title": "ExecutionRequirements",
               "type": "object"
             },
             "environment": {
               "items": {
                 "additionalProperties": false,
+                "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
                 "properties": {
                   "available": {
                     "type": "boolean"
@@ -812,6 +896,7 @@
                   "required",
                   "available"
                 ],
+                "title": "EnvironmentRequirementStatus",
                 "type": "object"
               },
               "minItems": 1,
@@ -827,12 +912,14 @@
                     "native_capability",
                     "remote_provider"
                   ],
+                  "title": "ExecutionBoundaryKind",
                   "type": "string"
                 }
               },
               "required": [
                 "kind"
               ],
+              "title": "ExecutionBoundaryObservation",
               "type": "object"
             }
           },
@@ -840,6 +927,7 @@
             "declaration",
             "execution_boundary"
           ],
+          "title": "AgentExecutionRequirements",
           "type": "object"
         },
         "run_id": {
@@ -860,8 +948,13 @@
         },
         "voice_profile": {
           "additionalProperties": false,
+          "description": "A resolved profile sourced from a workspace file (memory, conventions, voice).",
           "properties": {
             "content": {
+              "type": "string"
+            },
+            "digest": {
+              "minLength": 1,
               "type": "string"
             },
             "path": {
@@ -872,15 +965,12 @@
               "minLength": 1,
               "type": "string"
             },
-            "sha256": {
-              "minLength": 1,
-              "type": "string"
-            },
             "sharing": {
               "enum": [
                 "local_only",
                 "configured_model"
               ],
+              "title": "ContextSharing",
               "type": "string"
             }
           },
@@ -888,16 +978,17 @@
             "sharing",
             "root_path",
             "path",
-            "sha256",
+            "digest",
             "content"
           ],
+          "title": "ProfileFile",
           "type": "object"
         }
       },
       "required": [
         "run_id",
         "skill",
-        "instructions_sha256",
+        "instructions_digest",
         "instructions",
         "inputs",
         "requirements",
@@ -906,6 +997,7 @@
         "provenance",
         "trust_boundary"
       ],
+      "title": "AgentContextEnvelope",
       "type": "object",
       "x-runx-schema": "runx.agent_context_envelope.v1"
     },
@@ -914,10 +1006,12 @@
       "type": "string"
     },
     "role": {
+      "description": "The kind of agent the step asks for.",
       "minLength": 1,
       "type": "string"
     },
     "task": {
+      "description": "The act it performs.",
       "minLength": 1,
       "type": "string"
     }
@@ -929,6 +1023,7 @@
     "envelope",
     "allowance"
   ],
+  "title": "AgentActInvocation",
   "type": "object",
   "x-runx-schema": "runx.agent_act_invocation.v1"
 }

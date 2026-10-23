@@ -184,7 +184,7 @@ fn approval_optional_fields_omit_null_via_host_protocol_serde()
             gate_type: None,
             summary: None,
             payload: None,
-            payload_ref: None,
+            payload_artifact: None,
         }),
     };
 
@@ -248,7 +248,7 @@ fn gate() -> ApprovalGate {
         gate_type: Some("filesystem_write".to_owned()),
         summary: Some(summary()),
         payload: None,
-        payload_ref: None,
+        payload_artifact: None,
     }
 }
 

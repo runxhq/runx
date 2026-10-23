@@ -57,8 +57,8 @@ impl Verifier {
         self.check_non_empty("created_at", &receipt.created_at);
         self.check_non_empty("issuer.kid", &receipt.issuer.kid);
         self.check_sha256_prefix(
-            "issuer.public_key_sha256",
-            &receipt.issuer.public_key_sha256,
+            "issuer.public_key_digest",
+            &receipt.issuer.public_key_digest,
         );
         self.check_non_empty("signature.value", &receipt.signature.value);
     }

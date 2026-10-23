@@ -4,7 +4,7 @@ use super::KernelEvalError;
 use super::input::KernelInput;
 use crate::policy::scope_grant_allows;
 use crate::state_machine::{
-    create_sequential_graph_state, plan_sequential_graph_transition, transition_sequential_graph,
+    create_sequential_graph, plan_sequential_graph_transition, transition_sequential_graph,
 };
 
 pub(super) fn evaluate_kernel_input(input: KernelInput) -> Result<JsonValue, KernelEvalError> {
@@ -15,7 +15,7 @@ pub(super) fn evaluate_kernel_input(input: KernelInput) -> Result<JsonValue, Ker
             policy,
         } => to_value(scope_grant_allows(&granted_scope, &requested_scope, policy)),
         KernelInput::CreateSequentialGraphState { graph_id, steps } => {
-            to_value(create_sequential_graph_state(graph_id, &steps))
+            to_value(create_sequential_graph(graph_id, &steps))
         }
         KernelInput::PlanSequentialGraphTransition { state, steps } => {
             to_value(plan_sequential_graph_transition(&state, &steps))

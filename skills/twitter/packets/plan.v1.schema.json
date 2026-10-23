@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/twitter/plan/v1.json",
+  "x-runx-packet-id": "runx/twitter.plan.v1",
+  "additionalProperties": false,
+  "properties": {
+    "acts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "act_id": {
+            "pattern": "^act-[A-Za-z0-9._:-]+$",
+            "type": "string"
+          },
+          "consequence": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "post",
+              "reply",
+              "quote",
+              "thread",
+              "delete_post",
+              "unfollow",
+              "follow",
+              "mute",
+              "block",
+              "like",
+              "repost"
+            ],
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "minProperties": 1,
+            "type": "object"
+          },
+          "rationale": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "act_id",
+          "kind",
+          "params",
+          "consequence",
+          "rationale"
+        ],
+        "type": "object"
+      },
+      "maxItems": 50,
+      "type": "array"
+    },
+    "blockers": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "context_bindings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "applied_rules": {
+            "items": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "packet_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "packet_digest",
+          "applied_rules"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "decision": {
+      "enum": [
+        "ready",
+        "needs_input",
+        "reject"
+      ],
+      "type": "string"
+    },
+    "evidence_locators": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "gates": {
+      "additionalProperties": false,
+      "properties": {
+        "approval_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "human_approval_required": {
+          "const": true
+        }
+      },
+      "required": [
+        "human_approval_required",
+        "approval_id"
+      ],
+      "type": "object"
+    },
+    "objective": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "open_questions": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "principal": {
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "success_checkpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "milestone": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "milestone",
+        "description"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "decision",
+    "objective",
+    "principal",
+    "acts",
+    "gates",
+    "evidence_locators",
+    "open_questions",
+    "blockers",
+    "success_checkpoint"
+  ],
+  "type": "object"
+}

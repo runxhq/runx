@@ -21,7 +21,7 @@ inputs:
     account_id: acct_northstar
     amount_minor: 150
     currency: usd
-    payment_method_ref: pm_northstar
+    payment_method_id: pm_northstar
     reference: invoice-42
   idempotency_seed: northstar-invoice-42
 caller:
@@ -41,7 +41,7 @@ caller:
         method: POST
         url: https://api.stripe.com/v1/payment_intents
         body:
-          text: amount=150&automatic_payment_methods%5Ballow_redirects%5D=never&automatic_payment_methods%5Benabled%5D=true&confirm=true&currency=usd&metadata%5Brunx_effect_key%5D=runx%3Asha256%3A4bd6381676a9c98e880c7f415c42d2eb8beba63e7360164e4858f1e0a156b29f&metadata%5Brunx_reference%5D=invoice-42&payment_method=pm_northstar
+          text: amount=150&automatic_payment_methods%5Ballow_redirects%5D=never&automatic_payment_methods%5Benabled%5D=true&confirm=true&currency=usd&metadata%5Brunx_effect_key%5D=runx%3Asha256%3A3bf9e9a679e77e4100bfc84badc3a3c66894e211b84cb03541d565a641ad7717&metadata%5Brunx_reference%5D=invoice-42&payment_method=pm_northstar
       response:
         status: 200
         headers:
@@ -66,7 +66,7 @@ expect:
         provider_operation:
           data:
             result:
-              payment_ref: pi_northstar
+              payment_id: pi_northstar
               amount_minor: 150
               amount_received: 150
               currency: usd

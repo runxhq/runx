@@ -7,17 +7,17 @@ steps:
       receipt_id: rcpt_context_flattening
       receipt_rows:
         - receipt_id: rcpt_context_flattening
-          skill_ref: skills/skill-build
-          status: failed
+          skill: skills/skill-build
+          outcome: failed
           created_at: "2026-07-16T00:00:00Z"
           verification_status: verified
       receipt_details:
         - id: rcpt_context_flattening
-          receipt_ref: runx:receipt:rcpt_context_flattening
+          receipt_uri: runx:receipt:rcpt_context_flattening
           subject_kind: graph
-          subject_ref: skills/skill-build
+          subject_uri: skills/skill-build
           created_at: "2026-07-16T00:00:00Z"
-          status: failed
+          outcome: failed
           verification:
             status: verified
           authority:
@@ -30,16 +30,16 @@ steps:
               form: execution
               purpose: Produce the bounded skill proposal.
               legitimacy: Held fs.read.
-              target_refs: []
-              artifact_refs: []
+              target_uris: []
+              artifact_uris: []
               criterion_statuses:
                 - criterion_id: runx:criterion:structured_context
                   status: failed
-                  evidence_refs: []
-                  verification_refs: []
+                  evidence_uris: []
+                  verification_uris: []
               context_ref_present: true
-          artifact_refs: []
-          lineage_refs: []
+          artifact_uris: []
+          lineage_uris: []
           seal_reason: graph_step_failed
       harness_output: Context edge pointed at stdout and flattened the payload.
       skill_path: skills/skill-build

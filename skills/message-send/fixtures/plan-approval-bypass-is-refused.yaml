@@ -7,14 +7,14 @@ inputs:
   principal: account:growth-demo
   provider_context:
     provider: slack
-    account_ref: acct_demo
+    account_id: acct_demo
     runtime_path: provider.send
     domain_verified: true
   audience:
     type: segment
-    ref: customers-active
-  content_ref:
-    draft_ref: campaign:launch
+    locator: customers-active
+  content:
+    draft_uri: campaign:launch
     digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
     subject_or_title: Launch announcement
   consent_basis: Active customers with announcement consent.
@@ -27,35 +27,35 @@ caller:
         action_family: message-send
         principal:
           type: account
-          ref: account:growth-demo
+          uri: account:growth-demo
         provider:
           name: slack
-          account_ref: acct_demo
+          account_id: acct_demo
           runtime_path: provider.send
         send_class: campaign
         channel: email
         audience:
           type: segment
-          ref: customers-active
+          locator: customers-active
           requires_reconfirmation: false
         content:
-          draft_ref: campaign:launch
+          draft_uri: campaign:launch
           digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
           subject_or_title: Launch announcement
         gates:
           preflight_required: true
           human_approval_required: true
-          approval_ref: ""
+          approval_id: ""
         blockers:
           - live customer send approval cannot be bypassed
         provider_actions: []
-        evidence_refs:
+        evidence_locators:
           - provider_context:slack
         success_checkpoint:
           milestone: send_refused
           description: No provider action is authorized from a gate-bypass request.
       closure:
-        disposition: blocked
+        outcome: blocked
         reason_code: approval_bypass_refused
         summary: Live customer send approval cannot be bypassed.
 expect:
@@ -63,7 +63,7 @@ expect:
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: blocked
+    outcome: blocked
   output:
     subset:
       send_plan:
@@ -71,7 +71,7 @@ expect:
           decision: refused
           gates:
             human_approval_required: true
-            approval_ref: ""
+            approval_id: ""
           blockers:
             - live customer send approval cannot be bypassed
           provider_actions: []

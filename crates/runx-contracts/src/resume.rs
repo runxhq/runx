@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::JsonValue;
-use crate::decision::ClosureDisposition;
+use crate::receipt::RunOutcome;
 use crate::schema::{NonEmptyString, RunxSchema};
 
 /// Each map is keyed by the address of the request it answers. `answers` is
@@ -113,7 +113,7 @@ pub struct BoundAnswer {
 }
 
 /// A person's decision, validated against the request it answers: an
-/// approval takes `approved` and `reason`, and a purchase's (N10) also the
+/// approval takes `approved` and `reason`, and a purchase's also the
 /// `choice` of method it pays with; a claimed call's retry takes
 /// `value: {"retry": true}`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -136,21 +136,21 @@ pub struct BoundApproval {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunClose {
-    pub disposition: CloseDisposition,
+    pub outcome: CloseOutcome,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum CloseDisposition {
+pub enum CloseOutcome {
     Declined,
     Superseded,
 }
 
-impl From<CloseDisposition> for ClosureDisposition {
-    fn from(disposition: CloseDisposition) -> Self {
-        match disposition {
-            CloseDisposition::Declined => Self::Declined,
-            CloseDisposition::Superseded => Self::Superseded,
+impl From<CloseOutcome> for RunOutcome {
+    fn from(outcome: CloseOutcome) -> Self {
+        match outcome {
+            CloseOutcome::Declined => Self::Declined,
+            CloseOutcome::Superseded => Self::Superseded,
         }
     }
 }
@@ -174,7 +174,7 @@ mod tests {
             serde_json::json!({"answers": {"draft": {"text": "hello"}}}),
             serde_json::json!({"approvals": {"send.approval": true}}),
             serde_json::json!({"draft": {"text": "hello"}}),
-            serde_json::json!({"close": {"disposition": "closed"}}),
+            serde_json::json!({"close": {"outcome": "completed"}}),
         ] {
             assert!(serde_json::from_value::<ResumeDocument>(unbound).is_err());
         }

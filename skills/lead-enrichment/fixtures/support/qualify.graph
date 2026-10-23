@@ -4,13 +4,13 @@ steps:
   skill: ../..
   runner: enrich
   inputs:
-    subject: {ref: 'lead:example', kind: person}
+    subject: {id: 'lead:example', kind: person}
     as_of: '2026-10-10T00:00:00Z'
     requested_fields: [company.industry, person.title]
     sources:
-    - source_ref: crm:lead
+    - source_id: crm:lead
       source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-      subject_ref: lead:example
+      subject_id: lead:example
       observed_at: '2026-10-09T00:00:00Z'
       match_confidence: high
       facts:
@@ -25,7 +25,7 @@ steps:
     - {id: industry, description: Works for a B2B software company., required: true}
     - {id: role, description: Has an engineering leadership role., required: true}
     contact_eligibility:
-      subject: {ref: 'lead:example', kind: person}
+      subject: {id: 'lead:example', kind: person}
       status: unknown
-      policy_ref: policy:outreach
-      evidence_refs: ['policy:assessment']
+      policy_id: policy:outreach
+      evidence_ids: ['policy:assessment']

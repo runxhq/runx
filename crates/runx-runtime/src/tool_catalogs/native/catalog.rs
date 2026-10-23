@@ -6,8 +6,8 @@ use runx_contracts::tools::{
     ToolInspectReport, ToolInspectResult,
 };
 use runx_contracts::{
-    JsonObject, JsonValue, RunxListEmit, RunxListItem, RunxListItemKind, RunxListSource,
-    RunxListStatus,
+    PacketId, RunxListEmit, RunxListItem, RunxListItemKind, RunxListSource, RunxListStatus,
+    SkillCatalogEntry,
 };
 use runx_parser::SkillArtifactContract;
 
@@ -17,25 +17,25 @@ use crate::{CapabilityArtifacts, CapabilityContract};
 use super::{NativeCapability, core_capabilities, definition};
 
 pub(crate) fn artifacts(
-    tool_ref: &str,
+    tool: &str,
     effects: &RuntimeEffectRegistry,
 ) -> Option<SkillArtifactContract> {
-    if let Some(tool) = definition(tool_ref) {
+    if let Some(tool) = definition(tool) {
         return artifact_contract(tool.definition().artifacts);
     }
-    artifact_contract(effects.capability(tool_ref)?.definition().artifacts)
+    artifact_contract(effects.capability(tool)?.definition().artifacts)
 }
 
 pub(crate) fn inspect(
-    tool_ref: &str,
+    tool: &str,
     root: &Path,
     effects: &RuntimeEffectRegistry,
 ) -> Option<ToolInspectReport> {
-    if let Some(tool) = definition(tool_ref) {
+    if let Some(tool) = definition(tool) {
         let definition = tool.definition();
         return Some(inspect_report(
             definition.id,
-            definition.owner,
+            definition.source,
             definition.summary,
             tool.catalog_inputs().ok()?,
             definition.scopes,
@@ -43,11 +43,11 @@ pub(crate) fn inspect(
         ));
     }
 
-    let tool = effects.capability(tool_ref)?;
+    let tool = effects.capability(tool)?;
     let definition = tool.definition();
     Some(inspect_report(
         definition.id,
-        definition.owner,
+        definition.source,
         definition.summary,
         tool.catalog_inputs().ok()?,
         definition.scopes,
@@ -66,7 +66,6 @@ fn inspect_report(
     ToolInspectReport {
         status: ToolBuildStatus::Success,
         tool: ToolInspectResult {
-            tool_ref: name.to_owned(),
             name: name.to_owned(),
             description: Some(description.to_owned()),
             execution: "native".to_owned(),
@@ -85,7 +84,7 @@ fn inspect_report(
                 external_name: name
                     .split_once('.')
                     .map(|(_, external_name)| external_name.to_owned()),
-                catalog_ref: Some(name.to_owned()),
+                catalog_id: Some(name.to_owned()),
                 tool_id: Some(format!("native/{name}")),
                 tags: Some(vec!["native".to_owned(), "runx".to_owned()]),
             },
@@ -103,7 +102,7 @@ pub(crate) fn search(
         let definition = tool.definition();
         search_result(
             definition.id,
-            definition.owner,
+            definition.source,
             definition.summary,
             definition.scopes,
         )
@@ -112,7 +111,7 @@ pub(crate) fn search(
         let definition = tool.definition();
         search_result(
             definition.id,
-            definition.owner,
+            definition.source,
             definition.summary,
             definition.scopes,
         )
@@ -124,7 +123,7 @@ pub(crate) fn search(
         .collect()
 }
 
-pub(crate) fn inventory(effects: &RuntimeEffectRegistry) -> Vec<JsonValue> {
+pub(crate) fn inventory(effects: &RuntimeEffectRegistry) -> Vec<SkillCatalogEntry> {
     list_items(effects)
         .into_iter()
         .map(|tool| {
@@ -136,26 +135,21 @@ pub(crate) fn inventory(effects: &RuntimeEffectRegistry) -> Vec<JsonValue> {
                         .map(|capability| capability.definition().summary)
                 })
                 .unwrap_or("Runx-native tool");
-            JsonValue::Object(JsonObject::from([
-                ("name".to_owned(), JsonValue::String(tool.name)),
-                ("kind".to_owned(), JsonValue::String("tool".to_owned())),
-                (
-                    "description".to_owned(),
-                    JsonValue::String(description.to_owned()),
-                ),
-                ("path".to_owned(), JsonValue::String(tool.path)),
-                ("status".to_owned(), JsonValue::String("ok".to_owned())),
-                (
-                    "scopes".to_owned(),
-                    JsonValue::Array(
-                        tool.scopes
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(JsonValue::String)
-                            .collect(),
-                    ),
-                ),
-            ]))
+            SkillCatalogEntry {
+                name: tool.name.into(),
+                kind: RunxListItemKind::Tool,
+                description: Some(description.into()),
+                path: tool.path.into(),
+                status: RunxListStatus::Ok,
+                scopes: tool
+                    .scopes
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                fixtures: None,
+                harness_cases: None,
+            }
         })
         .collect()
 }
@@ -211,7 +205,7 @@ fn emits(artifacts: CapabilityArtifacts) -> Option<Vec<RunxListEmit>> {
         CapabilityArtifacts::Named { output, packet }
         | CapabilityArtifacts::Wrapped { output, packet } => Some(vec![RunxListEmit {
             name: output.to_owned(),
-            packet: Some(packet.to_owned()),
+            packet: PacketId::new(packet),
         }]),
     }
 }
@@ -238,7 +232,7 @@ fn search_result(
             .to_owned(),
         required_scopes: scopes.iter().map(|scope| (*scope).to_owned()).collect(),
         tags: vec!["native".to_owned(), "runx".to_owned()],
-        catalog_ref: name.to_owned(),
+        catalog_id: name.to_owned(),
     }
 }
 
@@ -263,7 +257,10 @@ fn named_artifact(output: &str, packet: &str) -> Option<SkillArtifactContract> {
     Some(SkillArtifactContract {
         emits: None,
         named_emits: Some(BTreeMap::from([(output.to_owned(), output.to_owned())])),
-        packets: Some(BTreeMap::from([(output.to_owned(), packet.to_owned())])),
+        packets: Some(BTreeMap::from([(
+            output.to_owned(),
+            PacketId::new(packet)?,
+        )])),
         wrap_as: None,
         packet: None,
     })
@@ -275,6 +272,6 @@ fn wrapped_artifact(output: &str, packet: &str) -> Option<SkillArtifactContract>
         named_emits: None,
         packets: None,
         wrap_as: Some(output.to_owned()),
-        packet: Some(packet.to_owned()),
+        packet: Some(PacketId::new(packet)?),
     })
 }

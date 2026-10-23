@@ -330,7 +330,7 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
         .output()?;
     let declined = serde_json::from_slice::<serde_json::Value>(&declined.stdout)?;
     assert_eq!(declined["status"], "sealed");
-    assert_ne!(declined["closure"]["disposition"], "closed");
+    assert_ne!(declined["outcome"], "completed");
     assert!(
         runx_runtime::run_record::paused_run(&std::collections::BTreeMap::new(), &root, run_id)?
             .is_none()
@@ -364,7 +364,7 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
     )?;
     assert!(!replay.succeeded());
     assert_eq!(
-        replay.receipt_refs.first().map(String::as_str),
+        replay.receipt_ids.first().map(String::as_str),
         declined["receipt_id"].as_str()
     );
     assert!(receipt_path.exists());
@@ -599,7 +599,7 @@ fn native_skill_registry_run_reports_provenance() -> Result<(), Box<dyn std::err
             .is_some_and(|value| value.starts_with("sha256:"))
     );
     assert!(
-        provenance["registry_source_fingerprint"]
+        provenance["registry_source_digest"]
             .as_str()
             .is_some_and(|value| value.len() == 16)
     );
@@ -789,7 +789,7 @@ fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn st
         .ok_or("the turn has no current context")?;
     let echo = context
         .iter()
-        .find(|entry| entry["data"]["ref"] == "registry:acme/echo@1.0.0")
+        .find(|entry| entry["data"]["skill"] == "registry:acme/echo@1.0.0")
         .ok_or("the turn's context omits the registry skill")?;
     assert_eq!(echo["data"]["source"], "installed", "{echo}");
     assert!(
@@ -1162,7 +1162,7 @@ fn trusted_registry_runx_command(root: &Path) -> Result<Command, Box<dyn std::er
         TEST_MANIFEST_KEY_ID,
     );
     command.env(
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV,
+        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
         "acme",
     );
     Ok(command)
@@ -1431,7 +1431,7 @@ fn signed_manifest(
         schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
         subject: runx_contracts::RegistrySubject {
             kind: runx_contracts::RegistrySubjectKind::Skill,
-            subject_ref: skill_id.to_owned(),
+            name: skill_id.to_owned(),
         },
         version: version.to_owned(),
         content_digest,
@@ -1472,7 +1472,7 @@ fn needs_agent_skill_directory(
 fn pending_request_artifact(
     value: &serde_json::Value,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let path = value["requests"][0]["artifact_ref"]["path"]
+    let path = value["requests"][0]["artifact"]["path"]
         .as_str()
         .ok_or("missing pending request artifact path")?;
     Ok(serde_json::from_slice(&fs::read(path)?)?)

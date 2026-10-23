@@ -19,7 +19,7 @@ operational diagnosis without a team assignment, use `operations-review`.
 The default `delegate` runner accepts `objective`, `roster`, `evidence` and optional
 `constraints`. Each roster member has a unique `member`, an exact `skill` and
 `runner`, a description of `capabilities` and a `scope_ceiling`. Evidence entries
-have unique `source_ref` and `text` fields. Pass already-collected evidence;
+have unique `source_id` and `text` fields. Pass already-collected evidence;
 there is no source rediscovery or provider read in this skill.
 
 The agent determines which member should do what, the concrete inputs and
@@ -52,7 +52,7 @@ turn counter, TTL, scheduling loop, approval ledger or execution lease. It canno
 advance an old standing case or accept a caller's assertion as verified child
 proof. A native run and its receipt retain this bounded decision.
 
-`delegation_packet` (`runx.team.delegation.v1`) contains `proposed`, `needs_input`
+`delegation_packet` (`runx/team-delegate.delegation.v1`) contains `proposed`, `needs_input`
 or `held`, the objective and rationale, assignments, missing context, an input
 digest and validation findings. A held result exposes no executable assignments.
 No member, provider effect, payment or communication is started by this skill.

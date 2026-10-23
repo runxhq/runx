@@ -7,7 +7,7 @@ export function simulateCharge(inputs) {
       settlement_family: "mock",
       amount_minor: positiveInteger(policy.price_minor, "provider_policy.price_minor"),
       currency: currencyCode(policy.currency, "provider_policy.currency"),
-      counterparty: requiredString(policy.counterparty, "provider_policy.counterparty"),
+      merchant: requiredString(policy.merchant, "provider_policy.merchant"),
       idempotency_key: requiredString(inputs.idempotency_seed, "idempotency_seed"),
       money_moved: false,
     },

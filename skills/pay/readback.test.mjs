@@ -5,18 +5,18 @@ import { prepareReadback, requireCompleteReadback } from "./readback.mjs";
 
 test("reads one payment against the resource it paid for", () => {
   assert.deepEqual(prepareReadback({
-    payment_ref: "runx:x402-payment:test",
-    resource_url: "https://vendor.example/v1/invocations",
+    payment_id: "runx:x402-payment:test",
+    resource_url: "https://merchant.example/v1/report",
   }), {
     readback_request: {
-      payment_ref: "runx:x402-payment:test",
-      resource_url: "https://vendor.example/v1/invocations",
+      payment_id: "runx:x402-payment:test",
+      resource_url: "https://merchant.example/v1/report",
     },
-    expected_result: { payment_ref: "runx:x402-payment:test" },
+    expected_result: { payment_id: "runx:x402-payment:test" },
   });
   assert.throws(() => prepareReadback({
-    payment_ref: "runx:x402-payment:test",
-    resource_url: "http://vendor.example/v1/invocations",
+    payment_id: "runx:x402-payment:test",
+    resource_url: "http://merchant.example/v1/report",
   }), /exact HTTPS URL/);
 });
 

@@ -8,10 +8,10 @@ steps:
       principal: ops:jordan
       claim: A refund for order ORD-7741 was completed in the provider console.
       evidence:
-        - ref: provider:refund:re_3PqL2x
+        - locator: provider:refund:re_3PqL2x
           digest: sha256:b1c9e0a4f2d7c6e8a3b50f9d2c41a7e8f06b3c1d9e2a4f7c8b0d6e3a1f5c9b2d
           proves: provider-side refund transaction settled for order ORD-7741
-        - ref: approval:console-signoff:ap_5512
+        - locator: approval:console-signoff:ap_5512
           digest: sha256:7d4e1a90c3b62f8e5a07d2c19b4f6e3a8c0d51b7e9a2f4c6b8d03e1a5f7c9b24
           proves: console approval preceded the refund
       scope:

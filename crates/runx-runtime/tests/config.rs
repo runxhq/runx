@@ -54,11 +54,10 @@ fn a_secret_is_sealed_in_the_home_and_the_agent_names_it() -> Result<(), Box<dyn
     let home = temp.path();
     let config = agent_key(home, RunxConfigFile::default(), secret)?;
 
-    let Some(RunxSecretRecord::Stored { material_ref }) = config.secrets.get(&name("agent")?)
-    else {
+    let Some(RunxSecretRecord::Stored { material_id }) = config.secrets.get(&name("agent")?) else {
         return Err("the secret is sealed in the home".into());
     };
-    assert!(material_ref.starts_with("local_secret_"));
+    assert!(material_id.starts_with("local_secret_"));
     assert_eq!(
         secrets::reveal(&home_env(home), home, &name("agent")?)?,
         secret
@@ -70,12 +69,12 @@ fn a_secret_is_sealed_in_the_home_and_the_agent_names_it() -> Result<(), Box<dyn
     assert_eq!(
         mask_runx_config_file(&config).secrets.get(&name("agent")?),
         Some(&RunxSecretRecord::Stored {
-            material_ref: "[encrypted]".to_owned()
+            material_id: "[encrypted]".to_owned()
         })
     );
     let written = fs::read_to_string(home.join("config.json"))?;
     assert!(!written.contains(secret));
-    let key_file = home.join("keys").join(format!("{material_ref}.json"));
+    let key_file = home.join("keys").join(format!("{material_id}.json"));
     assert!(key_file.exists());
     assert_private_file(&home.join("keys/local-config-secret"))?;
     assert_private_file(&key_file)?;
@@ -180,7 +179,7 @@ fn a_corrupt_sealed_secret_is_reported_with_its_file() -> Result<(), Box<dyn std
             secrets: BTreeMap::from([(
                 name("agent")?,
                 RunxSecretRecord::Stored {
-                    material_ref: "local_secret_corrupt".to_owned(),
+                    material_id: "local_secret_corrupt".to_owned(),
                 },
             )]),
             ..RunxConfigFile::default()
@@ -272,7 +271,7 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         secrets: BTreeMap::from([(
             name("agent")?,
             RunxSecretRecord::Stored {
-                material_ref: "local_secret_missing".to_owned(),
+                material_id: "local_secret_missing".to_owned(),
             },
         )]),
         ..RunxConfigFile::default()

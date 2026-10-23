@@ -5,8 +5,8 @@
     {
       "path": "tools/fixture/multi_command",
       "manifest": "tools/fixture/multi_command/manifest.json",
-      "source_hash": "sha256:4883f9fc560cde1aba3cb7f1da4c4811215ff2a5a581190db62ebdf8539655d4",
-      "schema_hash": "sha256:5f55da619b066159142bf5e419a010a9b4b5b90a58e11677562556a2a46d700b"
+      "source_digest": "sha256:4883f9fc560cde1aba3cb7f1da4c4811215ff2a5a581190db62ebdf8539655d4",
+      "schema_digest": "sha256:5f55da619b066159142bf5e419a010a9b4b5b90a58e11677562556a2a46d700b"
     }
   ],
   "errors": []

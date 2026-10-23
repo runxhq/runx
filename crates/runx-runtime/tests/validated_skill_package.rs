@@ -15,12 +15,12 @@ fn write_packet_input_package(
     fs::write(
         root.join("run.yaml"),
         format!(
-            "skill: packet-input\nrunners:\n  inspect:\n    inputs:\n      plan:\n        type: json\n        required: true\n        packet: runx.test.plan.v1\n    examples:\n      - plan: {example}\n    steps:\n      - id: inspect\n        agent: {{ role: agent, task: inspect }}\n        inputs:\n          plan: $input.plan\n"
+            "skill: packet-input\nrunners:\n  inspect:\n    inputs:\n      plan:\n        type: json\n        required: true\n        packet: acme/packet-input.plan.v1\n    examples:\n      - plan: {example}\n    steps:\n      - id: inspect\n        agent: {{ role: agent, task: inspect }}\n        inputs:\n          plan: $input.plan\n"
         ),
     )?;
     if let Some(packet_schema) = packet_schema {
         fs::create_dir_all(root.join("packets"))?;
-        fs::write(root.join("packets/plan.schema.json"), packet_schema)?;
+        fs::write(root.join("packets/plan.v1.schema.json"), packet_schema)?;
     }
     Ok(())
 }
@@ -101,7 +101,7 @@ fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::
     write_packet_input_package(
         temp.path(),
         Some(
-            r#"{"x-runx-packet-id":"runx.test.plan.v1","type":"object","required":["operation"],"properties":{"operation":{"type":"string","enum":["inspect"]}},"additionalProperties":false}"#,
+            r#"{"$id":"https://schemas.runx.ai/packages/acme/packet-input/plan/v1.json","x-runx-packet-id":"acme/packet-input.plan.v1","type":"object","required":["operation"],"properties":{"operation":{"type":"string","enum":["inspect"]}},"additionalProperties":false}"#,
         ),
         "{ operation: inspect }",
     )?;
@@ -120,7 +120,7 @@ fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::
     assert_eq!(
         plan.get("x-runx-packet-id")
             .and_then(runx_contracts::JsonValue::as_str),
-        Some("runx.test.plan.v1")
+        Some("acme/packet-input.plan.v1")
     );
     assert!(plan.contains_key("properties"));
     let inspection_json = serde_json::to_value(&inspection)?;
@@ -128,7 +128,7 @@ fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::
         inspection_json
             .pointer("/execution_closure/package_bindings/0/input_packet_schemas/0/packet")
             .and_then(serde_json::Value::as_str),
-        Some("runx.test.plan.v1")
+        Some("acme/packet-input.plan.v1")
     );
     assert!(
         inspection_json
@@ -147,13 +147,17 @@ fn packet_input_schema_must_exist_and_own_authored_examples()
     let missing_error = load_validated_skill_package(missing.path())
         .err()
         .ok_or("missing packet schema unexpectedly loaded")?;
-    assert!(missing_error.to_string().contains("missing packet schema"));
+    assert!(
+        missing_error
+            .to_string()
+            .contains("declared packet schema 'acme/packet-input.plan.v1' was not found")
+    );
 
     let invalid = tempfile::tempdir()?;
     write_packet_input_package(
         invalid.path(),
         Some(
-            r#"{"x-runx-packet-id":"runx.test.plan.v1","type":"object","required":["operation"],"properties":{"operation":{"const":"inspect"}},"additionalProperties":false}"#,
+            r#"{"$id":"https://schemas.runx.ai/packages/acme/packet-input/plan/v1.json","x-runx-packet-id":"acme/packet-input.plan.v1","type":"object","required":["operation"],"properties":{"operation":{"const":"inspect"}},"additionalProperties":false}"#,
         ),
         "{ operation: mutate }",
     )?;
@@ -183,7 +187,7 @@ fn bundled_core_skill_packages_validate_through_the_aggregate()
             .ok_or("bundle skill omitted id")?;
         let name = skill_id
             .strip_prefix("runx/")
-            .ok_or("bundle skill has foreign owner")?;
+            .ok_or("bundle skill has foreign publisher")?;
         let directory = root.join("skills").join(name);
         if let Err(error) = load_validated_skill_package(&directory) {
             failures.push(format!("{name}: {error}"));

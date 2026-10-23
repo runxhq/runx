@@ -1,5 +1,5 @@
 skill: postmortem-draft
-version: "0.1.9"
+version: "0.1.10"
 
 catalog:
   kind: graph
@@ -28,7 +28,7 @@ harness:
           must_not_repeat:
             - Do not re-derive timeline entries or the root cause already sealed.
       inputs:
-        incident_ref: inc-checkout-2026-08-09
+        incident_id: inc-checkout-2026-08-09
         incident_fragments:
           - id: frag-1
             source: pagerduty
@@ -71,7 +71,7 @@ harness:
             subset:
               postmortem:
                 data:
-                  schema: runx.postmortem.v1
+                  schema: runx/postmortem-draft.postmortem.v1
                   decision: publishable
                   publish_proposal:
                     gate: human-approver
@@ -83,7 +83,7 @@ harness:
 
     - name: postmortem-draft-unknowns-block-publish
       inputs:
-        incident_ref: inc-batch-2026-08-10
+        incident_id: inc-batch-2026-08-10
         incident_fragments:
           - id: frag-1
             source: cron-log
@@ -120,7 +120,7 @@ harness:
 
     - name: postmortem-draft-invented-citation-refuses
       inputs:
-        incident_ref: inc-x
+        incident_id: inc-x
         incident_fragments:
           - id: frag-1
             source: log
@@ -157,7 +157,7 @@ harness:
 
     - name: postmortem-draft-needs-fragments
       inputs:
-        incident_ref: inc-y
+        incident_id: inc-y
       expect:
         status: failure
 
@@ -165,7 +165,7 @@ runners:
   make:
     default: true
     inputs:
-      incident_ref:
+      incident_id:
         type: string
         required: true
         description: Identifier of the resolved incident this postmortem covers.
@@ -174,7 +174,7 @@ runners:
         required: true
         description: Collected incident evidence fragments with stable id, source, and text; compose web-fetch or store reads to gather them.
     examples:
-      - incident_ref: inc-checkout-2026-08-09
+      - incident_id: inc-checkout-2026-08-09
         incident_fragments:
           - id: frag-1
             source: pagerduty
@@ -192,7 +192,7 @@ runners:
         outputs:
           postmortem_draft: object
         inputs:
-          incident_ref: $input.incident_ref
+          incident_id: $input.incident_id
           incident_fragments: $input.incident_fragments
         artifacts:
           named_emits:
@@ -208,73 +208,8 @@ runners:
         outputs:
           postmortem:
             type: object
-            schema:
-              required: [schema, decision, reason, summary, timeline, root_cause, unknowns, action_items, publish_proposal, publish_performed, fragments_digest, validation]
-              additionalProperties: false
-              properties:
-                schema: { const: runx.postmortem.v1 }
-                decision: { type: string, enum: [publishable, needs_more_evidence, refused] }
-                reason: { type: string, minLength: 1, maxLength: 2000 }
-                summary: { type: [string, "null"], maxLength: 8000 }
-                timeline:
-                  type: array
-                  maxItems: 500
-                  items:
-                    type: object
-                    required: [entry, fragment_id, quote]
-                    additionalProperties: false
-                    properties:
-                      entry: { type: string, minLength: 1, maxLength: 4000 }
-                      fragment_id: { type: string, minLength: 1, maxLength: 200 }
-                      quote: { type: string, minLength: 1, maxLength: 4000 }
-                root_cause:
-                  type: [object, "null"]
-                  required: [status, statement, fragment_id]
-                  additionalProperties: false
-                  properties:
-                    status: { type: string, enum: [known, suspected, unknown] }
-                    statement: { type: [string, "null"], maxLength: 4000 }
-                    fragment_id: { type: [string, "null"], maxLength: 200 }
-                unknowns:
-                  type: array
-                  maxItems: 100
-                  items: { type: string, minLength: 1, maxLength: 2000 }
-                action_items:
-                  type: array
-                  maxItems: 100
-                  items:
-                    type: object
-                    required: [action, owner]
-                    additionalProperties: false
-                    properties:
-                      action: { type: string, minLength: 1, maxLength: 2000 }
-                      owner: { type: string, minLength: 1, maxLength: 500 }
-                publish_proposal:
-                  type: [object, "null"]
-                  required: [gate, delivery_skill, sent]
-                  additionalProperties: false
-                  properties:
-                    gate: { const: human-approver }
-                    delivery_skill: { const: message-send }
-                    sent: { const: false }
-                publish_performed: { const: false }
-                fragments_digest: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
-                validation:
-                  type: object
-                  required: [status, findings]
-                  additionalProperties: false
-                  properties:
-                    status: { type: string, enum: [pass, fail] }
-                    findings:
-                      type: array
-                      maxItems: 100
-                      items:
-                        type: object
-                        required: [code, message]
-                        additionalProperties: false
-                        properties:
-                          code: { type: string, minLength: 1, maxLength: 200 }
-                          message: { type: string, minLength: 1, maxLength: 2000 }
         artifacts:
           named_emits:
             postmortem: postmortem
+          packets:
+            postmortem: runx/postmortem-draft.postmortem.v1

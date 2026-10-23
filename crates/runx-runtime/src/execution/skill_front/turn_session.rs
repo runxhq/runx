@@ -107,18 +107,18 @@ impl TurnSession {
         }
     }
 
-    /// A page of what `reference` names in the turn at `turn`: an entry of
+    /// A page of what `locator` names in the turn at `turn`: an entry of
     /// its act's context, an input of its act, or a call it made.
     pub fn read(
         &self,
         turn: &str,
-        reference: &str,
+        locator: &str,
         offset: u64,
         limit: Option<u64>,
     ) -> Result<runx_contracts::TurnReadPage, SkillRunError> {
         let driver = self.quiet();
         let action = TurnAction::Read {
-            reference: reference.to_owned(),
+            locator: locator.to_owned(),
             offset,
             limit,
         };
@@ -268,8 +268,8 @@ mod tests {
     use std::sync::Arc;
 
     use runx_contracts::{
-        CloseDisposition, ClosureDisposition, JsonObject, JsonValue, ResolutionRequest,
-        ResumeDocument, RunClose, SealReason, TurnCallOutcome, TurnTarget,
+        CloseOutcome, JsonObject, JsonValue, ResolutionRequest, ResumeDocument, RunClose,
+        RunOutcome, SealReason, TurnCallOutcome, TurnTarget,
     };
 
     use crate::execution::orchestrator::{
@@ -326,7 +326,7 @@ mod tests {
             run_id,
             answers: ResumeDocument {
                 close: Some(RunClose {
-                    disposition: CloseDisposition::Superseded,
+                    outcome: CloseOutcome::Superseded,
                 }),
                 ..ResumeDocument::default()
             },
@@ -339,10 +339,7 @@ mod tests {
         })?;
         let record = log.load()?.ok_or("the run has a record")?;
         let sealed = record.sealed.ok_or("the close seals the run")?;
-        assert_eq!(
-            sealed.receipt.seal.disposition,
-            ClosureDisposition::Superseded
-        );
+        assert_eq!(sealed.receipt.seal.outcome, RunOutcome::Superseded);
         assert_eq!(sealed.receipt.seal.reason, Some(SealReason::HostClosed));
         assert!(
             matches!(record.calls.as_slice(), [call] if matches!(call.outcome, CallOutcome::Claimed(_))),
@@ -379,26 +376,23 @@ mod tests {
                 .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
         };
         let alone = close(serde_json::json!({
-            "close": {"disposition": "declined"},
+            "close": {"outcome": "declined"},
             "approvals": {"answer/0/retry": {"request_digest": "sha256:r", "value": {"retry": true}}}
         }))
         .err()
         .ok_or("a close comes alone")?;
         assert!(alone.to_string().contains("comes alone"), "{alone}");
 
-        let closed = close(serde_json::json!({"close": {"disposition": "declined"}}))?;
+        let closed = close(serde_json::json!({"close": {"outcome": "declined"}}))?;
         assert!(!closed.succeeded());
         let sealed = log
             .load()?
             .ok_or("the run has a record")?
             .sealed
             .ok_or("the close seals the run")?;
-        assert_eq!(
-            sealed.receipt.seal.disposition,
-            ClosureDisposition::Declined
-        );
+        assert_eq!(sealed.receipt.seal.outcome, RunOutcome::Declined);
         assert_eq!(sealed.receipt.seal.reason, Some(SealReason::HostClosed));
-        let again = close(serde_json::json!({"close": {"disposition": "declined"}}))
+        let again = close(serde_json::json!({"close": {"outcome": "declined"}}))
             .err()
             .ok_or("a sealed run does not close again")?;
         assert!(again.to_string().contains("is sealed"), "{again}");

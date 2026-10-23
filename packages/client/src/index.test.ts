@@ -8,7 +8,7 @@ import { createRunxClient, executionBindingFromInspection, executionClosureFromI
 import { invoke } from "./process.js";
 import { decodeSkill } from "./decode.js";
 import { receiptCommitments } from "./receipt-tree.js";
-import type { ProjectArtifactRefContract } from "@runxhq/contracts";
+import type { ProjectArtifactContract } from "@runxhq/contracts";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
@@ -28,7 +28,7 @@ async function artifact(projectDir: string, value: unknown, label = "request") {
   const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
   const dir = path.join(projectDir, "artifacts", "skill-runs", "run_test", "requests"); await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${label}-${digest.slice(7)}.json`); await writeFile(file, bytes);
-  return { schema: "runx.project_artifact_ref.v1", ref: `runx:project-artifact:${digest}`, digest, bytes: bytes.byteLength, media_type: "application/json", path: file };
+  return { schema: "runx.project_artifact.v1", uri: `runx:project-artifact:${digest}`, digest, bytes: bytes.byteLength, media_type: "application/json", path: file };
 }
 const receiptFixture = JSON.parse(await readFile(new URL("../../../fixtures/receipt-verify/valid-production/receipt.json", import.meta.url), "utf8"));
 async function storeReceipt(receiptDir: string) {
@@ -96,10 +96,10 @@ describe("native invocation and decoding", () => {
     const { config } = await setup(`process.stdout.write(JSON.stringify(process.argv[2] === 'list' ? { schema: 'runx.list.v1', root: '/w', requested_kind: 'skills', items: [{ kind: 'skill', name: 'runx/run-history', source: 'built-in', path: 'runx/run-history', status: 'ok', emits: [] }] } : {}));`);
     const client = createRunxClient(config);
     await expect(client.skills.list()).resolves.toMatchObject({ schema: "runx.list.v1", items: [{ name: "runx/run-history" }] });
-    const reference = await artifact(config.projectDir, { verdict: "ok" }) as ProjectArtifactRefContract;
+    const reference = await artifact(config.projectDir, { verdict: "ok" }) as ProjectArtifactContract;
     await expect(client.artifacts.read(reference)).resolves.toEqual({ verdict: "ok" });
     await expect(client.artifacts.read(reference, { maxBytes: 4 })).rejects.toMatchObject({ reason: "artifact" });
-    await expect(client.artifacts.read({ ...reference, digest: `sha256:${"0".repeat(64)}`, ref: `runx:project-artifact:sha256:${"0".repeat(64)}` })).rejects.toMatchObject({ reason: "artifact" });
+    await expect(client.artifacts.read({ ...reference, digest: `sha256:${"0".repeat(64)}`, uri: `runx:project-artifact:sha256:${"0".repeat(64)}` })).rejects.toMatchObject({ reason: "artifact" });
   });
   it("names the turn server an MCP client starts, with the trusted environment", async () => {
     const { root, config, receiptDir } = await setup();
@@ -162,7 +162,7 @@ describe("native invocation and decoding", () => {
     const capture = path.join(root, "capture.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), inputs: JSON.parse(readFileSync(0, 'utf8')) }));
-      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
+      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed"))}));`);
     await createRunxClient(config).skills.run({ skillPath: "/skill", receiptDir, inputs: { "receipt-dir": "untrusted", nested: { value: 1 } } });
     const captured = JSON.parse(await readFile(capture, "utf8"));
     expect(captured.args.filter((arg: string) => arg === "--receipt-dir")).toHaveLength(1);
@@ -174,7 +174,7 @@ describe("native invocation and decoding", () => {
     const capture = path.join(root, "capture.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ home: process.env.HOME, runxHome: process.env.RUNX_HOME }));
-      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
+      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed"))}));`);
     const person = path.join(root, "person");
     await createRunxClient({ ...config, environment: { ...config.environment, HOME: person } }).skills.run({ skillPath: "/skill", receiptDir });
     expect(JSON.parse(await readFile(capture, "utf8"))).toEqual({ home: person, runxHome: config.home });
@@ -184,7 +184,7 @@ describe("native invocation and decoding", () => {
     const capture = path.join(root, "capture.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
-      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" } }))}));`);
+      process.stdout.write(JSON.stringify(${JSON.stringify(output("sealed", "completed"))}));`);
     const runAuthority = { grants: { "ausca/inbox": "grant_ausca_1" }, actor_ref: { type: "principal", uri: "runx:principal:user_1" }, max_child_depth: 2 } as const;
     const act = { purpose: "reply to the thread" };
     const context = { current_context: [] };
@@ -210,7 +210,7 @@ describe("native invocation and decoding", () => {
   });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {
     const { config, receiptDir } = await setup();
-    const result = { exitCode: 1, stdout: JSON.stringify(output("sealed", "failed", { closure: { disposition: "failed" } })), stderr: "" };
+    const result = { exitCode: 1, stdout: JSON.stringify(output("sealed", "failed", { seal_reason: "graph_step_failed" })), stderr: "" };
     await expect(decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 })).resolves.toMatchObject({ status: "sealed", outcome: "failed" });
     await expect(decodeSkill({ ...result, exitCode: 0 }, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 })).rejects.toThrow("exit code disagrees");
   });
@@ -226,7 +226,7 @@ describe("native invocation and decoding", () => {
     const link = { type: "receipt", uri: `runx:receipt:${child.id}`, locator: child.digest };
     const store = async (receipt: Record<string, unknown> & { id: string }) => writeFile(path.join(receiptDir, `${receipt.id.replace(":", "-")}.json`), JSON.stringify(receipt));
     const settings = { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 100000 };
-    const run = (root: { id: string }) => decodeSkill({ exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" }, result: {}, receipt_id: root.id })), stderr: "" }, settings);
+    const run = (root: { id: string }) => decodeSkill({ exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { result: {}, receipt_id: root.id })), stderr: "" }, settings);
 
     const root = tree([link]);
     await store(root);
@@ -248,8 +248,8 @@ describe("native invocation and decoding", () => {
   it("hydrates spilled requests and rejects digest drift", async () => {
     const { config, receiptDir } = await setup();
     const ref = await artifact(config.projectDir, inputRequest);
-    const set = await artifact(config.projectDir, [{ id: inputRequest.id, kind: "input", request_digest: ref.digest, artifact_ref: ref }], "request-set");
-    const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [], request_set_ref: set })), stderr: "" };
+    const set = await artifact(config.projectDir, [{ id: inputRequest.id, kind: "input", request_digest: ref.digest, artifact: ref }], "request-set");
+    const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [], request_set_artifact: set })), stderr: "" };
     const settings = { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 };
     await expect(decodeSkill(result, settings)).resolves.toMatchObject({ requests: [{ address: inputRequest.id, request_digest: ref.digest, request: inputRequest }] });
     await writeFile(ref.path, JSON.stringify({ ...inputRequest, id: "other" }));
@@ -259,14 +259,14 @@ describe("native invocation and decoding", () => {
     const { config, receiptDir } = await setup();
     const value = { message: "value".repeat(8000) };
     const ref = await artifact(config.projectDir, value, "result");
-    const result = { exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" }, result: { artifact_ref: ref } })), stderr: "" };
+    const result = { exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { result: { artifact: ref } })), stderr: "" };
     await expect(decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 100000 })).resolves.toMatchObject({ result: value });
     await expect(decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 100 })).rejects.toThrow("byte budget");
   });
-  it("preserves ordinary provider artifact references in skill results", async () => {
+  it("preserves a result's own artifact data", async () => {
     const { config, receiptDir } = await setup();
-    const value = { artifact_ref: "runx:artifact:sha256:provider", content_digest: "provider-digest" };
-    const result = { exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { closure: { disposition: "closed" }, result: value })), stderr: "" };
+    const value = { artifact: { uri: "runx:artifact:sha256:provider" }, content_digest: "provider-digest" };
+    const result = { exitCode: 0, stdout: JSON.stringify(output("sealed", "completed", { result: value })), stderr: "" };
     await expect(decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 })).resolves.toMatchObject({ result: value });
   });
   it("recovers the full-output fallback and refuses another run's output", async () => {
@@ -275,12 +275,12 @@ describe("native invocation and decoding", () => {
     const ref = await artifact(config.projectDir, full, "full-output");
     // As the CLI writes it: the request set's summaries carry each digest.
     const requestRef = await artifact(config.projectDir, inputRequest);
-    const set = await artifact(config.projectDir, [{ id: inputRequest.id, kind: "input", request_digest: requestRef.digest, artifact_ref: requestRef }], "request-set");
-    const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [], request_set_ref: set, artifact_refs: [ref] })), stderr: "" };
+    const set = await artifact(config.projectDir, [{ id: inputRequest.id, kind: "input", request_digest: requestRef.digest, artifact: requestRef }], "request-set");
+    const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [], request_set_artifact: set, artifacts: [ref] })), stderr: "" };
     const settings = { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 };
     await expect(decodeSkill(result, settings)).resolves.toMatchObject({ requests: [{ address: inputRequest.id, request_digest: requestRef.digest, request: inputRequest }], result: "large payload" });
     const other = await artifact(config.projectDir, { ...full, run_id: "other" }, "full-output");
-    await expect(decodeSkill({ ...result, stdout: JSON.stringify(output("needs_agent", "deferred", { artifact_refs: [other] })) }, settings)).rejects.toThrow("disagrees on run_id");
+    await expect(decodeSkill({ ...result, stdout: JSON.stringify(output("needs_agent", "deferred", { artifacts: [other] })) }, settings)).rejects.toThrow("disagrees on run_id");
   });
   it("refuses artifacts outside the project and final-component symlinks", async () => {
     const { root, config, receiptDir } = await setup();
@@ -288,7 +288,7 @@ describe("native invocation and decoding", () => {
     const outside = path.join(root, "outside.json"); await writeFile(outside, JSON.stringify(inputRequest));
     const link = path.join(path.dirname(ref.path), "link.json"); await symlink(ref.path, link);
     for (const file of [outside, link]) {
-      const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [{ id: inputRequest.id, kind: "input", request_digest: ref.digest, artifact_ref: { ...ref, path: file } }] })), stderr: "" };
+      const result = { exitCode: 2, stdout: JSON.stringify(output("needs_agent", "deferred", { requests: [{ id: inputRequest.id, kind: "input", request_digest: ref.digest, artifact: { ...ref, path: file } }] })), stderr: "" };
       await expect(decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 })).rejects.toBeInstanceOf(RunxClientError);
     }
   });

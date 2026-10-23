@@ -53,6 +53,7 @@
         "payTo",
         "maxTimeoutSeconds"
       ],
+      "title": "X402PaymentRequirements",
       "type": "object"
     },
     "extensions": {
@@ -146,6 +147,7 @@
           "required": [
             "url"
           ],
+          "title": "X402ResourceInfo",
           "type": "object"
         },
         {
@@ -163,5 +165,6 @@
     "accepted",
     "payload"
   ],
+  "title": "X402PaymentPayload",
   "type": "object"
 }

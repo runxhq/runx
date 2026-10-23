@@ -5,7 +5,7 @@ runner: read
 operator_journeys:
   - mode: standalone
     confusors: [run-history, receipt-audit]
-    request: Which spend runs sealed for the ops principal in this ledger slice?
+    request: Which spend runs completed for the ops principal in this ledger slice?
     expected_outcome: Return the matched receipts and a deterministic verification result for their chain.
   - mode: composed
     request: Answer the audit question from these already bounded receipt rows.
@@ -16,12 +16,12 @@ operator_journeys:
       - Do not query the wider receipt store.
       - Do not re-run or hydrate the matched operations.
 inputs:
-  question: Which spend runs sealed for the ops principal in the supplied ledger slice?
+  question: Which spend runs completed for the ops principal in the supplied ledger slice?
   filter:
     principal: principal:ops
-    skill_ref: runx/spend
-    status:
-      - sealed
+    skill: runx/spend
+    outcome:
+      - completed
     time_range:
       from: "2026-06-01T00:00:00Z"
       to: "2026-06-08T00:00:00Z"
@@ -29,12 +29,12 @@ inputs:
     verify_chain: true
   receipts:
     - receipt_id: rcpt_01HZX5K2spend
-      skill_ref: runx/spend
-      status: sealed
+      skill: runx/spend
+      outcome: completed
       created_at: "2026-06-03T14:21:08Z"
     - receipt_id: rcpt_01HZX9Q7spend
-      skill_ref: runx/spend
-      status: sealed
+      skill: runx/spend
+      outcome: completed
       created_at: "2026-06-06T09:02:44Z"
 expect:
   status: sealed

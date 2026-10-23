@@ -259,7 +259,7 @@ runners:
     ]);
 
     let validated = validate_skill_package(source).expect("context package must validate");
-    assert_eq!(validated.context_skill_refs, vec!["./context/rubric"]);
+    assert_eq!(validated.context_skills, vec!["./context/rubric"]);
 }
 
 #[test]

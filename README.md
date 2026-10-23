@@ -100,9 +100,9 @@ Selected fields from the result:
 ```json
 {
   "status": "sealed",
+  "outcome": "completed",
   "run_id": "first-run",
   "result": { "message": "Hello, Runx." },
-  "closure": { "disposition": "closed" },
   "receipt_id": "sha256:…"
 }
 ```
@@ -181,7 +181,7 @@ about a confidently matched subject.
 [`lead-qualify`](skills/lead-qualify/SKILL.md) checks those facts against your
 ICP and keeps commercial fit separate from contact eligibility.
 [`cold-outreach`](skills/cold-outreach/SKILL.md) takes that context, supported
-research, and the exact recipient's contact disposition to prepare one email.
+research, and the exact recipient's suppression state to prepare one email.
 
 The draft can use [`brand-voice`](skills/brand-voice/SKILL.md) and
 [`taste-profile`](skills/taste-profile/SKILL.md) without allowing either to

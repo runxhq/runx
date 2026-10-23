@@ -25,6 +25,7 @@
             "completion",
             "approval"
           ],
+          "title": "SkillCapabilities",
           "type": "object"
         },
         "catalog": {
@@ -71,9 +72,11 @@
             "visibility",
             "role"
           ],
+          "title": "SkillCatalog",
           "type": "object"
         },
         "connector_readiness": {
+          "description": "Each operation the runner may call, as ready as the project leaves it.",
           "items": {
             "$id": "https://schemas.runx.ai/runx/readiness/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -86,23 +89,29 @@
               },
               "cost": {
                 "additionalProperties": false,
+                "description": "What the provider charges per call, when the operation declares it.",
                 "properties": {
                   "per": {
+                    "description": "When a call becomes billable.",
                     "enum": [
                       "request",
                       "success"
                     ],
+                    "title": "CostBasis",
                     "type": "string"
                   },
                   "source": {
+                    "description": "Where the price was read.",
                     "enum": [
                       "docs",
                       "rate_card",
                       "observed"
                     ],
+                    "title": "CostSource",
                     "type": "string"
                   },
                   "source_url": {
+                    "description": "The page that states it, `https` only.",
                     "minLength": 1,
                     "type": "string"
                   },
@@ -116,6 +125,7 @@
                   "per",
                   "source"
                 ],
+                "title": "OperationCost",
                 "type": "object"
               },
               "instance_id": {
@@ -133,9 +143,11 @@
                   "hosted",
                   "local"
                 ],
+                "title": "Placement",
                 "type": "string"
               },
               "ready": {
+                "description": "True when no check failed. Approval may still be owed at call time.",
                 "type": "boolean"
               },
               "reasons": {
@@ -143,6 +155,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "check": {
+                      "description": "The checks admission runs, in order; each refuses before the next.",
                       "enum": [
                         "requirement",
                         "instance",
@@ -153,6 +166,7 @@
                         "implementation",
                         "tolerance"
                       ],
+                      "title": "AdmissionCheck",
                       "type": "string"
                     },
                     "detail": {
@@ -166,6 +180,7 @@
                         "required",
                         "unknown"
                       ],
+                      "title": "CheckOutcome",
                       "type": "string"
                     },
                     "refs": {
@@ -193,6 +208,7 @@
                               "effect_finality",
                               "credential_resolution"
                             ],
+                            "title": "ProofKind",
                             "type": "string"
                           },
                           "provider": {
@@ -200,6 +216,7 @@
                             "type": "string"
                           },
                           "type": {
+                            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                             "enum": [
                               "thread",
                               "comment",
@@ -229,6 +246,7 @@
                               "connector_instance",
                               "connector_operation"
                             ],
+                            "title": "ReferenceType",
                             "type": "string"
                           },
                           "uri": {
@@ -240,6 +258,7 @@
                           "type",
                           "uri"
                         ],
+                        "title": "Reference",
                         "type": "object",
                         "x-runx-schema": "runx.reference.v1"
                       },
@@ -252,11 +271,13 @@
                     "outcome",
                     "detail"
                   ],
+                  "title": "AdmissionReason",
                   "type": "object"
                 },
                 "type": "array"
               },
               "requirement": {
+                "description": "The skill requirement key.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -267,6 +288,7 @@
               "ready",
               "reasons"
             ],
+            "title": "Readiness",
             "type": "object",
             "x-runx-schema": "runx.readiness.v1"
           },
@@ -278,10 +300,12 @@
         },
         "entry_provenance": {
           "additionalProperties": {},
+          "description": "Where the inspected package came from, when a resolver found it.",
           "type": "object"
         },
         "environment": {
           "additionalProperties": false,
+          "description": "The environment the runner reads, by name and availability, never by value.",
           "properties": {
             "missing": {
               "items": {
@@ -295,11 +319,13 @@
                 "ready",
                 "needs_environment"
               ],
+              "title": "EnvironmentReadinessStatus",
               "type": "string"
             },
             "variables": {
               "items": {
                 "additionalProperties": false,
+                "description": "Safe environment readiness visible to an operating agent. The value is deliberately absent: models receive the requirement and its availability, never ambient or credential material.",
                 "properties": {
                   "available": {
                     "type": "boolean"
@@ -316,6 +342,7 @@
                   "required",
                   "available"
                 ],
+                "title": "EnvironmentRequirementStatus",
                 "type": "object"
               },
               "type": "array"
@@ -325,6 +352,7 @@
             "status",
             "variables"
           ],
+          "title": "EnvironmentReadiness",
           "type": "object"
         },
         "examples": {
@@ -393,11 +421,13 @@
               "prior_evidence",
               "must_not_repeat"
             ],
+            "title": "OperatorJourney",
             "type": "object"
           },
           "type": "array"
         },
         "package_digest": {
+          "description": "The execution package digest, as a run records it; a listing's package digest is the registry's digest of the published files.",
           "type": "string"
         },
         "readiness": {
@@ -409,12 +439,14 @@
                 "needs_connector_setup",
                 "needs_environment"
               ],
+              "title": "InspectionReadinessStatus",
               "type": "string"
             }
           },
           "required": [
             "status"
           ],
+          "title": "InspectionReadiness",
           "type": "object"
         },
         "resume": {
@@ -431,16 +463,20 @@
             "may_pause",
             "command"
           ],
+          "title": "InspectionResume",
           "type": "object"
         },
         "runner": {
           "additionalProperties": false,
+          "description": "The runner inspected: the one named, else the default.",
           "properties": {
             "connectors": {
               "additionalProperties": {},
+              "description": "The connector requirements of the skill, by key.",
               "type": "object"
             },
             "continuations": {
+              "description": "The runners this one's work continues in, which its run may admit.",
               "items": {
                 "type": "string"
               },
@@ -448,12 +484,16 @@
             },
             "declared_result_packets": {
               "additionalProperties": {
+                "maxLength": 200,
+                "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
                 "type": "string"
               },
+              "description": "The packet each result output declares, by output name.",
               "type": "object"
             },
             "input_schema": {
               "additionalProperties": {},
+              "description": "Its inputs as one JSON schema, with the runner's examples.",
               "type": "object"
             },
             "inputs": {
@@ -483,6 +523,7 @@
                   "required",
                   "schema"
                 ],
+                "title": "InspectedInput",
                 "type": "object"
               },
               "type": "array"
@@ -507,15 +548,18 @@
                 "required": [
                   "name"
                 ],
+                "title": "InspectedOutput",
                 "type": "object"
               },
               "type": "array"
             },
             "requirements": {
               "additionalProperties": false,
+              "description": "Parser-owned projection of all execution requirements for one act.",
               "properties": {
                 "environment": {
                   "additionalProperties": false,
+                  "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
                   "minProperties": 1,
                   "properties": {
                     "optional": {
@@ -543,6 +587,7 @@
                   "type": "array"
                 }
               },
+              "title": "ExecutionRequirements",
               "type": "object"
             },
             "scopes": {
@@ -561,9 +606,11 @@
             "declared_result_packets",
             "requirements"
           ],
+          "title": "RunnerInspection",
           "type": "object"
         },
         "runner_inspections": {
+          "description": "Each runner with the execution closure it binds.",
           "items": {
             "additionalProperties": false,
             "properties": {
@@ -573,12 +620,15 @@
               },
               "runner": {
                 "additionalProperties": false,
+                "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
                 "properties": {
                   "connectors": {
                     "additionalProperties": {},
+                    "description": "The connector requirements of the skill, by key.",
                     "type": "object"
                   },
                   "continuations": {
+                    "description": "The runners this one's work continues in, which its run may admit.",
                     "items": {
                       "type": "string"
                     },
@@ -586,12 +636,16 @@
                   },
                   "declared_result_packets": {
                     "additionalProperties": {
+                      "maxLength": 200,
+                      "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
                       "type": "string"
                     },
+                    "description": "The packet each result output declares, by output name.",
                     "type": "object"
                   },
                   "input_schema": {
                     "additionalProperties": {},
+                    "description": "Its inputs as one JSON schema, with the runner's examples.",
                     "type": "object"
                   },
                   "inputs": {
@@ -621,6 +675,7 @@
                         "required",
                         "schema"
                       ],
+                      "title": "InspectedInput",
                       "type": "object"
                     },
                     "type": "array"
@@ -645,15 +700,18 @@
                       "required": [
                         "name"
                       ],
+                      "title": "InspectedOutput",
                       "type": "object"
                     },
                     "type": "array"
                   },
                   "requirements": {
                     "additionalProperties": false,
+                    "description": "Parser-owned projection of all execution requirements for one act.",
                     "properties": {
                       "environment": {
                         "additionalProperties": false,
+                        "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
                         "minProperties": 1,
                         "properties": {
                           "optional": {
@@ -681,6 +739,7 @@
                         "type": "array"
                       }
                     },
+                    "title": "ExecutionRequirements",
                     "type": "object"
                   },
                   "scopes": {
@@ -699,6 +758,7 @@
                   "declared_result_packets",
                   "requirements"
                 ],
+                "title": "RunnerInspection",
                 "type": "object"
               }
             },
@@ -706,12 +766,14 @@
               "runner",
               "execution_closure"
             ],
+            "title": "RunnerInspectionEntry",
             "type": "object"
           },
           "minItems": 1,
           "type": "array"
         },
         "runners": {
+          "description": "Every runner the package declares, by name.",
           "items": {
             "type": "string"
           },
@@ -721,9 +783,12 @@
           "enum": [
             "runx.skill.inspect.v1"
           ],
+          "title": "SkillInspectionSchema",
           "type": "string"
         },
-        "semantic_report": {},
+        "semantic_report": {
+          "description": "The catalog's semantic analysis of the package, as the parser makes it."
+        },
         "skill_path": {
           "type": "string"
         },
@@ -731,6 +796,7 @@
           "enum": [
             "ok"
           ],
+          "title": "SkillInspectionStatus",
           "type": "string"
         },
         "version": {
@@ -747,11 +813,13 @@
         "runners",
         "operator_journeys"
       ],
+      "title": "SkillInspection",
       "type": "object",
       "x-runx-schema": "runx.skill.inspect.v1"
     },
     {
       "additionalProperties": false,
+      "description": "A connector as `registry.inspect` reports it.",
       "properties": {
         "connector": {
           "type": "string"
@@ -762,11 +830,14 @@
         "operations": {
           "items": {
             "additionalProperties": false,
+            "description": "One operation of a connector, as a caller decides on it.",
             "properties": {
               "access": {
+                "description": "`read` or `mutate`, when the project holds the connector.",
                 "type": "string"
               },
               "approval_required": {
+                "description": "Whether every call waits on the person's approval of its exact input, when the project holds the connector.",
                 "type": "boolean"
               },
               "description": {
@@ -780,11 +851,13 @@
               "operation",
               "description"
             ],
+            "title": "InspectedOperation",
             "type": "object"
           },
           "type": "array"
         },
         "readiness": {
+          "description": "Each operation as ready as the project leaves it; none for a connector the project does not hold.",
           "items": {
             "$id": "https://schemas.runx.ai/runx/readiness/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -797,23 +870,29 @@
               },
               "cost": {
                 "additionalProperties": false,
+                "description": "What the provider charges per call, when the operation declares it.",
                 "properties": {
                   "per": {
+                    "description": "When a call becomes billable.",
                     "enum": [
                       "request",
                       "success"
                     ],
+                    "title": "CostBasis",
                     "type": "string"
                   },
                   "source": {
+                    "description": "Where the price was read.",
                     "enum": [
                       "docs",
                       "rate_card",
                       "observed"
                     ],
+                    "title": "CostSource",
                     "type": "string"
                   },
                   "source_url": {
+                    "description": "The page that states it, `https` only.",
                     "minLength": 1,
                     "type": "string"
                   },
@@ -827,6 +906,7 @@
                   "per",
                   "source"
                 ],
+                "title": "OperationCost",
                 "type": "object"
               },
               "instance_id": {
@@ -844,9 +924,11 @@
                   "hosted",
                   "local"
                 ],
+                "title": "Placement",
                 "type": "string"
               },
               "ready": {
+                "description": "True when no check failed. Approval may still be owed at call time.",
                 "type": "boolean"
               },
               "reasons": {
@@ -854,6 +936,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "check": {
+                      "description": "The checks admission runs, in order; each refuses before the next.",
                       "enum": [
                         "requirement",
                         "instance",
@@ -864,6 +947,7 @@
                         "implementation",
                         "tolerance"
                       ],
+                      "title": "AdmissionCheck",
                       "type": "string"
                     },
                     "detail": {
@@ -877,6 +961,7 @@
                         "required",
                         "unknown"
                       ],
+                      "title": "CheckOutcome",
                       "type": "string"
                     },
                     "refs": {
@@ -904,6 +989,7 @@
                               "effect_finality",
                               "credential_resolution"
                             ],
+                            "title": "ProofKind",
                             "type": "string"
                           },
                           "provider": {
@@ -911,6 +997,7 @@
                             "type": "string"
                           },
                           "type": {
+                            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                             "enum": [
                               "thread",
                               "comment",
@@ -940,6 +1027,7 @@
                               "connector_instance",
                               "connector_operation"
                             ],
+                            "title": "ReferenceType",
                             "type": "string"
                           },
                           "uri": {
@@ -951,6 +1039,7 @@
                           "type",
                           "uri"
                         ],
+                        "title": "Reference",
                         "type": "object",
                         "x-runx-schema": "runx.reference.v1"
                       },
@@ -963,11 +1052,13 @@
                     "outcome",
                     "detail"
                   ],
+                  "title": "AdmissionReason",
                   "type": "object"
                 },
                 "type": "array"
               },
               "requirement": {
+                "description": "The skill requirement key.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -978,6 +1069,7 @@
               "ready",
               "reasons"
             ],
+            "title": "Readiness",
             "type": "object",
             "x-runx-schema": "runx.readiness.v1"
           },
@@ -985,18 +1077,22 @@
           "type": "array"
         },
         "source": {
+          "description": "Where a package is: the registry publishes it, or the project authored it.",
           "enum": [
             "registry",
             "project"
           ],
+          "title": "CatalogSource",
           "type": "string"
         },
         "trust_tier": {
+          "description": "How far the registry vouches for a publisher: runx's own packages, a publisher it verified, or anyone's.",
           "enum": [
             "first_party",
             "verified",
             "community"
           ],
+          "title": "TrustTier",
           "type": "string"
         },
         "version": {
@@ -1009,9 +1105,12 @@
         "source",
         "operations"
       ],
+      "title": "ConnectorInspection",
       "type": "object"
     }
   ],
+  "description": "What `registry.inspect` reports: a skill's inspection (`runx.skill.inspect.v1`), or a connector's.",
+  "title": "RegistryInspection",
   "x-runx-packet": true,
   "x-runx-schema": "runx.registry.inspection.v1"
 }

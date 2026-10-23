@@ -42,7 +42,7 @@ returns its buyer-action links. Creation is a provider mutation, not buyer
 approval or capture. Continue the approved order through the default PayPal
 collection lane with its original order identity and terms. Stripe collection
 requires an existing permitted payment method; this skill does not collect card
-details or impersonate the buyer. MPP paid-invocation collection belongs to the
+details or impersonate the buyer. MPP purchase collection belongs to the
 existing purchase boundary and is not claimed as a standalone merchant lane here.
 
 ## Continue safely

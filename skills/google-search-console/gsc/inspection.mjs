@@ -33,7 +33,7 @@ export function normalizeInspection(inputs) {
 
   return {
     inspection_draft: {
-      schema: "runx.search.url_inspection.evidence.v1",
+      schema: "runx/google-search-console.url_inspection_evidence.v1",
       decision: findings.length === 0 ? "ready" : "blocked",
       provider: "google-search-console",
       provider_status: "readback_verified",

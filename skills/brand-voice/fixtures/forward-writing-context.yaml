@@ -18,8 +18,8 @@ caller:
             forbidden: [Autonomous everything with no review.]
           channel_adjustments: [Public updates stay concise and evidence-bound.]
         evidence_bindings:
-          - { rule: Lead with governed action and proof., source_refs: [source:1] }
-          - { rule: Runx receipts bind operator actions to authority evidence., source_refs: [source:1] }
+          - { rule: Lead with governed action and proof., source_ids: [source:1] }
+          - { rule: Runx receipts bind operator actions to authority evidence., source_ids: [source:1] }
         redactions: []
         stop_conditions: [Require new evidence before adding a new factual claim.]
     author:
@@ -29,11 +29,11 @@ caller:
         draft:
           title: Governed action stays visible
           body: Runx receipts bind operator actions to authority evidence.
-          claim_refs:
+          claims:
             - { claim: Receipts bind actions to authority evidence., source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111] }
         context_binding:
           applied:
-            - { packet_digest: sha256:2ee22691a8e1169cda71fc5ae0eb250541309f8470deb6738521a6c9e936ac74, applied_rules: [Lead with governed action and proof.] }
+            - { packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d, applied_rules: [Lead with governed action and proof.] }
         review_checklist: []
         distribution_notes: { primary_channel: public_update }
     draft:
@@ -48,9 +48,9 @@ caller:
             consequence: public_send
             rationale: Uses the admitted safe claim and voice principle.
         context_bindings:
-          - { packet_digest: sha256:2ee22691a8e1169cda71fc5ae0eb250541309f8470deb6738521a6c9e936ac74, applied_rules: [Lead with governed action and proof.] }
-        gates: { human_approval_required: true, approval_ref: approval:pending }
-        evidence_refs: []
+          - { packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d, applied_rules: [Lead with governed action and proof.] }
+        gates: { human_approval_required: true, approval_id: approval:pending }
+        evidence_locators: []
         open_questions: []
         blockers: []
         success_checkpoint: { milestone: plan_ready_for_approval, description: One exact post awaits approval. }
@@ -66,7 +66,7 @@ expect:
           data:
             decision: ready
             context_binding:
-              required: [{ type: brand_voice, packet_digest: sha256:2ee22691a8e1169cda71fc5ae0eb250541309f8470deb6738521a6c9e936ac74 }]
+              required: [{ type: brand_voice, packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d }]
             validation: { status: pass }
     social-plan:
       subset:
@@ -74,6 +74,6 @@ expect:
           data:
             decision: ready
             context_bindings:
-              - { packet_digest: sha256:2ee22691a8e1169cda71fc5ae0eb250541309f8470deb6738521a6c9e936ac74, applied_rules: [Lead with governed action and proof.] }
+              - { packet_digest: sha256:0161656cdc04f8e2002bd699c0ec2928bcabce90f59304384d147ba1cf5fc85d, applied_rules: [Lead with governed action and proof.] }
   receipt: { schema: runx.receipt.v1 }
 metadata: { public_skill: brand-voice, source_case: forward-writing-context, source: skills-fixture }

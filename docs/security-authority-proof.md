@@ -12,7 +12,7 @@ Allowed public fields:
 - the admitted execution terms and their subset proofs
 - granted scopes and grant references
 - the connector, the instance and the credential delivery observation with its
-  `material_ref` hash
+  `material_id_digest`
 - the typed execution-boundary observation and approval decisions
 
 Banned fields:
@@ -24,7 +24,7 @@ Banned fields:
 - unchecked provider output bodies in comments, public evidence, or ledgers
 
 Credential material is represented by hashed opaque handles such as
-`material_ref_hash`. Receipt writers still hash stdout and stderr, and metadata is
+`material_id_digest`. Receipt writers still hash stdout and stderr, and metadata is
 passed through the receipt redactor before signing. Local secret handoff is owned by the connector instance and the Rust
 `CredentialDelivery` boundary. Hosted provider execution keeps material in runx
 Connect, which renders only the connector's declared requests. In both paths,

@@ -22,7 +22,7 @@ export function indexSources(inputs) {
       continue;
     }
     sources.push({
-      source_ref: `source:${index + 1}`,
+      source_id: `source:${index + 1}`,
       kind,
       label: text(item.label),
       content,
@@ -49,7 +49,7 @@ export function finalizeVoice(inputs) {
   const index = object(inputs.source_index);
   const draft = object(inputs.brand_voice_draft);
   const sources = Array.isArray(index.sources) ? index.sources : [];
-  const byRef = new Map(sources.map((source) => [text(source.source_ref), source]));
+  const sourcesById = new Map(sources.map((source) => [text(source.source_id), source]));
   const evidenceDigest = text(inputs.evidence_digest);
   const findings = strings(index.blockers).map((message) => ({
     code: "brand_voice.source.invalid",
@@ -70,18 +70,18 @@ export function finalizeVoice(inputs) {
     if (!isDigest(evidenceDigest)) {
       findings.push({ code: "brand_voice.evidence.unbound", message: "native evidence digest is missing" });
     }
-    const bindingMap = new Map(bindings.map((binding) => [text(binding?.rule), strings(binding?.source_refs)]));
+    const bindingMap = new Map(bindings.map((binding) => [text(binding?.rule), strings(binding?.source_ids)]));
     for (const rule of [...principles, ...safeClaims]) {
-      const refs = bindingMap.get(rule) || [];
-      if (refs.length === 0 || refs.some((sourceRef) => !byRef.has(sourceRef))) {
+      const sourceIds = bindingMap.get(rule) || [];
+      if (sourceIds.length === 0 || sourceIds.some((sourceId) => !sourcesById.has(sourceId))) {
         findings.push({ code: "brand_voice.binding.invalid", message: `rule is not bound to admitted evidence: ${rule}` });
       }
-      if (safeClaims.includes(rule) && !refs.some((sourceRef) => byRef.get(sourceRef)?.kind === "approved")) {
+      if (safeClaims.includes(rule) && !sourceIds.some((sourceId) => sourcesById.get(sourceId)?.kind === "approved")) {
         findings.push({ code: "brand_voice.safe_claim.unapproved", message: `safe claim lacks approved evidence: ${rule}` });
       }
     }
     for (const binding of bindings) {
-      if (strings(binding?.source_refs).some((sourceRef) => !byRef.has(sourceRef))) {
+      if (strings(binding?.source_ids).some((sourceId) => !sourcesById.has(sourceId))) {
         findings.push({ code: "brand_voice.binding.unknown", message: "binding cites unknown evidence" });
       }
     }
@@ -107,7 +107,7 @@ export function finalizeVoice(inputs) {
       evidence: {
         evidence_digest: evidenceDigest,
         sources: sources.map((source) => ({
-          source_ref: text(source.source_ref),
+          source_id: text(source.source_id),
           kind: text(source.kind),
           label: text(source.label),
         })),

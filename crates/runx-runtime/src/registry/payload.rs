@@ -94,8 +94,7 @@ struct WithdrawnProbe {
 
 #[derive(Deserialize)]
 struct WithdrawnPackage {
-    #[serde(rename = "ref")]
-    name: String,
+    connector: String,
     version: String,
     withdrawn_at: Option<String>,
 }
@@ -173,14 +172,14 @@ pub(crate) fn parse_connector_package(
     if let Ok(WithdrawnProbe {
         package:
             WithdrawnPackage {
-                name,
+                connector,
                 version,
                 withdrawn_at: Some(withdrawn_at),
             },
     }) = serde_json::from_str::<WithdrawnProbe>(body)
     {
         return Err(RegistryClientError::Withdrawn {
-            subject: format!("{name}@{version}"),
+            subject: format!("{connector}@{version}"),
             withdrawn_at,
         });
     }

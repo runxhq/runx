@@ -7,10 +7,10 @@ method:
     description: A question, source packets or bounded local files.
   - title: Make sense of it
     description: Separate evidence, inference and unresolved questions.
-    skill_ref: ../research
+    skill: ../research
   - title: Write the brief
     description: Draft a recommendation when the evidence is ready.
-    skill_ref: ../ghostwrite
+    skill: ../ghostwrite
 inputs:
   - label: The decision you need to make
     input: objective

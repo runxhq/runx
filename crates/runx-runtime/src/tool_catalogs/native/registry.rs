@@ -56,9 +56,8 @@ impl CapabilityOutput for RegistrySearchPacket {}
 #[derive(Clone, Debug, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct InspectInput {
-    /// A skill or connector ref, as `registry.search` returns it.
-    #[serde(rename = "ref")]
-    pub(super) r#ref: String,
+    /// A skill or connector package, as `registry.search` returns it.
+    pub(super) package: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) runner: Option<String>,
 }
@@ -88,13 +87,16 @@ fn search(
     if wants(CatalogPackageKind::Skill) {
         hits.extend(found.results.into_iter().map(|result| {
             CatalogHit {
-                r#ref: match &result.version {
+                package: match &result.version {
                     Some(version) => format!("{}@{version}", result.skill_id),
                     None => result.skill_id.clone(),
                 },
                 kind: CatalogPackageKind::Skill,
                 source: CatalogSource::Registry,
-                publisher: Some(result.owner),
+                publisher: result
+                    .skill_id
+                    .split_once('/')
+                    .map(|(publisher, _)| publisher.to_owned()),
                 trust_tier: Some(result.trust_tier),
                 summary: result.summary,
                 runners: result
@@ -110,7 +112,7 @@ fn search(
     }
     if wants(CatalogPackageKind::Connector) {
         hits.extend(found.connectors.into_iter().map(|connector| CatalogHit {
-            r#ref: connector.connector.as_str().to_owned(),
+            package: connector.connector.as_str().to_owned(),
             kind: CatalogPackageKind::Connector,
             source: CatalogSource::Registry,
             publisher: None,
@@ -158,7 +160,7 @@ fn project_hits(
                 continue;
             }
             hits.push(CatalogHit {
-                r#ref: relative(workspace, &directory),
+                package: relative(workspace, &directory),
                 kind: CatalogPackageKind::Skill,
                 source: CatalogSource::Project,
                 publisher: None,
@@ -187,7 +189,7 @@ fn project_hits(
                 continue;
             }
             hits.push(CatalogHit {
-                r#ref: connector.name.as_str().to_owned(),
+                package: connector.name.as_str().to_owned(),
                 kind: CatalogPackageKind::Connector,
                 source: CatalogSource::Project,
                 publisher: None,
@@ -209,11 +211,11 @@ fn inspect(
     let workspace = paths.workspace();
     // A connector the project holds, or one a hosted registry publishes; a
     // ref no connector answers is a skill's.
-    if let Some(connector) = inspect_connector(&inputs.r#ref, &paths, env)? {
+    if let Some(connector) = inspect_connector(&inputs.package, &paths, env)? {
         return Ok(RegistryInspection::Connector(connector));
     }
     let resolved = resolve_skill_ref_details(
-        Path::new(&inputs.r#ref),
+        Path::new(&inputs.package),
         workspace,
         SkillResolverOptions {
             env,
@@ -349,8 +351,8 @@ const SEARCH_FIELDS: &[CapabilityField] = &[
 
 const INSPECT_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "ref",
-        description: "A ref registry.search returned: a registry ref, or a project package's path.",
+        name: "package",
+        description: "A package registry.search returned: a registry package, or a project package's path.",
     },
     CapabilityField {
         name: "runner",
@@ -362,7 +364,7 @@ static SEARCH_CAPABILITY: TypedNativeCapability<SearchInput, RegistrySearchPacke
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: SEARCH,
-            owner: "runx-runtime/registry",
+            source: "runx-runtime/registry",
             summary: "Search the registry and the project for skills and connectors: each hit's ref, kind, publisher, trust tier, summary, runners with their purposes, and whether the registry or the project holds it.",
             scopes: &["registry.read"],
             effect: CapabilityEffect::Read,
@@ -380,7 +382,7 @@ static INSPECT_CAPABILITY: TypedNativeCapability<InspectInput, RegistryInspectio
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: INSPECT,
-            owner: "runx-runtime/registry",
+            source: "runx-runtime/registry",
             summary: "Inspect a skill or connector without adding it to the project: a skill's runners with their inputs, effects, connectors and readiness; a connector's operations, approvals and readiness.",
             scopes: &["registry.read"],
             effect: CapabilityEffect::Read,

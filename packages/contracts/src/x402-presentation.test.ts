@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
-  RUNX_X402_INVOCATION_EXTENSION_KEY,
-  RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
+  RUNX_X402_PURCHASE_EXTENSION_KEY,
+  RUNX_X402_PURCHASE_SCHEMA_REFERENCE,
   X402_BAZAAR_EXTENSION_KEY,
   X402_PAYMENT_REQUIRED_HEADER,
   X402PresentationError,
@@ -21,11 +21,11 @@ import {
   declareExternalX402JsonPostDiscovery,
   encodeX402PaymentRequiredHeader,
   encodeX402PaymentResponseHeader,
-  parseRunxX402InvocationDeclaration,
+  parseRunxX402PurchaseDeclaration,
   encodeX402PaymentSignatureHeader,
   runxGeneratedSchemaArtifacts,
-  runxX402InvocationExtensionInfoV1Schema,
-  validateRunxX402InvocationExtensionInfoContract,
+  runxX402PurchaseExtensionInfoV1Schema,
+  validateRunxX402PurchaseExtensionInfoContract,
   validateX402PaymentPayloadContract,
   validateX402PaymentRequiredContract,
   validateX402PaymentRetry,
@@ -38,7 +38,7 @@ import {
   x402PaymentRequirementsV2Schema,
   x402ResourceInfoV2Schema,
   x402SettleResponseV2Schema,
-  type RunxX402ExtensionInfoContract,
+  type RunxX402PurchaseExtensionInfoContract,
   type RunxX402DiscoveryExtensionInfoContract,
   type X402PaymentPayloadContract,
 } from "./index.js";
@@ -50,7 +50,7 @@ interface X402Fixture {
     | "payment-required"
     | "payment-payload"
     | "settle-response"
-    | "runx_invocation_extension";
+    | "runx_purchase_extension";
   readonly payload: unknown;
   readonly schema_id: string;
 }
@@ -81,7 +81,7 @@ describe("x402 v2 TypeScript facade", () => {
       [x402PaymentRequiredV2Schema, "x402-v2-payment-required.schema.json", X402_SCHEMA_IDS.paymentRequired],
       [x402PaymentPayloadV2Schema, "x402-v2-payment-payload.schema.json", X402_SCHEMA_IDS.paymentPayload],
       [x402SettleResponseV2Schema, "x402-v2-settle-response.schema.json", X402_SCHEMA_IDS.settleResponse],
-      [runxX402InvocationExtensionInfoV1Schema, "runx-x402-invocation-extension-v1.schema.json", X402_SCHEMA_IDS.runxInvocationExtension],
+      [runxX402PurchaseExtensionInfoV1Schema, "runx-x402-purchase-extension-v1.schema.json", X402_SCHEMA_IDS.runxPurchaseExtension],
     ] as const;
 
     for (const [schema, file, id] of bindings) {
@@ -120,7 +120,7 @@ describe("x402 v2 TypeScript facade", () => {
       "payment-required": validateX402PaymentRequiredContract,
       "payment-payload": validateX402PaymentPayloadContract,
       "settle-response": validateX402SettleResponseContract,
-      runx_invocation_extension: validateRunxX402InvocationExtensionInfoContract,
+      runx_purchase_extension: validateRunxX402PurchaseExtensionInfoContract,
     } as const;
 
     for (const vector of manifest.vectors) {
@@ -138,21 +138,21 @@ describe("x402 v2 TypeScript facade", () => {
     const officialRequired = validateX402PaymentRequiredContract(
       fixture("official-payment-required.json").payload,
     );
-    const invocation = fixture("runx-invocation-extension.json")
-      .payload as RunxX402ExtensionInfoContract;
+    const info = fixture("runx-purchase-extension.json")
+      .payload as RunxX402PurchaseExtensionInfoContract;
     const challenge = assembleX402PaymentRequired({
       resource: officialRequired.resource,
       accepts: officialRequired.accepts,
-      invocation,
-      extensions: { "vendor.example": { future: true } },
+      info,
+      extensions: { "seller.example": { future: true } },
     });
-    expect(challenge.extensions?.["vendor.example"]).toEqual({ future: true });
-    expect(challenge.extensions?.[RUNX_X402_INVOCATION_EXTENSION_KEY]).toEqual({
-      info: invocation,
-      schema: { $ref: "https://schemas.runx.ai/runx/x402/invocation-extension/v1.json" },
+    expect(challenge.extensions?.["seller.example"]).toEqual({ future: true });
+    expect(challenge.extensions?.[RUNX_X402_PURCHASE_EXTENSION_KEY]).toEqual({
+      info,
+      schema: { $ref: "https://schemas.runx.ai/runx/x402/purchase-extension/v1.json" },
     });
-    expect(RUNX_X402_INVOCATION_SCHEMA_REFERENCE).toEqual({
-      $ref: runxX402InvocationExtensionInfoV1Schema.$id,
+    expect(RUNX_X402_PURCHASE_SCHEMA_REFERENCE).toEqual({
+      $ref: runxX402PurchaseExtensionInfoV1Schema.$id,
     });
 
     const retry: X402PaymentPayloadContract = {
@@ -164,12 +164,12 @@ describe("x402 v2 TypeScript facade", () => {
     };
     expect(validateX402PaymentRetry(challenge, retry)).toEqual({
       requirementIndex: 0,
-      invocation,
+      info,
     });
 
-    expect(parseRunxX402InvocationDeclaration(retry.extensions)).toEqual({
-      info: invocation,
-      schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
+    expect(parseRunxX402PurchaseDeclaration(retry.extensions)).toEqual({
+      info,
+      schema: RUNX_X402_PURCHASE_SCHEMA_REFERENCE,
     });
 
     // Every emitter advertises the reference, so an echo carrying the whole
@@ -177,28 +177,28 @@ describe("x402 v2 TypeScript facade", () => {
     const inlineEcho: X402PaymentPayloadContract = {
       ...structuredClone(retry),
       extensions: {
-        [RUNX_X402_INVOCATION_EXTENSION_KEY]: {
-          info: invocation,
-          schema: runxX402InvocationExtensionInfoV1Schema,
+        [RUNX_X402_PURCHASE_EXTENSION_KEY]: {
+          info,
+          schema: runxX402PurchaseExtensionInfoV1Schema,
         },
       },
     };
     expect(presentationErrorCode(() => validateX402PaymentRetry(challenge, inlineEcho)))
-      .toBe("runx_invocation_schema_mismatch");
-    expect(presentationErrorCode(() => parseRunxX402InvocationDeclaration(inlineEcho.extensions)))
-      .toBe("runx_invocation_schema_mismatch");
+      .toBe("runx_purchase_schema_mismatch");
+    expect(presentationErrorCode(() => parseRunxX402PurchaseDeclaration(inlineEcho.extensions)))
+      .toBe("runx_purchase_schema_mismatch");
 
     const foreignReference: X402PaymentPayloadContract = {
       ...structuredClone(retry),
       extensions: {
-        [RUNX_X402_INVOCATION_EXTENSION_KEY]: {
-          info: invocation,
-          schema: { $ref: "https://schemas.runx.ai/runx/x402/invocation-extension/v2.json" },
+        [RUNX_X402_PURCHASE_EXTENSION_KEY]: {
+          info,
+          schema: { $ref: "https://schemas.runx.ai/runx/x402/purchase-extension/v2.json" },
         },
       },
     };
     expect(presentationErrorCode(() => validateX402PaymentRetry(challenge, foreignReference)))
-      .toBe("runx_invocation_schema_mismatch");
+      .toBe("runx_purchase_schema_mismatch");
 
     const changedAmount = structuredClone(retry);
     (changedAmount.accepted as { amount: string }).amount = "10001";
@@ -209,15 +209,15 @@ describe("x402 v2 TypeScript facade", () => {
     // under its own, and a payment that names it, or none, commits the same.
     const relayedResource = structuredClone(retry);
     (relayedResource.resource as { url: string }).url = "https://seller.example.com/v1/door";
-    expect(validateX402PaymentRetry(challenge, relayedResource)).toEqual({ requirementIndex: 0, invocation });
+    expect(validateX402PaymentRetry(challenge, relayedResource)).toEqual({ requirementIndex: 0, info });
     const { resource: _resource, ...withoutResource } = structuredClone(retry);
-    expect(validateX402PaymentRetry(challenge, withoutResource)).toEqual({ requirementIndex: 0, invocation });
+    expect(validateX402PaymentRetry(challenge, withoutResource)).toEqual({ requirementIndex: 0, info });
 
     expect(() => assembleX402PaymentRequired({
       resource: challenge.resource,
       accepts: challenge.accepts,
-      invocation,
-      extensions: { [RUNX_X402_INVOCATION_EXTENSION_KEY]: { attacker: true } },
+      info,
+      extensions: { [RUNX_X402_PURCHASE_EXTENSION_KEY]: { attacker: true } },
     })).toThrow("reserved");
   });
 
@@ -329,7 +329,7 @@ describe("x402 v2 TypeScript facade", () => {
         },
         resource: {
           method: "POST",
-          routeTemplate: "/v1/skills/vendor/documents/run",
+          routeTemplate: "/v1/skills/acme/documents/run",
         },
       },
       schema: { type: "object", additionalProperties: true },
@@ -337,8 +337,8 @@ describe("x402 v2 TypeScript facade", () => {
     const descriptor = {
       resource: official.resource,
       accepts: official.accepts,
-      offerRevision: discovery.offer_revision,
-      packageDigest: discovery.package_digest,
+      offerVersion: discovery.offer_version,
+      bundleDigest: discovery.bundle_digest,
       extensions: { [X402_BAZAAR_EXTENSION_KEY]: bazaar },
     } as const;
 
@@ -351,13 +351,13 @@ describe("x402 v2 TypeScript facade", () => {
     expect(projection.body.x402Version).toBe(2);
     expect(projection.body.accepts).toEqual(official.accepts);
     expect(projection.body.extensions?.[X402_BAZAAR_EXTENSION_KEY]).toEqual(bazaar);
-    expect(projection.body.extensions?.[RUNX_X402_INVOCATION_EXTENSION_KEY]).toEqual({
+    expect(projection.body.extensions?.[RUNX_X402_PURCHASE_EXTENSION_KEY]).toEqual({
       info: discovery,
-      schema: RUNX_X402_INVOCATION_SCHEMA_REFERENCE,
+      schema: RUNX_X402_PURCHASE_SCHEMA_REFERENCE,
     });
   });
 
-  it("projects an external vendor resource without inventing Runx invocation identity", () => {
+  it("projects a seller's own resource without inventing Runx purchase identity", () => {
     const official = validateX402PaymentRequiredContract(
       fixture("official-payment-required.json").payload,
     );
@@ -376,7 +376,7 @@ describe("x402 v2 TypeScript facade", () => {
       accepts: official.accepts,
       extensions: { [X402_BAZAAR_EXTENSION_KEY]: bazaar },
     }));
-    expect(projection.body.extensions?.[RUNX_X402_INVOCATION_EXTENSION_KEY]).toBeUndefined();
+    expect(projection.body.extensions?.[RUNX_X402_PURCHASE_EXTENSION_KEY]).toBeUndefined();
     expect(decodeX402PaymentRequiredHeader(
       projection.headers[X402_PAYMENT_REQUIRED_HEADER],
     )).toEqual(projection.body);
@@ -391,8 +391,8 @@ describe("x402 v2 TypeScript facade", () => {
     const descriptor = {
       resource: official.resource,
       accepts: official.accepts,
-      offerRevision: discovery.offer_revision,
-      packageDigest: discovery.package_digest,
+      offerVersion: discovery.offer_version,
+      bundleDigest: discovery.bundle_digest,
     } as const;
 
     expect(presentationErrorCode(() => x402DiscoveryHttpProjection({

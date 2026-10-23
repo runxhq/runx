@@ -214,7 +214,7 @@ def bound_account(account):
     if (not isinstance(binding.get("browser_pid"), str) or not ID_RE.fullmatch(binding["browser_pid"])
             or not isinstance(binding.get("window_id"), str) or not ID_RE.fullmatch(binding["window_id"])
             or not isinstance(binding.get("tab_id"), str) or not ID_RE.fullmatch(binding["tab_id"])
-            or not isinstance(binding.get("profile_ref"), str) or not PROFILE_RE.fullmatch(binding["profile_ref"])):
+            or not isinstance(binding.get("profile"), str) or not PROFILE_RE.fullmatch(binding["profile"])):
         raise BrowserStop("invalid_binding_file")
     return binding
 
@@ -296,7 +296,7 @@ def runx_argv(data):
         raise BrowserStop("invalid_tool_inputs")
     argv = [operation, account]
     if operation == "bind":
-        for field in ("browser_pid", "window_id", "tab_id", "profile_ref"):
+        for field in ("browser_pid", "window_id", "tab_id", "profile"):
             if not isinstance(data.get(field), str):
                 raise BrowserStop("invalid_tool_inputs")
             argv.extend(["--" + field.replace("_", "-"), data[field]])
@@ -315,7 +315,7 @@ def main(data):
     if data and data["operation"] == "session":
         parameters = data.get("parameters", {})
         binding = bound_account(parameters.get("account", ""))
-        if binding["profile_ref"] != parameters.get("profile_ref"):
+        if binding["profile"] != parameters.get("profile"):
             raise BrowserStop("wrong_browser_profile")
         _, username = read_identity(binding)
         print(json.dumps({"id": username, "login": username}))
@@ -356,7 +356,7 @@ def main(data):
     bind.add_argument("--browser-pid", required=True)
     bind.add_argument("--window-id", required=True)
     bind.add_argument("--tab-id", required=True)
-    bind.add_argument("--profile-ref", required=True)
+    bind.add_argument("--profile", required=True)
     for name in ("inspect", "feed", "rules", "thread", "composer"):
         sub.add_parser(name).add_argument("account")
     nav = sub.add_parser("navigate")
@@ -373,9 +373,9 @@ def main(data):
         return
     account_id = ensure_account(args.account)
     if args.operation == "bind":
-        if not PROFILE_RE.fullmatch(args.profile_ref):
-            raise BrowserStop("invalid_profile_ref")
-        binding = {"account_id": account_id, "browser_pid": args.browser_pid, "window_id": args.window_id, "tab_id": args.tab_id, "profile_ref": args.profile_ref}
+        if not PROFILE_RE.fullmatch(args.profile):
+            raise BrowserStop("invalid_profile")
+        binding = {"account_id": account_id, "browser_pid": args.browser_pid, "window_id": args.window_id, "tab_id": args.tab_id, "profile": args.profile}
         page, _ = read_identity(binding)
         data = read_bindings()
         for other, candidate in list(data.items()):
@@ -383,12 +383,12 @@ def main(data):
                 del data[other]
         data[account_id] = binding
         write_bindings(data)
-        output(account_id, {"status": "bound", "url": page["url"], "profile_ref": args.profile_ref})
+        output(account_id, {"status": "bound", "url": page["url"], "profile": args.profile})
         return
     binding = bound_account(account_id)
     page, _ = read_identity(binding)
     if args.operation == "inspect":
-        output(account_id, {"status": "observed", "page": page, "profile_ref": binding["profile_ref"]})
+        output(account_id, {"status": "observed", "page": page, "profile": binding["profile"]})
     elif args.operation == "navigate":
         page = navigate_tab(binding, args.url)
         output(account_id, {"status": "already_at_url" if page["navigation"] == "already_at_url" else "navigated", "page": page})

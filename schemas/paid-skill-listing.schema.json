@@ -2,10 +2,18 @@
   "$id": "https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Immutable marketplace identity and commercial terms for paid runners in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`.",
   "properties": {
+    "bundle_digest": {
+      "description": "The registry's digest of the published bundle's files.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
     "offers": {
       "additionalProperties": {
         "additionalProperties": false,
+        "description": "One immutable, registry-resolved runner offer.",
         "properties": {
           "accepted_settlement_families": {
             "items": {
@@ -21,33 +29,40 @@
           },
           "acts_on": {
             "additionalProperties": false,
+            "description": "A resource an earlier purchase bought that a paid runner acts on, such as the inbox an extension extends. runx admits the purchase only while its buyer holds that resource, so the buyer hands the seller's run no bearer.",
             "properties": {
               "connector": {
+                "description": "The seller connector the resource is held in.",
                 "minLength": 1,
                 "type": "string"
               },
               "credential": {
+                "description": "That connector's `kind: purchase` credential.",
                 "maxLength": 64,
                 "pattern": "^[a-z][a-z0-9_]{0,63}$",
                 "type": "string"
               },
-              "target": {}
+              "target": {
+                "description": "The held resource, rendered from the runner's inputs alone."
+              }
             },
             "required": [
               "connector",
               "credential",
               "target"
             ],
+            "title": "PaidSkillActsOn",
             "type": "object"
           },
           "currency": {
             "pattern": "^[A-Z]{3}$",
             "type": "string"
           },
-          "offer_revision": {
+          "offer_version": {
             "additionalProperties": false,
             "properties": {
               "input_schema_digest": {
+                "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
               },
@@ -56,31 +71,37 @@
                 "type": "string"
               },
               "output_schema_digest": {
+                "maxLength": 71,
                 "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
               },
-              "revision": {
+              "profile_digest": {
+                "description": "The digest of the profile that declares the offer at that version.",
+                "maxLength": 71,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "version": {
+                "description": "The package version the offer is sold at.",
                 "minLength": 1,
-                "type": "string"
-              },
-              "revision_digest": {
-                "pattern": "^sha256:[0-9a-f]{64}$",
                 "type": "string"
               }
             },
             "required": [
               "offer_id",
-              "revision",
-              "revision_digest",
+              "version",
+              "profile_digest",
               "input_schema_digest",
               "output_schema_digest"
             ],
+            "title": "EmbeddedOfferVersionBinding",
             "type": "object"
           },
           "price": {
             "anyOf": [
               {
                 "additionalProperties": false,
+                "description": "One amount for every call.",
                 "properties": {
                   "amount_minor": {
                     "maximum": 9007199254740991,
@@ -100,10 +121,12 @@
               },
               {
                 "additionalProperties": false,
+                "description": "An amount for each combination of values of the selector inputs, each an `enum` input the runner requires. The cases cover every combination exactly once.",
                 "properties": {
                   "cases": {
                     "items": {
                       "additionalProperties": false,
+                      "description": "One `input_choice` case: the selector values, in selector order, and what a call with them costs.",
                       "properties": {
                         "amount_minor": {
                           "maximum": 9007199254740991,
@@ -124,7 +147,8 @@
                               {
                                 "type": "boolean"
                               }
-                            ]
+                            ],
+                            "title": "PriceChoice"
                           },
                           "type": "array"
                         }
@@ -133,6 +157,7 @@
                         "when",
                         "amount_minor"
                       ],
+                      "title": "PaidSkillPriceCase",
                       "type": "object"
                     },
                     "type": "array"
@@ -158,6 +183,7 @@
               },
               {
                 "additionalProperties": false,
+                "description": "A base amount plus a unit amount for each started `unit_bytes` of the committed artifact the `artifact_input` names, up to `max_bytes`.",
                 "properties": {
                   "artifact_input": {
                     "minLength": 1,
@@ -196,15 +222,18 @@
                 ],
                 "type": "object"
               }
-            ]
+            ],
+            "description": "How an offer prices one call: from the listing and the inputs the runner receives, never from the runner. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's runner says can change it.",
+            "title": "PaidSkillPrice"
           }
         },
         "required": [
-          "offer_revision",
+          "offer_version",
           "price",
           "currency",
           "accepted_settlement_families"
         ],
+        "title": "PaidSkillRunnerOffer",
         "type": "object"
       },
       "maxProperties": 64,
@@ -214,23 +243,12 @@
       },
       "type": "object"
     },
-    "package_digest": {
-      "pattern": "^sha256:[0-9a-f]{64}$",
-      "type": "string"
-    },
     "profile_digest": {
+      "maxLength": 71,
       "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
-    "skill_digest": {
-      "pattern": "^sha256:[0-9a-f]{64}$",
-      "type": "string"
-    },
-    "skill_id": {
-      "minLength": 1,
-      "type": "string"
-    },
-    "vendor_ref": {
+    "seller_ref": {
       "$id": "https://schemas.runx.ai/runx/reference/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
@@ -254,6 +272,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -273,8 +292,18 @@
         "type",
         "uri"
       ],
+      "title": "PrincipalReference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
+    },
+    "skill_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "skill_id": {
+      "minLength": 1,
+      "type": "string"
     },
     "version": {
       "minLength": 1,
@@ -286,10 +315,11 @@
     "version",
     "skill_digest",
     "profile_digest",
-    "package_digest",
-    "vendor_ref",
+    "bundle_digest",
+    "seller_ref",
     "offers"
   ],
+  "title": "PaidSkillListing",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.marketplace.paid_skill_listing.v1"

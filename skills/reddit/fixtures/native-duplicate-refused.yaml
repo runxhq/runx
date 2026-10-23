@@ -7,7 +7,7 @@ setup:
   parameters:
     reddit:
       account: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
 inputs: {}
 expect:
   status: sealed
@@ -30,7 +30,7 @@ caller:
       operation: session
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
     result:
       id: example_builder
       login: example_builder
@@ -44,12 +44,12 @@ caller:
       session_account: example_builder
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
       phase: perform
-      idempotency_key: runx:sha256:464ad50715e48e1c842c374a0b30d14ad9ebb752b64d96ef15cabbb9b3f4facd
+      idempotency_key: runx:sha256:0528de0403b41fa3f5769467324acde4fb756a231d6fbad3a23e58e98c4c1b9d
     result:
       account_id: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
       parent_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
       permalink: https://www.reddit.com/r/learnprogramming/comments/abc123/example/def456/
       title: ''
@@ -66,12 +66,12 @@ caller:
       session_account: example_builder
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
       phase: readback
-      idempotency_key: runx:sha256:464ad50715e48e1c842c374a0b30d14ad9ebb752b64d96ef15cabbb9b3f4facd
+      idempotency_key: runx:sha256:0528de0403b41fa3f5769467324acde4fb756a231d6fbad3a23e58e98c4c1b9d
       acknowledgement:
         account_id: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
         parent_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
         permalink: https://www.reddit.com/r/learnprogramming/comments/abc123/example/def456/
         title: ''
@@ -80,7 +80,7 @@ caller:
         visibility: visible_to_account
     result:
       account_id: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
       parent_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
       permalink: https://www.reddit.com/r/learnprogramming/comments/abc123/example/def456/
       title: ''

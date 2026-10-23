@@ -33,7 +33,7 @@ export function executionStatus(inputs) {
   return {
     twitter_status: {
       decision,
-      data_source_ref: inputs.data_source_ref,
+      data_source_uri: inputs.data_source_uri,
       plan_digest: inputs.plan_digest,
       objective: text(original.objective) || null,
       principal: text(original.principal) || null,
@@ -54,7 +54,7 @@ export function executionStatus(inputs) {
       } : null,
       next_input: decision === "ready" || decision === "waiting" ? {
         plan_digest: inputs.plan_digest,
-        data_source_ref: inputs.data_source_ref,
+        data_source_uri: inputs.data_source_uri,
         max_acts: inputs.max_acts,
       } : null,
       blockers: hasPlan ? array(plan.blockers) : ["Supply the exact plan and native digest to execute once; no saved plan is available in this store."],
@@ -66,7 +66,7 @@ export function recentExecutions(inputs) {
   const result = record(inputs.heads);
   return {
     twitter_recent: {
-      data_source_ref: inputs.data_source_ref,
+      data_source_uri: inputs.data_source_uri,
       items: array(result.rows).map((row) => {
         const event = record(row.event);
         return {

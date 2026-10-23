@@ -62,7 +62,7 @@ operations:
       template: {"$argument": "/resource"}
     guarantees:
       provider_idempotency: enforced
-    result_fields: [payment_contract, payment_ref, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_ref, settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
+    result_fields: [payment_contract, payment_id, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_uri, settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.recover:
     description: Resume settlement of one staged x402 payment.
@@ -71,7 +71,7 @@ operations:
     scopes: [payment.x402.merchant.write]
     target:
       template: {"$argument": "/resource"}
-    result_fields: [payment_contract, payment_ref, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_ref, settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
+    result_fields: [payment_contract, payment_id, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_uri, settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.read:
     description: Read one x402 payment by its payment reference.
@@ -79,7 +79,7 @@ operations:
     scopes: [payment.x402.merchant.read]
     target:
       template: {"$argument": "/resource"}
-    result_fields: [payment_contract, payment_ref, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_ref, settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
+    result_fields: [payment_contract, payment_id, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_uri, settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.lookup:
     description: Find one x402 payment by its idempotency key and request binding.
@@ -87,7 +87,7 @@ operations:
     scopes: [payment.x402.merchant.read]
     target:
       template: {"$argument": "/resource"}
-    result_fields: [payment_contract, payment_ref, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_ref, settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
+    result_fields: [payment_contract, payment_id, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_uri, settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.refund:
     description: Refund all or part of one settled x402 payment.
@@ -101,7 +101,7 @@ operations:
     amount:
       units: {"$argument": "/amount_minor"}
       currency: {"$argument": "/currency"}
-    result_fields: [refund_contract, refund_ref, payment_ref, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_ref, provider_idempotency_key, refund_settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
+    result_fields: [refund_contract, refund_id, payment_id, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_id, provider_idempotency_key, refund_settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}
   payment.x402.merchant.refund.read:
     description: Read one x402 refund by its refund reference.
@@ -109,5 +109,5 @@ operations:
     scopes: [payment.x402.merchant.read]
     target:
       template: {"$argument": "/resource"}
-    result_fields: [refund_contract, refund_ref, payment_ref, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_ref, provider_idempotency_key, refund_settlement_ref, payer, pay_to, network, asset, asset_decimals, settled_at]
+    result_fields: [refund_contract, refund_id, payment_id, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_id, provider_idempotency_key, refund_settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
     hosted: {}

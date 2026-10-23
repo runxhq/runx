@@ -7,7 +7,7 @@ use runx_contracts::sha256_prefixed;
 use serde::Deserialize;
 
 use super::install::{InstallCandidate, InstallLocalSkillOptions, install_bundled_skill};
-use super::package_files::registry_package_digest;
+use super::package_files::registry_bundle_digest;
 use super::{InstallLocalSkillResult, RegistryPublishPackageParts};
 use crate::RunxPaths;
 
@@ -119,15 +119,15 @@ impl BundledSkill {
             .profile_document
             .as_ref()
             .map(|profile| sha256_prefixed(profile.as_bytes()));
-        let package_digest = registry_package_digest(&self.package.package_files);
+        let bundle_digest = registry_bundle_digest(&self.package.package_files);
         let candidate = InstallCandidate {
             markdown: self.package.markdown.clone(),
             profile_document: self.package.profile_document.clone(),
             package_files: self.package.package_files.clone(),
-            package_digest,
+            bundle_digest,
             source: "bundled:runx".to_owned(),
             source_label: "Bundled Runx core".to_owned(),
-            r#ref: format!("{}@{version}", self.skill_id),
+            package: format!("{}@{version}", self.skill_id),
             skill_id: Some(self.skill_id.clone()),
             version: Some(version.to_owned()),
             signed_manifest: None,

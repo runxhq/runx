@@ -396,7 +396,7 @@ runners:
   append_event:
     default: true
     inputs:
-      data_source_ref: { type: string, required: true }
+      data_source_uri: { type: string, required: true }
       resource: { type: string, required: true }
       aggregate_id: { type: string, required: true }
       expected_version: { type: number, required: true }
@@ -408,7 +408,7 @@ runners:
         operation: store/events.append
         idempotency_key: $input.idempotency_key
         input:
-          data_source_ref: $input.data_source_ref
+          data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
@@ -432,7 +432,7 @@ fn append(root: &Path, key: &str) -> Result<(bool, serde_json::Value), Box<dyn s
             skill.to_str().ok_or("the skill path is not text")?,
             "append_event",
             "-i",
-            "data_source_ref=local://board",
+            "data_source_uri=local://board",
             "-i",
             "resource=items",
             "-i",
@@ -765,7 +765,7 @@ fn a_reference_is_read_through_the_managers_cli_and_listing_reads_nothing() -> T
             "listing read the secret"
         );
         assert!(
-            !fs::read_to_string(root.join(".runx/kernel.sqlite"))
+            !fs::read_to_string(root.join(".runx/kernel-v2.sqlite"))
                 .unwrap_or_default()
                 .contains("refs-from-aws"),
             "the value was stored"

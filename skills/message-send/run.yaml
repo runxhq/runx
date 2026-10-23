@@ -1,5 +1,5 @@
 skill: message-send
-version: "0.1.2"
+version: "0.1.3"
 
 catalog:
   kind: graph
@@ -20,11 +20,11 @@ input_definitions:
       additionalProperties: false
       properties:
         message: { type: string, minLength: 1, maxLength: 4000 }
-        content_ref: { type: string, minLength: 1, maxLength: 2048 }
+        content_uri: { type: string, minLength: 1, maxLength: 2048 }
         digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
       oneOf:
         - required: [message]
-        - required: [content_ref, digest]
+        - required: [content_uri, digest]
 
 harness:
   files: [fixtures/support/composed.graph, fixtures/support/plan.graph, fixtures/support/reply.graph]
@@ -54,7 +54,7 @@ harness:
           observed_at: '2026-10-05T00:00:00Z'
           redaction_status: unredacted
           workflow_inputs:
-            source_ref: 'slack://T123/C123/1.000001'
+            source_locator: 'slack://T123/C123/1.000001'
             source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
             thread_locator: 'slack://T123/C123/1.000001'
             source_complete: false
@@ -70,7 +70,7 @@ harness:
           held:
             subset:
               work_result:
-                data: { disposition: held, completion_evidence: [], followups: [] }
+                data: { state: held, completion_evidence: [], followups: [] }
         receipt: { schema: runx.receipt.v1 }
 
 connectors:
@@ -178,7 +178,7 @@ runners:
           named_emits:
             notify_plan: notify_plan
           packets:
-            notify_plan: runx.notify.v1
+            notify_plan: runx/message-send.notification_plan.v1
 
   plan_post:
     description: Plan one channel post, checking its destination, digesting its text and binding the plan, without posting or asking approval. Post it with post.
@@ -254,7 +254,7 @@ runners:
           named_emits:
             notify_plan: notify_plan
           packets:
-            notify_plan: runx.notify.v1
+            notify_plan: runx/message-send.notification_plan.v1
       - id: reject
         when:
           value: $steps.bind-content.slack_context.decision
@@ -268,13 +268,13 @@ runners:
           named_emits:
             notify_plan: notify_plan
           packets:
-            notify_plan: runx.notify.v1
+            notify_plan: runx/message-send.notification_plan.v1
   post:
     description: Post a planned message once, exactly as planned, under approval or a standing authority, and read it back.
     inputs:
       notification_plan:
         type: json
-        packet: runx.notify.v1
+        packet: runx/message-send.notification_plan.v1
         required: true
         description: Exact notify_plan emitted by the plan runner.
       channel_locator:
@@ -291,12 +291,12 @@ runners:
         description: Stable UUID for this exact Slack delivery.
     examples:
       - notification_plan:
-          schema: runx.notify.v1
+          schema: runx/message-send.notification_plan.v1
           decision: ready_for_provider
           provider: slack
           principal: runx:principal:kam
           channel: slack://T123/C456
-          content_ref: inline:sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
+          content_uri: inline:sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
           content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
           send_plan: { decision: ready }
           provider_status: not_called
@@ -373,7 +373,7 @@ runners:
   reconcile_post:
     description: Read back a post whose delivery was uncertain, without posting again.
     inputs:
-      notification_plan: { type: json, packet: runx.notify.v1, required: true }
+      notification_plan: { type: json, packet: runx/message-send.notification_plan.v1, required: true }
       channel_locator: { type: string, required: true }
       text: { type: string, required: true }
       message_locator: { type: string, required: true }
@@ -419,7 +419,7 @@ runners:
         type: json
         required: false
         description: Recipient, list, segment, thread, channel, or audience brief.
-      content_ref:
+      content:
         type: json
         required: false
         description: Digest, draft id, template id, campaign id, or stable content reference.
@@ -443,7 +443,7 @@ runners:
           principal: $input.principal
           provider_context: $input.provider_context
           audience: $input.audience
-          content_ref: $input.content_ref
+          content: $input.content
           consent_basis: $input.consent_basis
           operator_context: $input.operator_context
           connector: $input.connector
@@ -453,7 +453,7 @@ runners:
           named_emits:
             send_plan: send_plan
           packets:
-            send_plan: runx.message_send.plan.v1
+            send_plan: runx/message-send.plan.v1
 
   reply:
     description: Reply once in a conversation from an admitted source packet, under exact approval, and read the reply back.
@@ -578,17 +578,17 @@ runners:
           provider_context: $input.provider_context
           audience:
             type: thread
-            ref: $input.thread_locator
+            locator: $input.thread_locator
             requires_reconfirmation: false
           operator_context: $input.operator_context
-          content_ref: $steps.digest.digest_result
+          content: $steps.digest.digest_result
 
   deliver_reply:
     description: Deliver a reply planned by plan_reply once, under approval, and read it back.
     inputs:
       send_plan:
         type: json
-        packet: runx.message_send.plan.v1
+        packet: runx/message-send.plan.v1
         required: true
         description: Exact send_plan emitted by plan_reply.
       thread_locator:
@@ -610,19 +610,19 @@ runners:
       - send_plan:
           decision: ready
           action_family: message-send
-          principal: { type: user, ref: "user:kam" }
-          provider: { name: slack, account_ref: "workspace:T123ABC", runtime_path: slack }
+          principal: { type: user, uri: "user:kam" }
+          provider: { name: slack, account_id: "workspace:T123ABC", runtime_path: slack }
           send_class: internal
           channel: chat
-          audience: { type: thread, ref: 'slack://T123ABC/C123ABC/1750000000.000001', requires_reconfirmation: false }
+          audience: { type: thread, locator: 'slack://T123ABC/C123ABC/1750000000.000001', requires_reconfirmation: false }
           content:
-            draft_ref: inline
+            draft_uri: inline
             digest: 'sha256:8604f5c08db8d76b6fa8066c769fbdc6a4992101373d0d17bcfe426cf8e77647'
             subject_or_title: Slack thread reply
-          gates: { preflight_required: true, human_approval_required: true, approval_ref: slack.deliver-reply.approval }
+          gates: { preflight_required: true, human_approval_required: true, approval_id: slack.deliver-reply.approval }
           blockers: []
           provider_actions: [thread.reply]
-          evidence_refs: []
+          evidence_locators: []
           success_checkpoint:
             milestone: plan_ready
             description: Digest-bound Slack reply awaits approved provider execution.
@@ -643,7 +643,7 @@ runners:
             decision: $input.send_plan.decision
             provider: $input.send_plan.provider.name
             channel: $input.send_plan.channel
-            audience: $input.send_plan.audience.ref
+            audience: $input.send_plan.audience.locator
             approval_required: $input.send_plan.gates.human_approval_required
           expected:
             decision: ready

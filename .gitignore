@@ -11,10 +11,8 @@ node_modules/
 # build output (root and any nested package)
 dist/*
 **/dist/*
+# The package packets `packets:collect` writes for the site, by owner.
 !dist/packets/
-!**/dist/packets/
-!dist/packets/*.schema.json
-!**/dist/packets/*.schema.json
 .build/
 coverage/
 .sourcey/

@@ -1,5 +1,5 @@
 skill: release
-version: "0.4.11"
+version: "0.4.12"
 
 catalog:
   kind: graph
@@ -16,7 +16,7 @@ runners:
     description: Run the release profile's preparation command and produce an evidence-bound release brief.
     inputs:
       project_root: { type: string, required: true, description: Existing project directory relative to the Runx workspace. }
-      profile_ref: { type: string, required: true, description: JSON release profile inside project_root. }
+      profile_path: { type: string, required: true, description: JSON release profile inside project_root. }
       channel: { type: string, required: true, description: Release channel declared by the profile. }
       version: { type: string, required: true, description: Exact SemVer release version. }
       last_tag: { type: string, required: false, description: Previous release anchor for notes. }
@@ -28,7 +28,7 @@ runners:
         scopes: [fs.read]
         inputs:
           repo_root: $input.project_root
-          path: $input.profile_ref
+          path: $input.profile_path
           max_bytes: 65536
       - id: inspect-profile
         inputs:
@@ -42,47 +42,9 @@ runners:
         outputs:
           release_context:
             type: object
-            schema:
-              required: [schema, profile_id, profile_ref, profile_digest, project_root, channel, version, last_tag, operator_context, commands]
-              additionalProperties: false
-              properties:
-                schema: { const: runx.release.context.v1 }
-                profile_id: { type: string, minLength: 1, maxLength: 256 }
-                profile_ref: { type: string, minLength: 1, maxLength: 2000 }
-                profile_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                project_root: { type: string, minLength: 1, maxLength: 4000 }
-                channel: { type: string, pattern: '^[a-z0-9][a-z0-9._-]*$', maxLength: 128 }
-                version: { type: string, minLength: 1, maxLength: 128 }
-                last_tag: { type: string, maxLength: 256 }
-                operator_context: { type: string, maxLength: 2000 }
-                commands:
-                  type: object
-                  required: [prepare, publish, verify]
-                  additionalProperties: false
-                  propertyNames: { enum: [prepare, publish, verify] }
-                  patternProperties:
-                    '^(prepare|publish|verify)$':
-                      type: object
-                      required: [command, args, cwd, timeout_ms, env]
-                      additionalProperties: false
-                      properties:
-                        command: { type: string, minLength: 1, maxLength: 2000 }
-                        args: { type: array, maxItems: 63, items: { type: string, minLength: 1, maxLength: 2000 } }
-                        cwd: { type: string, minLength: 1, maxLength: 512 }
-                        timeout_ms: { type: integer, minimum: 1000, maximum: 3600000 }
-                        env:
-                          type: object
-                          required: [RUNX_RELEASE_PHASE, RUNX_RELEASE_VERSION, RUNX_RELEASE_CHANNEL, RUNX_RELEASE_PROFILE_ID]
-                          additionalProperties: false
-                          properties:
-                            RUNX_RELEASE_PHASE: { type: string, enum: [prepare, publish, verify] }
-                            RUNX_RELEASE_VERSION: { type: string, minLength: 1, maxLength: 128 }
-                            RUNX_RELEASE_CHANNEL: { type: string, minLength: 1, maxLength: 128 }
-                            RUNX_RELEASE_PROFILE_ID: { type: string, minLength: 1, maxLength: 256 }
-                        command_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
         artifacts:
           named_emits: { release_context: release_context }
-          packets: { release_context: runx.release.context.v1 }
+          packets: { release_context: runx/release.context.v1 }
       - id: plan-prepare
         tool: command.plan
         inputs:
@@ -135,50 +97,9 @@ runners:
         outputs:
           preparation:
             type: object
-            schema:
-              required: [schema, phase, status, profile_id, profile_digest, command_digest, channel, version, observed, evidence, errors]
-              additionalProperties: false
-              properties:
-                schema: { const: runx.release.phase_result.v1 }
-                phase: { type: string, enum: [prepare, publish, verify] }
-                status: { type: string, enum: [ready, command_completed, verified, failed] }
-                profile_id: { type: string, minLength: 1, maxLength: 256 }
-                profile_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                command_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                channel: { type: string, minLength: 1, maxLength: 128 }
-                version: { type: string, minLength: 1, maxLength: 128 }
-                observed:
-                  type: object
-                  required: [status, version, channel, release_id, commit_ref, locators, checks]
-                  additionalProperties: false
-                  properties:
-                    status: { type: string, maxLength: 64 }
-                    version: { type: string, maxLength: 128 }
-                    channel: { type: string, maxLength: 128 }
-                    release_id: { type: string, maxLength: 512 }
-                    commit_ref: { type: string, maxLength: 512 }
-                    locators: { type: array, maxItems: 50, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 2000 } }
-                    checks:
-                      type: object
-                      maxProperties: 100
-                      propertyNames: { minLength: 1, maxLength: 128 }
-                      additionalProperties: { type: [string, boolean], maxLength: 500 }
-                evidence:
-                  type: object
-                  required: [stdout_digest, stderr_digest, exit_code, timed_out, duration_ms, stdout_truncated, stderr_truncated]
-                  additionalProperties: false
-                  properties:
-                    stdout_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                    stderr_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-                    exit_code: { type: integer }
-                    timed_out: { type: boolean }
-                    duration_ms: { type: integer, minimum: 0 }
-                    stdout_truncated: { type: boolean }
-                    stderr_truncated: { type: boolean }
-                errors: { type: array, maxItems: 20, items: { type: object, maxProperties: 20 } }
         artifacts:
           named_emits: { preparation: preparation }
-          packets: { preparation: runx.release.phase_result.v1 }
+          packets: { preparation: runx/release.phase_result.v1 }
       - id: draft-notes
         when:
           value: $steps.interpret-prepare.preparation.status
@@ -189,7 +110,7 @@ runners:
           release_context: $steps.inspect-profile.release_context
           preparation: $steps.interpret-prepare.preparation
           project_root: $input.project_root
-          profile_ref: $input.profile_ref
+          profile_path: $input.profile_path
           channel: $input.channel
           version: $input.version
           last_tag: $input.last_tag
@@ -211,7 +132,7 @@ runners:
         outputs: { release_context: object, release_brief: object }
         artifacts:
           named_emits: { release_context: release_context, release_brief: release_brief }
-          packets: { release_context: runx.release.context.v1, release_brief: runx.release.brief.v1 }
+          packets: { release_context: runx/release.context.v1, release_brief: runx/release.brief.v1 }
       - id: finalize-blocked-brief
         when:
           value: $steps.interpret-prepare.preparation.status
@@ -226,13 +147,13 @@ runners:
         outputs: { release_context: object, release_brief: object }
         artifacts:
           named_emits: { release_context: release_context, release_brief: release_brief }
-          packets: { release_context: runx.release.context.v1, release_brief: runx.release.brief.v1 }
+          packets: { release_context: runx/release.context.v1, release_brief: runx/release.brief.v1 }
   release:
     description: Approve a release's exact publish plan, run it without a shell, then verify it with a separate command.
     default: true
     inputs:
       project_root: { type: string, required: true, description: Existing project directory relative to the Runx workspace. }
-      profile_ref: { type: string, required: true, description: JSON release profile inside project_root. }
+      profile_path: { type: string, required: true, description: JSON release profile inside project_root. }
       channel: { type: string, required: true, description: Release channel declared by the profile. }
       version: { type: string, required: true, description: Exact SemVer release version. }
       last_tag: { type: string, required: false, description: Previous release anchor for notes. }
@@ -244,7 +165,7 @@ runners:
         runner: prepare
         inputs:
           project_root: $input.project_root
-          profile_ref: $input.profile_ref
+          profile_path: $input.profile_path
           channel: $input.channel
           version: $input.version
           last_tag: $input.last_tag
@@ -254,7 +175,7 @@ runners:
         inputs:
           release_brief: $steps.prepare.release_brief
           project_root: $input.project_root
-          profile_ref: $input.profile_ref
+          profile_path: $input.profile_path
           channel: $input.channel
           version: $input.version
           last_tag: $input.last_tag
@@ -280,7 +201,7 @@ runners:
         outputs: { publication: object }
         artifacts:
           named_emits: { publication: publication }
-          packets: { publication: runx.release.phase_result.v1 }
+          packets: { publication: runx/release.phase_result.v1 }
       - id: execute-verify
         tool: command.execute
         scopes: [process.exec, runx:release:verify]
@@ -302,7 +223,7 @@ runners:
         outputs: { verification: object }
         artifacts:
           named_emits: { verification: verification }
-          packets: { verification: runx.release.phase_result.v1 }
+          packets: { verification: runx/release.phase_result.v1 }
     policy:
       guards:
         - { step: approve-publish, value: $steps.prepare.release_brief.decision, equals: ready_for_approval }

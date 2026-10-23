@@ -4,7 +4,7 @@
     "kind": "output",
     "value": {
       "graphId": "gx_fixture",
-      "status": "running",
+      "state": "running",
       "steps": [
         {
           "attempts": 1,
@@ -15,12 +15,12 @@
           },
           "receiptId": "rx_first",
           "startedAt": "2026-04-10T00:00:00.000Z",
-          "status": "succeeded",
+          "state": "succeeded",
           "stepId": "first"
         },
         {
           "attempts": 0,
-          "status": "pending",
+          "state": "pending",
           "stepId": "second"
         }
       ]
@@ -44,17 +44,17 @@
     "kind": "state-machine.transitionSequentialGraph",
     "state": {
       "graphId": "gx_fixture",
-      "status": "running",
+      "state": "running",
       "steps": [
         {
           "attempts": 1,
           "startedAt": "2026-04-10T00:00:00.000Z",
-          "status": "running",
+          "state": "running",
           "stepId": "first"
         },
         {
           "attempts": 0,
-          "status": "pending",
+          "state": "pending",
           "stepId": "second"
         }
       ]

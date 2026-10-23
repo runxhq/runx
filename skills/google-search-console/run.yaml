@@ -1,5 +1,5 @@
 skill: google-search-console
-version: "0.1.16"
+version: "0.1.17"
 
 catalog:
   kind: graph
@@ -94,7 +94,7 @@ input_definitions:
       required: [schema, decision, provider, operation, property, sitemap_url, provider_status, external_status, validation, plan_digest]
       additionalProperties: false
       properties:
-        schema: { const: runx.search.sitemap_plan.v1 }
+        schema: { const: runx/google-search-console.sitemap_plan.v1 }
         decision: { const: ready_for_execution }
         provider: { const: google-search-console }
         operation: { const: sitemaps.submit }
@@ -161,7 +161,7 @@ harness:
             subset:
               performance_evidence:
                 data:
-                  schema: runx.search.performance.evidence.v1
+                  schema: runx/google-search-console.performance_evidence.v1
                   decision: ready
                   provider: google-search-console
                   provider_status: not_called
@@ -379,7 +379,7 @@ harness:
             subset:
               indexing_admission:
                 data:
-                  schema: runx.search.indexing_admission.v1
+                  schema: runx/google-search-console.indexing_admission.v1
                   decision: refused
                   reason_code: unsupported_resource_type
                   provider_status: not_called
@@ -399,7 +399,7 @@ harness:
             subset:
               sitemap_plan:
                 data:
-                  schema: runx.search.sitemap_plan.v1
+                  schema: runx/google-search-console.sitemap_plan.v1
                   decision: ready_for_execution
                   provider: google-search-console
                   operation: sitemaps.submit
@@ -414,7 +414,7 @@ harness:
       runner: submit-sitemap
       inputs:
         sitemap_plan:
-          schema: runx.search.sitemap_plan.v1
+          schema: runx/google-search-console.sitemap_plan.v1
           decision: ready_for_execution
           provider: google-search-console
           operation: sitemaps.submit
@@ -695,7 +695,7 @@ runners:
         description: Stable UUID for this unchanged sitemap submission.
     examples:
       - sitemap_plan:
-          schema: runx.search.sitemap_plan.v1
+          schema: runx/google-search-console.sitemap_plan.v1
           decision: ready_for_execution
           provider: google-search-console
           operation: sitemaps.submit

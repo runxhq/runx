@@ -22,7 +22,7 @@ pub struct HostedSkillPublishRequest<'a> {
 
 #[derive(Serialize)]
 pub struct HostedAdminSkillPublishRequest<'a> {
-    pub owner: &'a str,
+    pub publisher: &'a str,
     pub markdown: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_document: Option<&'a str>,
@@ -37,7 +37,7 @@ pub struct HostedAdminSkillPublishRequest<'a> {
 pub struct HostedSkillPublishResult {
     pub status: String,
     pub skill_id: String,
-    pub owner: String,
+    pub publisher: String,
     pub name: String,
     pub version: String,
     pub digest: String,
@@ -95,8 +95,7 @@ pub struct HostedConnectorPublishRequest<'a> {
 pub struct HostedConnectorPublishResult {
     /// `published`, or `unchanged` for these exact files under this version.
     pub status: String,
-    #[serde(rename = "ref")]
-    pub name: runx_contracts::connector::ConnectorName,
+    pub connector: runx_contracts::connector::ConnectorName,
     pub version: String,
     pub content_digest: runx_contracts::connector::Digest,
     pub manifest_digest: runx_contracts::connector::Digest,
@@ -206,15 +205,10 @@ struct HostedAdminSkillPublishResult {
 
 impl HostedAdminSkillPublishResult {
     fn into_hosted_result(self) -> HostedSkillPublishResult {
-        let owner = self
-            .record
-            .as_ref()
-            .map(|record| record.owner.clone())
-            .or_else(|| {
-                self.skill_id
-                    .split_once('/')
-                    .map(|(owner, _)| owner.to_owned())
-            })
+        let publisher = self
+            .skill_id
+            .split_once('/')
+            .map(|(publisher, _)| publisher.to_owned())
             .unwrap_or_default();
         let trust_tier = self
             .record
@@ -225,7 +219,7 @@ impl HostedAdminSkillPublishResult {
             status: self.status,
             public_url: self.link.public_url(&self.skill_id, &self.version),
             skill_id: self.skill_id,
-            owner,
+            publisher,
             name: self.name,
             version: self.version,
             digest: self.digest,
@@ -239,7 +233,6 @@ impl HostedAdminSkillPublishResult {
 
 #[derive(Deserialize)]
 struct HostedAdminSkillRecord {
-    owner: String,
     #[serde(default)]
     trust_tier: Option<String>,
 }
@@ -268,10 +261,10 @@ impl HostedSkillPublishLink {
 }
 
 fn runx_skill_public_url(skill_id: &str, version: &str) -> String {
-    let (owner, name) = skill_id.split_once('/').unwrap_or(("", skill_id));
+    let (publisher, name) = skill_id.split_once('/').unwrap_or(("", skill_id));
     format!(
         "https://runx.ai/x/{}/{}@{}",
-        encode_path_component(owner),
+        encode_path_component(publisher),
         encode_path_component(name),
         encode_path_component(version)
     )

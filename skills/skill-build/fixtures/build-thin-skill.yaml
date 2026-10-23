@@ -17,7 +17,7 @@ caller:
     architect:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
-        disposition: build
+        choice: build
         identity:
           proposed_name: fixture-decision-note
           action: create

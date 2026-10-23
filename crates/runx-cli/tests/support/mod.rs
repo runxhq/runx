@@ -332,15 +332,15 @@ fn governed_harness_document(
             body_digest: None,
             receipt_id: None,
             receipt_digest: None,
-            subject_ref: None,
+            subject_uri: None,
             state: None,
-            disposition: None,
+            outcome: None,
             reason: None,
             act_ids: None,
             decision_ids: None,
-            child_receipt_refs: None,
+            child_receipt_uris: None,
             child_receipt_count: None,
-            verification_refs: None,
+            verification_uris: None,
         });
     }
     Ok(serde_json::to_string(&fixture)?)
@@ -566,7 +566,7 @@ pub fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result
 
 /// Makes `root` a plugin holding copies of the kernel fixture connectors
 /// `ids`, such as `fixture/forge`: how a project reaches connectors without a
-/// registry. No test reaches a vendor connector.
+/// registry. No test reaches a live provider connector.
 pub fn plugin_with_fixture_connectors(
     root: &std::path::Path,
     ids: &[&str],

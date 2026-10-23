@@ -1,8 +1,8 @@
 skill: run-history
-version: "0.2.10"
+version: "0.2.11"
 
 catalog:
-  owner: runx
+  publisher: runx
   kind: skill
   audience: operator
   visibility: public
@@ -37,11 +37,11 @@ harness:
           - run_id: run_release_1
             skill: release
             state: sealed
-            disposition: closed
+            outcome: completed
           - run_id: run_release_2
             skill: release
             state: sealed
-            disposition: blocked
+            outcome: blocked
         catalog_items:
           - name: release
             status: ok
@@ -57,7 +57,7 @@ harness:
           finalize-replay:
             subset:
               history_report:
-                schema: runx.history_report.v1
+                schema: runx/run-history.report.v1
                 decision: ready
                 catalog:
                   entry_count: 2
@@ -67,7 +67,7 @@ harness:
                 runs:
                   terminal_count: 2
                   pending_count: 0
-                  closed_rate: 0.5
+                  completed_rate: 0.5
                   refusal_rate: 0.5
                 sources:
                   history: supplied_replay
@@ -83,11 +83,11 @@ harness:
           - run_id: run_release
             skill: release
             state: sealed
-            disposition: closed
+            outcome: completed
           - run_id: run_research
             skill: research
             state: sealed
-            disposition: failed
+            outcome: failed
         catalog_items: []
       expect:
         status: sealed
@@ -189,68 +189,6 @@ runners:
         outputs:
           history_report:
             type: object
-            schema:
-              required: [schema, decision, objective, query, sources, runs, catalog, recommendations, limitations]
-              additionalProperties: false
-              properties:
-                schema: { const: runx.history_report.v1 }
-                decision: { type: string, enum: [ready, needs_more_evidence] }
-                objective: { type: string, minLength: 1 }
-                query:
-                  type: object
-                  required: [scope, period, since, skill_filter, limit]
-                  additionalProperties: false
-                  properties:
-                    scope: { type: string }
-                    period: { type: [string, "null"] }
-                    since: { type: [string, "null"] }
-                    skill_filter: { type: [string, "null"] }
-                    limit: { type: integer, minimum: 1, maximum: 1000 }
-                sources:
-                  type: object
-                  required: [history, catalog]
-                  properties:
-                    history: { type: string, enum: [supplied_replay, run.list] }
-                    catalog: { type: string, enum: [supplied_replay, runx.skill.inspect] }
-                  additionalProperties: false
-                runs:
-                  type: object
-                  required: [terminal_count, pending_count, statuses, closed_rate, refusal_rate, top_subjects]
-                  additionalProperties: false
-                  properties:
-                    terminal_count: { type: integer, minimum: 0 }
-                    pending_count: { type: integer, minimum: 0 }
-                    statuses: { type: object, additionalProperties: { type: integer, minimum: 0 } }
-                    closed_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
-                    refusal_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
-                    top_subjects:
-                      type: array
-                      items:
-                        type: object
-                        required: [subject, count]
-                        properties:
-                          subject: { type: string }
-                          count: { type: integer, minimum: 0 }
-                        additionalProperties: false
-                catalog:
-                  type: object
-                  required: [entry_count, tested_entry_count, untested_entry_count, coverage_rate]
-                  additionalProperties: false
-                  properties:
-                    entry_count: { type: integer, minimum: 0 }
-                    tested_entry_count: { type: integer, minimum: 0 }
-                    untested_entry_count: { type: integer, minimum: 0 }
-                    coverage_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
-                recommendations:
-                  type: array
-                  items:
-                    type: object
-                    required: [lane, action]
-                    properties:
-                      lane: { type: string }
-                      action: { type: string }
-                    additionalProperties: false
-                limitations: { type: array, items: { type: string } }
         inputs:
           history_context: $steps.prepare.history_context
           run_list: $steps.history.run_list
@@ -259,7 +197,7 @@ runners:
           catalog_items: $input.catalog_items
         artifacts:
           wrap_as: history_report_packet
-          packet: runx.history_report.v1
+          packet: runx/run-history.report.v1
       - id: finalize-replay
         label: calculate the supplied replay report
         when:
@@ -273,68 +211,6 @@ runners:
         outputs:
           history_report:
             type: object
-            schema:
-              required: [schema, decision, objective, query, sources, runs, catalog, recommendations, limitations]
-              additionalProperties: false
-              properties:
-                schema: { const: runx.history_report.v1 }
-                decision: { type: string, enum: [ready, needs_more_evidence] }
-                objective: { type: string, minLength: 1 }
-                query:
-                  type: object
-                  required: [scope, period, since, skill_filter, limit]
-                  additionalProperties: false
-                  properties:
-                    scope: { type: string }
-                    period: { type: [string, "null"] }
-                    since: { type: [string, "null"] }
-                    skill_filter: { type: [string, "null"] }
-                    limit: { type: integer, minimum: 1, maximum: 1000 }
-                sources:
-                  type: object
-                  required: [history, catalog]
-                  properties:
-                    history: { type: string, enum: [supplied_replay, run.list] }
-                    catalog: { type: string, enum: [supplied_replay, runx.skill.inspect] }
-                  additionalProperties: false
-                runs:
-                  type: object
-                  required: [terminal_count, pending_count, statuses, closed_rate, refusal_rate, top_subjects]
-                  additionalProperties: false
-                  properties:
-                    terminal_count: { type: integer, minimum: 0 }
-                    pending_count: { type: integer, minimum: 0 }
-                    statuses: { type: object, additionalProperties: { type: integer, minimum: 0 } }
-                    closed_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
-                    refusal_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
-                    top_subjects:
-                      type: array
-                      items:
-                        type: object
-                        required: [subject, count]
-                        properties:
-                          subject: { type: string }
-                          count: { type: integer, minimum: 0 }
-                        additionalProperties: false
-                catalog:
-                  type: object
-                  required: [entry_count, tested_entry_count, untested_entry_count, coverage_rate]
-                  additionalProperties: false
-                  properties:
-                    entry_count: { type: integer, minimum: 0 }
-                    tested_entry_count: { type: integer, minimum: 0 }
-                    untested_entry_count: { type: integer, minimum: 0 }
-                    coverage_rate: { type: [number, "null"], minimum: 0, maximum: 1 }
-                recommendations:
-                  type: array
-                  items:
-                    type: object
-                    required: [lane, action]
-                    properties:
-                      lane: { type: string }
-                      action: { type: string }
-                    additionalProperties: false
-                limitations: { type: array, items: { type: string } }
         artifacts:
           wrap_as: history_report_packet
-          packet: runx.history_report.v1
+          packet: runx/run-history.report.v1

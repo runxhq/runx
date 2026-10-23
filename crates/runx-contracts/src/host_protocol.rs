@@ -3,12 +3,12 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::paid_invocation::{
-    CurrencyCode, OfferRevisionRef, PaidInvocationPaymentMethod, PaidInvocationPaymentOptionRef,
-    PortableAmountMinor, PrincipalReference, Sha256Digest,
+use crate::purchase::{
+    CurrencyCode, OfferVersionBinding, PortableAmountMinor, PrincipalReference,
+    PurchasePaymentMethod, PurchasePaymentOptionBinding,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
-use crate::{AgentContextEnvelope, JsonObject, JsonValue};
+use crate::{AgentContextEnvelope, Digest, JsonObject, JsonValue};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
@@ -107,34 +107,33 @@ pub enum ResolutionRequest {
         #[serde(default, skip_serializing_if = "crate::schema::is_default")]
         resend: RetryResend,
     },
-    /// A call reached a paid runner and waits on the person's exact decision
-    /// (N10): they answer `approved` and the method they pay with
-    /// (`choice`).
+    /// A call reached a paid runner and waits on the person's exact decision:
+    /// they answer `approved` and the method they pay with (`choice`).
     Purchase {
         id: NonEmptyString,
         purchase: Box<PurchaseRequest>,
     },
 }
 
-/// What a person decides when a call reaches a paid runner (N10): one
-/// quote's exact offer, seller and price, and each payment method that can
-/// pay it. The request's digest binds all of it, so an answer pays only this
-/// quote, before it expires.
+/// What a person decides when a call reaches a paid runner: one
+/// quote's exact offer version, seller and price, and each payment method
+/// that can pay it. The request's digest binds all of it, so an answer pays
+/// only this quote, before it expires.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.purchase_request.v1")]
 pub struct PurchaseRequest {
     pub skill: NonEmptyString,
     pub runner: NonEmptyString,
-    pub offer: OfferRevisionRef,
+    pub offer_version: OfferVersionBinding,
     /// The execution package digest the purchase runs (`runx.skill-package.v1`
     /// over the files a run loads), not the registry's digest of the published
     /// package files that a listing binds.
-    pub package_digest: Sha256Digest,
-    pub seller: PrincipalReference,
+    pub package_digest: Digest,
+    pub seller_ref: PrincipalReference,
     pub amount_minor: PortableAmountMinor,
     pub currency: CurrencyCode,
-    pub input_digest: Sha256Digest,
+    pub input_digest: Digest,
     pub quote: PurchaseQuote,
     /// Never empty: a call no method can pay fails instead of asking.
     pub methods: Vec<PurchaseMethod>,
@@ -145,7 +144,7 @@ pub struct PurchaseRequest {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PurchaseQuote {
-    pub invocation_id: NonEmptyString,
+    pub purchase_id: NonEmptyString,
     pub expires_at: IsoDateTime,
     pub payment_options: Vec<PurchasePaymentOption>,
 }
@@ -153,19 +152,20 @@ pub struct PurchaseQuote {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PurchasePaymentOption {
-    pub option: PaidInvocationPaymentOptionRef,
+    pub option: PurchasePaymentOptionBinding,
     pub expires_at: IsoDateTime,
     pub quote_ref: crate::Reference,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub payment_method: Option<PaidInvocationPaymentMethod>,
+    pub payment_method: Option<PurchasePaymentMethod>,
 }
 
 /// What an answer's `choice` names to pay from the account's runx balance. No
 /// connector instance id can take this value.
 pub const PURCHASE_BALANCE_CHOICE: &str = "runx:balance";
 
-/// One way the payer can pay. An answer's `choice` names it: the balance by
-/// [`PURCHASE_BALANCE_CHOICE`], a payment grant by the choice binding its instance and quoted option.
+/// One way the buyer can pay. An answer's `choice` names it: the balance by
+/// `runx:balance`, a payment grant by the choice binding its instance and
+/// quoted option.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PurchaseMethod {
@@ -182,7 +182,7 @@ pub enum PurchaseMethod {
         instance_id: NonEmptyString,
         connector: NonEmptyString,
         total_minor: PortableAmountMinor,
-        option: PaidInvocationPaymentOptionRef,
+        option: PurchasePaymentOptionBinding,
     },
 }
 
@@ -289,7 +289,7 @@ pub fn check_answer(questions: &[Question], answer: &JsonValue) -> Result<(), St
     Ok(())
 }
 
-/// Host protocol approval request gate carried by `ResolutionRequest::Approval`.
+/// The gate an approval request asks a person to pass, and why.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.approval_gate.v1")]
@@ -310,7 +310,7 @@ pub struct ApprovalGate {
     /// What executes, when it is larger: a project artifact whose bytes are
     /// its canonical JSON.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub payload_ref: Option<crate::ProjectArtifactRef>,
+    pub payload_artifact: Option<crate::ProjectArtifact>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -333,7 +333,7 @@ pub struct AgentActInvocation {
 pub struct TurnAllowance {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub operations: Vec<AllowedOperation>,
-    /// Catalog tool refs.
+    /// Catalog tool names.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<NonEmptyString>,
     /// Child skills by ref, and the catalog rules a load is admitted under.
@@ -350,10 +350,10 @@ impl TurnAllowance {
         self.operations.is_empty() && self.tools.is_empty() && self.skills.is_empty() && !self.asks
     }
 
-    /// The child skills the allowance names by ref.
-    pub fn skill_refs(&self) -> impl Iterator<Item = &NonEmptyString> {
+    /// The child skills the allowance names.
+    pub fn named_skills(&self) -> impl Iterator<Item = &NonEmptyString> {
         self.skills.iter().filter_map(|entry| match entry {
-            SkillAllowance::Ref(reference) => Some(reference),
+            SkillAllowance::Skill(reference) => Some(reference),
             SkillAllowance::Rule(_) => None,
         })
     }
@@ -362,17 +362,17 @@ impl TurnAllowance {
     pub fn rules(&self) -> impl Iterator<Item = &CatalogRule> {
         self.skills.iter().filter_map(|entry| match entry {
             SkillAllowance::Rule(rule) => Some(rule),
-            SkillAllowance::Ref(_) => None,
+            SkillAllowance::Skill(_) => None,
         })
     }
 }
 
-/// One entry of an allowance's `skills`: a child skill by ref, or a catalog
+/// One entry of an allowance's `skills`: a child skill by name, or a catalog
 /// rule, which admits the skills and connectors a `load` call finds.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(untagged)]
 pub enum SkillAllowance {
-    Ref(NonEmptyString),
+    Skill(NonEmptyString),
     Rule(CatalogRule),
 }
 
@@ -485,7 +485,7 @@ pub struct TurnLoad {
 #[serde(deny_unknown_fields)]
 pub struct SkillManual {
     /// `sha256:` over `content`'s bytes.
-    pub sha256: NonEmptyString,
+    pub digest: NonEmptyString,
     pub content: String,
 }
 
@@ -519,7 +519,7 @@ pub struct LoadedRunnerInput {
 pub enum LoadedPackage {
     Skill {
         /// The ref each of its tools names: the canonical
-        /// `<owner>/<name>@<version>` of a registry skill, or the project's
+        /// `<publisher>/<name>@<version>` of a registry skill, or the project's
         /// path.
         skill: NonEmptyString,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -569,7 +569,7 @@ pub enum TurnCallOutcome {
         /// Each packet output as a project artifact of the run, by output
         /// name: a reference a later call passes in place of the packet.
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-        artifacts: BTreeMap<String, crate::ProjectArtifactRef>,
+        artifacts: BTreeMap<String, crate::ProjectArtifact>,
     },
     /// The call ran and failed, with its receipt; or it failed before it
     /// could run.
@@ -602,7 +602,7 @@ pub struct TurnTool {
 /// An open turn as its agent reads it: the act it answers (its id is the
 /// turn's address), with the act's context as an index, the calls it may
 /// make, and how each call it made so far ended. Nothing in it is the data of
-/// a context entry, which `turn_read` reads by its ref.
+/// a context entry, which `turn_read` reads by its locator.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.turn_status.v1")]
@@ -655,7 +655,7 @@ pub struct TurnEnvelope {
     pub skill: NonEmptyString,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<crate::CallAct>,
-    pub instructions_sha256: NonEmptyString,
+    pub instructions_digest: NonEmptyString,
     pub instructions: NonEmptyString,
     pub inputs: JsonObject,
     pub requirements: crate::AgentExecutionRequirements,
@@ -682,7 +682,7 @@ impl From<&AgentContextEnvelope> for TurnEnvelope {
             step_id,
             skill,
             act,
-            instructions_sha256,
+            instructions_digest,
             instructions,
             inputs,
             requirements,
@@ -696,7 +696,7 @@ impl From<&AgentContextEnvelope> for TurnEnvelope {
             output_schema,
             trust_boundary,
         } = envelope;
-        let lines = |entries: &[crate::ContextEntry], at: fn(usize) -> TurnRef| {
+        let lines = |entries: &[crate::ContextEntry], at: fn(usize) -> TurnLocator| {
             entries
                 .iter()
                 .enumerate()
@@ -708,12 +708,12 @@ impl From<&AgentContextEnvelope> for TurnEnvelope {
             step_id: step_id.clone(),
             skill: skill.clone(),
             act: act.clone(),
-            instructions_sha256: instructions_sha256.clone(),
+            instructions_digest: instructions_digest.clone(),
             instructions: instructions.clone(),
             inputs: inputs.clone(),
             requirements: requirements.clone(),
-            current_context: lines(current_context, TurnRef::Current),
-            historical_context: lines(historical_context, TurnRef::Historical),
+            current_context: lines(current_context, TurnLocator::Current),
+            historical_context: lines(historical_context, TurnLocator::Historical),
             provenance: provenance.clone(),
             context: context.clone(),
             voice_profile: voice_profile.clone(),
@@ -726,13 +726,12 @@ impl From<&AgentContextEnvelope> for TurnEnvelope {
 }
 
 /// One context entry of an act as a model reads it in an index: what it is,
-/// whom it may be shared with, how large it is, and the ref `turn_read`
+/// whom it may be shared with, how large it is, and the locator `turn_read`
 /// reads its data by.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TurnContextLine {
-    #[serde(rename = "ref")]
-    pub reference: NonEmptyString,
+    pub locator: NonEmptyString,
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub entry_type: Option<NonEmptyString>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -743,9 +742,9 @@ pub struct TurnContextLine {
 }
 
 impl TurnContextLine {
-    fn of(reference: TurnRef, entry: &crate::ContextEntry) -> Self {
+    fn of(locator: TurnLocator, entry: &crate::ContextEntry) -> Self {
         Self {
-            reference: reference.to_string().into(),
+            locator: locator.to_string().into(),
             entry_type: entry.entry_type.clone(),
             summary: entry.summary.clone(),
             scope: entry.scope.clone(),
@@ -755,19 +754,19 @@ impl TurnContextLine {
     }
 }
 
-/// What a ref names within one turn: an entry of the act's current or
+/// What a locator names within one turn: an entry of the act's current or
 /// historical context by its place, an input of the act by name, or a call
-/// of the turn by its index. A ref means nothing outside its turn.
+/// of the turn by its index. A locator means nothing outside its turn.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TurnRef {
+pub enum TurnLocator {
     Current(usize),
     Historical(usize),
     Input(String),
     Call(u32),
 }
 
-impl TurnRef {
-    /// The ref `text` spells, if it spells one.
+impl TurnLocator {
+    /// The locator `text` spells, if it spells one.
     #[must_use]
     pub fn parse(text: &str) -> Option<Self> {
         let (kind, rest) = text.split_once(':')?;
@@ -781,7 +780,7 @@ impl TurnRef {
     }
 }
 
-impl std::fmt::Display for TurnRef {
+impl std::fmt::Display for TurnLocator {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Current(index) => write!(formatter, "current:{index}"),
@@ -796,14 +795,13 @@ impl std::fmt::Display for TurnRef {
 /// what can be read: a read continues from the offset it returns.
 pub const TURN_READ_PAGE_CHARS: u64 = 32_000;
 
-/// One page of what a turn's ref names, as text: a string as it is, any
+/// One page of what a turn's locator names, as text: a string as it is, any
 /// other value as pretty JSON. Offsets count characters.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.turn_read.v1")]
 pub struct TurnReadPage {
-    #[serde(rename = "ref")]
-    pub reference: NonEmptyString,
+    pub locator: NonEmptyString,
     pub offset: u64,
     pub text: String,
     /// Where the next page starts: the offset after the last character this
@@ -818,7 +816,7 @@ impl TurnReadPage {
     /// The page of `whole` from `offset`, of at most `limit` characters
     /// (and never more than a page holds).
     #[must_use]
-    pub fn of(reference: &TurnRef, whole: &str, offset: u64, limit: Option<u64>) -> Self {
+    pub fn of(locator: &TurnLocator, whole: &str, offset: u64, limit: Option<u64>) -> Self {
         let total = whole.chars().count() as u64;
         let limit = limit
             .unwrap_or(TURN_READ_PAGE_CHARS)
@@ -828,7 +826,7 @@ impl TurnReadPage {
         let text = whole.chars().skip(start).take(length).collect::<String>();
         let end = offset.min(total) + text.chars().count() as u64;
         Self {
-            reference: reference.to_string().into(),
+            locator: locator.to_string().into(),
             offset: offset.min(total),
             text,
             next_offset: (end < total).then_some(end),
@@ -951,10 +949,6 @@ pub struct HostTerminalState {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub disposition: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub outcome_state: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub actors: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifact_types: Option<Vec<String>>,
@@ -1028,46 +1022,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_ref_reads_back_as_it_was_written_and_nothing_else_is_one() {
-        for reference in [
-            TurnRef::Current(0),
-            TurnRef::Historical(12),
-            TurnRef::Input("repo".to_owned()),
-            TurnRef::Call(3),
+    fn a_locator_reads_back_as_it_was_written_and_nothing_else_is_one() {
+        for locator in [
+            TurnLocator::Current(0),
+            TurnLocator::Historical(12),
+            TurnLocator::Input("repo".to_owned()),
+            TurnLocator::Call(3),
         ] {
-            assert_eq!(TurnRef::parse(&reference.to_string()), Some(reference));
+            assert_eq!(TurnLocator::parse(&locator.to_string()), Some(locator));
         }
         for text in ["", "current", "current:x", "input:", "call:-1", "turn:1"] {
-            assert_eq!(TurnRef::parse(text), None, "{text}");
+            assert_eq!(TurnLocator::parse(text), None, "{text}");
         }
     }
 
     #[test]
     fn a_read_makes_progress_page_by_page_to_the_end() {
-        let reference = TurnRef::Call(0);
+        let locator = TurnLocator::Call(0);
         let whole = "ab\u{e9}cd";
-        let first = TurnReadPage::of(&reference, whole, 0, Some(2));
+        let first = TurnReadPage::of(&locator, whole, 0, Some(2));
         assert_eq!((first.text.as_str(), first.next_offset), ("ab", Some(2)));
-        let second = TurnReadPage::of(&reference, whole, 2, Some(2));
+        let second = TurnReadPage::of(&locator, whole, 2, Some(2));
         assert_eq!(
             (second.text.as_str(), second.next_offset),
             ("\u{e9}c", Some(4))
         );
-        let last = TurnReadPage::of(&reference, whole, 4, None);
+        let last = TurnReadPage::of(&locator, whole, 4, None);
         assert_eq!(
             (last.text.as_str(), last.next_offset, last.total),
             ("d", None, 5)
         );
         // A limit of nothing still delivers, and an offset past the end reads empty.
-        assert_eq!(TurnReadPage::of(&reference, whole, 0, Some(0)).text, "a");
-        let past = TurnReadPage::of(&reference, whole, 9, None);
+        assert_eq!(TurnReadPage::of(&locator, whole, 0, Some(0)).text, "a");
+        let past = TurnReadPage::of(&locator, whole, 9, None);
         assert_eq!(
             (past.offset, past.text.as_str(), past.next_offset),
             (5, "", None)
         );
         // No page exceeds its ceiling, whatever is asked.
         let long = "x".repeat(40_000);
-        let page = TurnReadPage::of(&reference, &long, 0, Some(100_000));
+        let page = TurnReadPage::of(&locator, &long, 0, Some(100_000));
         assert_eq!(page.text.len() as u64, TURN_READ_PAGE_CHARS);
         assert_eq!(page.next_offset, Some(TURN_READ_PAGE_CHARS));
     }

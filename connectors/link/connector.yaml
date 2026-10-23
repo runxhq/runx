@@ -41,7 +41,7 @@ operations:
         action:
           const: account
     result_fields:
-      - account_ref
+      - account_id
       - resource_binding
     implementation:
       process:
@@ -114,7 +114,7 @@ operations:
       - payment_method_id
       - network_id
       - approval_url
-      - transaction_ref
+      - transaction_id
       - payment_outcome
       - paid_amount_minor
       - paid_currency
@@ -176,7 +176,7 @@ operations:
       - payment_method_id
       - network_id
       - approval_url
-      - transaction_ref
+      - transaction_id
       - payment_outcome
       - paid_amount_minor
       - paid_currency
@@ -254,7 +254,7 @@ operations:
       - payment_method_id
       - network_id
       - approval_url
-      - transaction_ref
+      - transaction_id
       - payment_outcome
       - paid_amount_minor
       - paid_currency

@@ -1,5 +1,5 @@
 skill: slack
-version: "0.2.15"
+version: "0.2.16"
 
 catalog:
   kind: graph
@@ -19,7 +19,7 @@ runners:
   assistant_decide:
     description: For an assistant watching Slack, read a decision thread and judge the authorized member's answer in it.
     inputs:
-      presentation_ref:
+      presentation_locator:
         type: string
         required: true
         description: Exact posted Slack message locator that roots this decision thread.
@@ -32,7 +32,7 @@ runners:
         type: string
         required: true
         schema: { pattern: '^[0-9a-f]{16}$' }
-      authorized_actor_ref:
+      authorized_actor_id:
         type: string
         required: true
         description: Exact Slack member ID authorized to answer this request.
@@ -43,14 +43,14 @@ runners:
         skill: .
         runner: read_thread
         inputs:
-          thread_locator: $input.presentation_ref
+          thread_locator: $input.presentation_locator
           limit: 15
       - id: judge
         inputs:
-          presentation_ref: $input.presentation_ref
+          presentation_locator: $input.presentation_locator
           request_digest: $input.request_digest
           nonce: $input.nonce
-          authorized_actor_ref: $input.authorized_actor_ref
+          authorized_actor_id: $input.authorized_actor_id
           provider_operation: $steps.thread.provider_operation
         tool: { module: assistant-source.mjs, export: decideAssistantRequest }
         outputs: { decision_observation: object }
@@ -101,7 +101,7 @@ runners:
     description: For an assistant watching Slack, read the thread of an admitted message for its open action.
     inputs:
       config: { type: object, required: true, description: Bound source configuration. }
-      source_ref: { type: string, required: true, description: Admitted message locator. }
+      source_locator: { type: string, required: true, description: Admitted message locator. }
       source_digest: { type: string, required: true, description: Admitted occurrence digest. }
       thread_locator: { type: string, required: true, description: Admitted thread locator. }
       action: { type: object, required: true, description: Canonical open operator action. }
@@ -110,7 +110,7 @@ runners:
     steps:
       - id: prepare
         inputs:
-          source_ref: "$input.source_ref"
+          source_locator: "$input.source_locator"
           thread_locator: "$input.thread_locator"
           action: "$input.action"
           cursor: "$input.cursor"
@@ -125,7 +125,7 @@ runners:
           limit: $steps.prepare.hydrate_request.limit
       - id: finish
         inputs:
-          source_ref: "$input.source_ref"
+          source_locator: "$input.source_locator"
           source_digest: "$input.source_digest"
           thread_locator: "$input.thread_locator"
           action: "$input.action"
@@ -169,7 +169,7 @@ runners:
     steps:
       - id: search
         operation: slack/messages.search
-        result_fields: [external_tenant_ref, connected_subject_ref, messages, next_cursor]
+        result_fields: [external_tenant_id, connected_subject_id, messages, next_cursor]
         input: $input.query
 
   read_thread:
@@ -199,7 +199,7 @@ runners:
         operation: slack/thread.read
         expected_result:
           thread_locator: $input.thread_locator
-        result_fields: [external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
+        result_fields: [external_tenant_id, connected_subject_id, thread_locator, messages, next_cursor]
         input:
           thread_locator: $input.thread_locator
           limit: $input.limit
@@ -230,7 +230,7 @@ runners:
     steps:
       - id: read
         operation: slack/thread.read
-        result_fields: [external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
+        result_fields: [external_tenant_id, connected_subject_id, thread_locator, messages, next_cursor]
         input:
           thread_locator: $input.permalink
           limit: $input.limit
@@ -252,7 +252,7 @@ runners:
         operation: slack/file.read
         expected_result:
           file_locator: $input.file_locator
-        result_fields: [external_tenant_ref, connected_subject_ref, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
+        result_fields: [external_tenant_id, connected_subject_id, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
         input:
           file_locator: $input.file_locator
 

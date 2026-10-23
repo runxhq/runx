@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 
 use criterion::{BatchSize, Criterion};
 use runx_contracts::{
-    ClosureDisposition, ExecutionEvent, JsonObject, JsonValue, ProofKind, ResolutionRequest,
-    ResolutionResponse, ResolutionResponseActor,
+    ExecutionEvent, JsonObject, JsonValue, ProofKind, ResolutionRequest, ResolutionResponse,
+    ResolutionResponseActor, RunOutcome,
 };
 use runx_parser::{ExecutionGraph, PROFILE_FILE, WorkerTool, parse_graph_yaml, validate_graph};
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
@@ -359,7 +359,7 @@ fn run_provider_graph<A: SkillAdapter>(
         })?;
     if operation.get("finality").and_then(JsonValue::as_str) != Some("confirmed")
         || operation
-            .get("readback_ref")
+            .get("readback_uri")
             .and_then(JsonValue::as_str)
             .is_none()
     {
@@ -376,7 +376,7 @@ fn run_provider_graph<A: SkillAdapter>(
         .flat_map(|binding| &binding.verification_refs)
         .filter(|reference| reference.proof_kind == Some(ProofKind::EffectFinality))
         .count();
-    if step.receipt.seal.disposition != ClosureDisposition::Closed || finality_refs != 1 {
+    if step.receipt.seal.outcome != RunOutcome::Completed || finality_refs != 1 {
         return Err(std::io::Error::other(
             "provider benchmark sample did not seal exactly one independent finality proof",
         )
@@ -476,7 +476,7 @@ impl RuntimeHttpTransport for ProviderBenchmarkTransport {
                         JsonValue::String(format!("benchmark-operation-{logical}")),
                     ),
                     (
-                        "readback_ref".to_owned(),
+                        "readback_uri".to_owned(),
                         JsonValue::String(format!("runx:provider_readback:{logical}")),
                     ),
                 ])
@@ -490,7 +490,7 @@ impl RuntimeHttpTransport for ProviderBenchmarkTransport {
             "access": access,
             "operation_id": benchmark_string(&result, "operation_id")?,
             "idempotency_key": idempotency_key,
-            "readback_ref": benchmark_string(&result, "readback_ref")?,
+            "readback_uri": benchmark_string(&result, "readback_uri")?,
             "result": {"state": "delivered"}
         });
         Ok(RuntimeHttpResponse::new(200, response.to_string()))

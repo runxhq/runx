@@ -1,0 +1,31 @@
+{
+  "$id": "https://schemas.runx.ai/runx/git/diff/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `git.diff` reports: the files that differ from `base`.",
+  "properties": {
+    "base": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "repo_root",
+    "base",
+    "files"
+  ],
+  "title": "GitDiff",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.git.diff.v1"
+}

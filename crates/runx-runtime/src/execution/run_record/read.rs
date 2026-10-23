@@ -93,7 +93,7 @@ pub fn read_run(
         .ok_or_else(unknown)?
         .committed_at;
     let latest = standing_event(&store, run_id)?.ok_or_else(unknown)?;
-    let (state, disposition, receipt_id) = standing(&latest.event);
+    let (state, outcome, receipt_id) = standing(&latest.event);
     let waiting = waiting_requests(&store, run_id)?
         .into_iter()
         .map(|pending| {
@@ -114,7 +114,7 @@ pub fn read_run(
             skill: started.skill.into(),
             runner: started.runner.into(),
             state,
-            disposition,
+            outcome,
             package_digest: started.package_digest.into(),
             execution_closure_digest: started.execution_closure_digest.into(),
             driver: started.driver,
@@ -309,7 +309,7 @@ fn project(
             }
         }
         RunEvent::Sealed(sealed) => RunEventFact::Sealed {
-            disposition: sealed.disposition,
+            outcome: sealed.outcome,
             receipt_id: sealed.receipt_id.into(),
         },
         RunEvent::Standing(standing) => RunEventFact::Standing {

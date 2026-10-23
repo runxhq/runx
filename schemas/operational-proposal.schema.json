@@ -35,6 +35,7 @@
               "effect_finality",
               "credential_resolution"
             ],
+            "title": "ProofKind",
             "type": "string"
           },
           "provider": {
@@ -42,6 +43,7 @@
             "type": "string"
           },
           "type": {
+            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
             "enum": [
               "thread",
               "comment",
@@ -71,6 +73,7 @@
               "connector_instance",
               "connector_operation"
             ],
+            "title": "ReferenceType",
             "type": "string"
           },
           "uri": {
@@ -82,6 +85,7 @@
           "type",
           "uri"
         ],
+        "title": "Reference",
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
       },
@@ -120,6 +124,7 @@
         "publication_authority_granted",
         "final_decision_authority_granted"
       ],
+      "title": "OperationalProposalAuthority",
       "type": "object"
     },
     "caveats": {
@@ -163,6 +168,7 @@
               "effect_finality",
               "credential_resolution"
             ],
+            "title": "ProofKind",
             "type": "string"
           },
           "provider": {
@@ -170,6 +176,7 @@
             "type": "string"
           },
           "type": {
+            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
             "enum": [
               "thread",
               "comment",
@@ -199,6 +206,7 @@
               "connector_instance",
               "connector_operation"
             ],
+            "title": "ReferenceType",
             "type": "string"
           },
           "uri": {
@@ -210,6 +218,7 @@
           "type",
           "uri"
         ],
+        "title": "Reference",
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
       },
@@ -255,6 +264,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -262,6 +272,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -291,6 +302,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -302,6 +314,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -322,6 +335,7 @@
         "status",
         "summary"
       ],
+      "title": "OperationalProposalOutcome",
       "type": "object"
     },
     "human_gates": {
@@ -355,6 +369,7 @@
           "decision",
           "reason"
         ],
+        "title": "OperationalProposalHumanGate",
         "type": "object"
       },
       "type": "array"
@@ -383,6 +398,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -390,6 +406,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -419,6 +436,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -430,13 +448,14 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
     "idempotency": {
       "additionalProperties": false,
       "properties": {
-        "fingerprint": {
+        "digest": {
           "minLength": 1,
           "type": "string"
         },
@@ -447,8 +466,9 @@
       },
       "required": [
         "key",
-        "fingerprint"
+        "digest"
       ],
+      "title": "OperationalProposalIdempotency",
       "type": "object"
     },
     "missing_context": {
@@ -506,6 +526,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -513,6 +534,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -542,6 +564,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -553,6 +576,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -565,6 +589,7 @@
           "role",
           "ref"
         ],
+        "title": "ReferenceLink",
         "type": "object",
         "x-runx-schema": "runx.reference_link.v1"
       },
@@ -599,6 +624,7 @@
               "effect_finality",
               "credential_resolution"
             ],
+            "title": "ProofKind",
             "type": "string"
           },
           "provider": {
@@ -606,6 +632,7 @@
             "type": "string"
           },
           "type": {
+            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
             "enum": [
               "thread",
               "comment",
@@ -635,6 +662,7 @@
               "connector_instance",
               "connector_operation"
             ],
+            "title": "ReferenceType",
             "type": "string"
           },
           "uri": {
@@ -646,6 +674,7 @@
           "type",
           "uri"
         ],
+        "title": "Reference",
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
       },
@@ -691,6 +720,7 @@
                     "effect_finality",
                     "credential_resolution"
                   ],
+                  "title": "ProofKind",
                   "type": "string"
                 },
                 "provider": {
@@ -698,6 +728,7 @@
                   "type": "string"
                 },
                 "type": {
+                  "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                   "enum": [
                     "thread",
                     "comment",
@@ -727,6 +758,7 @@
                     "connector_instance",
                     "connector_operation"
                   ],
+                  "title": "ReferenceType",
                   "type": "string"
                 },
                 "uri": {
@@ -738,6 +770,7 @@
                 "type",
                 "uri"
               ],
+              "title": "Reference",
               "type": "object",
               "x-runx-schema": "runx.reference.v1"
             },
@@ -750,6 +783,7 @@
           "summary",
           "mutating"
         ],
+        "title": "OperationalProposalRecommendedAction",
         "type": "object"
       },
       "type": "array"
@@ -761,6 +795,7 @@
         "summary_only",
         "blocked"
       ],
+      "title": "OperationalProposalRedactionStatus",
       "type": "string"
     },
     "result_refs": {
@@ -793,6 +828,7 @@
                   "effect_finality",
                   "credential_resolution"
                 ],
+                "title": "ProofKind",
                 "type": "string"
               },
               "provider": {
@@ -800,6 +836,7 @@
                 "type": "string"
               },
               "type": {
+                "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
                 "enum": [
                   "thread",
                   "comment",
@@ -829,6 +866,7 @@
                   "connector_instance",
                   "connector_operation"
                 ],
+                "title": "ReferenceType",
                 "type": "string"
               },
               "uri": {
@@ -840,6 +878,7 @@
               "type",
               "uri"
             ],
+            "title": "Reference",
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
@@ -852,6 +891,7 @@
           "role",
           "ref"
         ],
+        "title": "ReferenceLink",
         "type": "object",
         "x-runx-schema": "runx.reference_link.v1"
       },
@@ -868,6 +908,7 @@
       "enum": [
         "runx.operational_proposal.v1"
       ],
+      "title": "OperationalProposalSchema",
       "type": "string"
     },
     "source_event_id": {
@@ -899,6 +940,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -906,6 +948,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -935,6 +978,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -946,6 +990,7 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -973,6 +1018,7 @@
             "effect_finality",
             "credential_resolution"
           ],
+          "title": "ProofKind",
           "type": "string"
         },
         "provider": {
@@ -980,6 +1026,7 @@
           "type": "string"
         },
         "type": {
+          "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
           "enum": [
             "thread",
             "comment",
@@ -1009,6 +1056,7 @@
             "connector_instance",
             "connector_operation"
           ],
+          "title": "ReferenceType",
           "type": "string"
         },
         "uri": {
@@ -1020,6 +1068,7 @@
         "type",
         "uri"
       ],
+      "title": "Reference",
       "type": "object",
       "x-runx-schema": "runx.reference.v1"
     },
@@ -1048,6 +1097,7 @@
               "effect_finality",
               "credential_resolution"
             ],
+            "title": "ProofKind",
             "type": "string"
           },
           "provider": {
@@ -1055,6 +1105,7 @@
             "type": "string"
           },
           "type": {
+            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
             "enum": [
               "thread",
               "comment",
@@ -1084,6 +1135,7 @@
               "connector_instance",
               "connector_operation"
             ],
+            "title": "ReferenceType",
             "type": "string"
           },
           "uri": {
@@ -1095,6 +1147,7 @@
           "type",
           "uri"
         ],
+        "title": "Reference",
         "type": "object",
         "x-runx-schema": "runx.reference.v1"
       },
@@ -1117,6 +1170,7 @@
     "authority",
     "public_summary"
   ],
+  "title": "OperationalProposal",
   "type": "object",
   "x-runx-schema": "runx.operational_proposal.v1"
 }

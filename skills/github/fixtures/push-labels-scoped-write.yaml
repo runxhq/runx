@@ -9,7 +9,7 @@ inputs:
     kind: issues
     filters: {limit: 1}
     mutations:
-      - ref: issues/241
+      - path: issues/241
         op: update
         payload: {labels: [triage]}
   scope: write
@@ -22,7 +22,7 @@ expect:
           decision: ready_for_execution
           scope_used: repo.write
           mutation:
-            ref: issues/241
+            path: issues/241
             op: update
             payload: {labels: [triage]}
           provider_status: not_called

@@ -31,7 +31,7 @@ the sealed proposal is what a gated CRM operator or human approver consumes.
 
 ## Output
 
-`crm_update_proposal` (`runx.crm_update_proposal.v1`) carries `decision`
+`crm_update_proposal` (`runx/crm-update-plan.proposal.v1`) carries `decision`
 (`proposed`, `no_action`, `refused`), `updates` with before and after values
 and evidence quotes, `rejected_updates`, `validation`, and both input digests.
 

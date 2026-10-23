@@ -9,7 +9,7 @@ use crate::{JsonObject, schema::RunxSchema};
 #[serde(deny_unknown_fields)]
 pub struct WorkProposal {
     pub route_id: String,
-    pub target_ref: String,
+    pub target_locator: String,
     pub inputs: JsonObject,
     pub due_at_unix_seconds: u64,
     /// Relative scheduling for a successor emitted after an external effect.
@@ -18,9 +18,10 @@ pub struct WorkProposal {
     pub due_after_seconds: Option<u64>,
 }
 
+/// Where the work stands after the run: done, waiting on a follow-up, or held.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum WorkDisposition {
+pub enum WorkState {
     Satisfied,
     FollowUp,
     Held,
@@ -30,7 +31,7 @@ pub enum WorkDisposition {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.work_outcome.v1")]
 pub struct WorkOutcome {
-    pub disposition: WorkDisposition,
+    pub state: WorkState,
     pub summary: String,
     pub completion_evidence: Vec<String>,
     pub followups: Vec<WorkProposal>,

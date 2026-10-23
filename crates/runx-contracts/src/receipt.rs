@@ -20,8 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::connector::Digest;
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::{
-    ActForm, AuthorityDerivation, AuthorityTerm, ClosureDisposition, CriterionBinding, Decision,
-    Intent, Reference,
+    ActForm, AuthorityDerivation, AuthorityTerm, CriterionBinding, Decision, Intent, Reference,
 };
 
 /// Logical schema name for the governance receipt.
@@ -79,11 +78,11 @@ pub struct Subject {
     /// What ran.
     #[serde(rename = "ref")]
     pub reference: Reference,
-    /// The digest of the subject's outcome: how it closed (its seal's
-    /// disposition), the outputs it declared, and its direct children's
-    /// receipt ids. The receipt commits to that outcome; the produced content
-    /// beyond its declared outputs is not part of it.
-    pub outcome: Digest,
+    /// The digest of how the subject ended: its seal's outcome, the outputs
+    /// it declared, and its direct children's receipt ids. The receipt
+    /// commits to that; the produced content beyond its declared outputs is
+    /// not part of it.
+    pub outcome_digest: Digest,
 }
 
 /// What the runtime enforced around the subject.
@@ -147,20 +146,51 @@ pub struct ReceiptAct {
     pub previous: Option<Reference>,
 }
 
+/// How a run, or a receipt's subject, ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RunOutcome {
+    Completed,
+    Deferred,
+    Superseded,
+    Declined,
+    Blocked,
+    Failed,
+    Killed,
+    TimedOut,
+}
+
+impl RunOutcome {
+    /// Stable string label, identical to the serde `snake_case` representation.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Completed => "completed",
+            Self::Deferred => "deferred",
+            Self::Superseded => "superseded",
+            Self::Declined => "declined",
+            Self::Blocked => "blocked",
+            Self::Failed => "failed",
+            Self::Killed => "killed",
+            Self::TimedOut => "timed_out",
+        }
+    }
+}
+
 /// Exactly one seal. `deferred` expresses a suspended (waiting/delegated) run.
 /// It closes when the receipt is created, so the receipt's `created_at` is
 /// its one time.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Seal {
-    pub disposition: ClosureDisposition,
-    /// Why it closed so, where the disposition alone does not say.
+    pub outcome: RunOutcome,
+    /// Why it ended so, where the outcome alone does not say.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<SealReason>,
     pub criteria: Vec<CriterionBinding>,
 }
 
-/// Why a receipt closed as it did, beyond its disposition.
+/// Why a receipt's subject ended as it did, beyond its outcome.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SealReason {
@@ -260,7 +290,9 @@ pub struct ReceiptIssuer {
     #[serde(rename = "type")]
     pub issuer_type: ReceiptIssuerType,
     pub kid: NonEmptyString,
-    pub public_key_sha256: NonEmptyString,
+    pub public_key_digest: NonEmptyString,
+    /// The runx release that issued the receipt.
+    pub runx_version: NonEmptyString,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

@@ -119,7 +119,7 @@ dot-separated paths in that answer, including numeric array segments. Binding
 with `--session` pins the stable principal and scopes. Native admission probes
 it again before every operation without reading, exporting or refreshing its
 token. Only process implementations may use this session. Their kernel-supplied
-`principal_ref` identifies the pinned account and cannot come from operation
+`principal_uri` identifies the pinned account and cannot come from operation
 inputs. The trusted process must enforce that identity at credential use,
 including account ownership of any opaque provider reference. A preliminary
 account probe alone does not prevent a later account switch.
@@ -236,11 +236,11 @@ An instance bound to a variable refuses a run in which the variable is not
 set, and one bound to a secret refuses once the secret is removed. A secret
 set again serves its instances from their next call, without binding again.
 
-An instance bound to a credential profile or a secret reference before `runx
-secret` existed refuses with the command that binds it again. Each profile
-became the secret of its name when the runx home was first read, so that
-command is `runx connector use <connector> --secret <profile>`; a reference is
-set as a secret first, with `runx secret set <name> --from <reference>`.
+runx 0.11 keeps its kernel store in `.runx/kernel-v2.sqlite` and reads
+nothing runx 0.10 recorded in `.runx/kernel.sqlite`, so each project binds its
+connectors again once. While the 0.10 store still holds a provider effect in
+flight, 0.11 refuses to start the new store: finish or reconcile that run with
+runx 0.10, or move the old file aside to discard it.
 
 Instances live in the project's kernel store (`RUNX_PROJECT_DIR`, else the
 workspace's `.runx`), together with the custody of operations in flight. Bind

@@ -7,7 +7,7 @@ steps:
       upstream:
         host: github.com
       registry:
-        owner: example
+        publisher: example
   - id: digest
     tool: data.digest
     inputs:

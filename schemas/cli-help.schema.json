@@ -1,0 +1,66 @@
+{
+  "$id": "https://schemas.runx.ai/runx/cli/help/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `cli.capture_help` returns: one CLI's help output, redacted, and how it exited.",
+  "properties": {
+    "args": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 0,
+      "type": "array"
+    },
+    "command": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "cwd": {
+      "description": "The absolute directory the CLI ran in.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "exit_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Null when a signal ended the CLI."
+    },
+    "help_flag": {
+      "description": "The form a CLI is asked for its help in.",
+      "enum": [
+        "--help",
+        "-h",
+        "help"
+      ],
+      "title": "CliHelpFlag",
+      "type": "string"
+    },
+    "stderr": {
+      "type": "string"
+    },
+    "stdout": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "command",
+    "args",
+    "help_flag",
+    "cwd",
+    "stdout",
+    "stderr",
+    "exit_code"
+  ],
+  "title": "CliHelp",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.cli.help.v1"
+}

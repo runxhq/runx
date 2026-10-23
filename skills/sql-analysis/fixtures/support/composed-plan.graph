@@ -5,10 +5,10 @@ steps:
   runner: plan
   inputs:
     question: Which campaigns produced qualified trials since 2026-10-01?
-    source_ref: analytics:production
+    source: analytics:production
     max_rows: 100
     catalog:
-      source_ref: analytics:production
+      source: analytics:production
       dialect: postgres
       status: catalog
       executed: false

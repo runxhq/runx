@@ -54,7 +54,7 @@ bounded evidence pack.
 
 ## Inputs
 
-- `skill_ref` (required): local package path for the default runner; any stable
+- `skill` (required): local package path for the default runner; any stable
   reference may label an evidence-only `assess` run.
 - `evidence_pack` (optional for the default runner, required for `assess`):
   inspection, harness, receipts, docs, or source evidence. References are

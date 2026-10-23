@@ -32,7 +32,7 @@ pub(crate) struct HostedGrant {
     pub status: String,
     pub credential_material_bound: bool,
     pub target_locator: Option<String>,
-    pub principal_ref: String,
+    pub principal_uri: String,
 }
 
 impl HostedGrant {
@@ -58,7 +58,7 @@ impl HostedGrant {
 pub(crate) struct HostedSession {
     transport: Transport,
     environment: AuthenticatedHostedApiEnvironment,
-    pub principal_ref: String,
+    pub principal_uri: String,
 }
 
 impl HostedSession {
@@ -68,7 +68,7 @@ impl HostedSession {
             format!(
                 "runx:hosted-account:v1\0{}\0{}",
                 self.environment.base_url(),
-                self.principal_ref
+                self.principal_uri
             )
             .as_bytes(),
         )
@@ -169,7 +169,7 @@ impl HostedClient {
                 authenticated
             }
         };
-        let principal_ref =
+        let principal_uri =
             PrincipalReference::from_runx_principal_id(environment.runx_principal_id().clone())
                 .as_reference()
                 .uri
@@ -178,7 +178,7 @@ impl HostedClient {
         Ok(HostedSession {
             transport,
             environment,
-            principal_ref,
+            principal_uri,
         })
     }
 
@@ -236,7 +236,7 @@ impl HostedClient {
             status: grant.status.clone(),
             credential_material_bound: grant.credential_material_bound,
             target_locator: grant.target_locator.clone(),
-            principal_ref: session.principal_ref,
+            principal_uri: session.principal_uri,
         })
     }
 

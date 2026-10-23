@@ -158,7 +158,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     let envelope = agent_envelope(summary_request)?;
     assert_eq!(envelope.instructions.as_ref(), root_manual);
     assert_eq!(
-        envelope.instructions_sha256.as_ref(),
+        envelope.instructions_digest.as_ref(),
         sha256_prefixed(root_manual.as_bytes())
     );
     let adjacent_context = envelope
@@ -170,7 +170,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
         Some(&JsonValue::String("skill-manual".to_owned()))
     );
     assert_eq!(
-        adjacent_context.data.get("manual_sha256"),
+        adjacent_context.data.get("manual_digest"),
         Some(&JsonValue::String(sha256_prefixed(
             adjacent_manual.as_bytes()
         )))
@@ -194,7 +194,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     );
     let canonical = canonical_stable_json(&JsonValue::Object(adjacent_context.data.clone()))?;
     assert_eq!(
-        adjacent_context.meta.hash.as_ref(),
+        adjacent_context.meta.digest.as_ref(),
         sha256_prefixed(canonical.as_bytes())
     );
     assert_eq!(adjacent_context.meta.size_bytes, canonical.len() as u64);

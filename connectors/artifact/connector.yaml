@@ -27,6 +27,6 @@ operations:
         media_type: {type: string, minLength: 3, maxLength: 200, pattern: "^[^\\s/]+/[^\\s/]+$"}
         value: {}
         data_base64: {type: string, minLength: 4, pattern: "^[A-Za-z0-9+/]*={0,2}$"}
-    result_fields: [artifact_ref, content_digest, media_type, size_bytes, created_at, principal_ref]
+    result_fields: [artifact_uri, content_digest, media_type, size_bytes, created_at, principal_uri]
     implementation:
       artifact: {}

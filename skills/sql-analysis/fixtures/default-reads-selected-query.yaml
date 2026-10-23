@@ -18,7 +18,7 @@ operator_journeys:
     separately.
 inputs:
   question: Which campaigns produced qualified trials since 2026-10-01?
-  source_ref: analytics:fixture
+  source: analytics:fixture
   max_rows: 2
 caller:
   answers:
@@ -42,9 +42,9 @@ caller:
   - tool: sql.read
     arguments:
       action: catalog
-      source_ref: analytics:fixture
+      source: analytics:fixture
     result:
-      source_ref: analytics:fixture
+      source: analytics:fixture
       dialect: sqlite
       status: catalog
       executed: false
@@ -65,13 +65,13 @@ caller:
   - tool: sql.read
     arguments:
       action: query
-      source_ref: analytics:fixture
+      source: analytics:fixture
       query_id: trials_by_campaign
       parameters:
         since: '2026-10-01'
       max_rows: 2
     result:
-      source_ref: analytics:fixture
+      source: analytics:fixture
       dialect: sqlite
       status: executed
       executed: true

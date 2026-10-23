@@ -25,7 +25,7 @@ pub(super) fn publish_remote_skill_package(
     // An operator holding the registry's publish credential publishes into
     // the namespace it names; everyone else publishes as their login.
     if let Some(token) = admin_publish_token(env) {
-        let owner = plan.publisher.clone().ok_or_else(|| {
+        let publisher = plan.publisher.clone().ok_or_else(|| {
             usage_error(
                 "an operator publish names the namespace it publishes into with --publisher",
             )
@@ -39,7 +39,7 @@ pub(super) fn publish_remote_skill_package(
             registry_url,
             &token,
             &HostedAdminSkillPublishRequest {
-                owner: &owner,
+                publisher: &publisher,
                 markdown: package.markdown(),
                 profile_document: package.profile_document(),
                 version: plan.version.as_deref(),

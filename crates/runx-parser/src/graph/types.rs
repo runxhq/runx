@@ -96,14 +96,13 @@ pub struct LoadStep {
     pub held: BTreeMap<String, String>,
 }
 
-/// What a load names: a skill by ref, with the one runner it loads or all
-/// of them, or a connector by name.
+/// What a load names: a skill, with the one runner it loads or all of them,
+/// or a connector by name.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum LoadTarget {
     Skill {
-        #[serde(rename = "ref")]
-        reference: String,
+        skill: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         runner: Option<String>,
     },
@@ -194,12 +193,12 @@ pub struct AskGate {
     pub gate_type: Option<String>,
 }
 
-/// A child skill run, by reference and optional runner.
+/// A child skill run: the skill, as the step names it, and an optional
+/// runner.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SkillTarget {
-    #[serde(rename = "ref")]
-    pub reference: String,
+    pub skill: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runner: Option<String>,
 }
@@ -257,7 +256,7 @@ impl GraphStep {
         }
     }
 
-    /// The catalog tool reference, for a catalog tool step.
+    /// The catalog tool name, for a catalog tool step.
     #[must_use]
     pub fn catalog_tool(&self) -> Option<&str> {
         match &self.kind {
@@ -331,7 +330,7 @@ pub enum DuplicatePolicy {
 pub struct ExecutionGraph {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner: Option<String>,
+    pub publisher: Option<String>,
     /// Steps whose complete declared output contracts form the graph's public
     /// result. Multiple entries support mutually exclusive terminal branches
     /// and workflows that intentionally return both an act result and its

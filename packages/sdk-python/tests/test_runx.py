@@ -23,7 +23,6 @@ class RunxClientTests(unittest.TestCase):
             {
                 "skill_id": "acme/sourcey",
                 "name": "sourcey",
-                "owner": "acme",
                 "source": "runx-registry",
                 "source_label": "runx registry",
                 "trust_tier": "community",
@@ -36,6 +35,7 @@ class RunxClientTests(unittest.TestCase):
         )
 
         self.assertEqual(result.skill_id, "acme/sourcey")
+        self.assertEqual(result.publisher, "acme")
         self.assertEqual(result.required_scopes, ("repo:read",))
         self.assertEqual(result.tags, ("docs",))
         self.assertEqual(result.install_command.copy_text, "runx registry install acme/sourcey@1.0.0")
@@ -58,7 +58,6 @@ class RunxClientTests(unittest.TestCase):
                             "registry": {"action": "search", "results": [{
                                 "skill_id": "acme/sourcey",
                                 "name": "sourcey",
-                                "owner": "acme",
                                 "source": "runx-registry",
                                 "source_label": "runx registry",
                                                 "trust_tier": "community",

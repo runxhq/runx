@@ -13,8 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, Receipt, SealReason};
-use runx_core::state_machine::{GraphStatus, SequentialGraphState, StepAdmissionWitness};
+use runx_contracts::{JsonObject, JsonValue, Receipt, RunOutcome, SealReason};
+use runx_core::state_machine::{GraphState, SequentialGraph, StepAdmissionWitness};
 use runx_parser::ExecutionGraph;
 use serde::{Deserialize, Serialize};
 
@@ -412,7 +412,8 @@ impl StepRun {
 #[derive(Clone, Debug)]
 pub struct GraphRun {
     pub graph: ExecutionGraph,
-    pub state: SequentialGraphState,
+    /// Where the run is: the graph's state and each step's.
+    pub progress: SequentialGraph,
     pub steps: Vec<StepRun>,
     pub receipt: Receipt,
     /// Why a governed stop (a denial, a block, a pending resolution) stopped
@@ -445,13 +446,10 @@ enum GraphTerminalOutcome {
 
 /// A step closure that stops the graph as an outcome rather than a fault: an
 /// agent act that declined, deferred, blocked, or was superseded.
-pub(crate) const fn is_governed_step_closure(disposition: &ClosureDisposition) -> bool {
+pub(crate) const fn is_governed_step_closure(outcome: &RunOutcome) -> bool {
     matches!(
-        disposition,
-        ClosureDisposition::Declined
-            | ClosureDisposition::Deferred
-            | ClosureDisposition::Superseded
-            | ClosureDisposition::Blocked
+        outcome,
+        RunOutcome::Declined | RunOutcome::Deferred | RunOutcome::Superseded | RunOutcome::Blocked
     )
 }
 
@@ -459,11 +457,11 @@ pub(crate) const fn is_governed_step_closure(disposition: &ClosureDisposition) -
 /// stopped returns that step's declared outputs; any other graph returns its
 /// result producers' outputs.
 pub(crate) fn graph_terminal_result(run: &GraphRun) -> Result<JsonValue, RuntimeError> {
-    let disposition = &run.receipt.seal.disposition;
+    let outcome = &run.receipt.seal.outcome;
     let closing_step = run.steps.last().filter(|step| {
-        is_governed_step_closure(disposition)
+        is_governed_step_closure(outcome)
             && !step.outcome.succeeded()
-            && step.receipt.seal.disposition == *disposition
+            && step.receipt.seal.outcome == *outcome
     });
     match closing_step {
         Some(step) => Ok(JsonValue::Object(step.contract.clone())),
@@ -497,7 +495,7 @@ pub(crate) struct Stopped {
 /// How a run that stopped short closes.
 enum StopKind {
     Blocked,
-    Closed(ClosureDisposition),
+    Closed(RunOutcome),
     Failed,
 }
 
@@ -513,14 +511,10 @@ fn sealing_stop(
         }
         RuntimeError::StepClosed {
             step_id,
-            disposition,
+            outcome,
             reason,
             ..
-        } => (
-            step_id.clone(),
-            *reason,
-            StopKind::Closed(disposition.clone()),
-        ),
+        } => (step_id.clone(), *reason, StopKind::Closed(*outcome)),
         RuntimeError::GraphBlocked { step_id, .. } => (
             step_id.clone(),
             Some(SealReason::GraphBlocked),
@@ -553,46 +547,41 @@ fn sealing_stop(
 }
 
 /// The closure a governed stop seals: a policy block, an authority denial, a
-/// pending resolution, or a step's own non-`closed` closure. Any other error
-/// is a fault, not a stop.
+/// pending resolution, or a step's own closure with an outcome other than
+/// `completed`. Any other error is a fault, not a stop.
 pub(crate) fn graph_stop_closure(
     error: &RuntimeError,
 ) -> Option<(String, crate::receipts::GraphClosure)> {
-    let (step_id, disposition, reason) = match error {
-        RuntimeError::GraphBlocked { step_id, .. } => (
-            step_id,
-            ClosureDisposition::Blocked,
-            Some(SealReason::GraphBlocked),
-        ),
+    let (step_id, outcome, reason) = match error {
+        RuntimeError::GraphBlocked { step_id, .. } => {
+            (step_id, RunOutcome::Blocked, Some(SealReason::GraphBlocked))
+        }
         RuntimeError::AuthorityDenied { step_id, .. } => (
             step_id,
-            ClosureDisposition::Blocked,
+            RunOutcome::Blocked,
             Some(SealReason::AuthorityDenied),
         ),
         RuntimeError::CostLimitExceeded { step_id, .. } => (
             step_id,
-            ClosureDisposition::Blocked,
+            RunOutcome::Blocked,
             Some(SealReason::CostLimitExceeded),
         ),
         RuntimeError::ResolutionPending { step_id, .. } => (
             step_id,
-            ClosureDisposition::Deferred,
+            RunOutcome::Deferred,
             Some(SealReason::ResolutionPending),
         ),
         RuntimeError::StepClosed {
             step_id,
-            disposition,
+            outcome,
             reason,
             ..
-        } => (step_id, disposition.clone(), *reason),
+        } => (step_id, *outcome, *reason),
         _ => return None,
     };
     Some((
         step_id.clone(),
-        crate::receipts::GraphClosure {
-            disposition,
-            reason,
-        },
+        crate::receipts::GraphClosure { outcome, reason },
     ))
 }
 
@@ -840,7 +829,7 @@ where
             &execution.runs,
             &self.options.clock.now(),
             crate::receipts::GraphClosure {
-                disposition: ClosureDisposition::Failed,
+                outcome: RunOutcome::Failed,
                 reason: Some(SealReason::GraphStepFailed),
             },
             self.options.signature_policy(),
@@ -877,7 +866,7 @@ where
         let (mut run, failure, refusal) = match stop {
             StopKind::Failed => {
                 let closure = crate::receipts::GraphClosure {
-                    disposition: ClosureDisposition::Failed,
+                    outcome: RunOutcome::Failed,
                     reason,
                 };
                 let run = self.seal_failed_with_host(graph, &step_id, error, closure, host)?;
@@ -885,17 +874,14 @@ where
             }
             StopKind::Blocked => {
                 let closure = crate::receipts::GraphClosure {
-                    disposition: ClosureDisposition::Blocked,
+                    outcome: RunOutcome::Blocked,
                     reason,
                 };
                 let run = self.seal_stopped_with_host(graph, &step_id, closure, host)?;
                 (run, None, Some(projection))
             }
-            StopKind::Closed(disposition) => {
-                let closure = crate::receipts::GraphClosure {
-                    disposition,
-                    reason,
-                };
+            StopKind::Closed(outcome) => {
+                let closure = crate::receipts::GraphClosure { outcome, reason };
                 let run = self.seal_stopped_with_host(graph, &step_id, closure, host)?;
                 (run, None, carried)
             }
@@ -943,7 +929,7 @@ where
         mut closure: crate::receipts::GraphClosure,
         host: &mut dyn Host,
     ) -> Result<GraphRun, RuntimeError> {
-        if closure.disposition != ClosureDisposition::Failed {
+        if closure.outcome != RunOutcome::Failed {
             return Err(RuntimeError::ReceiptInvalid {
                 message: "a failed run requires a failed closure".to_owned(),
             });
@@ -1027,7 +1013,7 @@ pub(crate) fn sealed_graph_run(
             message: "the run has no seal".to_owned(),
         })?;
     let mut execution = GraphExecution::from_record(&graph, &record)?;
-    execution.seal_state(&sealed.disposition);
+    execution.seal_state(sealed.outcome);
     Ok(execution.finish(graph, sealed.receipt))
 }
 
@@ -1077,7 +1063,7 @@ pub(crate) fn graph_run_result(run: &GraphRun) -> Result<JsonValue, RuntimeError
         }
     }
 
-    if run.state.status == GraphStatus::Succeeded && contributing_steps == 0 {
+    if run.progress.state == GraphState::Succeeded && contributing_steps == 0 {
         return Err(RuntimeError::SkillFailed {
             skill_name: run.graph.name.clone(),
             message: "graph succeeded without running a declared result producer".to_owned(),
@@ -1165,10 +1151,10 @@ pub(crate) fn graph_run_trace(run: &GraphRun) -> JsonValue {
     );
     trace.insert(
         "status".to_owned(),
-        JsonValue::String(match run.receipt.seal.disposition {
-            ClosureDisposition::Blocked => "blocked".to_owned(),
-            ClosureDisposition::Deferred => "deferred".to_owned(),
-            _ => format!("{:?}", run.state.status).to_ascii_lowercase(),
+        JsonValue::String(match run.receipt.seal.outcome {
+            RunOutcome::Blocked => "blocked".to_owned(),
+            RunOutcome::Deferred => "deferred".to_owned(),
+            _ => format!("{:?}", run.progress.state).to_ascii_lowercase(),
         }),
     );
     let mut step_summaries = Vec::new();
@@ -1201,7 +1187,7 @@ pub(crate) fn graph_run_skill_output(
     result: &JsonValue,
     run: &GraphRun,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let mut output = if run.state.status == GraphStatus::Succeeded {
+    let mut output = if run.progress.state == GraphState::Succeeded {
         InvocationOutput::runtime_success(result.clone(), 0)
     } else {
         InvocationOutput::runtime_failure(result.clone(), graph_failure(run), 0)
@@ -1212,8 +1198,8 @@ pub(crate) fn graph_run_skill_output(
 
 /// Why a graph did not succeed: the first step that failed, and its error.
 pub(crate) fn graph_failure(run: &GraphRun) -> String {
-    let failed = run.state.steps.iter().find_map(|step| {
-        (step.status == runx_core::state_machine::GraphStepStatus::Failed)
+    let failed = run.progress.steps.iter().find_map(|step| {
+        (step.state == runx_core::state_machine::GraphStepState::Failed)
             .then_some((step.step_id.as_str(), step.error.as_deref()))
     });
     match failed {
@@ -1251,7 +1237,7 @@ mod tests {
         step_receipt,
     };
     use runx_contracts::{JsonObject, JsonValue, ReceiptIssuerType};
-    use runx_core::state_machine::{GraphStatus, SequentialGraphState, StepAdmissionWitness};
+    use runx_core::state_machine::{GraphState, SequentialGraph, StepAdmissionWitness};
     use runx_parser::{ExecutionGraph, RawGraphIr};
     use std::collections::BTreeMap;
 
@@ -1402,7 +1388,7 @@ mod tests {
                     JsonObject::from([("delivery_receipt".to_owned(), packet.clone())]),
                 )?,
             ],
-            GraphStatus::Succeeded,
+            GraphState::Succeeded,
         )?;
 
         let result = graph_run_result(&run)?;
@@ -1443,7 +1429,7 @@ mod tests {
     /// with no failed step and no stop says only that it did not succeed.
     #[test]
     fn a_governed_stop_states_why_it_stopped() -> Result<(), Box<dyn std::error::Error>> {
-        let mut run = test_graph_run(Vec::new(), Vec::new(), GraphStatus::Failed)?;
+        let mut run = test_graph_run(Vec::new(), Vec::new(), GraphState::Failed)?;
         assert_eq!(
             super::graph_failure(&run),
             "graph test-graph did not succeed"
@@ -1472,7 +1458,7 @@ mod tests {
                     JsonValue::String("selected".to_owned()),
                 )]),
             )?],
-            GraphStatus::Succeeded,
+            GraphState::Succeeded,
         )?;
 
         assert_eq!(
@@ -1502,7 +1488,7 @@ mod tests {
                     JsonObject::from([("result".to_owned(), JsonValue::Bool(false))]),
                 )?,
             ],
-            GraphStatus::Succeeded,
+            GraphState::Succeeded,
         )?;
 
         let error = graph_run_result(&run)
@@ -1526,7 +1512,7 @@ mod tests {
                 "setup",
                 JsonObject::from([("setup".to_owned(), JsonValue::Bool(true))]),
             )?],
-            GraphStatus::Succeeded,
+            GraphState::Succeeded,
         )?;
 
         let error = graph_run_result(&run)
@@ -1553,7 +1539,7 @@ mod tests {
                     JsonValue::String("complete".to_owned()),
                 )]),
             )?],
-            GraphStatus::Succeeded,
+            GraphState::Succeeded,
         )?;
         const SENTINEL: &str = "auc_secret_capability";
         run.steps[0].ephemeral_contract = EphemeralValue::from_value(JsonValue::Object(
@@ -1598,7 +1584,7 @@ mod tests {
             ),
         )
         .run_graph_file(&graph_path)?;
-        assert_eq!(first.state.status, GraphStatus::Succeeded);
+        assert_eq!(first.progress.state, GraphState::Succeeded);
 
         // A second run whose record already holds the first step, as a
         // process that stopped after it would have left it.
@@ -1613,7 +1599,7 @@ mod tests {
             ),
         )
         .run_graph_file(&graph_path)?;
-        assert_eq!(continued.state.status, GraphStatus::Succeeded);
+        assert_eq!(continued.progress.state, GraphState::Succeeded);
         assert_eq!(
             continued
                 .steps
@@ -1664,7 +1650,7 @@ mod tests {
     fn test_graph_run(
         result_from: Vec<&str>,
         steps: Vec<StepRun>,
-        status: GraphStatus,
+        state: GraphState,
     ) -> Result<GraphRun, Box<dyn std::error::Error>> {
         let name = "test-graph".to_owned();
         let receipt = graph_receipt(
@@ -1679,7 +1665,7 @@ mod tests {
         Ok(GraphRun {
             graph: ExecutionGraph {
                 name: name.clone(),
-                owner: None,
+                publisher: None,
                 result_from: result_from.into_iter().map(str::to_owned).collect(),
                 policy: None,
                 steps: Vec::new(),
@@ -1687,9 +1673,9 @@ mod tests {
                     document: JsonObject::new(),
                 },
             },
-            state: SequentialGraphState {
+            progress: SequentialGraph {
                 graph_id: name,
-                status,
+                state,
                 steps: Vec::new(),
             },
             steps,

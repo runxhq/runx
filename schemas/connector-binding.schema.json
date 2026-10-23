@@ -2,6 +2,7 @@
   "$id": "https://schemas.runx.ai/runx/connector-binding/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "An exact connector revision. Acquisition, grant delivery and hosted calls carry this same binding; a name alone cannot substitute bytes.",
   "properties": {
     "connector": {
       "maxLength": 129,
@@ -24,6 +25,7 @@
     "manifest_digest",
     "connector_digest"
   ],
+  "title": "ConnectorBinding",
   "type": "object",
   "x-runx-schema": "runx.connector_binding.v1"
 }

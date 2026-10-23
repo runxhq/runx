@@ -28,7 +28,7 @@ operations:
     scopes: [aws.s3.write]
     target:
       template: {"$argument": "/target"}
-    result_fields: [object_ref, content_digest, size_bytes, version_ref, recovered]
+    result_fields: [object_uri, content_digest, size_bytes, version_id, recovered]
     hosted: {}
   aws.s3.head:
     description: Read the metadata of one S3 object.
@@ -36,7 +36,7 @@ operations:
     scopes: [aws.s3.read]
     target:
       template: {"$argument": "/target"}
-    result_fields: [object_ref, content_digest, size_bytes, version_ref]
+    result_fields: [object_uri, content_digest, size_bytes, version_id]
     hosted: {}
   aws.s3.get:
     description: Read the bytes of one S3 object of at most 10 MiB.
@@ -44,7 +44,7 @@ operations:
     scopes: [aws.s3.read]
     target:
       template: {"$argument": "/target"}
-    result_fields: [object_ref, content_digest, size_bytes, version_ref, data_base64]
+    result_fields: [object_uri, content_digest, size_bytes, version_id, data_base64]
     hosted: {}
   aws.s3.delete:
     description: Delete one object from an S3 bucket.
@@ -52,7 +52,7 @@ operations:
     scopes: [aws.s3.write]
     target:
       template: {"$argument": "/target"}
-    result_fields: [object_ref, size_bytes, version_ref, recovered]
+    result_fields: [object_uri, size_bytes, version_id, recovered]
     hosted: {}
   aws.textract.detect:
     description: Detect the text lines in one document of at most 5 MiB with Textract.
@@ -60,7 +60,7 @@ operations:
     scopes: [aws.textract.read]
     target:
       template: {"$argument": "/target"}
-    result_fields: [document_ref, lines]
+    result_fields: [document_uri, lines]
     hosted: {}
   aws.textract.analysis.start:
     description: Start a Textract document analysis job on one S3 object.
@@ -70,7 +70,7 @@ operations:
       template: {"$argument": "/target"}
     guarantees:
       provider_idempotency: enforced
-    result_fields: [job_ref, status, blocks]
+    result_fields: [job_uri, status, blocks]
     hosted: {}
   aws.textract.analysis.inspect:
     description: Read the status and blocks of a Textract analysis job.
@@ -78,7 +78,7 @@ operations:
     scopes: [aws.textract.read]
     target:
       template: {"$argument": "/target"}
-    result_fields: [job_ref, status, blocks, next_token, failure_reason]
+    result_fields: [job_uri, status, blocks, next_token, failure_reason]
     hosted: {}
   aws.transcribe.start:
     description: Start a Transcribe job on one S3 media object.
@@ -88,7 +88,7 @@ operations:
       template: {"$argument": "/target"}
     guarantees:
       provider_idempotency: enforced
-    result_fields: [job_ref, status, output_available, failure_reason, recovered]
+    result_fields: [job_uri, status, output_available, failure_reason, recovered]
     hosted: {}
   aws.transcribe.inspect:
     description: Read the status of a Transcribe job.
@@ -96,5 +96,5 @@ operations:
     scopes: [aws.transcribe.read]
     target:
       template: {"$argument": "/target"}
-    result_fields: [job_ref, status, output_available, failure_reason]
+    result_fields: [job_uri, status, output_available, failure_reason]
     hosted: {}

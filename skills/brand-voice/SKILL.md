@@ -53,7 +53,7 @@ instead of flattening the brand into generic advice.
   example is and where it came from without including secrets.
 - `channel`, `audience`, and `constraints` narrow where the packet applies.
 
-The result is a `runx.context.brand_voice.v1` packet. It includes applicability,
+The result is a `runx/brand-voice.context.v1` packet. It includes applicability,
 voice principles, vocabulary and cadence guidance, claim rules, source-reference
 bindings, the admitted-set digest, redactions, and stop conditions. Downstream consumers should bind the
 packet digest, not copy an untraceable summary into their own prompt.

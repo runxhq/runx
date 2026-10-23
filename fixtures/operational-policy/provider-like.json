@@ -130,12 +130,12 @@
     }
   ],
   "dedupe": {
-    "strategy": "source_fingerprint",
+    "strategy": "source_digest",
     "key_fields": [
       "source.provider",
       "source.locator",
       "source.thread_ts",
-      "signal.fingerprint"
+      "signal.digest"
     ],
     "on_duplicate": "reuse"
   },

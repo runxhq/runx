@@ -10,13 +10,13 @@ const CONTENT_ADDRESS = /^sha256:[0-9a-f]{64}$/u;
 
 /**
  * What a receipt's body commits, recomputed rather than read from it: the
- * digest its signature covers (every field but `signature`, `digest` and
- * `metadata`) and the content address its id must be (that body without `id`).
+ * digest its signature covers (every field but `signature` and `digest`) and
+ * the content address its id must be (that body without `id`).
  * An integer past 2^53 does not survive `JSON.parse`, so such a receipt fails
  * here rather than passing with a rounded body.
  */
 export function receiptCommitments(receipt: ReceiptContract): { readonly id: string; readonly digest: string } {
-  const { signature: _signature, digest: _digest, metadata: _metadata, ...body } = receipt;
+  const { signature: _signature, digest: _digest, ...body } = receipt;
   const { id: _id, ...identity } = body;
   return {
     id: sha256Prefixed(canonicalJsonStringify(identity)),

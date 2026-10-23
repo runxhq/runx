@@ -134,9 +134,9 @@ export function prepare(inputs) {
 }
 export function finish(inputs) {
   const p = inputs.provider_operation;
-  ensure(p.status === 'success' && p.finality === 'confirmed' && p.readback_ref, 'The operation has no confirmed provider readback. Continue the original native run; do not submit again.');
+  ensure(p.status === 'success' && p.finality === 'confirmed' && p.readback_uri, 'The operation has no confirmed provider readback. Continue the original native run; do not submit again.');
   return {contribution: {type: 'reddit.contribution', account_id: inputs.admission.account_id,
-    action: inputs.admission.action, permalink: p.result.permalink, readback_ref: p.readback_ref,
+    action: inputs.admission.action, permalink: p.result.permalink, readback_uri: p.readback_uri,
     visibility: p.result.visibility}};
 }
 export function refuse(inputs) {
@@ -153,6 +153,6 @@ export function complete(inputs) {
   ensure(inputs.record.status === 'committed', 'Provider readback exists but contribution history did not commit. Resume the original run.');
   return {result: {status: 'confirmed', account_id: inputs.contribution.account_id,
     action: inputs.contribution.action, permalink: inputs.contribution.permalink,
-    visibility: inputs.contribution.visibility, readback_ref: inputs.provider_operation.readback_ref,
-    contribution_ref: inputs.record.event_ref}};
+    visibility: inputs.contribution.visibility, readback_uri: inputs.provider_operation.readback_uri,
+    contribution_id: inputs.record.event_id}};
 }

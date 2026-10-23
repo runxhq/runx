@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use runx_contracts::{ClosureDisposition, JsonValue, Receipt, RunEventFact};
+use runx_contracts::{JsonValue, Receipt, RunEventFact, RunOutcome};
 use runx_runtime::{LocalOrchestrator, RunResult, SkillRunRequest};
 use tempfile::tempdir;
 
@@ -193,12 +193,8 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
 
     let result = run(root, &parent, Some("nested-failure"))?;
     let output = result.output.as_object().ok_or("an output object")?;
-    let closure = output
-        .get("closure")
-        .and_then(JsonValue::as_object)
-        .ok_or("a closure")?;
     assert_eq!(
-        closure.get("disposition").and_then(JsonValue::as_str),
+        output.get("outcome").and_then(JsonValue::as_str),
         Some("failed"),
         "{output:?}"
     );
@@ -210,7 +206,7 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
         .iter()
         .find_map(|record| match &record.event {
             RunEventFact::Sealed {
-                disposition: ClosureDisposition::Failed,
+                outcome: RunOutcome::Failed,
                 receipt_id,
             } if record.stream.as_str() == "nested-failure/invoke" => Some(receipt_id.to_string()),
             _ => None,
@@ -229,7 +225,7 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
     let [invoke] = children(root, &graph)?
         .try_into()
         .map_err(|_| "one parent step")?;
-    assert_eq!(invoke.seal.disposition, ClosureDisposition::Failed);
+    assert_eq!(invoke.seal.outcome, RunOutcome::Failed);
     let [child_graph] = children(root, &invoke)?
         .try_into()
         .map_err(|_| "the child's run receipt")?;
@@ -238,9 +234,9 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
     assert_eq!(
         steps
             .iter()
-            .map(|step| step.seal.disposition.clone())
+            .map(|step| step.seal.outcome)
             .collect::<Vec<_>>(),
-        [ClosureDisposition::Closed, ClosureDisposition::Failed],
+        [RunOutcome::Completed, RunOutcome::Failed],
         "the child's work and its failure are both in the tree"
     );
     Ok(())
@@ -269,17 +265,13 @@ fn a_child_a_guard_refuses_stops_its_parent_with_the_refusal() -> TestResult {
 
     let result = run(root, &parent, None)?;
     let output = result.output.as_object().ok_or("an output object")?;
-    let closure = output
-        .get("closure")
-        .and_then(JsonValue::as_object)
-        .ok_or("a closure")?;
     assert_eq!(
-        closure.get("disposition").and_then(JsonValue::as_str),
+        output.get("outcome").and_then(JsonValue::as_str),
         Some("blocked"),
         "{output:?}"
     );
     assert_eq!(
-        closure.get("reason").and_then(JsonValue::as_str),
+        output.get("seal_reason").and_then(JsonValue::as_str),
         Some("graph_blocked"),
         "{output:?}"
     );
@@ -328,12 +320,8 @@ fn a_process_step_runs_only_while_its_package_is_the_admitted_one() -> TestResul
 
     let result = run(root, &skill, None)?;
     let output = result.output.as_object().ok_or("an output object")?;
-    let closure = output
-        .get("closure")
-        .and_then(JsonValue::as_object)
-        .ok_or("a closure")?;
     assert_eq!(
-        closure.get("disposition").and_then(JsonValue::as_str),
+        output.get("outcome").and_then(JsonValue::as_str),
         Some("failed"),
         "{output:?}"
     );

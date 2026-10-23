@@ -21,8 +21,8 @@ try {
 
 const key = "00000000-0000-4000-8000-000000000042";
 const terms = { api_host: "api-m.paypal.com", account_id: "YXZY75W2GKDQE", amount_decimal: "12.50", currency: "USD", precision: 2, reference: "invoice-42" };
-const refund = { api_host: terms.api_host, account_id: terms.account_id, payment_ref: "CAPTURE42", amount_decimal: "5.00", currency: "USD", precision: 2, original_status: "PARTIALLY_REFUNDED" };
-const collect = { ...terms, order_ref: "ORDER42" };
+const refund = { api_host: terms.api_host, account_id: terms.account_id, payment_id: "CAPTURE42", amount_decimal: "5.00", currency: "USD", precision: 2, original_status: "PARTIALLY_REFUNDED" };
+const collect = { ...terms, order_id: "ORDER42" };
 function render(operation, request, args, acknowledgement) {
   const declaration = manifest.operations[operation];
   assert.equal(operationInputError(declaration, args), undefined);
@@ -48,7 +48,7 @@ test("order creation exposes the buyer approval path without claiming payment", 
 test("capture requires an approved order and exact merchant terms before dispatch", () => {
   const operation = manifest.operations["payment.paypal"];
   const checks = operation.implementation.http.preconditions[0].matches;
-  for (const path of ["account_id", "order_ref", "amount_decimal", "currency", "reference"]) {
+  for (const path of ["account_id", "order_id", "amount_decimal", "currency", "reference"]) {
     assert.ok(checks.some((check) => check.expected.source === "argument" && check.expected.path === path && check.observed === path));
   }
   assert.ok(checks.some((check) => check.expected.value === "APPROVED" && check.observed === "order_status"));
@@ -57,7 +57,7 @@ test("capture requires an approved order and exact merchant terms before dispatc
   const write = render("payment.paypal", "capture", collect);
   assert.equal(write.url, "https://api-m.paypal.com/v2/checkout/orders/ORDER42/capture");
   assert.deepEqual(JSON.parse(write.body), {});
-  const acknowledged = { payment_ref: "CAPTURE42" };
+  const acknowledged = { payment_id: "CAPTURE42" };
   assert.equal(render("payment.paypal", "capture_read", collect, acknowledged).url, "https://api-m.paypal.com/v2/payments/captures/CAPTURE42");
   assert.equal(operation.implementation.http.readbacks.length, 2);
   assert.equal(operationAmount(operation, collect), undefined, "incoming collection does not debit an outgoing budget");
@@ -69,7 +69,7 @@ test("a refund's wire amount is the same exact amount admitted by the native bud
   assert.deepEqual(JSON.parse(request.body), { amount: { value: "5.00", currency_code: "USD" }, custom_id: key });
   assert.deepEqual(operationAmount(manifest.operations["payment.paypal.refund"], refund), { units: 500, unit: "USD" });
   assert.equal(render("payment.paypal.refund", "original_capture", refund).url, "https://api-m.paypal.com/v2/payments/captures/CAPTURE42");
-  assert.equal(render("payment.paypal.refund", "refund_read", refund, { refund_ref: "REFUND42" }).url, "https://api-m.paypal.com/v2/payments/refunds/REFUND42");
+  assert.equal(render("payment.paypal.refund", "refund_read", refund, { refund_id: "REFUND42" }).url, "https://api-m.paypal.com/v2/payments/refunds/REFUND42");
 });
 
 test("the declared currency precision refuses rounding and a smaller budget representation", () => {
@@ -88,7 +88,7 @@ test("refund confirmation binds the original capture through full relationship o
   const readback = manifest.operations["payment.paypal.refund"].implementation.http.readbacks[0];
   const relationship = readback.matches.find((check) => check.expected.source === "template");
   assert.equal(relationship.observed, "relationships.*");
-  const value = renderTemplate(relationship.expected.value, { arguments: refund, responses: { write: { json: { refund_ref: "REFUND42" } } } });
+  const value = renderTemplate(relationship.expected.value, { arguments: refund, responses: { write: { json: { refund_id: "REFUND42" } } } });
   assert.deepEqual(value, [
     { rel: "self", method: "GET", href: "https://api-m.paypal.com/v2/payments/refunds/REFUND42" },
     { rel: "up", method: "GET", href: "https://api-m.paypal.com/v2/payments/captures/CAPTURE42" },
@@ -111,18 +111,18 @@ test("app authentication and processor-private answers stay inside custody", () 
     }
   }
   assert.equal(manifest.pays, undefined, "merchant app credentials do not advertise buyer-wallet authority");
-  for (const patch of [{ payment_ref: "OTHER/../../capture" }, { account_id: "app-not-merchant" }, { original_status: "PENDING" }]) assert.equal(typeof operationInputError(manifest.operations["payment.paypal.refund"], { ...refund, ...patch }), "string");
+  for (const patch of [{ payment_id: "OTHER/../../capture" }, { account_id: "app-not-merchant" }, { original_status: "PENDING" }]) assert.equal(typeof operationInputError(manifest.operations["payment.paypal.refund"], { ...refund, ...patch }), "string");
 });
 
 test("an uncertain capture can be observed by its original order without another submission", () => {
-  const call = render("payment.paypal.lookup", "order", { api_host: terms.api_host, order_ref: "ORDER42" });
+  const call = render("payment.paypal.lookup", "order", { api_host: terms.api_host, order_id: "ORDER42" });
   assert.equal(call.method, "GET");
   assert.equal(call.url, "https://api-m.paypal.com/v2/checkout/orders/ORDER42");
   assert.equal(call.body, undefined);
-  assert.ok(manifest.operations["payment.paypal.lookup"].result_fields.includes("payment_ref"));
+  assert.ok(manifest.operations["payment.paypal.lookup"].result_fields.includes("payment_id"));
   for (const name of ["payment.paypal.order.create", "payment.paypal", "payment.paypal.refund"]) {
     const decode = manifest.operations[name].implementation.http.decode;
-    assert.deepEqual(Object.keys(decode.at(-1).fields).sort(), name === "payment.paypal" ? ["order_ref", "payment_ref"] : [name.endsWith("create") ? "order_ref" : "refund_ref"]);
+    assert.deepEqual(Object.keys(decode.at(-1).fields).sort(), name === "payment.paypal" ? ["order_id", "payment_id"] : [name.endsWith("create") ? "order_id" : "refund_id"]);
   }
 });
 

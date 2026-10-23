@@ -102,7 +102,7 @@ pub struct SkillOperatorContextRegistry {
     pub skill_id: String,
     pub version: String,
     pub digest: String,
-    pub package_digest: Option<String>,
+    pub bundle_digest: Option<String>,
     pub trust_tier: String,
 }
 
@@ -110,7 +110,7 @@ pub struct SkillOperatorContextRegistry {
 pub struct SkillOperatorContextDocument {
     pub path: Option<PathBuf>,
     pub source_label: String,
-    pub sha256: String,
+    pub digest: String,
     pub content: String,
 }
 
@@ -128,7 +128,7 @@ pub struct SkillOperatorContextStep {
     pub node_path: String,
     pub definition: GraphStep,
     pub context_skills: Vec<SkillOperatorContextContextSkill>,
-    pub tool_refs: Vec<String>,
+    pub tools: Vec<String>,
     pub execution_boundary: Option<ExecutionBoundaryObservation>,
     /// The child skills the step may run: a skill step's target, or each
     /// child skill an agent turn's allowance names.
@@ -140,8 +140,8 @@ impl SkillOperatorContextStep {
     pub fn target_label(&self) -> String {
         match &self.definition.kind {
             StepKind::Skill(target) => match &target.runner {
-                Some(runner) => format!("skill {} runner {runner}", target.reference),
-                None => format!("skill {}", target.reference),
+                Some(runner) => format!("skill {} runner {runner}", target.skill),
+                None => format!("skill {}", target.skill),
             },
             StepKind::Tool(ToolTarget::Catalog(name)) => format!("tool {name}"),
             StepKind::Tool(ToolTarget::Worker(worker)) => format!("worker {}", worker.module),
@@ -155,7 +155,7 @@ impl SkillOperatorContextStep {
             StepKind::Agent(agent) => format!("agent {} task {}", agent.role, agent.task),
             StepKind::Ask(ask) => format!("ask {}", ask.gate),
             StepKind::Load(load) => match &load.target {
-                LoadTarget::Skill { reference, .. } => format!("load skill {reference}"),
+                LoadTarget::Skill { skill, .. } => format!("load skill {skill}"),
                 LoadTarget::Connector { name } => format!("load connector {name}"),
             },
         }
@@ -165,7 +165,7 @@ impl SkillOperatorContextStep {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SkillOperatorContextContextSkill {
     pub reference: String,
-    pub artifact_sha256: String,
+    pub artifact_digest: String,
     pub artifact_bytes: u64,
     pub artifact: JsonObject,
 }
@@ -175,7 +175,7 @@ pub struct SkillOperatorContextTool {
     pub name: String,
     pub source: String,
     pub path: Option<PathBuf>,
-    pub sha256: Option<String>,
+    pub digest: Option<String>,
     pub content: Option<String>,
     pub declared_artifact_output: bool,
     pub execution_boundary: ExecutionBoundaryObservation,
@@ -395,18 +395,18 @@ impl ExpansionState {
             let loaded = load_step_skill(graph_dir, &child, StepSkillLoadOptions::from_disk(env))?;
             let child_path = match &step.kind {
                 StepKind::Skill(_) => node_path.clone(),
-                _ => format!("{node_path}[{}]", target.reference),
+                _ => format!("{node_path}[{}]", target.skill),
             };
             children.push(self.expand_loaded_child(
                 child_path,
-                &target.reference,
+                &target.skill,
                 target.runner.as_deref(),
                 loaded,
                 env,
                 depth + 1,
             )?);
         }
-        let tool_refs = step_tool_refs(step);
+        let tools = step_tools(step);
         let execution_boundary = match &step.kind {
             StepKind::Tool(ToolTarget::Catalog(tool)) => {
                 crate::tool_catalogs::native::execution_boundary(tool, &self.options.effects)
@@ -427,7 +427,7 @@ impl ExpansionState {
             node_path,
             definition: step.clone(),
             context_skills,
-            tool_refs,
+            tools,
             execution_boundary,
             children,
         })
@@ -486,12 +486,12 @@ impl ExpansionState {
     ) -> Result<SkillOperatorContextContextSkill, SkillRunError> {
         let resolved_reference = entry
             .data
-            .get("ref")
+            .get("skill")
             .and_then(JsonValue::as_str)
-            .ok_or_else(|| blocked("resolved context skill is missing string field ref"))?;
+            .ok_or_else(|| blocked("resolved context skill is missing string field skill"))?;
         if resolved_reference != reference {
             return Err(blocked(format!(
-                "resolved context skill ref '{resolved_reference}' does not match declared ref '{reference}'"
+                "resolved context skill '{resolved_reference}' does not match declared skill '{reference}'"
             )));
         }
         let artifact_bytes = usize::try_from(entry.meta.size_bytes)
@@ -499,7 +499,7 @@ impl ExpansionState {
         self.add_bytes(artifact_bytes)?;
         Ok(SkillOperatorContextContextSkill {
             reference: reference.to_owned(),
-            artifact_sha256: entry.meta.hash.as_str().to_owned(),
+            artifact_digest: entry.meta.digest.as_str().to_owned(),
             artifact_bytes: entry.meta.size_bytes,
             artifact: entry.data,
         })
@@ -509,13 +509,13 @@ impl ExpansionState {
         &mut self,
         path: &Path,
         content: &str,
-        sha256: &str,
+        digest: &str,
     ) -> Result<SkillOperatorContextDocument, SkillRunError> {
         self.add_bytes(content.len())?;
         Ok(SkillOperatorContextDocument {
             path: Some(path.to_path_buf()),
             source_label: path.to_string_lossy().into_owned(),
-            sha256: sha256.to_owned(),
+            digest: digest.to_owned(),
             content: content.to_owned(),
         })
     }
@@ -548,7 +548,7 @@ impl ExpansionState {
                         name: name.clone(),
                         source: "native-runtime".to_owned(),
                         path: None,
-                        sha256: Some(sha256_prefixed(content.as_bytes())),
+                        digest: Some(sha256_prefixed(content.as_bytes())),
                         content: Some(content),
                         declared_artifact_output: crate::output_contract::declares_output_contract(
                             None,
@@ -571,7 +571,7 @@ impl ExpansionState {
                             name: name.clone(),
                             source: "local-manifest".to_owned(),
                             path: Some(tool.path),
-                            sha256: Some(sha256_prefixed(tool.content.as_bytes())),
+                            digest: Some(sha256_prefixed(tool.content.as_bytes())),
                             content: Some(tool.content),
                             declared_artifact_output:
                                 crate::output_contract::declares_output_contract(
@@ -732,7 +732,7 @@ fn registry_context(value: &LoadedStepSkillRegistryProvenance) -> SkillOperatorC
         skill_id: value.skill_id.clone(),
         version: value.version.clone(),
         digest: value.digest.clone(),
-        package_digest: value.package_digest.clone(),
+        bundle_digest: value.bundle_digest.clone(),
         trust_tier: value.trust_tier.clone(),
     }
 }
@@ -748,7 +748,7 @@ fn node_identity(
             registry.skill_id,
             registry.version,
             registry
-                .package_digest
+                .bundle_digest
                 .as_deref()
                 .unwrap_or(&registry.digest),
             runner_name
@@ -764,10 +764,10 @@ fn node_identity(
 }
 
 fn referenced_tools(graph: &ExecutionGraph) -> BTreeSet<String> {
-    graph.steps.iter().flat_map(step_tool_refs).collect()
+    graph.steps.iter().flat_map(step_tools).collect()
 }
 
-fn step_tool_refs(step: &GraphStep) -> Vec<String> {
+fn step_tools(step: &GraphStep) -> Vec<String> {
     match &step.kind {
         runx_parser::StepKind::Agent(agent) => agent
             .allowance
@@ -795,7 +795,7 @@ fn resolve_referenced_local_tool(
         root: crate::RunxPaths::resolve(env, skill_dir)
             .workspace()
             .to_path_buf(),
-        tool_ref: name.to_owned(),
+        tool: name.to_owned(),
         source: None,
         search_from_directory: skill_dir.to_path_buf(),
         tool_roots: env
@@ -965,7 +965,7 @@ runners:
             context.artifact.get("content").and_then(JsonValue::as_str),
             Some("---\nname: rubric\ndescription: rubric fixture.\n---\nchild-local rubric\n")
         );
-        assert!(context.artifact.contains_key("manual_sha256"));
+        assert!(context.artifact.contains_key("manual_digest"));
         Ok(())
     }
 
@@ -1051,7 +1051,7 @@ runners:
             &store,
             "---\nname: registry-child\ndescription: registry-child fixture.\n---\n# Registry Child\n",
             IngestSkillOptions {
-                owner: Some("acme".to_owned()),
+                publisher_slug: Some("acme".to_owned()),
                 version: Some("1.0.0".to_owned()),
                 created_at: Some("2026-07-12T00:00:00Z".to_owned()),
                 profile_document: Some(
@@ -1093,7 +1093,7 @@ runners:
         assert_eq!(registry.skill_id, "acme/registry-child");
         assert_eq!(registry.version, "1.0.0");
         assert!(registry.digest.starts_with("sha256:"));
-        assert!(registry.package_digest.is_some());
+        assert!(registry.bundle_digest.is_some());
         assert_eq!(registry.trust_tier, "community");
         assert!(!registry.source.is_empty());
         assert!(!registry.source_label.is_empty());
@@ -1225,7 +1225,7 @@ runners:
             None,
             SkillOperatorContextOptions::new(BTreeMap::new(), temp.path().to_path_buf()),
         )?;
-        assert_eq!(chain.entry.steps[0].tool_refs, ["example.record"]);
+        assert_eq!(chain.entry.steps[0].tools, ["example.record"]);
         assert_eq!(chain.entry.tools.len(), 1);
         assert_eq!(chain.entry.tools[0].name, "example.record");
         assert_eq!(chain.entry.tools[0].source, "local-manifest");
@@ -1313,7 +1313,7 @@ runners:
                 .as_deref()
                 .is_some_and(|content| content.contains("runx.skill.apply"))
         );
-        assert!(chain.entry.tools[0].sha256.is_some());
+        assert!(chain.entry.tools[0].digest.is_some());
         Ok(())
     }
 

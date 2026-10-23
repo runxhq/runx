@@ -39,7 +39,7 @@ caller:
         draft:
           title: Evidence-bound execution is the architecture
           body: Runx binds operator actions to authority evidence and packages deterministic operations behind portable skills.
-          claim_refs:
+          claims:
             - claim: Receipts bind operator actions to authority evidence.
               source_digests:
                 - sha256:9056e1b5caa4e78583d0bc47bb731468b31155929a3aa3a35fcadf6136534a36

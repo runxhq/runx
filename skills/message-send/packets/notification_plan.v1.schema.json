@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/message-send/notification-plan/v1.json",
+  "x-runx-packet-id": "runx/message-send.notification_plan.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "decision",
+    "provider",
+    "principal",
+    "channel",
+    "content_uri",
+    "content_digest",
+    "send_plan",
+    "provider_status",
+    "delivery_status",
+    "downstream_handoff",
+    "validation"
+  ],
+  "properties": {
+    "schema": { "const": "runx/message-send.notification_plan.v1" },
+    "decision": {
+      "type": "string",
+      "enum": ["ready_for_provider", "blocked"]
+    },
+    "provider": { "const": "slack" },
+    "principal": { "type": "string" },
+    "channel": { "type": "string" },
+    "content_uri": { "type": "string" },
+    "content_digest": {
+      "type": "string",
+      "pattern": "^(?:|sha256:[0-9a-f]{64})$"
+    },
+    "send_plan": {
+      "type": "object",
+      "required": ["decision"],
+      "properties": {
+        "decision": { "type": "string", "enum": ["ready", "needs_input", "denied", "refused"] },
+        "principal": { "type": "object", "additionalProperties": true },
+        "provider": { "type": "object", "additionalProperties": true },
+        "channel": { "type": "string" },
+        "audience": { "type": "object", "additionalProperties": true },
+        "content": { "type": "object", "additionalProperties": true },
+        "gates": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": true
+    },
+    "provider_status": { "const": "not_called" },
+    "delivery_status": { "const": "not_sent" },
+    "downstream_handoff": {
+      "type": "object",
+      "properties": {
+        "skill": { "const": "message-send" },
+        "runner": { "const": "post" },
+        "state": { "const": "ready_for_approval" }
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "required": ["status", "findings"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "fail"] },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string", "minLength": 1 },
+              "message": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "decision": { "const": "ready_for_provider" } } },
+      "then": {
+        "properties": {
+          "principal": { "minLength": 1 },
+          "channel": { "minLength": 1 },
+          "content_uri": { "minLength": 1 },
+          "content_digest": { "pattern": "^sha256:[0-9a-f]{64}$" },
+          "downstream_handoff": { "required": ["skill", "runner", "state"] },
+          "validation": { "properties": { "status": { "const": "pass" } } }
+        }
+      },
+      "else": {
+        "properties": {
+          "downstream_handoff": { "maxProperties": 0 },
+          "validation": { "properties": { "status": { "const": "fail" } } }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

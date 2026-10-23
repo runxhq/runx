@@ -190,7 +190,7 @@ fn page_inputs(
         .collect::<Vec<_>>();
     let context = JsonObject::from([
         (
-            "artifact_ref".to_owned(),
+            "artifact_uri".to_owned(),
             JsonValue::String(page.artifact.reference.clone()),
         ),
         (

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/conversation-review/review/v1.json",
+  "x-runx-packet-id": "runx/conversation-review.review.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "status",
+    "source_locator",
+    "source_digest",
+    "thread_locator",
+    "summary",
+    "reason",
+    "draft_message",
+    "request_quote",
+    "follow_up_task",
+    "follow_up_status",
+    "delivery_status",
+    "validation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "runx/conversation-review.review.v1"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "reply",
+        "follow_up",
+        "coding",
+        "no_action",
+        "needs_context"
+      ]
+    },
+    "source_locator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "source_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "thread_locator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 1500
+    },
+    "draft_message": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4000
+    },
+    "request_quote": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1000
+    },
+    "follow_up_task": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1000
+    },
+    "follow_up_status": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "not_queued",
+        null
+      ]
+    },
+    "delivery_status": {
+      "const": "not_sent"
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "status",
+        "findings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "findings": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      }
+    }
+  }
+}

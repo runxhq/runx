@@ -35,7 +35,7 @@ than guessing. Missing required inputs fail at admission.
 
 ## Output
 
-`schema_check` (`runx.schema_check.v1`) carries `decision`, `policy_result`,
+`schema_check` (`runx/schema-check.check.v1`) carries `decision`, `policy_result`,
 `breaking_changes`, per-sample `validation_results`, `migration_notes`
 including coverage, the gated `proposal` or null, and `validation`.
 

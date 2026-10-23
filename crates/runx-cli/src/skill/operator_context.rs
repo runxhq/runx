@@ -35,7 +35,7 @@ pub(super) fn write_operator_context(
     out.push_str(&format!(
         "  Steps:  {total_steps} total, {} conditional\n  Tools:  {}\n  Boundaries: {}\n",
         report.governance.conditional_steps,
-        list_or_none(&report.governance.tool_refs),
+        list_or_none(&report.governance.tools),
         list_or_none(&execution_boundaries),
     ));
     out.push_str(&format!(
@@ -84,8 +84,8 @@ pub(super) fn write_operator_context(
     out.push_str("request_bindings:\n");
     for input in &report.request.inputs {
         out.push_str(&format!(
-            "  - {}: type={}, bytes={}, sha256={}\n",
-            input.name, input.value_type, input.canonical_bytes, input.sha256
+            "  - {}: type={}, bytes={}, digest={}\n",
+            input.name, input.value_type, input.canonical_bytes, input.digest
         ));
     }
     append_resolution_trace(&mut out, report);
@@ -154,12 +154,12 @@ fn append_node(
     }
     if let Some(registry) = &node.package.registry {
         out.push_str(&format!(
-            "registry_ref: {}\nregistry_skill_id: {}\nregistry_version: {}\nregistry_digest: {}\nregistry_package_digest: {}\nregistry_trust_tier: {}\n",
+            "registry_ref: {}\nregistry_skill_id: {}\nregistry_version: {}\nregistry_digest: {}\nregistry_bundle_digest: {}\nregistry_trust_tier: {}\n",
             registry.reference,
             registry.skill_id,
             registry.version,
             registry.digest,
-            registry.package_digest.as_deref().unwrap_or("none"),
+            registry.bundle_digest.as_deref().unwrap_or("none"),
             registry.trust_tier,
         ));
     }
@@ -209,7 +209,7 @@ fn append_step(out: &mut String, step: &SkillOperatorContextStep) -> Result<(), 
             .map(|observation| observation.kind.as_str())
             .unwrap_or("none"),
     ));
-    append_string_list(out, "tool_refs", &step.tool_refs);
+    append_string_list(out, "tools", &step.tools);
     append_json_block(
         out,
         &format!("graph step contract: {}", step.node_path),
@@ -230,8 +230,8 @@ fn append_context_skill(
     context: &SkillOperatorContextContextSkill,
 ) -> Result<(), String> {
     out.push_str(&format!(
-        "\ncontext_attachment: {step_path}\ncontext_ref: {}\ncontext_artifact_sha256: {}\ncontext_artifact_bytes: {}\n",
-        context.reference, context.artifact_sha256, context.artifact_bytes,
+        "\ncontext_attachment: {step_path}\ncontext_skill: {}\ncontext_artifact_digest: {}\ncontext_artifact_bytes: {}\n",
+        context.reference, context.artifact_digest, context.artifact_bytes,
     ));
     append_json_block(
         out,
@@ -247,10 +247,10 @@ fn append_tools(out: &mut String, node_path: &str, tools: &[SkillOperatorContext
         return;
     }
     for tool in tools {
-        match (&tool.path, &tool.sha256, &tool.content) {
-            (Some(path), Some(sha256), Some(content)) => {
+        match (&tool.path, &tool.digest, &tool.content) {
+            (Some(path), Some(digest), Some(content)) => {
                 out.push_str(&format!(
-                    "\n--- tool manifest: {} at {node_path} ---\npath: {}\nsha256: {sha256}\nsource: {}\nexecution_boundary: {}\n\n```json\n{content}\n```\n",
+                    "\n--- tool manifest: {} at {node_path} ---\npath: {}\ndigest: {digest}\nsource: {}\nexecution_boundary: {}\n\n```json\n{content}\n```\n",
                     tool.name,
                     path.display(),
                     tool.source,
@@ -279,8 +279,8 @@ fn append_document(
         None => out.push_str(&format!("source: {}\n", document.source_label)),
     }
     out.push_str(&format!(
-        "sha256: {}\n\n```{language}\n{}\n```\n",
-        document.sha256, document.content
+        "digest: {}\n\n```{language}\n{}\n```\n",
+        document.digest, document.content
     ));
 }
 

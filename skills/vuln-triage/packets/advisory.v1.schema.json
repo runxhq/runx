@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/vuln-triage/advisory/v1.json",
+  "x-runx-packet-id": "runx/vuln-triage.advisory.v1",
+  "type": "object",
+  "properties": {
+    "advisory_draft": { "type": "object", "additionalProperties": true },
+    "maintainer_summary": { "type": "object", "additionalProperties": true },
+    "disclosure_checklist": { "type": "array" }
+  },
+  "additionalProperties": true
+}

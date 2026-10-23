@@ -1,6 +1,6 @@
 ---
 name: google-search-console
-description: Read and normalize Google Search Console performance, indexing, site, and sitemap evidence through any compatible Runx connector; plan and govern sitemap submission without coupling the skill to credential custody or a connector vendor.
+description: Read and normalize Google Search Console performance, indexing, site, and sitemap evidence through any compatible Runx connector; plan and govern sitemap submission without coupling the skill to credential custody or one connector implementation.
 ---
 
 # Google Search Console

@@ -89,13 +89,13 @@ impl<T: Transport> RegistryClient<T> {
         skill_id: &str,
         version: Option<&str>,
     ) -> Result<Option<RegistrySkillDetail>, RegistryClientError> {
-        let (owner, name) = validated_skill_id(skill_id)?;
+        let (publisher, name) = validated_skill_id(skill_id)?;
         let suffix = version
             .map(|version| format!("{name}@{version}"))
             .unwrap_or_else(|| name.to_owned());
         let route = format!(
             "/v1/skills/{}/{}",
-            encode_segment(owner),
+            encode_segment(publisher),
             encode_segment(&suffix)
         );
         let response = self.transport.send(HttpRequest {
@@ -112,7 +112,7 @@ impl<T: Transport> RegistryClient<T> {
     }
 
     /// The skill a root name addresses, read as its canonical
-    /// `<owner>/<name>`. A root name is one segment the registry assigns to a
+    /// `<publisher>/<name>`. A root name is one segment the registry assigns to a
     /// verified publisher's skill, and may move to another; `None` when no
     /// skill holds it.
     pub fn read_root(
@@ -151,10 +151,10 @@ impl<T: Transport> RegistryClient<T> {
         if options.installation_id.trim().is_empty() {
             return Err(RegistryClientError::MissingInstallationId);
         }
-        let (owner, name) = validated_skill_id(skill_id)?;
+        let (publisher, name) = validated_skill_id(skill_id)?;
         let route = format!(
             "/v1/skills/{}/{}/acquire",
-            encode_segment(owner),
+            encode_segment(publisher),
             encode_segment(name)
         );
         let channel = options.channel.unwrap_or("cli");
@@ -181,10 +181,10 @@ impl<T: Transport> RegistryClient<T> {
         skill_id: &str,
         version: &str,
     ) -> Result<Option<RegistrySkillVersion>, RegistryClientError> {
-        let (owner, name) = validated_skill_id(skill_id)?;
+        let (publisher, name) = validated_skill_id(skill_id)?;
         let route = format!(
             "/v1/skills/{}/{}/versions/{}/record",
-            encode_segment(owner),
+            encode_segment(publisher),
             encode_segment(name),
             encode_segment(version)
         );
@@ -266,10 +266,10 @@ impl<T: Transport> RegistryClient<T> {
         skill_id: &str,
         cursor: Option<&str>,
     ) -> Result<Option<VersionPage>, RegistryClientError> {
-        let (owner, name) = validated_skill_id(skill_id)?;
+        let (publisher, name) = validated_skill_id(skill_id)?;
         let route = format!(
             "/v1/skills/{}/{}/versions",
-            encode_segment(owner),
+            encode_segment(publisher),
             encode_segment(name)
         );
         self.get(&paged(&route, cursor), parse_versions)
@@ -316,7 +316,7 @@ pub struct AcquireOptions<'a> {
 pub enum RegistryClientError {
     #[error(transparent)]
     RuntimeHttp(#[from] RuntimeHttpError),
-    #[error("invalid registry skill id '{0}'. Expected '<owner>/<name>'.")]
+    #[error("invalid registry skill id '{0}'. Expected '<publisher>/<name>'.")]
     InvalidSkillId(String),
     #[error("invalid registry root name '{0}'. A root name is one segment.")]
     InvalidRootName(String),

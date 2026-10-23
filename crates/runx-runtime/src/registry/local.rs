@@ -26,7 +26,8 @@ pub struct PutVersionOptions {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct IngestSkillOptions {
-    pub owner: Option<String>,
+    /// The publisher slug the skill's id is published under: `<slug>/<name>`.
+    pub publisher_slug: Option<String>,
     pub version: Option<String>,
     pub created_at: Option<String>,
     pub profile_document: Option<String>,
@@ -93,7 +94,7 @@ pub enum LocalRegistryError {
     InvalidVersionPayload { field: String, message: String },
     #[error("invalid registry skill manifest at {field}: {message}")]
     InvalidSkillManifest { field: String, message: String },
-    #[error("invalid registry skill id '{0}'. Expected '<owner>/<name>'.")]
+    #[error("invalid registry skill id '{0}'. Expected '<publisher>/<name>'.")]
     InvalidSkillId(String),
     #[error("registry slugs cannot be empty")]
     EmptySlug,
@@ -126,7 +127,7 @@ impl FileRegistryStore {
         if let Some(existing) = self.get_version(&version.skill_id, Some(&version.version))? {
             if existing.digest != version.digest
                 || existing.profile_digest != version.profile_digest
-                || existing.package_digest != version.package_digest
+                || existing.bundle_digest != version.bundle_digest
                 || existing.paid_listing != version.paid_listing
             {
                 if !options.upsert {
@@ -189,19 +190,18 @@ impl FileRegistryStore {
     }
 
     pub fn list_skills(&self) -> Result<Vec<RegistrySkill>, LocalRegistryError> {
-        let owners = safe_read_dir_names(&self.root)?;
+        let publishers = safe_read_dir_names(&self.root)?;
         let mut skills = Vec::new();
-        for owner in owners {
-            let owner_dir = self.root.join(&owner);
-            for name in safe_read_dir_names(&owner_dir)? {
-                let skill_id = format!("{}/{}", decode_part(&owner)?, decode_part(&name)?);
+        for publisher in publishers {
+            let publisher_dir = self.root.join(&publisher);
+            for name in safe_read_dir_names(&publisher_dir)? {
+                let skill_id = format!("{}/{}", decode_part(&publisher)?, decode_part(&name)?);
                 let versions = self.list_versions(&skill_id)?;
                 let Some(latest) = versions.last() else {
                     continue;
                 };
                 skills.push(RegistrySkill {
                     skill_id,
-                    owner: latest.owner.clone(),
                     name: latest.name.clone(),
                     description: latest.description.clone(),
                     category: latest.category.clone(),
@@ -255,8 +255,11 @@ impl FileRegistryStore {
     }
 
     fn skill_dir(&self, skill_id: &str) -> Result<PathBuf, LocalRegistryError> {
-        let (owner, name) = split_skill_id(skill_id)?;
-        Ok(self.root.join(encode_part(owner)).join(encode_part(name)))
+        let (publisher, name) = split_skill_id(skill_id)?;
+        Ok(self
+            .root
+            .join(encode_part(publisher))
+            .join(encode_part(name)))
     }
 }
 
@@ -290,7 +293,7 @@ fn create_registry_skill_version(
     if let Some(existing) = existing {
         if existing.digest != record.digest
             || existing.profile_digest != record.profile_digest
-            || existing.package_digest != record.package_digest
+            || existing.bundle_digest != record.bundle_digest
             || existing.paid_listing != record.paid_listing
         {
             if !options.upsert {
@@ -396,7 +399,7 @@ pub fn resolve_registry_skill(
 ) -> Result<Option<RegistrySkillResolution>, LocalRegistryError> {
     let parsed = parse_registry_ref(registry_ref);
     let version = options.version.as_deref().or(parsed.version.as_deref());
-    // A registry directory holds skills by `<owner>/<name>`; root names are
+    // A registry directory holds skills by `<publisher>/<name>`; root names are
     // the hosted registry's.
     split_skill_id(&parsed.skill_id)?;
     store
@@ -408,7 +411,7 @@ pub fn resolve_registry_skill(
                 profile_document: record.profile_document,
                 profile_digest: record.profile_digest,
                 package_files: record.package_files,
-                package_digest: record.package_digest,
+                bundle_digest: record.bundle_digest,
                 paid_listing: record.paid_listing,
                 runner_names: record.runner_names,
                 skill_id: record.skill_id,
@@ -492,13 +495,13 @@ pub fn runx_link_for_version(
     })
 }
 
-pub fn build_skill_id(owner: &str, name: &str) -> Result<String, LocalRegistryError> {
-    Ok(format!("{}/{}", slugify(owner)?, slugify(name)?))
+pub fn build_skill_id(publisher: &str, name: &str) -> Result<String, LocalRegistryError> {
+    Ok(format!("{}/{}", slugify(publisher)?, slugify(name)?))
 }
 
 pub fn split_skill_id(skill_id: &str) -> Result<(&str, &str), LocalRegistryError> {
     let mut parts = skill_id.split('/');
-    let Some(owner) = parts.next().filter(|part| !part.is_empty()) else {
+    let Some(publisher) = parts.next().filter(|part| !part.is_empty()) else {
         return Err(LocalRegistryError::InvalidSkillId(skill_id.to_owned()));
     };
     let Some(name) = parts.next().filter(|part| !part.is_empty()) else {
@@ -507,9 +510,9 @@ pub fn split_skill_id(skill_id: &str) -> Result<(&str, &str), LocalRegistryError
     if parts.next().is_some() {
         return Err(LocalRegistryError::InvalidSkillId(skill_id.to_owned()));
     }
-    reject_unsafe_path_component(owner)?;
+    reject_unsafe_path_component(publisher)?;
     reject_unsafe_path_component(name)?;
-    Ok((owner, name))
+    Ok((publisher, name))
 }
 
 pub fn slugify(value: &str) -> Result<String, LocalRegistryError> {

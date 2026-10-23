@@ -2,13 +2,55 @@
 
 use std::path::Path;
 
-use rusqlite::{Connection, TransactionBehavior};
+use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 
 use super::{BUSY_TIMEOUT, KernelStoreError};
 
 /// `RUNK`: marks a kernel store. A `store` connector's database never carries it.
 const APPLICATION_ID: i64 = 0x5255_4e4b;
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
+
+/// The acts whose provider effects runx 0.10 left in flight in its store.
+/// 0.11 reads none of that log, and its own idempotency keys differ, so a
+/// re-run of one of these acts could send the effect twice. Only the stream
+/// heads are read: an effect stream settles with a `finalized` or `rejected`
+/// head, and any other head is an attempt whose outcome is not settled.
+pub(super) fn retired_effects_in_flight(retired: &Path) -> Result<Vec<String>, KernelStoreError> {
+    let database = |operation: &'static str| {
+        move |source| KernelStoreError::Database {
+            path: retired.to_path_buf(),
+            operation,
+            source,
+        }
+    };
+    if !retired.is_file() {
+        return Ok(Vec::new());
+    }
+    let connection = Connection::open_with_flags(retired, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(database("opening the runx 0.10 store"))?;
+    connection
+        .busy_timeout(BUSY_TIMEOUT)
+        .map_err(database("setting the busy timeout"))?;
+    let application_id: i64 = connection
+        .pragma_query_value(None, "application_id", |row| row.get(0))
+        .map_err(database("reading the application id"))?;
+    if application_id != APPLICATION_ID {
+        return Ok(Vec::new());
+    }
+    let mut statement = connection
+        .prepare(
+            "SELECT key FROM kernel_streams
+             WHERE kind = 'effect' AND event_type NOT IN ('finalized', 'rejected')
+             ORDER BY key",
+        )
+        .map_err(database("reading effect heads"))?;
+    let keys = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(database("reading effect heads"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(database("reading effect heads"))?;
+    Ok(keys)
+}
 
 const SCHEMA: &str = "
 CREATE TABLE kernel_streams (

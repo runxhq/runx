@@ -8,6 +8,7 @@
         "additionalProperties": false,
         "properties": {
           "description": {
+            "description": "A skill's description, from the frontmatter of its own `SKILL.md`.",
             "type": "string"
           },
           "diagnostics": {
@@ -24,12 +25,15 @@
                   "type": "string"
                 },
                 "packet": {
+                  "maxLength": 200,
+                  "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
                   "type": "string"
                 }
               },
               "required": [
                 "name"
               ],
+              "title": "RunxListEmit",
               "type": "object"
             },
             "type": "array"
@@ -50,6 +54,7 @@
               "packet",
               "overlay"
             ],
+            "title": "RunxListItemKind",
             "type": "string"
           },
           "name": {
@@ -59,19 +64,23 @@
             "type": "string"
           },
           "runners": {
+            "description": "A skill's runners, each with its purpose when its `run.yaml` states one.",
             "items": {
               "additionalProperties": false,
+              "description": "One runner of a skill, as a model chooses it from an index.",
               "properties": {
                 "name": {
                   "type": "string"
                 },
                 "purpose": {
+                  "description": "What it does and when to use it, as its package states it.",
                   "type": "string"
                 }
               },
               "required": [
                 "name"
               ],
+              "title": "CatalogRunner",
               "type": "object"
             },
             "type": "array"
@@ -89,6 +98,7 @@
               "dependencies",
               "built-in"
             ],
+            "title": "RunxListSource",
             "type": "string"
           },
           "status": {
@@ -96,6 +106,7 @@
               "ok",
               "invalid"
             ],
+            "title": "RunxListStatus",
             "type": "string"
           },
           "steps": {
@@ -103,10 +114,12 @@
             "type": "integer"
           },
           "visibility": {
+            "description": "A skill's catalog visibility; public when its manifest declares none.",
             "enum": [
               "public",
               "internal"
             ],
+            "title": "RunxListVisibility",
             "type": "string"
           },
           "wraps": {
@@ -120,6 +133,7 @@
           "path",
           "status"
         ],
+        "title": "RunxListItem",
         "type": "object"
       },
       "type": "array"
@@ -133,6 +147,7 @@
         "packets",
         "overlays"
       ],
+      "title": "RunxListRequestedKind",
       "type": "string"
     },
     "root": {
@@ -142,6 +157,7 @@
       "enum": [
         "runx.list.v1"
       ],
+      "title": "RunxListSchema",
       "type": "string"
     }
   },
@@ -151,6 +167,7 @@
     "requested_kind",
     "items"
   ],
+  "title": "RunxListReport",
   "type": "object",
   "x-runx-schema": "runx.list.v1"
 }

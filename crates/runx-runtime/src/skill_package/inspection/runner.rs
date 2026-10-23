@@ -48,7 +48,9 @@ pub(super) fn inspect_runner(
     })
 }
 
-fn declared_result_packets(runner: &SkillRunnerDefinition) -> BTreeMap<String, String> {
+fn declared_result_packets(
+    runner: &SkillRunnerDefinition,
+) -> BTreeMap<String, runx_contracts::PacketId> {
     let mut packets = BTreeMap::new();
     let mut conflicting = BTreeSet::new();
     let mut add = |artifacts: &runx_parser::SkillArtifactContract| {

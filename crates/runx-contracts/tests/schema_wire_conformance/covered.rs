@@ -7,7 +7,6 @@ use runx_contracts::credential_delivery::CredentialDeliveryObservation;
 use runx_contracts::decision::Decision;
 use runx_contracts::doctor::DoctorReport;
 use runx_contracts::fixture::Fixture;
-use runx_contracts::handoff::{HandoffSignal, HandoffState};
 use runx_contracts::host_protocol::{
     AgentActInvocation, ApprovalGate, Question, ResolutionRequest, ResolutionResponse,
     TurnCallResult, TurnStatus,
@@ -20,17 +19,14 @@ use runx_contracts::orchestrator_handoff::{
     OrchestratorExecutionContext, OrchestratorHandoffContext,
 };
 use runx_contracts::output::Output;
-use runx_contracts::packet_index::PacketIndex;
+use runx_contracts::packet_lock::PacketLock;
 use runx_contracts::receipt::Receipt;
-use runx_contracts::redaction::Redaction;
 use runx_contracts::reference::{Reference, ReferenceLink};
 use runx_contracts::registry_binding::RegistryBinding;
-use runx_contracts::review::ReviewReceiptOutput;
 use runx_contracts::run_read::{RunEventRecord, RunRead};
 use runx_contracts::schema::RunxSchema;
 use runx_contracts::signal::Signal;
 use runx_contracts::source_packet::SourcePacket;
-use runx_contracts::suppression::SuppressionRecord;
 use runx_contracts::tools::ToolManifest;
 
 use serde_json::Value;
@@ -59,11 +55,6 @@ pub(super) fn covered() -> Vec<Covered> {
             file_name: "doctor.schema.json",
             emitted: DoctorReport::json_schema(),
             corpus: doctor_corpus(),
-        },
-        Covered {
-            file_name: "redaction.schema.json",
-            emitted: Redaction::json_schema(),
-            corpus: redaction_corpus(),
         },
         Covered {
             file_name: "artifact.schema.json",
@@ -151,34 +142,14 @@ pub(super) fn covered() -> Vec<Covered> {
             corpus: receipt_corpus(),
         },
         Covered {
-            file_name: "handoff-signal.schema.json",
-            emitted: HandoffSignal::json_schema(),
-            corpus: handoff_signal_corpus(),
-        },
-        Covered {
-            file_name: "handoff-state.schema.json",
-            emitted: HandoffState::json_schema(),
-            corpus: handoff_state_corpus(),
-        },
-        Covered {
-            file_name: "suppression-record.schema.json",
-            emitted: SuppressionRecord::json_schema(),
-            corpus: suppression_record_corpus(),
-        },
-        Covered {
-            file_name: "packet-index.schema.json",
-            emitted: PacketIndex::json_schema(),
-            corpus: packet_index_corpus(),
+            file_name: "packet-lock.schema.json",
+            emitted: PacketLock::json_schema(),
+            corpus: packet_lock_corpus(),
         },
         Covered {
             file_name: "registry-binding.schema.json",
             emitted: RegistryBinding::json_schema(),
             corpus: registry_binding_corpus(),
-        },
-        Covered {
-            file_name: "review-receipt-output.schema.json",
-            emitted: ReviewReceiptOutput::json_schema(),
-            corpus: review_receipt_output_corpus(),
         },
         Covered {
             file_name: "agent-context-envelope.schema.json",

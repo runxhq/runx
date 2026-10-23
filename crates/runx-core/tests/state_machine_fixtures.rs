@@ -1,6 +1,6 @@
 use runx_core::state_machine::{
-    SequentialGraphEvent, SequentialGraphState, SequentialGraphStepDefinition,
-    create_sequential_graph_state, plan_sequential_graph_transition, transition_sequential_graph,
+    SequentialGraph, SequentialGraphEvent, SequentialGraphStepDefinition, create_sequential_graph,
+    plan_sequential_graph_transition, transition_sequential_graph,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -33,19 +33,19 @@ enum Expected {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
 enum StateMachineInput {
-    #[serde(rename = "state-machine.createSequentialGraphState")]
+    #[serde(rename = "state-machine.createSequentialGraph")]
     CreateSequentialGraphState {
         graph_id: String,
         steps: Vec<SequentialGraphStepDefinition>,
     },
     #[serde(rename = "state-machine.planSequentialGraphTransition")]
     PlanSequentialGraphTransition {
-        state: SequentialGraphState,
+        state: SequentialGraph,
         steps: Vec<SequentialGraphStepDefinition>,
     },
     #[serde(rename = "state-machine.transitionSequentialGraph")]
     TransitionSequentialGraph {
-        state: SequentialGraphState,
+        state: SequentialGraph,
         event: SequentialGraphEvent,
     },
 }
@@ -96,7 +96,7 @@ fn assert_fixture(json: &str) -> TestResult {
 fn evaluate_input(input: StateMachineInput) -> Result<Value, String> {
     match input {
         StateMachineInput::CreateSequentialGraphState { graph_id, steps } => {
-            to_value(create_sequential_graph_state(graph_id, &steps))
+            to_value(create_sequential_graph(graph_id, &steps))
         }
         StateMachineInput::PlanSequentialGraphTransition { state, steps } => {
             to_value(plan_sequential_graph_transition(&state, &steps))

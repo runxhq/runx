@@ -223,7 +223,7 @@ impl HarnessTransport {
             ),
             ("result".to_owned(), result),
             (
-                "readback_ref".to_owned(),
+                "readback_uri".to_owned(),
                 JsonValue::String(format!("runx:harness:provider-readback:{identity}")),
             ),
         ]);
@@ -284,7 +284,7 @@ impl HarnessTransport {
     /// Send one declared request as runx Connect does: under the fixture's
     /// grant, for the exact connector it holds at the digests that connector
     /// declares, rendered by Connect's renderer with the case's paid
-    /// invocation, and answered only by the case's exchanges. A refusal
+    /// purchase, and answered only by the case's exchanges. A refusal
     /// answers as Connect's does, before anything is sent.
     fn provider_request(
         &self,
@@ -465,7 +465,7 @@ impl HarnessTransport {
                 arguments: &arguments,
                 parameters: None,
                 idempotency_key: call.idempotency_key.as_deref(),
-                invocation_id: fixture.invocation_id.as_deref(),
+                purchase_id: fixture.purchase_id.as_deref(),
                 item: call.item,
                 responses: call.responses.as_ref(),
             },
@@ -626,12 +626,12 @@ impl HarnessTransport {
             .get("input")
             .and_then(JsonValue::as_object)
             .ok_or_else(|| transport_error("artifact operation input is missing".to_owned()))?;
-        let principal_ref = format!("runx:principal:{}", fixture.principal_id);
+        let principal_uri = format!("runx:principal:{}", fixture.principal_id);
         let mut artifacts = self
             .artifacts
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let (artifact_ref, evidence, idempotency_key) = match operation {
+        let (artifact_uri, evidence, idempotency_key) = match operation {
             "artifact.allocate" => {
                 let key = required_string(input, "idempotency_key")?;
                 let bytes = base64::engine::general_purpose::STANDARD
@@ -645,14 +645,14 @@ impl HarnessTransport {
                         "artifact bytes do not match their stated digest".to_owned(),
                     ));
                 }
-                let artifact_ref = format!(
+                let artifact_uri = format!(
                     "runx:artifact:{}",
-                    runx_contracts::sha256_prefixed(format!("{principal_ref}\0{key}").as_bytes())
+                    runx_contracts::sha256_prefixed(format!("{principal_uri}\0{key}").as_bytes())
                 );
                 let evidence = JsonObject::from([
                     (
-                        "artifact_ref".to_owned(),
-                        JsonValue::String(artifact_ref.clone()),
+                        "artifact_uri".to_owned(),
+                        JsonValue::String(artifact_uri.clone()),
                     ),
                     (
                         "content_digest".to_owned(),
@@ -671,7 +671,7 @@ impl HarnessTransport {
                         JsonValue::String(HARNESS_ARTIFACT_CREATED_AT.to_owned()),
                     ),
                 ]);
-                match artifacts.get(&artifact_ref) {
+                match artifacts.get(&artifact_uri) {
                     Some(held) if held != &evidence => {
                         return Err(transport_error(format!(
                             "artifact idempotency key {key:?} already holds other bytes"
@@ -679,17 +679,17 @@ impl HarnessTransport {
                     }
                     Some(_) => {}
                     None => {
-                        artifacts.insert(artifact_ref.clone(), evidence.clone());
+                        artifacts.insert(artifact_uri.clone(), evidence.clone());
                     }
                 }
-                (artifact_ref, evidence, Some(key.to_owned()))
+                (artifact_uri, evidence, Some(key.to_owned()))
             }
             "artifact.inspect" => {
-                let artifact_ref = required_string(input, "artifact_ref")?.to_owned();
-                let evidence = artifacts.get(&artifact_ref).cloned().ok_or_else(|| {
-                    transport_error(format!("the case stored no artifact {artifact_ref:?}"))
+                let artifact_uri = required_string(input, "artifact_uri")?.to_owned();
+                let evidence = artifacts.get(&artifact_uri).cloned().ok_or_else(|| {
+                    transport_error(format!("the case stored no artifact {artifact_uri:?}"))
                 })?;
-                (artifact_ref, evidence, None)
+                (artifact_uri, evidence, None)
             }
             other => {
                 return Err(transport_error(format!(
@@ -708,15 +708,15 @@ impl HarnessTransport {
                 "operation".to_owned(),
                 JsonValue::String(operation.to_owned()),
             ),
-            ("target".to_owned(), JsonValue::String(artifact_ref.clone())),
+            ("target".to_owned(), JsonValue::String(artifact_uri.clone())),
             ("result".to_owned(), JsonValue::Object(evidence)),
             (
                 "transport".to_owned(),
                 JsonValue::String("hosted_loopback".to_owned()),
             ),
             (
-                "readback_ref".to_owned(),
-                JsonValue::String(format!("runx:harness:artifact-readback:{artifact_ref}")),
+                "readback_uri".to_owned(),
+                JsonValue::String(format!("runx:harness:artifact-readback:{artifact_uri}")),
             ),
             (
                 "access".to_owned(),
@@ -729,7 +729,7 @@ impl HarnessTransport {
                     .to_owned(),
                 ),
             ),
-            ("principal_ref".to_owned(), JsonValue::String(principal_ref)),
+            ("principal_uri".to_owned(), JsonValue::String(principal_uri)),
             (
                 "finality".to_owned(),
                 JsonValue::String("verified".to_owned()),

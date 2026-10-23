@@ -42,7 +42,7 @@ impl McpServerOptions {
             })
             .unwrap_or_default();
         let instructions = format!(
-            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema, the tools it offers, and its context as an index, each entry with a ref that turn_read reads it by. Make each call with turn_call, naming one of those tools and its input, and pin your own id for it as call_id so a call you make again returns the recorded one; runx admits, executes and records it. End a turn with turn_complete and its output, or with a failure and its reason. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
+            "This server works the open agent turns of runx run {}. A turn is addressed by its act's id; open now: {open}.\n\nRead a turn with turn_status: its instructions, inputs, output schema, the tools it offers, and its context as an index, each entry with a locator that turn_read reads it by. Make each call with turn_call, naming one of those tools and its input, and pin your own id for it as call_id so a call you make again returns the recorded one; runx admits, executes and records it. End a turn with turn_complete and its output, or with a failure and its reason. A call that starts a child skill may open a turn of its own, worked the same way; turn_list shows everything the run waits on.",
             session.run_id()
         );
         Self {
@@ -80,15 +80,15 @@ pub(super) fn turn_tools(runs: &McpTurnRuns) -> Vec<McpServerTool> {
         (
             McpTurnAction::Status,
             "turn_status",
-            "Read an open turn: its instructions, inputs and output schema, its context as an index of entries each with a ref, the tools it offers with their input schemas, and how each call it made so far ended.",
+            "Read an open turn: its instructions, inputs and output schema, its context as an index of entries each with a locator, the tools it offers with their input schemas, and how each call it made so far ended.",
             fields(&[turn()], &[]),
         ),
         (
             McpTurnAction::Read,
             "turn_read",
-            "Read a page of what a ref of an open turn names: a context entry by the ref its status lists, an input of its act as input:<name>, or one of its calls as call:<index>. A page is at most 32,000 characters from offset; next_offset reads on from what it delivered.",
+            "Read a page of what a locator of an open turn names: a context entry by the locator its status lists, an input of its act as input:<name>, or one of its calls as call:<index>. A page is at most 32,000 characters from offset; next_offset reads on from what it delivered.",
             fields(
-                &[turn(), ("ref", string_schema())],
+                &[turn(), ("locator", string_schema())],
                 &[("offset", count_schema()), ("limit", count_schema())],
             ),
         ),
@@ -200,11 +200,11 @@ pub(super) fn execute_mcp_turn_tool(
                 .map_err(|error| error.to_string())
         }),
         McpTurnAction::Read => text(&arguments, "turn").and_then(|turn| {
-            let reference = text(&arguments, "ref")?;
+            let locator = text(&arguments, "locator")?;
             let offset = count(&arguments, "offset")?.unwrap_or(0);
             let limit = count(&arguments, "limit")?;
             session
-                .read(turn, reference, offset, limit)
+                .read(turn, locator, offset, limit)
                 .map(|page| structured(&page, false))
                 .map_err(|error| error.to_string())
         }),

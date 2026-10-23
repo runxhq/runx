@@ -66,8 +66,8 @@ connector.
 - `verify` takes the evidence context `admit` returned and the candidate draft
   written from it. The admitted context, not the candidate, is the authority
   for source digests and context rules.
-- `package` takes a `runx.content.draft.v1` packet; `handoff` takes the
-  `runx.content.publish.v1` packet `package` returned, its channel, the exact
+- `package` takes a `runx/ghostwrite.draft.v1` packet; `handoff` takes the
+  `runx/ghostwrite.publish.v1` packet `package` returned, its channel, the exact
   target, and `boundary_kind` (`internal` or `external`).
 
 The draft result contains the content brief, reader-facing body with claim

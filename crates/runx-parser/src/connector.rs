@@ -62,7 +62,7 @@ pub fn validate_connector_manifest(
     validate_effects(&manifest, &mut errors);
     validate_holds(&manifest, &mut errors);
     validate_enforced(&manifest, &mut errors);
-    validate_invocation(&manifest, &mut errors);
+    validate_purchase_binding(&manifest, &mut errors);
     errors.finish()?;
 
     let digest_error = |error: runx_contracts::connector::ConnectorDigestError| {
@@ -1083,7 +1083,7 @@ fn validate_effects(manifest: &ConnectorManifest, errors: &mut Errors) {
 
 /// A purchase credential is what a purchase bought (S10, N11). runx Connect
 /// takes it from the seller's answer to the operation that holds it, keeps it
-/// per resource for the purchase's owner, and presents it only to the hosted
+/// per resource for the purchase's buyer, and presents it only to the hosted
 /// requests of operations on that resource, so the kernel never sees it.
 fn validate_holds(manifest: &ConnectorManifest, errors: &mut Errors) {
     let auth = &manifest.auth;
@@ -1435,25 +1435,25 @@ fn implementation_templates<'a>(
     templates.into_iter()
 }
 
-/// The paid invocation a call runs under is known only to runx Connect,
+/// The purchase a call runs under is known only to runx Connect,
 /// which renders a hosted operation's declared requests. The kernel renders
 /// everything else and never holds it, so a binding there could never render.
-fn validate_invocation(manifest: &ConnectorManifest, errors: &mut Errors) {
-    const CONNECT_ONLY: &str = "only runx Connect supplies the paid invocation: bind {\"$runx\": \"invocation\"} only in a hosted operation's declared requests";
+fn validate_purchase_binding(manifest: &ConnectorManifest, errors: &mut Errors) {
+    const CONNECT_ONLY: &str = "only runx Connect supplies the purchase: bind {\"$runx\": \"purchase\"} only in a hosted operation's declared requests";
     for (name, operation) in &manifest.operations {
         let field = format!("operations.{name}");
-        if operation.target.template.binds_invocation() {
+        if operation.target.template.binds_purchase() {
             errors.push(&format!("{field}.target"), CONNECT_ONLY);
         }
         if let Some(effect) = &operation.effect
             && std::iter::once(&effect.locator)
                 .chain(&effect.each)
-                .any(Template::binds_invocation)
+                .any(Template::binds_purchase)
         {
             errors.push(&format!("{field}.effect"), CONNECT_ONLY);
         }
         if operation.hosted_http().is_none()
-            && implementation_templates(manifest, operation).any(Template::binds_invocation)
+            && implementation_templates(manifest, operation).any(Template::binds_purchase)
         {
             errors.push(&format!("{field}.implementation"), CONNECT_ONLY);
         }

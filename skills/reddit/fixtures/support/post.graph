@@ -1,5 +1,5 @@
 name: reddit-native-post
-owner: runx
+publisher: runx
 steps:
 - id: configure
   skill: ../..

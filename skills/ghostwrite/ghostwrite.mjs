@@ -67,7 +67,7 @@ export function prepareContent(inputs) {
   if (!isDigest(evidencePacketDigest) || sourceDigests.length === 0 || !sourceDigests.every(isDigest)) {
     blockers.push("draft is not bound to its evidence");
   }
-  const claims = Array.isArray(draft.claim_refs) ? draft.claim_refs : [];
+  const claims = Array.isArray(draft.claims) ? draft.claims : [];
   if (claims.some((claim) => {
     const cited = strings(object(claim).source_digests);
     return cited.length === 0 || cited.some((digest) => !sourceDigests.includes(digest));
@@ -142,7 +142,7 @@ export function prepareHandoff(inputs) {
 }
 
 // The applicability field each writing-context packet declares its channels in:
-// runx.context.brand_voice.v1 names `channels`, runx.context.taste_profile.v1 names `surfaces`.
+// runx/brand-voice.context.v1 names `channels`, runx/taste-profile.context.v1 names `surfaces`.
 const CONTEXT_CHANNEL_FIELD = { brand_voice: "channels", taste_profile: "surfaces" };
 
 function admitWritingContext(raw, type, packetDigest, scope, blockers) {

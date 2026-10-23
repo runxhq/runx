@@ -14,7 +14,7 @@ expect:
       subset:
         notify_plan:
           data:
-            schema: runx.notify.v1
+            schema: runx/message-send.notification_plan.v1
             decision: ready_for_provider
             principal: runx:principal:operator
             channel: slack://T123/C456

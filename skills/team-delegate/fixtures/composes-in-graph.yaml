@@ -13,9 +13,9 @@ caller:
           input_context:
             question: Which instructions require updating?
             source_material:
-            - source_ref: issue:docs-drift
+            - source_id: issue:docs-drift
               text: The setup guide omits the new explicit connection selection.
-          source_refs:
+          source_ids:
           - issue:docs-drift
           needed_scope: []
           acceptance:

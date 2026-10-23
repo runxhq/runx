@@ -34,11 +34,11 @@ approval. Publication is never inferred from an agent answer or a zero exit code
 
 `project_root` is resolved inside the current Runx workspace and must be a
 relative directory (normally `.` when Runx is invoked from the project root).
-`profile_ref` must name a JSON file inside that directory:
+`profile_path` must name a JSON file inside that directory:
 
 ```json
 {
-  "schema": "runx.release.profile.v1",
+  "schema": "runx/release.profile.v1",
   "id": "my-project/npm",
   "channel": "npm",
   "commands": {
@@ -63,7 +63,7 @@ Every command must print one bounded JSON object. Preparation returns
 `status: ready`; publish returns `status: submitted` or `published`;
 verification returns `status: verified`, the exact `version` and `channel`,
 and at least one stable locator. Optional fields are `release_id`,
-`commit_ref`, `checks`, and `locators`. Raw stdout and stderr are not copied
+`commit`, `checks`, and `locators`. Raw stdout and stderr are not copied
 into release artifacts; only parsed bounded fields and runtime evidence digests
 are sealed.
 

@@ -184,10 +184,10 @@ fn writes_and_proves_one_contained_file() -> Result<(), Box<dyn std::error::Erro
     );
     assert_eq!(
         output
-            .get("sha256")
+            .get("content_digest")
             .and_then(JsonValue::as_str)
             .map(str::len),
-        Some(64)
+        Some("sha256:".len() + 64)
     );
     Ok(())
 }
@@ -204,6 +204,9 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
     let effects = RuntimeEffectRegistry::default();
     for root in [workspace.path(), alternate.path()] {
         for filename in [
+            "kernel-v2.sqlite",
+            "kernel-v2.sqlite-wal",
+            "kernel-v2.sqlite-shm",
             "kernel.sqlite",
             "kernel.sqlite-wal",
             "kernel.sqlite-shm",

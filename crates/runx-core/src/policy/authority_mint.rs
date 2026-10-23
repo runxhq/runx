@@ -314,7 +314,7 @@ fn derive_term_id(
     bounds: &AuthorityBounds,
     expires_at: Option<&IsoDateTime>,
 ) -> NonEmptyString {
-    let fingerprint = serde_json::json!({
+    let preimage = serde_json::json!({
         "parent_term_id": parent.term_id.as_str(),
         "principal_ref": request.principal_ref,
         "resource_ref": request.resource_ref,
@@ -323,7 +323,7 @@ fn derive_term_id(
         "bounds": bounds,
         "expires_at": expires_at.map(IsoDateTime::as_str),
     });
-    let digest = sha256_hex(fingerprint.to_string().as_bytes());
+    let digest = sha256_hex(preimage.to_string().as_bytes());
     NonEmptyString::from(format!("mint-{digest}"))
 }
 

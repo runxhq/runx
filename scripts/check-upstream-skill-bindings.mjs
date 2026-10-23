@@ -34,10 +34,10 @@ console.log(`upstream binding check ok (${bindings.length} binding${bindings.len
 
 function collectBindings(root) {
   const result = [];
-  for (const owner of readDirectoryNames(root)) {
-    const ownerDir = path.join(root, owner);
-    for (const skill of readDirectoryNames(ownerDir)) {
-      result.push(path.join(ownerDir, skill, "binding.json"));
+  for (const publisher of readDirectoryNames(root)) {
+    const publisherDir = path.join(root, publisher);
+    for (const skill of readDirectoryNames(publisherDir)) {
+      result.push(path.join(publisherDir, skill, "binding.json"));
     }
   }
   return result.sort();
@@ -52,9 +52,9 @@ function readDirectoryNames(dir) {
 function validateBinding(bindingPath) {
   const bindingDir = path.dirname(bindingPath);
   const relativeDir = path.relative(workspaceRoot, bindingDir);
-  const [root, owner, skillName] = relativeDir.split(path.sep);
-  if (root !== "bindings" || !owner || !skillName) {
-    findings.push(`${relativeDir}: expected bindings/<owner>/<skill>/binding.json`);
+  const [root, publisher, skillName] = relativeDir.split(path.sep);
+  if (root !== "bindings" || !publisher || !skillName) {
+    findings.push(`${relativeDir}: expected bindings/<publisher>/<skill>/binding.json`);
     return;
   }
 
@@ -67,8 +67,8 @@ function validateBinding(bindingPath) {
   const binding = readJson(bindingPath);
   const profilePath = path.join(bindingDir, "run.yaml");
   const profile = readText(profilePath);
-  const expectedId = `${owner}/${skillName}`;
-  const expectedProfilePath = `bindings/${owner}/${skillName}/run.yaml`;
+  const expectedId = `${publisher}/${skillName}`;
+  const expectedProfilePath = `bindings/${publisher}/${skillName}/run.yaml`;
 
   requireEqual(binding.schema, "runx.registry_binding.v1", `${relativeDir}: schema`);
   requireSetValue(binding.state, validStates, `${relativeDir}: state`);
@@ -86,7 +86,7 @@ function validateBinding(bindingPath) {
   requirePinnedUrl(binding.upstream?.html_url, binding.upstream, `${relativeDir}: upstream.html_url`);
   requirePinnedUrl(binding.upstream?.raw_url, binding.upstream, `${relativeDir}: upstream.raw_url`);
 
-  requireEqual(binding.registry?.owner, owner, `${relativeDir}: registry.owner`);
+  requireEqual(binding.registry?.publisher, publisher, `${relativeDir}: registry.publisher`);
   requireString(binding.registry?.trust_tier, `${relativeDir}: registry.trust_tier`);
   requireString(binding.registry?.version, `${relativeDir}: registry.version`);
   requireEqual(binding.registry?.profile_path, expectedProfilePath, `${relativeDir}: registry.profile_path`);

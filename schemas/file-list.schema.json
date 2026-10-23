@@ -1,0 +1,63 @@
+{
+  "$id": "https://schemas.runx.ai/runx/fs/file-list/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `fs.list` returns: the entries under a path, to a depth.",
+  "properties": {
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One entry `fs.list` found.",
+        "properties": {
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "file",
+              "directory",
+              "symlink"
+            ],
+            "title": "FileEntryKind",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "kind"
+        ],
+        "title": "FileListEntry",
+        "type": "object"
+      },
+      "maxItems": 5000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "path": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "repo_root",
+    "path",
+    "entries",
+    "truncated"
+  ],
+  "title": "FileList",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.fs.file_list.v1"
+}

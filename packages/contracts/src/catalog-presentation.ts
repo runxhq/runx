@@ -5,13 +5,13 @@ import { declaredRegistryCategory } from "./registry-taxonomy.js";
 /** Where a package carries its optional descriptive catalog content. */
 export const CATALOG_PRESENTATION_PATH = "references/catalog.md";
 
-/** A child skill a method step can name: a sibling (`name`, `../name`) or `owner/name`. */
-const SKILL_REF = /^(?:(?:\.\.\/)?[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*)$/u;
+/** A child skill a method step can name: a sibling (`name`, `../name`) or `publisher/name`. */
+const SKILL_SELECTOR = /^(?:(?:\.\.\/)?[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*)$/u;
 
-/** The skill a method step's `skill_ref` names: a sibling is under the same publisher. */
-export function composedSkillId(skillRef: string, owner: string): string {
-  const sibling = skillRef.startsWith("../") ? skillRef.slice(3) : skillRef;
-  return sibling.includes('/') ? sibling : `${owner}/${sibling}`;
+/** The skill a method step's `skill` names: a sibling is under the same publisher. */
+export function composedSkillId(skill: string, publisher: string): string {
+  const sibling = skill.startsWith("../") ? skill.slice(3) : skill;
+  return sibling.includes('/') ? sibling : `${publisher}/${sibling}`;
 }
 export const CATALOG_PRESENTATION_SCHEMA = "runx.catalog-presentation.v1";
 
@@ -36,7 +36,7 @@ export interface RegistryCatalogPresentation {
   readonly summary?: string;
   /** The authored overview: the file's Markdown body. */
   readonly overview?: string;
-  readonly method?: readonly { readonly title: string; readonly description: string; readonly skill_ref?: string; readonly runner?: string }[];
+  readonly method?: readonly { readonly title: string; readonly description: string; readonly skill?: string; readonly runner?: string }[];
   readonly inputs?: readonly { readonly label: string; readonly description?: string; readonly input?: string }[];
   readonly outputs?: readonly { readonly label: string; readonly description?: string }[];
   readonly stops?: { readonly title: string; readonly description?: string };
@@ -70,8 +70,8 @@ export function readCatalogPresentation(
     readonly runnerNames: readonly string[];
     /** The input names the package declares: an `input` must name one. */
     readonly inputNames: readonly string[];
-    /** The child skills the package composes, as written: a `skill_ref` must name one. */
-    readonly skillRefs: readonly string[];
+    /** The child skills the package composes, as written: a method step's `skill` must name one. */
+    readonly skills: readonly string[];
   },
 ): RegistryCatalogPresentation {
   const { frontmatter, body } = splitFrontmatter(source);
@@ -94,22 +94,22 @@ export function readCatalogPresentation(
   if (overview.length > MAX_OVERVIEW) throw new RegistryPresentationError("overview", `is longer than ${MAX_OVERVIEW} characters`);
   const method = list(record.method, "method", (entry, field) => {
     const item = object(entry, field);
-    allowOnly(item, field, ["title", "description", "skill_ref", "runner"]);
+    allowOnly(item, field, ["title", "description", "skill", "runner"]);
     const runner = optionalText(item.runner, `${field}.runner`);
     if (runner !== undefined && !context.runnerNames.includes(runner)) {
       throw new RegistryPresentationError(`${field}.runner`, `names no runner this package declares (${runner})`);
     }
-    const skillRef = optionalText(item.skill_ref, `${field}.skill_ref`);
-    if (skillRef !== undefined && !SKILL_REF.test(skillRef)) {
-      throw new RegistryPresentationError(`${field}.skill_ref`, "must be a sibling (name or ../name) or owner/name");
+    const skill = optionalText(item.skill, `${field}.skill`);
+    if (skill !== undefined && !SKILL_SELECTOR.test(skill)) {
+      throw new RegistryPresentationError(`${field}.skill`, "must be a sibling (name or ../name) or publisher/name");
     }
-    if (skillRef !== undefined && !context.skillRefs.includes(skillRef)) {
-      throw new RegistryPresentationError(`${field}.skill_ref`, `names a skill the package does not compose (${skillRef})`);
+    if (skill !== undefined && !context.skills.includes(skill)) {
+      throw new RegistryPresentationError(`${field}.skill`, `names a skill the package does not compose (${skill})`);
     }
     return {
       title: text(item.title, `${field}.title`),
       description: text(item.description, `${field}.description`),
-      ...(skillRef ? { skill_ref: skillRef } : {}),
+      ...(skill ? { skill } : {}),
       ...(runner ? { runner } : {}),
     };
   });
@@ -255,7 +255,7 @@ export interface PublicSkillCatalogMaterial {
     readonly category?: string;
     readonly runner_names: readonly string[];
     readonly input_names: readonly string[];
-    readonly skill_refs: readonly string[];
+    readonly skills: readonly string[];
   };
   /** The package's files, at normalized package-relative paths. */
   readonly packageFiles?: readonly { readonly path: string; readonly content: string }[];
@@ -279,7 +279,7 @@ export function assertPublicSkillCatalog(material: PublicSkillCatalogMaterial): 
     packagePaths: new Set(packageFiles.map((file) => file.path)),
     runnerNames: metadata.runner_names,
     inputNames: metadata.input_names,
-    skillRefs: metadata.skill_refs,
+    skills: metadata.skills,
   });
   if (!presentation?.title) {
     throw new Error(`${CATALOG_PRESENTATION_PATH} must declare a title for a public skill.`);

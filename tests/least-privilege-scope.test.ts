@@ -12,7 +12,7 @@ describe("least-privilege scope review", () => {
         matched_receipts: [{ receipt_id: "rcpt_campaign_1" }],
         receipt_details: [{
           id: "rcpt_campaign_1",
-          subject_ref: "growth/lifecycle-campaign-send",
+          subject_uri: "growth/lifecycle-campaign-send",
           verification: { status: "verified" },
           authority: { exercised_scopes: [{ scope: "email:send" }, { scope: "repo:read" }] },
         }],

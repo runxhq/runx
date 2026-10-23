@@ -10,7 +10,7 @@ inputs:
     draft:
       title: Evidence-bound execution
       body: Receipts bind operator actions to evidence.
-      claim_refs:
+      claims:
         - { claim: Receipts bind actions., source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111] }
     review_checklist: []
     distribution_notes: {}

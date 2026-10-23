@@ -22,7 +22,7 @@ fn every_bundled_core_runner_prepares_through_the_cli_runtime()
             .ok_or("bundle skill omitted id")?;
         let name = skill_id
             .strip_prefix("runx/")
-            .ok_or("bundle skill has foreign owner")?;
+            .ok_or("bundle skill has foreign publisher")?;
         let directory = skills_root.join(name);
         let loaded = match load_validated_skill_package(&directory) {
             Ok(loaded) => loaded,

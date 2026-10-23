@@ -184,7 +184,7 @@ fn check_fixture_digests(
     let fixture_path = cli.repo_root.join(fixture.fixture_path);
 
     if cli.write {
-        let child_receipt_refs = receipt
+        let child_receipt_uris = receipt
             .lineage
             .children
             .iter()
@@ -194,7 +194,7 @@ fn check_fixture_digests(
             &fixture_path,
             &body_digest,
             &receipt_digest,
-            &child_receipt_refs,
+            &child_receipt_uris,
         )?;
         write_stdout_line(&format!("{} body_digest={body_digest}", fixture.name))?;
         write_stdout_line(&format!("{} receipt_digest={receipt_digest}", fixture.name))?;
@@ -226,7 +226,7 @@ fn rewrite_fixture_receipt_expectations(
     fixture_path: &Path,
     body_digest: &str,
     receipt_digest: &str,
-    child_receipt_refs: &[&str],
+    child_receipt_uris: &[&str],
 ) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(fixture_path)?;
     let ends_with_newline = contents.ends_with('\n');
@@ -247,7 +247,7 @@ fn rewrite_fixture_receipt_expectations(
             ));
             continue;
         }
-        if trimmed == "child_receipt_refs:" {
+        if trimmed == "child_receipt_uris:" {
             rewritten.push(line.to_owned());
             while lines.peek().is_some_and(|next| {
                 let next_indent = next.len() - next.trim_start().len();
@@ -256,7 +256,7 @@ fn rewrite_fixture_receipt_expectations(
                 let _discarded = lines.next();
             }
             rewritten.extend(
-                child_receipt_refs
+                child_receipt_uris
                     .iter()
                     .map(|reference| format!("{}  - {reference}", &line[..indent])),
             );

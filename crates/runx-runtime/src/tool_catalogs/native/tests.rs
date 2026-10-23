@@ -55,7 +55,7 @@ fn capability_snapshot_is_sorted_and_pins_the_catalog() {
     for capability in capabilities {
         for field in [
             "id",
-            "owner",
+            "source",
             "scopes",
             "effect",
             "approval",
@@ -118,7 +118,7 @@ fn capability_registry_dispatch_projects_only_declared_inputs() {
         ("undeclared".to_owned(), JsonValue::Bool(true)),
     ]);
     let result = super::invoke(super::NativeToolInvocation {
-        tool_ref: "data.digest",
+        tool: "data.digest",
         observed_at: "2026-07-20T00:00:00Z",
         inputs,
         scopes: &[],

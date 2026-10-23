@@ -11,7 +11,7 @@ caller:
     architect:
       architecture_decision:
         schema: runx.skill.architecture_decision.v1
-        disposition: no_skill
+        choice: no_skill
         objective: Add a second general-purpose release skill.
         operator_value: Avoid splitting one release operation across duplicate public owners.
         knowledge_contract:

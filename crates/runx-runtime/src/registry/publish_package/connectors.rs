@@ -30,8 +30,7 @@ const README_FILE: &str = "README.md";
 /// the registry records from them, as the runtime loaded them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegistryConnectorPackage {
-    #[serde(rename = "ref")]
-    pub name: ConnectorName,
+    pub connector: ConnectorName,
     pub version: String,
     /// The version's identity: the digest of every file it consists of,
     /// which the registry's signed manifest names.
@@ -124,7 +123,7 @@ pub(super) fn package_connectors(
                 connector_digest: connector.connector_digest.clone(),
                 manifest_digest: connector.manifest_digest.clone(),
                 runtime_capability: connector.manifest.runtime_capability,
-                name: connector.name.clone(),
+                connector: connector.name.clone(),
                 version: package.version,
                 operations,
             })
@@ -132,14 +131,14 @@ pub(super) fn package_connectors(
         .collect::<Result<Vec<_>, RegistryPublishPackageError>>()?;
     let mut canonical = BTreeMap::<ConnectorName, RegistryConnectorMetadata>::new();
     for metadata in projected {
-        if let Some(existing) = canonical.get_mut(&metadata.name) {
+        if let Some(existing) = canonical.get_mut(&metadata.connector) {
             for operation in metadata.operations {
                 if !existing.operations.contains(&operation) {
                     existing.operations.push(operation);
                 }
             }
         } else {
-            canonical.insert(metadata.name.clone(), metadata);
+            canonical.insert(metadata.connector.clone(), metadata);
         }
     }
     Ok(canonical.into_values().collect())
@@ -167,7 +166,7 @@ pub(crate) fn connector_package(
         RegistryPublishPackageError::invalid("connector package has no content digest")
     })?;
     Ok(RegistryConnectorPackage {
-        name: connector.name.clone(),
+        connector: connector.name.clone(),
         version: format!("sha-{}", &content_digest.as_str()[7..19]),
         content_digest,
         connector_digest: connector.connector_digest.clone(),

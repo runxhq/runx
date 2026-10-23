@@ -63,7 +63,8 @@ fn publish_skill_rejects_an_unsuccessful_success_status_envelope()
 }
 
 #[test]
-fn publish_admin_sends_owner_and_harness_and_no_upsert() -> Result<(), Box<dyn std::error::Error>> {
+fn publish_admin_sends_publisher_and_harness_and_no_upsert()
+-> Result<(), Box<dyn std::error::Error>> {
     let transport = StubTransport::new(RuntimeHttpResponse::new(
         200,
         serde_json::json!({
@@ -79,7 +80,7 @@ fn publish_admin_sends_owner_and_harness_and_no_upsert() -> Result<(), Box<dyn s
                     "install_command": {"shell": "posix", "argv": ["runx", "registry", "install", "runx/hello@sha-123"], "copy_text": "runx registry install runx/hello@sha-123"},
                     "run_command": {"shell": "posix", "argv": ["runx", "skill", "runx/hello@sha-123"], "copy_text": "runx skill runx/hello@sha-123"}
                 },
-                "record": { "owner": "runx", "trust_tier": "first_party" }
+                "record": { "trust_tier": "first_party" }
             }
         })
         .to_string(),
@@ -102,7 +103,7 @@ fn publish_admin_sends_owner_and_harness_and_no_upsert() -> Result<(), Box<dyn s
         "https://runx.test/",
         "admin-token",
         &HostedAdminSkillPublishRequest {
-            owner: "runx",
+            publisher: "runx",
             markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
             profile_document: Some("skill: hello\nrunners: {}\n"),
             version: Some("sha-123"),
@@ -111,7 +112,7 @@ fn publish_admin_sends_owner_and_harness_and_no_upsert() -> Result<(), Box<dyn s
         },
     )?;
 
-    assert_eq!(result.owner, "runx");
+    assert_eq!(result.publisher, "runx");
     assert_eq!(result.public_url, "https://runx.ai/x/runx/hello@sha-123");
     let requests = transport.requests.borrow();
     assert_eq!(
@@ -119,7 +120,7 @@ fn publish_admin_sends_owner_and_harness_and_no_upsert() -> Result<(), Box<dyn s
         "https://runx.test/v1/admin/registry/publish"
     );
     let body = request_body(&requests[0])?;
-    assert_eq!(body["owner"], "runx");
+    assert_eq!(body["publisher"], "runx");
     assert!(body.get("upsert").is_none());
     assert_eq!(body["harness"]["status"], "passed");
     Ok(())
@@ -133,7 +134,7 @@ fn successful_skill_response(status: &str, publish_status: &str) -> RuntimeHttpR
             "publish": {
                 "status": publish_status,
                 "skill_id": "kam/hello",
-                "owner": "kam",
+                "publisher": "kam",
                 "name": "hello",
                 "version": "sha-123",
                 "digest": "abc",

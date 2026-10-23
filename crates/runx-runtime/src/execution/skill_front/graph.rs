@@ -124,7 +124,7 @@ impl BoundRun {
                 let prepared = PreparedContext::from_env(self.workspace.env())?;
                 log.begin(StartRequest {
                     skill: &self.manifest.skill,
-                    skill_ref: &request.skill_path.to_string_lossy(),
+                    skill_path: &request.skill_path.to_string_lossy(),
                     runner: &self.runner.name,
                     package_digest: &self.package_digest,
                     execution_closure_digest,
@@ -528,9 +528,9 @@ pub(super) struct TurnAct {
 
 pub(super) enum TurnAction {
     Status,
-    /// Read a page of what a ref of the turn names.
+    /// Read a page of what a locator of the turn names.
     Read {
-        reference: String,
+        locator: String,
         offset: u64,
         limit: Option<u64>,
     },
@@ -800,10 +800,10 @@ impl Host for RunHost {
             self.acted = Some(match act.action {
                 TurnAction::Status => TurnActed::Status(Box::new(turn.status()?)),
                 TurnAction::Read {
-                    reference,
+                    locator,
                     offset,
                     limit,
-                } => TurnActed::Read(Box::new(turn.read(&reference, offset, limit)?)),
+                } => TurnActed::Read(Box::new(turn.read(&locator, offset, limit)?)),
                 TurnAction::Admit {
                     tool,
                     call_id,
@@ -855,10 +855,7 @@ fn failed_act(reason: String) -> JsonValue {
     JsonValue::Object(JsonObject::from([(
         "closure".to_owned(),
         JsonValue::Object(JsonObject::from([
-            (
-                "disposition".to_owned(),
-                JsonValue::String("failed".to_owned()),
-            ),
+            ("outcome".to_owned(), JsonValue::String("failed".to_owned())),
             ("reason".to_owned(), JsonValue::String(reason)),
         ])),
     )]))
@@ -900,7 +897,7 @@ fn write_graph_receipts(
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "agent")]
-    use runx_contracts::ClosureDisposition;
+    use runx_contracts::RunOutcome;
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 
@@ -1012,7 +1009,7 @@ mod tests {
         };
         use crate::execution::run_record::{RunFilter, RunState, list_runs};
         use crate::receipts::archive::{ReceiptFilter, list_receipts};
-        use runx_core::state_machine::GraphStatus;
+        use runx_core::state_machine::GraphState;
         use runx_parser::{parse_graph_yaml, validate_graph};
 
         let signature = crate::receipts::RuntimeReceiptSignatureConfig::fixture()?;
@@ -1036,7 +1033,7 @@ steps:
             let log = RunLog::open(store, "run_managed_agent_failure")?;
             log.begin(StartRequest {
                 skill: "managed-agent-graph-failure",
-                skill_ref: "skill",
+                skill_path: "skill",
                 runner: "default",
                 package_digest: "sha256:package",
                 execution_closure_digest: "sha256:closure",
@@ -1090,19 +1087,19 @@ steps:
                 "compose",
                 runtime_error,
                 crate::receipts::GraphClosure {
-                    disposition: ClosureDisposition::Failed,
+                    outcome: RunOutcome::Failed,
                     reason: Some(runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted),
                 },
                 &mut host,
             )?;
 
-            assert_eq!(run.state.status, GraphStatus::Failed);
-            assert_eq!(run.receipt.seal.disposition, ClosureDisposition::Failed);
+            assert_eq!(run.progress.state, GraphState::Failed);
+            assert_eq!(run.receipt.seal.outcome, RunOutcome::Failed);
             assert_eq!(run.steps.len(), 1);
-            assert_eq!(run.state.steps[0].attempts, 1);
+            assert_eq!(run.progress.steps[0].attempts, 1);
             let step = &run.steps[0];
             assert_eq!(step.attempt, 1);
-            assert_eq!(step.receipt.seal.disposition, ClosureDisposition::Failed);
+            assert_eq!(step.receipt.seal.outcome, RunOutcome::Failed);
             assert_eq!(
                 step.receipt.seal.reason,
                 Some(runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted)
@@ -1116,7 +1113,7 @@ steps:
             let runs = list_runs(&env, temp.path(), &RunFilter::default())?;
             assert_eq!(runs.runs.len(), 1);
             assert_eq!(runs.runs[0].state, RunState::Sealed);
-            assert_eq!(runs.runs[0].disposition, Some(ClosureDisposition::Failed));
+            assert_eq!(runs.runs[0].outcome, Some(RunOutcome::Failed));
             assert_eq!(runs.runs[0].pending_request_id, None);
 
             let request = SkillRunRequest {
@@ -1148,7 +1145,7 @@ steps:
                 listing
                     .receipts
                     .iter()
-                    .all(|receipt| receipt.status == "failed")
+                    .all(|receipt| receipt.outcome == "failed")
             );
             let with_steps = list_receipts(
                 &store,

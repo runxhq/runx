@@ -154,7 +154,6 @@ pub(crate) fn runner_contract_checks(
     raw_output: Option<&JsonObject>,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
-    env: &BTreeMap<String, String>,
 ) -> Result<ContractChecks, RuntimeError> {
     let output = raw_output.map(parse_output_contract).transpose()?;
     output_contract_checks(
@@ -163,7 +162,6 @@ pub(crate) fn runner_contract_checks(
         output.as_ref(),
         artifacts,
         skill_directory,
-        env,
     )
 }
 
@@ -176,7 +174,6 @@ pub(crate) fn output_contract_checks(
     output: Option<&BTreeMap<String, OutputField>>,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
-    env: &BTreeMap<String, String>,
 ) -> Result<ContractChecks, RuntimeError> {
     let mut checks = ContractChecks::default();
     if let Some(output) = output {
@@ -186,7 +183,7 @@ pub(crate) fn output_contract_checks(
                 message: format!("runner output contract violation at {error}"),
             }
         })?;
-        checks.output_contract_sha256 = Some(
+        checks.output_contract_digest = Some(
             output_contract_digest(Some(output))
                 .map_err(|source| RuntimeError::json("hashing runner output contract", source))?,
         );
@@ -195,7 +192,6 @@ pub(crate) fn output_contract_checks(
         &project_artifact_outputs(payload, artifacts),
         artifacts,
         skill_directory,
-        env,
     )?;
     Ok(checks)
 }
@@ -207,14 +203,12 @@ pub(crate) fn artifact_contract_checks(
     held: &JsonObject,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
-    env: &BTreeMap<String, String>,
 ) -> Result<ContractChecks, RuntimeError> {
     Ok(ContractChecks {
         packet_schemas: crate::packet_validation::verify_declared_packets(
             held,
             artifacts,
             skill_directory,
-            env,
         )?,
         ..ContractChecks::default()
     })
@@ -281,7 +275,6 @@ mod tests {
                 None,
                 None,
                 Path::new("."),
-                &BTreeMap::new(),
             )?,
             ContractChecks::default()
         );

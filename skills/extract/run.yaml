@@ -1,5 +1,5 @@
 skill: extract
-version: "0.1.12"
+version: "0.1.13"
 catalog:
   kind: skill
   audience: public
@@ -21,7 +21,7 @@ harness:
   - name: extracts-caller-document-to-caller-schema
     inputs:
       content: Invoice INV-104. Total USD 125. Customer Northstar.
-      source_ref: document:invoice-104
+      source_id: document:invoice-104
       objective: Extract invoice id, total and customer. Do not infer missing fields.
       schema:
         type: object
@@ -83,7 +83,7 @@ harness:
   - name: withholds-invented-source-quote
     inputs:
       content: Invoice INV-104. Total USD 125. Customer Northstar.
-      source_ref: document:invoice-104
+      source_id: document:invoice-104
       objective: Extract invoice id, total and customer. Do not infer missing fields.
       schema:
         type: object
@@ -123,7 +123,7 @@ harness:
   - name: withholds-schema-invalid-output
     inputs:
       content: Invoice INV-104. Total USD 125. Customer Northstar.
-      source_ref: document:invoice-104
+      source_id: document:invoice-104
       objective: Extract invoice id, total and customer. Do not infer missing fields.
       schema:
         type: object
@@ -167,7 +167,7 @@ harness:
   - name: extracts-complete-native-file-artifact
     runner: from-file
     inputs:
-      source_ref: document:invoice-104
+      source_id: document:invoice-104
       objective: Extract invoice id, total and customer. Do not infer missing fields.
       schema:
         type: object
@@ -212,7 +212,7 @@ harness:
   - name: refuses-partial-file-before-agent
     runner: from-file
     inputs:
-      source_ref: document:invoice-104
+      source_id: document:invoice-104
       objective: Extract invoice id, total and customer. Do not infer missing fields.
       schema:
         type: object
@@ -247,7 +247,7 @@ runners:
         schema:
           minLength: 1
           maxLength: 1000000
-      source_ref:
+      source_id:
         type: string
         required: true
         description: Stable document, artifact or URL reference supplied with these bytes.
@@ -284,7 +284,7 @@ runners:
         task: extract-to-schema
       inputs:
         content: $input.content
-        source_ref: $input.source_ref
+        source_id: $input.source_id
         schema: $input.schema
         objective: $input.objective
       outputs:
@@ -333,7 +333,7 @@ runners:
         export: finalize
       inputs:
         content: $input.content
-        source_ref: $input.source_ref
+        source_id: $input.source_id
         source_digest: $steps.source.digest_result.digest
         value: $steps.extract.value
         citations: $steps.extract.citations
@@ -343,124 +343,15 @@ runners:
       outputs:
         structured_extraction_result:
           type: object
-          schema:
-            additionalProperties: false
-            required:
-            - schema
-            - decision
-            - source_ref
-            - source_digest
-            - schema_digest
-            - output_digest
-            - value
-            - citations
-            - missing_fields
-            - validation
-            properties:
-              schema:
-                const: runx.structured_extraction.result.v1
-              decision:
-                enum:
-                - ready
-                - held
-              source_ref:
-                type: string
-              source_digest:
-                type: string
-                pattern: ^sha256:[0-9a-f]{64}$
-              schema_digest:
-                type: string
-                pattern: ^sha256:[0-9a-f]{64}$
-              output_digest:
-                type: string
-                pattern: ^sha256:[0-9a-f]{64}$
-              value:
-                description: Caller-schema JSON value when ready, null when held.
-              citations:
-                maxItems: 500
-                items:
-                  type: object
-                  required:
-                  - pointer
-                  - quote
-                  additionalProperties: false
-                  properties:
-                    pointer:
-                      type: string
-                      maxLength: 2000
-                    quote:
-                      type: string
-                      minLength: 1
-                      maxLength: 4000
-                type: array
-              missing_fields:
-                maxItems: 100
-                items:
-                  type: string
-                  maxLength: 2000
-                type: array
-              validation:
-                type: object
-                additionalProperties: false
-                required:
-                - valid
-                - schema_digest
-                - values_digest
-                - results
-                - findings
-                properties:
-                  valid:
-                    type: boolean
-                  schema_digest:
-                    type: string
-                    pattern: ^sha256:[0-9a-f]{64}$
-                  values_digest:
-                    type: string
-                    pattern: ^sha256:[0-9a-f]{64}$
-                  results:
-                    type: array
-                    items:
-                      type: object
-                      additionalProperties: false
-                      required:
-                      - index
-                      - valid
-                      - errors
-                      - truncated
-                      properties:
-                        index:
-                          type: integer
-                          minimum: 0
-                        valid:
-                          type: boolean
-                        errors:
-                          type: array
-                          items:
-                            type: object
-                            additionalProperties: false
-                            required:
-                            - instance_path
-                            - schema_path
-                            properties:
-                              instance_path:
-                                type: string
-                              schema_path:
-                                type: string
-                        truncated:
-                          type: boolean
-                  findings:
-                    type: array
-                    items:
-                      type: string
       artifacts:
         named_emits:
           structured_extraction_result: structured_extraction_result
         packets:
-          structured_extraction_result: runx.structured_extraction.result.v1
+          structured_extraction_result: runx/extract.result.v1
   from-file:
     description: Extract the fields your JSON schema names from one bounded file in the workspace, each value bound to a quotation from it.
     inputs:
-      source_ref:
+      source_id:
         type: string
         required: true
         description: Stable document, artifact or URL reference supplied with these bytes.
@@ -521,7 +412,7 @@ runners:
       scopes:
       - fs.read
       inputs:
-        artifact_ref: $steps.admit.local_artifact.artifact_ref
+        artifact_uri: $steps.admit.local_artifact.artifact_uri
         encoding: utf8
         max_bytes: $input.max_bytes
     - id: complete
@@ -536,7 +427,7 @@ runners:
       skill: .
       runner: extract
       inputs:
-        source_ref: $input.source_ref
+        source_id: $input.source_id
         schema: $input.schema
         objective: $input.objective
         content: $steps.complete.content

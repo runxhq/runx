@@ -50,7 +50,7 @@ For humans, start at https://runx.ai/x/publish. There are two publish lanes:
   This is the fastest way to get a community listing into the catalog.
 - **Authenticated CLI publish.** Use this for publisher-controlled releases. Sign
   in once, then publish the package directly from your local checkout. Hosted
-  runx derives the owner from your connected identity, reconstructs the submitted
+  runx derives the publisher from your connected identity, reconstructs the submitted
   package, reruns the publish harness, rejects failed cases, and starts the row
   at community trust.
 
@@ -132,7 +132,7 @@ publisher identity. That is an authenticated write to an external authority, so
 runx treats it like every other governed action, with no special-casing:
 
 - The **connected identity** proves the publisher namespace. Hosted runx derives
-  the owner from that identity; the request body cannot spoof it.
+  the publisher from that identity; the request body cannot spoof it.
 - The **public API token is stored encrypted locally** and masked by `runx config`.
   Use `runx login --for publish` for human publishing, or
   `RUNX_PUBLIC_API_TOKEN` for CI when you intentionally inject the same narrow
@@ -144,13 +144,13 @@ runx treats it like every other governed action, with no special-casing:
 - Hosted publishing reruns the submitted package harness. Failed harness cases
   stop the write before a registry row is created.
 - The registry row stores immutable `digest`, `profile_digest`, and
-  `package_digest` values for the published package. `runx registry install`
+  `bundle_digest` values for the published package. `runx registry install`
   and `runx skill <ref>` add the same allowlisted package files that hosted
   runx validated. Signed run receipts
   and hosted verified-run evidence are separate signals recorded when the skill
   is executed.
 - When a contributor-owned package is accepted into the Runx repository,
-  `catalog.owner` in `run.yaml` preserves that contributor's namespace for
+  `catalog.publisher` in `run.yaml` preserves that contributor's namespace for
   later hardened versions. Repository inclusion does not silently
   transfer the registry row to `runx/*`; such a transfer must be explicit.
 

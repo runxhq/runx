@@ -97,9 +97,7 @@ where
         reason,
     };
     let bound = match &load.target {
-        LoadTarget::Skill { reference, runner } => {
-            bind_skill(reference, runner.as_deref(), &paths, env)
-        }
+        LoadTarget::Skill { skill, runner } => bind_skill(skill, runner.as_deref(), &paths, env),
         LoadTarget::Connector { name } => bind_connector(name, &paths, env),
     }
     .map_err(refused)?;
@@ -293,7 +291,7 @@ fn bind_skill(
         },
         origin,
         manual: Some(SkillManual {
-            sha256: loaded.package.manual_digest.as_str().into(),
+            digest: loaded.package.manual_digest.as_str().into(),
             content: loaded.package.manual_markdown.clone(),
         }),
         runners: manifest
@@ -456,7 +454,7 @@ fn recorded_origin(paths: &RunxPaths, directory: &Path) -> Result<Origin, String
     match crate::registry::read_install_record(paths, directory)? {
         Some(record) => Ok(Origin::Registry {
             tier: record.trust_tier,
-            publisher: publisher_of(&record.reference),
+            publisher: publisher_of(&record.package),
         }),
         None if directory.starts_with(&workspace) => Ok(Origin::Project),
         None => Err(format!(
@@ -546,7 +544,7 @@ fn ask_trust<A>(
             JsonValue::String(step.id.clone()),
         )])),
         payload: None,
-        payload_ref: None,
+        payload_artifact: None,
     };
     let payload = JsonValue::from_serialize(&serde_json::json!({
         "package": bound.package,
@@ -570,7 +568,7 @@ fn ask_trust<A>(
                     paths,
                     &crate::registry::TrustRecord {
                         closure_digest: closure.clone(),
-                        reference: what.clone(),
+                        package: what.clone(),
                         trust_tier: tier,
                     },
                 )

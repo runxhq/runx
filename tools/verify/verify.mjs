@@ -235,7 +235,7 @@ function trustedKey(issuerType, kid, raw) {
     issuerType,
     kid,
     key: publicKeyFromRawBytes(raw),
-    sha256: "sha256:" + crypto.createHash("sha256").update(raw).digest("hex"),
+    publicKeyDigest: "sha256:" + crypto.createHash("sha256").update(raw).digest("hex"),
   };
 }
 
@@ -337,8 +337,9 @@ function verifyOne(filePath, depth, seen, ancestors, receipt) {
   const prefix = depth === 0 ? "receipt" : `child depth=${depth}`;
   console.log(`${prefix}: ${filePath}`);
   console.log(`  id         : ${r.id}`);
-  console.log(`  disposition: ${r.seal?.disposition}${r.seal?.reason ? ` (${r.seal.reason})` : ""}`);
+  console.log(`  outcome    : ${r.seal?.outcome}${r.seal?.reason ? ` (${r.seal.reason})` : ""}`);
   console.log(`  issuer     : ${r.issuer?.type}/${r.issuer?.kid}`);
+  console.log(`  runx       : ${r.issuer?.runx_version}`);
   console.log("");
 
   if (ancestors.has(r.id)) {
@@ -362,8 +363,8 @@ function verifyOne(filePath, depth, seen, ancestors, receipt) {
   // it, and the key hash it carries is that key's.
   const trusted = trustedKeys.find((key) => key.issuerType === r.issuer?.type && key.kid === r.issuer?.kid);
   check("issuer is a trusted key", Boolean(trusted), `issuer=${r.issuer?.type}/${r.issuer?.kid}`);
-  check("issuer key matches the trusted public key", trusted?.sha256 === r.issuer?.public_key_sha256,
-    `issuer=${r.issuer?.public_key_sha256} trusted=${trusted?.sha256}`);
+  check("issuer key matches the trusted public key", trusted?.publicKeyDigest === r.issuer?.public_key_digest,
+    `issuer=${r.issuer?.public_key_digest} trusted=${trusted?.publicKeyDigest}`);
 
   // 3. The digest is the canonical hash of THIS receipt's body (content binding).
   const recomputed = sha256Prefixed(canon(receiptBody(r)));

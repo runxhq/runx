@@ -5,13 +5,13 @@
 
 use std::path::Path;
 
-use super::capability::{
-    GitCommit, GitLogInput, GitLogOutput, GitPatchInput, GitPatchOutput, GitShowInput,
-    GitShowOutput,
-};
+use runx_contracts::schema::{BoundedVec, NonEmptyString};
+use runx_contracts::{GIT_LOG_MAX_COMMITS, GitCommit, GitLog, GitPatch, GitShow};
+
+use super::capability::{GitLogInput, GitPatchInput, GitShowInput};
 use super::{
-    NativeInvocation, git_env, invalid_input, output_bounded, resolve_repo_root_for,
-    run_git_limited, validate_revision,
+    NativeInvocation, git_env, invalid_input, non_empty, output_bounded, resolve_repo_root_for,
+    root_name, run_git_limited, validate_revision,
 };
 use crate::RuntimeError;
 
@@ -19,14 +19,12 @@ pub(super) const LOG: &str = "git.log";
 pub(super) const SHOW: &str = "git.show";
 pub(super) const PATCH: &str = "git.diff";
 const HISTORY_LIMIT_BYTES: usize = 1024 * 1024;
-const MAX_LOG_COUNT: u64 = 200;
+const MAX_LOG_COUNT: u64 = GIT_LOG_MAX_COMMITS as u64;
 const MAX_PATHS: usize = 200;
 const RECORD: char = '\u{1e}';
 const FIELD: char = '\u{1f}';
 
-pub(super) fn log(
-    invocation: &NativeInvocation<'_, GitLogInput>,
-) -> Result<GitLogOutput, RuntimeError> {
+pub(super) fn log(invocation: &NativeInvocation<'_, GitLogInput>) -> Result<GitLog, RuntimeError> {
     let inputs = invocation.inputs;
     let root = repo_root(LOG, &inputs.repo_root, invocation)?;
     validate_revision(LOG, "revision", &inputs.revision)?;
@@ -76,10 +74,15 @@ pub(super) fn log(
         // The last record may be cut mid-list; keep only whole ones.
         commits.pop();
     }
-    Ok(GitLogOutput {
-        repo_root: root.to_string_lossy().into_owned(),
-        revision: inputs.revision.clone(),
-        commits,
+    Ok(GitLog {
+        repo_root: root_name(LOG, &root)?,
+        revision: non_empty(LOG, "revision", inputs.revision.clone())?,
+        commits: BoundedVec::new(commits).ok_or_else(|| {
+            invalid_input(
+                LOG,
+                format!("Git returned more than {MAX_LOG_COUNT} commits"),
+            )
+        })?,
         truncated,
     })
 }
@@ -88,21 +91,20 @@ fn commit(record: &str) -> Option<GitCommit> {
     let mut lines = record.lines();
     let mut fields = lines.next()?.split(FIELD);
     Some(GitCommit {
-        commit: fields.next()?.to_owned(),
+        commit: NonEmptyString::new(fields.next()?)?,
         author: fields.next()?.to_owned(),
         date: fields.next()?.to_owned(),
         subject: fields.next().unwrap_or_default().to_owned(),
         files: lines
             .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(str::to_owned)
+            .filter_map(NonEmptyString::new)
             .collect(),
     })
 }
 
 pub(super) fn show(
     invocation: &NativeInvocation<'_, GitShowInput>,
-) -> Result<GitShowOutput, RuntimeError> {
+) -> Result<GitShow, RuntimeError> {
     let inputs = invocation.inputs;
     let root = repo_root(SHOW, &inputs.repo_root, invocation)?;
     validate_revision(SHOW, "revision", &inputs.revision)?;
@@ -114,12 +116,13 @@ pub(super) fn show(
             .map_err(|error| invalid_input(SHOW, error.to_string()))?;
         let object = format!("{}:{path}", inputs.revision);
         let (text, truncated) = run(SHOW, &root, &["show", "--no-color", &object], invocation)?;
-        return Ok(GitShowOutput {
-            repo_root: root.to_string_lossy().into_owned(),
-            revision: inputs.revision.clone(),
+        let path = non_empty(SHOW, "path", path.clone())?;
+        return Ok(GitShow {
+            repo_root: root_name(SHOW, &root)?,
+            revision: non_empty(SHOW, "revision", inputs.revision.clone())?,
             path: Some(path.clone()),
             text,
-            files: vec![path.clone()],
+            files: vec![path],
             omitted: Vec::new(),
             truncated,
         });
@@ -162,12 +165,12 @@ pub(super) fn show(
             &inputs.revision,
             "--",
         ];
-        args.extend(files.iter().map(String::as_str).take(MAX_PATHS));
+        args.extend(files.iter().map(NonEmptyString::as_str).take(MAX_PATHS));
         run(SHOW, &root, &args, invocation)?
     };
-    Ok(GitShowOutput {
-        repo_root: root.to_string_lossy().into_owned(),
-        revision: inputs.revision.clone(),
+    Ok(GitShow {
+        repo_root: root_name(SHOW, &root)?,
+        revision: non_empty(SHOW, "revision", inputs.revision.clone())?,
         path: None,
         text: format!("{header}{patch}"),
         files,
@@ -178,7 +181,7 @@ pub(super) fn show(
 
 pub(super) fn diff(
     invocation: &NativeInvocation<'_, GitPatchInput>,
-) -> Result<GitPatchOutput, RuntimeError> {
+) -> Result<GitPatch, RuntimeError> {
     let inputs = invocation.inputs;
     let root = repo_root(PATCH, &inputs.repo_root, invocation)?;
     validate_revision(PATCH, "base", &inputs.base)?;
@@ -216,13 +219,17 @@ pub(super) fn diff(
         ];
         args.extend(&range);
         args.push("--");
-        args.extend(files.iter().map(String::as_str).take(MAX_PATHS));
+        args.extend(files.iter().map(NonEmptyString::as_str).take(MAX_PATHS));
         run(PATCH, &root, &args, invocation)?
     };
-    Ok(GitPatchOutput {
-        repo_root: root.to_string_lossy().into_owned(),
-        base: inputs.base.clone(),
-        head: inputs.head.clone(),
+    Ok(GitPatch {
+        repo_root: root_name(PATCH, &root)?,
+        base: non_empty(PATCH, "base", inputs.base.clone())?,
+        head: inputs
+            .head
+            .clone()
+            .map(|head| non_empty(PATCH, "head", head))
+            .transpose()?,
         patch,
         files,
         omitted,
@@ -265,13 +272,13 @@ fn run<I>(
 fn split_allowed<I>(
     invocation: &NativeInvocation<'_, I>,
     names: &str,
-) -> (Vec<String>, Vec<String>) {
+) -> (Vec<NonEmptyString>, Vec<NonEmptyString>) {
     let (mut files, mut omitted) = (Vec::new(), Vec::new());
-    for name in names.lines().map(str::trim).filter(|line| !line.is_empty()) {
-        if invocation.bounds.admit(Path::new(name)).is_ok() {
-            files.push(name.to_owned());
+    for name in names.lines().map(str::trim).filter_map(NonEmptyString::new) {
+        if invocation.bounds.admit(Path::new(name.as_str())).is_ok() {
+            files.push(name);
         } else {
-            omitted.push(name.to_owned());
+            omitted.push(name);
         }
     }
     (files, omitted)

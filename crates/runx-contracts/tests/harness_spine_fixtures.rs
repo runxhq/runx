@@ -7,7 +7,7 @@ use crate::fixture_support::roundtrip;
 const FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/contracts/harness-spine/receipt-abnormal.json"),
     include_str!("../../../fixtures/contracts/harness-spine/receipt-success.json"),
-    include_str!("../../../fixtures/contracts/harness-spine/signal-fingerprint-links.json"),
+    include_str!("../../../fixtures/contracts/harness-spine/signal-digest-links.json"),
 ];
 
 #[derive(Debug, Deserialize)]

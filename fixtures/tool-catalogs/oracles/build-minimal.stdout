@@ -5,8 +5,8 @@
     {
       "path": "tools/fixture/minimal",
       "manifest": "tools/fixture/minimal/manifest.json",
-      "source_hash": "sha256:63e4461ecfd377d113e10e8a7aedb0e40ea92cf32ff2ed1f14b1b2815b7d7b73",
-      "schema_hash": "sha256:c99da8a390bc281e8d5954cf77986dcb6023d4871482d5055ded7b868a5f0fa7"
+      "source_digest": "sha256:63e4461ecfd377d113e10e8a7aedb0e40ea92cf32ff2ed1f14b1b2815b7d7b73",
+      "schema_digest": "sha256:c99da8a390bc281e8d5954cf77986dcb6023d4871482d5055ded7b868a5f0fa7"
     }
   ],
   "errors": []

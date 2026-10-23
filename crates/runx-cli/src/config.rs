@@ -327,11 +327,11 @@ fn flatten_config(config: &RunxConfigFile) -> Vec<(&'static str, &str)> {
         }
     }
     if let Some(public) = config.public.as_ref() {
-        if let Some(api_token_ref) = public.api_token_ref.as_deref() {
-            rows.push(("public.api_token", api_token_ref));
+        if let Some(api_token_material_id) = public.api_token_material_id.as_deref() {
+            rows.push(("public.api_token", api_token_material_id));
         }
-        if let Some(api_token_ref) = public.publish_api_token_ref.as_deref() {
-            rows.push(("public.publish_api_token", api_token_ref));
+        if let Some(api_token_material_id) = public.publish_api_token_material_id.as_deref() {
+            rows.push(("public.publish_api_token", api_token_material_id));
         }
     }
     rows

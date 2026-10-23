@@ -75,12 +75,12 @@ Always emit `change_set` alongside `intake_report`.
 
 Also emit `signal` when a source event is admitted. `signal` must follow
 `runx.signal.v1` and carry the source reference, authenticity or trust level,
-dedupe fingerprint, evidence references, and source-thread preview. This packet
+dedupe digest, evidence references, and source-thread preview. This packet
 is the portable world-before-action state that `code-plan`, `github-issue-to-pr`,
 hosted queues, and source-thread projections preserve.
 
 Close the Runx turn after intake is complete with terminal `closure` control
-metadata: a disposition, stable reason code, and concise summary. Closure is
+metadata: an outcome, stable reason code, and concise summary. Closure is
 receipt control state, not part of the code-intake artifact, and must not
 pretend the recommended downstream lane has already executed.
 

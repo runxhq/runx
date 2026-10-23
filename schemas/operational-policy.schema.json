@@ -25,14 +25,16 @@
             "comment",
             "block"
           ],
+          "title": "OperationalPolicyDuplicateBehavior",
           "type": "string"
         },
         "strategy": {
           "enum": [
-            "source_fingerprint",
+            "source_digest",
             "provider_search",
             "branch"
           ],
+          "title": "OperationalPolicyDedupeStrategy",
           "type": "string"
         }
       },
@@ -41,6 +43,7 @@
         "key_fields",
         "on_duplicate"
       ],
+      "title": "OperationalPolicyDedupePolicy",
       "type": "object"
     },
     "outcomes": {
@@ -52,6 +55,7 @@
             "when_verified",
             "when_terminal"
           ],
+          "title": "OperationalPolicyOutcomeCloseMode",
           "type": "string"
         },
         "observe_provider": {
@@ -70,6 +74,7 @@
         "close_source_issue",
         "publish_final_source_thread_update"
       ],
+      "title": "OperationalPolicyOutcomePolicy",
       "type": "object"
     },
     "owner_routes": {
@@ -115,6 +120,7 @@
           "owners",
           "target_repos"
         ],
+        "title": "OperationalPolicyOwnerRoute",
         "type": "object"
       },
       "minItems": 1,
@@ -140,6 +146,7 @@
         "mutate_target_repo",
         "require_human_merge_gate"
       ],
+      "title": "OperationalPolicyAutomationPermissions",
       "type": "object"
     },
     "policy_id": {
@@ -163,6 +170,7 @@
                 "pr-fix-up",
                 "merge-assist"
               ],
+              "title": "OperationalPolicyAction",
               "type": "string"
             },
             "minItems": 1,
@@ -186,6 +194,7 @@
               "disabled",
               "maintenance"
             ],
+            "title": "OperationalPolicyRunnerState",
             "type": "string"
           },
           "target_repos": {
@@ -206,6 +215,7 @@
           "target_repos",
           "scafld_required"
         ],
+        "title": "OperationalPolicyRunnerRule",
         "type": "object"
       },
       "minItems": 1,
@@ -215,12 +225,14 @@
       "enum": [
         "runx.operational_policy.v1"
       ],
+      "title": "OperationalPolicySchema",
       "type": "string"
     },
     "schema_version": {
       "enum": [
         "runx.operational_policy.v1"
       ],
+      "title": "OperationalPolicySchema",
       "type": "string"
     },
     "sources": {
@@ -247,6 +259,7 @@
                 "pr-fix-up",
                 "merge-assist"
               ],
+              "title": "OperationalPolicyAction",
               "type": "string"
             },
             "minItems": 1,
@@ -281,6 +294,7 @@
                 "enum": [
                   "fail_closed"
                 ],
+                "title": "OperationalPolicyMissingBehavior",
                 "type": "string"
               },
               "publish_mode": {
@@ -289,6 +303,7 @@
                   "comment",
                   "none"
                 ],
+                "title": "OperationalPolicyPublishMode",
                 "type": "string"
               },
               "required": {
@@ -300,6 +315,7 @@
               "publish_mode",
               "missing_behavior"
             ],
+            "title": "OperationalPolicySourceThreadPolicy",
             "type": "object"
           }
         },
@@ -310,6 +326,7 @@
           "allowed_actions",
           "source_thread"
         ],
+        "title": "OperationalPolicySourceRule",
         "type": "object"
       },
       "minItems": 1,
@@ -331,6 +348,7 @@
                 "pr-fix-up",
                 "merge-assist"
               ],
+              "title": "OperationalPolicyAction",
               "type": "string"
             },
             "minItems": 1,
@@ -370,6 +388,7 @@
           "default_owner_route",
           "scafld_required"
         ],
+        "title": "OperationalPolicyTargetRule",
         "type": "object"
       },
       "minItems": 1,
@@ -388,6 +407,7 @@
     "outcomes",
     "permissions"
   ],
+  "title": "OperationalPolicy",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.operational_policy.v1"

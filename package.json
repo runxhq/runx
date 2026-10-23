@@ -8,11 +8,6 @@
   "engines": {
     "node": ">=20"
   },
-  "runx": {
-    "packets": [
-      "./dist/packets/*.schema.json"
-    ]
-  },
   "scripts": {
     "build": "pnpm schemas:generate && node scripts/build-workspace.mjs --pack",
     "build:pack": "pnpm schemas:generate && node scripts/build-workspace.mjs --pack",
@@ -79,8 +74,8 @@
     "fixtures:tool-catalog:check": "tsx scripts/generate-tool-catalog-oracles.ts --check",
     "fixtures:tool-catalog:generate": "tsx scripts/generate-tool-catalog-oracles.ts",
     "fixtures:skill-author-runtime:check": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --test integration -- skill_author_runtime_fixtures --nocapture",
-    "packet-schemas:check": "tsx scripts/generate-packet-schemas.ts --check",
-    "packet-schemas:generate": "tsx scripts/generate-packet-schemas.ts",
+    "packets:check": "tsx scripts/collect-packets.ts --check",
+    "packets:collect": "tsx scripts/collect-packets.ts",
     "rust:check": "node scripts/check-rust-kernel-parity.mjs",
     "rust:crate-graph": "node scripts/check-rust-crate-graph.mjs",
     "runtime:architecture-check": "node scripts/check-runtime-architecture-boundaries.mjs",

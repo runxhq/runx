@@ -47,9 +47,9 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
   try {
     const compact = validateSkillOutputContract(parseJson(result, [0, 1, 2]));
     if (compact.status !== "failure" && (compact.schema !== "runx.skill_run.v1" || !compact.outcome)) throw new Error("Native run omitted schema or outcome.");
-    if (compact.status === "sealed" && (!compact.receipt_id || !record(compact.closure))) throw new Error("Sealed native output omitted its receipt or closure.");
+    if (compact.status === "sealed" && !compact.receipt_id) throw new Error("Sealed native output omitted its receipt.");
     const expectedExit = compact.status === "sealed"
-      ? (record(compact.closure) && compact.closure.disposition === "closed" ? 0 : compact.outcome === "deferred" ? 2 : 1)
+      ? (compact.outcome === "completed" ? 0 : compact.outcome === "deferred" ? 2 : 1)
       : ["needs_agent", "needs_approval", "payment_required"].includes(compact.status) ? 2 : 1;
     if (result.exitCode !== expectedExit) throw new Error("Native exit code disagrees with its execution outcome.");
     let budget = config.maxArtifactBytes;
@@ -60,18 +60,17 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
       return value;
     };
     let output: SkillOutputContract = compact;
-    const fullRefs = compact.artifact_refs?.filter((ref) => path.basename(ref.path).startsWith("full-output-")) ?? [];
-    if (fullRefs.length > 1) throw new Error("Multiple full-output artifacts.");
-    if (fullRefs[0]) {
-      const full = await artifact(fullRefs[0]);
+    const fullArtifacts = compact.artifacts?.filter((ref) => path.basename(ref.path).startsWith("full-output-")) ?? [];
+    if (fullArtifacts.length > 1) throw new Error("Multiple full-output artifacts.");
+    if (fullArtifacts[0]) {
+      const full = await artifact(fullArtifacts[0]);
       if (!record(full)) throw new Error("Full-output artifact is not an object.");
-      for (const key of ["schema", "status", "outcome", "run_id", "receipt_id", "skill_name", "runner"]) {
+      for (const key of ["schema", "status", "outcome", "seal_reason", "run_id", "receipt_id", "skill_name", "runner"] as const) {
         if (compact[key] !== undefined && JSON.stringify(full[key]) !== JSON.stringify(compact[key])) throw new Error(`Full-output artifact disagrees on ${key}.`);
       }
-      if (record(compact.closure) && (!record(full.closure) || full.closure.disposition !== compact.closure.disposition || full.closure.reason !== compact.closure.reason)) throw new Error("Full-output artifact disagrees on closure.");
       output = validateSkillOutputContract(full);
-    } else if (compact.diagnostics_ref) {
-      const diagnostics = await artifact(compact.diagnostics_ref);
+    } else if (compact.diagnostics_artifact) {
+      const diagnostics = await artifact(compact.diagnostics_artifact);
       if (!record(diagnostics) || Object.keys(diagnostics).some((key) => !["context", "trace", "execution"].includes(key))) throw new Error("Invalid native diagnostics artifact.");
       output = { ...compact, ...diagnostics };
     }
@@ -79,30 +78,30 @@ export async function decodeSkill(result: ProcessResult, config: { projectDir: s
     // writes, each with the digest an answer binds to; a full-output copy
     // carries the requests without it.
     let summaries: readonly unknown[] = compact.requests ?? [];
-    if (compact.request_set_ref) {
+    if (compact.request_set_artifact) {
       if (summaries.length) throw new Error("Native output contains both requests and a spilled request set.");
-      const set = await artifact(compact.request_set_ref);
+      const set = await artifact(compact.request_set_artifact);
       if (!Array.isArray(set)) throw new Error("Request-set artifact is not an array.");
       summaries = set;
     }
     const waiting: WaitedRequestContract[] = [];
     for (const summary of summaries) {
-      if (!record(summary) || typeof summary.id !== "string" || typeof summary.request_digest !== "string" || !record(summary.artifact_ref) || summary.request_digest !== summary.artifact_ref.digest) {
+      if (!record(summary) || typeof summary.id !== "string" || typeof summary.request_digest !== "string" || !record(summary.artifact) || summary.request_digest !== summary.artifact.digest) {
         throw new Error("A waited request lacks its digest-bound summary.");
       }
-      const full = await artifact(summary.artifact_ref);
+      const full = await artifact(summary.artifact);
       if (!record(full) || full.id !== summary.id || full.kind !== summary.kind) throw new Error("Resolution request artifact identity differs from its summary.");
       waiting.push({ address: summary.id, request_digest: summary.request_digest, request: validateResolutionRequestContract(full) });
     }
     if (["needs_agent", "needs_approval"].includes(output.status) && !waiting.length) throw new Error("Pending run has no resolution requests.");
     let value = output.result;
-    // artifact_ref is also ordinary provider/skill data. Only the CLI's
-    // compact wrapper can be hydrated; a full-output artifact contains the
-    // original result before compact projection.
-    if (!fullRefs.length && record(value) && record(value.artifact_ref)
-      && value.artifact_ref.schema === "runx.project_artifact_ref.v1"
-      && Object.keys(value).every((key) => key === "schema" || key === "artifact_ref")) {
-      value = await artifact(value.artifact_ref);
+    // A result's own data may hold an `artifact` field. Only the CLI's compact
+    // wrapper, exactly `schema` and a project artifact, is hydrated; a
+    // full-output artifact contains the original result before compact projection.
+    if (!fullArtifacts.length && record(value) && record(value.artifact)
+      && value.artifact.schema === "runx.project_artifact.v1"
+      && Object.keys(value).every((key) => key === "schema" || key === "artifact")) {
+      value = await artifact(value.artifact);
     }
     // The run's signed record is the receipt tree in its receipt directory.
     const receiptTree = output.receipt_id === undefined

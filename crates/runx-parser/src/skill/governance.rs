@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{JsonObject, JsonValue, PACKET_ID_EXPECTED, PacketId};
 
 use crate::ValidationError;
 
@@ -31,7 +31,17 @@ pub(super) fn validate_artifact_contract(
     };
     let named_emits =
         validate_named_emits(record.get("named_emits"), &format!("{field}.named_emits"))?;
-    let packets = validate_named_emits(record.get("packets"), &format!("{field}.packets"))?;
+    let packets = validate_named_emits(record.get("packets"), &format!("{field}.packets"))?
+        .map(|packets| {
+            packets
+                .into_iter()
+                .map(|(output, packet)| {
+                    let packet = packet_id(packet, &format!("{field}.packets.{output}"))?;
+                    Ok((output, packet))
+                })
+                .collect::<Result<BTreeMap<_, _>, ValidationError>>()
+        })
+        .transpose()?;
     if let Some(packet_outputs) = &packets {
         let Some(named_outputs) = &named_emits else {
             return Err(
@@ -49,8 +59,10 @@ pub(super) fn validate_artifact_contract(
     }
     let wrap_as =
         FIELDS.optional_non_empty_string(record.get("wrap_as"), &format!("{field}.wrap_as"))?;
-    let packet =
-        FIELDS.optional_non_empty_string(record.get("packet"), &format!("{field}.packet"))?;
+    let packet = FIELDS
+        .optional_non_empty_string(record.get("packet"), &format!("{field}.packet"))?
+        .map(|packet| packet_id(packet, &format!("{field}.packet")))
+        .transpose()?;
     if packet.is_some() && wrap_as.is_none() {
         return Err(FIELDS.validation_error(format!(
             "{field}.packet requires {field}.wrap_as. Use named_emits for named packet outputs."
@@ -119,10 +131,10 @@ pub(crate) fn validate_inputs(
                 default: input.get("default").cloned(),
                 artifact: FIELDS
                     .optional_bool(input.get("artifact"), &format!("{field}.artifact"))?,
-                packet: FIELDS.optional_non_empty_string(
-                    input.get("packet"),
-                    &format!("{field}.packet"),
-                )?,
+                packet: FIELDS
+                    .optional_non_empty_string(input.get("packet"), &format!("{field}.packet"))?
+                    .map(|packet| packet_id(packet, &format!("{field}.packet")))
+                    .transpose()?,
                 schema: FIELDS
                     .optional_object(input.get("schema"), &format!("{field}.schema"))?,
             };
@@ -293,6 +305,14 @@ fn validate_explicit_object_contracts(
     Ok(())
 }
 
+fn packet_id(value: String, field: &str) -> Result<PacketId, ValidationError> {
+    PacketId::new(value.clone()).ok_or_else(|| {
+        FIELDS.validation_error(format!(
+            "{field} '{value}' is not a packet id; {PACKET_ID_EXPECTED}."
+        ))
+    })
+}
+
 fn validate_named_emits(
     value: Option<&JsonValue>,
     field: &str,
@@ -323,7 +343,7 @@ fn validate_named_emits(
 mod tests {
     use std::collections::BTreeMap;
 
-    use runx_contracts::{JsonObject, JsonValue};
+    use runx_contracts::{JsonObject, JsonValue, PacketId};
 
     use super::{validate_artifact_contract, validate_inputs};
     use crate::ValidationError;
@@ -359,10 +379,31 @@ mod tests {
     fn packet_input_reference_is_parser_owned() -> Result<(), ValidationError> {
         let inputs = validate_inputs(packet_input([]), "inputs")?;
         assert_eq!(
-            inputs.get("plan").and_then(|input| input.packet.as_deref()),
+            inputs
+                .get("plan")
+                .and_then(|input| input.packet.as_ref())
+                .map(PacketId::as_str),
             Some("runx.test.plan.v1")
         );
         Ok(())
+    }
+
+    #[test]
+    fn packet_reference_outside_the_id_grammar_is_refused() {
+        let mut inputs = packet_input([]);
+        if let Some(JsonValue::Object(plan)) = inputs.get_mut("plan") {
+            plan.insert(
+                "packet".to_owned(),
+                JsonValue::String("test.plan.v1".to_owned()),
+            );
+        }
+        let error = validate_inputs(inputs, "inputs").err();
+        assert!(
+            error
+                .as_ref()
+                .is_some_and(|error| error.to_string().contains("is not a packet id")),
+            "{error:?}"
+        );
     }
 
     #[test]
@@ -476,7 +517,7 @@ mod tests {
                 .packets
                 .as_ref()
                 .and_then(|packets| packets.get("plan"))
-                .map(String::as_str),
+                .map(PacketId::as_str),
             Some("runx.plan.v1")
         );
         Ok(())

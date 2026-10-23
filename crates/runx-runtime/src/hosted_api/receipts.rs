@@ -11,7 +11,7 @@ pub struct ReceiptNotarization {
     #[serde(default)]
     pub replay_status: Option<String>,
     pub digest: String,
-    pub public_hash: String,
+    pub public_digest: String,
     pub mode: String,
     pub published: bool,
     #[serde(default)]

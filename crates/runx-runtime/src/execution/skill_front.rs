@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use runx_contracts::{ClosureDisposition, JsonNumber, JsonObject, JsonValue};
+use runx_contracts::{JsonNumber, JsonObject, JsonValue, RunOutcome};
 use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest};
 use thiserror::Error;
 
@@ -283,7 +283,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
         Some(runx_contracts::ResumeDocument {
             close: Some(close), ..
         }) => *close,
-        _ => return Err(invalid("a close names its disposition")),
+        _ => return Err(invalid("a close names its outcome")),
     };
     let run_id = validate_run_id(continuation.run_id)?;
     let workspace = WorkspaceEnv::new(continuation.env.clone(), continuation.cwd.to_path_buf())
@@ -343,7 +343,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
         &steps,
         &crate::time::now_iso8601(),
         crate::receipts::GraphClosure {
-            disposition: close.disposition.into(),
+            outcome: close.outcome.into(),
             reason: Some(runx_contracts::SealReason::HostClosed),
         },
         receipts.signature_config().signature_policy(),
@@ -356,7 +356,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
         historical_context: Vec::new(),
         run_authority: None,
         act: None,
-        skill_path: PathBuf::from(&started.skill_ref),
+        skill_path: PathBuf::from(&started.skill_path),
         receipt_dir: continuation.receipt_dir.map(Path::to_path_buf),
         run_id: Some(run_id.to_owned()),
         answers: None,
@@ -419,7 +419,7 @@ pub(crate) fn bind_paused_run(
             historical_context: Vec::new(),
             run_authority: None,
             act: None,
-            skill_path: PathBuf::from(&paused.skill_ref),
+            skill_path: PathBuf::from(&paused.skill_path),
             receipt_dir: continuation.receipt_dir.map(Path::to_path_buf),
             run_id: Some(paused.run_id),
             answers: continuation.answers.cloned(),
@@ -538,7 +538,7 @@ pub(super) fn seal_skill_preflight_refusal(
         receipts.signature_config(),
         &output,
         StepSealClosure {
-            disposition: ClosureDisposition::Blocked,
+            outcome: RunOutcome::Blocked,
             reason: Some(reason),
         },
     )?;
@@ -691,10 +691,10 @@ fn paused_output(
     ]);
     RunResult {
         status: RunStatus::NeedsAgent,
-        disposition: None,
+        outcome: None,
         output: JsonValue::Object(output),
-        receipt_refs: Vec::new(),
-        child_receipt_refs: Vec::new(),
+        receipt_ids: Vec::new(),
+        child_receipt_uris: Vec::new(),
         pending_requests: requests,
         diagnostics: Vec::new(),
     }
@@ -756,18 +756,20 @@ fn sealed_output(
     output.insert("status".to_owned(), JsonValue::String("sealed".to_owned()));
     output.insert(
         "outcome".to_owned(),
-        JsonValue::String(outcome(&receipt.seal.disposition).to_owned()),
+        JsonValue::String(receipt.seal.outcome.label().to_owned()),
     );
+    if let Some(reason) = receipt.seal.reason {
+        output.insert(
+            "seal_reason".to_owned(),
+            JsonValue::String(reason.label().to_owned()),
+        );
+    }
     output.insert("skill_name".to_owned(), JsonValue::String(skill.to_owned()));
     output.insert("runner".to_owned(), JsonValue::String(runner.to_owned()));
     output.insert("run_id".to_owned(), JsonValue::String(run_id.to_owned()));
     output.insert(
         "receipt_id".to_owned(),
         JsonValue::String(receipt.id.to_string()),
-    );
-    output.insert(
-        "closure".to_owned(),
-        JsonValue::Object(closure_output(&receipt.seal)),
     );
     output.insert(
         "result".to_owned(),
@@ -783,8 +785,8 @@ fn sealed_output(
         output.insert("refusal".to_owned(), JsonValue::Object(refusal));
     }
     if matches!(
-        receipt.seal.disposition,
-        ClosureDisposition::Failed | ClosureDisposition::Killed | ClosureDisposition::TimedOut
+        receipt.seal.outcome,
+        RunOutcome::Failed | RunOutcome::Killed | RunOutcome::TimedOut
     ) && (skill_output.exit_code().is_some() || skill_output.failure_message().is_some())
     {
         let mut error = JsonObject::new();
@@ -810,35 +812,6 @@ struct SkillOutputDiagnostics {
     trace: Option<JsonValue>,
     /// Why a guard or an authority refused the run, when one did.
     refusal: Option<JsonObject>,
-}
-
-/// What a sealed run's closure means to its caller.
-fn outcome(disposition: &ClosureDisposition) -> &'static str {
-    match disposition {
-        ClosureDisposition::Closed => "completed",
-        ClosureDisposition::Deferred => "deferred",
-        ClosureDisposition::Blocked
-        | ClosureDisposition::Declined
-        | ClosureDisposition::Superseded => "blocked",
-        ClosureDisposition::Failed | ClosureDisposition::Killed | ClosureDisposition::TimedOut => {
-            "failed"
-        }
-    }
-}
-
-fn closure_output(seal: &runx_contracts::Seal) -> JsonObject {
-    let mut closure = JsonObject::new();
-    closure.insert(
-        "disposition".to_owned(),
-        JsonValue::String(seal.disposition.label().to_owned()),
-    );
-    if let Some(reason) = seal.reason {
-        closure.insert(
-            "reason".to_owned(),
-            JsonValue::String(reason.label().to_owned()),
-        );
-    }
-    closure
 }
 
 fn invalid(message: impl Into<String>) -> SkillRunError {

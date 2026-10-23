@@ -11,11 +11,11 @@ steps:
         - run_id: run_release_1
           skill: release
           state: sealed
-          disposition: closed
+          outcome: completed
         - run_id: run_release_2
           skill: release
           state: sealed
-          disposition: blocked
+          outcome: blocked
       catalog_items:
         - name: release
           status: ok

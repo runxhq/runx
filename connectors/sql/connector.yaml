@@ -21,15 +21,15 @@ operations:
     scopes: [database.catalog.read]
     credentials: [connection]
     target:
-      template: {$argument: /source_ref}
+      template: {$argument: /source}
     input_schema:
       type: object
-      required: [action, source_ref]
+      required: [action, source]
       additionalProperties: false
       properties:
         action: {const: catalog}
-        source_ref: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$'}
-    result_fields: [source_ref, dialect, status, executed, max_rows, queries]
+        source: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$'}
+    result_fields: [source, dialect, status, executed, max_rows, queries]
     implementation:
       process: {tool: sql.read}
   query.read:
@@ -38,17 +38,17 @@ operations:
     scopes: [database.query.read]
     credentials: [connection]
     target:
-      template: {$argument: /source_ref}
+      template: {$argument: /source}
     input_schema:
       type: object
-      required: [action, source_ref, query_id, parameters, max_rows]
+      required: [action, source, query_id, parameters, max_rows]
       additionalProperties: false
       properties:
         action: {const: query}
-        source_ref: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$'}
+        source: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$'}
         query_id: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$'}
         parameters: {type: object, maxProperties: 64}
         max_rows: {type: integer, minimum: 1, maximum: 1000}
-    result_fields: [source_ref, dialect, status, executed, query_id, columns, rows, returned_rows, max_rows, truncated, result_description, observed_at, duration_ms]
+    result_fields: [source, dialect, status, executed, query_id, columns, rows, returned_rows, max_rows, truncated, result_description, observed_at, duration_ms]
     implementation:
       process: {tool: sql.read}

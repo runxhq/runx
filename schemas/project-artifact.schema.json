@@ -1,0 +1,42 @@
+{
+  "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bytes": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "digest": {
+      "type": "string"
+    },
+    "media_type": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "schema": {
+      "enum": [
+        "runx.project_artifact.v1"
+      ],
+      "title": "ProjectArtifactSchema",
+      "type": "string"
+    },
+    "uri": {
+      "description": "`runx:project-artifact:` and the artifact's digest.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "uri",
+    "digest",
+    "bytes",
+    "media_type",
+    "path"
+  ],
+  "title": "ProjectArtifact",
+  "type": "object",
+  "x-runx-schema": "runx.project_artifact.v1"
+}

@@ -2,7 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::list::{RunxListItemKind, RunxListStatus};
 use crate::schema::{NonEmptyString, RunxSchema};
+use crate::{Digest, JsonObject};
 
 pub const SKILL_ARCHITECTURE_DECISION_SCHEMA: &str = "runx.skill.architecture_decision.v1";
 pub const SKILL_ARCHITECTURE_PLAN_SCHEMA: &str = "runx.skill.architecture_plan.v1";
@@ -49,7 +51,7 @@ pub enum SkillApplyResultSchema {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum SkillArchitectureDisposition {
+pub enum SkillArchitectureChoice {
     Build,
     ExtendExisting,
     NoSkill,
@@ -131,7 +133,7 @@ pub struct SkillIdentityDecision {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SkillDirectUseContract {
+pub struct SkillDirectUse {
     pub trigger_requests: Vec<NonEmptyString>,
     pub non_trigger_requests: Vec<NonEmptyString>,
     pub default_outcome: NonEmptyString,
@@ -144,7 +146,7 @@ pub struct SkillDirectUseContract {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SkillChainUseContract {
+pub struct SkillChainUse {
     pub accepted_inputs: Vec<NonEmptyString>,
     pub result: NonEmptyString,
     pub reused_evidence: Vec<NonEmptyString>,
@@ -154,7 +156,7 @@ pub struct SkillChainUseContract {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SkillKnowledgeContract {
+pub struct SkillKnowledge {
     pub purpose: NonEmptyString,
     pub evidence_required: Vec<NonEmptyString>,
     pub decision_logic: Vec<NonEmptyString>,
@@ -169,7 +171,7 @@ pub struct SkillBehaviorDecision {
     pub outcome: NonEmptyString,
     pub lane: SkillExecutionLane,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reuse_ref: Option<NonEmptyString>,
+    pub reuses: Option<NonEmptyString>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain_module_justification: Option<NonEmptyString>,
 }
@@ -220,16 +222,16 @@ pub struct SkillProofRequirement {
 #[runx_schema(id = "runx.skill.architecture_decision.v1")]
 pub struct SkillArchitectureDecision {
     pub schema: SkillArchitectureDecisionSchema,
-    pub disposition: SkillArchitectureDisposition,
+    pub choice: SkillArchitectureChoice,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity: Option<SkillIdentityDecision>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub direct_use: Option<SkillDirectUseContract>,
+    pub direct_use: Option<SkillDirectUse>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub chain_use: Option<SkillChainUseContract>,
+    pub chain_use: Option<SkillChainUse>,
     pub objective: NonEmptyString,
     pub operator_value: NonEmptyString,
-    pub knowledge_contract: SkillKnowledgeContract,
+    pub knowledge_contract: SkillKnowledge,
     pub required_behaviors: Vec<SkillBehaviorDecision>,
     pub native_reuse: SkillNativeReuseEvidence,
     pub effects: Vec<SkillEffectRequirement>,
@@ -275,7 +277,7 @@ pub struct SkillExpectedOutput {
     pub name: NonEmptyString,
     pub value_type: NonEmptyString,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub packet: Option<NonEmptyString>,
+    pub packet: Option<crate::PacketId>,
 }
 
 /// Agent-authored package bytes and intent before the runtime binds them to an
@@ -391,6 +393,84 @@ pub struct SkillApplyResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validation: Option<SkillValidationResult>,
     pub residual_risks: Vec<NonEmptyString>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
+pub enum SkillValidationSchema {
+    #[serde(rename = "runx.skill.validation.v1")]
+    V1,
+}
+
+/// How far validating a package got.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SkillValidationVerdict {
+    Tested,
+    NeedsConsequentialHarnessApproval,
+    ValidationFailed,
+}
+
+/// What `runx.skill.validate` returns: one package's inspection and harness
+/// outcome. A failed validation names its failure in both.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.skill.validation.v1")]
+pub struct SkillValidation {
+    pub schema: SkillValidationSchema,
+    pub requested_path: NonEmptyString,
+    pub resolved_path: NonEmptyString,
+    pub verdict: SkillValidationVerdict,
+    pub inspect: JsonObject,
+    pub harness: JsonObject,
+}
+
+/// What `runx.skill.inspect` returns: the workspace a skill change is
+/// authored in, its target package as it stands, and the catalog it can
+/// reuse.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.skill_lab.authoring_context.v1")]
+pub struct SkillAuthoringContext {
+    pub repo_root: NonEmptyString,
+    /// The target package, relative to `repo_root`; null when none was named.
+    pub target_dir: Option<NonEmptyString>,
+    pub target_exists: bool,
+    /// The digest a change to the target binds to.
+    pub base_digest: Digest,
+    pub target_files: Vec<SkillPackageFile>,
+    pub target_metrics: SkillPackageMetrics,
+    /// The existing target's inspection, or why it would not inspect; null
+    /// when the target does not exist.
+    pub target_inspection: Option<JsonObject>,
+    /// Where catalog skills live, relative to `repo_root`.
+    pub catalog_root: NonEmptyString,
+    pub catalog_skills: Vec<SkillCatalogEntry>,
+    pub core_tools: Vec<SkillCatalogEntry>,
+}
+
+/// One file of a skill package.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkillPackageFile {
+    pub path: NonEmptyString,
+    pub bytes: u64,
+}
+
+/// One skill or tool an authored skill can reuse.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkillCatalogEntry {
+    pub name: NonEmptyString,
+    pub kind: RunxListItemKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<NonEmptyString>,
+    pub path: NonEmptyString,
+    pub status: RunxListStatus,
+    pub scopes: Vec<NonEmptyString>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixtures: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness_cases: Option<u64>,
 }
 
 #[cfg(test)]

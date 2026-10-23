@@ -8,6 +8,7 @@ use super::{SkillPackageError, SkillPackageSource, ValidatedSkillPackage};
 
 mod contract;
 mod modules;
+mod packets;
 mod references;
 mod support;
 mod tools;
@@ -50,15 +51,17 @@ pub fn validate_skill_package(
     validate_execution_files(&source, &execution_files)?;
     let mut harness_files = validate_harness_support_files(&source, &profiles)?;
     harness_files.extend(harness_fixture_files);
-    let mut context_skill_refs = references
+    let mut context_skills = references
         .context_refs
         .into_iter()
         .map(|reference| reference.reference)
         .collect::<Vec<_>>();
-    context_skill_refs.sort();
-    context_skill_refs.dedup();
+    context_skills.sort();
+    context_skills.dedup();
     let javascript_modules = validate_modules(&source, references.module_roots, &execution_files)?;
+    let packets = packets::validate_package_packets(&source, &skill.name)?;
     let mut consumed_files = BTreeSet::from(["SKILL.md".to_owned()]);
+    consumed_files.extend(packets.values().map(|packet| packet.path.clone()));
     consumed_files.extend(profiles.keys().cloned());
     consumed_files.extend(javascript_modules.keys().cloned());
     consumed_files.extend(execution_files.iter().cloned());
@@ -97,7 +100,8 @@ pub fn validate_skill_package(
         harness_files,
         consumed_files,
         harness_fixtures,
-        context_skill_refs,
+        context_skills,
+        packets,
         source,
     })
 }

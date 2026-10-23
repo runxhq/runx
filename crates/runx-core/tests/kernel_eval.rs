@@ -37,7 +37,7 @@ fn evaluates_raw_input_document() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn rejects_oversized_documents_fail_closed() {
     let source = format!(
-        r#"{{"kind":"state-machine.createSequentialGraphState","graphId":"{}","steps":[]}}"#,
+        r#"{{"kind":"state-machine.createSequentialGraph","graphId":"{}","steps":[]}}"#,
         "a".repeat(1024 * 1024)
     );
 

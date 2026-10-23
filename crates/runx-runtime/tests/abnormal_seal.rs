@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use runx_contracts::ClosureDisposition;
+use runx_contracts::RunOutcome;
 use runx_runtime::{
     HarnessExpectedStatus, HarnessOptions, InvocationOutput, SkillAdapter, SkillInvocation,
     run_harness_fixture_with_adapter,
@@ -24,16 +24,13 @@ fn harness_blocks_closure_and_seals_graph_receipt() -> Result<(), Box<dyn std::e
         run_harness_fixture_with_adapter(case.harness_path(), adapter.clone(), runtime_options()?)?;
 
     assert_eq!(output.status, HarnessExpectedStatus::PolicyDenied);
-    assert_eq!(output.receipt.seal.disposition, ClosureDisposition::Blocked);
+    assert_eq!(output.receipt.seal.outcome, RunOutcome::Blocked);
     assert_eq!(
         output.receipt.seal.reason,
         Some(runx_contracts::SealReason::GraphBlocked)
     );
     assert_eq!(output.step_receipts.len(), 1);
-    assert_eq!(
-        output.step_receipts[0].seal.disposition,
-        ClosureDisposition::Closed
-    );
+    assert_eq!(output.step_receipts[0].seal.outcome, RunOutcome::Completed);
     assert_eq!(adapter.calls()?, vec!["act".to_owned()]);
 
     // Each step ran its child skill as a nested graph; the tree holds the
@@ -153,7 +150,7 @@ runners:
         fs::write(
             self.root.join("graph.yaml"),
             r#"name: abnormal-seal-gate
-owner: runx
+publisher: runx
 steps:
   - id: act
     skill: ./act
@@ -179,7 +176,7 @@ expect:
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: blocked
+    outcome: blocked
     reason: graph_blocked
   steps:
     - act

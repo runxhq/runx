@@ -1,5 +1,5 @@
 skill: research-brief
-version: "0.2.15"
+version: "0.2.16"
 
 catalog:
   kind: graph
@@ -125,7 +125,7 @@ harness:
               draft:
                 title: Evidence-bound execution is the architecture
                 body: Runx binds operator actions to authority evidence and packages deterministic operations behind portable skills.
-                claim_refs:
+                claims:
                   - claim: Receipts bind operator actions to authority evidence.
                     source_digests:
                       - sha256:9056e1b5caa4e78583d0bc47bb731468b31155929a3aa3a35fcadf6136534a36
@@ -220,7 +220,7 @@ harness:
               draft:
                 title: Keep generic evidence admission native
                 body: Runx should admit and bind evidence once, while skills supply domain judgment.
-                claim_refs:
+                claims:
                   - claim: Generic evidence admission belongs in the native runtime.
                     source_digests: [sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45]
               review_checklist: [Preserve the native ownership boundary.]
@@ -326,7 +326,7 @@ harness:
               draft:
                 title: Evidence-bound execution is the architecture
                 body: Runx binds operator actions to authority evidence and packages deterministic operations behind portable skills.
-                claim_refs:
+                claims:
                   - claim: Receipts bind operator actions to authority evidence.
                     source_digests:
                       - sha256:9056e1b5caa4e78583d0bc47bb731468b31155929a3aa3a35fcadf6136534a36

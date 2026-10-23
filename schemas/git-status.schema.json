@@ -1,0 +1,33 @@
+{
+  "$id": "https://schemas.runx.ai/runx/git/status/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `git.status` reports: whether the work tree is clean, and each entry of the porcelain status when it is not.",
+  "properties": {
+    "branch": {
+      "type": "string"
+    },
+    "clean": {
+      "type": "boolean"
+    },
+    "entries": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "repo_root": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "repo_root",
+    "clean",
+    "entries"
+  ],
+  "title": "GitStatus",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.git.status.v1"
+}

@@ -38,7 +38,7 @@ pub(crate) struct Principal {
 }
 
 impl Principal {
-    pub(crate) fn principal_ref(&self, connector: &str) -> String {
+    pub(crate) fn principal_uri(&self, connector: &str) -> String {
         format!("runx:principal:{connector}:{}", self.id)
     }
 
@@ -359,7 +359,7 @@ operations:
             (principal.id.as_str(), principal.login.as_str()),
             ("7", "octo")
         );
-        assert_eq!(principal.principal_ref("forge"), "runx:principal:forge:7");
+        assert_eq!(principal.principal_uri("forge"), "runx:principal:forge:7");
         assert!(session.principal("other", &Account).is_err());
     }
 

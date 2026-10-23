@@ -14,7 +14,7 @@ use super::super::path::{
     normalize_package_file, reject_secret_material,
 };
 use super::super::snapshot::{PackageSnapshot, package_delta, package_metrics};
-use super::super::validation::validate_candidate;
+use super::super::validation::{CandidateValidation, validate_candidate};
 use super::admission::{validate_digest, validate_resource_budget};
 use super::{RuntimeEffectRegistry, RuntimeError};
 use crate::filesystem::{TextBundle, TextFileWrite};
@@ -153,12 +153,11 @@ pub(super) fn validation_result(
     after: &PackageSnapshot,
     before_metrics: SkillPackageMetrics,
     after_metrics: SkillPackageMetrics,
-    checks: runx_contracts::JsonObject,
+    checks: CandidateValidation,
 ) -> SkillValidationResult {
     let harness_status = checks
-        .get("harness")
-        .and_then(JsonValue::as_object)
-        .and_then(|harness| harness.get("status"))
+        .harness
+        .get("status")
         .and_then(JsonValue::as_str)
         .unwrap_or("passed");
     let check_results = validation_checks(harness_status);
@@ -166,9 +165,9 @@ pub(super) fn validation_result(
     SkillValidationResult {
         schema: SkillValidationResultSchema::V1,
         target_dir: target_dir.into(),
-        base_digest: before.digest.clone().into(),
+        base_digest: before.digest.as_str().into(),
         plan_digest: change.plan_digest.clone(),
-        candidate_digest: after.digest.clone().into(),
+        candidate_digest: after.digest.as_str().into(),
         checks: check_results,
         before: before_metrics,
         after: after_metrics,

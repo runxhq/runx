@@ -893,15 +893,15 @@ fn inspect_tool_plan(
     if all {
         return Err("runx tool inspect does not accept --all".to_owned());
     }
-    let tool_ref = utf8_tool_positionals(positionals)?.join(" ");
-    if tool_ref.is_empty() {
-        return Err("runx tool inspect requires a tool reference".to_owned());
+    let tool = utf8_tool_positionals(positionals)?.join(" ");
+    if tool.is_empty() {
+        return Err("runx tool inspect requires a tool name".to_owned());
     }
 
     Ok(ToolPlan {
         action: ToolAction::Inspect,
         path: None,
-        ref_or_query: Some(tool_ref),
+        ref_or_query: Some(tool),
         all: false,
         source,
         json,

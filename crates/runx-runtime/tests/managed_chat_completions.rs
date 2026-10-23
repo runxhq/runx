@@ -439,7 +439,7 @@ fn the_managed_agent_calls_the_runner_it_loads_and_reads_its_manual_as_guidance(
 }
 
 #[test]
-fn a_managed_agent_reads_the_memory_its_run_is_given_by_ref()
+fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = temp.path().join("skill");
@@ -467,7 +467,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_ref()
             "trust": "operator_confirmed",
             "sharing": "configured_model",
             "goal_id": null,
-            "source_ref": null,
+            "source_uri": null,
         },
         "data": {"quote": "We launch on the third of November."},
         "meta": {
@@ -476,7 +476,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_ref()
             "step_id": null,
             "producer": {"skill": "fieldwork", "runner": "memory"},
             "created_at": "2026-10-20T00:00:00Z",
-            "hash": "sha256:memory",
+            "digest": "sha256:memory",
             "size_bytes": 48,
             "parent_artifact_id": null,
             "receipt_id": null,
@@ -489,7 +489,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_ref()
         serve_responses(
             listener,
             [
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-read","type":"function","function":{"name":"turn_read","arguments":"{\"ref\":\"current:0\"}"}}]}}]}),
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-read","type":"function","function":{"name":"turn_read","arguments":"{\"locator\":\"current:0\"}"}}]}}]}),
                 json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
             ],
         )
@@ -614,7 +614,7 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
     })?;
     finish_server(server)?;
     let output = serde_json::to_value(&result.output)?;
-    assert_eq!(output["closure"]["disposition"], "failed", "{output}");
+    assert_eq!(output["outcome"], "failed", "{output}");
     let receipt_id = output["receipt_id"].as_str().ok_or("missing receipt_id")?;
     let receipts = temp.path().join("receipts");
     let graph = crate::support::read_test_signed_receipt(&receipts, receipt_id)?;
@@ -691,7 +691,7 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
     })?;
     finish_server(server)?;
     let output = serde_json::to_value(&result.output)?;
-    assert_eq!(output["closure"]["disposition"], "failed", "{output}");
+    assert_eq!(output["outcome"], "failed", "{output}");
     // The parent fails for the reason its child did, which its child's
     // receipt names too.
     let receipts = temp.path().join("receipts");
@@ -705,7 +705,7 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
     assert_ne!(reason, runx_contracts::SealReason::GraphStepFailed);
     assert_eq!(invoke.seal.reason, Some(reason));
     assert_eq!(graph.seal.reason, Some(reason));
-    assert_eq!(output["closure"]["reason"], reason.label(), "{output}");
+    assert_eq!(output["seal_reason"], reason.label(), "{output}");
     Ok(())
 }
 

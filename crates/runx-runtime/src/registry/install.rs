@@ -12,7 +12,7 @@ use runx_parser::{SkillInstallOrigin, ValidatedSkillInstall, validate_skill_inst
 
 use super::install_record::{InstallRecord, write_install_record};
 use super::package_files::{
-    registry_package_digest, skill_content_digest, validate_registry_package_file_path,
+    registry_bundle_digest, skill_content_digest, validate_registry_package_file_path,
     validate_registry_skill_package,
 };
 use super::refs::safe_skill_package_parts;
@@ -32,10 +32,11 @@ pub struct InstallCandidate {
     pub markdown: String,
     pub profile_document: Option<String>,
     pub package_files: Vec<RegistryPackageFile>,
-    pub package_digest: Option<String>,
+    pub bundle_digest: Option<String>,
     pub source: String,
     pub source_label: String,
-    pub r#ref: String,
+    /// `<publisher>/<name>@<version>`, as the candidate was named.
+    pub package: String,
     pub skill_id: Option<String>,
     pub version: Option<String>,
     pub signed_manifest: Option<RegistrySignedManifest>,
@@ -88,10 +89,7 @@ pub struct InstallLocalSkillResult {
 pub enum InstallError {
     /// The package is intact, but this runx does not read its documents or a
     /// connector it carries: the version is another runx's to run.
-    #[error(
-        "runx {} does not read {ref_name}: {reason}",
-        crate::EXECUTION_RUNTIME_RELEASE
-    )]
+    #[error("runx {} does not read {ref_name}: {reason}", crate::RUNX_VERSION)]
     Unreadable { ref_name: String, reason: String },
     #[error("digest mismatch for {ref_name}: expected {expected}, received {actual}")]
     DigestMismatch {
@@ -129,7 +127,7 @@ pub enum InstallError {
         actual: String,
     },
     #[error("package digest mismatch for {ref_name}: expected {expected}, received {actual}")]
-    PackageDigestMismatch {
+    BundleDigestMismatch {
         ref_name: String,
         expected: String,
         actual: String,
@@ -195,11 +193,11 @@ fn install_skill(
             markdown: &validated.install.markdown,
             profile_document: candidate.profile_document.as_deref(),
             package_files: &candidate.package_files,
-            ref_name: &exact_ref(candidate),
+            ref_name: &exact_package(candidate),
         },
     )?;
     let record = trust_tier.map(|trust_tier| InstallRecord {
-        reference: exact_ref(candidate),
+        package: exact_package(candidate),
         trust_tier,
     });
     if let Some(record) = &record {
@@ -236,10 +234,10 @@ fn install_skill(
 }
 
 /// `<skill>@<version>` for a registry's package, the ref it came by otherwise.
-fn exact_ref(candidate: &InstallCandidate) -> String {
+fn exact_package(candidate: &InstallCandidate) -> String {
     match (&candidate.skill_id, &candidate.version) {
         (Some(skill_id), Some(version)) => format!("{skill_id}@{version}"),
-        _ => candidate.r#ref.clone(),
+        _ => candidate.package.clone(),
     }
 }
 
@@ -279,7 +277,7 @@ fn add_carried_connectors(
                 connectors_root,
                 &directory,
                 &InstallRecord {
-                    reference: format!("{}@{version}", connector.name),
+                    package: format!("{}@{version}", connector.name),
                     trust_tier,
                 },
             )
@@ -431,11 +429,11 @@ fn validate_install_candidate(
 ) -> Result<ValidatedLocalInstall, InstallError> {
     let actual_digest = verify_signed_manifest_anchor(candidate, options, allow_unsigned_local)?;
     let profile_digest = validate_candidate_profile_digest(candidate, allow_unsigned_local)?;
-    validate_candidate_package_digest(candidate)?;
+    validate_candidate_bundle_digest(candidate)?;
     // The bytes are the ones published; what remains is whether this runx
     // reads them.
     let unreadable = |reason: String| InstallError::Unreadable {
-        ref_name: exact_ref(candidate),
+        ref_name: exact_package(candidate),
         reason,
     };
     let origin = install_origin(candidate, &actual_digest, profile_digest.as_deref());
@@ -476,7 +474,7 @@ fn verify_signed_manifest_anchor(
         &candidate.package_files,
     )
     .map_err(|error| InstallError::InvalidPackageFile {
-        ref_name: candidate.r#ref.clone(),
+        ref_name: candidate.package.clone(),
         reason: error.to_string(),
     })?;
     if let Some(expected) = options
@@ -485,7 +483,7 @@ fn verify_signed_manifest_anchor(
         .filter(|expected| !digest_matches(expected, &content_digest))
     {
         return Err(InstallError::DigestMismatch {
-            ref_name: candidate.r#ref.clone(),
+            ref_name: candidate.package.clone(),
             expected: expected.clone(),
             actual: content_digest,
         });
@@ -495,17 +493,17 @@ fn verify_signed_manifest_anchor(
         if allow_unsigned_local {
             return Ok(actual_digest);
         }
-        return Err(InstallError::UnsignedManifest(candidate.r#ref.clone()));
+        return Err(InstallError::UnsignedManifest(candidate.package.clone()));
     };
     let trusted_keys = trusted_manifest_keys(options)?;
     let key = verify_registry_signed_manifest(manifest, &trusted_keys).map_err(|failure| {
-        manifest_verification_error(candidate.r#ref.clone(), &manifest.signer.key_id, failure)
+        manifest_verification_error(candidate.package.clone(), &manifest.signer.key_id, failure)
     })?;
     validate_manifest_identity(candidate, manifest)?;
     validate_manifest_trust_scope(candidate, key)?;
     if manifest.content_digest != content_digest {
         return Err(InstallError::DigestMismatch {
-            ref_name: candidate.r#ref.clone(),
+            ref_name: candidate.package.clone(),
             expected: manifest.content_digest.clone(),
             actual: content_digest,
         });
@@ -529,13 +527,13 @@ fn validate_manifest_trust_scope(
         .skill_id
         .as_deref()
         .ok_or(InstallError::ManifestIdentityMissing {
-            ref_name: candidate.r#ref.clone(),
+            ref_name: candidate.package.clone(),
             field: "skill_id",
         })?;
     let trust_tier = candidate
         .trust_tier
         .as_ref()
-        .ok_or_else(|| InstallError::ManifestTrustTierMissing(candidate.r#ref.clone()))?;
+        .ok_or_else(|| InstallError::ManifestTrustTierMissing(candidate.package.clone()))?;
     registry_manifest_key_allows(
         key,
         super::types::RegistrySubjectKind::Skill,
@@ -544,7 +542,7 @@ fn validate_manifest_trust_scope(
         candidate.manifest_source_authority.as_ref(),
     )
     .map_err(|reason| InstallError::ManifestTrustScopeViolation {
-        ref_name: candidate.r#ref.clone(),
+        ref_name: candidate.package.clone(),
         reason,
     })
 }
@@ -611,7 +609,7 @@ fn validate_candidate_profile_digest(
         "local registry profile digest",
     )
     .map_err(|mismatch| InstallError::ProfileDigestMismatch {
-        ref_name: candidate.r#ref.clone(),
+        ref_name: candidate.package.clone(),
         expected: mismatch.expected,
         actual: mismatch.actual,
     })?;
@@ -620,15 +618,15 @@ fn validate_candidate_profile_digest(
 
 /// The package digest the registry record states must be its files' digest.
 /// The signed envelope binds the files themselves through its content digest.
-fn validate_candidate_package_digest(candidate: &InstallCandidate) -> Result<(), InstallError> {
-    let actual = registry_package_digest(&candidate.package_files);
+fn validate_candidate_bundle_digest(candidate: &InstallCandidate) -> Result<(), InstallError> {
+    let actual = registry_bundle_digest(&candidate.package_files);
     check_digest_link(
         actual.as_deref(),
-        candidate.package_digest.as_deref(),
-        "registry package digest",
+        candidate.bundle_digest.as_deref(),
+        "registry bundle digest",
     )
-    .map_err(|mismatch| InstallError::PackageDigestMismatch {
-        ref_name: candidate.r#ref.clone(),
+    .map_err(|mismatch| InstallError::BundleDigestMismatch {
+        ref_name: candidate.package.clone(),
         expected: mismatch.expected,
         actual: mismatch.actual,
     })
@@ -640,28 +638,28 @@ fn validate_manifest_identity(
 ) -> Result<(), InstallError> {
     let Some(skill_id) = &candidate.skill_id else {
         return Err(InstallError::ManifestIdentityMissing {
-            ref_name: candidate.r#ref.clone(),
+            ref_name: candidate.package.clone(),
             field: "skill_id",
         });
     };
     let Some(version) = &candidate.version else {
         return Err(InstallError::ManifestIdentityMissing {
-            ref_name: candidate.r#ref.clone(),
+            ref_name: candidate.package.clone(),
             field: "version",
         });
     };
     let subject = RegistrySubject {
         kind: RegistrySubjectKind::Skill,
-        subject_ref: skill_id.clone(),
+        name: skill_id.clone(),
     };
     if !manifest.signs(&subject, version) {
         return Err(InstallError::ManifestIdentityMismatch {
-            ref_name: candidate.r#ref.clone(),
+            ref_name: candidate.package.clone(),
             expected: format!("skill {skill_id}@{version}"),
             actual: format!(
                 "{} {}@{}",
                 manifest.subject.kind.as_str(),
-                manifest.subject.subject_ref,
+                manifest.subject.name,
                 manifest.version
             ),
         });
@@ -726,7 +724,7 @@ fn install_origin(
     SkillInstallOrigin {
         source: candidate.source.clone(),
         source_label: candidate.source_label.clone(),
-        r#ref: candidate.r#ref.clone(),
+        package: candidate.package.clone(),
         skill_id: candidate.skill_id.clone(),
         version: candidate.version.clone(),
         digest: Some(actual_digest.to_owned()),
@@ -742,7 +740,7 @@ fn install_paths(
     skill_name: &str,
 ) -> InstallPaths {
     let package_parts =
-        safe_skill_package_parts(&candidate.r#ref, skill_name, candidate.version.as_deref());
+        safe_skill_package_parts(&candidate.package, skill_name, candidate.version.as_deref());
     let package_root = package_parts
         .iter()
         .fold(options.destination_root.clone(), |path, part| {

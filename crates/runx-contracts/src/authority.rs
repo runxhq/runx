@@ -139,10 +139,7 @@ impl RunxSchema for TermLegitimacy {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(
-    id = "runx.authority_term.v1",
-    url = "https://schemas.runx.ai/runx/authority/term/v1.json"
-)]
+#[runx_schema(id = "runx.authority_term.v1")]
 pub struct AuthorityTerm {
     pub term_id: NonEmptyString,
     pub principal_ref: Reference,

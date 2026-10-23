@@ -1,4 +1,7 @@
-use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_contracts::{
+    Digest, FileApplyBundle, FileBundleDelete, FileBundleWrite, FileEdit, FileList, FileRead,
+    FileReadBundle, FileSearch, FileWrite, JsonNumber, JsonObject, JsonValue,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -81,7 +84,7 @@ pub(super) struct FileWriteInput {
     pub(super) contents: String,
     /// The digest of the content it replaces, as a read returned it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) expected_digest: Option<String>,
+    pub(super) expected_digest: Option<Digest>,
     /// The file must not exist yet.
     #[serde(default, skip_serializing_if = "runx_contracts::schema::is_default")]
     pub(super) create: bool,
@@ -95,41 +98,12 @@ impl CapabilityInput for FileWriteInput {
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub(super) struct BundleWrite {
-    pub(super) path: String,
-    pub(super) contents: String,
-    /// The digest of the content it replaces, as a read returned it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) expected_digest: Option<String>,
-    /// The file must not exist yet.
-    #[serde(default, skip_serializing_if = "runx_contracts::schema::is_default")]
-    pub(super) create: bool,
-}
-
-/// A file to delete: its path, or its path with the digest of the content
-/// it removes.
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(untagged)]
-pub(super) enum BundleDelete {
-    Path(String),
-    Bound(BoundDelete),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct BoundDelete {
-    pub(super) path: String,
-    pub(super) expected_digest: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
 pub(super) struct FileApplyBundleInput {
     pub(super) repo_root: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) writes: Vec<BundleWrite>,
+    pub(super) writes: Vec<FileBundleWrite>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) deletes: Vec<BundleDelete>,
+    pub(super) deletes: Vec<FileBundleDelete>,
 }
 
 impl CapabilityInput for FileApplyBundleInput {
@@ -138,70 +112,19 @@ impl CapabilityInput for FileApplyBundleInput {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileReadOutput {
-    pub(super) path: String,
-    pub(super) repo_root: String,
-    /// The lines read, from `start_line`, with their line endings.
-    pub(super) contents: String,
-    /// The whole file's size.
-    pub(super) bytes: u64,
-    /// The file goes on past the lines read.
-    pub(super) truncated: bool,
-    /// The whole file's digest, which a write of it names.
-    pub(super) content_digest: String,
-    /// The first line read, counting from 1.
-    pub(super) start_line: u64,
-    /// How many lines the whole file has.
-    pub(super) total_lines: u64,
-}
-
-impl CapabilityOutput for FileReadOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileReadBundleOutput {
-    pub(super) repo_root: String,
-    pub(super) file_count: u64,
-    pub(super) total_bytes: u64,
-    pub(super) files: Vec<FileReadOutput>,
-    pub(super) missing: Vec<MissingFile>,
-}
-
-impl CapabilityOutput for FileReadBundleOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct MissingFile {
-    pub(super) path: String,
-    pub(super) reason: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileWriteOutput {
-    pub(super) path: String,
-    pub(super) repo_root: String,
-    pub(super) bytes_written: u64,
-    pub(super) sha256: String,
-    /// What the file held before, when it existed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) before_digest: Option<String>,
-    /// The unified diff from what the file held to what it holds now.
-    pub(super) diff: String,
-    /// The run's journal entry holding what it held.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) journal: Option<u64>,
-}
-
-impl CapabilityOutput for FileWriteOutput {}
+impl CapabilityOutput for FileRead {}
+impl CapabilityOutput for FileReadBundle {}
+impl CapabilityOutput for FileWrite {}
+impl CapabilityOutput for FileEdit {}
+impl CapabilityOutput for FileApplyBundle {}
+impl CapabilityOutput for FileList {}
+impl CapabilityOutput for FileSearch {}
 
 /// One exact replacement: `old` occurs once in the file, or at least once
 /// with `replace_all`.
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub(super) struct FileEdit {
+pub(super) struct TextReplacement {
     pub(super) old: String,
     pub(super) new: String,
     #[serde(default, skip_serializing_if = "runx_contracts::schema::is_default")]
@@ -213,75 +136,13 @@ pub(super) struct FileEdit {
 pub(super) struct FileEditInput {
     pub(super) repo_root: String,
     pub(super) path: String,
-    pub(super) edits: Vec<FileEdit>,
+    pub(super) edits: Vec<TextReplacement>,
 }
 
 impl CapabilityInput for FileEditInput {
     fn defaults() -> JsonObject {
         JsonObject::from([("repo_root".to_owned(), JsonValue::String(".".to_owned()))])
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileEditOutput {
-    pub(super) path: String,
-    pub(super) repo_root: String,
-    /// How many places the edits replaced.
-    pub(super) replacements: u64,
-    /// The digest of the content the edits replaced.
-    pub(super) before_digest: String,
-    /// The digest of what the file now holds.
-    pub(super) content_digest: String,
-    pub(super) bytes_written: u64,
-    /// The unified diff from what the file held to what it holds now.
-    pub(super) diff: String,
-    /// The run's journal entry holding what it held.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) journal: Option<u64>,
-}
-
-impl CapabilityOutput for FileEditOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileApplyBundleOutput {
-    pub(super) repo_root: String,
-    pub(super) write_count: u64,
-    pub(super) delete_count: u64,
-    pub(super) writes: Vec<AppliedWrite>,
-    pub(super) deletes: Vec<AppliedDelete>,
-    /// The run's journal entry holding what each file held before.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) journal: Option<u64>,
-}
-
-impl CapabilityOutput for FileApplyBundleOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AppliedWrite {
-    pub(super) path: String,
-    pub(super) bytes_written: u64,
-    pub(super) sha256: String,
-    /// What the file held before, when it existed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) before_digest: Option<String>,
-    /// The unified diff from what the file held to what it holds now.
-    pub(super) diff: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AppliedDelete {
-    pub(super) path: String,
-    pub(super) status: String,
-    /// What the file held before, when it existed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) before_digest: Option<String>,
-    /// The unified diff from what the file held to its removal; empty when
-    /// it was already absent.
-    pub(super) diff: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
@@ -311,26 +172,6 @@ impl CapabilityInput for FileListInput {
         ])
     }
 }
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileListEntry {
-    pub(super) path: String,
-    pub(super) kind: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) bytes: Option<u64>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileListOutput {
-    pub(super) repo_root: String,
-    pub(super) path: String,
-    pub(super) entries: Vec<FileListEntry>,
-    pub(super) truncated: bool,
-}
-
-impl CapabilityOutput for FileListOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -369,28 +210,6 @@ impl CapabilityInput for FileSearchInput {
         ])
     }
 }
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileSearchMatch {
-    pub(super) path: String,
-    pub(super) line: u64,
-    pub(super) text: String,
-    pub(super) before: Vec<String>,
-    pub(super) after: Vec<String>,
-    pub(super) content_digest: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct FileSearchOutput {
-    pub(super) repo_root: String,
-    pub(super) matches: Vec<FileSearchMatch>,
-    pub(super) files_searched: u64,
-    pub(super) truncated: bool,
-}
-
-impl CapabilityOutput for FileSearchOutput {}
 
 const LIST_FIELDS: &[CapabilityField] = &[
     root_field(),
@@ -538,10 +357,10 @@ const fn path_scope_field() -> CapabilityField {
     }
 }
 
-static READ: TypedNativeCapability<FileReadInput, FileReadOutput> = TypedNativeCapability::new(
+static READ: TypedNativeCapability<FileReadInput, FileRead> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "fs.read",
-        owner: "runx-runtime/filesystem",
+        source: "runx-runtime/filesystem",
         summary: "Read lines of one UTF-8 file of up to eight MiB through native workspace and symlink containment: from start_line, at most line_count lines within max_bytes, with the file's total lines and whole-file digest.",
         scopes: &["fs.read"],
         effect: CapabilityEffect::Read,
@@ -555,11 +374,11 @@ static READ: TypedNativeCapability<FileReadInput, FileReadOutput> = TypedNativeC
     super::read,
 );
 
-static READ_BUNDLE: TypedNativeCapability<FileReadBundleInput, FileReadBundleOutput> =
+static READ_BUNDLE: TypedNativeCapability<FileReadBundleInput, FileReadBundle> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "fs.read_bundle",
-            owner: "runx-runtime/filesystem",
+            source: "runx-runtime/filesystem",
             summary: "Read a bounded set of UTF-8 files through one native containment boundary.",
             scopes: &["fs.read"],
             effect: CapabilityEffect::Read,
@@ -573,10 +392,10 @@ static READ_BUNDLE: TypedNativeCapability<FileReadBundleInput, FileReadBundleOut
         super::read_bundle,
     );
 
-static WRITE: TypedNativeCapability<FileWriteInput, FileWriteOutput> = TypedNativeCapability::new(
+static WRITE: TypedNativeCapability<FileWriteInput, FileWrite> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "fs.write",
-        owner: "runx-runtime/filesystem",
+        source: "runx-runtime/filesystem",
         summary: "Write one bounded UTF-8 file through transactional workspace containment.",
         scopes: &["fs.write"],
         effect: CapabilityEffect::Mutate,
@@ -591,10 +410,10 @@ static WRITE: TypedNativeCapability<FileWriteInput, FileWriteOutput> = TypedNati
 )
 .describing(super::write_effect);
 
-static EDIT: TypedNativeCapability<FileEditInput, FileEditOutput> = TypedNativeCapability::new(
+static EDIT: TypedNativeCapability<FileEditInput, FileEdit> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "fs.edit",
-        owner: "runx-runtime/filesystem",
+        source: "runx-runtime/filesystem",
         summary: "Replace exact text in one UTF-8 file, bound to the content it was read as.",
         scopes: &["fs.write"],
         effect: CapabilityEffect::Mutate,
@@ -609,11 +428,11 @@ static EDIT: TypedNativeCapability<FileEditInput, FileEditOutput> = TypedNativeC
 )
 .describing(super::edit_effect);
 
-static APPLY: TypedNativeCapability<FileApplyBundleInput, FileApplyBundleOutput> =
+static APPLY: TypedNativeCapability<FileApplyBundleInput, FileApplyBundle> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "fs.apply_bundle",
-            owner: "runx-runtime/filesystem",
+            source: "runx-runtime/filesystem",
             summary: "Apply bounded text writes and deletions transactionally inside one workspace root.",
             scopes: &["fs.write", "fs.delete"],
             effect: CapabilityEffect::Mutate,
@@ -628,10 +447,10 @@ static APPLY: TypedNativeCapability<FileApplyBundleInput, FileApplyBundleOutput>
     )
     .describing(super::files_effect);
 
-static LIST: TypedNativeCapability<FileListInput, FileListOutput> = TypedNativeCapability::new(
+static LIST: TypedNativeCapability<FileListInput, FileList> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: "fs.list",
-        owner: "runx-runtime/filesystem",
+        source: "runx-runtime/filesystem",
         summary: "List entries under a directory to a bounded depth, honouring the project's ignore files.",
         scopes: &["fs.read"],
         effect: CapabilityEffect::Read,
@@ -645,23 +464,22 @@ static LIST: TypedNativeCapability<FileListInput, FileListOutput> = TypedNativeC
     super::walk::list,
 );
 
-static SEARCH: TypedNativeCapability<FileSearchInput, FileSearchOutput> =
-    TypedNativeCapability::new(
-        CapabilityDefinition {
-            id: "fs.search",
-            owner: "runx-runtime/filesystem",
-            summary: "Search text files for a literal or regular expression, honouring the project's ignore files.",
-            scopes: &["fs.read"],
-            effect: CapabilityEffect::Read,
-            approval: CapabilityApproval::None,
-            artifacts: CapabilityArtifacts::Wrapped {
-                output: "file_search",
-                packet: "runx.fs.file_search.v1",
-            },
-            fields: SEARCH_FIELDS,
+static SEARCH: TypedNativeCapability<FileSearchInput, FileSearch> = TypedNativeCapability::new(
+    CapabilityDefinition {
+        id: "fs.search",
+        source: "runx-runtime/filesystem",
+        summary: "Search text files for a literal or regular expression, honouring the project's ignore files.",
+        scopes: &["fs.read"],
+        effect: CapabilityEffect::Read,
+        approval: CapabilityApproval::None,
+        artifacts: CapabilityArtifacts::Wrapped {
+            output: "file_search",
+            packet: "runx.fs.file_search.v1",
         },
-        super::walk::search,
-    );
+        fields: SEARCH_FIELDS,
+    },
+    super::walk::search,
+);
 
 pub(in crate::tool_catalogs::native) const CAPABILITIES: &[&dyn NativeCapability] = &[
     &READ,

@@ -2,60 +2,81 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import { renderContractTypes } from "./contract-types.js";
+
 const workspaceRoot = process.cwd();
 const schemasDir = path.join(workspaceRoot, "schemas");
-const schemaArtifactsPath = path.join(workspaceRoot, "packages", "contracts", "src", "schema-artifacts.ts");
+const contractsSrc = path.join(workspaceRoot, "packages", "contracts", "src");
+const schemaArtifactsPath = path.join(contractsSrc, "schema-artifacts.ts");
+const contractTypesPath = path.join(contractsSrc, "generated", "contract-types.ts");
 const check = process.argv.includes("--check");
 const cargo = process.platform === "win32" ? "cargo.exe" : "cargo";
 
 const prebuilt = process.env.RUNX_SCHEMA_ARTIFACTS_BIN;
-const command = prebuilt || cargo;
-const args = prebuilt
-  ? ["--out", schemasDir]
-  : [
-      "run",
-      "--quiet",
-      "--manifest-path",
-      path.join(workspaceRoot, "crates", "Cargo.toml"),
-      "-p",
-      "runx-contracts",
-      "--example",
-      "runx-schema-artifacts",
-      "--",
-      "--out",
-      schemasDir,
-    ];
 
-if (check) {
-  args.push("--check");
-}
+runArtifacts(check ? ["--out", schemasDir, "--check"] : ["--out", schemasDir], "inherit");
+const declared = JSON.parse(runArtifacts(["--types"], "pipe")) as {
+  readonly artifacts: Record<string, string>;
+  readonly types: Record<string, Record<string, unknown>>;
+};
 
-const result = spawnSync(command, args, {
-  cwd: workspaceRoot,
-  env: process.env,
-  stdio: "inherit",
-});
-
-if (result.error) {
-  throw result.error;
-}
-
-if ((result.status ?? 1) !== 0) {
-  process.exit(result.status ?? 1);
-}
-
-const schemaArtifactsSource = renderSchemaArtifactsSource(schemasDir);
-if (check) {
-  const existing = readFileSync(schemaArtifactsPath, "utf8");
-  if (existing !== schemaArtifactsSource) {
-    console.error(`${path.relative(workspaceRoot, schemaArtifactsPath)} is stale. Run pnpm schemas:generate.`);
-    process.exit(1);
-  }
-} else {
-  writeFileSync(schemaArtifactsPath, schemaArtifactsSource);
-}
+reconcile(schemaArtifactsPath, renderSchemaArtifactsSource(schemasDir));
+reconcile(contractTypesPath, renderContractTypes(
+  Object.entries(declared.artifacts).map(([fileName, typeName]) => ({
+    fileName,
+    typeName,
+    schema: JSON.parse(readFileSync(path.join(schemasDir, fileName), "utf8")) as Record<string, unknown>,
+  })),
+  declared.types,
+));
 
 process.exit(0);
+
+/** Run `runx-schema-artifacts`, prebuilt or through cargo; return its stdout. */
+function runArtifacts(flags: string[], stdout: "inherit" | "pipe"): string {
+  const command = prebuilt || cargo;
+  const args = prebuilt
+    ? flags
+    : [
+        "run",
+        "--quiet",
+        "--manifest-path",
+        path.join(workspaceRoot, "crates", "Cargo.toml"),
+        "-p",
+        "runx-contracts",
+        "--example",
+        "runx-schema-artifacts",
+        "--",
+        ...flags,
+      ];
+  const result = spawnSync(command, args, {
+    cwd: workspaceRoot,
+    env: process.env,
+    encoding: "utf8",
+    // The types document carries every named contract schema.
+    maxBuffer: 256 * 1024 * 1024,
+    stdio: ["ignore", stdout, "inherit"],
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if ((result.status ?? 1) !== 0) {
+    process.exit(result.status ?? 1);
+  }
+  return result.stdout ?? "";
+}
+
+/** Write `source` to `target`, or under `--check` fail when it differs. */
+function reconcile(target: string, source: string): void {
+  if (!check) {
+    writeFileSync(target, source);
+    return;
+  }
+  if (readFileSync(target, "utf8") !== source) {
+    console.error(`${path.relative(workspaceRoot, target)} is stale. Run pnpm schemas:generate.`);
+    process.exit(1);
+  }
+}
 
 function renderSchemaArtifactsSource(sourceDir: string): string {
   const artifactEntries = readdirSync(sourceDir)

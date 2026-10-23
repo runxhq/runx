@@ -7,7 +7,7 @@ use super::{is_sha256, object, text};
 pub(super) struct IndexedSource {
     source_digest: String,
     content_digest: String,
-    source_ref: String,
+    source_uri: String,
     source_kind: &'static str,
     extracted: String,
     provenance: JsonObject,
@@ -49,7 +49,7 @@ impl IndexedSource {
         Ok(Self {
             source_digest: sha256_prefixed(extracted.as_bytes()),
             content_digest,
-            source_ref: final_url,
+            source_uri: final_url,
             source_kind: "fetch",
             extracted,
             provenance: JsonObject::from([
@@ -128,7 +128,7 @@ impl IndexedSource {
         Ok(Self {
             source_digest: sha256_prefixed(extracted.as_bytes()),
             content_digest,
-            source_ref: format!("file:{path}"),
+            source_uri: format!("file:{path}"),
             source_kind: "local_file",
             extracted,
             provenance: JsonObject::from([
@@ -165,8 +165,8 @@ impl IndexedSource {
                 JsonValue::String(self.content_digest.clone()),
             ),
             (
-                "source_ref".to_owned(),
-                JsonValue::String(self.source_ref.clone()),
+                "source_uri".to_owned(),
+                JsonValue::String(self.source_uri.clone()),
             ),
             (
                 "source_kind".to_owned(),
@@ -201,8 +201,8 @@ impl IndexedSource {
                 JsonValue::String(self.content_digest.clone()),
             ),
             (
-                "source_ref".to_owned(),
-                JsonValue::String(self.source_ref.clone()),
+                "source_uri".to_owned(),
+                JsonValue::String(self.source_uri.clone()),
             ),
             (
                 "source_kind".to_owned(),

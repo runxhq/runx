@@ -121,12 +121,12 @@ fn fixture_document() -> io::Result<Value> {
             vec![
                 call(
                     "stored-reference",
-                    json!({"artifact": {"artifact_ref": format!("runx:artifact:sha256:{}", "a".repeat(64)), "media_type": "application/pdf"}}),
+                    json!({"artifact": {"artifact_uri": format!("runx:artifact:sha256:{}", "a".repeat(64)), "media_type": "application/pdf"}}),
                     Some(2_097_152),
                 ),
                 call(
                     "uppercase-reference",
-                    json!({"artifact": {"artifact_ref": format!("runx:artifact:sha256:{}", "A".repeat(64))}}),
+                    json!({"artifact": {"artifact_uri": format!("runx:artifact:sha256:{}", "A".repeat(64))}}),
                     Some(1),
                 ),
                 call(

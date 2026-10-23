@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
-use crate::{CanonicalJsonError, JsonNumber, JsonObject, JsonValue, canonical_stable_json};
+use crate::{
+    CanonicalJsonError, JsonNumber, JsonObject, JsonValue, PacketId, canonical_stable_json,
+};
 
 /// One declared input shared by skills, local tools, inspection, and runtime
 /// materialization. Keeping this at the contract boundary prevents each
@@ -25,7 +27,7 @@ pub struct InputDefinition {
     /// this identifier through the packet-schema catalog before inspection or
     /// execution; authors never duplicate the packet schema inline.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub packet: Option<String>,
+    pub packet: Option<PacketId>,
     /// Additional JSON Schema 2020-12 keywords for this input. The scalar
     /// `type`, description, and default above remain the canonical top-level
     /// declaration; this object owns nested shape, bounds, enums, examples,
@@ -89,7 +91,7 @@ impl InputDefinition {
         if let Some(packet) = &self.packet {
             schema.insert(
                 "x-runx-packet-id".to_owned(),
-                JsonValue::String(packet.clone()),
+                JsonValue::String(packet.to_string()),
             );
         }
         if self.input_type != "json" {
@@ -152,13 +154,13 @@ pub fn input_contract_schema_with_examples(
 }
 
 /// The input schema a turn offers for a call: the input contract, where an
-/// input of a packet type may instead be the `runx.project_artifact_ref.v1` a
+/// input of a packet type may instead be the `runx.project_artifact.v1` a
 /// call of the turn returned for such a packet.
 pub fn call_input_schema(
     inputs: &BTreeMap<String, InputDefinition>,
 ) -> Result<JsonObject, crate::json::JsonValueError> {
     let mut schema = input_contract_schema(inputs);
-    let reference = JsonValue::from_serialize(&crate::ProjectArtifactRef::json_schema())?;
+    let reference = JsonValue::from_serialize(&crate::ProjectArtifact::json_schema())?;
     if let Some(JsonValue::Object(properties)) = schema.get_mut("properties") {
         for (name, input) in inputs {
             if input.packet.is_none() {
@@ -181,17 +183,17 @@ pub fn call_input_schema(
 /// How a successful execution result is exposed to downstream graph context.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ArtifactContract {
+pub struct ArtifactDeclaration {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub emits: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub named_emits: Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub packets: Option<BTreeMap<String, String>>,
+    pub packets: Option<BTreeMap<String, PacketId>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wrap_as: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub packet: Option<String>,
+    pub packet: Option<PacketId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]

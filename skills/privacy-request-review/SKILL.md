@@ -39,10 +39,10 @@ actual erasure or export under its own authority and receipt.
 
 ## Output
 
-`subject_request_verdict` (`runx.data_subject_request.v1`) carries `request`,
+`subject_request_verdict` (`runx/privacy-request-review.verdict.v1`) carries `request`,
 `decision`, `escalation`, `legal`, `requestor`, `scope_bounds`, `handoff` or
 null, `persistence` with the committed stream version, and both input digests.
 
 Inputs are `request_packet`, `requestor_proof`, `policy`, and the store
-binding (`data_source_ref`, `resource`, `aggregate_id`, `expected_version`,
+binding (`data_source_uri`, `resource`, `aggregate_id`, `expected_version`,
 `idempotency_key`).

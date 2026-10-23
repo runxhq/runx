@@ -11,7 +11,7 @@ or `link` for a Stripe MPP charge with an approved one-time spend request.
 There is no universal EVM address requirement, USD conversion or implicit
 provider selection. Each method must actually support the invoice currency.
 
-Supply `invoice_ref`, positive whole `amount_minor`, explicit `currency`,
+Supply `invoice_id`, positive whole `amount_minor`, explicit `currency`,
 `payee.payment_url`, the selected connector's public `request`, the original
 `parent_payment_authority` and a stable `idempotency_seed`. Inspect the connector
 to construct the exact request. For x402 the request is its `payment_signal`;

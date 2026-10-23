@@ -630,8 +630,8 @@ runners:
             Some(true)
         );
         assert_eq!(
-            closure.get("runtime_release").and_then(JsonValue::as_str),
-            Some(crate::EXECUTION_RUNTIME_RELEASE)
+            closure.get("runx_version").and_then(JsonValue::as_str),
+            Some(crate::RUNX_VERSION)
         );
         assert!(
             closure
@@ -668,7 +668,7 @@ runners:
         Ok(())
     }
 
-    /// A hosted connector a vendor bundles, named `id`.
+    /// A hosted connector a publisher bundles, named `id`.
     fn hosted_connector(id: &str) -> String {
         format!(
             r#"schema: runx.connector.v1
@@ -806,10 +806,7 @@ operations:
             "sha256:6927bbd009d1cf409d67c9b3aac2e80a5b491f1adf807f093fb3d76bd553eab2"
         );
         let structural_binding = inspection["execution_closure"].clone();
-        assert_eq!(
-            structural_binding["runtime_release"],
-            crate::EXECUTION_RUNTIME_RELEASE
-        );
+        assert_eq!(structural_binding["runx_version"], crate::RUNX_VERSION);
         assert!(projected(&root, temp.path())?.is_empty());
         let authority = serde_json::from_value(serde_json::json!({}))?;
         let error = super::inspect_connector_readiness(

@@ -1,10 +1,12 @@
 {
   "$id": "https://schemas.runx.ai/runx/output/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A runner's declared outputs: each output field by name.",
   "patternProperties": {
     "^(.*)$": {
       "anyOf": [
         {
+          "description": "A declared output value type.",
           "enum": [
             "string",
             "number",
@@ -14,10 +16,12 @@
             "object",
             "null"
           ],
+          "title": "OutputType",
           "type": "string"
         },
         {
           "additionalProperties": false,
+          "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
           "properties": {
             "description": {
               "type": "string"
@@ -33,9 +37,11 @@
             },
             "schema": {
               "additionalProperties": {},
+              "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
               "type": "object"
             },
             "type": {
+              "description": "A declared output value type.",
               "enum": [
                 "string",
                 "number",
@@ -45,6 +51,7 @@
                 "object",
                 "null"
               ],
+              "title": "OutputType",
               "type": "string"
             },
             "wrap_as": {
@@ -52,11 +59,15 @@
               "type": "string"
             }
           },
+          "title": "OutputFieldSpec",
           "type": "object"
         }
-      ]
+      ],
+      "description": "A single output field declaration: either a bare type name or a typed spec.",
+      "title": "OutputField"
     }
   },
+  "title": "Output",
   "type": "object",
   "x-runx-schema": "runx.output.v1"
 }

@@ -31,7 +31,7 @@
       "required": false,
       "description": "Bound Brave tab id for bind."
     },
-    "profile_ref": {
+    "profile": {
       "type": "string",
       "required": false,
       "description": "Configured non-secret browser profile label for bind."

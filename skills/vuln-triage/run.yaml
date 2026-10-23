@@ -1,5 +1,5 @@
 skill: vuln-triage
-version: "0.3.9"
+version: "0.3.10"
 
 catalog:
   kind: skill
@@ -23,7 +23,7 @@ runners:
       cve_evidence:
         type: json
         required: true
-        description: Exact cve-audit result, verification, and sealed receipt reference.
+        description: Exact cve-audit result, verification, and sealed receipt id.
       objective:
         type: string
         required: false
@@ -83,7 +83,7 @@ runners:
           named_emits:
             vulnerability_scan_packet: vulnerability_scan_packet
           packets:
-            vulnerability_scan_packet: runx.security.vulnerability_scan.v1
+            vulnerability_scan_packet: runx/vuln-triage.scan.v1
 
       - id: finalize-clean
         when:
@@ -98,7 +98,7 @@ runners:
           named_emits:
             vulnerability_scan_packet: vulnerability_scan_packet
           packets:
-            vulnerability_scan_packet: runx.security.vulnerability_scan.v1
+            vulnerability_scan_packet: runx/vuln-triage.scan.v1
 
       - id: stop
         when:
@@ -113,7 +113,7 @@ runners:
           named_emits:
             vulnerability_scan_packet: vulnerability_scan_packet
           packets:
-            vulnerability_scan_packet: runx.security.vulnerability_scan.v1
+            vulnerability_scan_packet: runx/vuln-triage.scan.v1
 
   advisory:
     description: Prepare advisory wording for a validated triage packet. Publishes nothing.
@@ -121,8 +121,8 @@ runners:
       triage_packet:
         type: json
         required: true
-        packet: runx.security.vulnerability_scan.v1
-        description: Validated runx.security.vulnerability_scan.v1 packet.
+        packet: runx/vuln-triage.scan.v1
+        description: Validated runx/vuln-triage.scan.v1 packet.
       audience:
         type: string
         required: false
@@ -170,7 +170,7 @@ runners:
           named_emits:
             vulnerability_advisory_packet: vulnerability_advisory_packet
           packets:
-            vulnerability_advisory_packet: runx.security.vulnerability_advisory.v1
+            vulnerability_advisory_packet: runx/vuln-triage.advisory.v1
 
       - id: stop
         when:
@@ -185,7 +185,7 @@ runners:
           named_emits:
             vulnerability_advisory_packet: vulnerability_advisory_packet
           packets:
-            vulnerability_advisory_packet: runx.security.vulnerability_advisory.v1
+            vulnerability_advisory_packet: runx/vuln-triage.advisory.v1
 
 harness:
   files: [fixtures/support/composed.graph]

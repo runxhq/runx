@@ -40,10 +40,10 @@ pub struct LoadedSkillPackage {
     pub package_root: PathBuf,
     pub profile_path: Option<String>,
     pub package: ValidatedSkillPackage,
-    /// Exact catalog documents admitted for packet-valued inputs. Publication
-    /// and harness staging reuse these bytes instead of rereading mutable files.
+    /// Exact catalog documents admitted for packet-valued inputs. Inspection
+    /// and publication reuse these bytes instead of rereading mutable files.
     pub(crate) resolved_input_packet_schemas:
-        BTreeMap<String, crate::packet_schemas::PacketSchemaEntry>,
+        BTreeMap<runx_contracts::PacketId, crate::packet_schemas::PacketSchemaEntry>,
 }
 
 impl LoadedSkillPackage {
@@ -243,11 +243,8 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
     let mut package = validated_package(source)?;
     let profile_path = selected_profile_path(&package_root, &directory)?
         .filter(|path| package.manifest_at(path).is_some());
-    let resolved_input_packet_schemas = crate::packet_schemas::hydrate_packet_input_contracts(
-        &mut package,
-        &directory,
-        &package_root,
-    )?;
+    let resolved_input_packet_schemas =
+        crate::packet_schemas::hydrate_packet_input_contracts(&mut package, &package_root)?;
     Ok(LoadedSkillPackage {
         directory,
         package_root,

@@ -33,7 +33,7 @@ drafted, which terms were bound, and which deviations were declared.
 
 ## Output
 
-`contract_draft` (`runx.contract_draft.v1`) carries `decision`, `reason`, the
+`contract_draft` (`runx/contract-draft.draft.v1`) carries `decision`, `reason`, the
 `document` or null, confirmed `deviations` with baseline and text, the gated
 `send_proposal` or null, `validation`, and the three input digests.
 

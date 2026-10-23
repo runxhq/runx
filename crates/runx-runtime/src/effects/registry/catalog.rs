@@ -6,12 +6,12 @@ use super::super::EffectToolRequest;
 use super::{RuntimeEffectError, RuntimeEffectRegistry};
 
 impl RuntimeEffectRegistry {
-    pub(crate) fn capability(&self, tool_ref: &str) -> Option<&'static dyn CapabilityContract> {
+    pub(crate) fn capability(&self, tool: &str) -> Option<&'static dyn CapabilityContract> {
         self.families
             .values()
             .flat_map(|effect| effect.capabilities())
             .copied()
-            .find(|capability| capability.definition().id == tool_ref)
+            .find(|capability| capability.definition().id == tool)
     }
 
     pub(crate) fn capabilities(&self) -> Vec<&'static dyn CapabilityContract> {
@@ -30,19 +30,19 @@ impl RuntimeEffectRegistry {
             effect
                 .capabilities()
                 .iter()
-                .any(|capability| capability.definition().id == request.tool_ref)
+                .any(|capability| capability.definition().id == request.tool)
         })?;
         let capability = effect
             .capabilities()
             .iter()
             .copied()
-            .find(|capability| capability.definition().id == request.tool_ref)?;
+            .find(|capability| capability.definition().id == request.tool)?;
         let inputs = match capability.normalize_inputs(request.inputs) {
             Ok(inputs) => inputs,
             Err(error) => return Some(Err(error)),
         };
         let normalized = EffectToolRequest {
-            tool_ref: request.tool_ref,
+            tool: request.tool,
             observed_at: request.observed_at,
             inputs: &inputs,
             env: request.env,
@@ -53,12 +53,12 @@ impl RuntimeEffectRegistry {
         Some(invoke_effect_tool(effect.as_ref(), capability, normalized))
     }
 
-    pub(super) fn capability_owner(&self, tool_ref: &str) -> Option<&'static str> {
+    pub(super) fn capability_owner(&self, tool: &str) -> Option<&'static str> {
         self.families.values().find_map(|effect| {
             effect
                 .capabilities()
                 .iter()
-                .any(|capability| capability.definition().id == tool_ref)
+                .any(|capability| capability.definition().id == tool)
                 .then(|| effect.family())
         })
     }
@@ -69,12 +69,12 @@ fn invoke_effect_tool(
     capability: &dyn CapabilityContract,
     request: EffectToolRequest<'_>,
 ) -> Result<super::super::EffectToolOutput, crate::RuntimeError> {
-    let tool_ref = request.tool_ref;
+    let tool = request.tool;
     let output = effect.invoke_tool(request).unwrap_or_else(|| {
         Err(crate::RuntimeError::SkillFailed {
-            skill_name: tool_ref.to_owned(),
+            skill_name: tool.to_owned(),
             message: format!(
-                "effect family {} declares tool {tool_ref} but does not implement it",
+                "effect family {} declares tool {tool} but does not implement it",
                 effect.family()
             ),
         })

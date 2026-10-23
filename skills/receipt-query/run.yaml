@@ -1,8 +1,8 @@
 skill: receipt-query
-version: "0.6.3"
+version: "0.6.4"
 
 catalog:
-  owner: runx
+  publisher: runx
   kind: graph
   audience: operator
   visibility: public
@@ -23,7 +23,7 @@ runners:
       filter:
         type: json
         required: false
-        description: Query narrowing by principal, skill_ref, status, issuer, actor, time_range, and a bounded limit.
+        description: Query narrowing by principal, skill, outcome, issuer, actor, time_range, and a bounded limit.
       receipt_ids:
         type: json
         required: false
@@ -67,8 +67,8 @@ runners:
           - receipt.read
         inputs:
           actor: $steps.prepare.ledger_context.filter.actor
-          skill: $steps.prepare.ledger_context.filter.skill_ref
-          status: $steps.prepare.ledger_context.native_status
+          skill: $steps.prepare.ledger_context.filter.skill
+          outcome: $steps.prepare.ledger_context.native_outcome
           issuer: $steps.prepare.ledger_context.filter.issuer
           since: $steps.prepare.ledger_context.filter.from
           until: $steps.prepare.ledger_context.filter.to
@@ -84,46 +84,10 @@ runners:
         outputs:
           ledger_answer:
             type: object
-            schema:
-              required: [decision, question, query]
-              additionalProperties: false
-              properties:
-                decision: { type: string, enum: [answered, needs_more_evidence, needs_agent] }
-                question: { type: string }
-                query:
-                  type: object
-                  required: [principal, skill_ref, status, time_range, receipt_ids]
-                  additionalProperties: false
-                  properties:
-                    principal: { type: string }
-                    skill_ref: { type: string }
-                    status: { type: array, items: { type: string } }
-                    time_range:
-                      type: object
-                      required: [from, to]
-                      properties: { from: { type: string }, to: { type: string } }
-                      additionalProperties: false
-                    receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
           matched_receipts: array
           receipt_details: array
           chain_verification:
             type: object
-            schema:
-              required: [checked, intact, breaks]
-              additionalProperties: false
-              properties:
-                checked: { type: boolean }
-                intact: { type: [boolean, "null"] }
-                breaks:
-                  type: array
-                  items:
-                    type: object
-                    required: [from_receipt_id, to_receipt_id, reason]
-                    properties:
-                      from_receipt_id: { type: string }
-                      to_receipt_id: { type: string }
-                      reason: { type: string }
-                    additionalProperties: false
           summary: string
         inputs:
           ledger_context: $steps.prepare.ledger_context
@@ -132,7 +96,7 @@ runners:
           receipt_details: $input.receipt_details
         artifacts:
           wrap_as: ledger_answer_packet
-          packet: runx.ledger_answer.v1
+          packet: runx/receipt-query.answer.v1
       - id: finalize-replay
         label: answer from supplied replay evidence
         when:
@@ -146,50 +110,14 @@ runners:
         outputs:
           ledger_answer:
             type: object
-            schema:
-              required: [decision, question, query]
-              additionalProperties: false
-              properties:
-                decision: { type: string, enum: [answered, needs_more_evidence, needs_agent] }
-                question: { type: string }
-                query:
-                  type: object
-                  required: [principal, skill_ref, status, time_range, receipt_ids]
-                  additionalProperties: false
-                  properties:
-                    principal: { type: string }
-                    skill_ref: { type: string }
-                    status: { type: array, items: { type: string } }
-                    time_range:
-                      type: object
-                      required: [from, to]
-                      properties: { from: { type: string }, to: { type: string } }
-                      additionalProperties: false
-                    receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
           matched_receipts: array
           receipt_details: array
           chain_verification:
             type: object
-            schema:
-              required: [checked, intact, breaks]
-              additionalProperties: false
-              properties:
-                checked: { type: boolean }
-                intact: { type: [boolean, "null"] }
-                breaks:
-                  type: array
-                  items:
-                    type: object
-                    required: [from_receipt_id, to_receipt_id, reason]
-                    properties:
-                      from_receipt_id: { type: string }
-                      to_receipt_id: { type: string }
-                      reason: { type: string }
-                    additionalProperties: false
           summary: string
         artifacts:
           wrap_as: ledger_answer_packet
-          packet: runx.ledger_answer.v1
+          packet: runx/receipt-query.answer.v1
       - id: finalize-empty
         label: stop when no audit question was supplied
         when:
@@ -199,46 +127,10 @@ runners:
         outputs:
           ledger_answer:
             type: object
-            schema:
-              required: [decision, question, query]
-              additionalProperties: false
-              properties:
-                decision: { type: string, enum: [answered, needs_more_evidence, needs_agent] }
-                question: { type: string }
-                query:
-                  type: object
-                  required: [principal, skill_ref, status, time_range, receipt_ids]
-                  additionalProperties: false
-                  properties:
-                    principal: { type: string }
-                    skill_ref: { type: string }
-                    status: { type: array, items: { type: string } }
-                    time_range:
-                      type: object
-                      required: [from, to]
-                      properties: { from: { type: string }, to: { type: string } }
-                      additionalProperties: false
-                    receipt_ids: { type: array, items: { type: string }, uniqueItems: true }
           matched_receipts: array
           receipt_details: array
           chain_verification:
             type: object
-            schema:
-              required: [checked, intact, breaks]
-              additionalProperties: false
-              properties:
-                checked: { type: boolean }
-                intact: { type: [boolean, "null"] }
-                breaks:
-                  type: array
-                  items:
-                    type: object
-                    required: [from_receipt_id, to_receipt_id, reason]
-                    properties:
-                      from_receipt_id: { type: string }
-                      to_receipt_id: { type: string }
-                      reason: { type: string }
-                    additionalProperties: false
           summary: string
         inputs:
           ledger_context: $steps.prepare.ledger_context
@@ -246,7 +138,7 @@ runners:
           receipt_details: $input.receipt_details
         artifacts:
           wrap_as: ledger_answer_packet
-          packet: runx.ledger_answer.v1
+          packet: runx/receipt-query.answer.v1
 
 harness:
   files: [fixtures/support/composed.graph]

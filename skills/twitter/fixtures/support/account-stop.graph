@@ -22,13 +22,13 @@ steps:
         rationale: Reviewed obsolete post.
       gates:
         human_approval_required: true
-        approval_ref: null
+        approval_id: null
 - id: batch1
   skill: ../..
   runner: execute
   inputs:
     plan_digest: $steps.digest.digest_result.digest
-    data_source_ref: local://twitter-stop-proof
+    data_source_uri: local://twitter-stop-proof
     max_acts: 1
     plan_json: *id001
 - id: status1
@@ -36,5 +36,5 @@ steps:
   runner: status
   inputs:
     plan_digest: $steps.digest.digest_result.digest
-    data_source_ref: local://twitter-stop-proof
+    data_source_uri: local://twitter-stop-proof
     max_acts: 1

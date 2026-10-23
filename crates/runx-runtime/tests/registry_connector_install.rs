@@ -252,7 +252,8 @@ fn a_newer_connector_version_installs_beside_its_source() -> Result<(), Box<dyn 
         .content
         .replacen("description: ", "description: Newer. ", 1);
     let published = RegistryConnectorVersion {
-        name: runx_contracts::connector::ConnectorName::new("fixture/forge").ok_or("ref")?,
+        connector: runx_contracts::connector::ConnectorName::new("fixture/forge")
+            .ok_or("connector")?,
         version: "9.0.0".to_owned(),
         trust_tier: TrustTier::Verified,
         signed_manifest: sign(
@@ -311,12 +312,12 @@ fn published_version(
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
     let package = prepare_registry_connector_package(&connector)?;
     let published = RegistryConnectorVersion {
-        name: package.name.clone(),
+        connector: package.connector.clone(),
         version: "1.0.0".to_owned(),
         trust_tier: TrustTier::Community,
         signed_manifest: sign(
             RegistrySubjectKind::Connector,
-            package.name.as_str(),
+            package.connector.as_str(),
             "1.0.0",
             &package.files,
         )?,
@@ -327,7 +328,7 @@ fn published_version(
 
 fn sign(
     kind: RegistrySubjectKind,
-    subject_ref: &str,
+    name: &str,
     version: &str,
     files: &[RegistryPackageFile],
 ) -> Result<RegistrySignedManifest, Box<dyn std::error::Error>> {
@@ -339,7 +340,7 @@ fn sign(
         schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
         subject: RegistrySubject {
             kind,
-            subject_ref: subject_ref.to_owned(),
+            name: name.to_owned(),
         },
         version: version.to_owned(),
         content_digest,
@@ -359,7 +360,7 @@ fn sign(
 
 fn options(
     root: &Path,
-    allowed_owner: &str,
+    allowed_publisher: &str,
 ) -> Result<InstallRegistryConnectorOptions, Box<dyn std::error::Error>> {
     Ok(InstallRegistryConnectorOptions {
         connectors_root: root.join("connectors"),
@@ -368,7 +369,7 @@ fn options(
         trusted_manifest_keys: vec![TrustedRegistryManifestKey::from_base64(
             KEY_ID.to_owned(),
             &STANDARD.encode(key_pair()?.public_key().as_ref()),
-            allowed_owner.to_owned(),
+            allowed_publisher.to_owned(),
             SOURCE.to_owned(),
         )?],
         manifest_source_authority: RegistryManifestSourceAuthority::RegistrySource(

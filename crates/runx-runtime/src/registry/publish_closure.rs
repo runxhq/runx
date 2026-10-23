@@ -83,7 +83,7 @@ pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
         }
         for reference in unheld {
             // A package binds an exact closure, so its refs name the canonical
-            // `<owner>/<name>`; a root name may move and is never one.
+            // `<publisher>/<name>`; a root name may move and is never one.
             let resolved = parse_registry_ref(&reference);
             let version = match resolved.version {
                 Some(version) => version,

@@ -11,6 +11,7 @@
       "enum": [
         "runx.conversation_observation.v1"
       ],
+      "title": "ConversationObservationSchema",
       "type": "string"
     },
     "source_kind": {
@@ -28,6 +29,7 @@
     "summary",
     "message"
   ],
+  "title": "ConversationObservation",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.conversation_observation.v1"

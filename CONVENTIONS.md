@@ -20,6 +20,50 @@ Do not introduce compatibility aliases, `.v2` contract ids, or retired central
 object names at governed boundaries. Product-facing skill names may remain
 recognizable; wire contracts must use the spine vocabulary.
 
+Each party has one name, in contracts, code, variables and prose alike:
+
+- `publisher`: the registry namespace and organization that publishes a skill
+  or connector. A skill is `<publisher>/<name>`.
+- `seller`: the publisher's principal enrolled to sell its paid skills. A
+  purchase names it as `seller_ref`.
+- `settlement principal`: who takes a seller's money; the seller unless a
+  deployment binds a treasury.
+- `merchant`: a payment provider's account that receives a payment, such as a
+  Stripe or PayPal account or an x402 `payTo`.
+- `buyer`: the principal that pays for a purchase.
+- `payee`: a party outside the registry that a buyer pays.
+- `provider`: the service a connector talks to, such as GitHub or Stripe.
+- `owner`: only the principal a private resource belongs to, such as a grant,
+  a held purchase or a connector instance. Never the publisher.
+- `purchase`: one paid skill run bought by a buyer from a seller, from quote to
+  receipt. Other calls are invocations; a purchase is not.
+
+Names follow these rules:
+
+- `<thing>_ref` is a runx `Reference` (`{type, uri, ...}`) to another record,
+  `<thing>_uri` a URI string, `<thing>_id` a bare identifier, `<thing>_path` a
+  file path, and `<thing>_locator` an opaque locator a provider or a turn
+  gives. A selector the caller writes is named for the thing it selects:
+  `skill`, `tool`, `connector`, or `package` for a versioned registry package
+  such as `<publisher>/<name>@<version>`. Relation names (`previous`,
+  `children`, `supersedes`) hold References under the relation's own name, and
+  a provider's own field word (a git `ref`) stays at its boundary.
+- A content digest is a `digest`, or `<thing>_digest`, written
+  `sha256:<hex>`; never a hash or a fingerprint.
+- A package or offer label is a `version`, never a revision.
+- `state` is where something is in a lifecycle that moves; `status` is how a
+  finished check or response came out; `outcome` is how a run or receipt
+  ended: `completed`, `deferred`, `superseded`, `declined`, `blocked`,
+  `failed`, `killed` or `timed_out`.
+- A field that holds a project artifact is `<thing>_artifact`; a list of them
+  is `artifacts`.
+- A run is a run and an act is an act. `execution` names a boundary, a
+  closure or a location; the program a binding names is its `executor`.
+
+`runx.receipt.v1` is the wire runx 0.11 signs, and its issuer names the
+`runx_version` that signed it. A receipt issued before 0.11 verifies with the
+runx release that issued it.
+
 ## Package Boundaries
 
 Package names carry trust claims:
@@ -71,19 +115,25 @@ Every public runner must expose a complete inspectable input and output
 contract. That does not make every runner or skill a global packet owner.
 
 - Keep runner-specific nested values in `run.yaml` as ordinary JSON Schema.
-- Put nested output shape in the producing output declaration's `schema`; the
-  parser and runtime validate that same declaration and packet generation
-  projects it without a second schema owner.
-- Declare `packet: <packet-id>` only when the complete value crosses a named,
-  reusable skill, runtime, SDK, provider, receipt, or registry boundary.
+- Declare a packet only when the complete value crosses a named, reusable
+  skill, runtime, SDK, provider, receipt, or registry boundary.
+- Anything with a packet id is a file. A package's packet is
+  `<publisher>/<package>.<name>.v<N>`, in the package's
+  `packets/<name>.v<N>.schema.json`, at the `$id`
+  `https://schemas.runx.ai/packages/<publisher>/<package>/<name>/v<N>.json`.
+  A step output bound to a packet declares only its type inline; the packet
+  file is its contract.
+- A core packet, `runx.<name>.v<N>`, is a Rust type the kernel emits or
+  reads, or a platform protocol any producer speaks. It uses
+  `public_packet_artifact`, is published as its `schemas/` document, and is
+  never copied into a package. Existence in `runx-contracts` is not enough.
 - Keep graph intermediates and one-run implementation values as typed step
   inputs or outputs; do not mint packet ids to make inspection work.
-- A canonical Rust contract uses `public_packet_artifact` only when a native
-  producer or public cross-language boundary requires distribution without an
-  `run.yaml` producer. Existence in `runx-contracts` is not enough.
-- One packet id has one schema owner. Consumers reference it and never copy its
-  schema. Generated packet files are distribution outputs and must disappear
-  when their last declaration or explicit public native owner disappears.
+- The producer owns the packet. A reader names it by id and never copies its
+  schema; publishing pins a copy of each packet a package reads from another
+  package.
+- A published packet id never changes bytes (`packets.lock.json`). Changing a
+  packet adds a new version beside the old one.
 - A named packet schema describes its semantic fields or references another
   canonical contract. Bare `type: object`, unconstrained `{}`, and an opaque
   `additionalProperties` bag are not substitutes for a contract. An open JSON

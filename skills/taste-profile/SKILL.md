@@ -51,7 +51,7 @@ their own evidence.
   enough provenance to distinguish them.
 - `surface`, `audience`, and `constraints` define where the guidance applies.
 
-The result is a `runx.context.taste_profile.v1` packet containing scope,
+The result is a `runx/taste-profile.context.v1` packet containing scope,
 preferences, avoidances, tensions, confidence, evidence bindings, redactions,
 and stop conditions. Downstream skills should consume and receipt-bind the exact
 packet digest. They receive better judgment, not mutation authority.

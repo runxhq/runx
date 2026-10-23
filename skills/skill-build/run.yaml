@@ -1,8 +1,8 @@
 skill: skill-build
-version: "0.9.18"
+version: "0.9.19"
 
 catalog:
-  owner: runx
+  publisher: runx
   kind: graph
   audience: builder
   visibility: public
@@ -26,7 +26,7 @@ harness:
           architect:
             architecture_decision:
               schema: runx.skill.architecture_decision.v1
-              disposition: extend_existing
+              choice: extend_existing
               identity:
                 current_name: release
                 proposed_name: release
@@ -322,7 +322,7 @@ runners:
       failure_packet:
         type: json
         required: false
-        description: Stable runx.review.receipt.v1 failure packet from diagnose-skill-run.
+        description: Stable runx/diagnose-skill-run.diagnosis.v1 failure packet from diagnose-skill-run.
     examples:
       - objective: Make every public runner callable from inspection without source-diving.
         repo_root: .

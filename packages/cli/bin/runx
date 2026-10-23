@@ -78,14 +78,16 @@ function verifyNativePackage(packageName, packageJsonPath, expectedPlatform, tar
     fail(`runx checksum worker mismatch: expected ${target.worker}, found ${checksum.worker ?? "<missing>"}`);
   }
 
-  const digest = createHash("sha256").update(readFileSync(binaryPath)).digest("hex");
-  if (checksum.sha256 !== digest) {
+  if (checksum.binary_digest !== sha256(binaryPath)) {
     fail("runx native binary checksum verification failed");
   }
-  const workerDigest = createHash("sha256").update(readFileSync(workerPath)).digest("hex");
-  if (checksum.worker_sha256 !== workerDigest) {
+  if (checksum.worker_digest !== sha256(workerPath)) {
     fail("runx JavaScript worker checksum verification failed");
   }
+}
+
+function sha256(filePath) {
+  return `sha256:${createHash("sha256").update(readFileSync(filePath)).digest("hex")}`;
 }
 
 function readJson(filePath) {

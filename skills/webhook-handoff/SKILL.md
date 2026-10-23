@@ -35,8 +35,8 @@ one of:
 
 - `caller` or `caller_id`
 - `principal` or `principal_id`
-- `workflow`, `workflow_id`, `workflow_ref`, or `source_workflow`
-- `upstream_execution_id` or `upstream_run_id`
+- `workflow` or `workflow_id`
+- `upstream_run_id`
 
 When present, these fields must match the top-level inputs:
 

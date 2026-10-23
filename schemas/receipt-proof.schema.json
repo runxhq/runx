@@ -1,0 +1,144 @@
+{
+  "$id": "https://schemas.runx.ai/runx/receipt/proof/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `receipt.proof` returns: each requested receipt it found, its redacted detail, and the verification of every tree.",
+  "properties": {
+    "decision": {
+      "description": "Whether every requested receipt resolved and verified.",
+      "enum": [
+        "verified",
+        "needs_more_evidence"
+      ],
+      "title": "ReceiptProofDecision",
+      "type": "string"
+    },
+    "matched_receipts": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One requested receipt `receipt.proof` found.",
+        "properties": {
+          "created_at": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "outcome": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "receipt_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject_uri": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "verification_status": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "receipt_id",
+          "subject_uri",
+          "outcome",
+          "created_at",
+          "verification_status"
+        ],
+        "title": "MatchedReceipt",
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array"
+    },
+    "receipt_details": {
+      "items": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array"
+    },
+    "requested_receipt_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema": {
+      "enum": [
+        "runx.receipt.proof.v1"
+      ],
+      "title": "ReceiptProofSchema",
+      "type": "string"
+    },
+    "store": {
+      "additionalProperties": false,
+      "description": "The receipt store a proof read.",
+      "properties": {
+        "label": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "ReceiptProofStore",
+      "type": "object"
+    },
+    "verification": {
+      "additionalProperties": false,
+      "description": "A proof's tree verification, which it always runs.",
+      "properties": {
+        "checked": {
+          "type": "boolean"
+        },
+        "findings": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "intact": {
+          "type": "boolean"
+        },
+        "trees": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "checked",
+        "intact",
+        "trees",
+        "findings"
+      ],
+      "title": "ReceiptProofVerification",
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "decision",
+    "requested_receipt_ids",
+    "matched_receipts",
+    "receipt_details",
+    "verification",
+    "store"
+  ],
+  "title": "ReceiptProof",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.receipt.proof.v1"
+}

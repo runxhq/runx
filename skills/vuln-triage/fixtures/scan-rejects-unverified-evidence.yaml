@@ -5,9 +5,9 @@ runner: scan
 inputs:
   target: example/service
   cve_evidence:
-    receipt_ref: runx:receipt:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    receipt_id: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     audit_result:
-      schema: runx.security.exact_cve_audit.v1
+      schema: runx/cve-audit.audit.v1
       findings:
         - dependency: invented-lib
           exact_version: 9.9.9

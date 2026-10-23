@@ -6,7 +6,7 @@ caller:
     audit:
       receipt_audit:
         decision: ready
-        run_ref: rcpt_issue_triage_4471
+        receipt_id: rcpt_issue_triage_4471
         granted_scopes:
           - repo:read
         exercised_scopes:

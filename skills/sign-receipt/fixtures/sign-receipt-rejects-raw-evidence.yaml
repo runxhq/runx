@@ -7,7 +7,7 @@ inputs:
   principal: ops:release
   claim: Deployment approval was recorded.
   evidence:
-    - ref: approval:deploy:ap_77
+    - locator: approval:deploy:ap_77
       digest: sha256:8d4e1a90c3b62f8e5a07d2c19b4f6e3a8c0d51b7e9a2f4c6b8d03e1a5f7c9b24
       proves: deployment approval exists
       raw_value: private approval body

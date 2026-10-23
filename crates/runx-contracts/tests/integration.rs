@@ -14,7 +14,7 @@ mod harness_spine_fixtures;
 mod host_protocol_fixtures;
 mod operational_policy;
 mod operational_proposal_fixtures;
-mod paid_invocation;
+mod purchase;
 mod reference;
 mod schema_validation;
 mod schema_wire_conformance;

@@ -193,7 +193,7 @@ pub struct ReferenceLink {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ActRef {
+pub struct ActAddress {
     pub receipt_ref: Reference,
     pub act_id: NonEmptyString,
 }

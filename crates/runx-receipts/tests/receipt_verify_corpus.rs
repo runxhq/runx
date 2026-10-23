@@ -118,8 +118,8 @@ impl SignatureVerifier for CorpusEd25519Verifier {
         }) else {
             return Err(SignatureVerificationFailure::MissingKey);
         };
-        if issuer.public_key_sha256.as_str() != sha256_prefixed(public_key) {
-            return Err(SignatureVerificationFailure::KeyHashMismatch);
+        if issuer.public_key_digest.as_str() != sha256_prefixed(public_key) {
+            return Err(SignatureVerificationFailure::KeyDigestMismatch);
         }
         let Some(signature) = signature.value.strip_prefix("base64:") else {
             return Err(SignatureVerificationFailure::MalformedSignature);

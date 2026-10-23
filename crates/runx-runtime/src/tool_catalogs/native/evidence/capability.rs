@@ -219,7 +219,7 @@ static INDEX: TypedNativeCapability<EvidenceIndexInput, EvidenceIndexOutput> =
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "evidence.index_sources",
-            owner: "runx-runtime/evidence",
+            source: "runx-runtime/evidence",
             summary: "Bound, deduplicate, and digest governed remote or local source packets.",
             scopes: &["runx:evidence:read"],
             effect: CapabilityEffect::Read,
@@ -234,7 +234,7 @@ static VERIFY: TypedNativeCapability<EvidenceVerifyInput, EvidenceVerifyOutput> 
     TypedNativeCapability::new(
         CapabilityDefinition {
             id: "evidence.verify_artifact",
-            owner: "runx-runtime/evidence",
+            source: "runx-runtime/evidence",
             summary: "Verify evidence and context bindings and reject unsupported effect claims.",
             scopes: &["runx:evidence:read"],
             effect: CapabilityEffect::Read,

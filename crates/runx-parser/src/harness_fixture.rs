@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use runx_contracts::{ClosureDisposition, JsonObject, JsonValue, ReceiptSchema, SealReason};
+use runx_contracts::{JsonObject, JsonValue, ReceiptSchema, RunOutcome, SealReason};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -160,11 +160,11 @@ pub struct HarnessProviderResponsesFixture {
     /// refused before any request leaves declares none.
     #[serde(default)]
     pub operations: Vec<HarnessProviderOperationFixture>,
-    /// The paid invocation Connect holds for the case's run, which a declared
-    /// request sends as `{"$runx": "invocation"}`. Without one such a request
-    /// fails closed, as it does for a run no paid invocation is bound to.
+    /// The purchase Connect holds for the case's run, which a declared
+    /// request sends as `{"$runx": "purchase"}`. Without one such a request
+    /// fails closed, as it does for a run no purchase is bound to.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub invocation_id: Option<String>,
+    pub purchase_id: Option<String>,
     /// What earlier purchases hold for the principal: Connect presents a hold
     /// only to an operation on that resource, and refuses one the principal
     /// does not hold.
@@ -304,17 +304,17 @@ pub struct ReceiptExpectation {
     pub body_digest: Option<String>,
     pub receipt_id: Option<String>,
     pub receipt_digest: Option<String>,
-    pub subject_ref: Option<String>,
+    pub subject_uri: Option<String>,
     pub state: Option<String>,
-    pub disposition: Option<ClosureDisposition>,
+    pub outcome: Option<RunOutcome>,
     pub reason: Option<SealReason>,
     /// Each list is asserted when present, an empty one included: `[]`
     /// asserts there is none.
     pub act_ids: Option<Vec<String>>,
     pub decision_ids: Option<Vec<String>>,
-    pub child_receipt_refs: Option<Vec<String>>,
+    pub child_receipt_uris: Option<Vec<String>>,
     pub child_receipt_count: Option<usize>,
-    pub verification_refs: Option<Vec<String>>,
+    pub verification_uris: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -359,15 +359,15 @@ struct RawReceiptExpectation {
     body_digest: Option<String>,
     receipt_id: Option<String>,
     receipt_digest: Option<String>,
-    subject_ref: Option<String>,
+    subject_uri: Option<String>,
     state: Option<String>,
-    disposition: Option<ClosureDisposition>,
+    outcome: Option<RunOutcome>,
     reason: Option<SealReason>,
     act_ids: Option<Vec<String>>,
     decision_ids: Option<Vec<String>>,
-    child_receipt_refs: Option<Vec<String>>,
+    child_receipt_uris: Option<Vec<String>>,
     child_receipt_count: Option<usize>,
-    verification_refs: Option<Vec<String>>,
+    verification_uris: Option<Vec<String>>,
     #[serde(flatten)]
     extra: BTreeMap<String, serde::de::IgnoredAny>,
 }
@@ -920,15 +920,15 @@ fn validate_receipt_expectation(
         body_digest: receipt.body_digest,
         receipt_id: receipt.receipt_id,
         receipt_digest: receipt.receipt_digest,
-        subject_ref: receipt.subject_ref,
+        subject_uri: receipt.subject_uri,
         state: receipt.state,
-        disposition: receipt.disposition,
+        outcome: receipt.outcome,
         reason: receipt.reason,
         act_ids: receipt.act_ids,
         decision_ids: receipt.decision_ids,
-        child_receipt_refs: receipt.child_receipt_refs,
+        child_receipt_uris: receipt.child_receipt_uris,
         child_receipt_count: receipt.child_receipt_count,
-        verification_refs: receipt.verification_refs,
+        verification_uris: receipt.verification_uris,
     })
 }
 

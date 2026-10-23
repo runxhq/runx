@@ -8,7 +8,7 @@ function inputs() {
     prospect: { email: "operator@example.org", company: "Example" },
     purpose: "Offer a useful documentation review", offer: "A bounded review of public docs",
     required_footer: "Example team. Reply to opt out.",
-    contact_policy: { recipient: "operator@example.org", status: "eligible", suppressed: false, policy_ref: "policy:outreach", evidence_refs: ["decision:recipient-1"] },
+    contact_policy: { recipient: "operator@example.org", status: "eligible", suppressed: false, policy_id: "policy:outreach", evidence_ids: ["decision:recipient-1"] },
     evidence_context: { decision: "ready", blockers: [] },
   };
 }
@@ -22,7 +22,7 @@ test("admission returns the structured brief the draft is written from, with no 
     { sender: value.sender, prospect: value.prospect, purpose: value.purpose, offer: value.offer, required_footer: value.required_footer },
   );
   assert.deepEqual(Object.keys(contact_brief).sort(), [
-    "blockers", "decision", "offer", "policy_evidence_refs", "policy_ref", "prospect", "purpose", "required_footer", "sender",
+    "blockers", "decision", "offer", "policy_evidence_ids", "policy_id", "prospect", "purpose", "required_footer", "sender",
   ]);
 });
 
@@ -30,7 +30,7 @@ test("holds suppression, unknown eligibility, unbound policy and a different pol
   const changes = [
     (value) => { value.contact_policy.suppressed = true; },
     (value) => { value.contact_policy.status = "unknown"; },
-    (value) => { value.contact_policy.evidence_refs = []; },
+    (value) => { value.contact_policy.evidence_ids = []; },
     (value) => { value.contact_policy.recipient = "other@example.org"; },
   ];
   for (const change of changes) {

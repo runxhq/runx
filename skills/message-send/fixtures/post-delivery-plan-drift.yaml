@@ -4,12 +4,12 @@ target: ..
 runner: post
 inputs:
   notification_plan:
-    schema: runx.notify.v1
+    schema: runx/message-send.notification_plan.v1
     decision: ready_for_provider
     provider: slack
     principal: runx:principal:kam
     channel: slack://T123ABC/C123ABC
-    content_ref: inline:sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+    content_uri: inline:sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
     content_digest: sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
     send_plan: { decision: ready }
     provider_status: not_called

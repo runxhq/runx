@@ -26,7 +26,7 @@ struct ClosureAccumulator {
     package_bindings: BTreeSet<ExecutionPackageBinding>,
     /// Each connector the closure binds, as its package resolved it.
     connector_bindings: BTreeMap<ExecutionConnectorBinding, Arc<LoadedConnector>>,
-    local_packages: BTreeMap<PathBuf, BTreeSet<String>>,
+    local_packages: BTreeMap<PathBuf, BTreeSet<runx_contracts::PacketId>>,
     local_skill_edges: BTreeSet<LocalSkillEdge>,
     /// Every package the closure binds, as it was loaded, by its canonical
     /// directory.
@@ -60,14 +60,15 @@ pub(crate) struct LocalSkillEdge {
 
 #[derive(Default)]
 pub(crate) struct LocalExecutionClosure {
-    pub packages: BTreeMap<PathBuf, BTreeSet<String>>,
+    /// Each package the closure runs, with the packets its runners declare.
+    pub packages: BTreeMap<PathBuf, BTreeSet<runx_contracts::PacketId>>,
     pub skill_edges: BTreeSet<LocalSkillEdge>,
 }
 
 #[derive(Serialize)]
 struct ExecutionClosure {
     closure_digest: String,
-    runtime_release: String,
+    runx_version: String,
     fully_bound: bool,
     summary: String,
     components: Vec<String>,
@@ -111,7 +112,7 @@ enum ExecutionPackageSourceKind {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 struct InputPacketSchemaBinding {
-    packet: String,
+    packet: runx_contracts::PacketId,
     schema_digest: String,
 }
 
@@ -561,7 +562,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     })?;
                 Ok(InputPacketSchemaBinding {
                     packet,
-                    schema_digest: schema.schema.sha256.clone(),
+                    schema_digest: schema.schema.digest.clone(),
                 })
             })
             .collect::<Result<Vec<_>, SkillInspectionError>>()?;
@@ -770,7 +771,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         let Some(target) = step.skill() else {
             return Ok(None);
         };
-        let reference = target.reference.as_str();
+        let reference = target.skill.as_str();
         let requested_runner = target.runner.as_deref().unwrap_or("default");
         if reference.starts_with('$')
             || (runx_parser::registry_ref(reference).is_some() && self.env.is_none())
@@ -894,7 +895,7 @@ fn record_direct_external_skill_edge(
 
 /// A skill step's reference; empty for any other step.
 fn step_reference(step: &GraphStep) -> &str {
-    step.skill().map_or("", |target| target.reference.as_str())
+    step.skill().map_or("", |target| target.skill.as_str())
 }
 
 fn canonical_directory(path: &Path, label: &'static str) -> Result<PathBuf, SkillInspectionError> {
@@ -928,7 +929,7 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
             &connector_bindings,
             &unresolved_skill_edges,
         ),
-        runtime_release: crate::EXECUTION_RUNTIME_RELEASE.to_owned(),
+        runx_version: crate::RUNX_VERSION.to_owned(),
         fully_bound: unresolved_skill_edges.is_empty(),
         summary: execution_summary(&components, closure.agent_acts, closure.declared_artifact),
         components,
@@ -959,13 +960,13 @@ fn execution_closure_digest(
 ) -> String {
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"runx.execution-closure.v1\0");
-    append_digest_field(&mut canonical, crate::EXECUTION_RUNTIME_RELEASE.as_bytes());
+    append_digest_field(&mut canonical, crate::RUNX_VERSION.as_bytes());
     for binding in package_bindings {
         append_digest_field(&mut canonical, binding.skill.as_bytes());
         append_digest_field(&mut canonical, binding.runner.as_bytes());
         append_digest_field(&mut canonical, binding.package_digest.as_bytes());
         for packet in &binding.input_packet_schemas {
-            append_digest_field(&mut canonical, packet.packet.as_bytes());
+            append_digest_field(&mut canonical, packet.packet.as_str().as_bytes());
             append_digest_field(&mut canonical, packet.schema_digest.as_bytes());
         }
     }

@@ -68,10 +68,15 @@ pub(super) fn publish(
     )
     .map_err(|error| internal_error(error.to_string()))?;
     // The registry reads the files natively; it must have recorded these.
-    if published.name != package.name || published.content_digest != package.content_digest {
+    if published.connector != package.connector
+        || published.content_digest != package.content_digest
+    {
         return Err(internal_error(format!(
             "the registry recorded {} with content {}, but the package is {} with content {}",
-            published.name, published.content_digest, package.name, package.content_digest
+            published.connector,
+            published.content_digest,
+            package.connector,
+            package.content_digest
         )));
     }
     let human = output::render_connector_publish(&published);

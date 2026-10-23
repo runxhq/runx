@@ -12,7 +12,7 @@
 //! - `{"$result": "/pointer"}`: a value from the call's decoded result, which
 //!   only an operation's effect reads.
 //! - `{"$runx": "idempotency_key"}`: the key the kernel derived for the call.
-//! - `{"$runx": "invocation"}`: the paid invocation a hosted call runs under.
+//! - `{"$runx": "purchase"}`: the purchase a hosted call runs under.
 //!   Only runx Connect supplies it, from the run its gateway session
 //!   authenticates; the kernel never does, so anywhere else it is unavailable
 //!   and the call fails closed.
@@ -45,7 +45,7 @@ const ITEM: &str = "$item";
 const RESULT: &str = "$result";
 const RUNX: &str = "$runx";
 const IDEMPOTENCY_KEY: &str = "idempotency_key";
-const INVOCATION: &str = "invocation";
+const PURCHASE: &str = "purchase";
 const CONCAT: &str = "$concat";
 const MINOR_UNITS: &str = "$minor_units";
 
@@ -69,9 +69,9 @@ pub struct TemplateInputs<'a> {
     /// The call's decoded result, once it has one.
     pub result: Option<&'a JsonValue>,
     pub idempotency_key: Option<&'a str>,
-    /// The paid invocation the call runs under, which only runx Connect
+    /// The purchase the call runs under, which only runx Connect
     /// supplies.
-    pub invocation_id: Option<&'a str>,
+    pub purchase_id: Option<&'a str>,
 }
 
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
@@ -166,10 +166,10 @@ impl Template {
         binds_runx_value(&self.0, IDEMPOTENCY_KEY)
     }
 
-    /// Whether the template sends the paid invocation the call runs under.
+    /// Whether the template sends the purchase the call runs under.
     #[must_use]
-    pub fn binds_invocation(&self) -> bool {
-        binds_runx_value(&self.0, INVOCATION)
+    pub fn binds_purchase(&self) -> bool {
+        binds_runx_value(&self.0, PURCHASE)
     }
 
     /// Whether the template binds `$result`, which only an effect reads.
@@ -247,7 +247,7 @@ impl Template {
     }
 
     /// Top-level object fields runx itself fills, with the call's provider
-    /// key or its paid invocation, which no input reaches.
+    /// key or its purchase, which no input reaches.
     #[must_use]
     pub fn runx_fields(&self) -> BTreeSet<&str> {
         match &self.0 {
@@ -355,10 +355,10 @@ fn validate_binding(key: &str, argument: &JsonValue, depth: usize) -> Result<(),
             }),
         },
         RUNX => match argument.as_str() {
-            Some(IDEMPOTENCY_KEY | INVOCATION) => Ok(()),
+            Some(IDEMPOTENCY_KEY | PURCHASE) => Ok(()),
             _ => Err(TemplateError::Malformed {
                 binding: RUNX,
-                reason: "the runtime values are idempotency_key and invocation",
+                reason: "the runtime values are idempotency_key and purchase",
             }),
         },
         MINOR_UNITS => {
@@ -467,7 +467,7 @@ fn render_binding(
             .cloned()
             .ok_or_else(unavailable),
         RUNX => match reference {
-            INVOCATION => inputs.invocation_id,
+            PURCHASE => inputs.purchase_id,
             _ => inputs.idempotency_key,
         }
         .map(|value| JsonValue::String(value.to_owned()))

@@ -28,14 +28,20 @@ caller:
         target: slack://messages
         access: read
         result:
-          external_tenant_ref: slack:workspace:T123ABC
-          connected_subject_ref: slack:user:U123ABC
+          provider: slack
+          external_tenant_id: T123ABC
+          connected_subject_id: U123ABC
           messages:
-            - message_ref: slack://T123ABC/C123ABC/1750000000.000001
-              channel_ref: slack://T123ABC/C123ABC
-              author_ref: slack:user:U456ABC
-              text: Release readiness checks are green.
-              posted_at: "2026-08-10T10:00:00Z"
+            - provider: slack
+              external_tenant_id: T123ABC
+              connected_subject_id: U123ABC
+              message_locator: slack://T123ABC/C123ABC/1750000000.000001
+              thread_locator: slack://T123ABC/C123ABC/1750000000.000001
+              author: { external_id: U456ABC, provider_actor_type: user_account }
+              conversation: { external_id: C123ABC, type: channel }
+              occurred_at: "2026-08-10T10:00:00Z"
+              preview: Release readiness checks are green.
+              context: []
           next_cursor: ""
 expect:
   status: sealed
@@ -48,6 +54,6 @@ expect:
             status: success
             provider: slack
             result:
-              external_tenant_ref: slack:workspace:T123ABC
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+              external_tenant_id: T123ABC
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: slack, source_case: direct-default-success, source: skills-fixture }

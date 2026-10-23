@@ -55,7 +55,7 @@
       "@runxhq/runtime-local",
       "@runxhq/adapters"
     ],
-    "sdk_disposition": "runx-sdk-cli-backed",
+    "sdk_role": "runx-sdk-cli-backed",
     "trusted_executor": "runx-runtime",
     "typescript_role": "client_only"
   }

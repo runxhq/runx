@@ -33,10 +33,10 @@ describe("hello-graph example", () => {
       const receipt = JSON.parse(stdout) as {
         readonly schema?: string;
         readonly lineage?: { readonly children?: readonly unknown[] };
-        readonly seal?: { readonly disposition?: string };
+        readonly seal?: { readonly outcome?: string };
       };
       expect(receipt.schema).toBe("runx.receipt.v1");
-      expect(receipt.seal?.disposition).toBe("closed");
+      expect(receipt.seal?.outcome).toBe("completed");
       expect(receipt.lineage?.children?.length).toBe(2);
     } finally {
       await rm(tempDir, { recursive: true, force: true });

@@ -1,0 +1,1 @@
+{"description":"Cancellation is idempotently bound to the purchase.","expectation":"valid","operation":"CancelPurchase","payload":{"idempotency":{"binding_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","key":"cancel_direct"},"purchase_id":"paid_direct"},"schema_id":"runx.payment.cancel_purchase.request.v1"}

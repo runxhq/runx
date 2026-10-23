@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/github-issue-triage/triage/v1.json",
+  "x-runx-packet-id": "runx/github-issue-triage.triage.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "decision",
+    "issue_profile",
+    "response_strategy",
+    "response_draft",
+    "follow_up_actions",
+    "evidence_digests",
+    "delivery_status",
+    "provider_status",
+    "validation"
+  ],
+  "properties": {
+    "schema": { "type": "string", "const": "runx/github-issue-triage.triage.v1" },
+    "decision": { "type": "string", "enum": ["draft_ready", "blocked"] },
+    "issue_profile": { "type": "object", "additionalProperties": true },
+    "response_strategy": { "type": "object", "additionalProperties": true },
+    "response_draft": {
+      "type": "object",
+      "required": ["channel", "body"],
+      "properties": {
+        "channel": { "type": "string" },
+        "body": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "follow_up_actions": { "type": "array", "items": { "type": "string" } },
+    "evidence_digests": { "type": "array", "items": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" } },
+    "delivery_status": { "type": "string", "const": "not_sent" },
+    "provider_status": { "type": "string", "enum": ["readback", "supplied_snapshot"] },
+    "validation": {
+      "type": "object",
+      "required": ["status", "findings"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "fail"] },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string", "minLength": 1 },
+              "message": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

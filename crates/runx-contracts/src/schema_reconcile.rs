@@ -39,10 +39,7 @@ pub fn reconcile_schema_artifacts(
     let mut stale = Vec::new();
     for artifact in artifacts {
         let path = out_dir.join(artifact.file_name);
-        let generated = format!(
-            "{}\n",
-            serde_json::to_string_pretty(&artifact.schema).map_err(std::io::Error::other)?
-        );
+        let generated = artifact.document().map_err(std::io::Error::other)?;
         if check {
             match fs::read_to_string(&path) {
                 Ok(current) if current == generated => {}

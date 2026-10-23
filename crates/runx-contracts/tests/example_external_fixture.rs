@@ -34,7 +34,7 @@ struct ExternalSource {
 
 #[derive(Debug, Deserialize)]
 struct ExternalSignal {
-    fingerprint: String,
+    digest: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,7 +56,7 @@ fn example_external_fixture_is_admitted_by_operational_policy()
     assert_eq!(fixture.source.locator, "slack://example/C0APFMY0V8Q");
     assert_eq!(fixture.source.thread_ts, "1778834840.485629");
     assert!(fixture.source.issue_url.contains("/issues/"));
-    assert_eq!(fixture.signal.fingerprint, "sha256:example-source-482");
+    assert_eq!(fixture.signal.digest, "sha256:example-source-482");
     assert_eq!(fixture.target.action, "issue-to-pr");
 
     let admission = admit_operational_policy_request(

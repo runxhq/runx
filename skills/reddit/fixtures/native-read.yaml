@@ -7,7 +7,7 @@ setup:
   parameters:
     reddit:
       account: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
 inputs:
   account_id: example_builder
   operation: inspect
@@ -29,7 +29,7 @@ caller:
       operation: session
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
     result:
       id: example_builder
       login: example_builder
@@ -40,10 +40,10 @@ caller:
       session_account: example_builder
       parameters:
         account: example_builder
-        profile_ref: reddit-builder
+        profile: reddit-builder
     result:
       account_id: example_builder
-      profile_ref: reddit-builder
+      profile: reddit-builder
       observed_at: '2026-10-21T00:00:00Z'
       status: observed
       page:

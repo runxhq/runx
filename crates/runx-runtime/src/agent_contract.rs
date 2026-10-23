@@ -19,7 +19,7 @@ pub(crate) fn agent_contract_checks(
     request: &ResolutionRequest,
     payload: &JsonValue,
 ) -> Result<ContractChecks, RuntimeError> {
-    agent_contract_checks_with_artifacts(request, payload, None, Path::new("."), &BTreeMap::new())
+    agent_contract_checks_with_artifacts(request, payload, None, Path::new("."))
 }
 
 pub(crate) fn agent_contract_checks_with_artifacts(
@@ -27,7 +27,6 @@ pub(crate) fn agent_contract_checks_with_artifacts(
     payload: &JsonValue,
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
-    env: &BTreeMap<String, String>,
 ) -> Result<ContractChecks, RuntimeError> {
     let ResolutionRequest::AgentAct { invocation, .. } = request else {
         return Err(RuntimeError::SkillFailed {
@@ -44,13 +43,12 @@ pub(crate) fn agent_contract_checks_with_artifacts(
         Some(output),
         artifacts,
         skill_directory,
-        env,
     )?;
-    checks.voice_profile_sha256 = invocation
+    checks.voice_profile_digest = invocation
         .envelope
         .voice_profile
         .as_ref()
-        .map(|profile| profile.sha256.as_ref().to_owned());
+        .map(|profile| profile.digest.as_ref().to_owned());
     Ok(checks)
 }
 
@@ -59,7 +57,7 @@ pub(crate) fn agent_output_contract_payload(payload: &JsonValue) -> JsonValue {
         return payload.clone();
     };
     let mut declared = fields.clone();
-    // `closure` is Runx control metadata consumed by the receipt disposition
+    // `closure` is Runx control metadata consumed by the receipt outcome
     // parser. It is validated by that protocol and is not a skill output.
     declared.remove("closure");
     JsonValue::Object(declared)
@@ -81,7 +79,7 @@ mod tests {
             "run_id": "run_1",
             "skill": "message-send",
             "instructions": "Plan a notification",
-            "instructions_sha256": "sha256:d264e5fb6c699b5793b06863a0c2d1e77beb6f01e8a7263da65a3986c3836c26",
+            "instructions_digest": "sha256:d264e5fb6c699b5793b06863a0c2d1e77beb6f01e8a7263da65a3986c3836c26",
             "inputs": {},
             "requirements": {
                 "declaration": {},
@@ -118,7 +116,7 @@ mod tests {
 
         assert!(
             checks
-                .output_contract_sha256
+                .output_contract_digest
                 .is_some_and(|digest| digest.starts_with("sha256:"))
         );
         Ok(())
@@ -173,8 +171,8 @@ mod tests {
                     JsonValue::Object(
                         [
                             (
-                                "disposition".to_owned(),
-                                JsonValue::String("closed".to_owned()),
+                                "outcome".to_owned(),
+                                JsonValue::String("completed".to_owned()),
                             ),
                             (
                                 "reason_code".to_owned(),

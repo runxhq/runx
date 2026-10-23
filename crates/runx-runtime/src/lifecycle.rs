@@ -1,7 +1,7 @@
 //! The events a run reports to its host as it executes: each step starting
 //! and closing, and the run's seal. The run record is the durable account;
 //! these are the live notifications.
-use runx_contracts::{ClosureDisposition, ExecutionEvent, JsonObject, JsonValue, Receipt};
+use runx_contracts::{ExecutionEvent, JsonObject, JsonValue, Receipt, RunOutcome};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LifecycleEvent {
@@ -10,12 +10,12 @@ pub(crate) enum LifecycleEvent {
     },
     StepClosed {
         step_id: String,
-        disposition: ClosureDisposition,
+        outcome: RunOutcome,
     },
     RunSealed {
         receipt_id: String,
-        subject_ref: String,
-        disposition: ClosureDisposition,
+        subject_uri: String,
+        outcome: RunOutcome,
         message: String,
     },
 }
@@ -30,14 +30,14 @@ impl LifecycleEvent {
     pub(crate) fn step_completed(step_id: &str) -> Self {
         Self::StepClosed {
             step_id: step_id.to_owned(),
-            disposition: ClosureDisposition::Closed,
+            outcome: RunOutcome::Completed,
         }
     }
 
     pub(crate) fn step_failed(step_id: &str) -> Self {
         Self::StepClosed {
             step_id: step_id.to_owned(),
-            disposition: ClosureDisposition::Failed,
+            outcome: RunOutcome::Failed,
         }
     }
 
@@ -45,13 +45,13 @@ impl LifecycleEvent {
         Self::sealed(receipt, format!("graph {graph_name} completed"))
     }
 
-    /// The graph stopped at `step_id` with its receipt's disposition.
+    /// The graph stopped at `step_id` with its receipt's outcome.
     pub(crate) fn graph_stopped(graph_name: &str, step_id: &str, receipt: &Receipt) -> Self {
         Self::sealed(
             receipt,
             format!(
                 "graph {graph_name} {} at {step_id}",
-                receipt.seal.disposition.label()
+                receipt.seal.outcome.label()
             ),
         )
     }
@@ -59,8 +59,8 @@ impl LifecycleEvent {
     fn sealed(receipt: &Receipt, message: String) -> Self {
         Self::RunSealed {
             receipt_id: receipt.id.to_string(),
-            subject_ref: receipt.subject.reference.uri.to_string(),
-            disposition: receipt.seal.disposition.clone(),
+            subject_uri: receipt.subject.reference.uri.to_string(),
+            outcome: receipt.seal.outcome,
             message,
         }
     }
@@ -74,39 +74,36 @@ impl LifecycleEvent {
                     ("step_id", step_id),
                 ])),
             },
-            Self::StepClosed {
-                step_id,
-                disposition,
-            } => {
+            Self::StepClosed { step_id, outcome } => {
                 let data = Some(event_data([
                     ("kind", "step_closed".to_owned()),
                     ("step_id", step_id.clone()),
-                    ("disposition", disposition.label().to_owned()),
+                    ("outcome", outcome.label().to_owned()),
                 ]));
-                if disposition == ClosureDisposition::Closed {
+                if outcome == RunOutcome::Completed {
                     ExecutionEvent::StepCompleted {
                         message: format!("step {step_id} completed"),
                         data,
                     }
                 } else {
                     ExecutionEvent::Warning {
-                        message: format!("step {step_id} {}", disposition.label()),
+                        message: format!("step {step_id} {}", outcome.label()),
                         data,
                     }
                 }
             }
             Self::RunSealed {
                 receipt_id,
-                subject_ref,
-                disposition,
+                subject_uri,
+                outcome,
                 message,
             } => ExecutionEvent::Completed {
                 message,
                 data: Some(event_data([
                     ("kind", "run_sealed".to_owned()),
                     ("receipt_id", receipt_id),
-                    ("subject_ref", subject_ref),
-                    ("disposition", disposition.label().to_owned()),
+                    ("subject_uri", subject_uri),
+                    ("outcome", outcome.label().to_owned()),
                 ])),
             },
         }

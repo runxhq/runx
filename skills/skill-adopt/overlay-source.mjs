@@ -68,7 +68,7 @@ export function inspectSource(inputs) {
       source: {
         path: request.label,
         bytes: numberValue(blobDigest.bytes),
-        sha256: requiredString(file.content_digest, "file_read.content_digest"),
+        content_digest: requiredString(file.content_digest, "file_read.content_digest"),
         git_blob_sha: observedBlobSha,
       },
       upstream,
@@ -102,7 +102,7 @@ function validateUpstream(value, observedBlobSha, findings) {
 }
 
 function validateRegistry(value, findings) {
-  safeSegment(value.owner, "registry.owner", findings);
+  safeSegment(value.publisher, "registry.publisher", findings);
   if (!["community", "verified", "first_party"].includes(value.trust_tier)) {
     reject(findings, "registry.invalid_trust_tier", "registry.trust_tier", "Registry trust tier must be community, verified, or first_party.");
   }

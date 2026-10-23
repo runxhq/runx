@@ -153,7 +153,7 @@ function runRegistryResolverDogfood() {
       RUNX_CWD: path.join(root, "project"),
       RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID: signingKey.keyId,
       RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64: signingKey.publicKeyBase64,
-      RUNX_REGISTRY_MANIFEST_TRUST_OWNER: "acme",
+      RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER: "acme",
     };
 
     runStep({

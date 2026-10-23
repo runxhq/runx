@@ -204,7 +204,7 @@ impl TurnLimits {
         let field = |name: &str| format!("{prefix}{name}");
         let tools = distinct_entries(document.get("tools"), &field("tools"), |entry, value| {
             let tool = FIELDS.required_string(Some(value), entry)?;
-            let admission = runx_core::policy::admit_agent_tool_ref(&tool);
+            let admission = runx_core::policy::admit_agent_tool(&tool);
             if !admission.allowed {
                 return Err(
                     FIELDS.validation_error(format!("{entry} {tool:?}: {}.", admission.reason))
@@ -338,7 +338,7 @@ fn skill_allowance(entry: &str, value: &JsonValue) -> Result<SkillAllowance, Val
         return Ok(SkillAllowance::Rule(rule));
     }
     let reference = FIELDS.required_string(Some(value), entry)?;
-    Ok(SkillAllowance::Ref(reference.as_str().into()))
+    Ok(SkillAllowance::Skill(reference.as_str().into()))
 }
 
 /// Every agent step of a runner may call the whole of the runner's limits,

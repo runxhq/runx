@@ -1,0 +1,489 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/twitter/execution/v1.json",
+  "x-runx-packet-id": "runx/twitter.execution.v1",
+  "additionalProperties": false,
+  "properties": {
+    "active_thread": {
+      "additionalProperties": false,
+      "properties": {
+        "act_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "in_reply_to": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "next_segment_index": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "act_index",
+        "next_segment_index",
+        "in_reply_to"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "blockers": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 250,
+      "type": "array"
+    },
+    "counts": {
+      "additionalProperties": false,
+      "properties": {
+        "failed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "processed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "succeeded": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "processed",
+        "succeeded",
+        "failed"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "decision": {
+      "enum": [
+        "executed",
+        "completed_with_failures",
+        "partial",
+        "stopped",
+        "refused",
+        "noop"
+      ],
+      "type": "string"
+    },
+    "last_failure": {
+      "additionalProperties": false,
+      "properties": {
+        "act_id": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidence_uri": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "act_id",
+        "reason",
+        "evidence_uri"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "ledger_delta": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "pattern": "^[0-9]{1,19}$",
+          "type": "string"
+        },
+        "active_thread": {
+          "maxProperties": 3,
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "batch": {
+          "additionalProperties": false,
+          "properties": {
+            "failed_act_count": {
+              "maximum": 50,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "processed_act_count": {
+              "maximum": 50,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "rate_limited": {
+              "type": "boolean"
+            },
+            "selected_act_count": {
+              "maximum": 50,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_act_index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "succeeded_act_count": {
+              "maximum": 50,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "start_act_index",
+            "selected_act_count",
+            "processed_act_count",
+            "succeeded_act_count",
+            "failed_act_count",
+            "rate_limited"
+          ],
+          "type": "object"
+        },
+        "counts": {
+          "additionalProperties": false,
+          "properties": {
+            "failed": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "processed": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "succeeded": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "processed",
+            "succeeded",
+            "failed"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "decision": {
+          "enum": [
+            "executed",
+            "completed_with_failures",
+            "partial",
+            "stopped"
+          ],
+          "type": "string"
+        },
+        "last_failure": {
+          "additionalProperties": false,
+          "properties": {
+            "act_id": {
+              "maxLength": 1000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "evidence_uri": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "reason": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "act_id",
+            "reason",
+            "evidence_uri"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "next_act_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "plan_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schema": {
+          "const": "runx/twitter.execution_progress.v1"
+        },
+        "stop": {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "enum": [
+                "wait",
+                "review",
+                "reconcile"
+              ],
+              "type": "string"
+            },
+            "code": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "reason": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "retry_at": {
+              "maxLength": 64,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "code",
+            "reason",
+            "action",
+            "retry_at"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "total_act_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": {
+          "const": "twitter.execution.progress"
+        }
+      },
+      "required": [
+        "schema",
+        "type",
+        "plan_digest",
+        "account_id",
+        "decision",
+        "next_act_index",
+        "total_act_count",
+        "active_thread",
+        "counts",
+        "last_failure",
+        "stop",
+        "batch"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "next_act_index": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "plan_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "principal": {
+      "maxLength": 1000,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rate": {
+      "additionalProperties": false,
+      "properties": {
+        "limited": {
+          "type": "boolean"
+        },
+        "remaining": {
+          "type": "number"
+        },
+        "reset_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "limited",
+        "remaining",
+        "reset_at"
+      ],
+      "type": "object"
+    },
+    "remaining_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "results": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "act_id": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "consequence": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "detail": {
+            "maxLength": 4000,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external_id": {
+            "maxLength": 4000,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "done",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "act_id",
+          "kind",
+          "consequence",
+          "status",
+          "external_id",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "maxItems": 50,
+      "type": "array"
+    },
+    "stop": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "wait",
+            "review",
+            "reconcile"
+          ],
+          "type": "string"
+        },
+        "code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "retry_at": {
+          "maxLength": 64,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "reason",
+        "action",
+        "retry_at"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "success_checkpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "milestone": {
+          "enum": [
+            "plan_fully_executed",
+            "plan_completed_with_failures",
+            "plan_partially_executed",
+            "plan_refused"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "milestone",
+        "description"
+      ],
+      "type": "object"
+    },
+    "total_act_count": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "decision",
+    "plan_digest",
+    "principal",
+    "next_act_index",
+    "total_act_count",
+    "remaining_count",
+    "active_thread",
+    "counts",
+    "last_failure",
+    "stop",
+    "results",
+    "ledger_delta",
+    "rate",
+    "blockers",
+    "success_checkpoint"
+  ],
+  "type": "object"
+}

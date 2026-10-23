@@ -97,8 +97,6 @@ class HostTerminalState:
     source_type: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
-    disposition: str | None = None
-    outcome_state: str | None = None
     actors: tuple[str, ...] = ()
     artifact_types: tuple[str, ...] = ()
     runner_provider: str | None = None
@@ -273,10 +271,10 @@ def normalize_host_result(payload: Mapping[str, Any]) -> HostRunResult:
 
     execution = payload.get("execution") or {}
     receipt = payload.get("receipt") or {}
-    disposition = str(receipt.get("disposition") or "") if isinstance(receipt, Mapping) else ""
+    outcome = str(receipt.get("outcome") or "") if isinstance(receipt, Mapping) else ""
     error = str(execution.get("errorMessage") or execution.get("stderr") or execution.get("stdout") or "") if isinstance(execution, Mapping) else ""
     receipt_id = _nested_str(receipt, "id") if isinstance(receipt, Mapping) else None
-    if disposition == "escalated":
+    if outcome == "escalated":
         return HostEscalatedResult(
             status="escalated",
             skill_name=skill_name,
@@ -316,8 +314,6 @@ def normalize_host_state(payload: Mapping[str, Any]) -> HostRunState:
         source_type=_optional_str(payload.get("sourceType")),
         started_at=_optional_str(payload.get("startedAt")),
         completed_at=_optional_str(payload.get("completedAt")),
-        disposition=_optional_str(payload.get("disposition")),
-        outcome_state=_optional_str(payload.get("outcomeState")),
         actors=tuple(str(item) for item in payload.get("actors") or ()),
         artifact_types=tuple(str(item) for item in payload.get("artifactTypes") or ()),
         runner_provider=_optional_str(payload.get("runnerProvider")),

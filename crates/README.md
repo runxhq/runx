@@ -54,7 +54,7 @@ before they may be added to `deny.toml`.
 - `runx-sdk`: blocking CLI-backed Rust SDK v0. Depends on `runx-contracts`
   only; explicit non-dep on `runx-core` and `runx-runtime`.
 - `runx-x402`: pure x402 v2 presentation, bounded header codecs, and exact
-  Runx invocation-echo validation. Depends on `runx-contracts` only and owns
+  Runx purchase-echo validation. Depends on `runx-contracts` only and owns
   no provider verification, settlement, credentials, network, or runtime I/O.
 
 Pure crates (`runx-contracts`, `runx-core`, `runx-parser`, `runx-receipts`,

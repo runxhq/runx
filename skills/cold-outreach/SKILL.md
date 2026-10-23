@@ -11,7 +11,7 @@ context. The calling application selects that workspace context; this skill neve
 searches global memory or a private credential database.
 
 `prepare` admits the evidence and writing context through `ghostwrite#admit` and
-checks the supplied contact-policy disposition and suppression state. Only then
+checks the supplied contact-policy status and suppression state. Only then
 does it take one writing turn of its own, which `ghostwrite#verify` binds to the
 admitted evidence before review. A matched
 lead, public address or good commercial fit does not establish contact permission.
@@ -48,7 +48,7 @@ angle, return `needs_more_evidence` instead of producing generic sales copy.
 
 Use `lead-enrichment` for missing facts and `lead-qualify` for fit;
 neither is mandatory when adequate evidence is supplied. If `qualification` is
-supplied, bind `prospect.ref` to its exact subject; a hold or mismatched subject
+supplied, bind `prospect.id` to its exact subject; a hold or mismatched subject
 stops drafting even when other contact inputs are eligible. `research` supplies the
 validated evidence packet. `audience` names the reader segment the prospect
 belongs to. Brand and taste packets apply only when their declared scope names
@@ -81,7 +81,7 @@ Return `content_draft` with `decision` set to `ready`, or to
 `needs_more_evidence` when no worthwhile angle is supported. `content_brief`
 repeats the evidence context's `objective`, `audience` and `channel` exactly.
 `draft.title` is the subject and `draft.body` the plain-text email, with
-`required_footer` unchanged. `draft.claim_refs` cites admitted source digests
+`required_footer` unchanged. `draft.claims` cites admitted source digests
 for every material claim. Add a review checklist and distribution notes, and
 list in `context_binding.applied` each admitted context's `packet_digest` with
 only the `applied_rules` you used. Never send, schedule or claim delivery.

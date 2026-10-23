@@ -1003,8 +1003,8 @@ fn is_repo_char(character: char) -> bool {
 
 fn finding(code: &str, path: &str, message: &str) -> OperationalPolicyValidationFinding {
     OperationalPolicyValidationFinding {
-        code: code.to_owned(),
-        path: path.to_owned(),
-        message: message.to_owned(),
+        code: code.into(),
+        path: path.into(),
+        message: message.into(),
     }
 }

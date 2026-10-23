@@ -114,13 +114,14 @@ pub enum WorkerResponse {
         invocation_id: Option<String>,
         code: WorkerFailureCode,
         message: String,
-        disposition: WorkerDisposition,
+        fate: WorkerFate,
     },
 }
 
+/// What becomes of the worker after a call: reused for the next, or discarded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum WorkerDisposition {
+pub enum WorkerFate {
     Reuse,
     Discard,
 }

@@ -19,31 +19,31 @@ inputs:
   receipt_id: rcpt_issue_triage_4471
   receipt_rows:
     - receipt_id: rcpt_issue_triage_4471
-      skill_ref: github-issue-triage
-      status: closed
+      skill: github-issue-triage
+      outcome: completed
       created_at: "2026-07-16T00:00:00Z"
       verification_status: verified
   receipt_details:
     - id: rcpt_issue_triage_4471
-      receipt_ref: runx:receipt:rcpt_issue_triage_4471
+      receipt_uri: runx:receipt:rcpt_issue_triage_4471
       subject_kind: graph
-      subject_ref: github-issue-triage
+      subject_uri: github-issue-triage
       created_at: "2026-07-16T00:00:00Z"
-      status: closed
+      outcome: completed
       verification:
         status: verified
       authority:
-        actor_ref: runx:principal:operator
-        grant_refs:
+        actor_uri: runx:principal:operator
+        grant_uris:
           - runx:grant:repo-read
-        scope_refs:
+        scope_uris:
           - runx:scope_admission:repo.read
         exercised_scopes:
           - scope: repo:read
             source: scope_ref
             term_id: null
-            resource_ref: runx:scope_admission:repo.read
-        approval_refs: []
+            resource_uri: runx:scope_admission:repo.read
+        approval_uris: []
         term_count: 0
         credential_ref_count: 0
       decisions: []
@@ -52,12 +52,12 @@ inputs:
           form: observation
           purpose: Read the issue thread.
           legitimacy: Held repo.read.
-          target_refs: []
-          artifact_refs: []
+          target_uris: []
+          artifact_uris: []
           criterion_statuses: []
           context_ref_present: false
-      artifact_refs: []
-      lineage_refs: []
+      artifact_uris: []
+      lineage_uris: []
   granted_scopes:
     - repo:read
   objective: Confirm the triage run stayed within its read-only grant.
@@ -66,7 +66,7 @@ caller:
     audit:
       receipt_audit:
         decision: ready
-        run_ref: rcpt_issue_triage_4471
+        receipt_id: rcpt_issue_triage_4471
         granted_scopes:
           - repo:read
         exercised_scopes:
@@ -99,14 +99,14 @@ expect:
                 verification_status: verified
             receipt_details:
               - id: rcpt_issue_triage_4471
-                subject_ref: github-issue-triage
+                subject_uri: github-issue-triage
                 authority:
                   exercised_scopes:
                     - scope: repo:read
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: closed
+    outcome: completed
 metadata:
   public_skill: receipt-audit
   source_case: clean-run-within-grant

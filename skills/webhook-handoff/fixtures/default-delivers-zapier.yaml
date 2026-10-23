@@ -19,7 +19,7 @@ env: { ZAPIER_CATCH_HOOK_URL: 'https://hooks.zapier.com/hooks/catch/12345678/abc
 inputs:
   platform: zapier
   event_id: evt_zapier_demo_001
-  execution_context: { caller: runx-cli, workflow_ref: operator-zap-demo }
+  execution_context: { caller: runx-cli, workflow: operator-zap-demo }
   payload: { hello: zap }
 caller:
   http_exchanges:
@@ -36,7 +36,7 @@ caller:
               handoff_scope: orchestrator.zapier.workflow.invoke
               idempotency_key: evt_zapier_demo_001
               platform: zapier
-              workflow_ref: operator-zap-demo
+              workflow: operator-zap-demo
             handoff_audience: zapier:zap:runx-governed-effect
             handoff_scope: orchestrator.zapier.workflow.invoke
             idempotency_key: evt_zapier_demo_001
@@ -62,5 +62,5 @@ expect:
             finality: acknowledged
             result:
               acknowledgement: { status: success, request_id: 0192a1b2-0000-7000-8000-000000000003 }
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: webhook-handoff, source_case: direct-default-success-zapier, source: skills-fixture }

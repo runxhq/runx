@@ -59,7 +59,7 @@ fn register_continuation(c: &mut Criterion, name: &'static str, bytes: usize) {
 struct ArtifactFixture {
     calls: ToolCalls,
     admit_input: JsonObject,
-    artifact_ref: String,
+    artifact_uri: String,
     bytes: u64,
 }
 
@@ -77,11 +77,11 @@ impl ArtifactFixture {
                 JsonValue::String("text/plain".to_owned()),
             ),
         ]);
-        let artifact_ref = admit(&calls, &admit_input)?;
+        let artifact_uri = admit(&calls, &admit_input)?;
         Ok(Self {
             calls,
             admit_input,
-            artifact_ref,
+            artifact_uri,
             bytes: bytes as u64,
         })
     }
@@ -99,8 +99,8 @@ impl ArtifactFixture {
                     "artifact.read",
                     JsonObject::from([
                         (
-                            "artifact_ref".to_owned(),
-                            JsonValue::String(self.artifact_ref.clone()),
+                            "artifact_uri".to_owned(),
+                            JsonValue::String(self.artifact_uri.clone()),
                         ),
                         (
                             "offset".to_owned(),
@@ -218,7 +218,7 @@ fn admit(calls: &ToolCalls, input: &JsonObject) -> Result<String, Box<dyn Error>
         calls.call("artifact.admit", input.clone())?,
         "local_artifact",
     )?
-    .remove("artifact_ref")
+    .remove("artifact_uri")
     .and_then(|value| match value {
         JsonValue::String(value) => Some(value),
         _ => None,

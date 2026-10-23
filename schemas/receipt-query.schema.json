@@ -1,0 +1,109 @@
+{
+  "$id": "https://schemas.runx.ai/runx/receipt/query/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `receipt.query` returns: the receipts a filter matched in the native receipt store, with detail and tree verification when asked for.",
+  "properties": {
+    "filter": {
+      "additionalProperties": {},
+      "type": "object"
+    },
+    "receipt_details": {
+      "items": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array"
+    },
+    "receipt_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "receipts": {
+      "items": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema": {
+      "enum": [
+        "runx.receipt.query.v1"
+      ],
+      "title": "ReceiptQuerySchema",
+      "type": "string"
+    },
+    "source": {
+      "description": "Where a query read its receipts.",
+      "enum": [
+        "native_receipt_store"
+      ],
+      "title": "ReceiptQuerySource",
+      "type": "string"
+    },
+    "store_label": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "verification": {
+      "additionalProperties": false,
+      "description": "A query's tree verification; `intact` is null when it was not asked for.",
+      "properties": {
+        "checked": {
+          "type": "boolean"
+        },
+        "findings": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "intact": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trees": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "checked",
+        "intact",
+        "trees",
+        "findings"
+      ],
+      "title": "ReceiptQueryVerification",
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "source",
+    "store_label",
+    "filter",
+    "receipt_ids",
+    "receipts",
+    "receipt_details",
+    "verification"
+  ],
+  "title": "ReceiptQuery",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.receipt.query.v1"
+}

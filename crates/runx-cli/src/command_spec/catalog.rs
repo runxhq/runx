@@ -55,7 +55,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "history",
         top_level_usage: &[],
         usage: &[
-            "runx history [query] [--skill s] [--status s] [--since iso] [--until iso] [--limit n] [--json]",
+            "runx history [query] [--skill s] [--state s] [--since iso] [--until iso] [--limit n] [--json]",
             "runx history <run-id> [--after cursor] [--json]",
             "runx history <receipt-id> [--receipt-dir dir] [--json]",
         ],
@@ -66,7 +66,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
         options: &[
             "--skill s",
-            "--status s         running, paused, sealed, or a sealed disposition",
+            "--state s          running, paused, sealed, or a sealed outcome",
             "--since iso        Runs started at or after this instant",
             "--until iso        Runs started at or before this instant",
             "--limit n",
@@ -196,7 +196,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         notes: &[
             "A connector whose credential's variable is set, in the environment or the workspace .env, needs no setup: with no instance selected a run binds it to that variable as `use` would, storing nothing; two of its credentials set at once refuse. `use` is the one place a connector's authority is otherwise set up: an instance or grant confirmed earlier, the signed-in local session, a credential's variable, a secret `runx secret` keeps, or a new runx Connect grant. With nothing named it takes the one available path, asks for the credential of a connector that takes only one, and refuses with the exact forms when there are several. It never picks between accounts for you; an instance bound to a variable or a secret acts as whichever account it holds. A connector's sign-in command is never run to see what is available; binding it takes `--session`. A variable the environment and the workspace .env set to different values is refused.",
             "A credential whose variable (declared by its connector) is set in the environment or the workspace .env is bound to that variable: the instance records the name, never the value, and each call reads it. Otherwise the value is asked for without echo at a terminal, or read from stdin when piped, and kept as a secret named after the connector; a secret already set under that name is bound with `--secret`, never taken. `--secret <name>` binds a secret by name: the instance records the name and a proof only this runx home can make, never the value, and each call reads the secret again, so setting it anew serves without binding again. `--hosted` opens a Connect grant, sends the credential its hosted placement names when it takes one (from `--secret`, or read the same way), prints the authorization link, waits up to two minutes, and binds the grant; when it is not yet authorized it prints the command that finishes it. Connect keeps its own copy. With --json it returns at once with the link and that command. --scope narrows what the instance serves (a new grant requests every scope its operations declare otherwise); --target narrows a new grant to one resource (owner/repo, or a locator).",
-            "`list` shows each connector in reach with the instance it uses, then every instance and the signed-in account's grants; `runx secret list` shows the secrets. `revoke` removes one instance or grant (and the instances standing for it). A run never falls back to another instance or account; instances live in the project's kernel store (RUNX_PROJECT_DIR, else .runx). An instance bound to a credential profile or a reference before `runx secret` refuses with the command that binds it again.",
+            "`list` shows each connector in reach with the instance it uses, then every instance and the signed-in account's grants; `runx secret list` shows the secrets. `revoke` removes one instance or grant (and the instances standing for it). A run never falls back to another instance or account; instances live in the project's kernel store (RUNX_PROJECT_DIR, else .runx).",
             "A connector has one name, such as github or google/calendar. Outside the skill's plugin, a skill pins the connector's manifest_digest, and an operator installs it with `runx registry install <name>`.",
             "`import-mcp` lists the tools an MCP server serves with the digest a connector manifest pins each by; the bearer token, when the server needs one, is the secret `--secret` names. After `--`, it starts the stdio server that command line names and reads its tools.",
         ],
@@ -276,8 +276,8 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
-            "runx skill inspect <skill-ref|owner/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
+            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+            "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
         ],
         notes: &[],
         options: &[

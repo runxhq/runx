@@ -6,7 +6,7 @@ The upstream repository remains the source of truth for the portable skill
 document. This directory stores runx-owned binding data:
 
 - `binding.json`: upstream repo/path/commit provenance, trust tier,
-  registry owner, publication state, and proof pointers.
+  registry publisher, publication state, and proof pointers.
 - `run.yaml`: the execution profile artifact containing runner metadata,
   harness cases, policy, scopes, and receipt expectations.
 
@@ -16,7 +16,7 @@ wrappers belong in the product repo that owns their policy.
 
 Do not add candidate or placeholder directories here. A binding is eligible only
 after the upstream repository has a merged, pinned `SKILL.md` that starts with
-YAML frontmatter and a `name` matching `bindings/<owner>/<skill>`.
+YAML frontmatter and a `name` matching `bindings/<publisher>/<skill>`.
 
 Overlay produces an exact, digest-bound `binding.json` and `run.yaml` bundle from
 the pinned upstream manual. Apply that bundle through the repository's normal
@@ -29,7 +29,7 @@ Example:
 runx skill ./skills/skill-adopt generate --json \
   -i skill_path=vendor/acme/SKILL.md \
   -i upstream='{"host":"github.com","owner":"acme","repo":"project","path":"SKILL.md","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","source_of_truth":true,"html_url":"https://github.com/acme/project/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md","raw_url":"https://raw.githubusercontent.com/acme/project/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md"}' \
-  -i registry='{"owner":"acme","trust_tier":"community","version":"upstream-aaaaaaaa"}'
+  -i registry='{"publisher":"acme","trust_tier":"community","version":"upstream-aaaaaaaa"}'
 ```
 
 If the run yields `needs_agent`, continue with the exact `runx resume` command

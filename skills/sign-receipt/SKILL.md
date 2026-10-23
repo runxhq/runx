@@ -1,6 +1,6 @@
 ---
 name: sign-receipt
-description: Bind an off-runtime action claim to opaque evidence references in a signed Runx receipt without pretending Runx verified the external action.
+description: Bind an off-runtime action claim to opaque evidence locators in a signed Runx receipt without pretending Runx verified the external action.
 ---
 
 # Sign Receipt
@@ -30,8 +30,8 @@ evidence path.
 ## How it works
 
 1. Supply the action, named principal, exact claim, optional reliance scope, and
-   bounded opaque evidence references.
-2. Each evidence item names only a stable ref, SHA-256 digest, and what that
+   bounded opaque evidence locators.
+2. Each evidence item names only a stable locator, SHA-256 digest, and what that
    evidence is asserted to prove. Raw messages, receipts, secrets, and personal
    records are not accepted.
 3. Native `receipt.attest` validates completeness, rejects duplicates and
@@ -49,7 +49,7 @@ result.
 - `action` describes the external act without overstating its result.
 - `principal` identifies the actor named by the attestation.
 - `claim` is the exact assertion a later run may rely on.
-- `evidence` contains at most the declared number of `{ref, digest, proves}`
+- `evidence` contains at most the declared number of `{locator, digest, proves}`
   records using lowercase `sha256:<64 hex>` digests.
 - `scope` narrows who or what may rely on the claim.
 
@@ -61,7 +61,7 @@ receipt—not the ready plan—is the signature evidence.
 ## Stop conditions
 
 - Stop when action, principal, claim, or evidence identity is missing.
-- Reject malformed or duplicate refs and digests, raw evidence bodies,
+- Reject malformed or duplicate locators and digests, raw evidence bodies,
   secret-shaped strings, or evidence that cannot say what it proves.
 - Do not claim independent verification, provider acknowledgement, delivery,
   settlement, or external ledger append.
@@ -71,7 +71,7 @@ receipt—not the ready plan—is the signature evidence.
 ## Example
 
 An operator manually changed a DNS record and stores the provider audit-event
-ref plus a digest of the exported record. The skill can seal the claim “record X
+locator plus a digest of the exported record. The skill can seal the claim “record X
 was changed by principal Y” with those opaque refs. It cannot claim DNS
 propagation or provider verification unless the cited evidence and a later
 reader actually prove them.

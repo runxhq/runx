@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/receipt-query/answer/v1.json",
+  "x-runx-packet-id": "runx/receipt-query.answer.v1",
+  "type": "object",
+  "required": [
+    "chain_verification",
+    "ledger_answer",
+    "matched_receipts",
+    "receipt_details",
+    "summary"
+  ],
+  "properties": {
+    "chain_verification": {
+      "additionalProperties": false,
+      "properties": {
+        "breaks": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "from_receipt_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "to_receipt_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from_receipt_id",
+              "to_receipt_id",
+              "reason"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "checked": {
+          "type": "boolean"
+        },
+        "intact": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "checked",
+        "intact",
+        "breaks"
+      ],
+      "type": "object"
+    },
+    "ledger_answer": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "answered",
+            "needs_more_evidence",
+            "needs_agent"
+          ],
+          "type": "string"
+        },
+        "query": {
+          "additionalProperties": false,
+          "properties": {
+            "outcome": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "principal": {
+              "type": "string"
+            },
+            "receipt_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true
+            },
+            "skill": {
+              "type": "string"
+            },
+            "time_range": {
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "principal",
+            "skill",
+            "outcome",
+            "time_range",
+            "receipt_ids"
+          ],
+          "type": "object"
+        },
+        "question": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "question",
+        "query"
+      ],
+      "type": "object"
+    },
+    "matched_receipts": {
+      "type": "array"
+    },
+    "receipt_details": {
+      "type": "array"
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

@@ -257,7 +257,7 @@ fn managed_agent_config_diagnostic(
         message,
         target: object([
             ("kind", string_value("config")),
-            ("ref", string_value("runx.agent.config")),
+            ("id", string_value("runx.agent.config")),
         ]),
         location: DoctorLocation {
             path: "runx config".to_owned(),
@@ -352,8 +352,8 @@ fn registry_target_diagnostic(target: &RegistryTarget) -> DoctorDiagnostic {
         JsonValue::String(registry_source_description(target)),
     );
     evidence.insert(
-        "source_fingerprint".to_owned(),
-        JsonValue::String(target.fingerprint_source()),
+        "source_uri".to_owned(),
+        JsonValue::String(target.source_uri()),
     );
     DoctorDiagnostic {
         id: "runx.registry.target".to_owned(),
@@ -366,7 +366,7 @@ fn registry_target_diagnostic(target: &RegistryTarget) -> DoctorDiagnostic {
         ),
         target: object([
             ("kind", string_value("registry")),
-            ("ref", string_value("runx.registry.target")),
+            ("id", string_value("runx.registry.target")),
         ]),
         location: DoctorLocation {
             path: "environment".to_owned(),
@@ -398,10 +398,7 @@ fn path_diagnostic(id: &str, title: &str, path: PathBuf, env_names: &[&str]) -> 
         severity: DoctorDiagnosticSeverity::Info,
         title: title.to_owned(),
         message: format!("{title} resolves to {}.", path.display()),
-        target: object([
-            ("kind", string_value("registry")),
-            ("ref", string_value(id)),
-        ]),
+        target: object([("kind", string_value("registry")), ("id", string_value(id))]),
         location: DoctorLocation {
             path: "environment".to_owned(),
             json_pointer: None,
@@ -417,8 +414,8 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
         .get(runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV)
         .filter(|value| !value.trim().is_empty())
         .cloned();
-    let configured_owner = env
-        .get(runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV)
+    let configured_publisher = env
+        .get(runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV)
         .filter(|value| !value.trim().is_empty())
         .cloned();
     let configured_source =
@@ -432,7 +429,7 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
         runx_runtime::registry::default_trusted_registry_manifest_keys().unwrap_or_default();
     let configured = key_material_configured
         && configured_key_id.is_some()
-        && configured_owner.is_some()
+        && configured_publisher.is_some()
         && configured_source.is_some();
     if configured
         && let Ok(configured_keys) =
@@ -443,7 +440,7 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
     let partial = !configured
         && (key_material_configured
             || configured_key_id.is_some()
-            || configured_owner.is_some()
+            || configured_publisher.is_some()
             || configured_source.is_some());
     let mut evidence = JsonObject::new();
     evidence.insert(
@@ -472,7 +469,7 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
             [
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV,
+                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
                 "RUNX_REGISTRY_URL",
                 "RUNX_REGISTRY_DIR",
             ]
@@ -500,19 +497,19 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
                 "Registry manifest trust key is partially configured; set {}, {}, {}, and a registry source.",
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV,
+                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
             )
         } else {
             format!(
                 "Using built-in registry trust keys. Set {}, {}, {}, and a registry source to add an operator key.",
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV,
+                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
             )
         },
         target: object([
             ("kind", string_value("registry")),
-            ("ref", string_value("runx.registry.trust_keys")),
+            ("id", string_value("runx.registry.trust_keys")),
         ]),
         location: DoctorLocation {
             path: "environment".to_owned(),
@@ -525,11 +522,11 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
                 &[
                     runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
                     runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-                    runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV,
+                    runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
                     "RUNX_REGISTRY_URL",
                     "RUNX_REGISTRY_DIR",
                 ],
-                "Set the registry manifest trust key id, public key, allowed owner namespace, and registry source together.",
+                "Set the registry manifest trust key id, public key, allowed publisher namespace, and registry source together.",
                 DoctorRepairRisk::Sensitive,
             )]
         } else {
@@ -549,11 +546,11 @@ fn registry_trust_policy_evidence(
             true,
         ),
         runx_runtime::registry::RegistryManifestTrustScope::ThirdParty {
-            allowed_owner,
+            allowed_publisher,
             allowed_source,
         } => (
             "third_party",
-            format!("{allowed_owner}/*"),
+            format!("{allowed_publisher}/*"),
             allowed_source.clone(),
             false,
         ),
@@ -600,7 +597,7 @@ fn registry_remote_install_diagnostic(
         message,
         target: object([
             ("kind", string_value("registry")),
-            ("ref", string_value("runx.registry.installation_id")),
+            ("id", string_value("runx.registry.installation_id")),
         ]),
         location: DoctorLocation {
             path: "environment".to_owned(),
@@ -665,7 +662,7 @@ fn receipt_signer_diagnostic(
         message,
         target: object([
             ("kind", string_value("authority")),
-            ("ref", string_value("runx.authority.signer")),
+            ("id", string_value("runx.authority.signer")),
         ]),
         location: DoctorLocation {
             path: "environment".to_owned(),
@@ -731,7 +728,7 @@ fn receipt_verification_diagnostic(
         message,
         target: object([
             ("kind", string_value("authority")),
-            ("ref", string_value("runx.authority.verify_key")),
+            ("id", string_value("runx.authority.verify_key")),
         ]),
         location: DoctorLocation {
             path: "environment".to_owned(),
@@ -799,7 +796,7 @@ fn provider_grant_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Doct
         },
         target: object([
             ("kind", string_value("authority")),
-            ("ref", string_value("runx.authority.provider_grant")),
+            ("id", string_value("runx.authority.provider_grant")),
         ]),
         location: DoctorLocation {
             path: "environment".to_owned(),
@@ -1003,7 +1000,7 @@ mod tests {
                     .to_owned(),
                 target: object([
                     ("kind", string_value("registry")),
-                    ("ref", string_value("runx.registry.installation_id")),
+                    ("id", string_value("runx.registry.installation_id")),
                 ]),
                 location: DoctorLocation {
                     path: "environment".to_owned(),

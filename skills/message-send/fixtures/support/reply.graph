@@ -13,7 +13,7 @@ steps:
         observed_at: '2026-10-05T00:00:00Z'
         redaction_status: unredacted
         workflow_inputs:
-          source_ref: 'slack://T123/C123/1.000001'
+          source_locator: 'slack://T123/C123/1.000001'
           source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           thread_locator: 'slack://T123/C123/1.000001'
           source_complete: false

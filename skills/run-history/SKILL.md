@@ -26,7 +26,7 @@ evidence is available for grant review; actual usage and policy semantics are st
   analysis, and must be supplied together; replay never silently mixes caller
   data with live native state.
 - Empty history returns `needs_more_evidence` rather than a healthy verdict.
-- `closed_rate` is the share of sealed runs whose disposition is `closed`.
+- `completed_rate` is the share of sealed runs whose outcome is `completed`.
 - `refusal_rate` counts sealed runs that were `blocked` or `declined`. It is
   reported as an observation, not automatically treated as a defect.
 - Catalog coverage is the number of native catalog entries declaring at least
@@ -38,7 +38,7 @@ evidence is available for grant review; actual usage and policy semantics are st
 
 - the resolved query and source labels (`run.list`, `runx.skill.inspect`, or
   `supplied_replay`);
-- sealed and paused run counts, disposition counts, closed/refusal rates;
+- sealed and paused run counts, outcome counts, completed/refusal rates;
 - the most frequently run skills;
 - catalog entry and test-coverage counts;
 - bounded recommendations routed to `diagnose-skill-run`, `receipt-audit`, or

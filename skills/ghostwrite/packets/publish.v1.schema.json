@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/ghostwrite/publish/v1.json",
+  "x-runx-packet-id": "runx/ghostwrite.publish.v1",
+  "additionalProperties": false,
+  "if": {
+    "properties": {
+      "decision": {
+        "const": "ready_for_handoff"
+      }
+    }
+  },
+  "properties": {
+    "blockers": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "body": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "ready_for_handoff",
+        "needs_input"
+      ]
+    },
+    "delivery_status": {
+      "const": "not_sent"
+    },
+    "evidence_binding": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_packet_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_digests": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "headline": {
+      "type": "string"
+    },
+    "payload_digest": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision",
+    "channel",
+    "headline",
+    "body",
+    "evidence_binding",
+    "delivery_status",
+    "blockers",
+    "payload_digest"
+  ],
+  "then": {
+    "properties": {
+      "blockers": {
+        "maxItems": 0
+      },
+      "body": {
+        "minLength": 1
+      },
+      "evidence_binding": {
+        "required": [
+          "evidence_packet_digest",
+          "source_digests"
+        ]
+      },
+      "headline": {
+        "minLength": 1
+      },
+      "payload_digest": {
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    }
+  },
+  "type": "object"
+}

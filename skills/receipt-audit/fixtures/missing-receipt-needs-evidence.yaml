@@ -10,7 +10,7 @@ caller:
     audit:
       receipt_audit:
         decision: needs_more_evidence
-        run_ref: ""
+        receipt_id: ""
         granted_scopes: []
         exercised_scopes: []
         refusals: []
@@ -27,7 +27,7 @@ expect:
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: closed
+    outcome: completed
 metadata:
   public_skill: receipt-audit
   source_case: missing-receipt-needs-evidence

@@ -4,7 +4,7 @@ pub struct ParsedRegistryRef {
     pub version: Option<String>,
 }
 
-/// A registry ref, `registry:<owner>/<name>[@<version>]`, or the same
+/// A registry ref, `registry:<publisher>/<name>[@<version>]`, or the same
 /// without its prefix where a caller already knows it names the registry.
 pub fn parse_registry_ref(value: &str) -> ParsedRegistryRef {
     let without_prefix = runx_parser::registry_ref(value).unwrap_or(value);

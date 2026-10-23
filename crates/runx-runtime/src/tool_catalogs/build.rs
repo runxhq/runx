@@ -58,8 +58,8 @@ pub fn build_tool_catalogs(
 fn build_tool_manifest(root: &Path, tool_dir: &Path) -> Result<BuiltToolItem, ToolCatalogError> {
     let manifest_path = tool_dir.join("manifest.json");
     let validated = super::manifest::read(&manifest_path)?;
-    let source_hash = hash_tool_source(tool_dir, &validated.source)?;
-    let schema_hash = schema_hash(
+    let source_digest = hash_tool_source(tool_dir, &validated.source)?;
+    let schema_digest = schema_digest(
         &manifest_path,
         &validated.inputs,
         validated.artifacts.as_ref(),
@@ -67,8 +67,8 @@ fn build_tool_manifest(root: &Path, tool_dir: &Path) -> Result<BuiltToolItem, To
     Ok(BuiltToolItem {
         path: project_path(root, tool_dir),
         manifest: project_path(root, &manifest_path),
-        source_hash,
-        schema_hash,
+        source_digest,
+        schema_digest,
     })
 }
 
@@ -79,7 +79,7 @@ struct ToolSchemaMaterial<'a> {
     artifacts: Option<&'a SkillArtifactContract>,
 }
 
-fn schema_hash(
+fn schema_digest(
     manifest_path: &Path,
     inputs: &BTreeMap<String, ToolInput>,
     artifacts: Option<&SkillArtifactContract>,

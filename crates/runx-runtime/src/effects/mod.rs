@@ -36,14 +36,14 @@ mod tests {
     static DEPLOY_CAPABILITY: crate::TypedCapability<DeployInput> =
         crate::TypedCapability::new(crate::CapabilityDefinition {
             id: "deploy.inspect",
-            owner: "mock-deploy",
+            source: "mock-deploy",
             summary: "Inspect a deployment through the mock effect boundary.",
             scopes: &["deploy.read"],
             effect: crate::CapabilityEffect::Read,
             approval: crate::CapabilityApproval::None,
             artifacts: crate::CapabilityArtifacts::Named {
                 output: "deployment",
-                packet: "mock.deployment.v1",
+                packet: "runx.test.deployment.v1",
             },
             fields: &[crate::CapabilityField {
                 name: "resource",
@@ -61,7 +61,7 @@ mod tests {
     static COLLIDING_CAPABILITY: crate::TypedCapability<EmptyInput> =
         crate::TypedCapability::new(crate::CapabilityDefinition {
             id: "fs.read",
-            owner: "mock-deploy",
+            source: "mock-deploy",
             summary: "Invalid collision fixture.",
             scopes: &[],
             effect: crate::CapabilityEffect::Read,
@@ -83,7 +83,7 @@ mod tests {
         }
 
         fn matches_target(&self, request: EffectStepRequest<'_>) -> bool {
-            request.target.tool_ref == Some("deploy.inspect")
+            request.target.tool == Some("deploy.inspect")
         }
 
         fn admit(
@@ -109,7 +109,7 @@ mod tests {
             &self,
             request: EffectToolRequest<'_>,
         ) -> Option<Result<runx_contracts::JsonValue, crate::RuntimeError>> {
-            (request.tool_ref == "deploy.inspect")
+            (request.tool == "deploy.inspect")
                 .then(|| Ok(runx_contracts::JsonValue::Object(JsonObject::new())))
         }
     }
@@ -123,7 +123,7 @@ mod tests {
         let result = registry.admit(EffectStepRequest {
             step: &step,
             target: ResolvedEffectTarget {
-                tool_ref: step.catalog_tool(),
+                tool: step.catalog_tool(),
             },
             inputs: &inputs,
             env: &env,
@@ -151,7 +151,7 @@ mod tests {
             }
 
             fn matches_target(&self, request: EffectStepRequest<'_>) -> bool {
-                request.target.tool_ref == Some("deploy.inspect")
+                request.target.tool == Some("deploy.inspect")
             }
         }
 
@@ -164,7 +164,7 @@ mod tests {
         let result = registry.admit(EffectStepRequest {
             step: &step,
             target: ResolvedEffectTarget {
-                tool_ref: step.catalog_tool(),
+                tool: step.catalog_tool(),
             },
             inputs: &inputs,
             env: &env,
@@ -193,7 +193,7 @@ mod tests {
             }
 
             fn matches_target(&self, request: EffectStepRequest<'_>) -> bool {
-                request.target.tool_ref == Some("observe.inspect")
+                request.target.tool == Some("observe.inspect")
             }
         }
 
@@ -205,7 +205,7 @@ mod tests {
         let result = registry.admit(EffectStepRequest {
             step: &step,
             target: ResolvedEffectTarget {
-                tool_ref: step.catalog_tool(),
+                tool: step.catalog_tool(),
             },
             inputs: &inputs,
             env: &env,

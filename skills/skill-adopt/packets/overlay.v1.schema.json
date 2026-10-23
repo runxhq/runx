@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/skill-adopt/overlay/v1.json",
+  "x-runx-packet-id": "runx/skill-adopt.overlay.v1",
+  "additionalProperties": false,
+  "properties": {
+    "binding_path": {
+      "maxLength": 2000,
+      "type": "string"
+    },
+    "blockers": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 250,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "decision": {
+      "enum": [
+        "ready",
+        "reject"
+      ],
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "content_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "contents": {
+            "maxLength": 1048576,
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "contents",
+          "content_digest"
+        ],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "type": "array"
+    },
+    "rationale": {
+      "maxLength": 10000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "source": {
+      "maxProperties": 50,
+      "propertyNames": {
+        "maxLength": 200,
+        "minLength": 1
+      },
+      "type": "object"
+    },
+    "success_checkpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "milestone": {
+          "enum": [
+            "binding_bundle_ready",
+            "binding_blocked"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "milestone",
+        "description"
+      ],
+      "type": "object"
+    },
+    "validation": {
+      "maxProperties": 3,
+      "properties": {
+        "harness": {
+          "maxProperties": 100,
+          "type": "object"
+        },
+        "inspect": {
+          "maxProperties": 100,
+          "type": "object"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "hold"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "decision",
+    "binding_path",
+    "source",
+    "files",
+    "validation",
+    "rationale",
+    "blockers",
+    "success_checkpoint"
+  ],
+  "type": "object"
+}

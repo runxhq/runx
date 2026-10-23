@@ -3,10 +3,10 @@ kind: skill
 target: ..
 runner: assistant_decide
 inputs:
-  presentation_ref: slack://T123ABC/C123ABC/1791095930.000001
+  presentation_locator: slack://T123ABC/C123ABC/1791095930.000001
   request_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   nonce: 0123456789abcdef
-  authorized_actor_ref: U123ABC
+  authorized_actor_id: U123ABC
 caller:
   provider_responses:
     principal_id: operator-fixture
@@ -19,8 +19,8 @@ caller:
         target: slack://T123ABC/C123ABC/1791095930.000001
         access: read
         result:
-          external_tenant_ref: T123ABC
-          connected_subject_ref: U123ABC
+          external_tenant_id: T123ABC
+          connected_subject_id: U123ABC
           thread_locator: slack://T123ABC/C123ABC/1791095930.000001
           messages:
             - message_locator: slack://T123ABC/C123ABC/1791095930.000001
@@ -45,5 +45,5 @@ expect:
             status: decided
             origin: human_account
             approved: true
-            actor_ref: U123ABC
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+            actor_id: U123ABC
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }

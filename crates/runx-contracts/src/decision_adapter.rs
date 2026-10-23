@@ -19,10 +19,10 @@ pub enum DecisionObservation {
     Decided {
         request_digest: String,
         nonce: String,
-        presentation_ref: String,
-        actor_ref: String,
+        presentation_locator: String,
+        actor_id: String,
         origin: DecisionOrigin,
-        evidence_ref: String,
+        evidence_locator: String,
         occurred_at: String,
         approved: bool,
     },

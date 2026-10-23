@@ -4,14 +4,14 @@ export function admitContact({
   const blockers = [];
   if (qualification) {
     if (qualification.decision !== "qualified") blockers.push("lead qualification does not support outreach");
-    if (!prospect.ref || qualification.subject.ref !== prospect.ref) {
+    if (!prospect.id || qualification.subject.id !== prospect.id) {
       blockers.push("lead qualification belongs to a different or unbound prospect");
     }
   }
   if (contact_policy.suppressed) blockers.push("recipient is suppressed");
   if (contact_policy.recipient !== prospect.email) blockers.push("contact policy belongs to a different recipient");
   if (contact_policy.status !== "eligible") blockers.push(`contact eligibility is ${contact_policy.status}`);
-  if (!contact_policy.policy_ref.trim() || contact_policy.evidence_refs.length === 0) {
+  if (!contact_policy.policy_id.trim() || contact_policy.evidence_ids.length === 0) {
     blockers.push("contact eligibility has no policy evidence");
   }
   if (!required_footer.trim()) blockers.push("required identity/opt-out footer is empty");
@@ -25,8 +25,8 @@ export function admitContact({
       purpose,
       offer,
       required_footer,
-      policy_ref: contact_policy.policy_ref,
-      policy_evidence_refs: contact_policy.evidence_refs,
+      policy_id: contact_policy.policy_id,
+      policy_evidence_ids: contact_policy.evidence_ids,
       blockers,
     },
   };
@@ -50,8 +50,8 @@ export function finalizeReview({ contact_brief: brief, content_draft_packet: dra
       decision: ready ? "ready_for_review" : "hold",
       sender: brief.sender,
       recipient: brief.prospect.email,
-      policy_ref: brief.policy_ref,
-      policy_evidence_refs: brief.policy_evidence_refs,
+      policy_id: brief.policy_id,
+      policy_evidence_ids: brief.policy_evidence_ids,
       draft_status: ready ? "prepared" : "withheld",
       draft: ready ? { subject: draft.draft.title, body: draft.draft.body } : null,
       draft_packet_digest: ready ? draft_packet_digest : null,

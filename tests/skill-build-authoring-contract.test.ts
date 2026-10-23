@@ -13,25 +13,21 @@ import {
 
 const root = process.cwd();
 const canonicalPackets = [
-  ["skill-architecture-decision.schema.json", "runx.skill.architecture.decision.v1.schema.json", "runx.skill.architecture_decision.v1"],
-  ["skill-architecture-plan.schema.json", "runx.skill.architecture.plan.v1.schema.json", "runx.skill.architecture_plan.v1"],
-  ["skill-change-draft.schema.json", "runx.skill.change.draft.v1.schema.json", "runx.skill.change_draft.v1"],
-  ["skill-change-bundle.schema.json", "runx.skill.change.bundle.v1.schema.json", "runx.skill.change_bundle.v1"],
-  ["skill-validation-result.schema.json", "runx.skill.validation.result.v1.schema.json", "runx.skill.validation_result.v1"],
-  ["skill-apply-result.schema.json", "runx.skill.apply.result.v1.schema.json", "runx.skill.apply_result.v1"],
+  ["skill-architecture-decision.schema.json", "runx.skill.architecture_decision.v1"],
+  ["skill-architecture-plan.schema.json", "runx.skill.architecture_plan.v1"],
+  ["skill-change-draft.schema.json", "runx.skill.change_draft.v1"],
+  ["skill-change-bundle.schema.json", "runx.skill.change_bundle.v1"],
+  ["skill-validation-result.schema.json", "runx.skill.validation_result.v1"],
+  ["skill-apply-result.schema.json", "runx.skill.apply_result.v1"],
 ] as const;
 
 describe("Skill Build authoring ownership", () => {
-  it("projects every Rust-owned closed contract into one packet schema", async () => {
-    for (const [schemaFile, packetFile, packetId] of canonicalPackets) {
+  it("publishes every Rust-owned closed contract as one core packet", async () => {
+    for (const [schemaFile, packetId] of canonicalPackets) {
       const canonical = await json(path.join(root, "schemas", schemaFile));
       assertClosedObjects(canonical, schemaFile);
-      const packet = await json(path.join(root, "dist/packets", packetFile));
-      expect(packet["x-runx-packet-id"]).toBe(packetId);
-      expect(packet["x-runx-generated-from"]).toBe(`schemas/${schemaFile}`);
-      delete packet["x-runx-packet-id"];
-      delete packet["x-runx-generated-from"];
-      expect(packet).toEqual(canonical);
+      expect(canonical["x-runx-packet"]).toBe(true);
+      expect(canonical["x-runx-schema"]).toBe(packetId);
     }
   });
 
@@ -132,7 +128,7 @@ function assertClosedObjects(value: unknown, location: string): void {
 function architectureDecision(): Record<string, any> {
   return {
     schema: "runx.skill.architecture_decision.v1",
-    disposition: "build",
+    choice: "build",
     identity: {
       proposed_name: "demo",
       action: "create",

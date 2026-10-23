@@ -6,9 +6,7 @@ use runx_contracts::{
 use serde::{Deserialize, Serialize};
 
 use super::RuntimeReceiptSignaturePolicy;
-use super::archive::{
-    ReceiptVerification, closure_status, exact_receipt_id, receipt_uri, verification_status,
-};
+use super::archive::{ReceiptVerification, exact_receipt_id, receipt_uri, verification_status};
 use super::paths::safe_receipt_store_label;
 use super::store::{LocalReceiptStore, ReceiptStoreError};
 use crate::paths::RunxPaths;
@@ -24,14 +22,17 @@ pub struct ReceiptInspectionProjection {
     pub receipt: ReceiptInspection,
 }
 
+/// A receipt as a reader inspects it. Each `_uri` is the URI of the receipt
+/// `Reference` it projects; the receipt itself keeps its own field names.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReceiptInspection {
     pub id: String,
-    pub receipt_ref: String,
+    pub receipt_uri: String,
     pub subject_kind: SubjectKind,
-    pub subject_ref: String,
+    pub subject_uri: String,
     pub created_at: String,
-    pub status: String,
+    /// How the receipt's subject ended.
+    pub outcome: String,
     /// The kind of identity that signed the receipt. A verified local issuer
     /// is a runx home's own key; whether that suffices is the reader's call.
     pub issuer_type: ReceiptIssuerType,
@@ -39,8 +40,8 @@ pub struct ReceiptInspection {
     pub authority: ReceiptAuthorityInspection,
     pub decisions: Vec<ReceiptDecisionInspection>,
     pub acts: Vec<ReceiptActInspection>,
-    pub artifact_refs: Vec<String>,
-    pub lineage_refs: Vec<String>,
+    pub artifact_uris: Vec<String>,
+    pub lineage_uris: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seal_reason: Option<SealReason>,
     /// The seal's criteria: how the step ended and the evidence of it,
@@ -50,11 +51,11 @@ pub struct ReceiptInspection {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReceiptAuthorityInspection {
-    pub actor_ref: Option<String>,
-    pub grant_refs: Vec<String>,
-    pub scope_refs: Vec<String>,
+    pub actor_uri: Option<String>,
+    pub grant_uris: Vec<String>,
+    pub scope_uris: Vec<String>,
     pub exercised_scopes: Vec<ReceiptExercisedScope>,
-    pub approval_refs: Vec<String>,
+    pub approval_uris: Vec<String>,
     pub term_count: usize,
     pub credential_ref_count: usize,
 }
@@ -64,7 +65,7 @@ pub struct ReceiptExercisedScope {
     pub scope: String,
     pub source: String,
     pub term_id: Option<String>,
-    pub resource_ref: Option<String>,
+    pub resource_uri: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,8 +83,8 @@ pub struct ReceiptActInspection {
     pub legitimacy: String,
     /// What the caller told a reader about this call, when it said anything.
     pub reason: Option<String>,
-    pub target_refs: Vec<String>,
-    pub artifact_refs: Vec<String>,
+    pub target_uris: Vec<String>,
+    pub artifact_uris: Vec<String>,
     pub criterion_statuses: Vec<ReceiptCriterionInspection>,
     pub context_ref_present: bool,
 }
@@ -92,8 +93,8 @@ pub struct ReceiptActInspection {
 pub struct ReceiptCriterionInspection {
     pub criterion_id: String,
     pub status: String,
-    pub evidence_refs: Vec<String>,
-    pub verification_refs: Vec<String>,
+    pub evidence_uris: Vec<String>,
+    pub verification_uris: Vec<String>,
 }
 
 pub fn inspect_local_receipt(
@@ -120,15 +121,15 @@ pub fn project_receipt_inspection(
 ) -> ReceiptInspection {
     let decisions = decision_inspections(receipt);
     let acts = act_inspections(receipt);
-    let artifact_refs = inspection_artifact_refs(&acts);
+    let artifact_uris = inspection_artifact_uris(&acts);
 
     ReceiptInspection {
         id: receipt.id.to_string(),
-        receipt_ref: receipt_uri(&receipt.id),
+        receipt_uri: receipt_uri(&receipt.id),
         subject_kind: receipt.subject.kind,
-        subject_ref: receipt.subject.reference.uri.to_string(),
+        subject_uri: receipt.subject.reference.uri.to_string(),
         created_at: receipt.created_at.to_string(),
-        status: closure_status(&receipt.seal.disposition),
+        outcome: receipt.seal.outcome.label().to_owned(),
         issuer_type: receipt.issuer.issuer_type.clone(),
         verification: ReceiptVerification {
             status: verification_status(receipt, signature_policy),
@@ -136,8 +137,8 @@ pub fn project_receipt_inspection(
         authority: authority_inspection(receipt),
         decisions,
         acts,
-        artifact_refs,
-        lineage_refs: inspection_lineage_refs(receipt),
+        artifact_uris,
+        lineage_uris: inspection_lineage_uris(receipt),
         seal_reason: receipt.seal.reason,
         seal_criteria: criterion_inspections(&receipt.seal.criteria),
     }
@@ -165,8 +166,8 @@ fn act_inspections(receipt: &Receipt) -> Vec<ReceiptActInspection> {
             purpose: act.intent.purpose.to_string(),
             legitimacy: act.intent.legitimacy.to_string(),
             reason: act.reason.as_ref().map(ToString::to_string),
-            target_refs: refs(&act.target_refs),
-            artifact_refs: refs(&act.artifact_refs),
+            target_uris: uris(&act.target_refs),
+            artifact_uris: uris(&act.artifact_refs),
             criterion_statuses: criterion_inspections(&act.criterion_bindings),
             context_ref_present: act.context_ref.is_some(),
         })
@@ -179,21 +180,21 @@ fn criterion_inspections(criteria: &[CriterionBinding]) -> Vec<ReceiptCriterionI
         .map(|criterion| ReceiptCriterionInspection {
             criterion_id: criterion.criterion_id.as_str().to_owned(),
             status: wire_label(&criterion.status),
-            evidence_refs: refs(&criterion.evidence_refs),
-            verification_refs: refs(&criterion.verification_refs),
+            evidence_uris: uris(&criterion.evidence_refs),
+            verification_uris: uris(&criterion.verification_refs),
         })
         .collect()
 }
 
-fn inspection_artifact_refs(acts: &[ReceiptActInspection]) -> Vec<String> {
+fn inspection_artifact_uris(acts: &[ReceiptActInspection]) -> Vec<String> {
     acts.iter()
-        .flat_map(|act| act.artifact_refs.iter().cloned())
+        .flat_map(|act| act.artifact_uris.iter().cloned())
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
 }
 
-fn inspection_lineage_refs(receipt: &Receipt) -> Vec<String> {
+fn inspection_lineage_uris(receipt: &Receipt) -> Vec<String> {
     receipt
         .lineage
         .children
@@ -206,7 +207,7 @@ fn inspection_lineage_refs(receipt: &Receipt) -> Vec<String> {
 
 fn authority_inspection(receipt: &Receipt) -> ReceiptAuthorityInspection {
     let authority = &receipt.authority;
-    let scope_refs = refs(&authority.scope_refs);
+    let scope_uris = uris(&authority.scope_refs);
     let mut exercised_scopes = authority
         .scope_refs
         .iter()
@@ -214,14 +215,14 @@ fn authority_inspection(receipt: &Receipt) -> ReceiptAuthorityInspection {
             scope: scope_from_reference(reference),
             source: "scope_ref".to_owned(),
             term_id: None,
-            resource_ref: Some(reference.uri.to_string()),
+            resource_uri: Some(reference.uri.to_string()),
         })
         .chain(authority.terms.iter().flat_map(term_scopes))
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
     exercised_scopes.sort();
-    let approval_refs = authority
+    let approval_uris = authority
         .terms
         .iter()
         .flat_map(|term| term.approvals.iter())
@@ -230,14 +231,14 @@ fn authority_inspection(receipt: &Receipt) -> ReceiptAuthorityInspection {
         .into_iter()
         .collect();
     ReceiptAuthorityInspection {
-        actor_ref: authority
+        actor_uri: authority
             .actor_ref
             .as_ref()
             .map(|actor| actor.uri.to_string()),
-        grant_refs: refs(&authority.grant_refs),
-        scope_refs,
+        grant_uris: uris(&authority.grant_refs),
+        scope_uris,
         exercised_scopes,
-        approval_refs,
+        approval_uris,
         term_count: authority.terms.len(),
         credential_ref_count: authority
             .terms
@@ -253,7 +254,7 @@ fn term_scopes(term: &AuthorityTerm) -> impl Iterator<Item = ReceiptExercisedSco
         scope: format!("{family}:{}", wire_label(verb)),
         source: "authority_term".to_owned(),
         term_id: Some(term.term_id.to_string()),
-        resource_ref: Some(term.resource_ref.uri.to_string()),
+        resource_uri: Some(term.resource_ref.uri.to_string()),
     })
 }
 
@@ -265,7 +266,7 @@ fn scope_from_reference(reference: &Reference) -> String {
         .replace('.', ":")
 }
 
-fn refs(references: &[Reference]) -> Vec<String> {
+fn uris(references: &[Reference]) -> Vec<String> {
     references
         .iter()
         .map(|reference| reference.uri.to_string())

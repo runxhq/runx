@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use runx_contracts::{
-    ActAssignment, BuildActAssignment, IntentKeyInput, derive_content_hash, derive_intent_key,
+    ActAssignment, BuildActAssignment, IntentKeyInput, derive_content_digest, derive_intent_key,
     derive_trigger_key,
 };
 
@@ -23,7 +23,7 @@ struct Expected {
     envelope: ActAssignment,
     intent_key: String,
     trigger_key: Option<String>,
-    content_hash: String,
+    content_digest: String,
 }
 
 #[test]
@@ -39,15 +39,15 @@ fn act_assignment_fixtures_match_typescript() -> Result<(), serde_json::Error> {
             fixture.expected.trigger_key.as_deref()
         );
         assert_eq!(
-            actual.idempotency.content_hash,
-            fixture.expected.content_hash
+            actual.idempotency.content_digest,
+            fixture.expected.content_digest
         );
     }
     Ok(())
 }
 
 #[test]
-fn act_assignment_hash_helpers_match_fixtures() -> Result<(), serde_json::Error> {
+fn act_assignment_digest_helpers_match_fixtures() -> Result<(), serde_json::Error> {
     for fixture_json in FIXTURES {
         let fixture: Fixture = serde_json::from_str(fixture_json)?;
         let input = fixture.input;
@@ -55,20 +55,20 @@ fn act_assignment_hash_helpers_match_fixtures() -> Result<(), serde_json::Error>
 
         assert_eq!(
             derive_intent_key(IntentKeyInput {
-                skill_ref: input.skill_ref,
+                skill: input.skill,
                 runner: input.runner,
-                source_ref: input.source_ref,
+                source_uri: input.source_uri,
                 input_overrides: input.input_overrides.clone(),
             }),
             expected.intent_key,
         );
         assert_eq!(
-            derive_trigger_key(input.host.kind, input.host.trigger_ref),
+            derive_trigger_key(input.host.kind, input.host.trigger_uri),
             expected.trigger_key,
         );
         assert_eq!(
-            derive_content_hash(input.input_overrides),
-            expected.content_hash
+            derive_content_digest(input.input_overrides),
+            expected.content_digest
         );
     }
     Ok(())

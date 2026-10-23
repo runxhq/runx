@@ -1,28 +1,28 @@
 use super::super::types::{
-    GraphStepStatus, SequentialGraphPlan, SequentialGraphState, SequentialGraphStepDefinition,
+    GraphStepState, SequentialGraph, SequentialGraphPlan, SequentialGraphStepDefinition,
 };
 use super::index::SequentialGraphStepIndex;
 use super::step_readiness::{missing_context_at, step_failed};
 
 #[must_use]
 pub fn plan_sequential_graph_transition(
-    state: &SequentialGraphState,
+    graph: &SequentialGraph,
     steps: &[SequentialGraphStepDefinition],
 ) -> SequentialGraphPlan {
     let step_index = SequentialGraphStepIndex::new(steps);
-    plan_sequential_graph_transition_indexed(state, steps, &step_index)
+    plan_sequential_graph_transition_indexed(graph, steps, &step_index)
 }
 
 #[must_use]
 pub fn plan_sequential_graph_transition_indexed(
-    state: &SequentialGraphState,
+    graph: &SequentialGraph,
     steps: &[SequentialGraphStepDefinition],
     step_index: &SequentialGraphStepIndex,
 ) -> SequentialGraphPlan {
-    if let Some(running_step) = state
+    if let Some(running_step) = graph
         .steps
         .iter()
-        .find(|step| step.status == GraphStepStatus::Running)
+        .find(|step| step.state == GraphStepState::Running)
     {
         return SequentialGraphPlan::Blocked {
             step_id: running_step.step_id.clone(),
@@ -30,7 +30,7 @@ pub fn plan_sequential_graph_transition_indexed(
         };
     }
 
-    plan_sequential_graph_transition_indexed_from(state, steps, step_index, 0)
+    plan_sequential_graph_transition_indexed_from(graph, steps, step_index, 0)
 }
 
 /// Plan from a cursor whose preceding steps are known to be terminal.
@@ -40,18 +40,18 @@ pub fn plan_sequential_graph_transition_indexed(
 /// that invariant must use [`plan_sequential_graph_transition_indexed`].
 #[must_use]
 pub fn plan_sequential_graph_transition_indexed_from(
-    state: &SequentialGraphState,
+    graph: &SequentialGraph,
     steps: &[SequentialGraphStepDefinition],
     step_index: &SequentialGraphStepIndex,
     start_index: usize,
 ) -> SequentialGraphPlan {
-    debug_assert!(state.steps.iter().take(start_index).all(|step| matches!(
-        step.status,
-        GraphStepStatus::Succeeded | GraphStepStatus::Skipped
+    debug_assert!(graph.steps.iter().take(start_index).all(|step| matches!(
+        step.state,
+        GraphStepState::Succeeded | GraphStepState::Skipped
     )));
 
     for (index, step_definition) in steps.iter().enumerate().skip(start_index) {
-        if let Some(plan) = plan_step(state, step_index, index, step_definition) {
+        if let Some(plan) = plan_step(graph, step_index, index, step_definition) {
             return plan;
         }
     }
@@ -59,19 +59,19 @@ pub fn plan_sequential_graph_transition_indexed_from(
 }
 
 fn plan_step(
-    state: &SequentialGraphState,
+    graph: &SequentialGraph,
     step_index: &SequentialGraphStepIndex,
     definition_index: usize,
     step_definition: &SequentialGraphStepDefinition,
 ) -> Option<SequentialGraphPlan> {
-    let Some(step_state) = step_index.state_at(state, definition_index, &step_definition.id) else {
+    let Some(step) = step_index.step_at(graph, definition_index, &step_definition.id) else {
         return Some(SequentialGraphPlan::Failed {
             step_id: step_definition.id.clone(),
             reason: "step state is missing".to_owned(),
         });
     };
 
-    if step_state.status == GraphStepStatus::Running {
+    if step.state == GraphStepState::Running {
         return Some(SequentialGraphPlan::Blocked {
             step_id: step_definition.id.clone(),
             reason: "step is already running".to_owned(),
@@ -81,19 +81,19 @@ fn plan_step(
     // A succeeded step is done; a `when`-skipped step is selected out. Both are
     // terminal, so the forward walker moves past them to the next live step.
     if matches!(
-        step_state.status,
-        GraphStepStatus::Succeeded | GraphStepStatus::Skipped
+        step.state,
+        GraphStepState::Succeeded | GraphStepState::Skipped
     ) {
         return None;
     }
-    if step_failed(step_state) {
+    if step_failed(step) {
         return Some(SequentialGraphPlan::Failed {
             step_id: step_definition.id.clone(),
             reason: "step failed".to_owned(),
         });
     }
     if let Some(missing_context) =
-        missing_context_at(state, step_index, definition_index, step_definition)
+        missing_context_at(graph, step_index, definition_index, step_definition)
     {
         return Some(SequentialGraphPlan::Blocked {
             step_id: step_definition.id.clone(),
@@ -103,7 +103,7 @@ fn plan_step(
 
     Some(SequentialGraphPlan::RunStep {
         step_id: step_definition.id.clone(),
-        attempt: step_state.attempts + 1,
+        attempt: step.attempts + 1,
         context_from: step_definition.context_from.clone().unwrap_or_default(),
     })
 }
@@ -114,7 +114,7 @@ mod tests {
         plan_sequential_graph_transition_indexed, plan_sequential_graph_transition_indexed_from,
     };
     use crate::state_machine::{
-        GraphStepStatus, SequentialGraphStepDefinition, create_sequential_graph_state,
+        GraphStepState, SequentialGraphStepDefinition, create_sequential_graph,
         create_sequential_graph_step_index,
     };
 
@@ -127,12 +127,12 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let index = create_sequential_graph_step_index(&definitions);
-        let mut state = create_sequential_graph_state("graph", &definitions);
-        state.steps[0].status = GraphStepStatus::Succeeded;
+        let mut graph = create_sequential_graph("graph", &definitions);
+        graph.steps[0].state = GraphStepState::Succeeded;
 
-        let canonical = plan_sequential_graph_transition_indexed(&state, &definitions, &index);
+        let canonical = plan_sequential_graph_transition_indexed(&graph, &definitions, &index);
         let from_cursor =
-            plan_sequential_graph_transition_indexed_from(&state, &definitions, &index, 1);
+            plan_sequential_graph_transition_indexed_from(&graph, &definitions, &index, 1);
 
         assert_eq!(from_cursor, canonical);
     }

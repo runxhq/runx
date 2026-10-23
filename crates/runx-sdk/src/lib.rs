@@ -13,4 +13,4 @@ pub use client::{
     RunSkillOptions, RunxClient, RunxClientOptions, RunxJsonReport, SkillSearchResult,
 };
 pub use error::{RunxError, RunxResult};
-pub use runx_contracts::{BoundAnswer, BoundApproval, CloseDisposition, ResumeDocument, RunClose};
+pub use runx_contracts::{BoundAnswer, BoundApproval, CloseOutcome, ResumeDocument, RunClose};

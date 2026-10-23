@@ -371,7 +371,7 @@ fn a_failed_process_operation_still_records_the_credential_it_received()
     let stdout = String::from_utf8(lost.stdout.clone())?;
     assert!(!stdout.contains(SECRET));
     let output = serde_json::from_str::<serde_json::Value>(&stdout)?;
-    assert_eq!(output["closure"]["disposition"], "failed", "{output}");
+    assert_eq!(output["outcome"], "failed", "{output}");
 
     // The process ran with the token and failed: its receipt records where it
     // ran and the delivery, as a successful run's does.
@@ -562,13 +562,13 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
         .args(["config", "set", "agent.secret", "anthropic", "--json"])
         .output()?;
     assert_success_without_secret(&named)?;
-    let stored_ref = config()?["secrets"]["anthropic"]["stored"]["material_ref"]
+    let stored_material_id = config()?["secrets"]["anthropic"]["stored"]["material_id"]
         .as_str()
         .ok_or("no stored key")?
         .to_owned();
     assert!(
         home.join("keys")
-            .join(format!("{stored_ref}.json"))
+            .join(format!("{stored_material_id}.json"))
             .exists()
     );
 
@@ -605,7 +605,7 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
     assert!(
         !home
             .join("keys")
-            .join(format!("{stored_ref}.json"))
+            .join(format!("{stored_material_id}.json"))
             .exists(),
         "the replaced key's material stayed in the home"
     );

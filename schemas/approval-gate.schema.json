@@ -2,16 +2,20 @@
   "$id": "https://schemas.runx.ai/runx/approval-gate/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "The gate an approval request asks a person to pass, and why.",
   "properties": {
     "id": {
       "minLength": 1,
       "type": "string"
     },
-    "payload": {},
-    "payload_ref": {
-      "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+    "payload": {
+      "description": "What executes once the gate is approved, when it is at most 64 KiB. A host recomputes `summary.payload_digest` over it before it offers Approve; the request's digest binds it with the rest of the gate."
+    },
+    "payload_artifact": {
+      "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
+      "description": "What executes, when it is larger: a project artifact whose bytes are its canonical JSON.",
       "properties": {
         "bytes": {
           "minimum": 0,
@@ -26,26 +30,29 @@
         "path": {
           "type": "string"
         },
-        "ref": {
-          "type": "string"
-        },
         "schema": {
           "enum": [
-            "runx.project_artifact_ref.v1"
+            "runx.project_artifact.v1"
           ],
+          "title": "ProjectArtifactSchema",
+          "type": "string"
+        },
+        "uri": {
+          "description": "`runx:project-artifact:` and the artifact's digest.",
           "type": "string"
         }
       },
       "required": [
         "schema",
-        "ref",
+        "uri",
         "digest",
         "bytes",
         "media_type",
         "path"
       ],
+      "title": "ProjectArtifact",
       "type": "object",
-      "x-runx-schema": "runx.project_artifact_ref.v1"
+      "x-runx-schema": "runx.project_artifact.v1"
     },
     "reason": {
       "minLength": 1,
@@ -53,6 +60,7 @@
     },
     "summary": {
       "additionalProperties": {},
+      "description": "Shallow summary payload. `payload_digest` in it is the stable digest (`runx.stable-json.v1`) of what executes once the gate is approved.",
       "type": "object"
     },
     "type": {
@@ -63,6 +71,7 @@
     "id",
     "reason"
   ],
+  "title": "ApprovalGate",
   "type": "object",
   "x-runx-schema": "runx.approval_gate.v1"
 }

@@ -9,7 +9,7 @@ inputs:
     kind: prs
     filters: { limit: 1 }
     mutations:
-      - ref: pulls/241
+      - path: pulls/241
         op: update
         payload:
           base: null

@@ -47,7 +47,7 @@ URLs are `sqlite:<path>` (relative to the workspace), `postgres://` or
 `rediss://`. A URL that carries a password is refused. The instance pins its
 URL, so a store is never moved under a running skill.
 
-`data_source_ref` names a logical source inside the store. Many sources share
+`data_source_uri` names a logical source inside the store. Many sources share
 one store, and each source's streams stay separate.
 
 ## Operations

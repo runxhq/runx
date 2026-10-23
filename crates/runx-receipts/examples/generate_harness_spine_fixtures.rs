@@ -12,13 +12,12 @@ use std::path::Path;
 
 use runx_contracts::connector::Digest;
 use runx_contracts::{
-    ActForm, AuthorityBounds, AuthorityResourceFamily, AuthorityTerm, AuthorityVerb,
-    ClosureDisposition, Criterion, CriterionBinding, CriterionStatus, Decision, DecisionChoice,
-    ExecutionBoundaryKind, ExecutionBoundaryObservation, Intent, JsonValue, Lineage,
-    RECEIPT_CANONICALIZATION, Receipt, ReceiptAct, ReceiptAuthority, ReceiptCanonicalization,
-    ReceiptEnforcement, ReceiptIssuer, ReceiptIssuerType, ReceiptSchema, ReceiptSignature,
-    Reference, ReferenceType, Seal, SignatureAlgorithm, Subject, SubjectKind, TermLegitimacy,
-    canonical_stable_json,
+    ActForm, AuthorityBounds, AuthorityResourceFamily, AuthorityTerm, AuthorityVerb, Criterion,
+    CriterionBinding, CriterionStatus, Decision, DecisionChoice, ExecutionBoundaryKind,
+    ExecutionBoundaryObservation, Intent, JsonValue, Lineage, RECEIPT_CANONICALIZATION, Receipt,
+    ReceiptAct, ReceiptAuthority, ReceiptCanonicalization, ReceiptEnforcement, ReceiptIssuer,
+    ReceiptIssuerType, ReceiptSchema, ReceiptSignature, Reference, ReferenceType, RunOutcome, Seal,
+    SignatureAlgorithm, Subject, SubjectKind, TermLegitimacy, canonical_stable_json,
 };
 use runx_receipts::{
     canonical_receipt_body_digest, canonical_receipt_digest, canonical_receipt_json,
@@ -94,9 +93,9 @@ fn oracle_case(name: &str, fixture: &str, receipt: &Receipt) -> Value {
         "name": name,
         "fixture": fixture,
         "full_canonical_json": canonical_receipt_json(receipt).unwrap(),
-        "full_sha256": canonical_receipt_digest(receipt).unwrap(),
+        "full_digest": canonical_receipt_digest(receipt).unwrap(),
         "body_canonical_json": runx_receipts::canonical_receipt_body_json(receipt).unwrap(),
-        "body_sha256": canonical_receipt_body_digest(receipt).unwrap(),
+        "body_digest": canonical_receipt_body_digest(receipt).unwrap(),
     })
 }
 
@@ -115,7 +114,8 @@ fn base(id: &str, kind: SubjectKind, subject_id: &str) -> Receipt {
         issuer: ReceiptIssuer {
             issuer_type: ReceiptIssuerType::Local,
             kid: "fixture-key".into(),
-            public_key_sha256: format!("sha256:{}", "0".repeat(64)).into(),
+            public_key_digest: format!("sha256:{}", "0".repeat(64)).into(),
+            runx_version: "0.11.0".into(),
         },
         signature: ReceiptSignature {
             alg: SignatureAlgorithm::Ed25519,
@@ -125,9 +125,9 @@ fn base(id: &str, kind: SubjectKind, subject_id: &str) -> Receipt {
         subject: Subject {
             kind,
             reference: Reference::runx(ReferenceType::Run, subject_id),
-            // The digest of the subject's outcome: its status, declared
+            // The digest of how the subject ended: its outcome, declared
             // outputs and direct children.
-            outcome: Digest::of(subject_id.as_bytes()),
+            outcome_digest: Digest::of(subject_id.as_bytes()),
         },
         authority: ReceiptAuthority {
             actor_ref: None,
@@ -141,7 +141,7 @@ fn base(id: &str, kind: SubjectKind, subject_id: &str) -> Receipt {
         decisions: Vec::new(),
         acts: Vec::new(),
         seal: Seal {
-            disposition: ClosureDisposition::Closed,
+            outcome: RunOutcome::Completed,
             reason: None,
             criteria: Vec::new(),
         },
@@ -290,7 +290,7 @@ fn abnormal_receipt() -> Receipt {
         context_ref: None,
         status: CriterionStatus::Failed,
     })];
-    receipt.seal.disposition = ClosureDisposition::Failed;
+    receipt.seal.outcome = RunOutcome::Failed;
     receipt.seal.criteria = vec![outcome_binding(CriterionStatus::Failed)];
     receipt
 }

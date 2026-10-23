@@ -22,7 +22,7 @@ interface SearchCase {
 
 interface InspectCase {
   readonly name: string;
-  readonly ref: string;
+  readonly tool: string;
   readonly source?: string;
   readonly toolRoot?: string;
   readonly expectedStatus: number;
@@ -95,7 +95,7 @@ async function searchCases(): Promise<readonly OracleCase[]> {
 async function inspectCases(): Promise<readonly OracleCase[]> {
   const cases = await readJson<readonly InspectCase[]>(path.join(fixtureRoot, "inspect", "cases.json"));
   return cases.map((fixtureCase) => {
-    const argv = ["tool", "inspect", fixtureCase.ref, "--json"];
+    const argv = ["tool", "inspect", fixtureCase.tool, "--json"];
     if (fixtureCase.source) {
       argv.push("--source", fixtureCase.source);
     }

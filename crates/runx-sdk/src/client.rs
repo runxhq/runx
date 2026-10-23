@@ -43,7 +43,8 @@ pub struct RunxJsonReport {
 pub struct SkillSearchResult {
     pub skill_id: String,
     pub name: String,
-    pub owner: String,
+    /// The publisher the skill is published under: its id's first segment.
+    pub publisher: String,
     pub source: String,
     pub source_label: String,
     pub trust_tier: String,
@@ -187,10 +188,15 @@ fn decode_json_object(stdout: &str) -> RunxResult<JsonObject> {
 
 fn search_result_from_json(value: &JsonValue) -> RunxResult<SkillSearchResult> {
     let object = json_object(value, "results[]")?;
+    let skill_id = required_string(object, "skill_id")?;
+    let publisher = skill_id
+        .split_once('/')
+        .map(|(publisher, _)| publisher.to_owned())
+        .unwrap_or_default();
     Ok(SkillSearchResult {
-        skill_id: required_string(object, "skill_id")?,
+        skill_id,
         name: required_string(object, "name")?,
-        owner: required_string(object, "owner")?,
+        publisher,
         source: required_string(object, "source")?,
         source_label: required_string(object, "source_label")?,
         trust_tier: required_string(object, "trust_tier")?,

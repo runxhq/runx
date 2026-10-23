@@ -40,7 +40,7 @@ signal proposal schemas. Those distinctions belong in `proposal_kind` metadata.
 
 The proposal packet is a replayable, redacted decision envelope. It should carry:
 
-- stable proposal id, source event id, idempotency key, dedupe fingerprint, and
+- stable proposal id, source event id, idempotency key, dedupe digest, and
   packet schema/version
 - `proposal_kind`: a product-namespaced classifier, not a new public schema
 - `source_ref` and optional `source_thread_ref` references; thread publication

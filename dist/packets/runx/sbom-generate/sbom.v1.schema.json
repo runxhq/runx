@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/sbom-generate/sbom/v1.json",
+  "x-runx-packet-id": "runx/sbom-generate.sbom.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "decision",
+    "lockfile_type",
+    "lockfile_digest",
+    "sbom",
+    "component_count",
+    "license_summary",
+    "license_risks",
+    "validation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "runx/sbom-generate.sbom.v1"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "generated",
+        "refused"
+      ]
+    },
+    "lockfile_type": {
+      "type": "string",
+      "enum": [
+        "package-lock",
+        "npm-shrinkwrap"
+      ]
+    },
+    "lockfile_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sbom": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "bomFormat",
+        "specVersion",
+        "serialNumber",
+        "version",
+        "metadata",
+        "components"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bomFormat": {
+          "const": "CycloneDX"
+        },
+        "specVersion": {
+          "const": "1.5"
+        },
+        "serialNumber": {
+          "type": "string",
+          "pattern": "^urn:uuid:[0-9a-f-]{36}$"
+        },
+        "version": {
+          "const": 1
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "components": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "required": [
+              "type",
+              "name",
+              "version",
+              "license",
+              "properties"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "library"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "license": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "properties": {
+                "type": "array",
+                "maxItems": 10,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "value"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "component_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "license_summary": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "total_components",
+        "license_counts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total_components": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "license_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "license_risks": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "required": [
+          "component",
+          "version",
+          "license",
+          "risk",
+          "reason",
+          "evidence_location"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "license": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "review"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidence_location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "status",
+        "findings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "findings": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

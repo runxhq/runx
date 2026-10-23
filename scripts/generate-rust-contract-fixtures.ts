@@ -27,13 +27,13 @@ interface ContractFixture {
 }
 
 interface ActAssignmentFixtureInput {
-  readonly skill_ref: string;
+  readonly skill: string;
   readonly runner: string;
-  readonly source_ref?: string;
+  readonly source_uri?: string;
   readonly requested_at: string;
   readonly host: {
     readonly kind: "cli" | "api" | "comment" | "system";
-    readonly trigger_ref?: string;
+    readonly trigger_uri?: string;
     readonly scope_set?: readonly string[];
     readonly actor?: {
       readonly actor_id?: string;
@@ -49,7 +49,7 @@ interface ActAssignmentFixtureExpected {
   readonly envelope: unknown;
   readonly intent_key: string;
   readonly trigger_key?: string;
-  readonly content_hash: string;
+  readonly content_digest: string;
 }
 
 type JsonRecord = Readonly<Record<string, unknown>>;
@@ -63,7 +63,7 @@ type ContractFixtureKind = HostFixtureKind;
 type ContractScope =
   | "act-assignment"
   | "host-protocol"
-  | "paid-invocation"
+  | "purchase"
   | "paid-skill-price"
   | "principal-id"
   | "purchase-claim"
@@ -76,7 +76,7 @@ if (
   selectedScope !== undefined
   && selectedScope !== "act-assignment"
   && selectedScope !== "host-protocol"
-  && selectedScope !== "paid-invocation"
+  && selectedScope !== "purchase"
   && selectedScope !== "paid-skill-price"
   && selectedScope !== "principal-id"
   && selectedScope !== "purchase-claim"
@@ -86,7 +86,12 @@ if (
 }
 
 if (selectedScope === undefined || selectedScope === "act-assignment") {
-  await writeFixtures(buildActAssignmentFixtures(), actAssignmentRoot);
+  const fixtures = buildActAssignmentFixtures();
+  await writeFixtures(fixtures, actAssignmentRoot);
+  await writeFixtures(
+    fixtures.filter(({ name }) => ["cli-no-trigger", "github-trigger"].includes(name)),
+    path.join(sdkFixtureRoot, "act-assignment"),
+  );
 }
 if (selectedScope === undefined || selectedScope === "host-protocol") {
   const fixtures = buildHostProtocolFixtures();
@@ -98,8 +103,8 @@ if (selectedScope === undefined || selectedScope === "host-protocol") {
     path.join(sdkFixtureRoot, "host-protocol"),
   );
 }
-if (selectedScope === undefined || selectedScope === "paid-invocation") {
-  runPaidInvocationFixtures();
+if (selectedScope === undefined || selectedScope === "purchase") {
+  runPurchaseFixtures();
 }
 if (selectedScope === undefined || selectedScope === "paid-skill-price") {
   runPaidSkillPriceFixtures();
@@ -114,17 +119,17 @@ if (selectedScope === undefined || selectedScope === "x402-v2") {
   runX402Fixtures();
 }
 
-function runPaidInvocationFixtures(): void {
-  const outputRoot = path.join(fixtureRoot, "paid-invocation");
+function runPurchaseFixtures(): void {
+  const outputRoot = path.join(fixtureRoot, "purchase");
   const fingerprintOracle = path.join(
     fixtureRoot,
     "canonical-json",
-    "runx-paid-invocation-request-fingerprint-v1.oracles.json",
+    "runx-purchase-request-digest-v1.oracles.json",
   );
-  const configured = process.env.RUNX_PAID_INVOCATION_FIXTURES_BIN;
+  const configured = process.env.RUNX_PURCHASE_FIXTURES_BIN;
   const command = configured || (process.platform === "win32" ? "cargo.exe" : "cargo");
   const args = configured
-    ? ["--out", outputRoot, "--schema-dir", path.join(workspaceRoot, "schemas"), "--packet-dir", path.join(workspaceRoot, "dist", "packets"), "--oracle-out", fingerprintOracle]
+    ? ["--out", outputRoot, "--schema-dir", path.join(workspaceRoot, "schemas"), "--oracle-out", fingerprintOracle]
     : [
         "run",
         "--quiet",
@@ -133,14 +138,12 @@ function runPaidInvocationFixtures(): void {
         "-p",
         "runx-contracts",
         "--example",
-        "runx-paid-invocation-fixtures",
+        "runx-purchase-fixtures",
         "--",
         "--out",
         outputRoot,
         "--schema-dir",
         path.join(workspaceRoot, "schemas"),
-        "--packet-dir",
-        path.join(workspaceRoot, "dist", "packets"),
         "--oracle-out",
         fingerprintOracle,
       ];
@@ -289,13 +292,13 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
       "github-trigger",
       "ASCII act assignment hashStable fixture. non-ASCII object keys are rejected until hash-stable-codepoint-cutover replaces localeCompare ordering.",
       {
-        skill_ref: "outreach",
+        skill: "outreach",
         runner: "rerun",
-        source_ref: "github://sourcey/sourcey.com/issues/3",
+        source_uri: "github://sourcey/sourcey.com/issues/3",
         requested_at: "2026-04-25T14:00:00Z",
         host: {
           kind: "comment",
-          trigger_ref: "https://github.com/sourcey/sourcey.com/issues/3#issuecomment-1",
+          trigger_uri: "https://github.com/sourcey/sourcey.com/issues/3#issuecomment-1",
           scope_set: ["docs.write", "thread:push"],
           actor: {
             actor_id: "auscaster",
@@ -313,9 +316,9 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
       "cli-no-trigger",
       "ASCII CLI fixture with no trigger key; documents the narrow hashStable scope before the non-ASCII codepoint cutover.",
       {
-        skill_ref: "docs.refresh",
+        skill: "docs.refresh",
         runner: "runx",
-        source_ref: "local://workspace",
+        source_uri: "local://workspace",
         requested_at: "2026-04-25T14:01:00Z",
         host: {
           kind: "cli",
@@ -329,7 +332,7 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
       "system-empty-inputs",
       "ASCII system fixture whose content hash is computed over an empty object; localeCompare behavior is intentionally unchanged here.",
       {
-        skill_ref: "system.audit",
+        skill: "system.audit",
         runner: "system",
         requested_at: "2026-04-25T14:02:00Z",
         host: {
@@ -339,14 +342,14 @@ function buildActAssignmentFixtures(): readonly ContractFixture[] {
     ),
     actAssignmentFixture(
       "host-normalization",
-      "Documents buildActAssignment host normalization: empty trigger_ref, scope_set, and actor fields are omitted.",
+      "Documents buildActAssignment host normalization: empty trigger_uri, scope_set, and actor fields are omitted.",
       {
-        skill_ref: "host.normalize",
+        skill: "host.normalize",
         runner: "runx",
         requested_at: "2026-04-25T14:03:00Z",
         host: {
           kind: "api",
-          trigger_ref: "",
+          trigger_uri: "",
           scope_set: [],
           actor: {
             actor_id: "",
@@ -366,12 +369,12 @@ function actAssignmentFixture(
   input: ActAssignmentFixtureInput,
 ): ContractFixture {
   const tsOptions = {
-    skillRef: input.skill_ref,
+    skill: input.skill,
     runner: input.runner,
-    sourceRef: input.source_ref,
+    sourceUri: input.source_uri,
     requestedAt: input.requested_at,
     hostKind: input.host.kind,
-    triggerRef: input.host.trigger_ref,
+    triggerUri: input.host.trigger_uri,
     scopeSet: input.host.scope_set,
     actor: input.host.actor,
     inputOverrides: input.input_overrides,
@@ -385,27 +388,27 @@ function actAssignmentFixture(
     expected: {
       envelope,
       intent_key: deriveActAssignmentIntentKey({
-        skillRef: input.skill_ref,
+        skill: input.skill,
         runner: input.runner,
-        sourceRef: input.source_ref,
+        sourceUri: input.source_uri,
         inputOverrides: input.input_overrides,
       }),
       trigger_key: deriveActAssignmentTriggerKey({
         hostKind: input.host.kind,
-        triggerRef: input.host.trigger_ref,
+        triggerUri: input.host.trigger_uri,
       }),
-      content_hash: deriveActAssignmentContentHash(input.input_overrides),
+      content_digest: deriveActAssignmentContentDigest(input.input_overrides),
     },
   };
 }
 
 function buildActAssignment(options: {
-  readonly skillRef: string;
+  readonly skill: string;
   readonly runner: string;
-  readonly sourceRef?: string;
+  readonly sourceUri?: string;
   readonly requestedAt?: string;
   readonly hostKind?: ActAssignmentHostContract["kind"];
-  readonly triggerRef?: string;
+  readonly triggerUri?: string;
   readonly scopeSet?: readonly string[];
   readonly actor?: ActAssignmentActorContract;
   readonly inputOverrides?: JsonRecord;
@@ -413,67 +416,67 @@ function buildActAssignment(options: {
   const inputOverrides = normalizeActAssignmentRecord(options.inputOverrides);
   const host = normalizeActAssignmentHost({
     kind: options.hostKind ?? "cli",
-    trigger_ref: options.triggerRef,
+    trigger_uri: options.triggerUri,
     scope_set: options.scopeSet,
     actor: options.actor,
   });
-  const sourceRef = normalizeNonEmptyString(options.sourceRef);
+  const sourceUri = normalizeNonEmptyString(options.sourceUri);
   const requestedAt = normalizeNonEmptyString(options.requestedAt) ?? new Date().toISOString();
 
   return validateActAssignmentContract(pruneUndefined({
     schema: "runx.act_assignment.v1",
-    skill_ref: options.skillRef,
+    skill: options.skill,
     runner: options.runner,
-    source_ref: sourceRef,
+    source_uri: sourceUri,
     requested_at: requestedAt,
     host,
     input_overrides: inputOverrides,
     idempotency: {
       algorithm: "sha256",
       intent_key: deriveActAssignmentIntentKey({
-        skillRef: options.skillRef,
+        skill: options.skill,
         runner: options.runner,
-        sourceRef,
+        sourceUri,
         inputOverrides,
       }),
       trigger_key: deriveActAssignmentTriggerKey({
         hostKind: host.kind,
-        triggerRef: host.trigger_ref,
+        triggerUri: host.trigger_uri,
       }),
-      content_hash: deriveActAssignmentContentHash(inputOverrides),
+      content_digest: deriveActAssignmentContentDigest(inputOverrides),
     },
   }));
 }
 
 function deriveActAssignmentIntentKey(options: {
-  readonly skillRef: string;
+  readonly skill: string;
   readonly runner: string;
-  readonly sourceRef?: string;
+  readonly sourceUri?: string;
   readonly inputOverrides?: JsonRecord;
 }): string {
   return canonicalSha256({
-    skill_ref: options.skillRef,
+    skill: options.skill,
     runner: options.runner,
-    source_ref: normalizeNonEmptyString(options.sourceRef),
+    source_uri: normalizeNonEmptyString(options.sourceUri),
     input_overrides: normalizeActAssignmentRecord(options.inputOverrides),
   });
 }
 
 function deriveActAssignmentTriggerKey(options: {
   readonly hostKind: ActAssignmentHostContract["kind"];
-  readonly triggerRef?: string;
+  readonly triggerUri?: string;
 }): string | undefined {
-  const triggerRef = normalizeNonEmptyString(options.triggerRef);
-  if (!triggerRef) {
+  const triggerUri = normalizeNonEmptyString(options.triggerUri);
+  if (!triggerUri) {
     return undefined;
   }
   return canonicalSha256({
     host_kind: options.hostKind,
-    trigger_ref: triggerRef,
+    trigger_uri: triggerUri,
   });
 }
 
-function deriveActAssignmentContentHash(inputOverrides?: JsonRecord): string {
+function deriveActAssignmentContentDigest(inputOverrides?: JsonRecord): string {
   return canonicalSha256(normalizeActAssignmentRecord(inputOverrides) ?? {});
 }
 
@@ -487,7 +490,7 @@ function normalizeActAssignmentRecord(value: unknown): JsonRecord | undefined {
 
 function normalizeActAssignmentHost(value: {
   readonly kind: ActAssignmentHostContract["kind"];
-  readonly trigger_ref?: string;
+  readonly trigger_uri?: string;
   readonly scope_set?: readonly string[];
   readonly actor?: ActAssignmentActorContract;
 }): ActAssignmentHostContract {
@@ -495,7 +498,7 @@ function normalizeActAssignmentHost(value: {
   const scopeSet = normalizeStringArray(value.scope_set);
   return pruneUndefined({
     kind: value.kind,
-    trigger_ref: normalizeNonEmptyString(value.trigger_ref),
+    trigger_uri: normalizeNonEmptyString(value.trigger_uri),
     scope_set: scopeSet.length > 0 ? scopeSet : undefined,
     actor,
   }) as ActAssignmentHostContract;
@@ -740,7 +743,7 @@ function agentActResolutionRequest(): Readonly<Record<string, unknown>> {
         historical_context: [],
         inputs: {},
         instructions: "Summarize receipt",
-        instructions_sha256: sha256Prefixed("Summarize receipt"),
+        instructions_digest: sha256Prefixed("Summarize receipt"),
         provenance: [],
         requirements: {
           declaration: {},
@@ -773,8 +776,6 @@ function terminalState(status: string, verificationStatus: string): Readonly<Rec
     sourceType: "agent-task",
     startedAt: "2026-04-25T14:00:00Z",
     completedAt: "2026-04-25T14:01:00Z",
-    disposition: status,
-    outcomeState: status,
     actors: ["agent"],
     artifactTypes: ["receipt"],
     runnerProvider: "runx",

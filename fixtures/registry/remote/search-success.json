@@ -5,7 +5,6 @@
       "skill_id": "acme/echo",
       "name": "echo",
       "description": "Echo input",
-      "owner": "acme",
       "version": "1.0.0",
       "profile_mode": "portable",
       "runner_names": ["default"],

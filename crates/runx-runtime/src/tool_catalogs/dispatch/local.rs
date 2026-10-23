@@ -13,7 +13,7 @@ use crate::effects::RuntimeEffectRegistry;
 use crate::tool_catalogs::{ToolCatalogError, ToolInspectOptions, resolve_local_tool};
 
 pub(super) fn inspect_catalog_tool(
-    tool_ref: &str,
+    tool: &str,
     env: &BTreeMap<String, String>,
     skill_directory: &Path,
     effects: &RuntimeEffectRegistry,
@@ -21,7 +21,7 @@ pub(super) fn inspect_catalog_tool(
     crate::tool_catalogs::inspect_tool_with_effects(
         &ToolInspectOptions {
             root: workspace_root(env, skill_directory),
-            tool_ref: tool_ref.to_owned(),
+            tool: tool.to_owned(),
             source: None,
             search_from_directory: skill_directory.to_path_buf(),
             tool_roots: configured_tool_roots(env),
@@ -30,14 +30,14 @@ pub(super) fn inspect_catalog_tool(
         effects,
     )
     .map(|report| report.tool)
-    .map_err(|error| catalog_error(tool_ref, error))
+    .map_err(|error| catalog_error(tool, error))
 }
 
 pub(super) fn resolve_artifacts(
     request: &ToolDispatchRequest<'_>,
-    tool_ref: &str,
+    tool: &str,
 ) -> Result<Option<SkillArtifactContract>, RuntimeError> {
-    match resolve_local_tool(&inspect_options(request, tool_ref)) {
+    match resolve_local_tool(&inspect_options(request, tool)) {
         Ok(resolution) => Ok(resolution.tool.artifacts),
         Err(error) if lookup_miss(&error) => Ok(None),
         Err(error) => Err(catalog_error(request.skill_name, error)),
@@ -48,8 +48,7 @@ pub(super) fn invoke(
     request: &ToolDispatchRequest<'_>,
     started: Instant,
 ) -> Result<Option<InvocationOutput>, RuntimeError> {
-    let resolution = match resolve_local_tool(&inspect_options(request, request.tool_ref.as_ref()))
-    {
+    let resolution = match resolve_local_tool(&inspect_options(request, request.tool.as_ref())) {
         Ok(resolution) => resolution,
         Err(error) if lookup_miss(&error) => return Ok(None),
         Err(error) => return Err(catalog_error(request.skill_name, error)),
@@ -126,10 +125,10 @@ fn run(
     crate::execution::skill_front::ExecutableAdapter.invoke(invocation)
 }
 
-fn inspect_options(request: &ToolDispatchRequest<'_>, tool_ref: &str) -> ToolInspectOptions {
+fn inspect_options(request: &ToolDispatchRequest<'_>, tool: &str) -> ToolInspectOptions {
     ToolInspectOptions {
         root: workspace_root(request.env, request.skill_directory),
-        tool_ref: tool_ref.to_owned(),
+        tool: tool.to_owned(),
         source: None,
         search_from_directory: request.skill_directory.to_path_buf(),
         tool_roots: configured_tool_roots(request.env),

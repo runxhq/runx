@@ -82,7 +82,7 @@ prove that a grant is minimal. Do not describe either status as safe to apply.
 limitations, scope-by-scope recorded authority, `retained_grant`,
 `not_recorded_scopes` and `reviewer_action`. `attenuation_proposals` stays empty
 until native evidence can support a replacement. `verdict` is a short operator
-summary. The existing `runx.security.least_privilege.v1` packet is updated in
+summary. The existing `runx/least-privilege.audit.v1` packet is updated in
 place; there is no alternate contract or compatibility reader.
 
 For a verified review of `email:send` and `payment:spend`, a receipt recording

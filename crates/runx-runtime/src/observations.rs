@@ -65,16 +65,16 @@ impl Observations {
 /// output or packet contract.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct ContractChecks {
-    pub(crate) output_contract_sha256: Option<String>,
-    pub(crate) voice_profile_sha256: Option<String>,
+    pub(crate) output_contract_digest: Option<String>,
+    pub(crate) voice_profile_digest: Option<String>,
     /// Each packet output, by name, and the packet schema it satisfied.
     pub(crate) packet_schemas: BTreeMap<String, PacketCheck>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PacketCheck {
-    pub(crate) packet: String,
-    pub(crate) schema_sha256: String,
+    pub(crate) packet: runx_contracts::PacketId,
+    pub(crate) schema_digest: String,
 }
 
 #[cfg(test)]

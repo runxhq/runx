@@ -5,9 +5,9 @@ const TERMINAL = new Set(["complete", "failed", "pending"]);
  * that authorized the payment authorizes reading it back.
  */
 export function prepareReadback(inputs) {
-  const paymentRef = inputs.payment_ref;
-  if (typeof paymentRef !== "string" || !paymentRef.trim()
-    || paymentRef !== paymentRef.trim() || paymentRef.length > 300) {
+  const paymentId = inputs.payment_id;
+  if (typeof paymentId !== "string" || !paymentId.trim()
+    || paymentId !== paymentId.trim() || paymentId.length > 300) {
     throw new Error("x402 payment reference is invalid.");
   }
   const resourceUrl = inputs.resource_url;
@@ -16,8 +16,8 @@ export function prepareReadback(inputs) {
     throw new Error("x402 resource URL must be the exact HTTPS URL that was paid.");
   }
   return {
-    readback_request: Object.freeze({ payment_ref: paymentRef, resource_url: resourceUrl }),
-    expected_result: Object.freeze({ payment_ref: paymentRef }),
+    readback_request: Object.freeze({ payment_id: paymentId, resource_url: resourceUrl }),
+    expected_result: Object.freeze({ payment_id: paymentId }),
   };
 }
 

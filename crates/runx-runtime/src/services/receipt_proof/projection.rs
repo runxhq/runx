@@ -89,12 +89,12 @@ pub(super) fn matched_receipt(inspection: &ReceiptInspection) -> JsonValue {
             JsonValue::String(inspection.id.clone()),
         ),
         (
-            "skill_ref".to_owned(),
-            JsonValue::String(inspection.subject_ref.clone()),
+            "subject_uri".to_owned(),
+            JsonValue::String(inspection.subject_uri.clone()),
         ),
         (
-            "status".to_owned(),
-            JsonValue::String(inspection.status.clone()),
+            "outcome".to_owned(),
+            JsonValue::String(inspection.outcome.clone()),
         ),
         (
             "created_at".to_owned(),

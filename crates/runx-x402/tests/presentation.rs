@@ -3,9 +3,9 @@ use std::io;
 
 use runx_contracts::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use runx_contracts::{
-    JsonObject, OfferRevisionRef, PaidInvocationCanonicalizerVersion, PaymentIdempotencyBinding,
-    RUNX_INVOCATION_EXTENSION_KEY, Reference, ReferenceType, RunxX402InvocationExtensionInfo,
-    Sha256Digest, X402AcceptedRequirements, X402Network, X402PaymentPayload,
+    Digest, JsonObject, OfferVersionBinding, PaymentIdempotencyBinding,
+    PurchaseCanonicalizerVersion, RUNX_PURCHASE_EXTENSION_KEY, Reference, ReferenceType,
+    RunxX402PurchaseExtensionInfo, X402AcceptedRequirements, X402Network, X402PaymentPayload,
     X402PaymentRequirements, X402PositiveNumber, X402ResourceInfo, X402Version2,
 };
 use runx_x402::{
@@ -13,7 +13,7 @@ use runx_x402::{
     decode_payment_required_header, decode_payment_response_header,
     decode_payment_signature_header, encode_payment_required_header,
     encode_payment_response_header, encode_payment_signature_header,
-    payment_required_from_challenge, runx_invocation_schema_reference, validate_payment_retry,
+    payment_required_from_challenge, runx_purchase_schema_reference, validate_payment_retry,
 };
 use serde_json::json;
 
@@ -49,11 +49,11 @@ fn assembler_owns_runx_extension_and_retry_requires_exact_commitments() -> Resul
 {
     let expected_resource = resource();
     let requirement = requirement()?;
-    let invocation = invocation('4', '7', '1')?;
+    let purchase = purchase('4', '7', '1')?;
     let challenge = assemble_payment_required(
         expected_resource.clone(),
         accepts(requirement.clone())?,
-        invocation.clone(),
+        purchase.clone(),
         None,
         JsonObject::new(),
     )?;
@@ -74,7 +74,7 @@ fn assembler_owns_runx_extension_and_retry_requires_exact_commitments() -> Resul
     let recovered = payment_required_from_challenge(&rail_challenge)?;
     let validated = validate_payment_retry(&recovered, &retry)?;
     assert_eq!(validated.requirement_index, 0);
-    assert_eq!(validated.invocation, invocation);
+    assert_eq!(validated.info, purchase);
 
     let mut changed_requirement = retry.clone();
     changed_requirement.accepted.amount = NonEmptyString::from("10001");
@@ -105,7 +105,7 @@ fn assembler_owns_runx_extension_and_retry_requires_exact_commitments() -> Resul
     missing_extension.extensions = None;
     assert_eq!(
         validate_payment_retry(&challenge, &missing_extension),
-        Err(X402PresentationError::MissingRunxInvocation)
+        Err(X402PresentationError::MissingRunxPurchase)
     );
 
     let mut swapped_schema = retry.clone();
@@ -114,13 +114,13 @@ fn assembler_owns_runx_extension_and_retry_requires_exact_commitments() -> Resul
         .take()
         .ok_or_else(|| io::Error::other("challenge extensions"))?;
     swapped_extensions.insert(
-        RUNX_INVOCATION_EXTENSION_KEY.to_owned(),
-        json_value(json!({ "info": invocation, "schema": {} }))?,
+        RUNX_PURCHASE_EXTENSION_KEY.to_owned(),
+        json_value(json!({ "info": purchase, "schema": {} }))?,
     );
     swapped_schema.extensions = Some(swapped_extensions);
     assert_eq!(
         validate_payment_retry(&challenge, &swapped_schema),
-        Err(X402PresentationError::RunxInvocationSchemaMismatch)
+        Err(X402PresentationError::RunxPurchaseSchemaMismatch)
     );
 
     let changed_challenge = assemble_payment_required(
@@ -137,36 +137,36 @@ fn assembler_owns_runx_extension_and_retry_requires_exact_commitments() -> Resul
     changed_extension.extensions = changed_challenge.extensions;
     assert_eq!(
         validate_payment_retry(&challenge, &changed_extension),
-        Err(X402PresentationError::RunxInvocationMismatch)
+        Err(X402PresentationError::RunxPurchaseMismatch)
     );
     Ok(())
 }
 
 #[test]
 fn declaration_advertises_the_published_schema_by_reference() -> Result<(), Box<dyn Error>> {
-    let invocation = invocation('4', '7', '1')?;
+    let purchase = purchase('4', '7', '1')?;
     let challenge = assemble_payment_required(
         resource(),
         accepts(requirement()?)?,
-        invocation.clone(),
+        purchase.clone(),
         None,
         JsonObject::new(),
     )?;
     let declared = challenge
         .extensions
         .as_ref()
-        .and_then(|extensions| extensions.get(RUNX_INVOCATION_EXTENSION_KEY))
+        .and_then(|extensions| extensions.get(RUNX_PURCHASE_EXTENSION_KEY))
         .cloned()
-        .ok_or_else(|| io::Error::other("runx.invocation"))?;
-    let published_id = RunxX402InvocationExtensionInfo::json_schema()["$id"].clone();
+        .ok_or_else(|| io::Error::other("runx.purchase"))?;
+    let published_id = RunxX402PurchaseExtensionInfo::json_schema()["$id"].clone();
     assert_eq!(
         declared,
-        json_value(json!({ "info": invocation, "schema": { "$ref": published_id } }))?
+        json_value(json!({ "info": purchase, "schema": { "$ref": published_id } }))?
     );
     assert_eq!(
-        runx_invocation_schema_reference()?,
+        runx_purchase_schema_reference()?,
         json_object(
-            json!({ "$ref": "https://schemas.runx.ai/runx/x402/invocation-extension/v1.json" })
+            json!({ "$ref": "https://schemas.runx.ai/runx/x402/purchase-extension/v1.json" })
         )?
     );
 
@@ -174,10 +174,10 @@ fn declaration_advertises_the_published_schema_by_reference() -> Result<(), Box<
     // document is not an echo of this challenge.
     let mut inline_extensions = JsonObject::new();
     inline_extensions.insert(
-        RUNX_INVOCATION_EXTENSION_KEY.to_owned(),
+        RUNX_PURCHASE_EXTENSION_KEY.to_owned(),
         json_value(json!({
-            "info": invocation,
-            "schema": RunxX402InvocationExtensionInfo::json_schema(),
+            "info": purchase,
+            "schema": RunxX402PurchaseExtensionInfo::json_schema(),
         }))?,
     );
     let inline_retry = X402PaymentPayload {
@@ -190,15 +190,15 @@ fn declaration_advertises_the_published_schema_by_reference() -> Result<(), Box<
     };
     assert_eq!(
         validate_payment_retry(&challenge, &inline_retry),
-        Err(X402PresentationError::RunxInvocationSchemaMismatch)
+        Err(X402PresentationError::RunxPurchaseSchemaMismatch)
     );
 
     let mut foreign_reference = JsonObject::new();
     foreign_reference.insert(
-        RUNX_INVOCATION_EXTENSION_KEY.to_owned(),
+        RUNX_PURCHASE_EXTENSION_KEY.to_owned(),
         json_value(json!({
-            "info": invocation,
-            "schema": { "$ref": "https://schemas.runx.ai/runx/x402/invocation-extension/v2.json" },
+            "info": purchase,
+            "schema": { "$ref": "https://schemas.runx.ai/runx/x402/purchase-extension/v2.json" },
         }))?,
     );
     let foreign_retry = X402PaymentPayload {
@@ -207,35 +207,35 @@ fn declaration_advertises_the_published_schema_by_reference() -> Result<(), Box<
     };
     assert_eq!(
         validate_payment_retry(&challenge, &foreign_retry),
-        Err(X402PresentationError::RunxInvocationSchemaMismatch)
+        Err(X402PresentationError::RunxPurchaseSchemaMismatch)
     );
     Ok(())
 }
 
 #[test]
-fn assembler_preserves_opaque_vendor_extensions_and_reserves_runx_key() -> Result<(), Box<dyn Error>>
+fn assembler_preserves_opaque_seller_extensions_and_reserves_runx_key() -> Result<(), Box<dyn Error>>
 {
-    let opaque = json_value(json!(["vendor", { "future": true }]))?;
-    let mut vendor_extensions = JsonObject::new();
-    vendor_extensions.insert("vendor.example".to_owned(), opaque.clone());
+    let opaque = json_value(json!(["seller", { "future": true }]))?;
+    let mut seller_extensions = JsonObject::new();
+    seller_extensions.insert("seller.example".to_owned(), opaque.clone());
     let challenge = assemble_payment_required(
         resource(),
         accepts(requirement()?)?,
         discovery('4', '7')?,
         None,
-        vendor_extensions,
+        seller_extensions,
     )?;
     assert_eq!(
         challenge
             .extensions
             .as_ref()
-            .and_then(|extensions| extensions.get("vendor.example")),
+            .and_then(|extensions| extensions.get("seller.example")),
         Some(&opaque)
     );
 
     let mut reserved = JsonObject::new();
     reserved.insert(
-        RUNX_INVOCATION_EXTENSION_KEY.to_owned(),
+        RUNX_PURCHASE_EXTENSION_KEY.to_owned(),
         json_value(json!({ "attacker": true }))?,
     );
     assert_eq!(
@@ -364,40 +364,37 @@ fn accepts(
         .ok_or_else(|| io::Error::other("non-empty requirements").into())
 }
 
-fn discovery(
-    revision: char,
-    package: char,
-) -> Result<RunxX402InvocationExtensionInfo, Box<dyn Error>> {
-    Ok(RunxX402InvocationExtensionInfo::Discovery {
-        offer_revision: OfferRevisionRef {
+fn discovery(profile: char, bundle: char) -> Result<RunxX402PurchaseExtensionInfo, Box<dyn Error>> {
+    Ok(RunxX402PurchaseExtensionInfo::Discovery {
+        offer_version: OfferVersionBinding {
             offer_id: NonEmptyString::from("ocr-v1"),
-            revision: NonEmptyString::from("2026-08-22.1"),
-            revision_digest: digest(revision)?,
+            version: NonEmptyString::from("2026-08-22.1"),
+            profile_digest: digest(profile)?,
             input_schema_digest: digest('2')?,
             output_schema_digest: digest('3')?,
         },
-        package_digest: digest(package)?,
+        bundle_digest: digest(bundle)?,
     })
 }
 
-fn invocation(
-    revision: char,
+fn purchase(
+    profile: char,
     package: char,
     input: char,
-) -> Result<RunxX402InvocationExtensionInfo, Box<dyn Error>> {
-    Ok(RunxX402InvocationExtensionInfo::Invocation {
-        invocation_id: NonEmptyString::from("paid_ocr_1"),
+) -> Result<RunxX402PurchaseExtensionInfo, Box<dyn Error>> {
+    Ok(RunxX402PurchaseExtensionInfo::Purchase {
+        purchase_id: NonEmptyString::from("paid_ocr_1"),
         quote_ref: Box::new(Reference::runx(ReferenceType::Receipt, "quote-1")),
-        offer_revision: OfferRevisionRef {
+        offer_version: OfferVersionBinding {
             offer_id: NonEmptyString::from("ocr-v1"),
-            revision: NonEmptyString::from("2026-08-22.1"),
-            revision_digest: digest(revision)?,
+            version: NonEmptyString::from("2026-08-22.1"),
+            profile_digest: digest(profile)?,
             input_schema_digest: digest('2')?,
             output_schema_digest: digest('3')?,
         },
         package_digest: digest(package)?,
         input_digest: digest(input)?,
-        canonicalizer_version: PaidInvocationCanonicalizerVersion::ReceiptC14nV1,
+        canonicalizer_version: PurchaseCanonicalizerVersion::ReceiptC14nV1,
         idempotency: PaymentIdempotencyBinding {
             key: NonEmptyString::from("ocr-1"),
             binding_digest: digest('6')?,
@@ -405,8 +402,8 @@ fn invocation(
     })
 }
 
-fn digest(character: char) -> Result<Sha256Digest, Box<dyn Error>> {
-    Sha256Digest::new(format!("sha256:{}", character.to_string().repeat(64)))
+fn digest(character: char) -> Result<Digest, Box<dyn Error>> {
+    Digest::new(format!("sha256:{}", character.to_string().repeat(64)))
         .ok_or_else(|| io::Error::other("valid digest fixture").into())
 }
 

@@ -2,6 +2,12 @@ import {
   generatedSchema,
   validateContractSchema,
 } from "../internal.js";
+import type {
+  OperationalPolicyActionContract,
+  OperationalPolicyContract,
+  OperationalPolicyReadbackContract,
+  OperationalPolicyValidationFindingContract,
+} from "../generated/contract-types.js";
 
 export const operationalPolicySchemaVersion = "runx.operational_policy.v1" as const;
 
@@ -23,7 +29,7 @@ export const operationalPolicyRunnerStates = [
 ] as const;
 
 export const operationalPolicyDedupeStrategies = [
-  "source_fingerprint",
+  "source_digest",
   "provider_search",
   "branch",
 ] as const;
@@ -34,79 +40,10 @@ export const operationalPolicyOutcomeCloseModes = [
   "when_terminal",
 ] as const;
 
-export type OperationalPolicySourceProviderContract = string;
-export type OperationalPolicyActionContract = string;
-export type OperationalPolicyRunnerKindContract = string;
-export type OperationalPolicyRunnerStateContract = string;
-
-export interface OperationalPolicyContract {
-  readonly schema: "runx.operational_policy.v1";
-  readonly schema_version: typeof operationalPolicySchemaVersion;
-  readonly policy_id: string;
-  readonly created_at?: string;
-  readonly sources: readonly {
-    readonly source_id: string;
-    readonly provider: OperationalPolicySourceProviderContract;
-    readonly allowed_locators: readonly string[];
-    readonly allowed_actions: readonly OperationalPolicyActionContract[];
-    readonly source_thread: {
-      readonly required: boolean;
-      readonly publish_mode: "reply" | "comment" | "none";
-      readonly missing_behavior: "fail_closed";
-    };
-    readonly minimum_confidence?: number;
-    readonly adapter_policy?: Readonly<Record<string, unknown>>;
-  }[];
-  readonly runners: readonly {
-    readonly runner_id: string;
-    readonly kind: OperationalPolicyRunnerKindContract;
-    readonly state: OperationalPolicyRunnerStateContract;
-    readonly allowed_actions: readonly OperationalPolicyActionContract[];
-    readonly target_repos: readonly string[];
-    readonly scafld_required: boolean;
-  }[];
-  readonly owner_routes: readonly {
-    readonly route_id: string;
-    readonly owners: readonly string[];
-    readonly target_repos: readonly string[];
-    readonly labels?: readonly string[];
-    readonly project?: string;
-  }[];
-  readonly targets: readonly {
-    readonly repo: string;
-    readonly runner_ids: readonly string[];
-    readonly allowed_actions: readonly OperationalPolicyActionContract[];
-    readonly default_owner_route: string;
-    readonly scafld_required: boolean;
-    readonly base_branch?: string;
-  }[];
-  readonly dedupe: {
-    readonly strategy: string;
-    readonly key_fields: readonly string[];
-    readonly on_duplicate: "reuse" | "comment" | "block";
-  };
-  readonly outcomes: {
-    readonly observe_provider: boolean;
-    readonly verification_required: boolean;
-    readonly close_source_issue: string;
-    readonly publish_final_source_thread_update: boolean;
-  };
-  readonly permissions: {
-    readonly auto_merge: false;
-    readonly mutate_target_repo: boolean;
-    readonly require_human_merge_gate: true;
-  };
-}
-
 export const operationalPolicySchema =
   generatedSchema<OperationalPolicyContract>("operational-policy.schema.json");
 
-export interface OperationalPolicyValidationFinding {
-  readonly code: string;
-  readonly path: string;
-  readonly message: string;
-}
-
+/** What a call asks the policy to admit. */
 export interface OperationalPolicyAdmissionRequest {
   readonly source_id?: string;
   readonly target_repo?: string;
@@ -117,7 +54,7 @@ export interface OperationalPolicyAdmissionRequest {
 
 export interface OperationalPolicyAdmission {
   readonly status: "allow" | "deny";
-  readonly findings: readonly OperationalPolicyValidationFinding[];
+  readonly findings: readonly OperationalPolicyValidationFindingContract[];
   readonly policy_id: string;
   readonly source_id?: string;
   readonly target_repo?: string;
@@ -131,49 +68,6 @@ export interface OperationalPolicyAdmission {
   readonly require_human_merge_gate: boolean;
 }
 
-export interface OperationalPolicyReadback {
-  readonly policy_id: string;
-  readonly schema_version: string;
-  readonly valid: boolean;
-  readonly findings: readonly OperationalPolicyValidationFinding[];
-  readonly sources: readonly {
-    readonly source_id: string;
-    readonly provider: OperationalPolicySourceProviderContract;
-    readonly locator_count: number;
-    readonly allowed_actions: readonly OperationalPolicyActionContract[];
-    readonly source_thread_required: boolean;
-    readonly publish_mode: string;
-  }[];
-  readonly runners: readonly {
-    readonly runner_id: string;
-    readonly kind: OperationalPolicyRunnerKindContract;
-    readonly state: OperationalPolicyRunnerStateContract;
-    readonly target_repos: readonly string[];
-    readonly allowed_actions: readonly OperationalPolicyActionContract[];
-    readonly scafld_required: boolean;
-  }[];
-  readonly targets: readonly {
-    readonly repo: string;
-    readonly runner_ids: readonly string[];
-    readonly default_owner_route: string;
-    readonly owner_count: number;
-    readonly allowed_actions: readonly OperationalPolicyActionContract[];
-    readonly scafld_required: boolean;
-    readonly available_runner_count: number;
-  }[];
-  readonly outcomes: {
-    readonly observe_provider: boolean;
-    readonly verification_required: boolean;
-    readonly close_source_issue: string;
-    readonly publish_final_source_thread_update: boolean;
-  };
-  readonly permissions: {
-    readonly auto_merge: boolean;
-    readonly mutate_target_repo: boolean;
-    readonly require_human_merge_gate: boolean;
-  };
-}
-
 export function validateOperationalPolicyContract(
   value: unknown,
   label = "operational_policy",
@@ -183,9 +77,9 @@ export function validateOperationalPolicyContract(
 
 export function lintOperationalPolicyContract(
   value: unknown,
-): readonly OperationalPolicyValidationFinding[] {
+): readonly OperationalPolicyValidationFindingContract[] {
   const policy = validateOperationalPolicyContract(value);
-  const findings: OperationalPolicyValidationFinding[] = [];
+  const findings: OperationalPolicyValidationFindingContract[] = [];
   const runnerIds = new Set(policy.runners.map((runner) => runner.runner_id));
   const ownerRouteIds = new Set(policy.owner_routes.map((route) => route.route_id));
 
@@ -317,7 +211,7 @@ export function admitOperationalPolicyRequest(
   request: OperationalPolicyAdmissionRequest,
 ): OperationalPolicyAdmission {
   const policy = validateOperationalPolicyContract(value);
-  const findings: OperationalPolicyValidationFinding[] = [...lintOperationalPolicyContract(policy)];
+  const findings: OperationalPolicyValidationFindingContract[] = [...lintOperationalPolicyContract(policy)];
   const source = selectRequestSource(policy, request, findings);
   const target = selectRequestTarget(policy, request, findings);
   const runner = selectRequestRunner(policy, request, target, findings);
@@ -389,7 +283,7 @@ export function admitOperationalPolicyRequest(
 
 export function projectOperationalPolicyReadback(
   value: unknown,
-): OperationalPolicyReadback {
+): OperationalPolicyReadbackContract {
   const policy = validateOperationalPolicyContract(value);
   const findings = lintOperationalPolicyContract(policy);
   return {
@@ -436,7 +330,7 @@ export function projectOperationalPolicyReadback(
 function selectRequestSource(
   policy: OperationalPolicyContract,
   request: OperationalPolicyAdmissionRequest,
-  findings: OperationalPolicyValidationFinding[],
+  findings: OperationalPolicyValidationFindingContract[],
 ): OperationalPolicyContract["sources"][number] | undefined {
   if (request.source_id) {
     const source = policy.sources.find((candidate) => candidate.source_id === request.source_id);
@@ -463,7 +357,7 @@ function selectRequestSource(
 function selectRequestTarget(
   policy: OperationalPolicyContract,
   request: OperationalPolicyAdmissionRequest,
-  findings: OperationalPolicyValidationFinding[],
+  findings: OperationalPolicyValidationFindingContract[],
 ): OperationalPolicyContract["targets"][number] | undefined {
   const targetRepo = nonEmptyString(request.target_repo);
   if (!targetRepo) {
@@ -489,7 +383,7 @@ function selectRequestRunner(
   policy: OperationalPolicyContract,
   request: OperationalPolicyAdmissionRequest,
   target: OperationalPolicyContract["targets"][number] | undefined,
-  findings: OperationalPolicyValidationFinding[],
+  findings: OperationalPolicyValidationFindingContract[],
 ): OperationalPolicyContract["runners"][number] | undefined {
   if (request.runner_id) {
     const runner = policy.runners.find((candidate) => candidate.runner_id === request.runner_id);
@@ -532,7 +426,7 @@ function collectDuplicateIds(
   ids: readonly string[],
   collectionName: string,
   fieldName: string,
-  findings: OperationalPolicyValidationFinding[],
+  findings: OperationalPolicyValidationFindingContract[],
 ): void {
   const seen = new Set<string>();
   ids.forEach((id, index) => {

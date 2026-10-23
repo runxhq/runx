@@ -61,9 +61,9 @@ export function assembleBinding(inputs) {
   const skillName = packageSegment(inspection.name, "skill_validation.inspect.name");
   const description = stringValue(inspection.description) || "Upstream skill bound by Runx.";
   const source = { ...sourceEvidence, name: skillName, description };
-  const owner = requiredString(evidence.registry.owner, "registry.owner");
-  const bindingPath = `bindings/${owner}/${skillName}`;
-  const skillId = `${owner}/${skillName}`;
+  const publisher = requiredString(evidence.registry.publisher, "registry.publisher");
+  const bindingPath = `bindings/${publisher}/${skillName}`;
+  const skillId = `${publisher}/${skillName}`;
   const harness = requiredRecord(validation.harness, "skill_validation.harness");
   const binding = {
     schema: "runx.registry_binding.v1",
@@ -71,7 +71,7 @@ export function assembleBinding(inputs) {
     skill: { id: skillId, name: skillName, description: requiredString(source.description, "source.description") },
     upstream: evidence.upstream,
     registry: {
-      owner,
+      publisher,
       trust_tier: evidence.registry.trust_tier,
       version: evidence.registry.version,
       install_command: `runx registry install ${skillId}@${evidence.registry.version}`,
@@ -173,5 +173,5 @@ function rejectedDocuments(candidate, reason) {
 }
 
 function fileEntry(path, contents, digest) {
-  return { path, contents, sha256: requiredString(digest, `${path} digest`) };
+  return { path, contents, content_digest: requiredString(digest, `${path} digest`) };
 }

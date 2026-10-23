@@ -1,4 +1,4 @@
-//! Purchaser signature vectors: claims and reads a purchaser key signed,
+//! Buyer signature vectors: claims and reads a buyer key signed,
 //! made here with Rust's signing and message construction. runx's verifier
 //! admits each signed request and refuses each one that was changed after
 //! signing or signed by another key.
@@ -13,13 +13,13 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use runx_contracts::canonical_json::canonical_stable_json;
 use runx_contracts::{
-    PURCHASE_CLAIM_SCHEMA, PURCHASE_READ_SCHEMA, PurchaseClaim, purchase_claim_message,
-    purchase_read_message,
+    PURCHASE_CLAIM_SCHEMA, PURCHASE_READ_REQUEST_SCHEMA, PurchaseClaim, purchase_claim_message,
+    purchase_read_request_message,
 };
 use serde_json::{Value, json};
 
 const FIXTURE: &str = "purchase-claim-v1.vectors.json";
-const PURCHASER_SEED: [u8; 32] = [9; 32];
+const BUYER_SEED: [u8; 32] = [9; 32];
 const STRANGER_SEED: [u8; 32] = [11; 32];
 const CLAIM_URL: &str = "https://api.runx.ai/v1/purchases/paid_7Hq2x9/claim";
 const READ_URL: &str = "https://api.runx.ai/v1/purchases/paid_7Hq2x9";
@@ -67,7 +67,7 @@ fn ed25519(bytes: &[u8]) -> String {
 }
 
 fn fixture_document() -> io::Result<Value> {
-    let purchaser = key_pair(&PURCHASER_SEED)?;
+    let buyer = key_pair(&BUYER_SEED)?;
     let stranger = key_pair(&STRANGER_SEED)?;
     let receipt_digest = format!("sha256:{}", "7".repeat(64));
     let claim =
@@ -85,7 +85,8 @@ fn fixture_document() -> io::Result<Value> {
             Ok(value)
         };
     let read = |method: &str, url: &str, key: &Ed25519KeyPair| -> io::Result<Value> {
-        let message = purchase_read_message(method, url, ISSUED_AT).map_err(io::Error::other)?;
+        let message =
+            purchase_read_request_message(method, url, ISSUED_AT).map_err(io::Error::other)?;
         Ok(json!({
             "method": method,
             "url": url,
@@ -99,8 +100,8 @@ fn fixture_document() -> io::Result<Value> {
         Value::Object(changed)
     };
 
-    let signed_claim = claim(CLAIM_URL, &receipt_digest, &purchaser)?;
-    let signed_read = read("GET", READ_URL, &purchaser)?;
+    let signed_claim = claim(CLAIM_URL, &receipt_digest, &buyer)?;
+    let signed_read = read("GET", READ_URL, &buyer)?;
     let cases = vec![
         case("claim", "claim", signed_claim.clone(), true),
         case(
@@ -162,9 +163,9 @@ fn fixture_document() -> io::Result<Value> {
     Ok(json!({
         "cases": cases,
         "claim_schema": PURCHASE_CLAIM_SCHEMA,
-        "purchaser_key": ed25519(purchaser.public_key().as_ref()),
-        "read_schema": PURCHASE_READ_SCHEMA,
-        "schema": "runx.payment.purchaser_signature.fixtures.v1",
+        "buyer_key": ed25519(buyer.public_key().as_ref()),
+        "read_schema": PURCHASE_READ_REQUEST_SCHEMA,
+        "schema": "runx.payment.buyer_signature.fixtures.v1",
     }))
 }
 
@@ -228,7 +229,7 @@ fn reject_orphans(out_dir: &Path, check: bool) -> io::Result<()> {
         }
         if check {
             return Err(io::Error::other(format!(
-                "orphan purchaser signature fixture: {}",
+                "orphan buyer signature fixture: {}",
                 path.display()
             )));
         }

@@ -47,11 +47,11 @@ inputs:
         default_owner_route: maintainers
         scafld_required: true
     dedupe:
-      strategy: source_fingerprint
+      strategy: source_digest
       key_fields:
         - source.provider
         - source.locator
-        - signal.fingerprint
+        - signal.digest
       on_duplicate: reuse
     outcomes:
       observe_provider: true
@@ -111,11 +111,11 @@ caller:
               default_owner_route: maintainers
               scafld_required: true
           dedupe:
-            strategy: source_fingerprint
+            strategy: source_digest
             key_fields:
               - source.provider
               - source.locator
-              - signal.fingerprint
+              - signal.digest
             on_duplicate: reuse
           outcomes:
             observe_provider: true
@@ -154,7 +154,7 @@ expect:
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: closed
+    outcome: completed
 metadata:
   public_skill: policy-draft
   source_case: tighten-existing-policy

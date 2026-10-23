@@ -1,7 +1,6 @@
 {
   "status": "success",
   "tool": {
-    "ref": "fixture.local_echo",
     "name": "fixture.local_echo",
     "description": "Local inspect fixture tool.",
     "execution": "process",

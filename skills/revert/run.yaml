@@ -1,8 +1,8 @@
 skill: revert
-version: "0.1.0"
+version: "0.1.1"
 
 catalog:
-  owner: runx
+  publisher: runx
   kind: graph
   audience: operator
   visibility: internal

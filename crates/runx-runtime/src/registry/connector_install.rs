@@ -34,8 +34,7 @@ use crate::kernel::connectors::{ConnectorRegistryError, load_installed};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RegistryConnectorVersion {
-    #[serde(rename = "ref")]
-    pub name: ConnectorName,
+    pub connector: ConnectorName,
     pub version: String,
     pub trust_tier: TrustTier,
     pub files: Vec<RegistryPackageFile>,
@@ -59,8 +58,7 @@ pub struct InstallRegistryConnectorOptions {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct InstalledRegistryConnector {
     pub status: InstallStatus,
-    #[serde(rename = "ref")]
-    pub name: ConnectorName,
+    pub connector: ConnectorName,
     pub version: String,
     pub content_digest: Digest,
     pub manifest_digest: Digest,
@@ -79,7 +77,7 @@ pub enum ConnectorInstallError {
     /// tool it declares: the version is another runx's to run.
     #[error(
         "runx {} does not read connector {name}@{version}: {reason}",
-        crate::EXECUTION_RUNTIME_RELEASE
+        crate::RUNX_VERSION
     )]
     Unreadable {
         name: ConnectorName,
@@ -137,7 +135,7 @@ pub(crate) fn write_connector_version(
     source: Option<&Path>,
 ) -> Result<PathBuf, String> {
     let package = connector_package(connector, source).map_err(|error| error.to_string())?;
-    let versions = crate::kernel::connectors::name_directory(connectors_root, &package.name);
+    let versions = crate::kernel::connectors::name_directory(connectors_root, &package.connector);
     let destination = versions.join(&package.version);
     if destination.exists() {
         return Ok(destination);
@@ -182,7 +180,7 @@ pub fn install_registry_connector(
     published: &RegistryConnectorVersion,
     options: &InstallRegistryConnectorOptions,
 ) -> Result<InstalledRegistryConnector, ConnectorInstallError> {
-    let connector_ref = &published.name;
+    let connector_ref = &published.connector;
     if !is_registry_version(&published.version) {
         return Err(ConnectorInstallError::InvalidVersion {
             name: connector_ref.clone(),
@@ -247,12 +245,15 @@ fn recorded(
         &options.connectors_root,
         &installed.destination,
         &InstallRecord {
-            reference: format!("{}@{}", published.name, published.version),
+            package: format!("{}@{}", published.connector, published.version),
             trust_tier: published.trust_tier,
         },
     )
     .map_err(|reason| {
-        invalid_package(&published.name, format!("recording the install: {reason}"))
+        invalid_package(
+            &published.connector,
+            format!("recording the install: {reason}"),
+        )
     })?;
     Ok(installed)
 }
@@ -265,7 +266,7 @@ fn verify_signed_manifest(
     content_digest: &Digest,
     options: &InstallRegistryConnectorOptions,
 ) -> Result<(), ConnectorInstallError> {
-    let connector_ref = &published.name;
+    let connector_ref = &published.connector;
     let manifest = &published.signed_manifest;
     let trusted_keys = if options.trusted_manifest_keys.is_empty() {
         default_trusted_registry_manifest_keys().map_err(|_| {
@@ -281,7 +282,7 @@ fn verify_signed_manifest(
         .map_err(|failure| verification_error(connector_ref, &manifest.signer.key_id, failure))?;
     let subject = RegistrySubject {
         kind: RegistrySubjectKind::Connector,
-        subject_ref: connector_ref.as_str().to_owned(),
+        name: connector_ref.as_str().to_owned(),
     };
     if !manifest.signs(&subject, &published.version) {
         return Err(ConnectorInstallError::ManifestIdentityMismatch {
@@ -290,7 +291,7 @@ fn verify_signed_manifest(
             actual: format!(
                 "{} {}@{}",
                 manifest.subject.kind.as_str(),
-                manifest.subject.subject_ref,
+                manifest.subject.name,
                 manifest.version
             ),
         });
@@ -354,7 +355,7 @@ fn existing_version(
             ConnectorInstallError::InvalidPackage { .. }
             | ConnectorInstallError::DigestMismatch { .. },
         ) => Err(ConnectorInstallError::ConflictingVersion {
-            name: published.name.clone(),
+            name: published.connector.clone(),
             destination,
         }),
         Err(error) => Err(error),
@@ -371,7 +372,7 @@ fn load(
     content_digest: &Digest,
     directory: &Path,
 ) -> Result<Loaded, ConnectorInstallError> {
-    let connector_ref = &published.name;
+    let connector_ref = &published.connector;
     // An installed version, not a source tree: a later runx/* version may
     // differ from the copy embedded in this binary.
     let connector =
@@ -416,7 +417,7 @@ fn installed(
 ) -> InstalledRegistryConnector {
     InstalledRegistryConnector {
         status,
-        name: published.name.clone(),
+        connector: published.connector.clone(),
         version: published.version.clone(),
         content_digest,
         manifest_digest: loaded.manifest_digest,

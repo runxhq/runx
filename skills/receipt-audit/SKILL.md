@@ -114,25 +114,13 @@ grant from usage, this one verifies a run honored its grant.
 - **Raw token, key, or credential in the receipt:** emit
   `receipt.material.exposed` and recommend revocation/rotation.
 
-## Output schema (`receipt_audit`)
+## Output
 
-```yaml
-decision: ready | needs_more_evidence
-run_ref: string
-granted_scopes: [string]
-exercised_scopes: [string]
-refusals: [string]
-findings:
-  - id: string
-    severity: error | warning | info
-    message: string
-verdict: clean | anomaly | needs_more_evidence
-rationale: string
-recommendations: [string]
-success_checkpoint:
-  milestone: string
-  description: string
-```
+`receipt_audit` is the `runx/receipt-audit.audit.v1` packet: the decision
+(`ready` or `needs_more_evidence`), the receipt id, granted and exercised
+scopes, recorded refusals, findings with their severity, the verdict
+(`clean`, `anomaly` or `needs_more_evidence`), its rationale,
+recommendations and the success checkpoint.
 
 A `clean` verdict requires zero `error` findings.
 

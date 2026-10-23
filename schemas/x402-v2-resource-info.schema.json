@@ -72,5 +72,6 @@
   "required": [
     "url"
   ],
+  "title": "X402ResourceInfo",
   "type": "object"
 }

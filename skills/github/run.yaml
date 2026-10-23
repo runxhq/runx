@@ -1,5 +1,5 @@
 skill: github
-version: "0.6.1"
+version: "0.6.2"
 
 catalog:
   kind: skill
@@ -50,7 +50,7 @@ input_definitions:
           type: string
           enum: [issues, prs, threads, batch]
         filters: {}
-        refs: {}
+        paths: {}
         mutations: {}
       allOf:
         - if:
@@ -71,7 +71,7 @@ input_definitions:
                   since: { type: string, minLength: 1, maxLength: 64 }
                   limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
                   cursor: { type: string, pattern: '^[1-9][0-9]{0,4}$', description: GitHub page number a listing continues from. }
-              refs:
+              paths:
                 type: array
                 maxItems: 100
                 uniqueItems: true
@@ -82,10 +82,10 @@ input_definitions:
                 items:
                   oneOf:
                     - type: object
-                      required: [ref, op, payload]
+                      required: [path, op, payload]
                       additionalProperties: false
                       properties:
-                        ref: { type: string, pattern: '^issues/[1-9][0-9]*$' }
+                        path: { type: string, pattern: '^issues/[1-9][0-9]*$' }
                         op: { const: update }
                         payload:
                           type: object
@@ -110,10 +110,10 @@ input_definitions:
                               type: [integer, 'null']
                               minimum: 1
                     - type: object
-                      required: [ref, op, payload]
+                      required: [path, op, payload]
                       additionalProperties: false
                       properties:
-                        ref: { const: issues }
+                        path: { const: issues }
                         op: { const: create }
                         payload:
                           type: object
@@ -149,7 +149,7 @@ input_definitions:
                   direction: { type: string, enum: [asc, desc] }
                   limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
                   cursor: { type: string, pattern: '^[1-9][0-9]{0,4}$', description: GitHub page number a listing continues from. }
-              refs:
+              paths:
                 type: array
                 maxItems: 100
                 uniqueItems: true
@@ -159,10 +159,10 @@ input_definitions:
                 maxItems: 8
                 items:
                   type: object
-                  required: [ref, op, payload]
+                  required: [path, op, payload]
                   additionalProperties: false
                   properties:
-                    ref: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
+                    path: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
                     op: { const: update }
                     payload:
                       type: object
@@ -183,9 +183,9 @@ input_definitions:
                 type: object
                 additionalProperties: false
                 properties:
-                  thread_ref: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
+                  thread_path: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
                   limit: { type: integer, minimum: 1, maximum: 100, default: 30 }
-              refs:
+              paths:
                 type: array
                 maxItems: 100
                 uniqueItems: true
@@ -196,10 +196,10 @@ input_definitions:
                 items:
                   oneOf:
                     - type: object
-                      required: [ref, op, payload]
+                      required: [path, op, payload]
                       additionalProperties: false
                       properties:
-                        ref: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
+                        path: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
                         op: { const: comment }
                         payload:
                           type: object
@@ -219,10 +219,10 @@ input_definitions:
                 items:
                   oneOf:
                     - type: object
-                      required: [ref, op, payload]
+                      required: [path, op, payload]
                       additionalProperties: false
                       properties:
-                        ref: { type: string, pattern: '^issues/[1-9][0-9]*$' }
+                        path: { type: string, pattern: '^issues/[1-9][0-9]*$' }
                         op: { const: update }
                         payload:
                           type: object
@@ -247,10 +247,10 @@ input_definitions:
                               type: [integer, 'null']
                               minimum: 1
                     - type: object
-                      required: [ref, op, payload]
+                      required: [path, op, payload]
                       additionalProperties: false
                       properties:
-                        ref: { const: issues }
+                        path: { const: issues }
                         op: { const: create }
                         payload:
                           type: object
@@ -271,10 +271,10 @@ input_definitions:
                               items: { type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$' }
                             milestone: { type: integer, minimum: 1 }
                     - type: object
-                      required: [ref, op, payload]
+                      required: [path, op, payload]
                       additionalProperties: false
                       properties:
-                        ref: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
+                        path: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
                         op: { const: update }
                         payload:
                           type: object
@@ -287,10 +287,10 @@ input_definitions:
                             base: { type: string, minLength: 1, maxLength: 255, pattern: '^[A-Za-z0-9._/-]+$' }
                             maintainer_can_modify: { type: boolean }
                     - type: object
-                      required: [ref, op, payload]
+                      required: [path, op, payload]
                       additionalProperties: false
                       properties:
-                        ref: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
+                        path: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
                         op: { const: comment }
                         payload:
                           type: object
@@ -299,10 +299,10 @@ input_definitions:
                           properties:
                             body: { type: string, minLength: 1, maxLength: 65536, pattern: '^[^\u0000]+$' }
                     - type: object
-                      required: [ref, op, payload]
+                      required: [path, op, payload]
                       additionalProperties: false
                       properties:
-                        ref: { type: string, pattern: '^issues/comments/[1-9][0-9]*$' }
+                        path: { type: string, pattern: '^issues/comments/[1-9][0-9]*$' }
                         op: { const: update }
                         payload:
                           type: object
@@ -348,7 +348,7 @@ runners:
           named_emits:
             sync_plan: sync_plan
           packets:
-            sync_plan: runx.github_sync.v1
+            sync_plan: runx/github.sync_plan.v1
 
       - id: pull
         when:
@@ -395,7 +395,7 @@ runners:
           named_emits:
             sync_plan: sync_plan
           packets:
-            sync_plan: runx.github_sync.v1
+            sync_plan: runx/github.sync_plan.v1
 
   pull:
     description: Read issues, pull requests or comments by a bounded selector, returning GitHub's records whole.
@@ -420,7 +420,7 @@ runners:
           named_emits:
             sync_plan: sync_plan
           packets:
-            sync_plan: runx.github_sync.v1
+            sync_plan: runx/github.sync_plan.v1
 
       - id: pull
         when:
@@ -518,7 +518,7 @@ runners:
         resources:
           kind: issues
           mutations:
-            - { ref: issues/241, op: update, payload: { labels: [triage] } }
+            - { path: issues/241, op: update, payload: { labels: [triage] } }
         idempotency_key: runxhq/runx:issues/241:labels:triage
     result_from: [apply]
     steps:
@@ -535,7 +535,7 @@ runners:
           named_emits:
             sync_plan: sync_plan
           packets:
-            sync_plan: runx.github_sync.v1
+            sync_plan: runx/github.sync_plan.v1
 
       - id: apply
         when:
@@ -549,7 +549,7 @@ runners:
   plan_and_append_cursor:
     description: Plan a sync and append it to the store's cursor log, reading the projection back. It keeps the cursor locally and touches nothing on GitHub.
     inputs:
-      data_source_ref:
+      data_source_uri:
         type: string
         required: true
         description: Logical data source for cursor events.
@@ -574,7 +574,7 @@ runners:
       resources: { definition: resources }
       scope: { definition: scope }
     examples:
-      - data_source_ref: tenant://github/sqlite-cursors
+      - data_source_uri: tenant://github/sqlite-cursors
         resource: github_sync_events
         aggregate_id: runxhq/runx:triage-open
         expected_version: 0
@@ -588,7 +588,7 @@ runners:
       - id: read-cursor
         operation: store/projection.read
         input:
-          data_source_ref: $input.data_source_ref
+          data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
 
@@ -605,13 +605,13 @@ runners:
           named_emits:
             sync_plan: sync_plan
           packets:
-            sync_plan: runx.github_sync.v1
+            sync_plan: runx/github.sync_plan.v1
 
       - id: append-cursor-event
         operation: store/events.append
         idempotency_key: $input.idempotency_key
         input:
-          data_source_ref: $input.data_source_ref
+          data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
           expected_version: $input.expected_version
@@ -620,7 +620,7 @@ runners:
       - id: readback
         operation: store/projection.read
         input:
-          data_source_ref: $input.data_source_ref
+          data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
   comment:

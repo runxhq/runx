@@ -1,22 +1,21 @@
-use runx_contracts::{JsonObject, JsonValue};
+use std::path::Path;
+
+use runx_contracts::schema::NonEmptyString;
 
 use crate::RuntimeError;
 
-pub(crate) fn required_string<'a>(
+/// A value a native packet requires to be non-empty.
+pub(crate) fn non_empty(
     tool: &str,
-    object: &'a JsonObject,
     field: &str,
-) -> Result<&'a str, RuntimeError> {
-    optional_string(object, field)
-        .ok_or_else(|| invalid_input(tool, format!("{field} must be a non-empty string")))
+    value: impl Into<String>,
+) -> Result<NonEmptyString, RuntimeError> {
+    NonEmptyString::new(value).ok_or_else(|| invalid_input(tool, format!("{field} is empty")))
 }
 
-fn optional_string<'a>(object: &'a JsonObject, field: &str) -> Option<&'a str> {
-    object
-        .get(field)
-        .and_then(JsonValue::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+/// A resolved root as a native packet names it.
+pub(crate) fn root_name(tool: &str, root: &Path) -> Result<NonEmptyString, RuntimeError> {
+    non_empty(tool, "repo_root", root.to_string_lossy())
 }
 
 pub(crate) fn invalid_input(tool: &str, message: impl Into<String>) -> RuntimeError {

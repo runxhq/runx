@@ -362,7 +362,7 @@ mod tests {
                 gate_type: None,
                 summary: None,
                 payload: None,
-                payload_ref: None,
+                payload_artifact: None,
             }),
         }
     }
@@ -505,20 +505,20 @@ mod tests {
         let purchase = serde_json::from_value(serde_json::json!({
             "skill": "acme/documents",
             "runner": "main",
-            "offer": {
+            "offer_version": {
                 "offer_id": "acme/documents#main",
-                "revision": "1.0.0",
-                "revision_digest": digest('a'),
+                "version": "1.0.0",
+                "profile_digest": digest('a'),
                 "input_schema_digest": digest('b'),
                 "output_schema_digest": digest('c'),
             },
             "package_digest": digest('d'),
-            "seller": {"type": "principal", "uri": "runx:principal:acme"},
+            "seller_ref": {"type": "principal", "uri": "runx:principal:acme"},
             "amount_minor": 5,
             "currency": "USD",
             "input_digest": digest('e'),
             "quote": {
-                "invocation_id": "paid-1",
+                "purchase_id": "paid-1",
                 "expires_at": "2026-10-16T00:05:00Z",
                 "payment_options": [{
                     "option": {"settlement_family": "x402", "payload_digest": digest('a')},

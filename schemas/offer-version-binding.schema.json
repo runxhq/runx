@@ -1,0 +1,43 @@
+{
+  "$id": "https://schemas.runx.ai/runx/payment/offer-version-binding/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "input_schema_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "offer_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "output_schema_digest": {
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "profile_digest": {
+      "description": "The digest of the profile that declares the offer at that version.",
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "version": {
+      "description": "The package version the offer is sold at.",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "offer_id",
+    "version",
+    "profile_digest",
+    "input_schema_digest",
+    "output_schema_digest"
+  ],
+  "title": "OfferVersionBinding",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.payment.offer_version_binding.v1"
+}

@@ -16,11 +16,11 @@ operator_journeys:
       - Do not reacquire provider state already projected locally.
       - Do not replay completed actions represented by receipts.
 inputs:
-  data_source_ref: tenant://operations-review/sqlite-state
+  data_source_uri: tenant://operations-review/sqlite-state
   resource: ops_projection
   aggregate_id: workspace-example
   objective: Check the workspace and tell me the next safe action.
-  scope_ref: workspace:example
+  scope: workspace:example
   receipt_summary:
     receipts: []
   provider_status:
@@ -33,7 +33,7 @@ caller:
     operate:
       ops_desk_packet:
         decision: needs_input
-        scope_ref: workspace:example
+        scope: workspace:example
         objective: Check the workspace and tell me the next safe action.
         mode: read_only
         dashboard:
@@ -46,7 +46,7 @@ caller:
           - severity: warning
             area: receipts
             summary: The projection is empty, so there is no receipt-backed operating state yet.
-            evidence_refs:
+            evidence_paths:
               - store/projection.read
         proposals: []
         ordered_next_steps:

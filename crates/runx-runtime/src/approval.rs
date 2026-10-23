@@ -197,7 +197,7 @@ pub(crate) fn carry_payload(
         gate.id.as_str(),
         &value,
     )?;
-    gate.payload_ref = Some(
+    gate.payload_artifact = Some(
         serde_json::to_value(reference)
             .and_then(serde_json::from_value)
             .map_err(|error| error.to_string())?,

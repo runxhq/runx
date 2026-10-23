@@ -34,15 +34,15 @@ Seven runners:
   account; with it, another account. The connector reads whole pages until it
   has at least `max_items`, keeps every item of them, and reports in
   `next_cursor` where a further read starts (pass it back as
-  `params.pagination_token`). Emits `twitter.evidence.v1`.
+  `params.pagination_token`). Emits `runx/twitter.evidence.v1`.
   Read-only; no gate.
 - `read-archive`: inspect one contained X archive export (`tweets.js`,
   `following.js`, or `follower.js`) through the runtime's digest-bound artifact
   page seam. Twitter code receives bounded, record-complete pages and never a
   path or whole-file escape hatch. The runtime snapshots up to 512 MiB and this
   skill requests 512 KiB pages; the page size is not a total archive limit.
-  Emits the same `twitter.evidence.v1` packet; no gate.
-- `plan`: turn one bounded objective plus evidence into `twitter.plan.v1`, an
+  Emits the same `runx/twitter.evidence.v1` packet; no gate.
+- `plan`: turn one bounded objective plus evidence into `runx/twitter.plan.v1`, an
   explicit list of typed acts with rationale, using agent judgment, then bind
   the exact plan through native `data.digest`. This is the curated lane, for
   dozens of acts that each deserve a reason. A plan is a draft; it delivers
@@ -58,10 +58,10 @@ Seven runners:
   `users` reads a bounded `following.js` bundle and emits
   `unfollow` acts (predicate: `non_mutual: true` for accounts you follow that
   do not follow back, needing `follower.js` too, or an explicit `user_ids`
-  list). Emits `twitter.selection.v1` carrying a digest-bound `twitter_plan`.
+  list). Emits `runx/twitter.selection.v1` carrying a digest-bound `twitter_plan`.
 - `execute`: run the next batch of an approved plan as one `twitter` connector
   operation behind its own approval, sealing per-act outcomes into
-  `twitter.execution.v1` and appending one compact progress fact to a durable
+  `runx/twitter.execution.v1` and appending one compact progress fact to a durable
   execution ledger. A batch is one published act (a post, reply, quote, or one
   thread segment), or the contiguous run of up to 50 acts of one other kind
   from the cursor. The approval binds that exact call. The kernel records each
@@ -84,7 +84,7 @@ On the first `execute`, supply `plan_json` and its native `plan_digest` from
 is not approval. On later calls, omit `plan_json` and supply only the digest.
 The skill reads its own progress, selects the next batch and derives the
 expected stream version and canonical retry key. The logical store defaults to
-`local://twitter`; pass `data_source_ref` when the operation uses another
+`local://twitter`; pass `data_source_uri` when the operation uses another
 binding, and keep using that same workspace and store.
 
 - `status` reads one plan and its progress without contacting X. It returns the
@@ -158,7 +158,7 @@ runx skill ./skills/twitter execute -i plan_digest=<native-plan-digest> --json
 
 For the first execution, `--inputs <file-or-stdin>` carries the original plan
 and native digest; subsequent executions use the compact `next_input` from
-status. Local paths above illustrate a checkout; installed registry refs and
+status. Local paths above illustrate a checkout; installed registry packages and
 other compatible hosts use the same runner contracts. Paths, run ids and
 artifact references come from runx, never guessed filesystem layouts.
 
@@ -227,7 +227,7 @@ breaks either is refused before approval.
   delete old posts, unfollow low-value accounts, against operator-stated
   criteria.
 - Gather timeline, mention, or search evidence for downstream research,
-  triage, or lead skills that consume `twitter.evidence.v1`.
+  triage, or lead skills that consume `runx/twitter.evidence.v1`.
 - Route a `message-send` plan onto X as its provider delivery lane.
 
 ## When not to use this skill
@@ -301,34 +301,22 @@ For the `plan` runner, build `twitter_plan` this way:
 - **Fully autonomous live posting requested:** `reject`; the gate is the
   contract.
 
-## Output schema
+## Outputs
 
-- `twitter.evidence.v1`: `decision` (`ok` or `needs_input`), `source`
-  (`live` or `archive`), `query`, `account`, `items[]` (typed post or user
-  records with metrics), `item_count`, `truncated`, `next_cursor` (where the
-  next live read starts, or null), `provenance`
-  (`retrieved_via`, the readback reference of the provider answers or the
-  archive artifact, and `content_digest`), `blockers[]`.
-- `twitter.plan.v1` (returned as `twitter_plan.data` together with
-  `digest_result.data.digest`): `decision` (`ready`, `needs_input`, `reject`),
-  `objective`, `principal`, `acts[]` (`act_id`, `kind`, `params`,
-  `consequence`, `rationale`), `gates`
-  (`human_approval_required`, `approval_ref`), `evidence_refs[]`,
-  optional `context_bindings[]` (`packet_digest`, `applied_rules[]`) preserving
-  the exact brand or taste context applied by the planner, `open_questions[]`,
-  `blockers[]`, `success_checkpoint`.
-- `twitter.selection.v1`: `decision`, `objective`, `principal`, `predicate`,
-  `matched`, `scanned`, `truncated`, `twitter_plan` (a `twitter.plan.v1`),
-  `plan_digest`, `blockers[]`. The `twitter_plan` is what a driver hands to
-  `execute`, and `plan_digest` is bound so the approved and executed bytes are
-  provably identical.
-- `twitter.execution.v1`: `decision` (`executed`, `completed_with_failures`, `partial`, `stopped`,
-  `refused`, `noop`), `plan_digest`, `principal`, `results[]` (`act_id`, `kind`,
-  `consequence`, `status`, `provider_ref`, `detail`) for the current bounded
-  batch, `next_act_index`, `total_act_count`, `remaining_count`, optional
-  `active_thread`, cumulative `counts`, `last_failure`, structured `stop`, `rate`, `blockers[]`, and `success_checkpoint`. A ready batch
-  also carries the compact `twitter.execution.progress.v1` ledger delta, with
-  the reported rate/reset information needed by the next host.
+- `read` and `read-archive` return `runx/twitter.evidence.v1`: typed post or
+  user records with metrics, the cursor the next live read starts from, and
+  provenance naming the provider answers or archive artifact by digest.
+- `plan` returns `runx/twitter.plan.v1` as `twitter_plan.data`, with its
+  digest as `digest_result.data.digest`. Each act carries its consequence and
+  rationale, and `context_bindings` preserve the exact brand or taste context
+  the planner applied.
+- `select` returns `runx/twitter.selection.v1`: the matched records and the
+  `twitter_plan` a driver hands to `execute`, with `plan_digest` bound so the
+  approved and executed bytes are provably identical.
+- `execute` returns `runx/twitter.execution.v1` for the current bounded batch:
+  each act's result, where the next batch resumes, cumulative counts, any
+  structured stop, and the provider's reported rate and reset, which the next
+  host needs.
 
 ## Worked example
 
@@ -360,11 +348,11 @@ confirmed.
   `before_year`, `after_year`; users take `non_mutual` or `user_ids`),
   `archive_base`, `max_acts`.
 - `execute`: `plan_digest` (required), optional `plan_json` on the first call,
-  `data_source_ref` (default `local://twitter`) and `max_acts` (1–50). Native
+  `data_source_uri` (default `local://twitter`) and `max_acts` (1–50). Native
   digest verification precedes saving the plan or provider effects. Version,
   retry identity and next batch are derived inside the skill.
-- `status`: `plan_digest` (required), optional `data_source_ref` and `max_acts`.
-- `recent`: optional `data_source_ref`, `limit` (1–100, default 5) and page
+- `status`: `plan_digest` (required), optional `data_source_uri` and `max_acts`.
+- `recent`: optional `data_source_uri`, `limit` (1–100, default 5) and page
   `cursor`. Only execution summaries are listed.
 
 ## Credentials and cost
@@ -392,7 +380,7 @@ the act caps bound each run.
 
 Follow the `plan` procedure and act vocabulary above. Return one
 `twitter_plan` containing `decision`, `objective`, `principal`, typed `acts`,
-approval gates, evidence refs, open questions, blockers, and a truthful success
+approval gates, evidence locators, open questions, blockers, and a truthful success
 checkpoint. Every referenced post or user id must be grounded in supplied
 evidence, and every public word must appear verbatim in the act params. A plan
 never executes, publishes, deletes, follows, or otherwise mutates the account.

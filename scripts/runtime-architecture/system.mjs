@@ -89,8 +89,8 @@ export function checkCanonicalToolManifestOwnership(findings) {
       "output",
       "runx",
       "runtime",
-      "schema_hash",
-      "source_hash",
+      "schema_digest",
+      "source_digest",
       "toolkit_version",
     ]) {
       if (Object.hasOwn(manifest, field)) {

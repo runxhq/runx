@@ -60,5 +60,5 @@ expect:
   receipt:
     schema: runx.receipt.v1
     state: sealed
-    disposition: closed
+    outcome: completed
 metadata: { public_skill: google-analytics, source_case: direct-default-success, source: skills-fixture }

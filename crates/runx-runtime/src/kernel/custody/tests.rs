@@ -75,7 +75,7 @@ fn readback() -> Readback {
         operation: "channel.post".to_owned(),
         target: "slack://T123/C456".to_owned(),
         result: JsonValue::Null,
-        readback_ref: "runx:readback:1".to_owned(),
+        readback_uri: "runx:readback:1".to_owned(),
         operation_id: Some("m-1".to_owned()),
         idempotency_key: Some("runx:sha256:intent".to_owned()),
     }

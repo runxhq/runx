@@ -21,7 +21,7 @@ impl Transport for StubTransport {
                 serde_json::json!({
                     "status": "notarized",
                     "digest": "sha256:abc",
-                    "public_hash": "abc",
+                    "public_digest": "abc",
                     "mode": "full",
                     "published": true,
                     "public_url": "https://runx.test/r/abc",
@@ -176,10 +176,10 @@ fn unauthenticated_environment_does_not_load_stored_credentials()
             agent: None,
             public: Some(runx_runtime::RunxPublicConfig {
                 api_base_url: Some("https://stored.runx.test".to_owned()),
-                api_token_ref: Some("missing-encrypted-token".to_owned()),
+                api_token_material_id: Some("missing-encrypted-token".to_owned()),
                 principal_id: Some("stored-principal".to_owned()),
                 publish_api_base_url: None,
-                publish_api_token_ref: None,
+                publish_api_token_material_id: None,
                 publish_principal_id: None,
             }),
             ..runx_runtime::RunxConfigFile::default()
@@ -267,7 +267,7 @@ fn human_output_reflects_notary_status() -> Result<(), NotarizeCliError> {
             status: "notarized".to_owned(),
             replay_status: Some("fresh".to_owned()),
             digest: "sha256:abc".to_owned(),
-            public_hash: "abc".to_owned(),
+            public_digest: "abc".to_owned(),
             mode: "full".to_owned(),
             published: false,
             public_url: None,
@@ -280,11 +280,12 @@ fn human_output_reflects_notary_status() -> Result<(), NotarizeCliError> {
     )?;
 
     assert!(output.contains("notarized receipt sha256:abc (full)"));
-    assert!(output.contains("status:      notarized"));
-    assert!(output.contains("published:   false"));
-    assert!(output.contains("receipt id:  receipt_1"));
-    assert!(output.contains("replay:      fresh"));
-    assert!(output.contains(r#"verdict:     {"valid":true}"#));
+    assert!(output.contains("status:        notarized"));
+    assert!(output.contains("published:     false"));
+    assert!(output.contains("public digest: abc"));
+    assert!(output.contains("receipt id:    receipt_1"));
+    assert!(output.contains("replay:        fresh"));
+    assert!(output.contains(r#"verdict:       {"valid":true}"#));
     Ok(())
 }
 

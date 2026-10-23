@@ -2,8 +2,10 @@
   "$id": "https://schemas.runx.ai/runx/run-event/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "One event of a run's record. It carries references and digests, never outputs or secrets.",
   "properties": {
     "committed_at": {
+      "description": "When the event committed, for display only: it orders nothing.",
       "minLength": 1,
       "type": "string"
     },
@@ -124,6 +126,7 @@
               "anyOf": [
                 {
                   "additionalProperties": false,
+                  "description": "On a request it raised.",
                   "properties": {
                     "address": {
                       "minLength": 1,
@@ -147,6 +150,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "On a bounded retry; the step has not started.",
                   "properties": {
                     "address": {
                       "minLength": 1,
@@ -170,6 +174,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "On its retry after it was claimed: it reaches the world, and its effect may have happened.",
                   "properties": {
                     "address": {
                       "minLength": 1,
@@ -193,6 +198,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "On what the child run it started waits on.",
                   "properties": {
                     "kind": {
                       "const": "child",
@@ -209,7 +215,9 @@
                   ],
                   "type": "object"
                 }
-              ]
+              ],
+              "description": "Where a suspended step waits.",
+              "title": "RunHold"
             },
             "kind": {
               "const": "suspended",
@@ -236,6 +244,7 @@
               "type": "integer"
             },
             "call_id": {
+              "description": "The id its host pinned on the call.",
               "minLength": 1,
               "type": "string"
             },
@@ -257,11 +266,13 @@
                   "additionalProperties": false,
                   "properties": {
                     "outputs": {
+                      "description": "The call's output as project artifacts of its run: one per packet output, and one for the rest.",
                       "items": {
                         "additionalProperties": false,
+                        "description": "A project artifact holding part of a call's output.",
                         "properties": {
                           "artifact": {
-                            "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+                            "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
                             "$schema": "https://json-schema.org/draft/2020-12/schema",
                             "additionalProperties": false,
                             "properties": {
@@ -278,28 +289,32 @@
                               "path": {
                                 "type": "string"
                               },
-                              "ref": {
-                                "type": "string"
-                              },
                               "schema": {
                                 "enum": [
-                                  "runx.project_artifact_ref.v1"
+                                  "runx.project_artifact.v1"
                                 ],
+                                "title": "ProjectArtifactSchema",
+                                "type": "string"
+                              },
+                              "uri": {
+                                "description": "`runx:project-artifact:` and the artifact's digest.",
                                 "type": "string"
                               }
                             },
                             "required": [
                               "schema",
-                              "ref",
+                              "uri",
                               "digest",
                               "bytes",
                               "media_type",
                               "path"
                             ],
+                            "title": "ProjectArtifact",
                             "type": "object",
-                            "x-runx-schema": "runx.project_artifact_ref.v1"
+                            "x-runx-schema": "runx.project_artifact.v1"
                           },
                           "output": {
+                            "description": "The packet output it holds; absent on the artifact of the call's other outputs.",
                             "minLength": 1,
                             "type": "string"
                           }
@@ -307,12 +322,14 @@
                         "required": [
                           "artifact"
                         ],
+                        "title": "RunCallOutput",
                         "type": "object"
                       },
                       "minItems": 1,
                       "type": "array"
                     },
                     "reason": {
+                      "description": "Why a call that ran did not succeed.",
                       "minLength": 1,
                       "type": "string"
                     },
@@ -337,6 +354,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "Admission refused the call; nothing ran.",
                   "properties": {
                     "reason": {
                       "minLength": 1,
@@ -355,6 +373,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "The call could not run.",
                   "properties": {
                     "reason": {
                       "minLength": 1,
@@ -396,6 +415,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "Claimed and not settled: its effect may have happened.",
                   "properties": {
                     "address": {
                       "minLength": 1,
@@ -435,15 +455,20 @@
                   ],
                   "type": "object"
                 }
-              ]
+              ],
+              "description": "How a call stood when this event recorded it.",
+              "title": "RunCallOutcome"
             },
             "standing": {
               "additionalProperties": false,
+              "description": "The standing approval that admitted it on the approval floor, when one did.",
               "properties": {
                 "commands": {
                   "additionalProperties": false,
+                  "description": "A command or process whose argv begins with these tokens.",
                   "properties": {
                     "argv_prefix": {
+                      "description": "The exact leading argv tokens. Argv has no shell, so a prefix admits nothing beyond the tokens it names.",
                       "items": {
                         "minLength": 1,
                         "type": "string"
@@ -454,12 +479,15 @@
                   "required": [
                     "argv_prefix"
                   ],
+                  "title": "StandingCommands",
                   "type": "object"
                 },
                 "edits": {
                   "additionalProperties": false,
+                  "description": "File changes under these paths.",
                   "properties": {
                     "paths": {
+                      "description": "Workspace-relative path prefixes, by whole components; `\"\"` is the whole workspace.",
                       "items": {
                         "type": "string"
                       },
@@ -469,13 +497,16 @@
                   "required": [
                     "paths"
                   ],
+                  "title": "StandingEdits",
                   "type": "object"
                 },
                 "local": {
                   "const": true,
+                  "description": "Every local effect.",
                   "type": "boolean"
                 }
               },
+              "title": "StandingApproval",
               "type": "object"
             },
             "step_id": {
@@ -527,9 +558,11 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "A child skill: one the allowance names, run by its default runner, or one runner of a skill a load bound, run as the load bound it.",
                   "properties": {
                     "bound": {
                       "additionalProperties": false,
+                      "description": "The exact package and execution closure a load bound for one runner.",
                       "properties": {
                         "closure_digest": {
                           "minLength": 1,
@@ -544,6 +577,7 @@
                         "package_digest",
                         "closure_digest"
                       ],
+                      "title": "BoundClosure",
                       "type": "object"
                     },
                     "kind": {
@@ -567,6 +601,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "The call's input is `{reason}`; the human approves or declines it.",
                   "properties": {
                     "kind": {
                       "const": "ask",
@@ -580,6 +615,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "The call's input is `{skill, runner?}` or `{connector}`: a package a catalog rule admits, whose runners or operations the turn offers from then on.",
                   "properties": {
                     "kind": {
                       "const": "load",
@@ -591,9 +627,12 @@
                   ],
                   "type": "object"
                 }
-              ]
+              ],
+              "description": "What a turn call names: one entry of the turn's allowance.",
+              "title": "TurnTarget"
             },
             "turn": {
+              "description": "The address of the turn the call was made in.",
               "minLength": 1,
               "type": "string"
             }
@@ -613,9 +652,14 @@
         {
           "additionalProperties": false,
           "properties": {
-            "disposition": {
+            "kind": {
+              "const": "sealed",
+              "type": "string"
+            },
+            "outcome": {
+              "description": "How a run, or a receipt's subject, ended.",
               "enum": [
-                "closed",
+                "completed",
                 "deferred",
                 "superseded",
                 "declined",
@@ -624,10 +668,7 @@
                 "killed",
                 "timed_out"
               ],
-              "type": "string"
-            },
-            "kind": {
-              "const": "sealed",
+              "title": "RunOutcome",
               "type": "string"
             },
             "receipt_id": {
@@ -637,22 +678,26 @@
           },
           "required": [
             "kind",
-            "disposition",
+            "outcome",
             "receipt_id"
           ],
           "type": "object"
         },
         {
           "additionalProperties": false,
+          "description": "The person replaced the run's standing approvals for every later step.",
           "properties": {
             "approvals": {
               "items": {
                 "additionalProperties": false,
+                "description": "A person's bounded confirmation of the local effects a run worked by an agent would otherwise hold for them: exactly one of `edits`, `commands` and `local`. It never covers an operation's own declared approval.",
                 "properties": {
                   "commands": {
                     "additionalProperties": false,
+                    "description": "A command or process whose argv begins with these tokens.",
                     "properties": {
                       "argv_prefix": {
+                        "description": "The exact leading argv tokens. Argv has no shell, so a prefix admits nothing beyond the tokens it names.",
                         "items": {
                           "minLength": 1,
                           "type": "string"
@@ -663,12 +708,15 @@
                     "required": [
                       "argv_prefix"
                     ],
+                    "title": "StandingCommands",
                     "type": "object"
                   },
                   "edits": {
                     "additionalProperties": false,
+                    "description": "File changes under these paths.",
                     "properties": {
                       "paths": {
+                        "description": "Workspace-relative path prefixes, by whole components; `\"\"` is the whole workspace.",
                         "items": {
                           "type": "string"
                         },
@@ -678,13 +726,16 @@
                     "required": [
                       "paths"
                     ],
+                    "title": "StandingEdits",
                     "type": "object"
                   },
                   "local": {
                     "const": true,
+                    "description": "Every local effect.",
                     "type": "boolean"
                   }
                 },
+                "title": "StandingApproval",
                 "type": "object"
               },
               "type": "array"
@@ -702,12 +753,14 @@
         },
         {
           "additionalProperties": false,
+          "description": "A resume admitted a person's decision on the request at `address`, before it took the run further; the run's next driver to reach the request uses it.",
           "properties": {
             "actor": {
               "enum": [
                 "human",
                 "agent"
               ],
+              "title": "ResolutionResponseActor",
               "type": "string"
             },
             "address": {
@@ -715,6 +768,7 @@
               "type": "string"
             },
             "answer_digest": {
+              "description": "`sha256:` over the answer's value.",
               "minLength": 1,
               "type": "string"
             },
@@ -736,9 +790,11 @@
           ],
           "type": "object"
         }
-      ]
+      ],
+      "title": "RunEventFact"
     },
     "stream": {
+      "description": "The stream: the run id, or `<run>/<path>` for a child run.",
       "minLength": 1,
       "type": "string"
     },
@@ -753,6 +809,7 @@
     "committed_at",
     "event"
   ],
+  "title": "RunEventRecord",
   "type": "object",
   "x-runx-schema": "runx.run_event.v1"
 }

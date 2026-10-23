@@ -24,7 +24,7 @@ harness:
         receipt:
           schema: runx.receipt.v1
           state: sealed
-          disposition: closed
+          outcome: completed
 
     - name: loop-turn-refuses-disallowed-tool
       runner: turn
@@ -41,7 +41,7 @@ harness:
         receipt:
           schema: runx.receipt.v1
           state: sealed
-          disposition: closed
+          outcome: completed
 
     - name: loop-context-gate-seals-with-host-answer
       runner: context-gate
@@ -59,7 +59,7 @@ harness:
         receipt:
           schema: runx.receipt.v1
           state: sealed
-          disposition: closed
+          outcome: completed
 
 tools:
   - fs.read

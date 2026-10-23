@@ -1,7 +1,7 @@
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
 use super::capability::CommandExecutionOutput;
-use super::{OUTPUT_LIMIT_BYTES, OutputMode, PreparedCommand, error, exit_code};
+use super::{CommandOutputMode, OUTPUT_LIMIT_BYTES, PreparedCommand, error, exit_code};
 use crate::RuntimeError;
 use crate::tool_catalogs::native::capability::decode_typed_output;
 pub(super) struct CommandObservation {
@@ -23,14 +23,14 @@ pub(super) struct CommandObservation {
 }
 
 pub(super) fn observe_command(
-    output_mode: OutputMode,
+    output_mode: CommandOutputMode,
     outcome: crate::process::ProcessOutcome,
     credentials: &crate::credentials::CredentialDelivery,
 ) -> CommandObservation {
     let stdout_truncated = outcome.stdout.truncated;
     let stderr_truncated = outcome.stderr.truncated;
-    let stdout_digest = outcome.stdout.sha256.clone();
-    let stderr_digest = outcome.stderr.sha256.clone();
+    let stdout_digest = outcome.stdout.digest.clone();
+    let stderr_digest = outcome.stderr.digest.clone();
     let stdout_bytes = outcome.stdout.total_bytes;
     let stderr_bytes = outcome.stderr.total_bytes;
     let stdout = credentials.redact_bytes_to_string(outcome.stdout.bytes, OUTPUT_LIMIT_BYTES);
@@ -76,12 +76,12 @@ pub(super) fn observe_command(
 }
 
 fn parse_command_json(
-    output_mode: OutputMode,
+    output_mode: CommandOutputMode,
     stdout: &str,
     stdout_truncated: bool,
     errors: &mut Vec<JsonValue>,
 ) -> JsonValue {
-    if output_mode != OutputMode::Json {
+    if output_mode != CommandOutputMode::Json {
         return JsonValue::Null;
     }
     if stdout_truncated {
@@ -145,7 +145,7 @@ pub(super) fn render_execution(
         ),
         (
             "stdout".to_owned(),
-            JsonValue::String(if command.output_mode == OutputMode::Text {
+            JsonValue::String(if command.output_mode == CommandOutputMode::Text {
                 observation.stdout.clone()
             } else {
                 String::new()
@@ -153,7 +153,7 @@ pub(super) fn render_execution(
         ),
         (
             "stderr".to_owned(),
-            JsonValue::String(if command.output_mode == OutputMode::Text {
+            JsonValue::String(if command.output_mode == CommandOutputMode::Text {
                 observation.stderr.clone()
             } else {
                 String::new()
@@ -215,13 +215,13 @@ mod tests {
                 bytes: COMPLETE[..8].to_vec(),
                 truncated: true,
                 total_bytes: u64::try_from(COMPLETE.len())?,
-                sha256: runx_contracts::sha256_prefixed(COMPLETE),
+                digest: runx_contracts::sha256_prefixed(COMPLETE),
             },
             stderr: CapturedOutput {
                 bytes: Vec::new(),
                 truncated: false,
                 total_bytes: 0,
-                sha256: runx_contracts::sha256_prefixed(&[]),
+                digest: runx_contracts::sha256_prefixed(&[]),
             },
             duration_ms: 1,
         })
@@ -231,7 +231,7 @@ mod tests {
     fn digest_mode_reports_the_complete_stream_beyond_retained_output()
     -> Result<(), Box<dyn std::error::Error>> {
         let observation = observe_command(
-            OutputMode::Digest,
+            CommandOutputMode::Digest,
             cut_at_capture()?,
             &crate::credentials::CredentialDelivery::none(),
         );
@@ -250,7 +250,7 @@ mod tests {
     fn text_mode_carries_output_past_the_capture_limit_as_far_as_it_held()
     -> Result<(), Box<dyn std::error::Error>> {
         let observation = observe_command(
-            OutputMode::Text,
+            CommandOutputMode::Text,
             cut_at_capture()?,
             &crate::credentials::CredentialDelivery::none(),
         );
@@ -267,10 +267,10 @@ mod tests {
             bytes: Vec::new(),
             truncated: false,
             total_bytes: 0,
-            sha256: runx_contracts::sha256_prefixed(&[]),
+            digest: runx_contracts::sha256_prefixed(&[]),
         };
         let observation = observe_command(
-            OutputMode::Text,
+            CommandOutputMode::Text,
             ProcessOutcome {
                 status: ExitStatus::from_raw(15),
                 timed_out: false,

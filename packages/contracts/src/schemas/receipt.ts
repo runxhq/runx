@@ -1,144 +1,50 @@
 import {
-  type DeepReadonly,
-  type UnknownRecord,
   generatedSchema,
   generatedSchemaAt,
   validateContractSchema,
 } from "../internal.js";
 import type {
-  ActFormContract,
-  ClosureDispositionContract,
   CriterionBindingContract,
-  DecisionContract,
-  IntentContract,
-  ReceiptIssuerContract,
-  ReceiptSignatureContract,
-  ReferenceContract,
-} from "./spine.js";
+  LineageContract,
+  ReceiptActContract,
+  ReceiptAuthorityContract,
+  ReceiptContract,
+  ReceiptEnforcementContract,
+  SealContract,
+  SubjectContract,
+} from "../generated/contract-types.js";
 
 /**
  * runx.receipt.v1 — the single signed governance receipt.
  *
- * The schema object below is generated from Rust. This TypeScript module keeps
- * only the public type facade and validators used by TS consumers.
+ * Its schema and types are generated from Rust. This module keeps the schema
+ * accessors and validators TS consumers use.
  */
+
+export type {
+  ExecutionBoundaryKindContract,
+  ExecutionBoundaryObservationContract,
+  LineageContract,
+  OperationIntentContract,
+  ReceiptActContract,
+  ReceiptAuthorityContract,
+  ReceiptCanonicalizationContract,
+  ReceiptContract,
+  ReceiptEnforcementContract,
+  ReceiptIssuerContract,
+  ReceiptIssuerTypeContract,
+  ReceiptSignatureContract,
+  SealContract,
+  SealReasonContract,
+  SubjectContract,
+  SubjectKindContract,
+} from "../generated/contract-types.js";
 
 /** The canonicalization byte contract this receipt's digest commits under. */
 export const RECEIPT_CANONICALIZATION = "runx.receipt.c14n.v1" as const;
 
-/** What a receipt seals: one step's attempt, or the whole graph a run ran. */
-export type ReceiptSubjectKindContract = "step" | "graph";
-
-/**
- * What ran, and the digest of its outcome: whether it succeeded, the outputs
- * it declared and its direct children's receipt ids.
- */
-export type ReceiptSubjectContract = DeepReadonly<{
-  kind: ReceiptSubjectKindContract;
-  ref: ReferenceContract;
-  outcome: string;
-}>;
-
-/** Where a step ran, as the Rust `ExecutionBoundaryKind` names it. */
-export type ExecutionBoundaryKindContract =
-  | "trusted_host_process"
-  | "deterministic_worker"
-  | "native_capability"
-  | "remote_provider";
-
-export type ReceiptEnforcementContract = DeepReadonly<{
-  execution_boundary?: { readonly kind: ExecutionBoundaryKindContract };
-}>;
-
-export type ReceiptAuthorityContract = DeepReadonly<{
-  /** The principal an act was admitted for, when the run was given one. */
-  actor_ref?: ReferenceContract;
-  grant_refs: readonly ReferenceContract[];
-  scope_refs: readonly ReferenceContract[];
-  mandate_ref?: ReferenceContract;
-  terms: readonly UnknownRecord[];
-  derivations: readonly UnknownRecord[];
-  enforcement: ReceiptEnforcementContract;
-}>;
-
-export type ReceiptCriterionContract = CriterionBindingContract;
-
-export type ReceiptActContract = DeepReadonly<{
-  id: string;
-  form: ActFormContract;
-  intent: IntentContract;
-  /** What the caller told a reader about this call, when it said anything. */
-  reason?: string;
-  criterion_bindings: readonly CriterionBindingContract[];
-  target_refs: readonly ReferenceContract[];
-  artifact_refs: readonly ReferenceContract[];
-  context_ref?: ReferenceContract;
-  /** The connector operation the act ran, exactly as admission bound it. */
-  operation?: ReceiptOperationContract;
-  /** The receipt the caller states this act follows, recorded as given and unchecked. */
-  previous?: ReferenceContract;
-}>;
-
-/** An admitted operation: its qualified connector and exact digests, and the operation, instance and target it was admitted for. */
-export type ReceiptOperationContract = DeepReadonly<{
-  connector: string;
-  manifest_digest: string;
-  connector_digest: string;
-  operation: string;
-  operation_digest: string;
-  instance_id: string;
-  target: string;
-  payload_digest: string;
-  request_key_digest?: string;
-  amount?: { units: number; unit: string };
-  approval_digest?: string;
-  act_digest?: string;
-}>;
-
-/** Why a receipt closed as it did, beyond its disposition. */
-export type ReceiptSealReasonContract =
-  | "preflight_refused"
-  | "input_contract_invalid"
-  | "graph_step_failed"
-  | "graph_blocked"
-  | "authority_denied"
-  | "resolution_pending"
-  | "managed_agent_provider_failed"
-  | "managed_agent_resolution_failed"
-  | "managed_agent_empty_turn_budget_exhausted"
-  | "managed_agent_tool_execution_failed"
-  | "managed_agent_round_budget_exhausted"
-  | "host_closed";
-
-export type ReceiptSealContract = DeepReadonly<{
-  disposition: ClosureDispositionContract;
-  reason?: ReceiptSealReasonContract;
-  criteria: readonly ReceiptCriterionContract[];
-}>;
-
-export type ReceiptLineageContract = DeepReadonly<{
-  children: readonly ReferenceContract[];
-}>;
-
-export type ReceiptContract = DeepReadonly<{
-  schema: "runx.receipt.v1";
-  id: string;
-  created_at: string;
-  canonicalization: typeof RECEIPT_CANONICALIZATION;
-  issuer: ReceiptIssuerContract;
-  signature: ReceiptSignatureContract;
-  digest: string;
-  subject: ReceiptSubjectContract;
-  authority: ReceiptAuthorityContract;
-  decisions: readonly DecisionContract[];
-  acts: readonly ReceiptActContract[];
-  seal: ReceiptSealContract;
-  lineage: ReceiptLineageContract;
-  metadata?: UnknownRecord;
-}>;
-
 export const receiptV1Schema = generatedSchema<ReceiptContract>("receipt.schema.json");
-export const receiptSubjectSchema = generatedSchemaAt<ReceiptSubjectContract>(
+export const receiptSubjectSchema = generatedSchemaAt<SubjectContract>(
   receiptV1Schema,
   ["properties", "subject"],
   "receipt.subject",
@@ -153,7 +59,7 @@ export const receiptAuthoritySchema = generatedSchemaAt<ReceiptAuthorityContract
   ["properties", "authority"],
   "receipt.authority",
 );
-export const receiptCriterionSchema = generatedSchemaAt<ReceiptCriterionContract>(
+export const receiptCriterionSchema = generatedSchemaAt<CriterionBindingContract>(
   receiptV1Schema,
   ["properties", "seal", "properties", "criteria", "items"],
   "receipt.seal.criteria[]",
@@ -163,12 +69,12 @@ export const receiptActSchema = generatedSchemaAt<ReceiptActContract>(
   ["properties", "acts", "items"],
   "receipt.acts[]",
 );
-export const receiptSealSchema = generatedSchemaAt<ReceiptSealContract>(
+export const receiptSealSchema = generatedSchemaAt<SealContract>(
   receiptV1Schema,
   ["properties", "seal"],
   "receipt.seal",
 );
-export const receiptLineageSchema = generatedSchemaAt<ReceiptLineageContract>(
+export const receiptLineageSchema = generatedSchemaAt<LineageContract>(
   receiptV1Schema,
   ["properties", "lineage"],
   "receipt.lineage",

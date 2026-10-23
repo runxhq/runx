@@ -46,6 +46,6 @@ where
 }
 
 /// The digest a read returns and a write names.
-pub(super) fn digest(text: &str) -> String {
-    runx_contracts::sha256_prefixed(text.as_bytes())
+pub(super) fn digest(text: &str) -> runx_contracts::Digest {
+    runx_contracts::Digest::of(text.as_bytes())
 }

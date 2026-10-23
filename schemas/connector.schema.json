@@ -2,15 +2,18 @@
   "$id": "https://schemas.runx.ai/runx/connector/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "One provider's operations and how runx reaches them.",
   "properties": {
     "auth": {
       "additionalProperties": false,
+      "description": "How a principal's authority over the provider is held. Every key is an alternative; placements say which ones they accept.",
       "properties": {
         "credentials": {
           "additionalProperties": {
             "additionalProperties": false,
             "properties": {
               "audience": {
+                "description": "Hosts the runtime may present the credential to. A local store-only credential has none. For process-only use this is optional: delivery is to the bound executor, which owns further presentation. This field does not claim to confine a trusted process's network access.",
                 "items": {
                   "minLength": 1,
                   "type": "string"
@@ -20,6 +23,7 @@
               },
               "delivery": {
                 "additionalProperties": false,
+                "description": "How the local placement delivers the secret to an implementation. A purchase credential has none: it never leaves runx Connect.",
                 "properties": {
                   "env": {
                     "maxLength": 128,
@@ -30,9 +34,11 @@
                 "required": [
                   "env"
                 ],
+                "title": "CredentialDelivery",
                 "type": "object"
               },
               "fields": {
+                "description": "The connect form, or for a purchase credential the fields its hold fills.",
                 "items": {
                   "additionalProperties": false,
                   "properties": {
@@ -46,6 +52,7 @@
                       "type": "string"
                     },
                     "prefixes": {
+                      "description": "Prefixes every value of this secret starts with, such as a provider's key prefix. Text that contains one carries the secret, and runx refuses to write it into a skill package.",
                       "items": {
                         "minLength": 1,
                         "type": "string"
@@ -65,12 +72,14 @@
                   "required": [
                     "name"
                   ],
+                  "title": "CredentialField",
                   "type": "object"
                 },
                 "minItems": 1,
                 "type": "array"
               },
               "kind": {
+                "description": "The credential kind the hosted store checks (`api_key`, `oauth1_user`, `purchase`, ...).",
                 "minLength": 1,
                 "type": "string"
               }
@@ -79,8 +88,10 @@
               "kind",
               "fields"
             ],
+            "title": "CredentialDeclaration",
             "type": "object"
           },
+          "description": "Named keys the principal supplies.",
           "minProperties": 1,
           "propertyNames": {
             "pattern": "^[a-z][a-z0-9_]{0,63}$"
@@ -89,19 +100,24 @@
         },
         "delegated": {
           "additionalProperties": false,
+          "description": "A hosted grant brokered by runx Connect. Valid only on the hosted placement; the OSS contract never describes the brokerage.",
           "properties": {
             "principal": {
               "additionalProperties": false,
+              "description": "The request that names whose authority a session or a delegated grant holds, sent with that authority as a bearer credential.",
               "properties": {
                 "id": {
+                  "description": "Where the answer carries the account's stable id.",
                   "minLength": 1,
                   "type": "string"
                 },
                 "login": {
+                  "description": "Where the answer carries the account's name.",
                   "minLength": 1,
                   "type": "string"
                 },
                 "url": {
+                  "description": "An `https` URL the authority may be sent to: for a session, a host in its credential's audience; for a delegated grant, a host its hosted operations reach.",
                   "minLength": 1,
                   "type": "string"
                 }
@@ -111,25 +127,31 @@
                 "id",
                 "login"
               ],
+              "title": "PrincipalRequest",
               "type": "object"
             }
           },
           "required": [
             "principal"
           ],
+          "title": "DelegatedAuth",
           "type": "object"
         },
         "none": {
           "additionalProperties": false,
+          "description": "A public API with no credential.",
           "properties": {},
+          "title": "NoAuth",
           "type": "object"
         },
         "session": {
           "anyOf": [
             {
               "additionalProperties": false,
+              "description": "A token printed by a command-line tool the person is signed into, such as `gh auth token`. The runtime runs the command when an instance is confirmed and before each call, never stores the token, and delivers it as the named credential.",
               "properties": {
                 "command": {
+                  "description": "The program, found on `PATH` and run without a shell, and its arguments.",
                   "items": {
                     "minLength": 1,
                     "type": "string"
@@ -138,6 +160,7 @@
                   "type": "array"
                 },
                 "credential": {
+                  "description": "The one-field credential the token stands in for.",
                   "maxLength": 64,
                   "pattern": "^[a-z][a-z0-9_]{0,63}$",
                   "type": "string"
@@ -148,16 +171,20 @@
                 },
                 "principal": {
                   "additionalProperties": false,
+                  "description": "The request that names whose token it is.",
                   "properties": {
                     "id": {
+                      "description": "Where the answer carries the account's stable id.",
                       "minLength": 1,
                       "type": "string"
                     },
                     "login": {
+                      "description": "Where the answer carries the account's name.",
                       "minLength": 1,
                       "type": "string"
                     },
                     "url": {
+                      "description": "An `https` URL the authority may be sent to: for a session, a host in its credential's audience; for a delegated grant, a host its hosted operations reach.",
                       "minLength": 1,
                       "type": "string"
                     }
@@ -167,6 +194,7 @@
                     "id",
                     "login"
                   ],
+                  "title": "PrincipalRequest",
                   "type": "object"
                 }
               },
@@ -180,6 +208,7 @@
             },
             {
               "additionalProperties": false,
+              "description": "A CLI that keeps its own credential and refresh lifecycle. The command returns only public account JSON; process implementations use that same CLI and must enforce the pinned principal at credential use.",
               "properties": {
                 "command": {
                   "items": {
@@ -212,6 +241,7 @@
             },
             {
               "additionalProperties": false,
+              "description": "A signed-in browser profile. Its installed tool receives `operation: session` and the instance parameters and returns the rendered account as `{id, login}`. No session secret is exported.",
               "properties": {
                 "kind": {
                   "const": "host_browser",
@@ -219,9 +249,11 @@
                 },
                 "process": {
                   "additionalProperties": false,
+                  "description": "A tool package that runs as this operation's implementation, receiving the operation's credential. It is a declared trusted host process.",
                   "properties": {
                     "readback": {
                       "additionalProperties": false,
+                      "description": "How a write is confirmed: the tool is run again with `phase: readback` and the acknowledgement, and what it observes must match.",
                       "properties": {
                         "matches": {
                           "items": {
@@ -231,6 +263,7 @@
                                 "anyOf": [
                                   {
                                     "additionalProperties": false,
+                                    "description": "A field of the write's acknowledgement, which must be present.",
                                     "properties": {
                                       "path": {
                                         "minLength": 1,
@@ -249,6 +282,7 @@
                                   },
                                   {
                                     "additionalProperties": false,
+                                    "description": "A field of the call's own arguments, so the write is checked against what was approved. A match whose argument the call does not carry is not checked: nothing was asked for that field.",
                                     "properties": {
                                       "path": {
                                         "minLength": 1,
@@ -267,6 +301,7 @@
                                   },
                                   {
                                     "additionalProperties": false,
+                                    "description": "A field of the item a repeated write was sent for, checked the same way as an argument.",
                                     "properties": {
                                       "path": {
                                         "minLength": 1,
@@ -300,6 +335,7 @@
                                   },
                                   {
                                     "additionalProperties": false,
+                                    "description": "An exact expected value rendered from approved arguments and the projected acknowledgement (`$response: write.json.<path>`). Useful for provider resource locators and structured relationship evidence.",
                                     "properties": {
                                       "source": {
                                         "const": "template",
@@ -313,7 +349,9 @@
                                     ],
                                     "type": "object"
                                   }
-                                ]
+                                ],
+                                "description": "What a confirming read's field must equal.",
+                                "title": "ReadbackExpected"
                               },
                               "observed": {
                                 "minLength": 1,
@@ -324,6 +362,7 @@
                               "expected",
                               "observed"
                             ],
+                            "title": "ReadbackMatch",
                             "type": "object"
                           },
                           "minItems": 1,
@@ -333,9 +372,11 @@
                       "required": [
                         "matches"
                       ],
+                      "title": "ProcessReadback",
                       "type": "object"
                     },
                     "result_from": {
+                      "description": "The bounded public answer to return after confirmation. A durable acknowledgement can remain just an opaque provider reference.",
                       "enum": [
                         "readback"
                       ],
@@ -357,6 +398,7 @@
                   "required": [
                     "tool"
                   ],
+                  "title": "ProcessImplementation",
                   "type": "object"
                 }
               },
@@ -366,12 +408,16 @@
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "Authority held by a local session the runtime can identify.",
+          "title": "SessionAuth"
         }
       },
+      "title": "ConnectorAuth",
       "type": "object"
     },
     "category": {
+      "description": "The connector category it declares from the registry taxonomy (`registry/taxonomy.json`); a connector that declares none is uncategorized.",
       "minLength": 1,
       "type": "string"
     },
@@ -380,6 +426,7 @@
       "type": "string"
     },
     "id": {
+      "description": "The connector's whole name: `stripe`, `google/calendar`.",
       "maxLength": 129,
       "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
       "type": "string"
@@ -391,6 +438,7 @@
     "operations": {
       "additionalProperties": {
         "additionalProperties": false,
+        "description": "One named action on a connector.",
         "properties": {
           "amount": {
             "not": {
@@ -403,13 +451,18 @@
               {
                 "additionalProperties": false,
                 "properties": {
-                  "currency": {},
-                  "units": {}
+                  "currency": {
+                    "description": "Provider currency/asset code; financial authority uses its canonical uppercase code, so a provider's lowercase `usd` still means USD cents."
+                  },
+                  "units": {
+                    "description": "Exact integer smallest units sent to the provider, or the exact bound maximum a protocol's settlement operation is allowed to spend."
+                  }
                 },
                 "required": [
                   "units",
                   "currency"
                 ],
+                "title": "AmountBinding",
                 "type": "object"
               }
             ]
@@ -422,23 +475,29 @@
           },
           "cost": {
             "additionalProperties": false,
+            "description": "What the provider charges per call; absent when no charge is known.",
             "properties": {
               "per": {
+                "description": "When a call becomes billable.",
                 "enum": [
                   "request",
                   "success"
                 ],
+                "title": "CostBasis",
                 "type": "string"
               },
               "source": {
+                "description": "Where the price was read.",
                 "enum": [
                   "docs",
                   "rate_card",
                   "observed"
                 ],
+                "title": "CostSource",
                 "type": "string"
               },
               "source_url": {
+                "description": "The page that states it, `https` only.",
                 "minLength": 1,
                 "type": "string"
               },
@@ -452,9 +511,11 @@
               "per",
               "source"
             ],
+            "title": "OperationCost",
             "type": "object"
           },
           "credentials": {
+            "description": "Named credentials that may authorize this operation (any of).",
             "items": {
               "maxLength": 64,
               "pattern": "^[a-z][a-z0-9_]{0,63}$",
@@ -469,9 +530,13 @@
           },
           "effect": {
             "additionalProperties": false,
+            "description": "What a successful write produced, as the reference its act's receipt carries.",
             "properties": {
-              "each": {},
+              "each": {
+                "description": "A `$result` pointer to the array the effect repeats over."
+              },
               "kind": {
+                "description": "The kinds of thing outside runx a connector's locators name: what its declared references classify and what its operations produce.",
                 "enum": [
                   "thread",
                   "comment",
@@ -481,6 +546,7 @@
                   "repository",
                   "external_url"
                 ],
+                "title": "ExternalReferenceKind",
                 "type": "string"
               },
               "locator": {}
@@ -489,10 +555,12 @@
               "kind",
               "locator"
             ],
+            "title": "OperationEffect",
             "type": "object"
           },
           "guarantees": {
             "additionalProperties": false,
+            "description": "What the provider guarantees for this operation. Shared mechanics never assume more, and a use never tolerates more.",
             "minProperties": 1,
             "properties": {
               "provider_idempotency": {
@@ -513,6 +581,7 @@
           },
           "holds": {
             "additionalProperties": false,
+            "description": "What the call does to a resource a purchase holds: takes it from the provider's answer, moves its expiry, or ends it.",
             "properties": {
               "action": {
                 "enum": [
@@ -520,35 +589,45 @@
                   "refresh",
                   "release"
                 ],
+                "title": "HoldAction",
                 "type": "string"
               },
               "credential": {
+                "description": "The `kind: purchase` credential held.",
                 "maxLength": 64,
                 "pattern": "^[a-z][a-z0-9_]{0,63}$",
                 "type": "string"
               },
-              "expires_at": {},
+              "expires_at": {
+                "description": "When the resource ends, one `$result` binding. A take and a refresh state it; a release does not."
+              },
               "fields": {
                 "additionalProperties": {},
+                "description": "Each field of the credential and the one `$result` binding that fills it. Only a take fills fields.",
                 "minProperties": 1,
                 "propertyNames": {
                   "pattern": "^[a-z][a-z0-9_]{0,63}$"
                 },
                 "type": "object"
               },
-              "target": {}
+              "target": {
+                "description": "The held resource. A take renders it from the call's public result; a refresh or release from the call's arguments, as the operations that use the credential render theirs."
+              }
             },
             "required": [
               "action",
               "credential",
               "target"
             ],
+            "title": "OperationHold",
             "type": "object"
           },
           "hosted": {
             "additionalProperties": false,
+            "description": "Present when the hosted placement offers the operation: it runs an `http` implementation through the provider gateway, and any other operation through a private driver.",
             "properties": {
               "provider_scopes": {
+                "description": "The provider's own permissions, required under delegated auth.",
                 "items": {
                   "minLength": 1,
                   "type": "string"
@@ -557,6 +636,7 @@
                 "type": "array"
               }
             },
+            "title": "HostedImplementation",
             "type": "object"
           },
           "idempotency_key_format": {
@@ -572,6 +652,7 @@
                 "properties": {
                   "http": {
                     "additionalProperties": false,
+                    "description": "An HTTP exchange the native runtime performs. Bodies are JSON; the transport carries text, so no byte or multipart body is expressible.",
                     "properties": {
                       "allowed_hosts": {
                         "items": {
@@ -586,6 +667,7 @@
                           "anyOf": [
                             {
                               "additionalProperties": false,
+                              "description": "`Authorization: Bearer <credential field>`.",
                               "properties": {
                                 "field": {
                                   "maxLength": 64,
@@ -604,6 +686,7 @@
                             },
                             {
                               "additionalProperties": false,
+                              "description": "A declared credential field as the complete value of a fixed header. Unlike a request template, this is rendered only at secret delivery.",
                               "properties": {
                                 "field": {
                                   "maxLength": 64,
@@ -628,6 +711,7 @@
                             },
                             {
                               "additionalProperties": false,
+                              "description": "Exchange app credentials at a declared OAuth 2 token endpoint using client_secret_basic, then present its short-lived bearer token. Neither the credentials nor the token enter request templates/results.",
                               "properties": {
                                 "client_id": {
                                   "maxLength": 64,
@@ -659,6 +743,7 @@
                             },
                             {
                               "additionalProperties": false,
+                              "description": "OAuth 1.0a user context, signed with the credential's `consumer_key`, `consumer_secret`, `access_token` and `access_secret`.",
                               "properties": {
                                 "type": {
                                   "const": "oauth1",
@@ -672,6 +757,7 @@
                             },
                             {
                               "additionalProperties": false,
+                              "description": "A declared credential field as the request's complete URL, for a provider whose secret is the endpoint itself, such as a webhook. The request's declared URL is the prefix the credential's URL must start with.",
                               "properties": {
                                 "field": {
                                   "maxLength": 64,
@@ -691,6 +777,7 @@
                             },
                             {
                               "additionalProperties": false,
+                              "description": "A declared credential field placed in the request's JSON body at `pointer` (RFC 6901), for a provider that reads its key from the body, such as IndexNow. The body's literal object holds the pointer's parent and never sets it, and no input names it.",
                               "properties": {
                                 "field": {
                                   "maxLength": 64,
@@ -713,8 +800,11 @@
                               ],
                               "type": "object"
                             }
-                          ]
+                          ],
+                          "description": "How one credential authenticates a request.",
+                          "title": "HttpAuth"
                         },
+                        "description": "How each credential the operation accepts authenticates a request, by credential name; the instance's credential picks its entry. With none, requests carry no credential.",
                         "minProperties": 1,
                         "propertyNames": {
                           "pattern": "^[a-z][a-z0-9_]{0,63}$"
@@ -722,6 +812,7 @@
                         "type": "object"
                       },
                       "decode": {
+                        "description": "How an answer is decoded; JSON unless declared.",
                         "items": {
                           "anyOf": [
                             {
@@ -796,6 +887,7 @@
                             },
                             {
                               "additionalProperties": false,
+                              "description": "Keep only this bounded evidence before acknowledgement custody. Each result member reads one path from the decoded provider response.",
                               "properties": {
                                 "fields": {
                                   "additionalProperties": {
@@ -851,7 +943,8 @@
                               ],
                               "type": "object"
                             }
-                          ]
+                          ],
+                          "title": "DecodeStep"
                         },
                         "type": "array"
                       },
@@ -938,6 +1031,7 @@
                                   },
                                   {
                                     "additionalProperties": false,
+                                    "description": "Keep only this bounded evidence before acknowledgement custody. Each result member reads one path from the decoded provider response.",
                                     "properties": {
                                       "fields": {
                                         "additionalProperties": {
@@ -993,7 +1087,8 @@
                                     ],
                                     "type": "object"
                                   }
-                                ]
+                                ],
+                                "title": "DecodeStep"
                               },
                               "type": "array"
                             },
@@ -1009,6 +1104,7 @@
                                     "anyOf": [
                                       {
                                         "additionalProperties": false,
+                                        "description": "A field of the write's acknowledgement, which must be present.",
                                         "properties": {
                                           "path": {
                                             "minLength": 1,
@@ -1027,6 +1123,7 @@
                                       },
                                       {
                                         "additionalProperties": false,
+                                        "description": "A field of the call's own arguments, so the write is checked against what was approved. A match whose argument the call does not carry is not checked: nothing was asked for that field.",
                                         "properties": {
                                           "path": {
                                             "minLength": 1,
@@ -1045,6 +1142,7 @@
                                       },
                                       {
                                         "additionalProperties": false,
+                                        "description": "A field of the item a repeated write was sent for, checked the same way as an argument.",
                                         "properties": {
                                           "path": {
                                             "minLength": 1,
@@ -1078,6 +1176,7 @@
                                       },
                                       {
                                         "additionalProperties": false,
+                                        "description": "An exact expected value rendered from approved arguments and the projected acknowledgement (`$response: write.json.<path>`). Useful for provider resource locators and structured relationship evidence.",
                                         "properties": {
                                           "source": {
                                             "const": "template",
@@ -1091,7 +1190,9 @@
                                         ],
                                         "type": "object"
                                       }
-                                    ]
+                                    ],
+                                    "description": "What a confirming read's field must equal.",
+                                    "title": "ReadbackExpected"
                                   },
                                   "observed": {
                                     "minLength": 1,
@@ -1102,6 +1203,7 @@
                                   "expected",
                                   "observed"
                                 ],
+                                "title": "ReadbackMatch",
                                 "type": "object"
                               },
                               "minItems": 1,
@@ -1110,20 +1212,26 @@
                             "request": {
                               "additionalProperties": false,
                               "properties": {
-                                "body": {},
+                                "body": {
+                                  "description": "The body template; JSON unless `body_encoding` declares a form."
+                                },
                                 "body_encoding": {
+                                  "description": "The wire representation of a request's body. Forms render a flat object of string, number and boolean values; nested form names are literal keys.",
                                   "enum": [
                                     "form"
                                   ],
                                   "type": "string"
                                 },
-                                "each": {},
+                                "each": {
+                                  "description": "Send this request once per element of the array this renders to, binding the element as `{\"$item\": ...}`. A read decodes the answers as an array in the same order; a write is a repeated write, one outcome per element. Bounded by the input schema's `maxItems`."
+                                },
                                 "headers": {
                                   "additionalProperties": {},
                                   "minProperties": 1,
                                   "type": "object"
                                 },
                                 "id": {
+                                  "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
                                   "minLength": 1,
                                   "type": "string"
                                 },
@@ -1135,21 +1243,28 @@
                                     "PATCH",
                                     "DELETE"
                                   ],
+                                  "title": "HttpMethod",
                                   "type": "string"
                                 },
                                 "pages": {
                                   "additionalProperties": false,
+                                  "description": "A read whose answer comes in pages.",
                                   "properties": {
                                     "cursor": {
+                                      "description": "Where a decoded page names the next cursor.",
                                       "minLength": 1,
                                       "type": "string"
                                     },
                                     "items": {
+                                      "description": "Where a decoded page holds its items.",
                                       "minLength": 1,
                                       "type": "string"
                                     },
-                                    "limit": {},
+                                    "limit": {
+                                      "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
+                                    },
                                     "param": {
+                                      "description": "The query parameter that carries the cursor.",
                                       "minLength": 1,
                                       "type": "string"
                                     }
@@ -1159,6 +1274,7 @@
                                     "cursor",
                                     "items"
                                   ],
+                                  "title": "HttpPages",
                                   "type": "object"
                                 },
                                 "query": {
@@ -1172,12 +1288,14 @@
                                 "method",
                                 "url"
                               ],
+                              "title": "HttpRequest",
                               "type": "object"
                             }
                           },
                           "required": [
                             "request"
                           ],
+                          "title": "HttpReadback",
                           "type": "object"
                         },
                         "minItems": 1,
@@ -1185,8 +1303,10 @@
                       },
                       "rate_limit": {
                         "additionalProperties": false,
+                        "description": "How the provider says when a rate limit lifts.",
                         "properties": {
                           "reset_header": {
+                            "description": "The response header holding the Unix second the limit lifts at.",
                             "minLength": 1,
                             "type": "string"
                           }
@@ -1194,6 +1314,7 @@
                         "required": [
                           "reset_header"
                         ],
+                        "title": "RateLimit",
                         "type": "object"
                       },
                       "readbacks": {
@@ -1275,6 +1396,7 @@
                                   },
                                   {
                                     "additionalProperties": false,
+                                    "description": "Keep only this bounded evidence before acknowledgement custody. Each result member reads one path from the decoded provider response.",
                                     "properties": {
                                       "fields": {
                                         "additionalProperties": {
@@ -1330,7 +1452,8 @@
                                     ],
                                     "type": "object"
                                   }
-                                ]
+                                ],
+                                "title": "DecodeStep"
                               },
                               "type": "array"
                             },
@@ -1346,6 +1469,7 @@
                                     "anyOf": [
                                       {
                                         "additionalProperties": false,
+                                        "description": "A field of the write's acknowledgement, which must be present.",
                                         "properties": {
                                           "path": {
                                             "minLength": 1,
@@ -1364,6 +1488,7 @@
                                       },
                                       {
                                         "additionalProperties": false,
+                                        "description": "A field of the call's own arguments, so the write is checked against what was approved. A match whose argument the call does not carry is not checked: nothing was asked for that field.",
                                         "properties": {
                                           "path": {
                                             "minLength": 1,
@@ -1382,6 +1507,7 @@
                                       },
                                       {
                                         "additionalProperties": false,
+                                        "description": "A field of the item a repeated write was sent for, checked the same way as an argument.",
                                         "properties": {
                                           "path": {
                                             "minLength": 1,
@@ -1415,6 +1541,7 @@
                                       },
                                       {
                                         "additionalProperties": false,
+                                        "description": "An exact expected value rendered from approved arguments and the projected acknowledgement (`$response: write.json.<path>`). Useful for provider resource locators and structured relationship evidence.",
                                         "properties": {
                                           "source": {
                                             "const": "template",
@@ -1428,7 +1555,9 @@
                                         ],
                                         "type": "object"
                                       }
-                                    ]
+                                    ],
+                                    "description": "What a confirming read's field must equal.",
+                                    "title": "ReadbackExpected"
                                   },
                                   "observed": {
                                     "minLength": 1,
@@ -1439,6 +1568,7 @@
                                   "expected",
                                   "observed"
                                 ],
+                                "title": "ReadbackMatch",
                                 "type": "object"
                               },
                               "minItems": 1,
@@ -1447,20 +1577,26 @@
                             "request": {
                               "additionalProperties": false,
                               "properties": {
-                                "body": {},
+                                "body": {
+                                  "description": "The body template; JSON unless `body_encoding` declares a form."
+                                },
                                 "body_encoding": {
+                                  "description": "The wire representation of a request's body. Forms render a flat object of string, number and boolean values; nested form names are literal keys.",
                                   "enum": [
                                     "form"
                                   ],
                                   "type": "string"
                                 },
-                                "each": {},
+                                "each": {
+                                  "description": "Send this request once per element of the array this renders to, binding the element as `{\"$item\": ...}`. A read decodes the answers as an array in the same order; a write is a repeated write, one outcome per element. Bounded by the input schema's `maxItems`."
+                                },
                                 "headers": {
                                   "additionalProperties": {},
                                   "minProperties": 1,
                                   "type": "object"
                                 },
                                 "id": {
+                                  "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
                                   "minLength": 1,
                                   "type": "string"
                                 },
@@ -1472,21 +1608,28 @@
                                     "PATCH",
                                     "DELETE"
                                   ],
+                                  "title": "HttpMethod",
                                   "type": "string"
                                 },
                                 "pages": {
                                   "additionalProperties": false,
+                                  "description": "A read whose answer comes in pages.",
                                   "properties": {
                                     "cursor": {
+                                      "description": "Where a decoded page names the next cursor.",
                                       "minLength": 1,
                                       "type": "string"
                                     },
                                     "items": {
+                                      "description": "Where a decoded page holds its items.",
                                       "minLength": 1,
                                       "type": "string"
                                     },
-                                    "limit": {},
+                                    "limit": {
+                                      "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
+                                    },
                                     "param": {
+                                      "description": "The query parameter that carries the cursor.",
                                       "minLength": 1,
                                       "type": "string"
                                     }
@@ -1496,6 +1639,7 @@
                                     "cursor",
                                     "items"
                                   ],
+                                  "title": "HttpPages",
                                   "type": "object"
                                 },
                                 "query": {
@@ -1509,12 +1653,14 @@
                                 "method",
                                 "url"
                               ],
+                              "title": "HttpRequest",
                               "type": "object"
                             }
                           },
                           "required": [
                             "request"
                           ],
+                          "title": "HttpReadback",
                           "type": "object"
                         },
                         "minItems": 1,
@@ -1524,20 +1670,26 @@
                         "items": {
                           "additionalProperties": false,
                           "properties": {
-                            "body": {},
+                            "body": {
+                              "description": "The body template; JSON unless `body_encoding` declares a form."
+                            },
                             "body_encoding": {
+                              "description": "The wire representation of a request's body. Forms render a flat object of string, number and boolean values; nested form names are literal keys.",
                               "enum": [
                                 "form"
                               ],
                               "type": "string"
                             },
-                            "each": {},
+                            "each": {
+                              "description": "Send this request once per element of the array this renders to, binding the element as `{\"$item\": ...}`. A read decodes the answers as an array in the same order; a write is a repeated write, one outcome per element. Bounded by the input schema's `maxItems`."
+                            },
                             "headers": {
                               "additionalProperties": {},
                               "minProperties": 1,
                               "type": "object"
                             },
                             "id": {
+                              "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
                               "minLength": 1,
                               "type": "string"
                             },
@@ -1549,21 +1701,28 @@
                                 "PATCH",
                                 "DELETE"
                               ],
+                              "title": "HttpMethod",
                               "type": "string"
                             },
                             "pages": {
                               "additionalProperties": false,
+                              "description": "A read whose answer comes in pages.",
                               "properties": {
                                 "cursor": {
+                                  "description": "Where a decoded page names the next cursor.",
                                   "minLength": 1,
                                   "type": "string"
                                 },
                                 "items": {
+                                  "description": "Where a decoded page holds its items.",
                                   "minLength": 1,
                                   "type": "string"
                                 },
-                                "limit": {},
+                                "limit": {
+                                  "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
+                                },
                                 "param": {
+                                  "description": "The query parameter that carries the cursor.",
                                   "minLength": 1,
                                   "type": "string"
                                 }
@@ -1573,6 +1732,7 @@
                                 "cursor",
                                 "items"
                               ],
+                              "title": "HttpPages",
                               "type": "object"
                             },
                             "query": {
@@ -1586,6 +1746,7 @@
                             "method",
                             "url"
                           ],
+                          "title": "HttpRequest",
                           "type": "object"
                         },
                         "minItems": 1,
@@ -1596,6 +1757,7 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "description": "Where each result field comes from. An operation with one result field takes the whole decoded answer unless this says otherwise; validation writes that default in.",
                         "type": "object"
                       }
                     },
@@ -1603,6 +1765,7 @@
                       "allowed_hosts",
                       "requests"
                     ],
+                    "title": "HttpImplementation",
                     "type": "object"
                   }
                 },
@@ -1616,10 +1779,14 @@
                 "properties": {
                   "mcp": {
                     "additionalProperties": false,
+                    "description": "A tool on the connector's MCP server. The tool is pinned by its served definition; the manifest's verb, not the tool's annotations, is enforced.",
                     "properties": {
-                      "arguments": {},
+                      "arguments": {
+                        "description": "Rendered from the call input into the tool arguments. A multiplexed tool's discriminating argument is a literal here, never an input."
+                      },
                       "readback": {
                         "additionalProperties": false,
+                        "description": "How a write is confirmed: an independent call to a read tool, checked against what the write returned. Every write has one; a read has none.",
                         "properties": {
                           "arguments": {},
                           "matches": {
@@ -1630,6 +1797,7 @@
                                   "anyOf": [
                                     {
                                       "additionalProperties": false,
+                                      "description": "A field of the write's acknowledgement, which must be present.",
                                       "properties": {
                                         "path": {
                                           "minLength": 1,
@@ -1648,6 +1816,7 @@
                                     },
                                     {
                                       "additionalProperties": false,
+                                      "description": "A field of the call's own arguments, so the write is checked against what was approved. A match whose argument the call does not carry is not checked: nothing was asked for that field.",
                                       "properties": {
                                         "path": {
                                           "minLength": 1,
@@ -1666,6 +1835,7 @@
                                     },
                                     {
                                       "additionalProperties": false,
+                                      "description": "A field of the item a repeated write was sent for, checked the same way as an argument.",
                                       "properties": {
                                         "path": {
                                           "minLength": 1,
@@ -1699,6 +1869,7 @@
                                     },
                                     {
                                       "additionalProperties": false,
+                                      "description": "An exact expected value rendered from approved arguments and the projected acknowledgement (`$response: write.json.<path>`). Useful for provider resource locators and structured relationship evidence.",
                                       "properties": {
                                         "source": {
                                           "const": "template",
@@ -1712,7 +1883,9 @@
                                       ],
                                       "type": "object"
                                     }
-                                  ]
+                                  ],
+                                  "description": "What a confirming read's field must equal.",
+                                  "title": "ReadbackExpected"
                                 },
                                 "observed": {
                                   "minLength": 1,
@@ -1723,6 +1896,7 @@
                                 "expected",
                                 "observed"
                               ],
+                              "title": "ReadbackMatch",
                               "type": "object"
                             },
                             "minItems": 1,
@@ -1743,6 +1917,7 @@
                           "arguments",
                           "tool_digest"
                         ],
+                        "title": "McpReadback",
                         "type": "object"
                       },
                       "tool": {
@@ -1750,6 +1925,7 @@
                         "type": "string"
                       },
                       "tool_digest": {
+                        "description": "sha256 over the served tool's name, description, input schema and annotations when the manifest was authored. A tool served with another definition is refused.",
                         "maxLength": 71,
                         "pattern": "^sha256:[0-9a-f]{64}$",
                         "type": "string"
@@ -1760,6 +1936,7 @@
                       "arguments",
                       "tool_digest"
                     ],
+                    "title": "McpImplementation",
                     "type": "object"
                   }
                 },
@@ -1773,9 +1950,11 @@
                 "properties": {
                   "process": {
                     "additionalProperties": false,
+                    "description": "A tool package that runs as this operation's implementation, receiving the operation's credential. It is a declared trusted host process.",
                     "properties": {
                       "readback": {
                         "additionalProperties": false,
+                        "description": "How a write is confirmed: the tool is run again with `phase: readback` and the acknowledgement, and what it observes must match.",
                         "properties": {
                           "matches": {
                             "items": {
@@ -1785,6 +1964,7 @@
                                   "anyOf": [
                                     {
                                       "additionalProperties": false,
+                                      "description": "A field of the write's acknowledgement, which must be present.",
                                       "properties": {
                                         "path": {
                                           "minLength": 1,
@@ -1803,6 +1983,7 @@
                                     },
                                     {
                                       "additionalProperties": false,
+                                      "description": "A field of the call's own arguments, so the write is checked against what was approved. A match whose argument the call does not carry is not checked: nothing was asked for that field.",
                                       "properties": {
                                         "path": {
                                           "minLength": 1,
@@ -1821,6 +2002,7 @@
                                     },
                                     {
                                       "additionalProperties": false,
+                                      "description": "A field of the item a repeated write was sent for, checked the same way as an argument.",
                                       "properties": {
                                         "path": {
                                           "minLength": 1,
@@ -1854,6 +2036,7 @@
                                     },
                                     {
                                       "additionalProperties": false,
+                                      "description": "An exact expected value rendered from approved arguments and the projected acknowledgement (`$response: write.json.<path>`). Useful for provider resource locators and structured relationship evidence.",
                                       "properties": {
                                         "source": {
                                           "const": "template",
@@ -1867,7 +2050,9 @@
                                       ],
                                       "type": "object"
                                     }
-                                  ]
+                                  ],
+                                  "description": "What a confirming read's field must equal.",
+                                  "title": "ReadbackExpected"
                                 },
                                 "observed": {
                                   "minLength": 1,
@@ -1878,6 +2063,7 @@
                                 "expected",
                                 "observed"
                               ],
+                              "title": "ReadbackMatch",
                               "type": "object"
                             },
                             "minItems": 1,
@@ -1887,9 +2073,11 @@
                         "required": [
                           "matches"
                         ],
+                        "title": "ProcessReadback",
                         "type": "object"
                       },
                       "result_from": {
+                        "description": "The bounded public answer to return after confirmation. A durable acknowledgement can remain just an opaque provider reference.",
                         "enum": [
                           "readback"
                         ],
@@ -1911,6 +2099,7 @@
                     "required": [
                       "tool"
                     ],
+                    "title": "ProcessImplementation",
                     "type": "object"
                   }
                 },
@@ -1924,7 +2113,9 @@
                 "properties": {
                   "web": {
                     "additionalProperties": false,
+                    "description": "The runtime's guarded public web read: one URL fetched with GET, redirects admitted against the call's host allowlist, private networks refused, the body bounded and extracted as text, metadata or links.",
                     "properties": {},
+                    "title": "WebImplementation",
                     "type": "object"
                   }
                 },
@@ -1938,7 +2129,9 @@
                 "properties": {
                   "store": {
                     "additionalProperties": false,
+                    "description": "The runtime's event store: append-only streams with an expected version and an idempotency key per append, a rolling projection per stream, and stream heads by latest event. The instance's `url` parameter chooses SQLite, Postgres or Redis; without one it is the workspace store.",
                     "properties": {},
+                    "title": "StoreImplementation",
                     "type": "object"
                   }
                 },
@@ -1952,7 +2145,9 @@
                 "properties": {
                   "artifact": {
                     "additionalProperties": false,
+                    "description": "The runtime's artifact space: one bounded value stored under the runx account the runtime is signed in as, keyed by the call's idempotency key and confirmed by reading its reference back.",
                     "properties": {},
+                    "title": "ArtifactImplementation",
                     "type": "object"
                   }
                 },
@@ -1961,7 +2156,9 @@
                 ],
                 "type": "object"
               }
-            ]
+            ],
+            "description": "What one operation does, written as a single-key map: `{http: ...}`, `{mcp: ...}`, `{process: ...}`, `{web: {}}`, `{store: {}}` or `{artifact: {}}`. The local placement runs every kind; the hosted placement runs `http`.",
+            "title": "Implementation"
           },
           "input_schema": {
             "additionalProperties": {},
@@ -1976,6 +2173,7 @@
             "type": "array"
           },
           "scopes": {
+            "description": "Grant scopes, all required.",
             "items": {
               "minLength": 1,
               "type": "string"
@@ -1985,8 +2183,10 @@
           },
           "target": {
             "additionalProperties": false,
+            "description": "The target an operation acts on, rendered from the call's arguments and the instance's parameters. The rendered value must equal the admitted target.",
             "properties": {
               "pattern": {
+                "description": "A regular expression the rendered target must match whole, for a connector whose targets have a shape authority compares, such as a conversation locator.",
                 "minLength": 1,
                 "type": "string"
               },
@@ -1995,9 +2195,11 @@
             "required": [
               "template"
             ],
+            "title": "OperationTarget",
             "type": "object"
           },
           "verb": {
+            "description": "The provider verbs an operation may declare. `read` makes the operation a read; every other verb makes it a mutation.",
             "enum": [
               "read",
               "write",
@@ -2010,6 +2212,7 @@
               "execute",
               "revoke"
             ],
+            "title": "OperationVerb",
             "type": "string"
           }
         },
@@ -2019,6 +2222,7 @@
           "scopes",
           "target"
         ],
+        "title": "ConnectorOperation",
         "type": "object"
       },
       "propertyNames": {
@@ -2028,13 +2232,16 @@
     },
     "parameters": {
       "additionalProperties": {},
+      "description": "The JSON Schema of what an instance pins besides its authority, such as a store's location. Templates bind them as `$parameter`.",
       "type": "object"
     },
     "pays": {
       "additionalProperties": {
         "additionalProperties": false,
+        "description": "Constraints on a candidate payment method. These declarations filter discovery; the selected operation still admits the exact payment and account.",
         "properties": {
           "currencies": {
+            "description": "Quoted currencies; an omitted restriction leaves validation to the provider's exact operation, rather than inventing an FX conversion.",
             "items": {
               "pattern": "^[A-Z]{3}$",
               "type": "string"
@@ -2043,6 +2250,7 @@
             "type": "array"
           },
           "methods": {
+            "description": "Protocol method identifiers, such as `stripe` or `tempo` for MPP.",
             "items": {
               "minLength": 1,
               "type": "string"
@@ -2051,6 +2259,7 @@
             "type": "array"
           },
           "networks": {
+            "description": "Protocol network identifiers, such as the CAIP-2 `eip155:8453`.",
             "items": {
               "minLength": 1,
               "type": "string"
@@ -2059,8 +2268,10 @@
             "type": "array"
           }
         },
+        "title": "PaymentCompatibility",
         "type": "object"
       },
+      "description": "What a payment connector pays with, so a purchase offers it as a method only for a quote it can pay (S8, N10).",
       "propertyNames": {
         "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
       },
@@ -2068,6 +2279,7 @@
     },
     "placements": {
       "additionalProperties": false,
+      "description": "The placements a connector supports. A connector instance pins exactly one.",
       "properties": {
         "hosted": {
           "additionalProperties": false,
@@ -2077,6 +2289,7 @@
                 "delegated",
                 "credential"
               ],
+              "title": "HostedAuth",
               "type": "string"
             },
             "callers": {
@@ -2086,6 +2299,7 @@
               "type": "string"
             },
             "credential": {
+              "description": "The stored credential used under credential custody.",
               "maxLength": 64,
               "pattern": "^[a-z][a-z0-9_]{0,63}$",
               "type": "string"
@@ -2094,6 +2308,7 @@
           "required": [
             "auth"
           ],
+          "title": "HostedPlacement",
           "type": "object"
         },
         "local": {
@@ -2106,6 +2321,7 @@
                   "session",
                   "none"
                 ],
+                "title": "LocalAuth",
                 "type": "string"
               },
               "minItems": 1,
@@ -2121,6 +2337,7 @@
                         "anyOf": [
                           {
                             "additionalProperties": false,
+                            "description": "`Authorization: Bearer <credential field>`.",
                             "properties": {
                               "field": {
                                 "maxLength": 64,
@@ -2139,6 +2356,7 @@
                           },
                           {
                             "additionalProperties": false,
+                            "description": "A declared credential field as the complete value of a fixed header. Unlike a request template, this is rendered only at secret delivery.",
                             "properties": {
                               "field": {
                                 "maxLength": 64,
@@ -2163,6 +2381,7 @@
                           },
                           {
                             "additionalProperties": false,
+                            "description": "Exchange app credentials at a declared OAuth 2 token endpoint using client_secret_basic, then present its short-lived bearer token. Neither the credentials nor the token enter request templates/results.",
                             "properties": {
                               "client_id": {
                                 "maxLength": 64,
@@ -2194,6 +2413,7 @@
                           },
                           {
                             "additionalProperties": false,
+                            "description": "OAuth 1.0a user context, signed with the credential's `consumer_key`, `consumer_secret`, `access_token` and `access_secret`.",
                             "properties": {
                               "type": {
                                 "const": "oauth1",
@@ -2207,6 +2427,7 @@
                           },
                           {
                             "additionalProperties": false,
+                            "description": "A declared credential field as the request's complete URL, for a provider whose secret is the endpoint itself, such as a webhook. The request's declared URL is the prefix the credential's URL must start with.",
                             "properties": {
                               "field": {
                                 "maxLength": 64,
@@ -2226,6 +2447,7 @@
                           },
                           {
                             "additionalProperties": false,
+                            "description": "A declared credential field placed in the request's JSON body at `pointer` (RFC 6901), for a provider that reads its key from the body, such as IndexNow. The body's literal object holds the pointer's parent and never sets it, and no input names it.",
                             "properties": {
                               "field": {
                                 "maxLength": 64,
@@ -2248,8 +2470,11 @@
                             ],
                             "type": "object"
                           }
-                        ]
+                        ],
+                        "description": "How one credential authenticates a request.",
+                        "title": "HttpAuth"
                       },
+                      "description": "How each credential authenticates the session, by credential name: a bearer token. With none, the session carries no credential.",
                       "minProperties": 1,
                       "propertyNames": {
                         "pattern": "^[a-z][a-z0-9_]{0,63}$"
@@ -2258,6 +2483,7 @@
                     },
                     "headers": {
                       "additionalProperties": {},
+                      "description": "Headers every request of a session carries, rendered from the call (a tenant or brand the server selects by header). A header whose argument the call does not carry is not sent. Calls that render different headers run on different sessions.",
                       "minProperties": 1,
                       "type": "object"
                     },
@@ -2278,6 +2504,7 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "A server the runtime starts as a declared trusted host process and speaks to over stdio. `command` is found on the child's `PATH`. The instance's credential reaches it in the variable its declaration names, as a process implementation's does.",
                   "properties": {
                     "args": {
                       "items": {
@@ -2302,22 +2529,29 @@
                   ],
                   "type": "object"
                 }
-              ]
+              ],
+              "description": "Required when any operation uses an `mcp` implementation.",
+              "title": "McpServer"
             }
           },
           "required": [
             "auth"
           ],
+          "title": "LocalPlacement",
           "type": "object"
         }
       },
+      "title": "ConnectorPlacements",
       "type": "object"
     },
     "references": {
+      "description": "What the connector's locators name, so references to them are classified without the runtime knowing the provider.",
       "items": {
         "additionalProperties": false,
+        "description": "One kind of thing a connector's locators name.",
         "properties": {
           "kind": {
+            "description": "The kinds of thing outside runx a connector's locators name: what its declared references classify and what its operations produce.",
             "enum": [
               "thread",
               "comment",
@@ -2327,9 +2561,11 @@
               "repository",
               "external_url"
             ],
+            "title": "ExternalReferenceKind",
             "type": "string"
           },
           "locator": {
+            "description": "A regular expression the whole locator matches.",
             "minLength": 1,
             "type": "string"
           }
@@ -2338,18 +2574,21 @@
           "kind",
           "locator"
         ],
+        "title": "ReferenceDeclaration",
         "type": "object"
       },
       "minItems": 1,
       "type": "array"
     },
     "runtime_capability": {
+      "description": "Whether the connector is the runtime's own capability (a store, the web, a vault) rather than an outside service. Declared, never inferred.",
       "type": "boolean"
     },
     "schema": {
       "enum": [
         "runx.connector.v1"
       ],
+      "title": "ConnectorSchema",
       "type": "string"
     }
   },
@@ -2363,6 +2602,7 @@
     "placements",
     "operations"
   ],
+  "title": "ConnectorManifest",
   "type": "object",
   "x-runx-schema": "runx.connector.v1"
 }

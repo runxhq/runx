@@ -20,7 +20,7 @@ pub mod tree;
 pub(crate) use act::SealedCall;
 pub use local_key::{LOCAL_RECEIPT_KEY_SCHEMA, LocalReceiptKeyFault};
 pub(crate) use seal::{
-    GraphClosure, RuntimeReceiptProofContextProvider, StepReceiptWithDisposition, StepSeal,
+    GraphClosure, RuntimeReceiptProofContextProvider, StepReceiptWithOutcome, StepSeal,
     StepSealClosure, graph_receipt_with_closure, seal_step,
     step_receipt_with_declared_claim_and_policy,
 };

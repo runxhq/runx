@@ -32,13 +32,13 @@ pub(super) trait NativeCapability: CapabilityContract {
 }
 
 pub(super) fn decode_typed_output<O: CapabilityOutput>(
-    tool_ref: &str,
+    tool: &str,
     output: JsonValue,
 ) -> Result<O, RuntimeError> {
     output
         .deserialize_into::<O>()
         .map_err(|source| RuntimeError::SkillFailed {
-            skill_name: tool_ref.to_owned(),
+            skill_name: tool.to_owned(),
             message: format!("invalid typed output: {source}"),
         })
 }

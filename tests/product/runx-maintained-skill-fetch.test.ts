@@ -183,7 +183,7 @@ describe("registry skill native fetch", () => {
         "--registry",
         registryDir,
         "--input",
-        "data_source_ref=local://runx-github-sync/maintained-cache",
+        "data_source_uri=local://runx-github-sync/maintained-cache",
         "--input",
         "resource=github_sync_events",
         "--input",
@@ -228,7 +228,7 @@ function testEnv(projectDir: string, globalHomeDir: string): NodeJS.ProcessEnv {
   delete env.RUNX_REGISTRY_SOURCE_AUTHORITY;
   delete env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID;
   delete env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64;
-  delete env.RUNX_REGISTRY_MANIFEST_TRUST_OWNER;
+  delete env.RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER;
   return env;
 }
 
@@ -311,7 +311,7 @@ function publishLocalRegistrySkill(input: {
   const signingKey = testManifestSigningKey();
   input.env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID = signingKey.keyId;
   input.env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64 = signingKey.publicKeyBase64;
-  input.env.RUNX_REGISTRY_MANIFEST_TRUST_OWNER = input.owner;
+  input.env.RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER = input.owner;
   const args = [
     "registry",
     "publish",

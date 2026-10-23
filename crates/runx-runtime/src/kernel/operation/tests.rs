@@ -126,19 +126,19 @@ impl Provider {
     fn artifact(&self, body: &serde_json::Value) -> serde_json::Value {
         let operation = body["operation"].as_str().unwrap_or_default();
         let input = &body["input"];
-        let (artifact_ref, result) = match operation {
+        let (artifact_uri, result) = match operation {
             "artifact.allocate" => {
                 use base64::Engine as _;
                 let key = input["idempotency_key"].as_str().unwrap();
                 let bytes = base64::engine::general_purpose::STANDARD
                     .decode(input["data_base64"].as_str().unwrap())
                     .unwrap();
-                let artifact_ref = format!(
+                let artifact_uri = format!(
                     "runx:artifact:{}",
                     runx_contracts::sha256_prefixed(key.as_bytes())
                 );
                 let result = serde_json::json!({
-                    "artifact_ref": artifact_ref,
+                    "artifact_uri": artifact_uri,
                     "content_digest": input["content_digest"],
                     "media_type": input["media_type"],
                     "size_bytes": bytes.len(),
@@ -147,13 +147,13 @@ impl Provider {
                 self.artifacts
                     .lock()
                     .unwrap()
-                    .insert(artifact_ref.clone(), result.clone());
-                (artifact_ref, result)
+                    .insert(artifact_uri.clone(), result.clone());
+                (artifact_uri, result)
             }
             _ => {
-                let artifact_ref = input["artifact_ref"].as_str().unwrap().to_owned();
-                let result = self.artifacts.lock().unwrap()[&artifact_ref].clone();
-                (artifact_ref, result)
+                let artifact_uri = input["artifact_uri"].as_str().unwrap().to_owned();
+                let result = self.artifacts.lock().unwrap()[&artifact_uri].clone();
+                (artifact_uri, result)
             }
         };
         let owner = self
@@ -167,12 +167,12 @@ impl Provider {
             "status": "success",
             "provider": "runx-artifact",
             "operation": operation,
-            "target": artifact_ref,
+            "target": artifact_uri,
             "result": result,
             "transport": "hosted_loopback",
-            "readback_ref": "runx:artifact-readback:1",
+            "readback_uri": "runx:artifact-readback:1",
             "access": if operation == "artifact.allocate" { "mutate" } else { "read" },
-            "principal_ref": format!("runx:principal:{owner}"),
+            "principal_uri": format!("runx:principal:{owner}"),
             "finality": "verified",
         });
         if operation == "artifact.allocate" {
@@ -354,7 +354,7 @@ impl crate::http::RuntimeHttpTransport for Provider {
                     "target": field("target"),
                     "access": field("access"),
                     "result": result,
-                    "readback_ref": "runx:provider-readback:1",
+                    "readback_uri": "runx:provider-readback:1",
                     "operation_id": "m-1",
                     "idempotency_key": key,
                 });
@@ -686,8 +686,8 @@ fn a_financial_call_cannot_understate_its_provider_inputs_to_bypass_the_runs_lim
     let context = admission.context::<OperationAdmission>().unwrap();
     let explicit_intent = context.admitted.intent_digest().clone();
     assert_eq!(
-        context.admitted.admission.disposition,
-        AdmissionDisposition::NeedsResolution,
+        context.admitted.admission.decision,
+        AdmissionDecision::NeedsResolution,
         "the connector floor requires a person even without step approval text"
     );
     inputs.remove("amount");
@@ -905,8 +905,8 @@ fn an_approved_post_binds_its_intent_term_and_readback() {
     );
     let admitted = &context.admitted.admission;
     assert_eq!(
-        admitted.disposition,
-        crate::kernel::admission::AdmissionDisposition::Admit
+        admitted.decision,
+        crate::kernel::admission::AdmissionDecision::Admit
     );
     let term = admitted.execution_term.as_ref().expect("execution term");
     assert_eq!(term.approvals.len(), 1);
@@ -928,8 +928,8 @@ fn the_floor_cannot_be_skipped_by_omitting_approval_text() {
     let admission = fixture.admit("post", &post("hi")).expect("admits");
     let context = admission.context::<OperationAdmission>().unwrap();
     assert_eq!(
-        context.admitted.admission.disposition,
-        crate::kernel::admission::AdmissionDisposition::NeedsResolution
+        context.admitted.admission.decision,
+        crate::kernel::admission::AdmissionDecision::NeedsResolution
     );
     let mut host = Approver::new(None);
     assert!(matches!(
@@ -1597,7 +1597,7 @@ fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval
     );
     // Its evidence is its recorded acknowledgement, never a confirming read,
     // and the receipt never seals it as the effect's finality.
-    let first_evidence = acknowledged["readback_ref"].as_str().unwrap().to_owned();
+    let first_evidence = acknowledged["readback_uri"].as_str().unwrap().to_owned();
     assert!(
         first_evidence.starts_with("runx:http-acknowledgement:sha256:"),
         "{first_evidence}"
@@ -1648,7 +1648,7 @@ fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval
     assert_ne!(first, second);
     assert_ne!(
         first_evidence,
-        packet(&outcome)["readback_ref"].as_str().unwrap(),
+        packet(&outcome)["readback_uri"].as_str().unwrap(),
         "each acknowledgement is its own evidence"
     );
 }
@@ -2155,7 +2155,7 @@ fn an_artifact_is_stored_for_the_signed_in_account_and_read_back() {
     );
     let result = packet["result"].as_object().unwrap();
     assert_eq!(
-        result["principal_ref"],
+        result["principal_uri"],
         JsonValue::String(PRINCIPAL_REF.to_owned())
     );
     assert_eq!(
@@ -2214,7 +2214,7 @@ fn public_storage_acts_as_the_runs_declared_actor() {
         actor
     );
     assert_eq!(
-        packet(&outcome)["result"].as_object().unwrap()["principal_ref"],
+        packet(&outcome)["result"].as_object().unwrap()["principal_uri"],
         JsonValue::String(PRINCIPAL_REF.to_owned())
     );
     assert_eq!(
@@ -2329,7 +2329,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
         "placements":{"local":{"auth":["session"]}},
         "operations":{"issues.read":{"description":"Read this account.","verb":"read","scopes":["repo.read"],"target":{"template":"forge://current"},
             "input_schema":{"type":"object","properties":{},"additionalProperties":false},
-            "result_fields":["account_ref"],"implementation":{"process":{"tool":"fixture.account"}}}}
+            "result_fields":["account_id"],"implementation":{"process":{"tool":"fixture.account"}}}}
     });
     std::fs::write(directory.join("connector.yaml"), manifest.to_string()).unwrap();
     let tool = directory.join("tools/fixture/account");
@@ -2338,7 +2338,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
     std::fs::write(tool.join("manifest.json"), serde_json::json!({
         "schema":"runx.tool.manifest.v1","name":"fixture.account","version":"0.1.0","description":"Read a managed session account.",
         "source":{"command":"sh","args":["./account.sh"],"input_mode":"stdin"},
-        "inputs":{"principal_ref":{"type":"string","required":true}}
+        "inputs":{"principal_uri":{"type":"string","required":true}}
     }).to_string()).unwrap();
     let connector = crate::kernel::connectors::ConnectorScope::at(root)
         .unwrap()
@@ -2374,7 +2374,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
     )
     .unwrap();
     assert_eq!(
-        instance.principal_ref.as_str(),
+        instance.principal_uri.as_str(),
         "runx:principal:fixture/forge:account-one"
     );
     assert!(
@@ -2393,8 +2393,8 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
         ) -> Result<JsonValue, String> {
             self.0.borrow_mut().push(inputs.clone());
             Ok(JsonValue::Object(JsonObject::from([(
-                "account_ref".to_owned(),
-                inputs["principal_ref"].clone(),
+                "account_id".to_owned(),
+                inputs["principal_uri"].clone(),
             )])))
         }
     }
@@ -2419,7 +2419,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
     };
     assert!(run().is_ok());
     assert_eq!(
-        reader.0.borrow()[0]["principal_ref"].as_str(),
+        reader.0.borrow()[0]["principal_uri"].as_str(),
         Some("runx:principal:fixture/forge:account-one")
     );
     std::fs::write(

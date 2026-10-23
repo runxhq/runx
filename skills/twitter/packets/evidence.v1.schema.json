@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/twitter/evidence/v1.json",
+  "x-runx-packet-id": "runx/twitter.evidence.v1",
+  "additionalProperties": false,
+  "properties": {
+    "account": {
+      "maxProperties": 5,
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "blockers": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+    },
+    "decision": {
+      "enum": [
+        "ok",
+        "needs_input"
+      ],
+      "type": "string"
+    },
+    "item_count": {
+      "maximum": 10099,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "items": {
+      "items": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "has_link": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "integer"
+                ]
+              },
+              "in_reply_to": {
+                "type": [
+                  "string",
+                  "integer",
+                  "null"
+                ]
+              },
+              "metrics": {
+                "additionalProperties": false,
+                "properties": {
+                  "impressions": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "likes": {
+                    "type": "number"
+                  },
+                  "quotes": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "replies": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "reposts": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "likes",
+                  "reposts",
+                  "replies",
+                  "quotes",
+                  "impressions"
+                ],
+                "type": "object"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "text",
+              "created_at",
+              "metrics",
+              "has_link",
+              "in_reply_to"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "integer"
+                ]
+              },
+              "metrics": {
+                "additionalProperties": false,
+                "properties": {
+                  "followers": {
+                    "type": "number"
+                  },
+                  "following": {
+                    "type": "number"
+                  },
+                  "posts": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "followers",
+                  "following",
+                  "posts"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "username": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "username",
+              "name",
+              "description",
+              "metrics"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 10099,
+      "type": "array"
+    },
+    "next_cursor": {
+      "maxLength": 512,
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "retrieved_via": {
+          "maxLength": 4000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "retrieved_via",
+        "content_digest"
+      ],
+      "type": "object"
+    },
+    "query": {
+      "maxProperties": 2,
+      "properties": {
+        "kind": {
+          "enum": [
+            "snapshot",
+            "posts",
+            "mentions",
+            "search",
+            "following",
+            "followers"
+          ],
+          "type": "string"
+        },
+        "params": {
+          "maxProperties": 50,
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "source": {
+      "enum": [
+        "live",
+        "archive"
+      ],
+      "type": "string"
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "decision",
+    "source",
+    "query",
+    "account",
+    "items",
+    "item_count",
+    "truncated",
+    "next_cursor",
+    "provenance",
+    "blockers"
+  ],
+  "type": "object"
+}

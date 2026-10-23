@@ -2,10 +2,17 @@
 
 use std::path::Path;
 
-use runx_contracts::{JsonNumber, JsonValue};
+use std::num::NonZeroU64;
+
+use runx_contracts::schema::{BoundedU64, BoundedVec, NonEmptyString};
+use runx_contracts::{
+    Digest, FS_BUNDLE_MAX_BYTES, FS_BUNDLE_MAX_FILES, FileAppliedWrite, FileApplyBundle,
+    FileBundleDelete, FileEdit, FileRead, FileReadBundle, FileWrite, JsonNumber, JsonValue,
+    MissingFile,
+};
 
 use super::capability::decode_typed_output;
-use super::{NativeInvocation, invalid_input, required_string, resolve_repo_root_for};
+use super::{NativeInvocation, invalid_input, non_empty, resolve_repo_root_for, root_name};
 use crate::RuntimeError;
 use crate::capability::LocalEffect;
 use crate::filesystem::{
@@ -25,9 +32,7 @@ mod walk;
 
 pub(super) use capability::CAPABILITIES;
 use capability::{
-    BundleDelete, FileApplyBundleInput, FileApplyBundleOutput, FileEditInput, FileEditOutput,
-    FileReadBundleInput, FileReadBundleOutput, FileReadInput, FileReadOutput, FileWriteInput,
-    FileWriteOutput, MissingFile,
+    FileApplyBundleInput, FileEditInput, FileReadBundleInput, FileReadInput, FileWriteInput,
 };
 
 const READ_TOOL: &str = "fs.read";
@@ -36,10 +41,10 @@ const WRITE_TOOL: &str = "fs.write";
 const EDIT_TOOL: &str = "fs.edit";
 const APPLY_BUNDLE_TOOL: &str = "fs.apply_bundle";
 const MAX_FILE_READ_BYTES: usize = 8 * 1024 * 1024;
-const MAX_BUNDLE_FILES: usize = 16;
-const MAX_FILE_BUNDLE_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_BUNDLE_FILES: usize = FS_BUNDLE_MAX_FILES;
+const MAX_FILE_BUNDLE_BYTES: u64 = FS_BUNDLE_MAX_BYTES;
 
-fn read(invocation: &NativeInvocation<'_, FileReadInput>) -> Result<FileReadOutput, RuntimeError> {
+fn read(invocation: &NativeInvocation<'_, FileReadInput>) -> Result<FileRead, RuntimeError> {
     let inputs = invocation.inputs;
     let root = root(READ_TOOL, &inputs.repo_root, &inputs.path_scope, invocation)?;
     if inputs.start_line == 0 {
@@ -109,7 +114,7 @@ fn select_lines(text: &str, range: LineRange, max_bytes: usize) -> (String, bool
 
 fn read_bundle(
     invocation: &NativeInvocation<'_, FileReadBundleInput>,
-) -> Result<FileReadBundleOutput, RuntimeError> {
+) -> Result<FileReadBundle, RuntimeError> {
     let root = root(
         READ_BUNDLE_TOOL,
         &invocation.inputs.repo_root,
@@ -121,12 +126,13 @@ fn read_bundle(
     let report_missing = report_missing(&invocation.inputs.on_missing)?;
     let (files, missing, total_bytes) =
         read_bundle_files(&root, paths, max_bytes, report_missing, invocation.bounds)?;
-    Ok(FileReadBundleOutput {
-        repo_root: root.to_string_lossy().into_owned(),
-        file_count: files.len() as u64,
-        total_bytes,
-        files,
-        missing,
+    let over = || invalid_input(READ_BUNDLE_TOOL, "bundle exceeded its bounds");
+    Ok(FileReadBundle {
+        repo_root: root_name(READ_BUNDLE_TOOL, &root)?,
+        file_count: BoundedU64::new(files.len() as u64).ok_or_else(over)?,
+        total_bytes: BoundedU64::new(total_bytes).ok_or_else(over)?,
+        files: BoundedVec::new(files).ok_or_else(over)?,
+        missing: BoundedVec::new(missing).ok_or_else(over)?,
     })
 }
 
@@ -157,7 +163,7 @@ fn read_bundle_files(
     max_bytes: usize,
     report_missing: bool,
     bounds: WorkspaceBounds,
-) -> Result<(Vec<FileReadOutput>, Vec<MissingFile>, u64), RuntimeError> {
+) -> Result<(Vec<FileRead>, Vec<MissingFile>, u64), RuntimeError> {
     let mut seen = std::collections::BTreeSet::new();
     let mut total_bytes = 0u64;
     let mut files = Vec::with_capacity(paths.len());
@@ -180,9 +186,12 @@ fn read_bundle_files(
             Ok(file) => file,
             Err(_) if report_missing => {
                 missing.push(MissingFile {
-                    path: path.to_owned(),
-                    reason: "file was unavailable within the declared root and read limits"
-                        .to_owned(),
+                    path: non_empty(READ_BUNDLE_TOOL, "path", path.as_str())?,
+                    reason: non_empty(
+                        READ_BUNDLE_TOOL,
+                        "reason",
+                        "file was unavailable within the declared root and read limits",
+                    )?,
                 });
                 continue;
             }
@@ -213,7 +222,7 @@ fn read_one(
     range: LineRange,
     max_bytes: usize,
     bounds: WorkspaceBounds,
-) -> Result<FileReadOutput, RuntimeError> {
+) -> Result<FileRead, RuntimeError> {
     let file = crate::services::WorkspaceFile::resolve(root, Path::new(requested), bounds)
         .map_err(|error| invalid_input(tool, error.to_string()))?;
     let file = file
@@ -229,21 +238,22 @@ fn read_one(
         ));
     }
     let (contents, truncated, total_lines) = select_lines(&file.contents, range, max_bytes);
-    Ok(FileReadOutput {
-        path: file.relative_path,
-        repo_root: root.to_string_lossy().into_owned(),
+    Ok(FileRead {
+        path: non_empty(tool, "path", file.relative_path)?,
+        repo_root: root_name(tool, root)?,
         contents,
         bytes: file.bytes,
         truncated,
-        content_digest: file.digest,
-        start_line: range.start_line,
+        content_digest: file
+            .digest
+            .ok_or_else(|| invalid_input(tool, "a whole read returned no digest"))?,
+        start_line: NonZeroU64::new(range.start_line)
+            .ok_or_else(|| invalid_input(tool, "start_line counts from 1"))?,
         total_lines,
     })
 }
 
-fn write(
-    invocation: &NativeInvocation<'_, FileWriteInput>,
-) -> Result<FileWriteOutput, RuntimeError> {
+fn write(invocation: &NativeInvocation<'_, FileWriteInput>) -> Result<FileWrite, RuntimeError> {
     let root = resolve_repo_root_for(
         WRITE_TOOL,
         &invocation.inputs.repo_root,
@@ -259,69 +269,36 @@ fn write(
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
     let write = first_write(WRITE_TOOL, &report)?;
-    let normalized_path = required_string(WRITE_TOOL, write, "path")?;
-    let bytes_written = write
-        .get("bytes_written")
-        .cloned()
-        .ok_or_else(|| invalid_input(WRITE_TOOL, "filesystem transaction omitted byte count"))?;
-    let sha256 = required_string(WRITE_TOOL, write, "sha256")?
-        .strip_prefix("sha256:")
-        .ok_or_else(|| {
-            invalid_input(
-                WRITE_TOOL,
-                "filesystem transaction returned an invalid digest",
-            )
-        })?;
-    let bytes_written = match bytes_written {
-        JsonValue::Number(JsonNumber::U64(value)) => value,
-        _ => {
-            return Err(invalid_input(
-                WRITE_TOOL,
-                "filesystem transaction returned an invalid byte count",
-            ));
-        }
-    };
-    Ok(FileWriteOutput {
-        path: normalized_path.to_owned(),
-        repo_root: root.to_string_lossy().into_owned(),
-        bytes_written,
-        sha256: sha256.to_owned(),
-        before_digest: write
-            .get("before_digest")
-            .and_then(JsonValue::as_str)
-            .map(str::to_owned),
-        diff: diff_of(WRITE_TOOL, write)?,
+    Ok(FileWrite {
+        path: write.path,
+        repo_root: root_name(WRITE_TOOL, &root)?,
+        bytes_written: write.bytes_written,
+        content_digest: write.content_digest,
+        before_digest: write.before_digest,
+        diff: write.diff,
         journal: journal_of(&report),
     })
 }
 
-/// A reported change's diff, exactly as it was computed: empty when the
-/// change left the file as it was.
-fn diff_of(tool: &str, change: &runx_contracts::JsonObject) -> Result<String, RuntimeError> {
-    change
-        .get("diff")
-        .and_then(JsonValue::as_str)
-        .map(str::to_owned)
-        .ok_or_else(|| invalid_input(tool, "filesystem transaction omitted its diff"))
-}
-
 /// The write a one-file bundle report proves.
-fn first_write<'a>(
+fn first_write(
     tool: &str,
-    report: &'a runx_contracts::JsonObject,
-) -> Result<&'a runx_contracts::JsonObject, RuntimeError> {
+    report: &runx_contracts::JsonObject,
+) -> Result<FileAppliedWrite, RuntimeError> {
     report
         .get("writes")
         .and_then(JsonValue::as_array)
         .and_then(|writes| writes.first())
-        .and_then(JsonValue::as_object)
-        .ok_or_else(|| invalid_input(tool, "filesystem transaction omitted write proof"))
+        .cloned()
+        .ok_or_else(|| invalid_input(tool, "filesystem transaction omitted write proof"))?
+        .deserialize_into()
+        .map_err(|error| invalid_input(tool, format!("filesystem transaction proof: {error}")))
 }
 
 /// The run's journal entry a bundle report names.
-fn journal_of(report: &runx_contracts::JsonObject) -> Option<u64> {
+fn journal_of(report: &runx_contracts::JsonObject) -> Option<NonZeroU64> {
     match report.get("journal") {
-        Some(JsonValue::Number(JsonNumber::U64(journal))) => Some(*journal),
+        Some(JsonValue::Number(JsonNumber::U64(journal))) => NonZeroU64::new(*journal),
         _ => None,
     }
 }
@@ -331,7 +308,7 @@ fn journal_of(report: &runx_contracts::JsonObject) -> Option<u64> {
 fn expectation(
     tool: &str,
     path: &str,
-    expected_digest: Option<&String>,
+    expected_digest: Option<&Digest>,
     create: bool,
 ) -> Result<Option<Expected>, RuntimeError> {
     match (expected_digest, create) {
@@ -339,7 +316,7 @@ fn expectation(
             tool,
             format!("{path} names an expected_digest or create, not both"),
         )),
-        (Some(digest), false) => Ok(Some(Expected::Digest(digest.clone()))),
+        (Some(digest), false) => Ok(Some(Expected::Digest(digest.as_str().to_owned()))),
         (None, true) => Ok(Some(Expected::Absent)),
         (None, false) => Ok(None),
     }
@@ -389,8 +366,8 @@ fn write_effect(
 /// least once with `replace_all`; anything else is refused with why.
 struct Edited {
     root: std::path::PathBuf,
-    path: String,
-    before_digest: String,
+    path: NonEmptyString,
+    before_digest: Digest,
     contents: String,
     replacements: u64,
 }
@@ -464,18 +441,18 @@ fn edited(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<Edited, Ru
 fn edit_bundle(edited: &Edited) -> TextBundle {
     TextBundle {
         writes: vec![TextFileWrite {
-            path: edited.path.clone(),
+            path: edited.path.as_str().to_owned(),
             contents: edited.contents.clone(),
         }],
         deletes: Vec::new(),
         expected: std::collections::BTreeMap::from([(
-            edited.path.clone(),
-            Expected::Digest(edited.before_digest.clone()),
+            edited.path.as_str().to_owned(),
+            Expected::Digest(edited.before_digest.as_str().to_owned()),
         )]),
     }
 }
 
-fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEditOutput, RuntimeError> {
+fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEdit, RuntimeError> {
     let edited = edited(invocation)?;
     let report = apply_text_bundle(
         EDIT_TOOL,
@@ -484,15 +461,16 @@ fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEditOutp
         invocation.bounds,
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
-    Ok(FileEditOutput {
-        path: edited.path,
-        repo_root: edited.root.to_string_lossy().into_owned(),
-        replacements: edited.replacements,
-        before_digest: edited.before_digest,
-        content_digest: runx_contracts::sha256_prefixed(edited.contents.as_bytes()),
+    Ok(FileEdit {
+        repo_root: root_name(EDIT_TOOL, &edited.root)?,
+        replacements: NonZeroU64::new(edited.replacements)
+            .ok_or_else(|| invalid_input(EDIT_TOOL, "the edits replaced nothing"))?,
+        content_digest: Digest::of(edited.contents.as_bytes()),
         bytes_written: edited.contents.len() as u64,
-        diff: diff_of(EDIT_TOOL, first_write(EDIT_TOOL, &report)?)?,
+        diff: first_write(EDIT_TOOL, &report)?.diff,
         journal: journal_of(&report),
+        path: edited.path,
+        before_digest: edited.before_digest,
     })
 }
 
@@ -515,23 +493,23 @@ fn files_bundle(inputs: &FileApplyBundleInput) -> Result<TextBundle, RuntimeErro
     for write in &inputs.writes {
         if let Some(expectation) = expectation(
             APPLY_BUNDLE_TOOL,
-            &write.path,
+            write.path.as_str(),
             write.expected_digest.as_ref(),
             write.create,
         )? {
-            expected.insert(write.path.clone(), expectation);
+            expected.insert(write.path.as_str().to_owned(), expectation);
         }
     }
     let mut deletes = Vec::with_capacity(inputs.deletes.len());
     for delete in &inputs.deletes {
         match delete {
-            BundleDelete::Path(path) => deletes.push(path.clone()),
-            BundleDelete::Bound(bound) => {
+            FileBundleDelete::Path(path) => deletes.push(path.as_str().to_owned()),
+            FileBundleDelete::Bound(bound) => {
                 expected.insert(
-                    bound.path.clone(),
-                    Expected::Digest(bound.expected_digest.clone()),
+                    bound.path.as_str().to_owned(),
+                    Expected::Digest(bound.expected_digest.as_str().to_owned()),
                 );
-                deletes.push(bound.path.clone());
+                deletes.push(bound.path.as_str().to_owned());
             }
         }
     }
@@ -540,7 +518,7 @@ fn files_bundle(inputs: &FileApplyBundleInput) -> Result<TextBundle, RuntimeErro
             .writes
             .iter()
             .map(|write| TextFileWrite {
-                path: write.path.clone(),
+                path: write.path.as_str().to_owned(),
                 contents: write.contents.clone(),
             })
             .collect(),
@@ -551,7 +529,7 @@ fn files_bundle(inputs: &FileApplyBundleInput) -> Result<TextBundle, RuntimeErro
 
 fn apply_files(
     invocation: &NativeInvocation<'_, FileApplyBundleInput>,
-) -> Result<FileApplyBundleOutput, RuntimeError> {
+) -> Result<FileApplyBundle, RuntimeError> {
     let repo_root = resolve_repo_root_for(
         APPLY_BUNDLE_TOOL,
         &invocation.inputs.repo_root,

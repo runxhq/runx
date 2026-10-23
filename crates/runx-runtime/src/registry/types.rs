@@ -109,7 +109,6 @@ pub struct RegistrySearchResult {
     pub summary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
-    pub owner: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -136,7 +135,6 @@ pub struct RegistrySearchResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegistrySkillVersion {
     pub skill_id: String,
-    pub owner: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -154,7 +152,7 @@ pub struct RegistrySkillVersion {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub package_files: Vec<RegistryPackageFile>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub package_digest: Option<String>,
+    pub bundle_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
     pub runner_names: Vec<String>,
@@ -183,7 +181,6 @@ pub struct RegistrySkillVersion {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegistrySkill {
     pub skill_id: String,
-    pub owner: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -204,7 +201,7 @@ pub struct RegistrySkillResolution {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub package_files: Vec<RegistryPackageFile>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub package_digest: Option<String>,
+    pub bundle_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
     pub runner_names: Vec<String>,
@@ -305,7 +302,6 @@ pub enum PublishStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegistrySkillDetail {
     pub skill_id: String,
-    pub owner: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -321,7 +317,7 @@ pub struct RegistrySkillDetail {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub package_files: Vec<RegistryPackageFile>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub package_digest: Option<String>,
+    pub bundle_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
     pub runner_names: Vec<String>,
@@ -339,7 +335,6 @@ pub struct RegistrySkillDetail {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AcquiredRegistrySkill {
     pub skill_id: String,
-    pub owner: String,
     pub name: String,
     pub version: String,
     pub digest: String,
@@ -353,7 +348,7 @@ pub struct AcquiredRegistrySkill {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub package_files: Vec<RegistryPackageFile>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub package_digest: Option<String>,
+    pub bundle_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
     pub runner_names: Vec<String>,
@@ -370,7 +365,6 @@ pub struct AcquiredRegistrySkill {
 /// the one asked for.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryConnectorDetail {
-    #[serde(rename = "ref")]
     pub connector: runx_contracts::connector::ConnectorName,
     pub version: String,
     pub name: String,
@@ -388,7 +382,6 @@ pub struct RegistryConnectorDetail {
 /// One published connector a registry search found: its current version.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegistryConnectorSearchResult {
-    #[serde(rename = "ref")]
     pub connector: runx_contracts::connector::ConnectorName,
     pub version: String,
     pub name: String,

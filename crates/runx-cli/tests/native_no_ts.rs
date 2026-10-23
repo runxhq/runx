@@ -79,7 +79,7 @@ fn native_cli_smoke_runs_without_node_or_typescript_env() -> Result<(), Box<dyn 
     assert_eq!(receipt["schema"], "runx.receipt.v1");
     // Flat receipts carry no nested harness state; a terminal seal is the
     // "sealed" signal, and this graph closes cleanly.
-    assert_eq!(receipt["seal"]["disposition"], "closed");
+    assert_eq!(receipt["seal"]["outcome"], "completed");
 
     Ok(())
 }

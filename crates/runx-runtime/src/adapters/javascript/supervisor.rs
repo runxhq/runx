@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use runx_contracts::javascript_worker::{
-    InvocationLimits, PROTOCOL_VERSION, WorkerDisposition, WorkerInvocationRequest, WorkerRequest,
+    InvocationLimits, PROTOCOL_VERSION, WorkerFate, WorkerInvocationRequest, WorkerRequest,
 };
 
 use crate::RuntimeError;
@@ -29,10 +29,7 @@ pub(super) struct WorkerInvocation {
 
 pub(super) enum WorkerInvocationResult {
     Success(serde_json::Value),
-    Failure {
-        message: String,
-        disposition: WorkerDisposition,
-    },
+    Failure { message: String, fate: WorkerFate },
 }
 
 pub(super) struct WorkerInvocationOutcome {
@@ -91,11 +88,11 @@ impl JavaScriptWorkerSupervisor {
         };
         match result {
             Ok(response) => {
-                let disposition = match &response {
-                    WorkerInvocationResult::Success(_) => WorkerDisposition::Reuse,
-                    WorkerInvocationResult::Failure { disposition, .. } => *disposition,
+                let fate = match &response {
+                    WorkerInvocationResult::Success(_) => WorkerFate::Reuse,
+                    WorkerInvocationResult::Failure { fate, .. } => *fate,
                 };
-                if disposition == WorkerDisposition::Discard {
+                if fate == WorkerFate::Discard {
                     lease.poison();
                 }
                 Ok(WorkerInvocationOutcome {

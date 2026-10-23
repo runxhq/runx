@@ -438,9 +438,9 @@ function inspectChecksum(packageDir: string, bin: string, worker: string, output
     readonly package?: string;
     readonly platform?: string;
     readonly binary?: string;
-    readonly sha256?: string;
+    readonly binary_digest?: string;
     readonly worker?: string;
-    readonly worker_sha256?: string;
+    readonly worker_digest?: string;
   }>(checksumPath, output, "checksum_manifest_malformed");
   if (!checksum) {
     return;
@@ -464,25 +464,25 @@ function inspectChecksum(packageDir: string, bin: string, worker: string, output
   if (expectedPlatform && checksum.platform !== expectedPlatform) {
     output.push(finding("checksum_platform_mismatch", checksumPath, `checksum platform ${checksum.platform ?? "<missing>"} does not match ${expectedPlatform}`));
   }
-  if (!checksum.sha256 || !/^[0-9a-f]{64}$/u.test(checksum.sha256)) {
-    output.push(finding("checksum_sha256_invalid", checksumPath, "checksum sha256 must be a 64-character lowercase hex digest"));
+  if (!isDigest(checksum.binary_digest)) {
+    output.push(finding("checksum_binary_digest_invalid", checksumPath, "checksum binary_digest must be sha256: and a 64-character lowercase hex digest"));
     return;
   }
   const binaryPath = path.resolve(packageDir, bin);
-  if (existsSync(binaryPath) && checksum.sha256 !== sha256(readFileSync(binaryPath))) {
-    output.push(finding("checksum_mismatch", checksumPath, "binary sha256 does not match native/checksums.json"));
+  if (existsSync(binaryPath) && checksum.binary_digest !== sha256(readFileSync(binaryPath))) {
+    output.push(finding("checksum_mismatch", checksumPath, "binary digest does not match native/checksums.json"));
   }
   if (checksum.worker !== worker) {
     output.push(finding("checksum_worker_mismatch", checksumPath, `checksum worker ${checksum.worker ?? "<missing>"} does not match ${worker}`));
     return;
   }
-  if (!checksum.worker_sha256 || !/^[0-9a-f]{64}$/u.test(checksum.worker_sha256)) {
-    output.push(finding("checksum_worker_sha256_invalid", checksumPath, "worker_sha256 must be a 64-character lowercase hex digest"));
+  if (!isDigest(checksum.worker_digest)) {
+    output.push(finding("checksum_worker_digest_invalid", checksumPath, "worker_digest must be sha256: and a 64-character lowercase hex digest"));
     return;
   }
   const workerPath = path.resolve(packageDir, worker);
-  if (existsSync(workerPath) && checksum.worker_sha256 !== sha256(readFileSync(workerPath))) {
-    output.push(finding("checksum_worker_mismatch", checksumPath, "worker sha256 does not match native/checksums.json"));
+  if (existsSync(workerPath) && checksum.worker_digest !== sha256(readFileSync(workerPath))) {
+    output.push(finding("checksum_worker_mismatch", checksumPath, "worker digest does not match native/checksums.json"));
   }
 }
 
@@ -500,9 +500,9 @@ function inspectSignature(packageDir: string, bin: string, worker: string, outpu
     readonly package?: string;
     readonly platform?: string;
     readonly binary?: string;
-    readonly sha256?: string;
+    readonly binary_digest?: string;
     readonly worker?: string;
-    readonly worker_sha256?: string;
+    readonly worker_digest?: string;
     readonly signatures?: readonly unknown[];
   }>(signaturePath, output, "signature_manifest_malformed");
   if (!signature) {
@@ -526,21 +526,21 @@ function inspectSignature(packageDir: string, bin: string, worker: string, outpu
   if (expectedPlatform && signature.platform !== expectedPlatform) {
     output.push(finding("signature_platform_mismatch", signaturePath, `signature platform ${signature.platform ?? "<missing>"} does not match ${expectedPlatform}`));
   }
-  if (!signature.sha256 || !/^[0-9a-f]{64}$/u.test(signature.sha256)) {
-    output.push(finding("signature_sha256_invalid", signaturePath, "signature sha256 must be a 64-character lowercase hex digest"));
+  if (!isDigest(signature.binary_digest)) {
+    output.push(finding("signature_binary_digest_invalid", signaturePath, "signature binary_digest must be sha256: and a 64-character lowercase hex digest"));
   }
   if (signature.worker !== worker) {
     output.push(finding("signature_worker_mismatch", signaturePath, `signature worker ${signature.worker ?? "<missing>"} does not match ${worker}`));
   }
-  if (!signature.worker_sha256 || !/^[0-9a-f]{64}$/u.test(signature.worker_sha256)) {
-    output.push(finding("signature_worker_sha256_invalid", signaturePath, "signature worker_sha256 must be a 64-character lowercase hex digest"));
+  if (!isDigest(signature.worker_digest)) {
+    output.push(finding("signature_worker_digest_invalid", signaturePath, "signature worker_digest must be sha256: and a 64-character lowercase hex digest"));
   }
-  const checksum = readJson<{ readonly sha256?: string; readonly worker_sha256?: string }>(path.join(packageDir, "native", "checksums.json"), [], "checksum_manifest_malformed");
-  if (checksum?.sha256 && signature.sha256 && checksum.sha256 !== signature.sha256) {
-    output.push(finding("signature_checksum_mismatch", signaturePath, "signature sha256 does not match native/checksums.json"));
+  const checksum = readJson<{ readonly binary_digest?: string; readonly worker_digest?: string }>(path.join(packageDir, "native", "checksums.json"), [], "checksum_manifest_malformed");
+  if (checksum?.binary_digest && signature.binary_digest && checksum.binary_digest !== signature.binary_digest) {
+    output.push(finding("signature_checksum_mismatch", signaturePath, "signature binary_digest does not match native/checksums.json"));
   }
-  if (checksum?.worker_sha256 && signature.worker_sha256 && checksum.worker_sha256 !== signature.worker_sha256) {
-    output.push(finding("signature_worker_checksum_mismatch", signaturePath, "signature worker_sha256 does not match native/checksums.json"));
+  if (checksum?.worker_digest && signature.worker_digest && checksum.worker_digest !== signature.worker_digest) {
+    output.push(finding("signature_worker_checksum_mismatch", signaturePath, "signature worker_digest does not match native/checksums.json"));
   }
   if (!Array.isArray(signature.signatures) || signature.signatures.length === 0) {
     output.push(finding("signature_entries_missing", signaturePath, "signature manifest must include at least one signature entry"));
@@ -663,7 +663,11 @@ function isInside(candidatePath: string, rootPath: string): boolean {
 }
 
 function sha256(bytes: Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+function isDigest(value: string | undefined): value is string {
+  return value !== undefined && /^sha256:[0-9a-f]{64}$/u.test(value);
 }
 
 function finding(rule: string, filePath: string, message: string): Finding {

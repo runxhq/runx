@@ -161,8 +161,8 @@ function readProgress(ledger, planDigest, acts, blockers) {
   if (nonNegativeInteger(latest.version) !== version) {
     blockers.push("execution ledger tail version does not match after_version");
   }
-  if (event.schema !== "twitter.execution.progress.v1" || event.type !== "twitter.execution.progress") {
-    blockers.push("execution ledger requires the compact twitter.execution.progress.v1 shape");
+  if (event.schema !== "runx/twitter.execution_progress.v1" || event.type !== "twitter.execution.progress") {
+    blockers.push("execution ledger requires the compact runx/twitter.execution_progress.v1 shape");
   }
   if (text(event.plan_digest) !== planDigest) {
     blockers.push("execution ledger progress is bound to a different plan digest");

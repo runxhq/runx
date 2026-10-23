@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::operational_proposal::OperationalProposalRedactionStatus;
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
-use crate::{Fingerprint, JsonObject, Reference, SignalAuthenticity};
+use crate::{ContentDigest, JsonObject, Reference, SignalAuthenticity};
 
 pub const SOURCE_PACKET_SCHEMA: &str = "runx.source_packet.v1";
 
@@ -35,9 +35,8 @@ pub struct SourcePacket {
     /// locators live inside the reference; the packet itself stays
     /// provider-neutral.
     pub source_ref: Reference,
-    /// Open signal type identifier (e.g. `signal_type::ALERT`,
-    /// `signal_type::SUPPORT_TICKET`). Adapters can publish their own
-    /// identifier without a contract edit.
+    /// Open signal type identifier (e.g. `alert`, `support_ticket`). Adapters
+    /// can publish their own identifier without a contract edit.
     pub signal_type: NonEmptyString,
     pub title: NonEmptyString,
     pub observed_at: IsoDateTime,
@@ -58,7 +57,7 @@ pub struct SourcePacket {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub adapter_payload: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fingerprint: Option<Fingerprint>,
+    pub digest: Option<ContentDigest>,
     /// Related refs the adapter wants to surface alongside the source: thread,
     /// parent issue, dedupe candidates, originating webhook delivery.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -94,7 +93,7 @@ mod tests {
             redaction_status: OperationalProposalRedactionStatus::Redacted,
             workflow_inputs: JsonObject::new(),
             adapter_payload: None,
-            fingerprint: None,
+            digest: None,
             related_refs: Vec::new(),
             extensions: None,
         };

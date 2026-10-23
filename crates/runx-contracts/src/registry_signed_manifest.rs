@@ -43,8 +43,7 @@ impl RegistrySubjectKind {
 #[serde(deny_unknown_fields)]
 pub struct RegistrySubject {
     pub kind: RegistrySubjectKind,
-    #[serde(rename = "ref")]
-    pub subject_ref: String,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,7 +98,7 @@ impl RegistrySignedManifest {
         })
     }
 
-    /// Checks every term: the schema, a subject ref of its kind's grammar, a
+    /// Checks every term: the schema, a subject name of its kind's grammar, a
     /// registry version label, a `sha256:` content digest, a signer, and an
     /// `ed25519` signature in `base64:` form. The signature itself is checked
     /// against a trusted key by the verifier.
@@ -111,10 +110,10 @@ impl RegistrySignedManifest {
         if self.schema != REGISTRY_SIGNED_MANIFEST_SCHEMA {
             return Err(format!("schema must be {REGISTRY_SIGNED_MANIFEST_SCHEMA}"));
         }
-        if !is_registry_subject_ref(self.subject.kind, &self.subject.subject_ref) {
+        if !is_registry_subject_name(self.subject.kind, &self.subject.name) {
             return Err(format!(
-                "subject.ref {:?} is not a {} reference",
-                self.subject.subject_ref,
+                "subject.name {:?} is not a {} name",
+                self.subject.name,
                 self.subject.kind.as_str()
             ));
         }
@@ -151,7 +150,7 @@ impl RegistrySignedManifest {
 
     /// Whether this envelope signs the given version of the given subject.
     /// The kind is part of the identity: a connector's envelope never stands
-    /// for a skill, nor a skill's for a connector, even where the ref fits
+    /// for a skill, nor a skill's for a connector, even where the name fits
     /// both grammars.
     #[must_use]
     pub fn signs(&self, subject: &RegistrySubject, version: &str) -> bool {
@@ -162,7 +161,7 @@ impl RegistrySignedManifest {
 /// A subject of the given kind: a skill's `publisher/name`, or a connector's
 /// name.
 #[must_use]
-pub fn is_registry_subject_ref(kind: RegistrySubjectKind, value: &str) -> bool {
+pub fn is_registry_subject_name(kind: RegistrySubjectKind, value: &str) -> bool {
     match kind {
         RegistrySubjectKind::Skill => value.split_once('/').is_some_and(|(publisher, name)| {
             is_publisher_namespace(publisher) && is_skill_name(name)

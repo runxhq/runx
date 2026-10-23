@@ -6,7 +6,7 @@ inputs:
   upstream:
     host: github.com
   registry:
-    owner: example
+    publisher: example
 expect:
   status: sealed
   steps:

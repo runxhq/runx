@@ -76,19 +76,19 @@ tool:
 
 The runtime removes the path and scope fields before module invocation, admits
 the contained file to an immutable snapshot, and calls the export repeatedly.
-Each call receives `runx_page` with `artifact_ref`, media type, whole digest,
+Each call receives `runx_page` with `artifact_uri`, media type, whole digest,
 source byte count, page index, exact offsets, range digest, `eof`, complete
 encoded records, and the prior continuation `state`. An intermediate result may
 contain only `{ runx_page: { state, done? } }`; the final call also returns the
 declared domain output. A failed page reports its index and byte offset and
 cannot be mistaken for an empty page.
 
-The two artifact identities have different jobs. `artifact_ref` is an opaque,
+The two artifact identities have different jobs. `artifact_uri` is an opaque,
 runtime-local capability for reading the admitted snapshot; it deliberately
 changes across runtime instances and belongs in receipt provenance, not in a
 domain plan or idempotency digest. `whole_digest` is the stable content identity
 to carry into deterministic domain output. Two runs over identical bytes must
-produce the same semantic plan even though their `artifact_ref` values differ.
+produce the same semantic plan even though their `artifact_uri` values differ.
 
 Artifact admission is capped at 512 MiB. Pages default to 1 MiB and may be
 configured up to 4 MiB; continuation state is capped at 2 MiB and one execution

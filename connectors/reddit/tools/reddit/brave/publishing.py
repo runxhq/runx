@@ -37,12 +37,12 @@ def form(browser, binding, command, data):
 
 def check_identity(browser, binding, data):
     browser.read_identity(binding)
-    if binding["profile_ref"] != data.get("parameters", {}).get("profile_ref"):
+    if binding["profile"] != data.get("parameters", {}).get("profile"):
         raise browser.BrowserStop("wrong_browser_profile")
 
 
 def acknowledge(binding, data, permalink):
-    result = {"account_id": binding["account_id"], "profile_ref": binding["profile_ref"],
+    result = {"account_id": binding["account_id"], "profile": binding["profile"],
               "parent_url": data["target_url"], "permalink": permalink,
               "title": data.get("title", ""), "body": data["body"],
               "visibility": "visible_to_account"}
@@ -61,7 +61,7 @@ def readback(browser, binding, data, acknowledgement):
         observed = form(browser, binding, "vote-state", {**data, **expected})
         if observed.get("vote_state") != "up":
             raise browser.BrowserStop("upvote_not_observed")
-        return {"account_id": binding["account_id"], "profile_ref": binding["profile_ref"],
+        return {"account_id": binding["account_id"], "profile": binding["profile"],
                 "parent_url": data["target_url"], "permalink": data["target_url"],
                 "title": "", "body": observed["body"], "visibility": "visible_to_account",
                 "target_author": observed["author"].lower(), "vote_state": "up"}

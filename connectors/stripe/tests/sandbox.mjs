@@ -62,26 +62,26 @@ function success(response) {
   return response.body;
 }
 function publicPayment(body) {
-  return { payment_ref: body.id, charge_ref: body.latest_charge, amount_minor: body.amount, amount_received: body.amount_received, currency: body.currency, status: body.status };
+  return { payment_id: body.id, charge_id: body.latest_charge, amount_minor: body.amount, amount_received: body.amount_received, currency: body.currency, status: body.status };
 }
 function publicRefund(body) {
-  return { refund_ref: body.id, payment_ref: body.payment_intent, amount_minor: body.amount, currency: body.currency, status: body.status };
+  return { refund_id: body.id, payment_id: body.payment_intent, amount_minor: body.amount, currency: body.currency, status: body.status };
 }
 async function refund(amount, label) {
-  const args = { account_id: evidence.account_ref, payment_ref: evidence.payment.payment_ref, amount_minor: amount, currency: "usd" };
+  const args = { account_id: evidence.account_id, payment_id: evidence.payment.payment_id, amount_minor: amount, currency: "usd" };
   const original = success(await request("payment.stripe.refund", "original", args, label));
-  if (original.id !== args.payment_ref || original.currency !== "usd" || original.status !== "succeeded") throw new Error("Original refund payment did not match");
+  if (original.id !== args.payment_id || original.currency !== "usd" || original.status !== "succeeded") throw new Error("Original refund payment did not match");
   const result = await request("payment.stripe.refund", "refund", args, label);
   if (!result.ok) return result;
   const write = publicRefund(result.body);
   evidence.refunds.push(write); save();
   const read = success(await request("payment.stripe.refund", "refund_read", args, label, { write: { json: write } }));
-  check(read.id === write.refund_ref && read.payment_intent === args.payment_ref && read.amount === amount && read.currency === "usd" && read.status === "succeeded", `${label}: independent refund readback`);
+  check(read.id === write.refund_id && read.payment_intent === args.payment_id && read.amount === amount && read.currency === "usd" && read.status === "succeeded", `${label}: independent refund readback`);
   return { ok: true, refund: write, args };
 }
 async function chargeRead() {
   return success(await request("payment.stripe.charge.read", "charge", {
-    account_id: evidence.account_ref, charge_ref: evidence.payment.charge_ref,
+    account_id: evidence.account_id, charge_id: evidence.payment.charge_id,
   }, "charge-read"));
 }
 
@@ -89,8 +89,8 @@ save();
 try {
   const account = success(await request("account.read", "account", {}, "account"));
   check(/^acct_[A-Za-z0-9]+$/.test(account.id), "credential identifies the merchant account");
-  evidence.account_ref = account.id; save();
-  const args = { account_id: account.id, amount_minor: 150, currency: "usd", payment_method_ref: "pm_card_visa", reference: run };
+  evidence.account_id = account.id; save();
+  const args = { account_id: account.id, amount_minor: 150, currency: "usd", payment_method_id: "pm_card_visa", reference: run };
   const before = success(await request("payment.stripe", "account", args, "collect"));
   check(before.id === args.account_id, "collection account precondition");
   step = "collection submission";
@@ -107,7 +107,7 @@ try {
   const first = await refund(50, "first-refund");
   check(first.ok, "first partial refund succeeds");
   const repeated = success(await request("payment.stripe.refund", "refund", first.args, "first-refund"));
-  check(repeated.id === first.refund.refund_ref, "same refund key returns the original refund");
+  check(repeated.id === first.refund.refund_id, "same refund key returns the original refund");
   step = "concurrent partial refunds";
   const competing = await Promise.all([refund(50, "competing-50"), refund(75, "competing-75")]);
   check(competing.filter((item) => item.ok).length === 1 && competing.filter((item) => !item.ok).length === 1, "competing partial refunds cannot both exceed the remaining amount");

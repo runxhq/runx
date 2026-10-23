@@ -1,0 +1,98 @@
+{
+  "$id": "https://schemas.runx.ai/runx/run/list/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "What `run.list` returns: the workspace's top-level runs, most recently advanced first.",
+  "properties": {
+    "runs": {
+      "items": {
+        "additionalProperties": false,
+        "description": "One run of a listing, read from its first and latest events.",
+        "properties": {
+          "created_at": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "outcome": {
+            "description": "How a run, or a receipt's subject, ended.",
+            "enum": [
+              "completed",
+              "deferred",
+              "superseded",
+              "declined",
+              "blocked",
+              "failed",
+              "killed",
+              "timed_out"
+            ],
+            "title": "RunOutcome",
+            "type": "string"
+          },
+          "pending_request_id": {
+            "description": "The request a paused run's step is held on: its turn's act, or what it asked.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "receipt_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "run_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "runner": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "skill": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "state": {
+            "description": "Where a run stands, from its latest event alone.",
+            "enum": [
+              "running",
+              "paused",
+              "sealed"
+            ],
+            "title": "RunState",
+            "type": "string"
+          },
+          "updated_at": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "skill",
+          "runner",
+          "state",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RunListEntry",
+        "type": "object"
+      },
+      "maxItems": 1000,
+      "minItems": 0,
+      "type": "array"
+    },
+    "schema": {
+      "enum": [
+        "runx.run.list.v1"
+      ],
+      "title": "RunListSchema",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "runs"
+  ],
+  "title": "RunList",
+  "type": "object",
+  "x-runx-packet": true,
+  "x-runx-schema": "runx.run.list.v1"
+}

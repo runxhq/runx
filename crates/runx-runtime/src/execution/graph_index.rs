@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ProvenanceEntry};
 use runx_core::state_machine::{
-    SequentialGraphEvent, SequentialGraphPlan, SequentialGraphState, SequentialGraphStepDefinition,
+    SequentialGraph, SequentialGraphEvent, SequentialGraphPlan, SequentialGraphStepDefinition,
     SequentialGraphStepIndex, apply_sequential_graph_event_owned_indexed,
     create_sequential_graph_step_index, plan_sequential_graph_transition_indexed_from,
     start_sequential_graph_step_indexed, succeed_sequential_graph_step_indexed,
@@ -59,7 +59,7 @@ impl ExecutionGraphIndex {
 
     pub(crate) fn plan_transition(
         &self,
-        state: &SequentialGraphState,
+        state: &SequentialGraph,
         start_index: usize,
     ) -> SequentialGraphPlan {
         plan_sequential_graph_transition_indexed_from(
@@ -70,21 +70,17 @@ impl ExecutionGraphIndex {
         )
     }
 
-    pub(crate) fn apply_event(
-        &self,
-        state: &mut SequentialGraphState,
-        event: SequentialGraphEvent,
-    ) {
+    pub(crate) fn apply_event(&self, state: &mut SequentialGraph, event: SequentialGraphEvent) {
         apply_sequential_graph_event_owned_indexed(state, event, &self.planner_index);
     }
 
-    pub(crate) fn start_step(&self, state: &mut SequentialGraphState, step_id: &str, at: String) {
+    pub(crate) fn start_step(&self, state: &mut SequentialGraph, step_id: &str, at: String) {
         start_sequential_graph_step_indexed(state, step_id, at, &self.planner_index);
     }
 
     pub(crate) fn succeed_step(
         &self,
-        state: &mut SequentialGraphState,
+        state: &mut SequentialGraph,
         at: String,
         admission_witness: runx_core::state_machine::StepAdmissionWitness,
         outputs: Option<JsonObject>,

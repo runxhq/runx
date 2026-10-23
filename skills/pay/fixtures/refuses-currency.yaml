@@ -20,12 +20,12 @@ inputs:
   connector: wallet/evm
   request:
     resource:
-      url: https://vendor.example/v1/invocations
+      url: https://merchant.example/v1/report
       method: POST
       body:
         offer_id: document-ocr
         input:
-          artifact_ref: runx:artifact:document-1
+          artifact_uri: runx:artifact:document-1
       max_response_bytes: 26214400
     amount_minor: 25
     pay_to: "0x0000000000000000000000000000000000000002"
@@ -33,7 +33,7 @@ inputs:
     term_id: authority-test-1
     currency: EUR
     max_amount_minor: 25
-    counterparty: https://vendor.example/v1/invocations
+    resource_url: https://merchant.example/v1/report
   idempotency_seed: pay-test-payment-001
 expect:
   status: failure

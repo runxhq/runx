@@ -67,7 +67,7 @@ fn new_skill_authoring_waits_for_agent_then_applies_one_validated_package() -> T
     }
 
     assert_eq!(completed["status"], "sealed");
-    assert_eq!(completed["closure"]["disposition"], "closed");
+    assert_eq!(completed["outcome"], "completed");
     assert_eq!(completed["trace"]["graph"], "skill-build");
     assert_eq!(fs::read_dir(&target)?.count(), 2);
     assert!(target.join("SKILL.md").is_file());
@@ -150,7 +150,7 @@ fn authoring_answers() -> Value {
             "architect": {
                 "architecture_decision": {
                     "schema": "runx.skill.architecture_decision.v1",
-                    "disposition": "build",
+                    "choice": "build",
                     "identity": {
                         "proposed_name": "digest-note",
                         "action": "create",
@@ -193,7 +193,7 @@ fn authoring_answers() -> Value {
                             "id": "digest-note",
                             "outcome": "Return a canonical SHA-256 digest for the supplied note.",
                             "lane": "native_capability",
-                            "reuse_ref": "data.digest"
+                            "reuses": "data.digest"
                         }
                     ],
                     "native_reuse": {

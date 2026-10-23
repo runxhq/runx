@@ -15,6 +15,12 @@ use super::{Backend, StoreError};
 /// Attempts at an append while other appends keep moving its stream.
 const APPEND_ATTEMPTS: usize = 8;
 const HEAD_PAGE: isize = 100;
+/// Where the store keeps its schema version.
+const SCHEMA_KEY: &str = "runx:store:schema";
+const SCHEMA_VERSION: &str = "2";
+/// Held while one process migrates the store, so two never do at once.
+const MIGRATION_LOCK: &str = "runx:store:schema:migrating";
+const MIGRATION_LOCK_SECONDS: u64 = 600;
 
 /// KEYS: events, keys, projection, heads, order, members.
 /// ARGV: base version, expected version, idempotency key, record,
@@ -60,8 +66,8 @@ struct Keys {
 
 impl Keys {
     fn of(source: Source<'_>) -> Result<Self, StoreError> {
-        let resource = hex(&(source.data_source_ref, source.resource))?;
-        let stream = hex(&(source.data_source_ref, source.resource, source.aggregate_id))?;
+        let resource = hex(&(source.data_source_uri, source.resource))?;
+        let stream = hex(&(source.data_source_uri, source.resource, source.aggregate_id))?;
         let prefix = format!("runx:store:{{{resource}}}");
         Ok(Self {
             events: format!("{prefix}:events:{stream}"),
@@ -107,7 +113,105 @@ impl Redis {
         let connection = redis::Client::open(info)
             .and_then(|client| client.get_connection())
             .map_err(|error| StoreError::unavailable(format!("connecting to redis: {error}")))?;
-        Ok(Self { connection })
+        let mut store = Self { connection };
+        store.ensure_schema()?;
+        Ok(store)
+    }
+
+    /// The store at this schema version. A store without one is new or
+    /// version 1, which named a record's `event_id` `event_ref` and a
+    /// projection's `last_event_id` `last_event_ref`: its values are rewritten
+    /// once, under a lock, before the version is set.
+    fn ensure_schema(&mut self) -> Result<(), StoreError> {
+        let version: Option<String> = self.connection.get(SCHEMA_KEY).map_err(read_error)?;
+        match version.as_deref() {
+            Some(SCHEMA_VERSION) => return Ok(()),
+            Some(other) => {
+                return Err(StoreError::corrupt(format!(
+                    "the store has schema version {other}, not {SCHEMA_VERSION}"
+                )));
+            }
+            None => {}
+        }
+        let locked: Option<String> = redis::cmd("SET")
+            .arg(MIGRATION_LOCK)
+            .arg("1")
+            .arg("NX")
+            .arg("EX")
+            .arg(MIGRATION_LOCK_SECONDS)
+            .query(&mut self.connection)
+            .map_err(write_error)?;
+        if locked.is_none() {
+            return Err(StoreError::unavailable(
+                "another runx is migrating this store; try again once it finishes",
+            ));
+        }
+        let migrated = self.migrate_from_1().and_then(|()| {
+            self.connection
+                .set::<_, _, ()>(SCHEMA_KEY, SCHEMA_VERSION)
+                .map_err(write_error)
+        });
+        let released: Result<(), redis::RedisError> = self.connection.del(MIGRATION_LOCK);
+        migrated?;
+        released.map_err(write_error)
+    }
+
+    /// Rewrite every value a version 1 store keeps under the names this
+    /// version reads: each stream's records, idempotency keys and heads, and
+    /// its projection.
+    fn migrate_from_1(&mut self) -> Result<(), StoreError> {
+        let keys = self
+            .connection
+            .scan_match::<_, String>("runx:store:{*")
+            .map_err(read_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(read_error)?;
+        for key in keys {
+            let Some((_, rest)) = key.split_once("}:") else {
+                continue;
+            };
+            match rest.split(':').next() {
+                Some("events") => {
+                    let records: Vec<String> =
+                        self.connection.lrange(&key, 0, -1).map_err(read_error)?;
+                    if records.is_empty() {
+                        continue;
+                    }
+                    let records = records
+                        .iter()
+                        .map(|record| renamed(record, "event_ref", "event_id"))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    redis::pipe()
+                        .atomic()
+                        .del(&key)
+                        .rpush(&key, records)
+                        .query::<()>(&mut self.connection)
+                        .map_err(write_error)?;
+                }
+                Some("keys" | "heads") => {
+                    let entries: Vec<(String, String)> =
+                        self.connection.hgetall(&key).map_err(read_error)?;
+                    for (field, record) in entries {
+                        let record = renamed(&record, "event_ref", "event_id")?;
+                        self.connection
+                            .hset::<_, _, _, ()>(&key, field, record)
+                            .map_err(write_error)?;
+                    }
+                }
+                Some("projection") => {
+                    let projection: Option<String> =
+                        self.connection.get(&key).map_err(read_error)?;
+                    if let Some(projection) = projection {
+                        let projection = renamed(&projection, "last_event_ref", "last_event_id")?;
+                        self.connection
+                            .set::<_, _, ()>(&key, projection)
+                            .map_err(write_error)?;
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 
     fn get_json(&mut self, key: &str) -> Result<Option<JsonValue>, StoreError> {
@@ -124,6 +228,23 @@ impl Redis {
 
 fn read_error(error: redis::RedisError) -> StoreError {
     StoreError::unavailable(format!("the redis store failed a read: {error}"))
+}
+
+fn write_error(error: redis::RedisError) -> StoreError {
+    StoreError::unavailable(format!("the redis store failed a write: {error}"))
+}
+
+/// A stored object's text with its top-level key `from` named `to`.
+pub(super) fn renamed(text: &str, from: &str, to: &str) -> Result<String, StoreError> {
+    let value = serde_json::from_str::<JsonValue>(text)
+        .map_err(|error| StoreError::corrupt(format!("a stored value is not JSON: {error}")))?;
+    let JsonValue::Object(mut object) = value else {
+        return Err(StoreError::corrupt("a stored value is not an object"));
+    };
+    if let Some(moved) = object.remove(from) {
+        object.insert(to.to_owned(), moved);
+    }
+    encoded(&JsonValue::Object(object))
 }
 
 fn projection_from(value: Option<JsonValue>) -> Result<Projection, StoreError> {
@@ -144,7 +265,7 @@ fn projection_from(value: Option<JsonValue>) -> Result<Projection, StoreError> {
             .get("version")
             .and_then(model::unsigned)
             .ok_or_else(|| StoreError::corrupt("a stored projection has no version"))?,
-        last_event_ref: text("last_event_ref"),
+        last_event_id: text("last_event_id"),
         last_event_type: text("last_event_type"),
         last_event_digest: text("last_event_digest"),
         projection_digest: text("projection_digest")
@@ -157,8 +278,8 @@ fn projection_json(projection: &Projection) -> Result<String, StoreError> {
     encoded(&JsonValue::Object(JsonObject::from([
         ("version".to_owned(), model::number(projection.version)),
         (
-            "last_event_ref".to_owned(),
-            optional(&projection.last_event_ref),
+            "last_event_id".to_owned(),
+            optional(&projection.last_event_id),
         ),
         (
             "last_event_type".to_owned(),
@@ -300,7 +421,7 @@ impl Backend for Redis {
 
     fn heads(&mut self, request: &ListHeads<'_>) -> Result<(Vec<StreamHead>, bool), StoreError> {
         let keys = Keys::of(Source {
-            data_source_ref: request.data_source_ref,
+            data_source_uri: request.data_source_uri,
             resource: request.resource,
             aggregate_id: "stream-heads",
         })?;

@@ -30,7 +30,7 @@ caller:
           size: micro
           risk: low
       closure:
-        disposition: closed
+        outcome: completed
         reason_code: issue_intake_completed
         summary: Bounded docs fix is ready for the github-issue-to-pr lane.
       change_set:
@@ -71,7 +71,7 @@ caller:
         dedupe:
           algorithm: sha256
           source_locator: github://example/repo/issues/101
-          fingerprint: sha256:docs-issue-to-pr-command
+          digest: sha256:docs-issue-to-pr-command
         triage:
           category: docs
           severity: low

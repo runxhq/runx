@@ -13,7 +13,8 @@ use runx_contracts::{REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATUR
 pub use runx_contracts::REGISTRY_SIGNED_MANIFEST_SCHEMA;
 pub const RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV: &str = "RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64";
 pub const RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV: &str = "RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID";
-pub const RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV: &str = "RUNX_REGISTRY_MANIFEST_TRUST_OWNER";
+pub const RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV: &str =
+    "RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER";
 
 const RUNX_REGISTRY_MANIFEST_KEY_ID: &str = "runx-registry-ed25519-v1";
 const RUNX_REGISTRY_MANIFEST_PUBLIC_KEY_BASE64: &str =
@@ -30,7 +31,7 @@ pub struct TrustedRegistryManifestKey {
 pub enum RegistryManifestTrustScope {
     OfficialRunx,
     ThirdParty {
-        allowed_owner: String,
+        allowed_publisher: String,
         allowed_source: String,
     },
 }
@@ -39,16 +40,16 @@ impl TrustedRegistryManifestKey {
     pub fn from_base64(
         key_id: String,
         public_key: &str,
-        allowed_owner: String,
+        allowed_publisher: String,
         allowed_source: String,
     ) -> Result<Self, RegistryManifestKeyError> {
-        let allowed_owner = validate_owner_namespace(allowed_owner)?;
+        let allowed_publisher = validate_publisher_namespace(allowed_publisher)?;
         let allowed_source = validate_registry_source(allowed_source)?;
         Self::from_base64_with_scope(
             key_id,
             public_key,
             RegistryManifestTrustScope::ThirdParty {
-                allowed_owner,
+                allowed_publisher,
                 allowed_source,
             },
         )
@@ -149,8 +150,8 @@ pub enum RegistryManifestTrustEnvError {
     InvalidKey,
     #[error("registry manifest trust key id is required")]
     MissingKeyId,
-    #[error("registry manifest trust owner is required")]
-    MissingOwner,
+    #[error("registry manifest trust publisher is required")]
+    MissingPublisher,
     #[error("registry manifest trust source is required")]
     MissingSource,
 }
@@ -183,23 +184,27 @@ pub fn trusted_registry_manifest_keys_from_env_with_source(
     ) {
         return Err(RegistryManifestTrustEnvError::InvalidKey);
     }
-    let allowed_owner = env
-        .get(RUNX_REGISTRY_MANIFEST_TRUST_OWNER_ENV)
+    let allowed_publisher = env
+        .get(RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV)
         .cloned()
-        .ok_or(RegistryManifestTrustEnvError::MissingOwner)?;
+        .ok_or(RegistryManifestTrustEnvError::MissingPublisher)?;
     let allowed_source = source_authority
         .as_ref()
         .map(registry_manifest_source_key)
         .ok_or(RegistryManifestTrustEnvError::MissingSource)?;
-    let key =
-        TrustedRegistryManifestKey::from_base64(key_id, public_key, allowed_owner, allowed_source)
-            .map_err(|_| RegistryManifestTrustEnvError::InvalidKey)?;
+    let key = TrustedRegistryManifestKey::from_base64(
+        key_id,
+        public_key,
+        allowed_publisher,
+        allowed_source,
+    )
+    .map_err(|_| RegistryManifestTrustEnvError::InvalidKey)?;
     trusted_keys.push(key);
     Ok(trusted_keys)
 }
 
-/// Whether `key` may sign `subject_ref` of `kind` (a skill's
-/// `publisher/name`, or a connector's name) at `trust_tier` from
+/// Whether `key` may sign `name` of `kind` (a skill's `publisher/name`, or
+/// a connector's name) at `trust_tier` from
 /// `source_authority`. A skill's namespace is its publisher; a connector's is
 /// its name's first segment. Which publisher holds a provider namespace is
 /// the registry's record, not something a name shows, so the official key
@@ -207,18 +212,18 @@ pub fn trusted_registry_manifest_keys_from_env_with_source(
 pub fn registry_manifest_key_allows(
     key: &TrustedRegistryManifestKey,
     kind: RegistrySubjectKind,
-    subject_ref: &str,
+    name: &str,
     trust_tier: &TrustTier,
     source_authority: Option<&RegistryManifestSourceAuthority>,
 ) -> Result<(), String> {
     let namespace = match kind {
-        RegistrySubjectKind::Skill => subject_ref
+        RegistrySubjectKind::Skill => name
             .split_once('/')
-            .map(|(owner, _)| owner)
-            .ok_or_else(|| "a skill ref must include its publisher".to_owned())?,
-        RegistrySubjectKind::Connector => subject_ref
+            .map(|(publisher, _)| publisher)
+            .ok_or_else(|| "a skill name must include its publisher".to_owned())?,
+        RegistrySubjectKind::Connector => name
             .split_once('/')
-            .map_or(subject_ref, |(namespace, _)| namespace),
+            .map_or(name, |(namespace, _)| namespace),
     };
     match &key.scope {
         RegistryManifestTrustScope::OfficialRunx => {
@@ -241,7 +246,7 @@ pub fn registry_manifest_key_allows(
             Ok(())
         }
         RegistryManifestTrustScope::ThirdParty {
-            allowed_owner,
+            allowed_publisher,
             allowed_source,
         } => {
             if matches!(trust_tier, TrustTier::FirstParty) {
@@ -258,9 +263,9 @@ pub fn registry_manifest_key_allows(
             if namespace == "runx" {
                 return Err("third-party keys may not sign runx/*".to_owned());
             }
-            if namespace != allowed_owner {
+            if namespace != allowed_publisher {
                 return Err(format!(
-                    "third-party key may only sign in the {allowed_owner} namespace"
+                    "third-party key may only sign in the {allowed_publisher} namespace"
                 ));
             }
             Ok(())
@@ -268,18 +273,18 @@ pub fn registry_manifest_key_allows(
     }
 }
 
-fn validate_owner_namespace(value: String) -> Result<String, RegistryManifestKeyError> {
-    let owner = value.trim();
-    if owner.is_empty()
-        || owner == "runx"
-        || owner.contains('/')
-        || owner
+fn validate_publisher_namespace(value: String) -> Result<String, RegistryManifestKeyError> {
+    let publisher = value.trim();
+    if publisher.is_empty()
+        || publisher == "runx"
+        || publisher.contains('/')
+        || publisher
             .bytes()
             .any(|byte| matches!(byte, b'\n' | b'\r' | b'=' | 0))
     {
         return Err(RegistryManifestKeyError);
     }
-    Ok(owner.to_owned())
+    Ok(publisher.to_owned())
 }
 
 fn validate_registry_source(value: String) -> Result<String, RegistryManifestKeyError> {
@@ -334,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn third_party_source_trust_key_still_requires_owner() {
+    fn third_party_source_trust_key_still_requires_publisher() {
         let result = trusted_registry_manifest_keys_from_env_with_source(
             &trust_env(),
             Some(RegistryManifestSourceAuthority::RegistrySource(
@@ -342,6 +347,6 @@ mod tests {
             )),
         );
 
-        assert_eq!(result, Err(RegistryManifestTrustEnvError::MissingOwner));
+        assert_eq!(result, Err(RegistryManifestTrustEnvError::MissingPublisher));
     }
 }

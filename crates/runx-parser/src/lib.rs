@@ -35,7 +35,7 @@ pub use install::{
     SkillInstallError, SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install,
 };
 pub use package::{
-    PROFILE_FILE, SkillPackageError, SkillPackageSource, ValidatedJavaScriptModule,
+    PROFILE_FILE, PackagePacket, SkillPackageError, SkillPackageSource, ValidatedJavaScriptModule,
     ValidatedPackageTool, ValidatedSkillPackage, javascript_module_imports,
     javascript_process_module_imports, profile_directory, resolve_javascript_module_import,
     validate_skill_package,

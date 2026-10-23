@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-use crate::schema::{BoundedString, IsoDateTime, RunxSchema};
-use crate::{PaidSkillExecutorBinding, PrincipalReference, Reference, Sha256Digest};
+use crate::schema::{BoundedString, IsoDateTime, NamedSchemas, RunxSchema, record_named};
+use crate::{Digest, PaidSkillExecutorBinding, PrincipalReference, Reference};
 
 pub const EXTERNAL_JOB_CONTINUATION_SCHEMA: &str = "runx.external_job_continuation.v1";
 pub const EXTERNAL_JOB_SCHEDULE_SCHEMA: &str = "runx.external_job_schedule.v1";
@@ -30,7 +30,7 @@ pub enum ExternalJobStage {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExternalJobStatus {
+pub enum ExternalJobState {
     Runnable,
     WaitingExternal,
     Succeeded,
@@ -161,26 +161,29 @@ impl RunxSchema for ExternalJobCheckpoint {
         // Package checkpoints are intentionally open, but the openness must be
         // explicit so packet-schema drift checks cannot mistake it for an
         // unspecified envelope shape.
-        json!({ "type": "object", "additionalProperties": true })
+        json!({ "type": "object", "additionalProperties": true, "title": "ExternalJobCheckpoint" })
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(named, "ExternalJobCheckpoint", Self::json_schema);
     }
 }
 
-/// Current V1 continuation state. `schema` is injected by the generated JSON
-/// Schema identity and is optional on the Rust value, matching other Runx
-/// packet contracts.
+/// Where one purchased external job stands: its stage and state, its
+/// attempts against their limit and deadline, and how it ended.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.external_job_continuation.v1")]
 pub struct ExternalJobContinuation {
     pub continuation_id: BoundedString<256>,
     pub principal_ref: PrincipalReference,
-    pub vendor_ref: PrincipalReference,
-    pub invocation_ref: Reference,
+    pub seller_ref: PrincipalReference,
+    pub purchase_ref: Reference,
     pub source_run_ref: Reference,
-    pub execution_binding: PaidSkillExecutorBinding,
-    pub operation_identity: Sha256Digest,
+    pub executor_binding: PaidSkillExecutorBinding,
+    pub operation_identity: Digest,
     pub stage: ExternalJobStage,
-    pub status: ExternalJobStatus,
+    pub state: ExternalJobState,
     pub attempts: u32,
     pub max_attempts: ExternalJobAttemptLimit,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -191,11 +194,11 @@ pub struct ExternalJobContinuation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result_artifact_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub terminal_execution_receipt_ref: Option<Reference>,
+    pub terminal_receipt_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_evidence_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub terminal_evidence_digest: Option<Sha256Digest>,
+    pub terminal_evidence_digest: Option<Digest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<ExternalJobFailure>,
     /// The most recent retryable failure while the job is still active, so a
@@ -213,11 +216,11 @@ pub struct ExternalJobContinuation {
 pub struct ExternalJobSchedule {
     pub continuation_id: BoundedString<256>,
     pub principal_ref: PrincipalReference,
-    pub vendor_ref: PrincipalReference,
-    pub invocation_ref: Reference,
+    pub seller_ref: PrincipalReference,
+    pub purchase_ref: Reference,
     pub source_run_ref: Reference,
-    pub execution_binding: PaidSkillExecutorBinding,
-    pub operation_identity: Sha256Digest,
+    pub executor_binding: PaidSkillExecutorBinding,
+    pub operation_identity: Digest,
     pub checkpoint: ExternalJobCheckpoint,
     pub max_attempts: ExternalJobAttemptLimit,
     pub next_attempt_at: IsoDateTime,
@@ -226,7 +229,7 @@ pub struct ExternalJobSchedule {
 }
 
 /// Product-owned opt-in emitted by the initial execution package. Trusted
-/// invocation identity and absolute scheduling timestamps are added by Runx.
+/// purchase identity and absolute scheduling timestamps are added by Runx.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.external_job_schedule_intent.v1")]
@@ -248,7 +251,7 @@ pub struct ExternalJobScheduleIntent {
 pub struct ExternalJobStageRequest {
     pub continuation: ExternalJobContinuation,
     pub checkpoint: ExternalJobCheckpoint,
-    pub operation_key: Sha256Digest,
+    pub operation_key: Digest,
 }
 
 /// Provider-neutral package result. Runx owns scheduling and finalization;
@@ -271,12 +274,12 @@ pub enum ExternalJobStageResult {
         provider_job_ref: Reference,
         result_artifact_ref: Reference,
         evidence_ref: Reference,
-        evidence_digest: Sha256Digest,
+        evidence_digest: Digest,
     },
     ProviderFailed {
         provider_job_ref: Reference,
         evidence_ref: Reference,
-        evidence_digest: Sha256Digest,
+        evidence_digest: Digest,
         failure: ExternalJobFailure,
     },
 }

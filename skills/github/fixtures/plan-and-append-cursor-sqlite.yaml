@@ -12,7 +12,7 @@ operator_journeys:
       - Do not repeat provider discovery already covered by the cursor.
       - Do not reapply completed synchronization mutations.
 inputs:
-  data_source_ref: tenant://github/sqlite-cursors
+  data_source_uri: tenant://github/sqlite-cursors
   resource: github_sync_events
   aggregate_id: runxhq/runx:triage-open
   expected_version: 0

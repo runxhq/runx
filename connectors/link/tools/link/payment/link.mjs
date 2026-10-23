@@ -40,10 +40,10 @@ export async function execute(input, cli = runCli) {
     const status = await cli(["auth", "status", "--format", "json"]);
     if (status.authenticated !== true) throw new Error("link_authentication_required");
     const account = await cli(["user-info", "retrieve", "--format", "json"]);
-    if (typeof account.id !== "string" || `runx:principal:link:${account.id}` !== input.principal_ref) {
+    if (typeof account.id !== "string" || `runx:principal:link:${account.id}` !== input.principal_uri) {
       throw new Error("link_session_account_changed");
     }
-    if (input.action === "account") return { account_ref: account.id };
+    if (input.action === "account") return { account_id: account.id };
     if (input.action === "request") {
       const args = ["spend-request", "create", "--credential-type", "shared_payment_token",
         "--amount", String(input.amount_minor), "--currency", input.currency.toLowerCase(),
@@ -134,7 +134,7 @@ export function resourceBinding(input) {
     || (input.method === "GET" && input.body !== undefined)
     || !bounded(input.challenge, 16384)) throw new Error("link_payment_target_invalid");
   return `sha256:${createHash("sha256").update(JSON.stringify([
-    input.principal_ref, input.resource_url, input.method, input.body ?? null, input.challenge,
+    input.principal_uri, input.resource_url, input.method, input.body ?? null, input.challenge,
   ])).digest("hex")}`;
 }
 
@@ -150,7 +150,7 @@ function project(request) {
     ...(bounded(request.metadata?.runx_resource_binding, 71) ? { resource_binding: request.metadata.runx_resource_binding } : {}),
     ...(typeof request.approval_url === "string" && safeApprovalUrl(request.approval_url)
       ? { approval_url: request.approval_url } : {}),
-    ...(bounded(request.link_transaction_id, 200) ? { transaction_ref: request.link_transaction_id } : {}),
+    ...(bounded(request.link_transaction_id, 200) ? { transaction_id: request.link_transaction_id } : {}),
     ...publicPaymentDetails(request.payment_status_details),
   };
 }
@@ -176,7 +176,7 @@ function paymentObservation(request, input) {
     status: exact ? payment.refund_details ? "refund_observed" : "settled" : payment?.outcome === "success" ? "mismatch" : payment?.outcome === "failure" ? "failed" : "pending", payment_method_id: request.payment_method,
     network_id: request.network_id,
     resource_binding: request.metadata.runx_resource_binding,
-    ...(exact ? { transaction_ref: request.link_transaction_id } : {}),
+    ...(exact ? { transaction_id: request.link_transaction_id } : {}),
     ...publicPaymentDetails(payment),
   };
 }

@@ -6,8 +6,8 @@ use serde::Deserialize;
 
 use crate::fixture_key::{FIXTURE_SEED, FixtureKey};
 use runx_contracts::{
-    ClosureDisposition, ProofKind, Receipt, ReceiptIssuer, ReceiptIssuerType, ReceiptSignature,
-    Reference, ReferenceType,
+    ProofKind, Receipt, ReceiptIssuer, ReceiptIssuerType, ReceiptSignature, Reference,
+    ReferenceType, RunOutcome,
 };
 use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContext, ReceiptProofStatusKind, ReceiptVerification,
@@ -55,7 +55,7 @@ fn abnormal_failed_receipt_verifies_basic_invariants() -> Result<(), serde_json:
     let receipt = fixture(ABNORMAL_RECEIPT)?;
 
     assert!(validate_receipt(&receipt).is_ok());
-    assert_eq!(receipt.seal.disposition, ClosureDisposition::Failed);
+    assert_eq!(receipt.seal.outcome, RunOutcome::Failed);
     Ok(())
 }
 
@@ -238,7 +238,7 @@ fn receipt_tree_rejects_duplicate_child_receipt_ids() -> Result<(), serde_json::
 
 #[test]
 fn an_issuer_type_no_issuer_signs_as_is_refused() {
-    let json = r#"{"type":"verifier","kid":"key_1","public_key_sha256":"sha256:public"}"#;
+    let json = r#"{"type":"verifier","kid":"key_1","public_key_digest":"sha256:public","runx_version":"0.11.0"}"#;
 
     assert!(serde_json::from_str::<ReceiptIssuer>(json).is_err());
 }

@@ -1,8 +1,7 @@
 use std::path::Path;
 
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::JsonValue;
 
-use super::super::capability::decode_typed_output;
 use super::super::{NativeInvocation, invalid_input, resolve_repo_root_for};
 use super::inputs::{ApplyInput, BindInput, InspectInput, PlanInput, ValidateInput};
 use super::outputs::{ApplyOutput, AuthoringInspectOutput, BindOutput, PlanOutput, ValidateOutput};
@@ -19,18 +18,12 @@ pub(super) fn inspect_skill(
         invocation.skill_directory,
         invocation.bounds,
     )?;
-    let context = crate::services::inspect_skill_workspace(
+    let authoring_context = crate::services::inspect_skill_workspace(
         &repo_root,
         invocation.inputs.target_dir.as_deref(),
         invocation.effects,
     )?;
-    decode_typed_output(
-        "runx.skill.inspect",
-        JsonValue::Object(JsonObject::from([(
-            "authoring_context".to_owned(),
-            JsonValue::Object(context),
-        )])),
-    )
+    Ok(AuthoringInspectOutput { authoring_context })
 }
 
 pub(super) fn validate_skill(
@@ -44,52 +37,46 @@ pub(super) fn validate_skill(
         invocation.bounds,
     )?;
     let candidate_files = invocation.inputs.candidate_files.as_deref();
-    let requested_ref = requested_skill_ref(invocation, candidate_files)?;
-    let (validation_root, resolved_ref) = if candidate_files.is_none() {
-        resolve_skill_validation_target(&repo_root, invocation.skill_directory, requested_ref)?
+    let requested_path = requested_skill_path(invocation, candidate_files)?;
+    let (validation_root, resolved_path) = if candidate_files.is_none() {
+        resolve_skill_validation_target(&repo_root, invocation.skill_directory, requested_path)?
     } else {
-        (repo_root.clone(), requested_ref.to_owned())
+        (repo_root.clone(), requested_path.to_owned())
     };
-    let report = crate::services::validate_skill_package(
+    let skill_validation = crate::services::validate_skill_package(
         &validation_root,
-        &resolved_ref,
+        &resolved_path,
         candidate_files,
         invocation.inputs.allow_execute_harness,
         invocation.env,
         invocation.effects,
     )?;
-    decode_typed_output(
-        VALIDATE_TOOL,
-        JsonValue::Object(JsonObject::from([(
-            "skill_validation".to_owned(),
-            JsonValue::Object(report),
-        )])),
-    )
+    Ok(ValidateOutput { skill_validation })
 }
 
-fn requested_skill_ref<'a>(
+fn requested_skill_path<'a>(
     invocation: &'a NativeInvocation<'_, ValidateInput>,
     candidate_files: Option<&[JsonValue]>,
 ) -> Result<&'a str, RuntimeError> {
-    let supplied_ref = invocation.inputs.skill_ref.as_deref();
-    let requested_ref = supplied_ref.unwrap_or(if candidate_files.is_some() {
+    let supplied_path = invocation.inputs.skill_path.as_deref();
+    let requested_path = supplied_path.unwrap_or(if candidate_files.is_some() {
         "inline-candidate"
     } else {
         ""
     });
-    if requested_ref.is_empty() && candidate_files.is_none() {
+    if requested_path.is_empty() && candidate_files.is_none() {
         return Err(invalid_input(
             VALIDATE_TOOL,
-            "skill_ref or candidate_files is required",
+            "skill_path or candidate_files is required",
         ));
     }
-    if supplied_ref.is_some() && candidate_files.is_some() {
+    if supplied_path.is_some() && candidate_files.is_some() {
         return Err(invalid_input(
             VALIDATE_TOOL,
-            "skill_ref and candidate_files are mutually exclusive",
+            "skill_path and candidate_files are mutually exclusive",
         ));
     }
-    Ok(requested_ref)
+    Ok(requested_path)
 }
 
 pub(super) fn plan_skill(
@@ -119,19 +106,19 @@ pub(super) fn bind_skill(
 fn resolve_skill_validation_target(
     workspace_root: &Path,
     skill_directory: &Path,
-    requested_ref: &str,
+    requested_path: &str,
 ) -> Result<(std::path::PathBuf, String), RuntimeError> {
-    let requested = Path::new(requested_ref);
+    let requested = Path::new(requested_path);
     if requested.is_absolute() || workspace_root.join(requested).exists() {
-        return Ok((workspace_root.to_path_buf(), requested_ref.to_owned()));
+        return Ok((workspace_root.to_path_buf(), requested_path.to_owned()));
     }
-    resolve_catalog_skill_target(skill_directory, requested, requested_ref)
+    resolve_catalog_skill_target(skill_directory, requested, requested_path)
 }
 
 fn resolve_catalog_skill_target(
     skill_directory: &Path,
     requested: &Path,
-    requested_ref: &str,
+    requested_path: &str,
 ) -> Result<(std::path::PathBuf, String), RuntimeError> {
     let catalog_root = skill_directory
         .parent()
@@ -140,7 +127,7 @@ fn resolve_catalog_skill_target(
         .map_err(|source| RuntimeError::io("resolving owning skill catalog", source))?;
     let candidate = std::fs::canonicalize(skill_directory.join(requested)).map_err(|source| {
         RuntimeError::io(
-            format!("resolving owning-skill reference {requested_ref}"),
+            format!("resolving owning-skill reference {requested_path}"),
             source,
         )
     })?;

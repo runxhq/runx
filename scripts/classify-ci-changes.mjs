@@ -51,8 +51,8 @@ export function classifyFiles(files, coreSkills = bundledCoreSkills()) {
   const normalized = [...new Set(files.map((file) => file.trim()).filter(Boolean))].sort();
   const core = new Set(coreSkills);
   const skillOf = (file) => /^skills\/([^/]+)\//u.exec(file)?.[1];
-  const vendorSkill = (file) => skillOf(file) !== undefined && !core.has(skillOf(file));
-  const light = (file) => matches(lightOnlyPatterns, file) || vendorSkill(file);
+  const nonCoreSkill = (file) => skillOf(file) !== undefined && !core.has(skillOf(file));
+  const light = (file) => matches(lightOnlyPatterns, file) || nonCoreSkill(file);
   const changedCore = [...new Set(normalized.map(skillOf).filter((name) => name && core.has(name)))];
   const full = normalized.length === 0 || normalized.some((file) =>
     !light(file) && !matches(releasePatterns, file) && skillOf(file) === undefined

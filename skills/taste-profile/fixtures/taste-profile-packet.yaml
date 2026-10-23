@@ -43,16 +43,16 @@ caller:
           examples_to_avoid: []
         evidence_bindings:
           - rule: Make the workflow visible before promotional language.
-            source_refs: [source:1]
+            source_ids: [source:1]
             confidence: inferred
           - rule: Dense operational surfaces with visible proof.
-            source_refs: [source:1]
+            source_ids: [source:1]
             confidence: observed
           - rule: Decorative marketing cards that hide the workflow.
-            source_refs: [source:2]
+            source_ids: [source:2]
             confidence: observed
           - rule: Choose operational clarity over decorative flourish.
-            source_refs: [source:1, source:2]
+            source_ids: [source:1, source:2]
             confidence: inferred
         redactions: []
         stop_conditions: [Do not apply this packet outside the declared surface.]

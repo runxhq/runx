@@ -3,9 +3,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "artifact_refs": {
+    "artifacts": {
       "items": {
-        "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+        "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
@@ -22,36 +22,37 @@
           "path": {
             "type": "string"
           },
-          "ref": {
-            "type": "string"
-          },
           "schema": {
             "enum": [
-              "runx.project_artifact_ref.v1"
+              "runx.project_artifact.v1"
             ],
+            "title": "ProjectArtifactSchema",
+            "type": "string"
+          },
+          "uri": {
+            "description": "`runx:project-artifact:` and the artifact's digest.",
             "type": "string"
           }
         },
         "required": [
           "schema",
-          "ref",
+          "uri",
           "digest",
           "bytes",
           "media_type",
           "path"
         ],
+        "title": "ProjectArtifact",
         "type": "object",
-        "x-runx-schema": "runx.project_artifact_ref.v1"
+        "x-runx-schema": "runx.project_artifact.v1"
       },
       "type": "array"
     },
-    "closure": {
-      "additionalProperties": {},
-      "type": "object"
+    "context": {
+      "description": "The run's operator context and step trace, written only with `--diagnostics`; otherwise they live behind `diagnostics_artifact`."
     },
-    "context": {},
-    "diagnostics_ref": {
-      "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+    "diagnostics_artifact": {
+      "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
@@ -68,45 +69,57 @@
         "path": {
           "type": "string"
         },
-        "ref": {
-          "type": "string"
-        },
         "schema": {
           "enum": [
-            "runx.project_artifact_ref.v1"
+            "runx.project_artifact.v1"
           ],
+          "title": "ProjectArtifactSchema",
+          "type": "string"
+        },
+        "uri": {
+          "description": "`runx:project-artifact:` and the artifact's digest.",
           "type": "string"
         }
       },
       "required": [
         "schema",
-        "ref",
+        "uri",
         "digest",
         "bytes",
         "media_type",
         "path"
       ],
+      "title": "ProjectArtifact",
       "type": "object",
-      "x-runx-schema": "runx.project_artifact_ref.v1"
+      "x-runx-schema": "runx.project_artifact.v1"
     },
     "entry_provenance": {
       "additionalProperties": {},
+      "description": "Where the skill the run started came from, as the CLI resolved it.",
       "type": "object"
     },
     "error": {
       "additionalProperties": {},
+      "description": "A failed run's exit code and message.",
       "type": "object"
     },
     "next": {
+      "description": "The command that continues a paused run.",
       "type": "string"
     },
     "outcome": {
+      "description": "How the run ended: its seal's outcome, or `deferred` while it waits.",
       "enum": [
         "completed",
         "deferred",
+        "superseded",
+        "declined",
         "blocked",
-        "failed"
+        "failed",
+        "killed",
+        "timed_out"
       ],
+      "title": "RunOutcome",
       "type": "string"
     },
     "receipt_id": {
@@ -114,10 +127,11 @@
     },
     "refusal": {
       "additionalProperties": {},
+      "description": "Why a guard or an authority refused the run, when one did.",
       "type": "object"
     },
-    "request_set_ref": {
-      "$id": "https://schemas.runx.ai/runx/project-artifact-ref/v1.json",
+    "request_set_artifact": {
+      "$id": "https://schemas.runx.ai/runx/project-artifact/v1.json",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
@@ -134,26 +148,29 @@
         "path": {
           "type": "string"
         },
-        "ref": {
-          "type": "string"
-        },
         "schema": {
           "enum": [
-            "runx.project_artifact_ref.v1"
+            "runx.project_artifact.v1"
           ],
+          "title": "ProjectArtifactSchema",
+          "type": "string"
+        },
+        "uri": {
+          "description": "`runx:project-artifact:` and the artifact's digest.",
           "type": "string"
         }
       },
       "required": [
         "schema",
-        "ref",
+        "uri",
         "digest",
         "bytes",
         "media_type",
         "path"
       ],
+      "title": "ProjectArtifact",
       "type": "object",
-      "x-runx-schema": "runx.project_artifact_ref.v1"
+      "x-runx-schema": "runx.project_artifact.v1"
     },
     "requests": {
       "items": {},
@@ -170,6 +187,27 @@
       "enum": [
         "runx.skill_run.v1"
       ],
+      "title": "SkillOutputSchema",
+      "type": "string"
+    },
+    "seal_reason": {
+      "description": "Why the seal ended the run so, where the outcome alone does not say.",
+      "enum": [
+        "preflight_refused",
+        "input_contract_invalid",
+        "graph_step_failed",
+        "graph_blocked",
+        "authority_denied",
+        "cost_limit_exceeded",
+        "resolution_pending",
+        "managed_agent_provider_failed",
+        "managed_agent_resolution_failed",
+        "managed_agent_empty_turn_budget_exhausted",
+        "managed_agent_tool_execution_failed",
+        "managed_agent_round_budget_exhausted",
+        "host_closed"
+      ],
+      "title": "SealReason",
       "type": "string"
     },
     "skill_name": {
@@ -184,6 +222,7 @@
         "policy_denied",
         "failure"
       ],
+      "title": "SkillOutputStatus",
       "type": "string"
     },
     "trace": {}
@@ -191,6 +230,7 @@
   "required": [
     "status"
   ],
+  "title": "SkillOutput",
   "type": "object",
   "x-runx-schema": "runx.skill_run.v1"
 }

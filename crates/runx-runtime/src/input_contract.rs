@@ -107,22 +107,29 @@ pub(crate) fn materialize_complete_runner_inputs(
     )
 }
 
-/// Check one value an `owner` input takes, as admitting the whole invocation
+/// Check one value an `declared_by` input takes, as admitting the whole invocation
 /// would check it.
 pub(crate) fn admit_input_value(
-    owner: &'static str,
+    declared_by: &'static str,
     name: &str,
     input: &SkillInput,
     value: &JsonValue,
 ) -> Result<(), InputContractError> {
-    materialize_input(owner, name, input, Some(value), MissingRequired::Reject).map(|_| ())
+    materialize_input(
+        declared_by,
+        name,
+        input,
+        Some(value),
+        MissingRequired::Reject,
+    )
+    .map(|_| ())
 }
 
 fn materialize_declared_inputs(
     declared: &BTreeMap<String, SkillInput>,
     static_inputs: &JsonObject,
     resolved_inputs: &JsonObject,
-    owner: &'static str,
+    declared_by: &'static str,
     missing_required: MissingRequired,
     unknown_inputs: UnknownInputs,
 ) -> Result<JsonObject, InputContractError> {
@@ -133,10 +140,10 @@ fn materialize_declared_inputs(
         && let Some(name) = supplied.keys().find(|name| !declared.contains_key(*name))
     {
         return Err(InputContractError::new(
-            owner,
+            declared_by,
             name,
             format!("/{name}"),
-            format!("{owner} input '{name}' is not declared"),
+            format!("{declared_by} input '{name}' is not declared"),
             JsonValue::Object(runx_contracts::input_contract_schema(declared)),
         ));
     }
@@ -144,13 +151,20 @@ fn materialize_declared_inputs(
     declared
         .iter()
         .filter_map(|(name, input)| {
-            materialize_input(owner, name, input, supplied.get(name), missing_required).transpose()
+            materialize_input(
+                declared_by,
+                name,
+                input,
+                supplied.get(name),
+                missing_required,
+            )
+            .transpose()
         })
         .collect()
 }
 
 fn materialize_input(
-    owner: &'static str,
+    declared_by: &'static str,
     name: &str,
     input: &SkillInput,
     supplied: Option<&JsonValue>,
@@ -160,9 +174,9 @@ fn materialize_input(
     let Some(value) = value else {
         return if input.required && missing_required == MissingRequired::Reject {
             Err(input_error(
-                owner,
+                declared_by,
                 name,
-                format!("{owner} input '{name}' is required"),
+                format!("{declared_by} input '{name}' is required"),
                 input,
             ))
         } else {
@@ -172,9 +186,9 @@ fn materialize_input(
     if matches!(value, JsonValue::Null) {
         return if input.required && missing_required == MissingRequired::Reject {
             Err(input_error(
-                owner,
+                declared_by,
                 name,
-                format!("{owner} input '{name}' is required"),
+                format!("{declared_by} input '{name}' is required"),
                 input,
             ))
         } else {
@@ -183,16 +197,17 @@ fn materialize_input(
     }
 
     let value = if input.artifact == Some(true) {
-        unwrap_artifact(value, name).map_err(|message| input_error(owner, name, message, input))?
+        unwrap_artifact(value, name)
+            .map_err(|message| input_error(declared_by, name, message, input))?
     } else {
         value.clone()
     };
     if matches!(value, JsonValue::Null) {
         return if input.required && missing_required == MissingRequired::Reject {
             Err(input_error(
-                owner,
+                declared_by,
                 name,
-                format!("{owner} input '{name}' is required"),
+                format!("{declared_by} input '{name}' is required"),
                 input,
             ))
         } else {
@@ -201,10 +216,10 @@ fn materialize_input(
     }
     if !input.accepts_value(&value) {
         return Err(input_error(
-            owner,
+            declared_by,
             name,
             format!(
-                "{owner} input '{name}' must be {}, received {}",
+                "{declared_by} input '{name}' must be {}, received {}",
                 input.input_type,
                 json_type(&value),
             ),
@@ -212,13 +227,13 @@ fn materialize_input(
         ));
     }
     if input.schema.is_some() {
-        validate_schema_value(owner, name, input, &value)?;
+        validate_schema_value(declared_by, name, input, &value)?;
     }
     Ok(Some((name.to_owned(), value)))
 }
 
 fn validate_schema_value(
-    owner: &'static str,
+    declared_by: &'static str,
     name: &str,
     input: &SkillInput,
     value: &JsonValue,
@@ -226,7 +241,7 @@ fn validate_schema_value(
     let accepted_schema = JsonValue::Object(input.effective_schema());
     let schema = serde_json::to_value(&accepted_schema).map_err(|error| {
         input_error(
-            owner,
+            declared_by,
             name,
             format!("declared input schema could not be serialized: {error}"),
             input,
@@ -236,7 +251,7 @@ fn validate_schema_value(
         .build(&schema)
         .map_err(|error| {
             input_error(
-                owner,
+                declared_by,
                 name,
                 format!("declared input schema is invalid: {error}"),
                 input,
@@ -244,7 +259,7 @@ fn validate_schema_value(
         })?;
     let instance = serde_json::to_value(value).map_err(|error| {
         input_error(
-            owner,
+            declared_by,
             name,
             format!("input value could not be serialized: {error}"),
             input,
@@ -266,7 +281,7 @@ fn validate_schema_value(
         format!("value does not satisfy the declared schema at '{schema_path}'")
     };
     Err(InputContractError::new(
-        owner,
+        declared_by,
         name,
         path,
         message,
@@ -275,13 +290,13 @@ fn validate_schema_value(
 }
 
 fn input_error(
-    owner: &'static str,
+    declared_by: &'static str,
     name: &str,
     message: impl Into<String>,
     input: &SkillInput,
 ) -> InputContractError {
     InputContractError::new(
-        owner,
+        declared_by,
         name,
         format!("/{name}"),
         message,
@@ -331,7 +346,7 @@ enum UnknownInputs {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct InputContractError {
-    owner: &'static str,
+    declared_by: &'static str,
     input: String,
     path: String,
     message: String,
@@ -340,14 +355,14 @@ pub(crate) struct InputContractError {
 
 impl InputContractError {
     fn new(
-        owner: &'static str,
+        declared_by: &'static str,
         input: impl Into<String>,
         path: impl Into<String>,
         message: impl Into<String>,
         accepted_schema: JsonValue,
     ) -> Self {
         Self {
-            owner,
+            declared_by,
             input: input.into(),
             path: path.into(),
             message: message.into(),
@@ -358,7 +373,7 @@ impl InputContractError {
     pub(crate) fn into_runtime_error(self) -> crate::RuntimeError {
         crate::RuntimeError::InputContract {
             step_id: None,
-            owner: self.owner,
+            declared_by: self.declared_by,
             input: self.input,
             path: self.path,
             message: self.message,
@@ -372,7 +387,7 @@ impl fmt::Display for InputContractError {
         write!(
             formatter,
             "{} input contract failed at '{}': {}",
-            self.owner, self.path, self.message
+            self.declared_by, self.path, self.message
         )
     }
 }

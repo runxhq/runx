@@ -50,10 +50,10 @@ finalization receipt. Task size or file count alone does not make work governed.
 
 ## Reuse in chains
 
-- `from-evidence` accepts `runx.issue_to_pr.issue_evidence.v1` and skips GitHub
+- `from-evidence` accepts `runx/github-issue-to-pr.issue_evidence.v1` and skips GitHub
   discovery and issue read.
 - `resume` accepts both prior issue evidence and a completed
-  `runx.issue_to_pr.host_result.v1`; it does not repeat host work or finalize.
+  `runx/github-issue-to-pr.host_result.v1`; it does not repeat host work or finalize.
 - `verify` verifies the signed scafld receipt against the exact commit and
   contract without publishing anything.
 - `finalize-local` verifies the completed host result and returns it without a
@@ -69,7 +69,7 @@ The `github-issue-to-pr-host-work` act performs normal repository work and retur
 
 ```yaml
 host_result:
-  schema: runx.issue_to_pr.host_result.v1
+  schema: runx/github-issue-to-pr.host_result.v1
   status: completed | blocked | failed
   repository: owner/name
   issue_number: string

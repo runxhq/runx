@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::JsonObject;
 use crate::connector::{
     ConnectorDigestError, ConnectorName, CredentialName, Digest, EnvName, InstanceId,
-    OperationName, Placement, SecretName, SecretReference, SessionKind, stable_digest,
+    OperationName, Placement, SecretName, SessionKind, stable_digest,
 };
 use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
@@ -37,12 +37,12 @@ pub struct ConnectorInstance {
     pub connector_digest: Digest,
     pub placement: Placement,
     /// The principal the instance acts for. Free of secret material.
-    pub principal_ref: NonEmptyString,
+    pub principal_uri: NonEmptyString,
     /// The provider account the instance acts as, pinned when it was
     /// confirmed (a GitHub user, a Slack team and user, a Google account).
     /// Work admitted against the instance never runs as another account.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub account_ref: Option<NonEmptyString>,
+    pub account_id: Option<NonEmptyString>,
     pub authority: InstanceAuthority,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub parameters: JsonObject,
@@ -66,8 +66,8 @@ impl ConnectorInstance {
             manifest_digest: &self.manifest_digest,
             connector_digest: &self.connector_digest,
             placement: self.placement,
-            principal_ref: &self.principal_ref,
-            account_ref: &self.account_ref,
+            principal_uri: &self.principal_uri,
+            account_id: &self.account_id,
             authority: &self.authority,
             parameters: &self.parameters,
             credential_declaration_digest: &self.credential_declaration_digest,
@@ -84,8 +84,8 @@ struct BindingIdentity<'a> {
     manifest_digest: &'a Digest,
     connector_digest: &'a Digest,
     placement: Placement,
-    principal_ref: &'a NonEmptyString,
-    account_ref: &'a Option<NonEmptyString>,
+    principal_uri: &'a NonEmptyString,
+    account_id: &'a Option<NonEmptyString>,
     authority: &'a InstanceAuthority,
     parameters: &'a JsonObject,
     credential_declaration_digest: &'a Option<Digest>,
@@ -111,15 +111,6 @@ pub enum InstanceAuthority {
         scopes: Vec<NonEmptyString>,
         proof: NonEmptyString,
     },
-    /// Recorded before `runx secret`: a credential profile, which a secret of
-    /// the same name has replaced. History still reads it; nothing resolves
-    /// it, and an instance whose binding it is binds again with `Secret`.
-    Credential {
-        profile: NonEmptyString,
-        credential: CredentialName,
-        scopes: Vec<NonEmptyString>,
-        material_ref: NonEmptyString,
-    },
     /// The named connector credential, read on every call from the variable
     /// its declaration delivers it in, in the process environment or the
     /// workspace `.env`. The instance holds the variable's name, never its
@@ -130,20 +121,8 @@ pub enum InstanceAuthority {
         variable: EnvName,
         scopes: Vec<NonEmptyString>,
     },
-    /// Recorded before `runx secret`: a secrets manager reference bound in
-    /// the instance itself, which a secret holding that reference replaces.
-    /// History still reads it; nothing resolves it, and an instance whose
-    /// binding it is binds again with `Secret`.
-    Reference {
-        credential: CredentialName,
-        reference: SecretReference,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pinned: Option<NonEmptyString>,
-        proof: NonEmptyString,
-        scopes: Vec<NonEmptyString>,
-    },
     /// A local session the runtime can identify. A command session pins its
-    /// account in the instance's `account_ref`. `scopes` is what the operator
+    /// account in the instance's `account_id`. `scopes` is what the operator
     /// grants it: every scope its credential serves unless narrowed when it
     /// was confirmed. The provider enforces the account's own permissions.
     Session {
@@ -169,9 +148,7 @@ impl InstanceAuthority {
         match self {
             Self::HostedGrant { .. } => "hosted_grant",
             Self::Secret { .. } => "secret",
-            Self::Credential { .. } => "credential",
             Self::Environment { .. } => "environment",
-            Self::Reference { .. } => "reference",
             Self::Session { .. } => "session",
             Self::Held { .. } => "held",
             Self::Public => "public",

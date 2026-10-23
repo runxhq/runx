@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use runx_contracts::{ExecutionBoundaryKind, ExecutionBoundaryObservation, JsonObject};
-use runx_core::state_machine::GraphStatus;
+use runx_core::state_machine::GraphState;
 use runx_runtime::Runtime;
 use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use serde::Deserialize;
@@ -35,7 +35,7 @@ fn hello_graph_matches_post_cutover_fixture() -> Result<(), Box<dyn std::error::
     let run = runtime.run_graph_file(&graph_path)?;
 
     assert_eq!(run.graph.name, expected.graph_name);
-    assert_eq!(status_name(&run.state.status), expected.state);
+    assert_eq!(status_name(&run.progress.state), expected.state);
     assert_eq!(
         run.steps
             .iter()
@@ -99,11 +99,11 @@ fn hello_graph_matches_post_cutover_fixture() -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-fn status_name(status: &GraphStatus) -> &'static str {
+fn status_name(status: &GraphState) -> &'static str {
     match status {
-        GraphStatus::Pending => "pending",
-        GraphStatus::Running => "running",
-        GraphStatus::Succeeded => "succeeded",
-        GraphStatus::Failed => "failed",
+        GraphState::Pending => "pending",
+        GraphState::Running => "running",
+        GraphState::Succeeded => "succeeded",
+        GraphState::Failed => "failed",
     }
 }

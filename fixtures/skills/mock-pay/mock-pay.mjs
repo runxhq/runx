@@ -10,7 +10,7 @@ export function simulatePayment(inputs) {
       rail: "mock",
       amount_minor: amount,
       currency,
-      counterparty: requiredString(signal.counterparty, "payment_signal.counterparty"),
+      payee: requiredString(signal.payee, "payment_signal.payee"),
       idempotency_key: idempotencyKey,
       money_moved: false,
     },

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
-    JsonValue, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict,
+    Digest, JsonValue, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict,
     SkillArchitectureDecision, SkillArchitecturePlan, SkillArchitecturePlanSchema,
     SkillChangeBundle, SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft,
     SkillValidationResult, sha256_prefixed,
@@ -106,7 +106,7 @@ pub(crate) fn apply_skill_change(
     effects: &RuntimeEffectRegistry,
 ) -> Result<SkillApplyResult, RuntimeError> {
     let target = ApplyTarget::resolve(repo_root, target_dir, env)?;
-    validate_change_contract(change, mode, &target.before.digest)?;
+    validate_change_contract(change, mode, target.before.digest.as_str())?;
     let secret_prefixes = super::path::declared_secret_prefixes(repo_root, env)?;
     let admitted = admit_skill_change(
         &target.relative,
@@ -119,7 +119,7 @@ pub(crate) fn apply_skill_change(
         return Ok(no_change_result(
             &target.relative,
             change,
-            target.before.digest,
+            target.before.digest.into_string(),
         ));
     }
     if let Some(result) = reapplied_result(&target, change, env, effects)? {
@@ -208,7 +208,7 @@ fn reapplied_result(
         &target.paths,
         &target.relative,
         change,
-        &target.before.digest,
+        target.before.digest.as_str(),
     )? {
         return Err(invalid_skill_change(
             "target package changed since inspection; inspect and author against the current base digest",
@@ -238,7 +238,7 @@ fn unchanged_write_result(
         verdict: SkillApplyVerdict::Unchanged,
         base_digest: change.base_digest.clone(),
         plan_digest: change.plan_digest.clone(),
-        package_digest: target.before.digest.clone().into(),
+        package_digest: target.before.digest.as_str().into(),
         changed_paths: Vec::new(),
         deleted_paths: Vec::new(),
         validation: Some(validation),
@@ -288,8 +288,8 @@ fn validate_candidate_stage(
     })
 }
 
-fn ensure_target_unchanged(target: &Path, base_digest: &str) -> Result<(), RuntimeError> {
-    if package_snapshot(target)?.digest == base_digest {
+fn ensure_target_unchanged(target: &Path, base_digest: &Digest) -> Result<(), RuntimeError> {
+    if package_snapshot(target)?.digest == *base_digest {
         return Ok(());
     }
     Err(invalid_skill_change(
@@ -310,7 +310,7 @@ fn commit_candidate(
         &target.paths,
         &target.relative,
         change,
-        &candidate.snapshot.digest,
+        candidate.snapshot.digest.as_str(),
     )?;
     // The repository root was bounded when the tool resolved it; the paths
     // here are the skill package's own, admitted by `admit_skill_change`.
@@ -337,7 +337,7 @@ fn commit_candidate(
         verdict: SkillApplyVerdict::ValidatedAndApplied,
         base_digest: change.base_digest.clone(),
         plan_digest: change.plan_digest.clone(),
-        package_digest: applied.digest.into(),
+        package_digest: applied.digest.into_string().into(),
         changed_paths: change
             .writes
             .iter()

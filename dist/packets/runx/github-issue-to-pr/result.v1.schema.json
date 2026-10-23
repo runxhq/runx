@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/github-issue-to-pr/result/v1.json",
+  "x-runx-packet-id": "runx/github-issue-to-pr.result.v1",
+  "type": "object",
+  "required": ["schema", "status", "outcome", "repository", "issue_number", "branch", "commit", "tested", "finalization", "publication", "errors"],
+  "properties": {
+    "schema": { "const": "runx/github-issue-to-pr.result.v1" },
+    "status": { "type": "string", "enum": ["completed", "blocked"] },
+    "outcome": { "type": "string", "enum": ["finalized_local", "published", "blocked"] },
+    "repository": { "type": "string" },
+    "issue_number": { "type": "string" },
+    "branch": { "type": "string" },
+    "commit": { "type": "string" },
+    "tested": { "type": "boolean" },
+    "finalization": {
+      "type": "object",
+      "required": ["status", "receipt_digest", "contract_digest", "target"],
+      "properties": {
+        "status": { "type": "string", "enum": ["verified", "unverified"] },
+        "receipt_digest": { "type": "string" },
+        "contract_digest": { "type": "string" },
+        "target": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "publication": {
+      "type": "object",
+      "required": ["status", "pr_number", "url", "readback_uri"],
+      "properties": {
+        "status": { "type": "string", "enum": ["not_requested", "failed", "published"] },
+        "pr_number": { "type": "string" },
+        "url": { "type": "string" },
+        "readback_uri": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

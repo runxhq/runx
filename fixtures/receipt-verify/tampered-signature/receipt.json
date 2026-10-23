@@ -14,11 +14,12 @@
   "canonicalization": "runx.receipt.c14n.v1",
   "created_at": "2026-06-10T00:00:00Z",
   "decisions": [],
-  "digest": "sha256:5fec3754cc68f5a69a7381528eb5258eff81f1c2783d9c91e9a7e519977b9bcf",
-  "id": "sha256:198f4a482a8482e1d443af485c397eaaac230050d1040212b7d73848bce7ffc2",
+  "digest": "sha256:400255648fecbba8c732b15ea15b76e9b88abf8afa92b6abce2e64ae5d49f89a",
+  "id": "sha256:5b2dce6d66b9fb6259d07b928697551b4c29e1f4c7a420fc729c689429bd3e33",
   "issuer": {
     "kid": "runx-cli-verify-fixture-key",
-    "public_key_sha256": "sha256:87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
+    "public_key_digest": "sha256:87ee73837d4ba020e074790b42767a34f435e8ef60f2d4c9daa773b7c4251a40",
+    "runx_version": "0.11.0",
     "type": "hosted"
   },
   "lineage": {
@@ -34,7 +35,7 @@
         "verification_refs": []
       }
     ],
-    "disposition": "closed"
+    "outcome": "completed"
   },
   "signature": {
     "alg": "Ed25519",
@@ -42,7 +43,7 @@
   },
   "subject": {
     "kind": "step",
-    "outcome": "sha256:8f8f6c0b23bac127b29527ba38dfbf23854c7c13f8f371de7891c2576fd209cd",
+    "outcome_digest": "sha256:8f8f6c0b23bac127b29527ba38dfbf23854c7c13f8f371de7891c2576fd209cd",
     "ref": {
       "label": "receipt-verify",
       "type": "run",

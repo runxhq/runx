@@ -2,30 +2,35 @@
   "$id": "https://schemas.runx.ai/runx/turn-load/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "A completed load's output: what it bound, a skill's manual and runners, and the calls it adds to the turn. A skill's load binds the runner it names, or the skill's only runner; one that binds none is a reading of the skill, which binds no closure and so asks no trust.",
   "properties": {
     "connectors": {
       "additionalProperties": {
         "minLength": 1,
         "type": "string"
       },
+      "description": "Each connector what it bound reaches, by name, at the manifest digest it binds: a later load that binds another revision is refused.",
       "minProperties": 1,
       "type": "object"
     },
     "manual": {
       "additionalProperties": false,
+      "description": "A loaded skill's manual; none for a connector.",
       "properties": {
         "content": {
           "type": "string"
         },
-        "sha256": {
+        "digest": {
+          "description": "`sha256:` over `content`'s bytes.",
           "minLength": 1,
           "type": "string"
         }
       },
       "required": [
-        "sha256",
+        "digest",
         "content"
       ],
+      "title": "SkillManual",
       "type": "object"
     },
     "package": {
@@ -46,15 +51,18 @@
               "type": "string"
             },
             "skill": {
+              "description": "The ref each of its tools names: the canonical `<publisher>/<name>@<version>` of a registry skill, or the project's path.",
               "minLength": 1,
               "type": "string"
             },
             "trust_tier": {
+              "description": "How far the registry vouches for a publisher: runx's own packages, a publisher it verified, or anyone's.",
               "enum": [
                 "first_party",
                 "verified",
                 "community"
               ],
+              "title": "TrustTier",
               "type": "string"
             }
           },
@@ -77,6 +85,7 @@
               "type": "string"
             },
             "manifest_digest": {
+              "description": "The manifest each of its operations runs; one that changed since the load is refused.",
               "minLength": 1,
               "type": "string"
             },
@@ -85,11 +94,13 @@
               "type": "string"
             },
             "trust_tier": {
+              "description": "How far the registry vouches for a publisher: runx's own packages, a publisher it verified, or anyone's.",
               "enum": [
                 "first_party",
                 "verified",
                 "community"
               ],
+              "title": "TrustTier",
               "type": "string"
             }
           },
@@ -100,18 +111,24 @@
           ],
           "type": "object"
         }
-      ]
+      ],
+      "description": "The package a load bound. A project's own package has no tier and no publisher.",
+      "title": "LoadedPackage"
     },
     "runners": {
+      "description": "Every runner of a loaded skill, as a model chooses one, and whether this load bound it.",
       "items": {
         "additionalProperties": false,
+        "description": "One runner of a loaded skill, as a model chooses it.",
         "properties": {
           "bound": {
+            "description": "Whether this load bound it, so the turn offers it as a tool.",
             "type": "boolean"
           },
           "inputs": {
             "items": {
               "additionalProperties": false,
+              "description": "One input of a loaded skill's runner.",
               "properties": {
                 "name": {
                   "minLength": 1,
@@ -130,6 +147,7 @@
                 "type",
                 "required"
               ],
+              "title": "LoadedRunnerInput",
               "type": "object"
             },
             "type": "array"
@@ -139,6 +157,7 @@
             "type": "string"
           },
           "purpose": {
+            "description": "What it does and when to use it, as its package states it.",
             "minLength": 1,
             "type": "string"
           }
@@ -148,14 +167,17 @@
           "inputs",
           "bound"
         ],
+        "title": "LoadedRunner",
         "type": "object"
       },
       "minItems": 1,
       "type": "array"
     },
     "tools": {
+      "description": "One per bound runner, or per operation of a loaded connector, as the turn offers it from then on.",
       "items": {
         "additionalProperties": false,
+        "description": "One call an open turn offers its agent: an allowance entry, named for MCP, with the input it takes.",
         "properties": {
           "description": {
             "minLength": 1,
@@ -166,6 +188,7 @@
             "type": "object"
           },
           "name": {
+            "description": "Distinct within the turn, in the MCP tool-name grammar.",
             "minLength": 1,
             "type": "string"
           },
@@ -214,9 +237,11 @@
               },
               {
                 "additionalProperties": false,
+                "description": "A child skill: one the allowance names, run by its default runner, or one runner of a skill a load bound, run as the load bound it.",
                 "properties": {
                   "bound": {
                     "additionalProperties": false,
+                    "description": "The exact package and execution closure a load bound for one runner.",
                     "properties": {
                       "closure_digest": {
                         "minLength": 1,
@@ -231,6 +256,7 @@
                       "package_digest",
                       "closure_digest"
                     ],
+                    "title": "BoundClosure",
                     "type": "object"
                   },
                   "kind": {
@@ -254,6 +280,7 @@
               },
               {
                 "additionalProperties": false,
+                "description": "The call's input is `{reason}`; the human approves or declines it.",
                 "properties": {
                   "kind": {
                     "const": "ask",
@@ -267,6 +294,7 @@
               },
               {
                 "additionalProperties": false,
+                "description": "The call's input is `{skill, runner?}` or `{connector}`: a package a catalog rule admits, whose runners or operations the turn offers from then on.",
                 "properties": {
                   "kind": {
                     "const": "load",
@@ -278,7 +306,9 @@
                 ],
                 "type": "object"
               }
-            ]
+            ],
+            "description": "What a turn call names: one entry of the turn's allowance.",
+            "title": "TurnTarget"
           }
         },
         "required": [
@@ -287,6 +317,7 @@
           "target",
           "input_schema"
         ],
+        "title": "TurnTool",
         "type": "object"
       },
       "type": "array"
@@ -296,6 +327,7 @@
     "package",
     "tools"
   ],
+  "title": "TurnLoad",
   "type": "object",
   "x-runx-schema": "runx.turn_load.v1"
 }

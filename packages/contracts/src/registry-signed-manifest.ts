@@ -19,10 +19,10 @@ export interface RegistrySubject {
   readonly kind: RegistrySubjectKind;
   /**
    * `publisher/name` for a skill; the connector's name, one or two segments,
-   * for a connector. Each kind's own grammar is checked by `isRegistrySubjectRef`.
+   * for a connector. Each kind's own grammar is checked by `isRegistrySubjectName`.
    * @pattern ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?(/[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?)?$
    */
-  readonly ref: string;
+  readonly name: string;
 }
 
 export interface RegistrySignedManifest {
@@ -70,7 +70,7 @@ export function registryContentDigest(files: readonly RegistryContentFile[]): `s
 export function registrySignedManifestPayload(manifest: UnsignedRegistryManifest | RegistrySignedManifest): string {
   return canonicalJsonStringify({
     schema: manifest.schema,
-    subject: { kind: manifest.subject.kind, ref: manifest.subject.ref },
+    subject: { kind: manifest.subject.kind, name: manifest.subject.name },
     version: manifest.version,
     content_digest: manifest.content_digest,
     signer: { id: manifest.signer.id, key_id: manifest.signer.key_id },
@@ -80,14 +80,14 @@ export function registrySignedManifestPayload(manifest: UnsignedRegistryManifest
 /**
  * Whether an envelope signs the given version of the given subject. The kind
  * is part of the identity: a connector's envelope never stands for a skill,
- * nor a skill's for a connector, even where the ref fits both grammars.
+ * nor a skill's for a connector, even where the name fits both grammars.
  */
 export function registrySignedManifestSigns(manifest: RegistrySignedManifest, subject: RegistrySubject, version: string): boolean {
-  return manifest.subject.kind === subject.kind && manifest.subject.ref === subject.ref && manifest.version === version;
+  return manifest.subject.kind === subject.kind && manifest.subject.name === subject.name && manifest.version === version;
 }
 
 /** A subject of the given kind: a skill's `publisher/name`, or a connector's name. */
-export function isRegistrySubjectRef(kind: RegistrySubjectKind, value: string): boolean {
+export function isRegistrySubjectName(kind: RegistrySubjectKind, value: string): boolean {
   if (kind === "connector") return isConnectorName(value);
   const slash = value.indexOf("/");
   if (slash < 0) return false;
@@ -105,13 +105,13 @@ export function isConnectorName(value: string): boolean {
 /** Checks the envelope's shape and every term; refuses any field the contract does not name. */
 export function validateRegistrySignedManifest(value: unknown): RegistrySignedManifest {
   const manifest = object(value, "signed_manifest", ["schema", "subject", "version", "content_digest", "signer", "signature"]);
-  const subject = object(manifest.subject, "signed_manifest.subject", ["kind", "ref"]);
+  const subject = object(manifest.subject, "signed_manifest.subject", ["kind", "name"]);
   const signer = object(manifest.signer, "signed_manifest.signer", ["id", "key_id"]);
   const signature = object(manifest.signature, "signed_manifest.signature", ["alg", "value"]);
   if (manifest.schema !== REGISTRY_SIGNED_MANIFEST_SCHEMA) throw new Error(`signed_manifest.schema must be ${REGISTRY_SIGNED_MANIFEST_SCHEMA}.`);
   if (subject.kind !== "skill" && subject.kind !== "connector") throw new Error("signed_manifest.subject.kind must be skill or connector.");
-  if (typeof subject.ref !== "string" || !isRegistrySubjectRef(subject.kind, subject.ref)) {
-    throw new Error(`signed_manifest.subject.ref is not a ${subject.kind} reference.`);
+  if (typeof subject.name !== "string" || !isRegistrySubjectName(subject.kind, subject.name)) {
+    throw new Error(`signed_manifest.subject.name is not a ${subject.kind} name.`);
   }
   if (typeof manifest.version !== "string" || !isRegistryVersion(manifest.version)) throw new Error("signed_manifest.version is not a registry version label.");
   if (typeof manifest.content_digest !== "string" || !SHA256.test(manifest.content_digest)) throw new Error("signed_manifest.content_digest must be sha256: and 64 lowercase hex digits.");

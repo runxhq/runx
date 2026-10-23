@@ -35,7 +35,7 @@ steps:
         source_evidence:
           - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
             content_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
-            source_ref: file:fixtures/architecture-evidence.txt
+            source_uri: file:fixtures/architecture-evidence.txt
             source_kind: local_file
             provenance: { admitted_by: harness }
         index_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111

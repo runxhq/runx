@@ -1,5 +1,5 @@
 skill: knowledge-router
-version: "0.2.11"
+version: "0.2.12"
 
 catalog:
   kind: graph
@@ -56,22 +56,22 @@ harness:
               route:
                 domain: authentication
                 rationale: The question joins API-key scope policy with analytics access.
-                source_refs:
+                source_ids:
                   - auth-docs
                   - campaigns-docs
               source_matches:
-                - source_ref: auth-docs
+                - source_id: auth-docs
                   matching_signal: API keys scoped to read-only
                   reason: Defines key scope behavior.
-                - source_ref: campaigns-docs
+                - source_id: campaigns-docs
                   matching_signal: campaign analytics
                   reason: Defines the requested read surface.
               owner_recommendation:
-                owner_ref: security-team
+                owner_id: security-team
                 rationale: Authentication scope ownership is primary.
                 escalation_required: false
               next_skill:
-                skill_ref: research
+                skill: research
                 rationale: Resolve the bounded answer from both validated sources.
       expect:
         status: sealed
@@ -89,16 +89,16 @@ harness:
                   verdict: routed
                   route:
                     domain: authentication
-                    source_refs:
+                    source_ids:
                       - auth-docs
                       - campaigns-docs
                   owner_recommendation:
-                    owner_ref: security-team
+                    owner_id: security-team
                   next_skill:
-                    skill_ref: research
+                    skill: research
                   validation:
                     valid: true
-                    invalid_refs: []
+                    unknown_entries: []
 
     - name: knowledge-router-rejects-invented-reference
       inputs:
@@ -118,10 +118,10 @@ harness:
               route:
                 domain: policy
                 rationale: Use the retention documentation.
-                source_refs:
+                source_ids:
                   - invented-docs
               source_matches:
-                - source_ref: invented-docs
+                - source_id: invented-docs
                   matching_signal: retention policy
                   reason: Invented source must be rejected.
               owner_recommendation: {}
@@ -184,66 +184,8 @@ runners:
         outputs:
           knowledge_route:
             type: object
-            schema:
-              required: [schema, verdict, route, source_matches, owner_recommendation, next_skill, validation]
-              additionalProperties: false
-              properties:
-                schema: { const: runx.ops.knowledge_route.v1 }
-                verdict: { type: string, enum: [routed, needs_more_context, manual_review, refused] }
-                route:
-                  type: object
-                  required: [domain, rationale, source_refs]
-                  additionalProperties: false
-                  properties:
-                    domain: { type: [string, 'null'], maxLength: 500 }
-                    rationale: { type: string, minLength: 1, maxLength: 4000 }
-                    source_refs: { type: array, maxItems: 500, uniqueItems: true, items: { type: string, minLength: 1, maxLength: 1000 } }
-                source_matches:
-                  type: array
-                  maxItems: 500
-                  items:
-                    type: object
-                    required: [source_ref, matching_signal, reason]
-                    additionalProperties: false
-                    properties:
-                      source_ref: { type: string, minLength: 1, maxLength: 1000 }
-                      matching_signal: { type: string, maxLength: 4000 }
-                      reason: { type: string, maxLength: 4000 }
-                owner_recommendation:
-                  type: [object, 'null']
-                  required: [owner_ref, rationale, escalation_required]
-                  additionalProperties: false
-                  properties:
-                    owner_ref: { type: string, minLength: 1, maxLength: 1000 }
-                    rationale: { type: string, maxLength: 4000 }
-                    escalation_required: { type: boolean }
-                next_skill:
-                  type: [object, 'null']
-                  required: [skill_ref, rationale]
-                  additionalProperties: false
-                  properties:
-                    skill_ref: { type: string, minLength: 1, maxLength: 1000 }
-                    rationale: { type: string, maxLength: 4000 }
-                validation:
-                  type: object
-                  required: [valid, catalog_digest, invalid_refs, constraints_applied]
-                  additionalProperties: false
-                  properties:
-                    valid: { type: boolean }
-                    catalog_digest: { type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$' }
-                    invalid_refs:
-                      type: array
-                      maxItems: 1000
-                      items:
-                        type: object
-                        required: [kind, ref]
-                        additionalProperties: false
-                        properties:
-                          kind: { type: string, enum: [source, owner, skill] }
-                          ref: { type: string, minLength: 1, maxLength: 1000 }
-                    constraints_applied: {}
         artifacts:
           named_emits:
             knowledge_route: knowledge_route
           packets:
-            knowledge_route: runx.ops.knowledge_route.v1
+            knowledge_route: runx/knowledge-router.route.v1

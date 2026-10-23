@@ -91,7 +91,7 @@ fn discover_cross_package_reach_in_diagnostics(
             let resolved_path = project_path(root, &resolved);
             let target = object([
                 ("kind", string_value("workspace")),
-                ("ref", string_value(&source_path)),
+                ("id", string_value(&source_path)),
             ]);
             let location = DoctorLocation {
                 path: source_path.clone(),
@@ -139,7 +139,7 @@ fn discover_tool_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runti
                 continue;
             }
             let tool_dir = tool_entry.path;
-            let tool_ref = format!("{}.{}", namespace_entry.name, tool_entry.name);
+            let tool = format!("{}.{}", namespace_entry.name, tool_entry.name);
             let manifest_path = tool_dir.join("manifest.json");
             if !manifest_path.exists() {
                 continue;
@@ -151,7 +151,7 @@ fn discover_tool_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runti
             if fixture_count == 0 {
                 diagnostics.push(tool_fixture_missing_diagnostic(
                     root,
-                    &tool_ref,
+                    &tool,
                     &manifest_path,
                     &tool_dir.join("fixtures"),
                     fixture_count,
@@ -164,17 +164,14 @@ fn discover_tool_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runti
 
 fn tool_fixture_missing_diagnostic(
     root: &Path,
-    tool_ref: &str,
+    tool: &str,
     manifest_path: &Path,
     fixtures_path: &Path,
     fixture_count: u64,
 ) -> Result<DoctorDiagnostic, RuntimeError> {
     let location_path = project_path(root, manifest_path);
     let expected_location = project_path(root, fixtures_path);
-    let target = object([
-        ("kind", string_value("tool")),
-        ("ref", string_value(tool_ref)),
-    ]);
+    let target = object([("kind", string_value("tool")), ("id", string_value(tool))]);
     let location = DoctorLocation {
         path: location_path.clone(),
         json_pointer: None,
@@ -187,7 +184,7 @@ fn tool_fixture_missing_diagnostic(
         id: "runx.tool.fixture.missing",
         severity: DoctorDiagnosticSeverity::Error,
         title: "Tool has no deterministic fixture",
-        message: format!("Tool {tool_ref} declares a manifest but has no deterministic fixture."),
+        message: format!("Tool {tool} declares a manifest but has no deterministic fixture."),
         target,
         location,
         evidence: Some(evidence),
@@ -321,7 +318,7 @@ fn skill_frontmatter_invalid_diagnostic(
 ) -> Result<DoctorDiagnostic, RuntimeError> {
     let target = object([
         ("kind", string_value("skill")),
-        ("ref", string_value(skill_name)),
+        ("id", string_value(skill_name)),
     ]);
     let location = DoctorLocation {
         path: project_path(root, manual_path),
@@ -353,7 +350,7 @@ fn skill_manual_too_long_diagnostic(
 ) -> Result<DoctorDiagnostic, RuntimeError> {
     let target = object([
         ("kind", string_value("skill")),
-        ("ref", string_value(skill_name)),
+        ("id", string_value(skill_name)),
     ]);
     let location = DoctorLocation {
         path: project_path(root, manual_path),
@@ -405,7 +402,7 @@ fn skill_fixture_missing_diagnostic(
     let location_path = project_path(root, profile_path);
     let target = object([
         ("kind", string_value("skill")),
-        ("ref", string_value(skill_name)),
+        ("id", string_value(skill_name)),
     ]);
     let location = DoctorLocation {
         path: location_path.clone(),
@@ -443,7 +440,7 @@ fn skill_profile_invalid_diagnostic(
     let location_path = project_path(root, profile_path);
     let target = object([
         ("kind", string_value("skill")),
-        ("ref", string_value(skill_name)),
+        ("id", string_value(skill_name)),
     ]);
     let location = DoctorLocation {
         path: location_path.clone(),
@@ -703,7 +700,7 @@ harness:
         receipt:
           schema: runx.receipt.v1
           state: sealed
-          disposition: closed
+          outcome: completed
 "#;
 
     const INVALID_HARNESS_STATUS_PROFILE: &str = r#"
@@ -737,7 +734,7 @@ harness:
         receipt:
           schema: runx.receipt.v1
           state: sealed
-          disposition: closed
+          outcome: completed
 "#;
 
     #[test]

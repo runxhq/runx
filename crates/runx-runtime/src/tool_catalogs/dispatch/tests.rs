@@ -239,27 +239,27 @@ fn diagnostic(output: &InvocationOutput) -> String {
 }
 
 fn invoke_in_directory(
-    tool_ref: &str,
+    tool: &str,
     inputs: JsonObject,
     skill_directory: PathBuf,
     env: BTreeMap<String, String>,
 ) -> Result<InvocationOutput, RuntimeError> {
-    invoke_with_resolved_in_directory(tool_ref, inputs, JsonObject::new(), skill_directory, env)
+    invoke_with_resolved_in_directory(tool, inputs, JsonObject::new(), skill_directory, env)
 }
 
 fn invoke_with_resolved_in_directory(
-    tool_ref: &str,
+    tool: &str,
     inputs: JsonObject,
     resolved_inputs: JsonObject,
     skill_directory: PathBuf,
     env: BTreeMap<String, String>,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let scopes = crate::tool_catalogs::native::required_scopes(tool_ref).map_or_else(
-        || vec![tool_ref.to_owned()],
+    let scopes = crate::tool_catalogs::native::required_scopes(tool).map_or_else(
+        || vec![tool.to_owned()],
         |scopes| scopes.iter().map(|scope| (*scope).to_owned()).collect(),
     );
     invoke_with_declared_scopes_in_directory(
-        tool_ref,
+        tool,
         inputs,
         resolved_inputs,
         skill_directory,
@@ -269,7 +269,7 @@ fn invoke_with_resolved_in_directory(
 }
 
 fn invoke_with_declared_scopes_in_directory(
-    tool_ref: &str,
+    tool: &str,
     inputs: JsonObject,
     resolved_inputs: JsonObject,
     skill_directory: PathBuf,
@@ -281,7 +281,7 @@ fn invoke_with_declared_scopes_in_directory(
     let local_artifacts = crate::services::LocalArtifactService::default();
     dispatch_tool(
         ToolDispatchRequest {
-            tool_ref: Cow::Borrowed(tool_ref),
+            tool: Cow::Borrowed(tool),
             inputs: Cow::Owned(inputs),
             resolved_inputs: Cow::Owned(resolved_inputs),
             scopes,

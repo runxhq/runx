@@ -21,7 +21,7 @@ inputs:
   connector: coinbase/cdp
   request:
     resource: https://seller.example/v1/reports/launch
-    payment_ref: x402pay_test_001
+    payment_id: x402pay_test_001
     amount_minor: 125
     currency: USD
     reason: The report was not delivered.
@@ -42,13 +42,13 @@ caller:
         target: https://seller.example/v1/reports/launch
         access: mutate
         result:
-          refund_ref: x402refund_test_001
-          payment_ref: x402pay_test_001
+          refund_id: x402refund_test_001
+          payment_id: x402pay_test_001
           resource: https://seller.example/v1/reports/launch
           amount_minor: 125
           currency: USD
           status: settled
-          refund_settlement_ref: "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          refund_settlement_id: "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
           payer: "0x0000000000000000000000000000000000000002"
           pay_to: "0x0000000000000000000000000000000000000001"
           network: eip155:8453
@@ -57,13 +57,13 @@ caller:
         target: https://seller.example/v1/reports/launch
         access: read
         result:
-          refund_ref: x402refund_test_001
-          payment_ref: x402pay_test_001
+          refund_id: x402refund_test_001
+          payment_id: x402pay_test_001
           resource: https://seller.example/v1/reports/launch
           amount_minor: 125
           currency: USD
           status: settled
-          refund_settlement_ref: "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          refund_settlement_id: "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
           payer: "0x0000000000000000000000000000000000000002"
           pay_to: "0x0000000000000000000000000000000000000001"
           network: eip155:8453

@@ -30,13 +30,8 @@
     "principal_id": {
       "type": "string"
     },
-    "source_workflow": {
-      "type": "string"
-    },
-    "upstream_execution_id": {
-      "type": "string"
-    },
     "upstream_run_id": {
+      "description": "The orchestrator's own id for the run that made the call.",
       "type": "string"
     },
     "workflow": {
@@ -44,11 +39,9 @@
     },
     "workflow_id": {
       "type": "string"
-    },
-    "workflow_ref": {
-      "type": "string"
     }
   },
+  "title": "OrchestratorExecutionContext",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.orchestrator.execution_context.v1"

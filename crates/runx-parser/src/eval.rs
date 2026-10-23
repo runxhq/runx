@@ -383,8 +383,8 @@ mod tests {
         let output = evaluate_parser_document_str(
             r#"{
               "kind": "parser.parsePacketSchemaDocument",
-              "path": "packets/demo.schema.json",
-              "source": "{\"x-runx-packet-id\":\"runx.demo.v1\",\"type\":\"object\"}"
+              "path": "packets/demo.v1.schema.json",
+              "source": "{\"$id\":\"https://schemas.runx.ai/packages/acme/demo/demo/v1.json\",\"x-runx-packet-id\":\"acme/demo.demo.v1\",\"type\":\"object\"}"
             }"#,
         )
         .map_err(|error| error.to_string())?;
@@ -394,9 +394,9 @@ mod tests {
         };
         assert_eq!(
             schema.get("packetId"),
-            Some(&JsonValue::String("runx.demo.v1".to_owned()))
+            Some(&JsonValue::String("acme/demo.demo.v1".to_owned()))
         );
-        assert!(schema.contains_key("sha256"));
+        assert!(schema.contains_key("digest"));
         Ok(())
     }
 }

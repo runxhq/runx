@@ -12,8 +12,8 @@ inputs:
     recipient: operator@example.org
     status: eligible
     suppressed: false
-    policy_ref: policy:outreach
-    evidence_refs: ['decision:recipient-1']
+    policy_id: policy:outreach
+    evidence_ids: ['decision:recipient-1']
   evidence_pack:
     decision: ready
     research_brief:
@@ -34,7 +34,7 @@ inputs:
     source_evidence:
     - evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
       content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-      source_ref: https://example.com/evidence
+      source_uri: https://example.com/evidence
       source_kind: fetch
       provenance: {observed_at: '2026-07-17T00:00:00Z', bytes: 0, status: 200, redirects: []}
     index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
@@ -52,10 +52,10 @@ inputs:
       channel_adjustments: [Email stays short with one ask.]
     evidence:
       evidence_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
-      sources: [{source_ref: 'source:1', kind: approved, label: Approved outreach example}]
+      sources: [{source_id: 'source:1', kind: approved, label: Approved outreach example}]
       bindings:
-      - {rule: Lead with the reader's own work., source_refs: ['source:1']}
-      - {rule: Short plain sentences., source_refs: ['source:1']}
+      - {rule: Lead with the reader's own work., source_ids: ['source:1']}
+      - {rule: Short plain sentences., source_ids: ['source:1']}
     redactions: []
     stop_conditions: [Require new evidence before adding a new factual claim.]
     receipt_notes: {authority: context-only, mutation: false}
@@ -73,9 +73,9 @@ inputs:
       examples_to_avoid: []
     evidence:
       evidence_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
-      sources: [{source_ref: 'source:1', kind: liked, label: Liked outreach example}]
+      sources: [{source_id: 'source:1', kind: liked, label: Liked outreach example}]
       bindings:
-      - {rule: Prefer a question to an assumption., source_refs: ['source:1'], confidence: explicit}
+      - {rule: Prefer a question to an assumption., source_ids: ['source:1'], confidence: explicit}
     redactions: []
     stop_conditions: []
     receipt_notes: {authority: context-only, mutation: false}
@@ -91,9 +91,9 @@ expect:
             decision: ready
             context_binding:
               required:
-              - {type: brand_voice, packet_digest: sha256:635d1cd53df5ba6d403f26276e6ac5caa2338aecb8559f3214460be81a08c441, scope: {audience: documentation maintainers,
+              - {type: brand_voice, packet_digest: sha256:7f4dd2a6baab5a358c6bd4bb5ed9567e946b0d9167cd3d3e817db5cfe3c38250, scope: {audience: documentation maintainers,
                   channel: email}}
-              - {type: taste_profile, packet_digest: sha256:dd28c12a5a077b29bd88c8d0ab765096cda94261955ab1232a01035728cd30ea, scope: {audience: documentation maintainers,
+              - {type: taste_profile, packet_digest: sha256:9a9a92aabb8cc8feeb088441cf4272f70931ab2b8ec059b21121fd4d63669738, scope: {audience: documentation maintainers,
                   channel: email}}
             validation: {status: pass}
     review:
@@ -123,7 +123,7 @@ operator_journeys:
 - mode: composed
   request: Continue outreach preparation from supplied research and contact-policy evidence.
   expected_outcome: Reuse the supplied evidence and retain the exact bounded outcome without outward actions.
-  prior_evidence: [The validated research packet and current recipient suppression disposition.]
+  prior_evidence: [The validated research packet and current recipient suppression state.]
   must_not_repeat: [Do not enrich or research the recipient again; do not send the draft.]
 caller:
   answers:
@@ -138,14 +138,14 @@ caller:
 
 
             Example team. Reply to opt out.'
-          claim_refs:
+          claims:
           - claim: The recipient has a public guide and the sender offers a bounded documentation review.
             source_digests: ['sha256:1111111111111111111111111111111111111111111111111111111111111111']
         review_checklist: [Confirm current contact eligibility before any send.]
         distribution_notes: {primary_channel: email}
         context_binding:
           applied:
-          - packet_digest: sha256:635d1cd53df5ba6d403f26276e6ac5caa2338aecb8559f3214460be81a08c441
+          - packet_digest: sha256:7f4dd2a6baab5a358c6bd4bb5ed9567e946b0d9167cd3d3e817db5cfe3c38250
             applied_rules: [Lead with the reader's own work.]
-          - packet_digest: sha256:dd28c12a5a077b29bd88c8d0ab765096cda94261955ab1232a01035728cd30ea
+          - packet_digest: sha256:9a9a92aabb8cc8feeb088441cf4272f70931ab2b8ec059b21121fd4d63669738
             applied_rules: [Prefer a question to an assumption.]

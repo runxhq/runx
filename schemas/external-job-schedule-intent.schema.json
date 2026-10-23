@@ -2,9 +2,11 @@
   "$id": "https://schemas.runx.ai/runx/external-job-schedule-intent/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Product-owned opt-in emitted by the initial execution package. Trusted purchase identity and absolute scheduling timestamps are added by Runx.",
   "properties": {
     "checkpoint": {
       "additionalProperties": true,
+      "title": "ExternalJobCheckpoint",
       "type": "object"
     },
     "deadline_ms": {
@@ -26,9 +28,11 @@
       "enum": [
         "runx.external_job_schedule_intent.v1"
       ],
+      "title": "ExternalJobScheduleIntentSchema",
       "type": "string"
     },
     "stage_runner": {
+      "description": "Runner in the same immutable package that owns continuation stages. Runx resolves and pins its full execution closure before scheduling.",
       "maxLength": 128,
       "minLength": 1,
       "type": "string"
@@ -42,6 +46,7 @@
     "initial_delay_ms",
     "deadline_ms"
   ],
+  "title": "ExternalJobScheduleIntent",
   "type": "object",
   "x-runx-packet": true,
   "x-runx-schema": "runx.external_job_schedule_intent.v1"

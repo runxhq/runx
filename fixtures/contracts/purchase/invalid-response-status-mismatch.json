@@ -1,0 +1,1 @@
+{"description":"An admitted status cannot carry refusal fields.","expectation":"invalid","operation":"ExecutePurchase","payload":{"code":"payment_not_authorized","reason":"No authority.","status":"admitted"},"schema_id":"runx.payment.execute_purchase.result.v1"}

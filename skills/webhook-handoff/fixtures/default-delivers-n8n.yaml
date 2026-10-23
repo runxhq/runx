@@ -21,7 +21,7 @@ inputs:
   webhook_host: acme.app.n8n.cloud
   event_id: evt_n8n_demo_001
   handoff_audience: n8n:workflow:runx-governed-effect
-  execution_context: { caller: runx-cli, workflow_ref: n8n-cloud-demo }
+  execution_context: { caller: runx-cli, workflow: n8n-cloud-demo }
   payload: { hello: workflow }
 caller:
   http_exchanges:
@@ -38,7 +38,7 @@ caller:
               handoff_scope: orchestrator.n8n.workflow.invoke
               idempotency_key: evt_n8n_demo_001
               platform: n8n
-              workflow_ref: n8n-cloud-demo
+              workflow: n8n-cloud-demo
             handoff_audience: n8n:workflow:runx-governed-effect
             handoff_scope: orchestrator.n8n.workflow.invoke
             idempotency_key: evt_n8n_demo_001
@@ -64,5 +64,5 @@ expect:
             finality: acknowledged
             result:
               acknowledgement: { message: Workflow was started }
-  receipt: { schema: runx.receipt.v1, state: sealed, disposition: closed }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: webhook-handoff, source_case: direct-default-success-n8n, source: skills-fixture }

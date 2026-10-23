@@ -9,13 +9,13 @@
   "diagnostics": [
     {
       "id": "runx.skill.fixture.missing",
-      "instance_id": "sha256:7ba505230a773d54941f54337431ecb42dcf74967e617b40c6247533b35e773b",
+      "instance_id": "sha256:2be836cc8f9504071f50b4ac2644acdcd48ecb31be584c89851bb16494fac39e",
       "severity": "error",
       "title": "Skill has no harness coverage",
       "message": "Skill uncovered declares an execution profile but has no fixtures or inline harness.cases.",
       "target": {
-        "kind": "skill",
-        "ref": "uncovered"
+        "id": "uncovered",
+        "kind": "skill"
       },
       "location": {
         "path": "skills/uncovered/run.yaml",
