@@ -42,6 +42,10 @@ const TARGETS = {
 // the archive the release input hashed.
 const AUR_SOURCE_URL = "https://github.com/runxhq/runx/archive/refs/tags/cli-v$pkgver.tar.gz";
 const AUR_SOURCE_ROOT = "$pkgname-cli-v$pkgver";
+const publisher = JSON.parse(readFileSync(path.join(workspaceRoot, "release", "publisher.json"), "utf8")) as {
+  readonly name: string;
+  readonly email: string;
+};
 
 const options = parseArgs(process.argv.slice(2));
 const manifest = JSON.parse(readFileSync(path.resolve(workspaceRoot, options.input), "utf8")) as Manifest;
@@ -184,7 +188,7 @@ PackageIdentifier: runxhq.runx
 PackageVersion: ${m.version}
 PackageLocale: en-US
 PackageName: runx
-Publisher: runxhq
+Publisher: ${publisher.name}
 License: Apache-2.0
 ShortDescription: ${m.description}
 PackageUrl: ${m.homepage}
@@ -222,7 +226,7 @@ function renderPkgbuild(m: Manifest): string {
   if (aurExpand(m, AUR_SOURCE_URL) !== m.source.url || aurExpand(m, AUR_SOURCE_ROOT) !== m.source.root) {
     throw new Error(`the AUR source ${aurExpand(m, AUR_SOURCE_URL)} is not the release source ${m.source.url}`);
   }
-  return `# Maintainer: runxhq <dev@runx.ai>
+  return `# Maintainer: ${publisher.name} <${publisher.email}>
 pkgname=runx
 pkgver=${m.version}
 pkgrel=1
@@ -294,9 +298,10 @@ function renderChocolateyNuspec(m: Manifest): string {
     <id>runx</id>
     <version>${m.version}</version>
     <title>Runx</title>
-    <authors>runxhq</authors>
-    <owners>runxhq</owners>
+    <authors>${publisher.name}</authors>
+    <owners>${publisher.name}</owners>
     <projectUrl>${xmlEscape(m.homepage)}</projectUrl>
+    <iconUrl>${xmlEscape(m.homepage)}/assets/logo/runx-symbol-192.png</iconUrl>
     <projectSourceUrl>https://github.com/${xmlEscape(m.repo)}</projectSourceUrl>
     <packageSourceUrl>https://github.com/${xmlEscape(m.repo)}</packageSourceUrl>
     <docsUrl>${xmlEscape(m.homepage)}/docs</docsUrl>
