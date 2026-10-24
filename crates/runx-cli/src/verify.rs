@@ -929,7 +929,7 @@ mod tests {
             ed25519_spki_pem(key_pair.public_key().as_ref()),
         )?;
         let payload = test_json::json!({
-            "binary_version": "runx-test",
+            "runx_version": "runx-test",
             "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
             "issued_at": "2026-06-10T00:00:00Z",
             "mode": "full",
@@ -961,7 +961,7 @@ mod tests {
             "receipt": {
                 "digest": signed["digest"].clone(),
                 "mode": signed["mode"].clone(),
-                "binary_version": signed["binary_version"].clone(),
+                "runx_version": signed["runx_version"].clone(),
                 "notary_verification": notary["notary_verification"].clone(),
             }
         });
@@ -1054,7 +1054,7 @@ mod tests {
             ed25519_spki_pem(untrusted.public_key().as_ref()),
         )?;
         let payload = test_json::json!({
-            "binary_version": "runx-test",
+            "runx_version": "runx-test",
             "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
             "issued_at": "2026-06-10T00:00:00Z",
             "mode": "full",
@@ -1086,7 +1086,7 @@ mod tests {
             "receipt": {
                 "digest": signed["digest"].clone(),
                 "mode": signed["mode"].clone(),
-                "binary_version": signed["binary_version"].clone(),
+                "runx_version": signed["runx_version"].clone(),
                 "notary_verification": notary["notary_verification"].clone(),
             }
         });
@@ -1132,7 +1132,7 @@ mod tests {
             ed25519_spki_pem(key_pair.public_key().as_ref()),
         )?;
         let payload = test_json::json!({
-            "binary_version": "runx-test",
+            "runx_version": "runx-test",
             "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
             "issued_at": "2026-06-10T00:00:00Z",
             "mode": "full",
@@ -1146,7 +1146,7 @@ mod tests {
             "receipt": {
                 "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
                 "mode": "full",
-                "binary_version": "runx-test",
+                "runx_version": "runx-test",
                 "notary_verification": {
                     "counter_seal": {
                         "schema": "runx.hosted_notary_counter_seal.v1",

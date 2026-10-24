@@ -159,6 +159,7 @@ export interface NativePackageOutput extends Readonly<Record<string, unknown>> {
   readonly status: "success";
   readonly registry: {
     readonly action: "package";
+    readonly package_digest: string;
     readonly package: Readonly<Record<string, unknown>> & { readonly markdown: string };
   };
 }
@@ -169,7 +170,7 @@ export interface NativeConnectorPackageOutput extends Readonly<Record<string, un
   readonly registry: {
     readonly action: "connector_package";
     readonly connector: Readonly<Record<string, unknown>> & {
-      readonly ref: string;
+      readonly connector: string;
       readonly version: string;
       readonly content_digest: string;
       readonly manifest_digest: string;

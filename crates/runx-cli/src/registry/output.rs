@@ -41,6 +41,8 @@ pub(super) enum RegistryPayload {
         package: Box<runx_runtime::registry::RegistryPublishPackageParts>,
         /// The exact complete content identity used by default publication.
         content_digest: String,
+        /// The parser's execution identity of the exported files as installed.
+        package_digest: String,
     },
     ConnectorPackage {
         connector: Box<runx_runtime::registry::RegistryConnectorPackage>,

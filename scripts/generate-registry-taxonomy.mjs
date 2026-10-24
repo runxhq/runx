@@ -28,7 +28,7 @@ function readMark(relative, location) {
   const file = path.join(taxonomyRoot, relative);
   if (!existsSync(file)) fail(`${location}.mark ${relative} does not exist`);
   const svg = readFileSync(file, "utf8");
-  return { svg, digest: createHash("sha256").update(svg).digest("hex") };
+  return { svg, digest: `sha256:${createHash("sha256").update(svg).digest("hex")}` };
 }
 
 function load() {

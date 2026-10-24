@@ -186,6 +186,9 @@ fn run_package(
         &package.package_files,
     )
     .map_err(|error| internal_error(error.to_string()))?;
+    let package_digest = package
+        .package_digest()
+        .map_err(|error| internal_error(error.to_string()))?;
     output::write_output(
         plan.json,
         &output::RegistryEnvelope {
@@ -193,6 +196,7 @@ fn run_package(
             registry: output::RegistryPayload::Package {
                 package: Box::new(package),
                 content_digest,
+                package_digest,
             },
         },
         || "\n  registry package ready\n\n".to_owned(),

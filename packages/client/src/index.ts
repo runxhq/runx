@@ -98,14 +98,16 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
     packages: {
       materialize: async (options) => {
         const output = parseJson(await execute(["registry", "package", argument(options.skillPath), "--json"], options), [0]);
-        if (output.status !== "success" || !record(output.registry) || output.registry.action !== "package" || !record(output.registry.package) || typeof output.registry.package.markdown !== "string") throw new RunxClientError("contract", "Invalid native package material.");
+        if (output.status !== "success" || !record(output.registry) || output.registry.action !== "package" || !record(output.registry.package)
+          || typeof output.registry.package.markdown !== "string" || typeof output.registry.package_digest !== "string"
+          || !/^sha256:[0-9a-f]{64}$/u.test(output.registry.package_digest)) throw new RunxClientError("contract", "Invalid native package material.");
         return output as NativePackageOutput;
       },
       materializeConnector: async (options) => {
         const output = parseJson(await execute(["registry", "package", argument(options.connectorPath), "--json"], options), [0]);
         const connector = record(output.registry) ? output.registry.connector : undefined;
         if (output.status !== "success" || !record(output.registry) || output.registry.action !== "connector_package" || !record(connector)
-          || !["ref", "version", "content_digest", "manifest_digest", "connector_digest"].every((field) => typeof connector[field] === "string")
+          || !["connector", "version", "content_digest", "manifest_digest", "connector_digest"].every((field) => typeof connector[field] === "string")
           || !record(connector.manifest) || !record(connector.digests) || !Array.isArray(connector.files)
           || !connector.files.every((file) => record(file) && typeof file.path === "string" && typeof file.content === "string")) {
           throw new RunxClientError("contract", "Invalid native connector package.");

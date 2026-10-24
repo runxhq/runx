@@ -273,7 +273,7 @@ fn bind_counter_seal_to_projection(
     let Some(receipt) = root.get("receipt").and_then(Value::as_object) else {
         return;
     };
-    for field in ["digest", "mode", "binary_version"] {
+    for field in ["digest", "mode", "runx_version"] {
         if receipt.get(field).and_then(Value::as_str) != payload.get(field).and_then(Value::as_str)
         {
             findings.push(finding(

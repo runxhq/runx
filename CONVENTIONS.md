@@ -179,6 +179,11 @@ a journey. When a journey absorbs existing coverage, delete the superseded
 test only after the replacement proves the same behavior at a stronger
 boundary.
 
+A test proves current behavior. No test replays a migration, reads a
+superseded shape, or asserts that something retired is gone. A rename moves
+every test to the new names, and a test that only made sense under the old
+names is deleted, never put back on them.
+
 For skill behavior, the default is a replayable operator-story fixture through
 the skill's public runner. Composite-skill harnesses own the business scenario
 matrix: routing decisions, authority attenuation, approval and refusal stops,

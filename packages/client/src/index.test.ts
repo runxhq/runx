@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRunxClient, executionBindingFromInspection, executionClosureFromInspection, RunxClientError } from "./index.js";
 import { invoke } from "./process.js";
 import { decodeSkill } from "./decode.js";
@@ -137,18 +137,37 @@ describe("native invocation and decoding", () => {
     await expect(client.secrets.read({ name: "unset" })).rejects.toThrow("no secret is named unset");
     await expect(client.secrets.read({ name: "--help" })).rejects.toThrow("positional");
   });
+  it("preserves the native execution identity separately from publication content", async () => {
+    const { root, config } = await setup();
+    const material = {
+      status: "success",
+      registry: {
+        action: "package",
+        content_digest: `sha256:${"a".repeat(64)}`,
+        package_digest: `sha256:${"b".repeat(64)}`,
+        package: { markdown: "# A skill", package_files: [] },
+      },
+    };
+    const client = createRunxClient(config);
+    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify(${JSON.stringify(material)}));`);
+    await expect(client.packages.materialize({ skillPath: root })).resolves.toEqual(material);
+    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify(${JSON.stringify({
+      ...material, registry: { ...material.registry, package_digest: material.registry.package_digest.slice(7) },
+    })}));`);
+    await expect(client.packages.materialize({ skillPath: root })).rejects.toThrow("Invalid native package material");
+  });
   it("reads a connector's exact registry package and refuses another shape", async () => {
     const { root, config } = await setup();
     const capture = path.join(root, "connector.args");
-    const connector = { ref: "acme/ops-api", version: "sha-0123456789ab", content_digest: `sha256:${"a".repeat(64)}`, manifest_digest: `sha256:${"b".repeat(64)}`, connector_digest: `sha256:${"c".repeat(64)}`, manifest: { id: "ops-api" }, digests: {}, files: [{ path: "connector.yaml", content: "id: ops-api\n" }] };
+    const connector = { connector: "acme/ops-api", version: "sha-0123456789ab", content_digest: `sha256:${"a".repeat(64)}`, manifest_digest: `sha256:${"b".repeat(64)}`, connector_digest: `sha256:${"c".repeat(64)}`, manifest: { id: "ops-api" }, digests: {}, files: [{ path: "connector.yaml", content: "id: ops-api\n" }] };
     await writeFile(config.command, `#!${process.execPath}\nimport { writeFileSync } from 'node:fs';
       writeFileSync(${JSON.stringify(capture)}, JSON.stringify(process.argv.slice(2)));
       process.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: ${JSON.stringify(connector)} } }));`);
     const client = createRunxClient(config);
-    await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).resolves.toMatchObject({ registry: { connector: { ref: "acme/ops-api" } } });
+    await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).resolves.toMatchObject({ registry: { connector: { connector: "acme/ops-api" } } });
     expect(JSON.parse(await readFile(capture, "utf8"))).toEqual(["registry", "package", "/connectors/ops-api", "--json"]);
     await expect(client.packages.materializeConnector({ connectorPath: "--help" })).rejects.toThrow("positional");
-    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: { ref: 'acme/ops-api' } } }));`);
+    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: { connector: 'acme/ops-api' } } }));`);
     await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).rejects.toThrow("Invalid native connector package");
   });
   it("names why runx refused, from its failure envelope", async () => {
@@ -320,8 +339,16 @@ describe("process lifetime", () => {
     const pidFile = path.join(root, "descendant.pid");
     const childCode = `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`;
     await writeFile(config.command, `#!${process.execPath}\nimport { spawn } from 'node:child_process'; spawn(${JSON.stringify(process.execPath)}, ['-e', ${JSON.stringify(childCode)}], { stdio: 'ignore' }); setInterval(() => {}, 1000);`);
-    await expect(invoke({ ...config, env: {}, args: [], maxOutputBytes: 1000, maxInputBytes: 100, timeoutMs: 500 })).rejects.toMatchObject({ reason: "timeout" });
-    const pid = Number(await readFile(pidFile, "utf8"));
+    const controller = new AbortController();
+    const result = invoke({ ...config, env: {}, args: [], maxOutputBytes: 1000, maxInputBytes: 100, timeoutMs: 5000, signal: controller.signal }).catch((error: unknown) => error);
+    let pid = 0;
+    try {
+      // Exercise group termination only once the descendant is actually alive.
+      await vi.waitFor(async () => { pid = Number(await readFile(pidFile, "utf8")); expect(pid).toBeGreaterThan(0); }, { timeout: 3000 });
+    } finally {
+      controller.abort();
+    }
+    expect(await result).toMatchObject({ reason: "aborted" });
     // The process may briefly remain a zombie until its new parent reaps it.
     const probe = spawn("ps", ["-o", "stat=", "-p", String(pid)]);
     let stat = ""; probe.stdout.on("data", (chunk) => { stat += chunk; });

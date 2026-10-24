@@ -114,6 +114,19 @@ pub struct RegistryPublishPackageParts {
     pub metadata: RegistryPackageMetadata,
 }
 
+impl RegistryPublishPackageParts {
+    /// The parser's execution identity of these exact files as installed.
+    pub fn package_digest(&self) -> Result<String, RegistryPublishPackageError> {
+        super::package_files::validate_registry_skill_package(
+            &self.markdown,
+            self.profile_document.as_deref(),
+            &self.package_files,
+        )
+        .map(|package| package.package_digest)
+        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))
+    }
+}
+
 pub fn prepare_registry_publish_package(
     request: RegistryPublishPackageRequest<'_>,
 ) -> Result<RegistryPublishPackage, RegistryPublishPackageError> {

@@ -384,6 +384,28 @@ fn registry_package_identity_covers_files_not_only_manual_and_profile()
     );
     let prepared: runx_runtime::registry::RegistryPublishPackageParts =
         serde_json::from_value(second["registry"]["package"].clone())?;
+    let installed = temp_root("registry-package-exported");
+    fs::create_dir_all(&installed)?;
+    fs::write(installed.as_path().join("SKILL.md"), &prepared.markdown)?;
+    if let Some(profile) = &prepared.profile_document {
+        fs::write(installed.as_path().join("run.yaml"), profile)?;
+    }
+    for file in &prepared.package_files {
+        let target = installed.as_path().join(&file.path);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(target, &file.content)?;
+    }
+    let loaded = runx_runtime::load_validated_skill_package(installed.as_path())?;
+    assert_eq!(
+        second["registry"]["package_digest"],
+        json!(loaded.package.package_digest)
+    );
+    assert_ne!(
+        first["registry"]["package_digest"],
+        second["registry"]["package_digest"]
+    );
     assert_eq!(
         second["registry"]["content_digest"],
         json!(runx_runtime::registry::skill_content_digest(

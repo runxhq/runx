@@ -8,7 +8,7 @@ import { registryTaxonomy } from "./generated/registry-taxonomy.js";
 export type RegistryTaxonomySubject = "skill" | "connector";
 
 export interface RegistryTaxonomyMark {
-  /** Lowercase hex SHA-256 of `svg`: the mark's content address. */
+  /** The `sha256:` digest of `svg`: the mark's content address. */
   readonly digest: string;
   readonly svg: string;
 }

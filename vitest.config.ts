@@ -7,6 +7,8 @@ export default defineConfig({
     alias: [...workspaceAliases],
   },
   test: {
+    // Native subprocess suites share the host with their workers.
+    maxWorkers: 4,
     include: ["packages/**/*.test.ts", "tests/*.test.ts", "tests/examples/**/*.test.ts"],
   },
 });
