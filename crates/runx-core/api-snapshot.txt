@@ -141,14 +141,8 @@ pub runx_core::state_machine::AuthorityAdmissionWitness::parent_term_id: alloc::
 pub runx_core::state_machine::AuthorityAdmissionWitness::verb: runx_contracts::authority::AuthorityVerb
 pub struct runx_core::state_machine::SequentialGraph
 pub runx_core::state_machine::SequentialGraph::graph_id: alloc::string::String
-pub runx_core::state_machine::SequentialGraph::status: runx_core::state_machine::GraphState
+pub runx_core::state_machine::SequentialGraph::state: runx_core::state_machine::GraphState
 pub runx_core::state_machine::SequentialGraph::steps: alloc::vec::Vec<runx_core::state_machine::SequentialGraphStep>
-pub struct runx_core::state_machine::SequentialGraphStepDefinition
-pub runx_core::state_machine::SequentialGraphStepDefinition::context_from: core::option::Option<alloc::vec::Vec<alloc::string::String>>
-pub runx_core::state_machine::SequentialGraphStepDefinition::id: alloc::string::String
-pub struct runx_core::state_machine::SequentialGraphStepIndex
-impl runx_core::state_machine::SequentialGraphStepIndex
-pub fn runx_core::state_machine::SequentialGraphStepIndex::new(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> Self
 pub struct runx_core::state_machine::SequentialGraphStep
 pub runx_core::state_machine::SequentialGraphStep::attempts: u32
 pub runx_core::state_machine::SequentialGraphStep::completed_at: core::option::Option<alloc::string::String>
@@ -156,8 +150,14 @@ pub runx_core::state_machine::SequentialGraphStep::error: core::option::Option<a
 pub runx_core::state_machine::SequentialGraphStep::outputs: core::option::Option<runx_contracts::json::JsonObject>
 pub runx_core::state_machine::SequentialGraphStep::receipt_id: core::option::Option<alloc::string::String>
 pub runx_core::state_machine::SequentialGraphStep::started_at: core::option::Option<alloc::string::String>
-pub runx_core::state_machine::SequentialGraphStep::status: runx_core::state_machine::GraphStepState
+pub runx_core::state_machine::SequentialGraphStep::state: runx_core::state_machine::GraphStepState
 pub runx_core::state_machine::SequentialGraphStep::step_id: alloc::string::String
+pub struct runx_core::state_machine::SequentialGraphStepDefinition
+pub runx_core::state_machine::SequentialGraphStepDefinition::context_from: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub runx_core::state_machine::SequentialGraphStepDefinition::id: alloc::string::String
+pub struct runx_core::state_machine::SequentialGraphStepIndex
+impl runx_core::state_machine::SequentialGraphStepIndex
+pub fn runx_core::state_machine::SequentialGraphStepIndex::new(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> Self
 pub struct runx_core::state_machine::StepAdmissionWitness
 pub runx_core::state_machine::StepAdmissionWitness::authority: core::option::Option<runx_core::state_machine::AuthorityAdmissionWitness>
 pub runx_core::state_machine::StepAdmissionWitness::receipt_id: alloc::string::String
@@ -165,14 +165,14 @@ pub runx_core::state_machine::StepAdmissionWitness::step_id: alloc::string::Stri
 impl runx_core::state_machine::StepAdmissionWitness
 pub fn runx_core::state_machine::StepAdmissionWitness::local_runtime(step_id: impl core::convert::Into<alloc::string::String>, receipt_id: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn runx_core::state_machine::StepAdmissionWitness::with_authority(step_id: impl core::convert::Into<alloc::string::String>, receipt_id: impl core::convert::Into<alloc::string::String>, authority: runx_core::state_machine::AuthorityAdmissionWitness) -> Self
-pub fn runx_core::state_machine::apply_sequential_graph_event(state: &mut runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent)
-pub fn runx_core::state_machine::apply_sequential_graph_event_indexed(state: &mut runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::apply_sequential_graph_event_owned_indexed(state: &mut runx_core::state_machine::SequentialGraph, event: runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
+pub fn runx_core::state_machine::apply_sequential_graph_event(graph: &mut runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent)
+pub fn runx_core::state_machine::apply_sequential_graph_event_indexed(graph: &mut runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
+pub fn runx_core::state_machine::apply_sequential_graph_event_owned_indexed(graph: &mut runx_core::state_machine::SequentialGraph, event: runx_core::state_machine::SequentialGraphEvent, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
 pub fn runx_core::state_machine::create_sequential_graph(graph_id: impl core::convert::Into<alloc::string::String>, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraph
 pub fn runx_core::state_machine::create_sequential_graph_step_index(steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphStepIndex
-pub fn runx_core::state_machine::plan_sequential_graph_transition(state: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed(state: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed_from(state: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, start_index: usize) -> runx_core::state_machine::SequentialGraphPlan
-pub fn runx_core::state_machine::start_sequential_graph_step_indexed(state: &mut runx_core::state_machine::SequentialGraph, step_id: &str, at: alloc::string::String, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::succeed_sequential_graph_step_indexed(state: &mut runx_core::state_machine::SequentialGraph, at: alloc::string::String, admission_witness: runx_core::state_machine::StepAdmissionWitness, outputs: core::option::Option<runx_contracts::json::JsonObject>, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
-pub fn runx_core::state_machine::transition_sequential_graph(state: &runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent) -> runx_core::state_machine::SequentialGraph
+pub fn runx_core::state_machine::plan_sequential_graph_transition(graph: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition]) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed(graph: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::plan_sequential_graph_transition_indexed_from(graph: &runx_core::state_machine::SequentialGraph, steps: &[runx_core::state_machine::SequentialGraphStepDefinition], step_index: &runx_core::state_machine::SequentialGraphStepIndex, start_index: usize) -> runx_core::state_machine::SequentialGraphPlan
+pub fn runx_core::state_machine::start_sequential_graph_step_indexed(graph: &mut runx_core::state_machine::SequentialGraph, step_id: &str, at: alloc::string::String, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
+pub fn runx_core::state_machine::succeed_sequential_graph_step_indexed(graph: &mut runx_core::state_machine::SequentialGraph, at: alloc::string::String, admission_witness: runx_core::state_machine::StepAdmissionWitness, outputs: core::option::Option<runx_contracts::json::JsonObject>, step_index: &runx_core::state_machine::SequentialGraphStepIndex)
+pub fn runx_core::state_machine::transition_sequential_graph(graph: &runx_core::state_machine::SequentialGraph, event: &runx_core::state_machine::SequentialGraphEvent) -> runx_core::state_machine::SequentialGraph
