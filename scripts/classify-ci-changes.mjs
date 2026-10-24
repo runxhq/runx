@@ -33,7 +33,7 @@ const windowsPatterns = [
   /^crates\/Cargo\.lock$/u,
   /^rust-toolchain\.toml$/u,
   /^crates\/runx-runtime\/Cargo\.toml$/u,
-  /^crates\/runx-runtime\/src\/(?:adapters\/javascript\/supervisor\/(?:process|session)|path_util|private_file|process|receipts\/(?:local_key|store))\.rs$/u,
+  /^crates\/runx-runtime\/src\/(?:adapters\/javascript\/supervisor\/(?:process|session)|execution_environment|path_util|private_file|process|receipts\/(?:local_key|store))\.rs$/u,
   /^crates\/runx-runtime\/src\/process\//u,
   /^scripts\/harness-sweep\.mjs$/u,
 ];

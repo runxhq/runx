@@ -47,11 +47,28 @@ pub(crate) const PROCESS_BASELINE_ENV: [&str; 25] = [
 pub(crate) fn process_baseline_environment(
     environment: &BTreeMap<String, String>,
 ) -> BTreeMap<String, String> {
+    process_baseline_with_name_case(environment, cfg!(windows))
+}
+
+fn process_baseline_with_name_case(
+    environment: &BTreeMap<String, String>,
+    case_insensitive: bool,
+) -> BTreeMap<String, String> {
     PROCESS_BASELINE_ENV
         .iter()
         .filter_map(|name| {
             environment
                 .get(*name)
+                .or_else(|| {
+                    if case_insensitive {
+                        environment
+                            .iter()
+                            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                            .map(|(_, value)| value)
+                    } else {
+                        None
+                    }
+                })
                 .cloned()
                 .map(|value| ((*name).to_owned(), value))
         })
@@ -202,6 +219,49 @@ pub fn environment_requirement_statuses(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn baseline_matches_windows_names_without_admitting_other_variables() {
+        let environment = BTreeMap::from([
+            ("SYSTEMROOT".to_owned(), r"C:\Windows".to_owned()),
+            ("Path".to_owned(), r"C:\node".to_owned()),
+            ("ComSpec".to_owned(), r"C:\Windows\cmd.exe".to_owned()),
+            ("provider_token".to_owned(), "must-not-cross".to_owned()),
+            ("https_proxy".to_owned(), "must-not-cross".to_owned()),
+        ]);
+        assert_eq!(
+            process_baseline_with_name_case(&environment, true),
+            BTreeMap::from([
+                ("SystemRoot".to_owned(), r"C:\Windows".to_owned()),
+                ("PATH".to_owned(), r"C:\node".to_owned()),
+                ("COMSPEC".to_owned(), r"C:\Windows\cmd.exe".to_owned()),
+            ])
+        );
+        assert!(process_baseline_with_name_case(&environment, false).is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_process_baseline_starts_node_from_an_uppercase_host_snapshot()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let environment = std::env::vars()
+            .map(|(name, value)| (name.to_ascii_uppercase(), value))
+            .collect();
+        let outcome = crate::process::run_process(
+            crate::process::ProcessSpec::new("windows-baseline-node", "node", 4096)
+                .args(vec![
+                    "-e".to_owned(),
+                    "process.stdout.write(require('node:crypto').randomBytes(16).toString('hex'))"
+                        .to_owned(),
+                ])
+                .env(process_baseline_environment(&environment))
+                .timeout(Some(std::time::Duration::from_secs(5))),
+        )?;
+        assert!(!outcome.timed_out);
+        assert!(outcome.status.success(), "{:?}", outcome.stderr.bytes);
+        assert_eq!(outcome.stdout.bytes.len(), 32);
+        Ok(())
+    }
 
     #[test]
     fn hosted_workspace_policy_rejects_inline_cli_code() -> Result<(), Box<dyn std::error::Error>> {

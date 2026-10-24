@@ -170,7 +170,8 @@ Credential delivery is a separate channel, and a credential variable may not
 collide with this environment.
 
 Runx clears the inherited environment and reconstructs a documented
-host-interoperability baseline from these names when present:
+host-interoperability baseline from these names when present. Baseline names
+match case-insensitively on Windows and case-sensitively on Unix:
 
 - process launch and user paths: `PATH`, `HOME`, `TMPDIR`, `TMP`, `TEMP`,
   `SystemRoot`, `WINDIR`, `COMSPEC`, `PATHEXT`, `USER`, `LOGNAME`;

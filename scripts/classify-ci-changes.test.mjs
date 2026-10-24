@@ -52,6 +52,12 @@ test("non-platform runtime changes skip the Windows process lane", () => {
   assert.equal(result.windows, false);
 });
 
+test("the shared process environment runs the Windows startup regression", () => {
+  const result = classifyFiles(["crates/runx-runtime/src/execution_environment.rs"], core);
+  assert.equal(result.full, true);
+  assert.equal(result.windows, true);
+});
+
 test("release tooling alone runs its own checks, not the runtime corpus", () => {
   assert.deepEqual(classifyFiles(["scripts/publish-npm-tarball.sh", "release/notes/0.10.1.md"], core), {
     files: ["release/notes/0.10.1.md", "scripts/publish-npm-tarball.sh"],
