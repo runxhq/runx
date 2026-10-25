@@ -260,6 +260,7 @@ fn connector_bindings(
 ) -> BTreeSet<PackageBundleConnector> {
     connectors
         .iter()
+        .filter(|metadata| !metadata.runtime_capability)
         .map(|metadata| PackageBundleConnector {
             from: from.to_owned(),
             connector: metadata.connector.clone(),

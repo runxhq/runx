@@ -849,8 +849,8 @@ operations:
     }
 
     #[test]
-    fn a_package_ships_every_declared_connector_snapshot() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn a_package_ships_external_connectors_and_uses_native_capabilities()
+    -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir()?;
         let skill = plugin_repository(temp.path())?;
         let package = package_at(&skill)?;
@@ -874,15 +874,15 @@ operations:
             Some(&"# Acme Ops\n")
         );
         assert_eq!(files.get("connectors/acme-ops/mark.svg"), Some(&MARK));
-        // Only what the connector is: no stray file, no undeclared connector,
-        // while the runx-maintained connector is pinned as a snapshot too.
+        // Only external connectors are shipped; native capabilities stay in
+        // the binary and remain visible in the inspection metadata.
         assert!(!files.contains_key("connectors/acme-ops/notes.txt"));
         assert!(
             !files
                 .keys()
                 .any(|path| path.starts_with("connectors/acme/acme-extra/"))
         );
-        assert!(files.contains_key("connectors/web/connector.yaml"));
+        assert!(!files.keys().any(|path| path.starts_with("connectors/web/")));
 
         let scope = crate::ConnectorScope::at(&skill)?;
         let acme = scope.connector("acme-ops")?;
@@ -930,6 +930,105 @@ operations:
         // A tool is part of the connector's identity, beyond its manifest.
         let extra = scope.connector("acme-extra")?;
         assert_ne!(expected(&acme)?, expected(&extra)?);
+        Ok(())
+    }
+
+    #[test]
+    fn a_pinned_runtime_name_revision_survives_portable_export()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use crate::kernel::connectors::{ConnectorOrigin, embedded_manifest, load_installed};
+
+        let temp = tempfile::tempdir()?;
+        let work = temp.path().join("work");
+        let project = temp.path().join("project");
+        fs::create_dir_all(&work)?;
+        let env = BTreeMap::from([(
+            crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+            project.to_string_lossy().into_owned(),
+        )]);
+        let native = crate::ConnectorScope::runtime_capabilities_only()?.connector("web")?;
+        let installed = crate::RunxPaths::resolve(&env, &work)
+            .added_connectors()
+            .join("web/revision");
+        fs::create_dir_all(&installed)?;
+        let mut manifest: serde_json::Value = runx_parser::parse_yaml_document(
+            embedded_manifest(&native).ok_or("native manifest missing")?,
+        )?;
+        manifest["description"] =
+            serde_json::Value::String("An explicitly pinned revision.".into());
+        fs::write(
+            installed.join("connector.yaml"),
+            serde_json::to_string(&manifest)?,
+        )?;
+        let snapshot = load_installed(&installed)?;
+        assert!(snapshot.manifest.runtime_capability);
+        assert!(!snapshot.is_runtime_capability()?);
+        fs::write(
+            work.join("SKILL.md"),
+            "---\nname: pinned\ndescription: Read a page.\n---\n# Pinned\n",
+        )?;
+        fs::write(
+            work.join("run.yaml"),
+            format!(
+                "skill: pinned\nconnectors:\n  web:\n    manifest_digest: {}\n    operations: [page.read]\nrunners:\n  main:\n    default: true\n    steps:\n      - id: plan\n        agent: {{role: agent, task: plan}}\n",
+                snapshot.manifest_digest,
+            ),
+        )?;
+        let first = prepare_registry_publish_package(RegistryPublishPackageRequest {
+            subject: work.to_str().ok_or("path is not UTF-8")?,
+            profile: None,
+            env: &env,
+            cwd: &work,
+        })?
+        .into_parts();
+        assert!(!first.metadata.connectors[0].runtime_capability);
+        assert!(
+            first
+                .package_files
+                .iter()
+                .any(|file| file.path == "connectors/web/connector.yaml")
+        );
+
+        let portable = temp.path().join("portable");
+        fs::create_dir_all(&portable)?;
+        fs::write(portable.join("SKILL.md"), &first.markdown)?;
+        fs::write(
+            portable.join("run.yaml"),
+            first.profile_document.as_ref().ok_or("profile missing")?,
+        )?;
+        for file in &first.package_files {
+            let path = portable.join(&file.path);
+            fs::create_dir_all(path.parent().ok_or("file has no parent")?)?;
+            fs::write(path, &file.content)?;
+        }
+        fs::remove_dir_all(project)?;
+        fs::remove_dir_all(work)?;
+        let scope = crate::ConnectorScope::at(&portable)?;
+        assert_eq!(
+            scope.connector("web")?.origin,
+            ConnectorOrigin::RuntimeCapability
+        );
+        let requirement = runx_parser::ConnectorRequirement {
+            operations: vec![
+                runx_contracts::OperationName::new("page.read").ok_or("invalid operation")?,
+            ],
+            manifest_digest: Some(snapshot.manifest_digest.clone()),
+            connector_from: None,
+            allowed_connectors: Vec::new(),
+        };
+        assert_eq!(
+            scope.requirement("web", &requirement)?.connector_digest,
+            snapshot.connector_digest
+        );
+        assert_eq!(
+            scope
+                .reachable()?
+                .iter()
+                .filter(|item| item.name == "web")
+                .count(),
+            2
+        );
+        assert_eq!(package_at(&portable)?, first);
         Ok(())
     }
 

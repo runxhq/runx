@@ -7,14 +7,15 @@
 //! also sees the connectors of the plugin that holds it,
 //! `<plugin root>/connectors/<name>/connector.yaml`. A bundled package, one
 //! under a registry package bundle descriptor, is its own plugin root and
-//! carries every connector it binds; in a source tree the plugin root is the
+//! carries every external connector it binds; in a source tree the plugin root is the
 //! nearest directory at or above the skill holding `connectors/`, and a skill
 //! runx added to the project directory has the project's plugin. Any other
 //! connector is an added version, at `<project>/connectors/<name>/<version>/`,
 //! which a skill reaches only by pinning its manifest digest; a plugin's own
 //! connector of that name answers the pin instead (core-shape §6.5). A runtime
 //! capability cannot be shadowed: a plugin copy with other bytes is refused,
-//! and a bundled skill never sees its composer's plugin connectors. A
+//! and a bundled skill never sees its composer's plugin connectors. Runtime
+//! capabilities always come from the binary, including inside a bundle. A
 //! connector a turn loads is the project's, and its calls resolve there.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -54,6 +55,18 @@ pub struct LoadedConnector {
 }
 
 impl LoadedConnector {
+    /// Whether this exact binding is supplied by the current binary. An
+    /// explicitly pinned installed revision remains an external snapshot.
+    pub(crate) fn is_runtime_capability(&self) -> Result<bool, ConnectorRegistryError> {
+        Ok(runtime_capabilities()?
+            .connectors
+            .get(self.name.as_str())
+            .is_some_and(|native| {
+                native.manifest_digest == self.manifest_digest
+                    && native.connector_digest == self.connector_digest
+            }))
+    }
+
     #[must_use]
     pub fn binding(&self) -> runx_contracts::connector::ConnectorBinding {
         runx_contracts::connector::ConnectorBinding {
@@ -370,7 +383,8 @@ impl PluginConnectors {
     }
 
     /// A source plugin's copy of a runtime capability is reached as the
-    /// capability itself; a bundle's snapshot of one is its own.
+    /// capability itself. Bundle snapshots are validated here; native
+    /// capabilities still take precedence when the scope resolves a name.
     fn reached(&self, connector: Arc<LoadedConnector>) -> Option<Arc<LoadedConnector>> {
         (self.isolated || connector.origin != ConnectorOrigin::RuntimeCapability)
             .then_some(connector)
@@ -413,7 +427,7 @@ impl ConnectorScope {
     /// to the project, into which it seeds the runtime capabilities it
     /// resolves. A skill runx added to the project directory has no plugin of
     /// its own: its plugin is the project's, the user's connectors. A bundled
-    /// package stays isolated: it carries every connector it binds.
+    /// package stays isolated: it carries every external connector it binds.
     pub fn in_project(dir: &Path, paths: &RunxPaths) -> Result<Self, ConnectorRegistryError> {
         let mut scope = Self::scoped(dir, Some(paths))?;
         if scope.isolated() {
@@ -554,8 +568,8 @@ impl ConnectorScope {
         self.plugin.as_ref().is_some_and(|plugin| plugin.isolated)
     }
 
-    /// Whether this scope is a bundled package's: it carries every connector
-    /// it binds, and sees no other.
+    /// Whether this scope is a bundled package's: it carries every external
+    /// connector it binds and still sees the binary's runtime capabilities.
     #[must_use]
     pub fn is_bundle(&self) -> bool {
         self.isolated()
@@ -585,12 +599,20 @@ impl ConnectorScope {
             {
                 Ok(connector)
             }
-            Ok(connector) if self.installed.is_none() => {
-                Err(ConnectorRegistryError::RequiredManifest {
-                    connector: connector.name.clone(),
-                })
+            Ok(connector) => {
+                if let Some(plugin) = &self.plugin
+                    && let Some(snapshot) = plugin.get(key)?
+                    && &snapshot.manifest_digest == pin
+                {
+                    return Ok(snapshot);
+                }
+                if self.installed.is_none() {
+                    return Err(ConnectorRegistryError::RequiredManifest {
+                        connector: connector.name.clone(),
+                    });
+                }
+                self.installed_pinned(&connector.name, pin)
             }
-            Ok(connector) => self.installed_pinned(&connector.name, pin),
             Err(
                 ConnectorRegistryError::NotInPlugin { .. }
                 | ConnectorRegistryError::NoPlugin { .. }
@@ -719,14 +741,16 @@ impl ConnectorScope {
             Some(plugin) => plugin.all()?,
             None => Vec::new(),
         };
-        if self.isolated() {
-            return Ok(plugin);
-        }
-        Ok(runtime_capabilities()?
+        let runtime = runtime_capabilities()?;
+        Ok(runtime
             .connectors
             .values()
             .map(Arc::clone)
-            .chain(plugin)
+            .chain(
+                plugin
+                    .into_iter()
+                    .filter(|connector| !runtime.connectors.contains_key(connector.name.as_str())),
+            )
             .collect())
     }
 
@@ -736,6 +760,16 @@ impl ConnectorScope {
     pub fn reachable(&self) -> Result<Vec<Arc<LoadedConnector>>, ConnectorRegistryError> {
         let mut connectors = self.connectors()?;
         if self.isolated() {
+            if let Some(plugin) = &self.plugin {
+                for snapshot in plugin.all()? {
+                    if !connectors.iter().any(|known| {
+                        known.name == snapshot.name
+                            && known.connector_digest == snapshot.connector_digest
+                    }) {
+                        connectors.push(snapshot);
+                    }
+                }
+            }
             return Ok(connectors);
         }
         for name in self.installed_names()? {
@@ -802,7 +836,7 @@ impl ConnectorScope {
 
     /// The connector `id` names among those in reach, never an installed one:
     /// a runtime capability, then the skill's plugin. A bundle reaches only
-    /// its own snapshots, a capability's included.
+    /// its own external snapshots; runtime capabilities belong to the binary.
     fn in_reach(&self, id: &str) -> Result<Arc<LoadedConnector>, ConnectorRegistryError> {
         // A plugin copy of a runtime capability loads as the capability
         // itself, or is refused as shadowing it.
@@ -810,11 +844,11 @@ impl ConnectorScope {
             Some(plugin) => plugin.get(id)?,
             None => None,
         };
-        if self.isolated() {
-            return plugin.ok_or_else(|| ConnectorRegistryError::Unavailable { id: id.to_owned() });
-        }
         if let Some(connector) = runtime_capabilities()?.connectors.get(id) {
             return self.seeded(connector);
+        }
+        if self.isolated() {
+            return plugin.ok_or_else(|| ConnectorRegistryError::Unavailable { id: id.to_owned() });
         }
         if let Some(connector) = plugin {
             return Ok(connector);
@@ -883,6 +917,9 @@ impl ConnectorScope {
     /// Source bytes for a bound snapshot, when present on disk. Embedded
     /// connectors have their own source bytes in the runtime.
     pub(crate) fn connector_directory(&self, connector: &LoadedConnector) -> Option<PathBuf> {
+        if connector.origin == ConnectorOrigin::RuntimeCapability {
+            return None;
+        }
         if let ConnectorOrigin::Installed { directory } = &connector.origin {
             return Some(directory.clone());
         }

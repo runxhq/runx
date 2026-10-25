@@ -1038,20 +1038,12 @@
             "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 192 192\"><g transform=\"translate(20.5 5)\"><path fill=\"#0143D9\" d=\"M150.5 14.1064C150.5 14.3356 150.421 14.5579 150.277 14.736L88.4766 91L150.277 167.264C150.421 167.442 150.5 167.664 150.5 167.894V181C150.5 181.552 150.052 182 149.5 182H1C0.44772 182 0 181.552 0 181V0.999995C0 0.44771 0.447715 0 1 0H149.5C150.052 0 150.5 0.447715 150.5 1V14.1064ZM30.4059 162.719H121.728L76.0664 106.326L30.4059 162.719ZM19.2949 100.261V145.787L56.1572 100.261H19.2949ZM19.2949 80.9801H55.5434L19.2949 36.2121V80.9801ZM76.0664 75.6731L121.728 19.281H30.4059L76.0664 75.6731Z\"/></g></svg>\n"
           },
           {
-            "path": "connectors/web/connector.yaml",
-            "content": "schema: runx.connector.v1\nid: web\nname: Web\ndescription: Read public web pages over HTTP(S).\ncategory: search\nruntime_capability: true\nauth:\n  none: {}\nplacements:\n  local:\n    auth: [none]\noperations:\n  page.read:\n    description: Fetch one public web page and extract its text, metadata, links or JSON document. Private networks are refused, and redirects must stay inside the call's host allowlist.\n    verb: read\n    scopes: [web.read]\n    target:\n      template: {\"$argument\": \"/url\"}\n    input_schema:\n      type: object\n      required: [url]\n      additionalProperties: false\n      properties:\n        url: {type: string, format: uri, pattern: \"^https?://\"}\n        allowlist:\n          type: array\n          minItems: 1\n          maxItems: 64\n          uniqueItems: true\n          items: {type: string, minLength: 1, maxLength: 253}\n        extract: {type: string, enum: [text, metadata, links, json]}\n    result_fields: [final_url, status, content_digest, extract_mode, extracted, provenance]\n    implementation:\n      web: {}\n"
-          },
-          {
-            "path": "connectors/web/mark.svg",
-            "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\">\n  <g transform=\"translate(0 2)\">\n    <path fill=\"#f56819\" d=\"M14 0h43c4 0 7 3 7 7v33H46c-3 0-4-2-4-5V21c0-4-2-6-6-6H18c-3 0-4-2-4-5Z\"/>\n    <path fill=\"#252421\" d=\"M0 18h10c2 3 5 4 10 4h9c3 0 5 2 5 6v11c0 5 2 7 6 7h9c3 0 5 2 5 5v9H7c-4 0-7-3-7-7Z\"/>\n  </g>\n</svg>\n"
-          },
-          {
             "path": "references/catalog.md",
             "content": "---\nschema: runx.catalog-presentation.v1\ntitle: Agent session\nsummary: \"Work one turn of an agent through runx, with every call admitted, recorded and receipted.\"\n---\n"
           },
           {
             "path": "runx.package.json",
-            "content": "{\n  \"schema\": \"runx.registry.package_bundle.v1\",\n  \"dependencies\": [],\n  \"connectors\": [\n    {\n      \"from\": \".\",\n      \"connector\": \"exa\",\n      \"manifest_digest\": \"sha256:1c71f4b2842f2d0df8ec4b33d0c05eae006f9f6aec39687726d618dbe8a4306c\",\n      \"connector_digest\": \"sha256:48ea2cd6eee62d2b51331b15c3b585c9c6d8881d8fd9cfe2e8be2d20e99e516b\"\n    },\n    {\n      \"from\": \".\",\n      \"connector\": \"web\",\n      \"manifest_digest\": \"sha256:2baa3c0687f34d93ebc3661b178d30e07a198944dc48f3f8b3575229f54bc36d\",\n      \"connector_digest\": \"sha256:6fe9624c4889f81db5636c09bea2c631e572e2342e10095a9becea6899804599\"\n    }\n  ]\n}\n"
+            "content": "{\n  \"schema\": \"runx.registry.package_bundle.v1\",\n  \"dependencies\": [],\n  \"connectors\": [\n    {\n      \"from\": \".\",\n      \"connector\": \"exa\",\n      \"manifest_digest\": \"sha256:1c71f4b2842f2d0df8ec4b33d0c05eae006f9f6aec39687726d618dbe8a4306c\",\n      \"connector_digest\": \"sha256:48ea2cd6eee62d2b51331b15c3b585c9c6d8881d8fd9cfe2e8be2d20e99e516b\"\n    }\n  ]\n}\n"
           }
         ],
         "metadata": {

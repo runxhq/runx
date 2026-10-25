@@ -33,7 +33,7 @@ struct PackageBundleDescriptor {
     connectors: Vec<PackageBundleConnector>,
 }
 
-/// The exact connector snapshot owned by one package in the bundle. Its
+/// The exact external connector snapshot owned by one package in the bundle. Its
 /// location is derived from the connector's name, never a filesystem origin.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

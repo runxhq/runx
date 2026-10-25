@@ -1,7 +1,8 @@
 //! A connector's package: its exact manifest, every tool its process
 //! operations run, and its README and mark when present. A skill package
-//! carries each connector it declares at `connectors/<name>/`, with its exact
-//! binding in the bundle descriptor. A connector published on its own is the
+//! carries each external connector it declares at `connectors/<name>/`, with its exact
+//! binding in the bundle descriptor. Runtime capabilities remain in the binary.
+//! A connector published on its own is the
 //! same files at its package root.
 
 use std::collections::BTreeMap;
@@ -110,9 +111,16 @@ pub(super) fn package_connectors(
                     "connector {id} declares no operation {missing}"
                 )));
             }
-            let directory = scope.connector_directory(&connector);
+            let runtime_capability = connector
+                .is_runtime_capability()
+                .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
+            let directory = if runtime_capability {
+                None
+            } else {
+                scope.connector_directory(&connector)
+            };
             let package = connector_package(&connector, directory.as_deref())?;
-            for file in package.files {
+            for file in package.files.into_iter().filter(|_| !runtime_capability) {
                 super::files::insert_source_file(
                     files,
                     &format!("{PACKAGE_CONNECTORS_DIR}/{}/{}", connector.name, file.path),
@@ -122,7 +130,7 @@ pub(super) fn package_connectors(
             Ok(RegistryConnectorMetadata {
                 connector_digest: connector.connector_digest.clone(),
                 manifest_digest: connector.manifest_digest.clone(),
-                runtime_capability: connector.manifest.runtime_capability,
+                runtime_capability,
                 connector: connector.name.clone(),
                 version: package.version,
                 operations,

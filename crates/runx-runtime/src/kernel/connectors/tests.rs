@@ -438,7 +438,7 @@ fn write_connector(connectors: &Path, directory: &str, name: &str) {
 }
 
 #[test]
-fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
+fn a_bundled_package_sees_native_capabilities_and_only_its_external_snapshots() {
     let root = tempfile::tempdir().unwrap();
     let root = root.path().canonicalize().unwrap();
     // A source plugin above the bundle is never reached from inside it.
@@ -471,6 +471,10 @@ fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
 
     let own = ConnectorScope::at(&package).unwrap();
     assert_eq!(
+        own.connector("store").unwrap().origin,
+        ConnectorOrigin::RuntimeCapability
+    );
+    assert_eq!(
         own.connector("acme/records").unwrap().connector_digest,
         snapshot.connector_digest
     );
@@ -485,6 +489,20 @@ fn a_bundled_package_sees_only_the_snapshots_its_bundle_binds() {
             .connector("acme/records"),
         Err(ConnectorRegistryError::Unavailable { .. })
     ));
+    let nested = ConnectorScope::at(&dependency).unwrap();
+    assert_eq!(
+        nested.connector("store").unwrap().origin,
+        ConnectorOrigin::RuntimeCapability
+    );
+    assert_eq!(
+        nested
+            .connectors()
+            .unwrap()
+            .iter()
+            .map(|connector| connector.name.as_str())
+            .collect::<Vec<_>>(),
+        ["artifact", "store", "web"]
+    );
 }
 
 #[test]
