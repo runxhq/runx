@@ -1,0 +1,39 @@
+name: github-admits-twenty-issue-updates
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  scope: write
+  resources:
+    kind: issues
+    mutations:
+      - { path: issues/1, op: update, payload: { state: closed } }
+      - { path: issues/2, op: update, payload: { state: closed } }
+      - { path: issues/3, op: update, payload: { state: closed } }
+      - { path: issues/4, op: update, payload: { state: closed } }
+      - { path: issues/5, op: update, payload: { state: closed } }
+      - { path: issues/6, op: update, payload: { state: closed } }
+      - { path: issues/7, op: update, payload: { state: closed } }
+      - { path: issues/8, op: update, payload: { state: closed } }
+      - { path: issues/9, op: update, payload: { state: closed } }
+      - { path: issues/10, op: update, payload: { state: closed } }
+      - { path: issues/11, op: update, payload: { state: closed } }
+      - { path: issues/12, op: update, payload: { state: closed } }
+      - { path: issues/13, op: update, payload: { state: closed } }
+      - { path: issues/14, op: update, payload: { state: closed } }
+      - { path: issues/15, op: update, payload: { state: closed } }
+      - { path: issues/16, op: update, payload: { state: closed } }
+      - { path: issues/17, op: update, payload: { state: closed } }
+      - { path: issues/18, op: update, payload: { state: closed } }
+      - { path: issues/19, op: update, payload: { state: closed } }
+      - { path: issues/20, op: update, payload: { state: closed } }
+expect:
+  status: sealed
+  step_outputs:
+    plan:
+      subset:
+        sync_plan:
+          data: { decision: ready_for_execution, provider_operation: issues.update, scope_used: repo.write }
+  receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }

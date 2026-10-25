@@ -13,7 +13,7 @@ instance is allowed to read or mutate GitHub.
 The default `github` runner performs the requested pull or push. `plan`
 is the explicit no-effect runner; `pull` and `push` remain explicit execution
 lanes for compatible callers. Pulls are bounded reads. A push carries one to
-eight typed mutations that one GitHub operation applies, and returns each
+twenty typed mutations per call that one GitHub operation applies, and returns each
 item's outcome. It closes only on an independent GitHub readback of every
 applied item. An item whose outcome is unknown holds the push for
 reconciliation and is never silently retried. `activity` reads what changed
@@ -29,7 +29,7 @@ for an explicitly selected read lane. Use `activity` to learn what changed in
 a repository since a time, such as since the last check of a daily summary:
 it reads issues and pull requests together and returns the fields a reader
 needs rather than GitHub's whole records. Use `push` for already-decided issue,
-pull-request, or comment changes of one kind. Batches are bounded and
+pull-request, or comment changes of one kind. A call accepts up to twenty changes, matching the connector's batch contract; split larger work into separate calls and retain each result. Batches are bounded and
 best-effort, not atomic: a refused item does not stop the rest, the result
 identifies each item, and the operator reconciles before retrying. Use `github-issue-triage` to decide what an issue means
 and `github-issue-to-pr` to govern an implementation lane.
@@ -44,7 +44,7 @@ evidence. Do not silently turn a denied push into a pull.
    filters, maximum result count, and requested scope.
 2. A `pull` plan requires read scope and records the exact resources a provider
    may fetch.
-3. A `push` plan requires write scope and one to eight typed mutations that
+3. A `push` plan requires write scope and one to twenty typed mutations per call that
    one GitHub operation applies: `issues.create`, `issues.update`,
    `pullrequests.update`, `comments.create`, or `comments.update`. It rejects unknown fields,
    oversized content, and mixed kinds, then returns `ready_for_execution`;
@@ -57,7 +57,7 @@ evidence. Do not silently turn a denied push into a pull.
    validated direction. `pull` calls the planned read (`issues.list`,
    `issues.read`, `pullrequests.list`, `pullrequests.read`, or
    `comments.list`) with `repo.read`. `push` calls the planned write once under
-   `repo.write`: the runtime sends each item, records each outcome, and reads
+   `repo.write` for issue and pull-request changes or `issue.comment` for comment changes: the runtime sends each item, records each outcome, and reads
    every applied item back before the push closes.
    Both run under the GitHub instance selected here: the signed-in `gh` session
    or a stored token.
@@ -75,7 +75,7 @@ evidence. Do not silently turn a denied push into a pull.
 - `repo` is exactly `owner/name`.
 - `direction` is `pull` or `push`.
 - `resources` contains the issue, PR, thread, or `batch` selector and a
-  limit no greater than 100. A push has one to eight `mutations` entries with `path`, `op`, and an
+  limit no greater than 100. A push has one to twenty `mutations` entries with `path`, `op`, and an
   exact typed `payload`. Issue and PR changes use `op: update`; a new issue
   uses `path: issues` and `op: create`; new thread comments use `op: comment`. Bodies are capped at 65,536 characters. Pulls
   return GitHub's records whole.
@@ -94,7 +94,7 @@ remote effect.
 ## Stop conditions
 
 - Refuse malformed repositories, unknown resource kinds, unbounded selectors,
-  limits above the contract, more than eight mutations, unknown mutation fields, or
+  limits above the contract, more than twenty mutations in one call, unknown mutation fields, or
   content beyond the declared bounds.
 - Refuse push when write scope is missing; do not degrade silently.
 - Do not treat local cursor persistence as remote provider readback.

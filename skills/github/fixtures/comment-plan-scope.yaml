@@ -1,0 +1,20 @@
+name: github-comment-plan-requires-comment-scope
+kind: skill
+target: ..
+runner: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  scope: write
+  resources:
+    kind: threads
+    mutations:
+      - {path: issues/42/comments, op: comment, payload: {body: Exact reviewed comment.}}
+expect:
+  status: sealed
+  step_outputs:
+    plan:
+      subset:
+        sync_plan:
+          data: {decision: ready_for_execution, provider_operation: comments.create, scope_used: issue.comment}
+  receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

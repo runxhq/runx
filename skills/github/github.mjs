@@ -7,8 +7,8 @@ export default function planSync(inputs) {
 
   let mutation = null;
   if (direction === "push") {
-    if (mutations.length >= 1 && mutations.length <= 8) mutation = mutations[0];
-    else blockers.push("push requires 1 to 8 typed mutations");
+    if (mutations.length > 0) mutation = mutations[0];
+    else blockers.push("push requires at least one typed mutation");
     if (resources.kind === "batch" && mutations.length === 0) blockers.push("batch push requires at least one mutation");
   } else if (mutations.length > 0) {
     blockers.push("pull does not accept mutations");
@@ -55,7 +55,9 @@ export default function planSync(inputs) {
       })),
       provider_operation: call?.operation ?? "",
       provider_input: call?.input ?? null,
-      scope_used: direction === "push" ? "repo.write" : "repo.read",
+      scope_used: direction === "push"
+        ? (call?.operation.startsWith("comments.") ? "issue.comment" : "repo.write")
+        : "repo.read",
       provider_status: "not_called",
       blockers,
     },

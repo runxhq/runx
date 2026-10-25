@@ -1,5 +1,5 @@
 skill: github
-version: "0.6.2"
+version: "0.6.3"
 
 catalog:
   kind: skill
@@ -41,7 +41,7 @@ input_definitions:
   resources:
     type: object
     required: true
-    description: Bounded issue, pull-request, or thread selector with up to eight typed mutations.
+    description: Bounded issue, pull-request, or thread selector with up to twenty typed mutations per call.
     schema:
       required: [kind]
       additionalProperties: false
@@ -51,7 +51,7 @@ input_definitions:
           enum: [issues, prs, threads, batch]
         filters: {}
         paths: {}
-        mutations: {}
+        mutations: { type: array, maxItems: 20 }
       allOf:
         - if:
             properties: { kind: { const: issues } }
@@ -78,7 +78,6 @@ input_definitions:
                 items: { type: string, pattern: '^issues/[1-9][0-9]*$' }
               mutations:
                 type: array
-                maxItems: 8
                 items:
                   oneOf:
                     - type: object
@@ -156,7 +155,6 @@ input_definitions:
                 items: { type: string, pattern: '^pulls/[1-9][0-9]*$' }
               mutations:
                 type: array
-                maxItems: 8
                 items:
                   type: object
                   required: [path, op, payload]
@@ -192,7 +190,6 @@ input_definitions:
                 items: { type: string, pattern: '^(issues|pulls)/[1-9][0-9]*/comments$' }
               mutations:
                 type: array
-                maxItems: 8
                 items:
                   oneOf:
                     - type: object
@@ -215,7 +212,6 @@ input_definitions:
               mutations:
                 type: array
                 minItems: 1
-                maxItems: 8
                 items:
                   oneOf:
                     - type: object
@@ -317,7 +313,7 @@ connectors:
     operations: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
 runners:
   github:
-    description: "Pull or push one bounded GitHub sync in the direction given: a bounded read of issues, pull requests or comments, or one to eight decided changes of one kind, each read back."
+    description: "Pull or push one bounded GitHub sync in the direction given: a bounded read of issues, pull requests or comments, or one to twenty decided changes of one kind, each read back."
     default: true
     inputs:
       repo: { definition: repository }
@@ -505,7 +501,7 @@ runners:
           named_emits: { activity: activity }
 
   push:
-    description: Apply one to eight decided changes of one kind (new issues, issue or pull request updates, or comments) and read each back. Needs write scope.
+    description: Apply one to twenty decided changes of one kind (new issues, issue or pull request updates, or comments) and read each back. Needs write scope.
     inputs:
       repo: { definition: repository }
       resources: { definition: resources }
