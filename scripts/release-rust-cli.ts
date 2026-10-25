@@ -58,10 +58,6 @@ if (!options.publish) {
   process.exit(0);
 }
 
-if (!options.dryRun && !process.env.NPM_TOKEN) {
-  throw new Error("NPM_TOKEN is required for Rust CLI release publishing");
-}
-
 const publishTargets = packageDirs(path.resolve(workspaceRoot, options.artifactDir));
 assertPublishTargets(publishTargets);
 for (const packageDir of publishTargets) {

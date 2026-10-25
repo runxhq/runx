@@ -174,11 +174,24 @@ verified release evidence.
 
 | Secret | Channel | Role |
 | --- | --- | --- |
-| `NPM_TOKEN` | npm | required selector + native package publication |
 | `HOMEBREW_TAP_TOKEN` | Homebrew | required push to `runxhq/homebrew-tap` |
 | `SCOOP_BUCKET_TOKEN` | Scoop | required push to `runxhq/scoop-bucket` |
 | `WINGET_TOKEN` | winget | optional asynchronous PR to `microsoft/winget-pkgs` |
 | `GITHUB_TOKEN` | GitHub Release, GHCR | provided automatically |
+
+npm publication uses GitHub Actions OIDC, not a personal login or a stored npm
+token. Each selector and platform package trusts `runxhq/runx`'s `release.yml`.
+`@runxhq/contracts` and `@runxhq/client` use that same validated identity for
+independent `contracts-v*` and `client-v*` tags, which skip native builds and
+other CLI release channels. Preserve that exact workflow identity and
+`id-token: write` permission. Configure
+direct publishing, rather than staged publishing that requires a maintainer's
+interactive approval for each release.
+
+A new npm publisher binding must authenticate successfully within two days to
+become valid. Check its status after activation; a saved, pending binding is
+not a completed setup. Valid bindings do not require periodic token renewal.
+Do not publish unchanged packages or bump versions merely to activate a binding.
 
 Runx owns `runxhq/homebrew-tap` and `runxhq/scoop-bucket`. The winget package is
 tracked through its upstream PR. Do not configure an AUR key for a package

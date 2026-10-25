@@ -1,6 +1,8 @@
 name: release
 
-# Tag-driven, multi-channel release for the runx CLI.
+# Tag-driven releases for the runx CLI and independent TypeScript packages.
+# All npm jobs use this single, already validated trusted-publisher identity.
+# contracts-v/client-v tags skip every native/runtime release job.
 #
 # A reviewed CLI version is committed to the candidate manifests before the
 # cli-vX.Y.Z tag is created. The tag workflow checks those committed versions
@@ -23,6 +25,8 @@ on:
   push:
     tags:
       - "cli-v*"
+      - "contracts-v*.*.*"
+      - "client-v*.*.*"
   workflow_dispatch:
     inputs:
       version:
@@ -39,9 +43,11 @@ env:
 
 jobs:
   runtime-quality:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/cli-v')
     uses: ./.github/workflows/runtime-quality.yml
 
   prepare:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/cli-v')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -363,13 +369,52 @@ jobs:
           files: |
             dist/archives/*
 
+  publish-typescript:
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/contracts-v') || startsWith(github.ref, 'refs/tags/client-v'))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve the package the tag names
+        id: package
+        run: |
+          set -euo pipefail
+          package="${GITHUB_REF_NAME%%-v*}"
+          version="${GITHUB_REF_NAME#*-v}"
+          declared=$(node -p "require('./packages/$package/package.json').version")
+          if [ "$declared" != "$version" ]; then
+            echo "::error::$GITHUB_REF_NAME names $version, but packages/$package is $declared"
+            exit 1
+          fi
+          echo "tarball=runxhq-$package-$version.tgz" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.18.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+          registry-url: https://registry.npmjs.org
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Pack TypeScript packages
+        run: bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
+      - name: Publish the tagged package
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+          TARBALL: ${{ steps.package.outputs.tarball }}
+        run: bash scripts/publish-npm-tarball.sh "$RUNNER_TEMP/typescript-packages/$TARBALL"
+
   publish-npm:
     needs: [prepare, github-release]
     if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      id-token: write # npm provenance
+      id-token: write # npm trusted publishing and provenance
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -409,7 +454,6 @@ jobs:
         run: bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
       - name: Publish packages
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
         # A package goes live only after the packages it resolves: the CLI
         # selector after the platform packages, the client after contracts.
