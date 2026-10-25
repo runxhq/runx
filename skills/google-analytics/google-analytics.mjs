@@ -23,9 +23,6 @@ export function normalizeReport(inputs) {
   const dimensionHeaders = headers(supplied.dimension_headers);
   const metricHeaders = headers(supplied.metric_headers);
 
-  if (requestedDimensions.length === 0) {
-    findings.push(finding("ga.dimensions.missing", "at least one requested dimension is required"));
-  }
   if (requestedMetrics.length === 0) {
     findings.push(finding("ga.metrics.missing", "at least one requested metric is required"));
   }

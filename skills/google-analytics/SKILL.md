@@ -30,6 +30,10 @@ says `provider_status: not_called` and `source_status: supplied_result`. A
 supplied packet is useful evidence with external provenance; it is never proof
 that Runx reached Google.
 
+Use an explicit empty `dimensions` list for a metric-only total. Its response
+must have empty dimension headers and row dimension values; metric headers and
+values still match the exact ordered request.
+
 A report should name the exact property, date ranges, ordered dimensions, ordered
 metrics, filters, ordering, currency, row limit, and offset needed for the
 decision. Keep it narrow. Wide reports are more likely to combine incompatible

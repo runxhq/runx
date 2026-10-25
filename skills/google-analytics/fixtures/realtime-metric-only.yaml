@@ -1,0 +1,80 @@
+{
+  "name": "ga-realtime-metric-only",
+  "kind": "skill",
+  "target": "..",
+  "runner": "realtime",
+  "inputs": {
+    "property": "properties/123456",
+    "dimensions": [],
+    "metrics": [
+      "activeUsers"
+    ]
+  },
+  "caller": {
+    "provider_responses": {
+      "principal_id": "operator-fixture",
+      "grant": {
+        "grant_id": "ga-realtime-metric-only",
+        "provider": "google/analytics",
+        "scopes": [
+          "reports.realtime.read"
+        ]
+      },
+      "operations": [
+        {
+          "operation": "reports.run_realtime",
+          "target": "properties/123456",
+          "access": "read",
+          "result": {
+            "property": "properties/123456",
+            "request": {},
+            "dimension_headers": [],
+            "metric_headers": [
+              {
+                "name": "activeUsers",
+                "type": "TYPE_INTEGER"
+              }
+            ],
+            "rows": [
+              {
+                "dimension_values": [],
+                "metric_values": [
+                  "8"
+                ]
+              }
+            ],
+            "row_count": 1,
+            "pagination": {
+              "complete": true,
+              "returned_rows": 1
+            },
+            "metadata": {},
+            "property_quota": {},
+            "fetched_at": "2026-10-05T10:00:00Z"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "sealed",
+    "receipt": {
+      "schema": "runx.receipt.v1",
+      "outcome": "completed"
+    },
+    "step_outputs": {
+      "finalize": {
+        "subset": {
+          "report_evidence": {
+            "data": {
+              "decision": "usable_with_caveats",
+              "validation": {
+                "status": "pass"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
