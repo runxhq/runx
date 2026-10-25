@@ -2,8 +2,8 @@ packages:
   - "packages/*"
 
 overrides:
-  "ajv>fast-uri": "3.1.6"
-  "postcss>nanoid": "3.3.17"
+  "ajv>fast-uri": "3.1.9"
+  "postcss>nanoid": "3.3.18"
 
 # esbuild's install script only checks the platform binary its optional
 # platform package already ships, so no dependency build runs.
