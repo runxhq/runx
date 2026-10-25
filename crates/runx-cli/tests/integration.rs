@@ -18,6 +18,7 @@ mod harness;
 mod list;
 mod local_credential;
 mod locality;
+mod login;
 mod mcp_dogfood;
 mod native_no_ts;
 mod new_skill_authoring;
