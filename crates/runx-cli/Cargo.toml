@@ -53,7 +53,7 @@ bench = false
 # Debian/Ubuntu packaging (cargo-deb). Built per-arch in CI with --target and
 # attached to the GitHub Release.
 [package.metadata.deb]
-maintainer = "runxhq <dev@runx.ai>"
+maintainer = "0state <oss@0state.com>"
 copyright = "2026, runxhq"
 extended-description = "Native governed runtime for agent skills, tools, graphs, and packets."
 section = "utils"
