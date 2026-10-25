@@ -29,12 +29,12 @@ caller:
         access: read
         result:
           provider: slack
-          external_tenant_id: T123ABC
-          connected_subject_id: U123ABC
+          external_tenant_ref: T123ABC
+          connected_subject_ref: U123ABC
           messages:
             - provider: slack
-              external_tenant_id: T123ABC
-              connected_subject_id: U123ABC
+              external_tenant_ref: T123ABC
+              connected_subject_ref: U123ABC
               message_locator: slack://T123ABC/C123ABC/1750000000.000001
               thread_locator: slack://T123ABC/C123ABC/1750000000.000001
               author: { external_id: U456ABC, provider_actor_type: user_account }
@@ -54,6 +54,6 @@ expect:
             status: success
             provider: slack
             result:
-              external_tenant_id: T123ABC
+              external_tenant_ref: T123ABC
   receipt: { schema: runx.receipt.v1, state: sealed, outcome: completed }
 metadata: { public_skill: slack, source_case: direct-default-success, source: skills-fixture }

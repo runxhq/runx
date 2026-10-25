@@ -20,7 +20,7 @@ operations:
       pattern: "chat://[^/]+/[^/]+"
     approval: required
     idempotency_key_format: uuid
-    result_fields: [provider, external_tenant_id, connected_subject_id, conversation_locator, message_locator, occurred_at, content_digest, idempotency_key]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest, idempotency_key]
     effect:
       kind: thread
       locator: {"$result": "/message_locator"}
@@ -33,7 +33,7 @@ operations:
     scopes: [channel.post.read]
     target:
       template: {"$argument": "/conversation_locator"}
-    result_fields: [provider, external_tenant_id, connected_subject_id, conversation_locator, message_locator, occurred_at, content_digest]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest]
     hosted:
       provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
 
@@ -43,7 +43,7 @@ operations:
     scopes: [thread.read]
     target:
       template: {"$argument": "/thread_locator"}
-    result_fields: [provider, external_tenant_id, connected_subject_id, thread_locator, messages, next_cursor]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
     hosted:
       provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
 
@@ -53,6 +53,6 @@ operations:
     scopes: [thread.reply]
     target:
       template: {"$argument": "/thread_locator"}
-    result_fields: [provider, external_tenant_id, connected_subject_id, conversation_locator, thread_locator, message_locator, occurred_at, content_digest, idempotency_key]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, thread_locator, message_locator, occurred_at, content_digest, idempotency_key]
     hosted:
       provider_scopes: ["chat:write"]

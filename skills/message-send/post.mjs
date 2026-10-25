@@ -129,7 +129,7 @@ export function reconcileExactNotification(inputs) {
       || read.finality !== "confirmed" || result.thread_locator !== locator
       || messages.length !== 1 || message.message_locator !== locator
       || !locator.startsWith(`${channel}/`)
-      || message.author?.external_id !== result.connected_subject_id
+      || message.author?.external_id !== result.connected_subject_ref
       || !Number.isFinite(occurredAt) || !Number.isFinite(attemptAt)
       || occurredAt < attemptAt - 300000
       || !observed || observed.length >= 2000

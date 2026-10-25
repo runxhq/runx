@@ -18,7 +18,7 @@ operations:
     scopes: [messages.search]
     target:
       template: "slack://messages"
-    result_fields: [provider, external_tenant_id, connected_subject_id, messages, next_cursor]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, messages, next_cursor]
     hosted:
       provider_scopes: ["search:read.public", "search:read.private", "search:read.im", "search:read.mpim"]
   thread.read:
@@ -27,7 +27,7 @@ operations:
     scopes: [thread.read]
     target:
       template: {"$argument": "/thread_locator"}
-    result_fields: [provider, external_tenant_id, connected_subject_id, thread_locator, messages, next_cursor]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
     hosted:
       provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
   thread.reply:
@@ -36,7 +36,7 @@ operations:
     scopes: [thread.reply]
     target:
       template: {"$argument": "/thread_locator"}
-    result_fields: [provider, external_tenant_id, connected_subject_id, conversation_locator, thread_locator, message_locator, occurred_at, content_digest, idempotency_key]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, thread_locator, message_locator, occurred_at, content_digest, idempotency_key]
     hosted:
       provider_scopes: ["chat:write"]
   thread.reply.read:
@@ -45,7 +45,7 @@ operations:
     scopes: [thread.reply.read]
     target:
       template: {"$argument": "/thread_locator"}
-    result_fields: [provider, external_tenant_id, connected_subject_id, conversation_locator, thread_locator, message_locator, occurred_at, content_digest]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, thread_locator, message_locator, occurred_at, content_digest]
     hosted:
       provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
   file.read:
@@ -54,7 +54,7 @@ operations:
     scopes: [file.read]
     target:
       template: {"$argument": "/file_locator"}
-    result_fields: [provider, external_tenant_id, connected_subject_id, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
     hosted:
       provider_scopes: ["files:read"]
   channel.post:
@@ -66,7 +66,7 @@ operations:
       pattern: "slack://[^/]+/[^/]+"
     approval: required
     idempotency_key_format: uuid
-    result_fields: [provider, external_tenant_id, connected_subject_id, conversation_locator, message_locator, occurred_at, content_digest, idempotency_key]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest, idempotency_key]
     effect:
       kind: thread
       locator: {"$result": "/message_locator"}
@@ -78,6 +78,6 @@ operations:
     scopes: [channel.post.read]
     target:
       template: {"$argument": "/conversation_locator"}
-    result_fields: [provider, external_tenant_id, connected_subject_id, conversation_locator, message_locator, occurred_at, content_digest]
+    result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest]
     hosted:
       provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]

@@ -19,8 +19,8 @@ caller:
         target: slack://T123ABC/C123ABC/1791095930.000001
         access: read
         result:
-          external_tenant_id: T123ABC
-          connected_subject_id: U123ABC
+          external_tenant_ref: T123ABC
+          connected_subject_ref: U123ABC
           thread_locator: slack://T123ABC/C123ABC/1791095930.000001
           messages:
             - message_locator: slack://T123ABC/C123ABC/1791095930.000001

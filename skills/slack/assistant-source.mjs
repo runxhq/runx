@@ -134,9 +134,9 @@ export function finishAssistantHydrate(inputs) {
   const locator = text(inputs.thread_locator);
   const tenant = locator.slice("slack://".length).split("/")[0];
   if (page.thread_locator !== locator ||
-      page.external_tenant_id !== tenant ||
-      page.external_tenant_id !== action.external_tenant_id ||
-      page.connected_subject_id !== action.connected_subject_id) {
+      page.external_tenant_ref !== tenant ||
+      page.external_tenant_ref !== action.external_tenant_ref ||
+      page.connected_subject_ref !== action.connected_subject_ref) {
     throw new Error("Slack thread readback differs from the admitted source");
   }
   if (!Array.isArray(page.messages) || page.messages.length > 15) {
@@ -156,17 +156,17 @@ export function finishAssistantHydrate(inputs) {
     if (!preview || [...preview].length > 1000 || !occurred || !author) complete = false;
     if (message.message_locator === inputs.source_locator) {
       if (occurred !== action.latest_message?.occurred_at ||
-          author !== action.requester?.external_id || author === page.connected_subject_id) {
+          author !== action.requester?.external_id || author === page.connected_subject_ref) {
         throw new Error("Slack source occurrence changed during hydration");
       }
       source = bounded(preview, 1000);
       sourceMessage = { ...message, provider: "slack",
-        external_tenant_id: page.external_tenant_id,
-        connected_subject_id: page.connected_subject_id,
+        external_tenant_ref: page.external_tenant_ref,
+        connected_subject_ref: page.connected_subject_ref,
         thread_locator: locator };
     }
     return { message_locator: message.message_locator, occurred_at: occurred,
-      author_id: author, is_self: author === page.connected_subject_id,
+      author_id: author, is_self: author === page.connected_subject_ref,
       text: bounded(preview, 1000) };
   });
   const cursor = page.next_cursor;

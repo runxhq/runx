@@ -1,5 +1,5 @@
 skill: slack
-version: "0.2.16"
+version: "0.2.17"
 
 catalog:
   kind: graph
@@ -169,7 +169,7 @@ runners:
     steps:
       - id: search
         operation: slack/messages.search
-        result_fields: [external_tenant_id, connected_subject_id, messages, next_cursor]
+        result_fields: [external_tenant_ref, connected_subject_ref, messages, next_cursor]
         input: $input.query
 
   read_thread:
@@ -199,7 +199,7 @@ runners:
         operation: slack/thread.read
         expected_result:
           thread_locator: $input.thread_locator
-        result_fields: [external_tenant_id, connected_subject_id, thread_locator, messages, next_cursor]
+        result_fields: [external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
         input:
           thread_locator: $input.thread_locator
           limit: $input.limit
@@ -230,7 +230,7 @@ runners:
     steps:
       - id: read
         operation: slack/thread.read
-        result_fields: [external_tenant_id, connected_subject_id, thread_locator, messages, next_cursor]
+        result_fields: [external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
         input:
           thread_locator: $input.permalink
           limit: $input.limit
@@ -252,7 +252,7 @@ runners:
         operation: slack/file.read
         expected_result:
           file_locator: $input.file_locator
-        result_fields: [external_tenant_id, connected_subject_id, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
+        result_fields: [external_tenant_ref, connected_subject_ref, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
         input:
           file_locator: $input.file_locator
 
