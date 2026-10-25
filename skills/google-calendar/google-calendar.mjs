@@ -72,9 +72,12 @@ export function prepareAssistantWindow(input) {
       || !Number.isSafeInteger(hours) || hours < 1 || hours > 168) {
     throw new Error('calendar brief requires a bounded admitted occurrence and window');
   }
-  // The prepared window is checkpointed by the native graph. After sleep,
-  // cover the upcoming period from this execution instead of past due time.
-  const start = Math.max(dueSeconds * 1000, Date.now());
+  if (!instant(input.observed_at)) {
+    throw new Error('calendar brief requires an explicit host observation instant');
+  }
+  // The host owns scheduling and the observation time; the worker has no
+  // ambient clock. Checkpoint this exact upcoming window in the graph.
+  const start = Math.max(dueSeconds * 1000, Date.parse(input.observed_at));
   const end = start + hours * 3600000;
   if (!Number.isSafeInteger(end) || end > 8.64e15) {
     throw new Error('calendar brief window exceeds the supported clock range');

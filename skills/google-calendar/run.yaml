@@ -1,5 +1,5 @@
 skill: google-calendar
-version: "0.1.10"
+version: "0.1.11"
 catalog:
   kind: graph
   audience: public
@@ -115,6 +115,11 @@ runners:
         required: true
         description: Exact scheduled goal occurrence admitted by the local operator.
         schema: { pattern: '^runx://assistant/goal/[a-z0-9_-]+/schedule/sha256:[0-9a-f]{64}/occurrence/[0-9]+$' }
+      observed_at:
+        type: string
+        required: true
+        description: Actual host observation instant for this execution, with an explicit UTC offset.
+        schema: { format: date-time }
       window_hours:
         type: integer
         required: true
@@ -123,7 +128,7 @@ runners:
     result_from: [finish]
     steps:
       - id: window
-        inputs: { calendar_id: $input.calendar_id, occurrence_uri: $input.occurrence_uri, window_hours: $input.window_hours }
+        inputs: { calendar_id: $input.calendar_id, occurrence_uri: $input.occurrence_uri, observed_at: $input.observed_at, window_hours: $input.window_hours }
         tool: { module: google-calendar.mjs, export: prepareAssistantWindow }
         outputs: { calendar_window: object }
       - id: read

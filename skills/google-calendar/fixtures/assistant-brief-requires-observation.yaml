@@ -1,0 +1,14 @@
+{
+  "name": "calendar-brief-refuses-missing-observation",
+  "kind": "skill",
+  "target": "..",
+  "runner": "assistant-brief",
+  "inputs": {
+    "calendar_id": "primary",
+    "occurrence_uri": "runx://assistant/goal/calendar/schedule/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/occurrence/1791280800",
+    "window_hours": 24
+  },
+  "expect": {
+    "status": "failure"
+  }
+}

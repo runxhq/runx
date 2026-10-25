@@ -1,0 +1,67 @@
+{
+  "name": "calendar-brief-after-sleep",
+  "kind": "skill",
+  "target": "..",
+  "runner": "assistant-brief",
+  "inputs": {
+    "calendar_id": "primary",
+    "occurrence_uri": "runx://assistant/goal/calendar/schedule/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/occurrence/1791072000",
+    "observed_at": "2026-10-05T10:00:00Z",
+    "window_hours": 24
+  },
+  "caller": {
+    "provider_responses": {
+      "principal_id": "operator-fixture",
+      "grant": {
+        "grant_id": "calendar-brief-fixture",
+        "provider": "google/calendar",
+        "scopes": [
+          "events.read"
+        ]
+      },
+      "operations": [
+        {
+          "operation": "events.list",
+          "target": "primary",
+          "access": "read",
+          "result": {
+            "calendar_id": "primary",
+            "time_min": "2026-10-05T10:00:00.000Z",
+            "time_max": "2026-10-06T10:00:00.000Z",
+            "events": [],
+            "complete": true,
+            "next_page_token": "",
+            "fetched_at": "2026-10-05T10:00:00.000Z"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "sealed",
+    "steps": [
+      "window",
+      "read",
+      "finish"
+    ],
+    "step_outputs": {
+      "window": {
+        "subset": {
+          "calendar_window": {
+            "time_min": "2026-10-05T10:00:00.000Z",
+            "time_max": "2026-10-06T10:00:00.000Z"
+          }
+        }
+      }
+    },
+    "receipt": {
+      "schema": "runx.receipt.v1",
+      "outcome": "completed"
+    }
+  },
+  "metadata": {
+    "public_skill": "google-calendar",
+    "source_case": "after-sleep",
+    "source": "skills-fixture"
+  }
+}
