@@ -174,6 +174,7 @@ export function finishAssistantHydrate(inputs) {
       (typeof cursor !== "string" || cursor.length > 500)) {
     throw new Error("Slack thread returned an invalid cursor");
   }
+  const sourceComplete = complete && !cursor && sourceMessage !== null;
   return { assistant_context: {
       schema: "runx.source_packet.v1",
       packet_id: `${inputs.source_locator}:${inputs.source_digest}`,
@@ -189,9 +190,15 @@ export function finishAssistantHydrate(inputs) {
     source_message: sourceMessage,
     title: source ? bounded(source.split("\n")[0], 200) : "",
     body: source,
-    context: { messages },
-    complete,
+    source_complete: sourceComplete,
     next_cursor: cursor || null,
+    thread: {
+      source_locator: inputs.source_locator,
+      source_digest: inputs.source_digest,
+      thread_locator: locator,
+      coverage_incomplete: !sourceComplete,
+      messages,
+    },
     },
   } };
 }

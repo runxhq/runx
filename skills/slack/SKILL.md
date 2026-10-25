@@ -109,3 +109,14 @@ locator, then pass that normalized observation to a team-specific triage skill. 
 to the exact canonical thread. A changed draft fails before approval. An
 approved unchanged reply is posted once, then read back from the exact returned
 message locator before Runx seals the effect.
+
+## Operator conversation handoff
+
+`assistant_scan` returns one bounded search page and its continuation cursor;
+`assistant_observe` binds each message to its source identity. Hydration checks
+that identity against the canonical open action before reading the thread.
+The resulting `runx.source_packet.v1` supplies `workflow_inputs.thread` with
+the exact source and thread bindings, message evidence and coverage flag, plus
+`source_complete` for `conversation-review#operate`. Missing source messages,
+truncated content or another page keep coverage incomplete. The consumer holds
+that work rather than treating a partial thread as resolved.

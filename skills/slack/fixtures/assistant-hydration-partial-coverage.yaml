@@ -1,0 +1,95 @@
+{
+  "name": "slack-assistant-hydration-partial-coverage",
+  "kind": "skill",
+  "target": "..",
+  "runner": "assistant_hydrate",
+  "inputs": {
+    "action": {
+      "status": "open",
+      "external_tenant_ref": "T123ABC",
+      "connected_subject_ref": "U123ABC",
+      "thread_locator": "slack://T123ABC/C123ABC/1791194400.000001",
+      "latest_message": {
+        "message_locator": "slack://T123ABC/C123ABC/1791194400.000001",
+        "occurred_at": "2026-10-05T10:00:00Z"
+      },
+      "requester": {
+        "external_id": "U456ABC"
+      }
+    },
+    "config": {},
+    "source_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_locator": "slack://T123ABC/C123ABC/1791194400.000001",
+    "thread_locator": "slack://T123ABC/C123ABC/1791194400.000001"
+  },
+  "caller": {
+    "provider_responses": {
+      "principal_id": "operator-fixture",
+      "grant": {
+        "grant_id": "slack-assistant-hydrate",
+        "provider": "slack",
+        "scopes": [
+          "thread.read"
+        ]
+      },
+      "operations": [
+        {
+          "operation": "thread.read",
+          "target": "slack://T123ABC/C123ABC/1791194400.000001",
+          "access": "read",
+          "result": {
+            "provider": "slack",
+            "external_tenant_ref": "T123ABC",
+            "connected_subject_ref": "U123ABC",
+            "thread_locator": "slack://T123ABC/C123ABC/1791194400.000001",
+            "messages": [
+              {
+                "message_locator": "slack://T123ABC/C123ABC/1791194400.000001",
+                "author": {
+                  "external_id": "U456ABC",
+                  "provider_actor_type": "user_account"
+                },
+                "occurred_at": "2026-10-05T10:00:00Z",
+                "preview": "Please review the release checks.",
+                "attachments": []
+              }
+            ],
+            "next_cursor": "next-page"
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "status": "sealed",
+    "receipt": {
+      "schema": "runx.receipt.v1",
+      "outcome": "completed"
+    },
+    "step_outputs": {
+      "finish": {
+        "subset": {
+          "assistant_context": {
+            "data": {
+              "workflow_inputs": {
+                "source_complete": false,
+                "thread": {
+                  "source_locator": "slack://T123ABC/C123ABC/1791194400.000001",
+                  "source_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "thread_locator": "slack://T123ABC/C123ABC/1791194400.000001",
+                  "coverage_incomplete": true,
+                  "messages": [
+                    {
+                      "text": "Please review the release checks."
+                    }
+                  ]
+                },
+                "next_cursor": "next-page"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
