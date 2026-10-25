@@ -59,6 +59,24 @@ fn a_signed_connector_version_installs_into_the_package_cache_once()
         );
     }
     assert_eq!(staging_entries(temp.path())?, 0);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_ne!(
+            fs::metadata(destination.join("tools/acme/sync/sync.mjs"))?
+                .permissions()
+                .mode()
+                & 0o111,
+            0
+        );
+        assert_eq!(
+            fs::metadata(destination.join("README.md"))?
+                .permissions()
+                .mode()
+                & 0o111,
+            0
+        );
+    }
 
     let again = install_registry_connector(&published, &options)?;
     assert_eq!(again.status, InstallStatus::Unchanged);
@@ -307,7 +325,7 @@ fn published_version(
     )?;
     fs::write(
         connector.join("tools/acme/sync/sync.mjs"),
-        "process.stdout.write('{}');\n",
+        "#!/usr/bin/env node\nprocess.stdout.write('{}');\n",
     )?;
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
     let package = prepare_registry_connector_package(&connector)?;

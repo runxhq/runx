@@ -19,6 +19,48 @@ const TEST_MANIFEST_KEY_ID: &str = "runx-registry-test-key";
 const TEST_MANIFEST_SIGNER_ID: &str = "runx-registry-test-signer";
 const DYNAMIC_MANIFEST_SEED: [u8; 32] = [7; 32];
 
+#[cfg(unix)]
+#[test]
+fn installed_scripts_run_from_signed_bytes_and_data_stays_non_executable()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempdir()?;
+    let mut candidate = install_candidate()?;
+    let script = "#!/bin/sh\nprintf 'installed-provider'\n";
+    candidate.package_files.extend([
+        RegistryPackageFile {
+            path: "fixtures/bin/provider".into(),
+            content: script.into(),
+        },
+        RegistryPackageFile {
+            path: "fixtures/provider.txt".into(),
+            content: "data".into(),
+        },
+    ]);
+    candidate.bundle_digest = Some(bundle_digest(&candidate.package_files)?);
+    candidate.signed_manifest = Some(signed_for(&candidate, "acme/echo")?);
+    let installed = install_local_skill(&candidate, &options(temp.path())?)?;
+    let root = installed
+        .destination
+        .parent()
+        .ok_or("installed package root missing")?;
+    let output = std::process::Command::new(root.join("fixtures/bin/provider")).output()?;
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"installed-provider");
+    assert_eq!(
+        std::fs::read_to_string(root.join("fixtures/bin/provider"))?,
+        script
+    );
+    assert_eq!(
+        std::fs::metadata(root.join("fixtures/provider.txt"))?
+            .permissions()
+            .mode()
+            & 0o111,
+        0
+    );
+    Ok(())
+}
+
 #[test]
 fn trusted_signed_manifest_installs() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

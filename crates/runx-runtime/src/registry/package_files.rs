@@ -8,6 +8,21 @@ use serde::Serialize;
 
 use super::types::RegistryPackageFile;
 
+/// Script permissions follow the signed source bytes, not the publisher's
+/// filesystem. This is shared by installation and publication staging.
+pub(crate) fn restore_script_permissions(path: &Path, content: &str) -> std::io::Result<()> {
+    #[cfg(unix)]
+    if content.starts_with("#!") {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(path)?.permissions();
+        permissions.set_mode(permissions.mode() | 0o111);
+        std::fs::set_permissions(path, permissions)?;
+    }
+    #[cfg(not(unix))]
+    let _ = (path, content);
+    Ok(())
+}
+
 pub(crate) fn normalize_registry_package_files(
     files: Vec<RegistryPackageFile>,
 ) -> Result<Vec<RegistryPackageFile>, String> {

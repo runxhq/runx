@@ -892,6 +892,13 @@ fn write_atomic(destination: &Path, contents: &str) -> Result<(), InstallError> 
         path: temp_path.clone(),
         source,
     })?;
+    if let Err(source) = super::package_files::restore_script_permissions(&temp_path, contents) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(InstallError::Io {
+            path: destination.to_path_buf(),
+            source,
+        });
+    }
     if destination.exists() {
         let _ = fs::remove_file(&temp_path);
         return Err(InstallError::Io {

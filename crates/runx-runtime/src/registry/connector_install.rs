@@ -153,6 +153,9 @@ pub(crate) fn write_connector_version(
                     .map_err(|error| format!("{}: {error}", parent.display()))?;
             }
             fs::write(&path, file.content.as_bytes())
+                .and_then(|()| {
+                    super::package_files::restore_script_permissions(&path, &file.content)
+                })
                 .map_err(|error| format!("{}: {error}", path.display()))
         })
         .and_then(|()| match fs::rename(&staged, &destination) {
@@ -333,6 +336,8 @@ fn stage(
             fs::create_dir_all(parent).map_err(|source| io_error(parent, source))?;
         }
         fs::write(&path, &file.content).map_err(|source| io_error(&path, source))?;
+        super::package_files::restore_script_permissions(&path, &file.content)
+            .map_err(|source| io_error(&path, source))?;
     }
     load(published, content_digest, staged)
 }

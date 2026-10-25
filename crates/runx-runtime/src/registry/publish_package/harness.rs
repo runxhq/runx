@@ -92,7 +92,8 @@ pub(super) fn run_publish_harness(
 
 fn write_text(path: PathBuf, content: &str) -> Result<(), RegistryPublishPackageError> {
     write_bytes(path.clone(), content.as_bytes())?;
-    mark_executable_if_script(&path, content)
+    crate::registry::package_files::restore_script_permissions(&path, content)
+        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))
 }
 
 fn write_bytes(path: PathBuf, content: &[u8]) -> Result<(), RegistryPublishPackageError> {
@@ -110,32 +111,6 @@ fn write_bytes(path: PathBuf, content: &[u8]) -> Result<(), RegistryPublishPacka
             path.display()
         ))
     })
-}
-
-#[cfg(unix)]
-fn mark_executable_if_script(
-    path: &Path,
-    content: &str,
-) -> Result<(), RegistryPublishPackageError> {
-    if !content.starts_with("#!") {
-        return Ok(());
-    }
-    use std::os::unix::fs::PermissionsExt;
-
-    let mut permissions = fs::metadata(path)
-        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?
-        .permissions();
-    permissions.set_mode(permissions.mode() | 0o111);
-    fs::set_permissions(path, permissions)
-        .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))
-}
-
-#[cfg(not(unix))]
-fn mark_executable_if_script(
-    _path: &Path,
-    _content: &str,
-) -> Result<(), RegistryPublishPackageError> {
-    Ok(())
 }
 
 fn publish_harness_env(
