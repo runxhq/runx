@@ -23,12 +23,18 @@ skill, outcome, and time range, then returns the receipts that satisfy it as
 id-keyed stubs (`receipt_id`, `skill`, `outcome`, `created_at`, verification
 status). Exact-id reads also return `receipt_details` from the native redacted
 inspection projection: signed authority, decisions, acts, artifact references,
-lineage, seal, and verification without execution bodies, credential material,
+lineage, issuer type, seal criteria, and verification without execution bodies, credential material,
 or local paths. When `proof` asks for it, the skill returns the native tree-verification
 verdict and findings. A requested check is not a successful check: an unknown
 or failed verdict stays unknown or failed. The deterministic summary reports
 matched receipt count and verification status, not a synthesized business
 answer. Zero matches return `needs_more_evidence`.
+
+Exact-id stubs preserve the native `subject_uri` even when no skill label is
+available. Detail retains `issuer_type` and `seal_criteria`: a failed output
+contract is still visible when a step has no act. A verified `local` issuer
+means the Runx home signed the receipt; it does not establish an independent
+operator or provider attestation. Missing replay fields stay unknown.
 
 The default `read` runner invokes the native `receipt.query` service directly.
 The service resolves the same receipt store and signature policy as Runx's CLI,

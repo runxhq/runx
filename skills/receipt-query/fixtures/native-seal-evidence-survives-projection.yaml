@@ -1,0 +1,64 @@
+name: native-seal-evidence-survives-projection
+kind: skill
+target: ..
+runner: read
+operator_journeys:
+  - mode: composed
+    request: Give diagnosis the failed native step's evidence without rerunning it.
+    expected_outcome: Preserve the native subject, local issuer and failed seal criterion while keeping replay chain trust unknown.
+    prior_evidence:
+      - The bounded redacted native receipt projection supplied below.
+    must_not_repeat:
+      - Do not rerun the original operation.
+inputs:
+  question: Inspect the failed output contract for diagnosis.
+  receipt_ids: [rcpt_failed_native_step]
+  proof: { verify_chain: true }
+  receipts:
+    - receipt_id: rcpt_failed_native_step
+      subject_uri: runx:run:run_failed#verify
+      outcome: failed
+      verification_status: verified
+  receipt_details:
+    - id: rcpt_failed_native_step
+      subject_kind: step
+      subject_uri: runx:run:run_failed#verify
+      issuer_type: local
+      outcome: failed
+      verification: { status: verified }
+      seal_reason: graph_step_failed
+      seal_criteria:
+        - criterion_id: output_contract_verified
+          status: failed
+          evidence_uris: [runx:artifact:output-check]
+          verification_uris: [runx:verification:output-contract]
+      authority: {}
+      acts: []
+      decisions: []
+      artifact_uris: []
+      lineage_uris: []
+expect:
+  status: sealed
+  steps: [prepare, finalize-replay]
+  step_outputs:
+    finalize-replay:
+      subset:
+        ledger_answer_packet:
+          data:
+            matched_receipts:
+              - receipt_id: rcpt_failed_native_step
+                subject_uri: runx:run:run_failed#verify
+            receipt_details:
+              - id: rcpt_failed_native_step
+                issuer_type: local
+                seal_criteria:
+                  - criterion_id: output_contract_verified
+                    status: failed
+                    evidence_uris: [runx:artifact:output-check]
+                    verification_uris: [runx:verification:output-contract]
+            chain_verification: { checked: true, intact: null, breaks: [] }
+  receipt: { schema: runx.receipt.v1 }
+metadata:
+  public_skill: receipt-query
+  source_case: native-seal-evidence-survives-projection
+  source: skills-fixture

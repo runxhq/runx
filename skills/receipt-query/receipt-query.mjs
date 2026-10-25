@@ -122,6 +122,8 @@ function projectReceiptDetail(value) {
     subject_uri: stringValue(detail.subject_uri) || "",
     created_at: stringValue(detail.created_at) || "",
     outcome: stringValue(detail.outcome) || "",
+    issuer_type: stringValue(detail.issuer_type),
+    seal_criteria: records(detail.seal_criteria).map(projectCriterion),
     verification: record(detail.verification),
     authority: projectAuthority(detail.authority),
     decisions: records(detail.decisions).map(projectDecision),
@@ -169,13 +171,17 @@ function projectAct(value) {
     reason: stringValue(act.reason),
     target_uris: stringArray(act.target_uris, 500),
     artifact_uris: stringArray(act.artifact_uris, 500),
-    criterion_statuses: records(act.criterion_statuses).map((criterion) => ({
-      criterion_id: stringValue(criterion.criterion_id) || "",
-      status: stringValue(criterion.status) || "",
-      evidence_uris: stringArray(criterion.evidence_uris, 500),
-      verification_uris: stringArray(criterion.verification_uris, 500),
-    })).filter((criterion) => criterion.criterion_id),
+    criterion_statuses: records(act.criterion_statuses).map(projectCriterion).filter((criterion) => criterion.criterion_id),
     context_ref_present: act.context_ref_present === true,
+  };
+}
+
+function projectCriterion(criterion) {
+  return {
+    criterion_id: stringValue(criterion.criterion_id) || "",
+    status: stringValue(criterion.status) || "",
+    evidence_uris: stringArray(criterion.evidence_uris, 500),
+    verification_uris: stringArray(criterion.verification_uris, 500),
   };
 }
 
@@ -185,6 +191,7 @@ function projectIdStub(row) {
   if (!receiptId) throw new Error("ledger row is missing a receipt id");
   return {
     receipt_id: receiptId,
+    subject_uri: stringValue(receipt.subject_uri) || "",
     skill: stringValue(receipt.skill) || stringValue(receipt.name) || "",
     outcome: stringValue(receipt.outcome) || "",
     created_at: stringValue(receipt.created_at) || "",
