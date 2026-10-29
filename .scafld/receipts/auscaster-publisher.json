@@ -1,0 +1,75 @@
+{
+  "body": {
+    "schema_version": 1,
+    "task_id": "auscaster-publisher",
+    "session_id": "auscaster-publisher",
+    "verdict": "pass",
+    "snapshot_mode": "base_delta",
+    "base_ref": "97ef8e92863e32b8cc76b68a2bdfe3a130ae3718",
+    "base_commit": "97ef8e92863e32b8cc76b68a2bdfe3a130ae3718",
+    "head_commit": "97ef8e92863e32b8cc76b68a2bdfe3a130ae3718",
+    "scope": [
+      "crates/runx-cli/Cargo.toml",
+      "release/publisher.json"
+    ],
+    "tree_sha": "57f466f950e9e2740db37d25390e793a13e5d573",
+    "file_digests": {
+      "crates/runx-cli/Cargo.toml": "df09a3725329fa5386fd723279214ee01e6087ec22eae79a4c7a5e385babba28",
+      "release/publisher.json": "d207b1d02e27265efaf0bd5c5ebfcd3a2dcceecb6d5441fa54169c1cda163222"
+    },
+    "ignored_unreviewed": [],
+    "reviewed_context_provenance": [
+      {
+        "kind": "evidence_file",
+        "path": "crates/runx-cli/Cargo.toml",
+        "sha256": "df09a3725329fa5386fd723279214ee01e6087ec22eae79a4c7a5e385babba28"
+      },
+      {
+        "kind": "evidence_file",
+        "path": "release/publisher.json",
+        "sha256": "d207b1d02e27265efaf0bd5c5ebfcd3a2dcceecb6d5441fa54169c1cda163222"
+      }
+    ],
+    "reviewer": {
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    "host_under_review": {
+      "agent": "codex",
+      "session_id": "auscaster-publisher"
+    },
+    "independence": {
+      "level": "cross_vendor",
+      "distinct": true,
+      "reason": "cross_vendor: reviewer \"claude\" and host \"codex\" are different model vendors; this is multi-model review that reduces correlated blind spots but remains single-party local tooling"
+    },
+    "spec_fingerprint": "ee9aabb01d90f739988874605febc219d6cd265ee3dc0bffce74724328be24a5",
+    "acceptance_declared": true,
+    "acceptance": [
+      {
+        "id": "ac1",
+        "command": "node --test scripts/build-channel-input.test.mjs",
+        "expected_kind": "exit_code_zero",
+        "status": "pass",
+        "reason": "exit code was 0",
+        "output_sha256": "340444900200dbfa77d6e3f08c5eda5f4004d3a7fbf37177326c946225f2b9bf",
+        "diagnostic": "/Users/kam/dev/0state/.worktrees/runx-workspace-auscaster/oss/.scafld/runs/auscaster-publisher/artifacts/commands/ac1-1793266498124561000.txt"
+      }
+    ],
+    "open_blockers": [],
+    "mutation_guard": {
+      "status": "clean",
+      "scope": [
+        "crates/runx-cli/Cargo.toml",
+        "release/publisher.json"
+      ]
+    },
+    "ledger_head": "d06d9bd549c77b81229df7a4d19760dcfbf0b7969f1698bef45b820f52e4d383",
+    "minted_at": "2026-10-29T09:34:56Z"
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_id": "ed25519:RGGe6gUQpsB6KGu0VcnMxGUL5IA1I1VDSKi3ecCzYOU",
+    "sig": "Z+6vj95gHSph2st2YV9UiCjNJDBoYLayBj6etMHdI9Ra+yFkn35sQpxJx1kZLV8L7Nhtt4Do5mz/7aFWqxgPBw=="
+  }
+}

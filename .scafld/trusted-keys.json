@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "keys": [
+    {
+      "key_id": "ed25519:RGGe6gUQpsB6KGu0VcnMxGUL5IA1I1VDSKi3ecCzYOU",
+      "alg": "ed25519",
+      "public_key": "aX9UL6IDDxWolJ6dxRoqbQ2srS2r2e6zjmsz5BAqSWc="
+    }
+  ]
+}
