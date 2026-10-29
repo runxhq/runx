@@ -47,8 +47,8 @@ pnpm bindings:check
 These are good candidates once their upstream repositories own the source
 `SKILL.md`; they must not appear as binding directories before that happens.
 
-- `nilstate/scafld-operator` — scafld governs agent work. Add this after
-  `nilstate/scafld` owns a merged `SKILL.md` at a pinned commit.
+- `auscaster/scafld-operator` — scafld governs agent work. Add this after
+  `auscaster/scafld` owns a merged `SKILL.md` at a pinned commit.
 - `sourcey/<project-operator>` — only if Sourcey moves the portable
   instructions into a Sourcey-owned upstream repo. If runx owns the skill,
   keep it under `skills/sourcey`.
