@@ -1,0 +1,67 @@
+{
+  "body": {
+    "schema_version": 1,
+    "task_id": "publisher-security",
+    "session_id": "publisher-security",
+    "verdict": "pass",
+    "snapshot_mode": "base_delta",
+    "base_ref": "49ad97b6962d0cd9bb8ab1bb367bb2c8565653b3",
+    "base_commit": "49ad97b6962d0cd9bb8ab1bb367bb2c8565653b3",
+    "head_commit": "49ad97b6962d0cd9bb8ab1bb367bb2c8565653b3",
+    "scope": [
+      "crates/Cargo.lock"
+    ],
+    "tree_sha": "45b86eafeb0bfb477dc2ea2ea2aa583000644e90",
+    "file_digests": {
+      "crates/Cargo.lock": "75d0e73298cc993e007223fd8e947a23509bdaa2ac7b3925f621c8d58168479f"
+    },
+    "ignored_unreviewed": [],
+    "reviewed_context_provenance": [
+      {
+        "kind": "evidence_file",
+        "path": "crates/Cargo.lock",
+        "sha256": "75d0e73298cc993e007223fd8e947a23509bdaa2ac7b3925f621c8d58168479f"
+      }
+    ],
+    "reviewer": {
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    "host_under_review": {
+      "agent": "codex",
+      "session_id": "publisher-security"
+    },
+    "independence": {
+      "level": "cross_vendor",
+      "distinct": true,
+      "reason": "cross_vendor: reviewer \"claude\" and host \"codex\" are different model vendors; this is multi-model review that reduces correlated blind spots but remains single-party local tooling"
+    },
+    "spec_fingerprint": "9c91765d5a6c83d3a7279f293b53329b2c6754ef806d981a6ec10cafb3544cd4",
+    "acceptance_declared": true,
+    "acceptance": [
+      {
+        "id": "ac1",
+        "command": "cargo deny --manifest-path crates/Cargo.toml check advisories bans licenses sources",
+        "expected_kind": "exit_code_zero",
+        "status": "pass",
+        "reason": "exit code was 0",
+        "output_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845",
+        "diagnostic": "/Users/kam/dev/0state/.worktrees/runx-workspace-auscaster/oss/.scafld/runs/publisher-security/artifacts/commands/ac1-1793267996956566000.txt"
+      }
+    ],
+    "open_blockers": [],
+    "mutation_guard": {
+      "status": "clean",
+      "scope": [
+        "crates/Cargo.lock"
+      ]
+    },
+    "ledger_head": "a1967b180e2f9efc447530f717b37e50353c5b6d421326ee578cbd779f1f7346",
+    "minted_at": "2026-10-29T09:59:55Z"
+  },
+  "signature": {
+    "alg": "ed25519",
+    "key_id": "ed25519:RGGe6gUQpsB6KGu0VcnMxGUL5IA1I1VDSKi3ecCzYOU",
+    "sig": "flTGdjMSpwv6MaNiURwy9vJUVrZo42OlQ4iVU0bIqStP0nCPT1OiBH5omgyNiY9oP2TcO9JPu0EBKXSnF8IbBg=="
+  }
+}
