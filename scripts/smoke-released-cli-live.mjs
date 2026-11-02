@@ -13,13 +13,12 @@ const registryBaseUrl = normalizeBaseUrl(
   process.env.RUNX_SMOKE_REGISTRY_BASE_URL,
   "https://api.runx.ai",
 );
-const skillId = process.env.RUNX_SMOKE_SKILL_ID?.trim() || "runx/github-issue-triage";
+const skillId = process.env.RUNX_SMOKE_SKILL_ID?.trim() || "runx/github";
 const smokeInstallationId = process.env.RUNX_SMOKE_INSTALLATION_ID?.trim() || "inst_release_smoke";
 
 const [publisher, name] = parseSkillId(skillId);
 const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-release-smoke-"));
 const homeDir = path.join(tempDir, "home");
-const skillsDir = path.join(tempDir, "skills");
 const installStatePath = path.join(homeDir, "install.json");
 const cliBin = path.join(tempDir, "node_modules", ".bin", process.platform === "win32" ? "runx.cmd" : "runx");
 
@@ -64,7 +63,7 @@ try {
 
   const firstInstall = await runRunx(
     cliBin,
-    ["add", `${skillId}@${skillVersion}`, "--registry", registryBaseUrl, "--to", skillsDir, "--json"],
+    ["registry", "install", `${skillId}@${skillVersion}`, "--registry", registryBaseUrl, "--json"],
     tempDir,
     homeDir,
   );
@@ -78,31 +77,46 @@ try {
   ) {
     throw new Error(`First released CLI install returned an unexpected payload for ${skillId}.`);
   }
+  const destination = firstInstallPayload.destination;
+  if (typeof destination !== "string") {
+    throw new Error("Released CLI omitted the installed package destination.");
+  }
+  const relativeDestination = path.relative(tempDir, destination);
+  if (
+    !relativeDestination
+    || relativeDestination === ".."
+    || relativeDestination.startsWith(`..${path.sep}`)
+    || path.isAbsolute(relativeDestination)
+  ) {
+    throw new Error("Released CLI installed outside the isolated smoke workspace.");
+  }
+  if (!(await readFile(destination, "utf8")).trim()) {
+    throw new Error("Released CLI did not materialize the installed skill manual.");
+  }
 
   const midCount = Number((await readJson(`${registryBaseUrl}/v1/skills/${encodeURIComponent(publisher)}/${encodeURIComponent(name)}`))?.skill?.install_count ?? 0);
 
   const secondInstall = await runRunx(
     cliBin,
-    ["add", `${skillId}@${skillVersion}`, "--registry", registryBaseUrl, "--to", skillsDir, "--json"],
+    ["registry", "install", `${skillId}@${skillVersion}`, "--registry", registryBaseUrl, "--json"],
     tempDir,
     homeDir,
   );
   const secondParsed = JSON.parse(secondInstall.stdout);
   const secondInstallPayload = secondParsed.registry?.install;
-  if (!["installed", "unchanged"].includes(String(secondInstallPayload?.status))) {
+  if (
+    secondInstallPayload?.status !== "unchanged"
+    || secondInstallPayload.skill_id !== skillId
+    || secondInstallPayload.version !== skillVersion
+    || secondInstallPayload.digest !== firstInstallPayload.digest
+    || secondInstallPayload.destination !== destination
+  ) {
     throw new Error(`Second released CLI install returned an unexpected status for ${skillId}.`);
   }
 
   const afterCount = Number((await readJson(`${registryBaseUrl}/v1/skills/${encodeURIComponent(publisher)}/${encodeURIComponent(name)}`))?.skill?.install_count ?? 0);
-  const firstDelta = midCount - beforeCount;
-  const secondDelta = afterCount - midCount;
-
-  if (![0, 1].includes(firstDelta)) {
-    throw new Error(`Expected first acquisition delta to be 0 or 1, received ${firstDelta}.`);
-  }
-  if (secondDelta !== 0) {
-    throw new Error(`Expected repeated acquisition delta to be 0, received ${secondDelta}.`);
-  }
+  // Public counters can be cached or change concurrently. Record them as
+  // observations; the unchanged destination and digest prove local reuse.
 
   process.stdout.write(`${JSON.stringify({
     status: "success",
