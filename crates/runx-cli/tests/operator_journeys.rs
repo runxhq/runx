@@ -83,6 +83,68 @@ fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() ->
 }
 
 #[test]
+fn process_tool_instantiates_wasm_seals_and_verifies() -> TestResult {
+    let root = crate::support::temp_root("runx-operator-wasm-journey");
+    let skill_dir = root.join("skills/wasm-probe");
+    let receipt_dir = root.join(".runx/receipts");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: wasm-probe\ndescription: Instantiate WebAssembly through a process tool.\n---\n# Wasm probe\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        r#"skill: wasm-probe
+runners:
+  default:
+    default: true
+    steps:
+      - id: probe
+        tool: { command: node, args: [run.mjs] }
+        outputs:
+          memory_bytes: number
+          marker: number
+          instantiated: boolean
+"#,
+    )?;
+    fs::write(
+        skill_dir.join("run.mjs"),
+        r#"// Reserve the Wasm32 address space while committing only one page.
+const memory = new WebAssembly.Memory({ initial: 1, maximum: 65536 });
+const bytes = new Uint8Array(memory.buffer);
+bytes[0] = 42;
+const { instance } = await WebAssembly.instantiate(
+  new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]),
+);
+console.log(JSON.stringify({
+  memory_bytes: memory.buffer.byteLength,
+  marker: bytes[0],
+  instantiated: instance instanceof WebAssembly.Instance,
+}));
+"#,
+    )?;
+
+    let output = command(&root)
+        .arg("skill")
+        .arg(&skill_dir)
+        .arg("--receipt-dir")
+        .arg(&receipt_dir)
+        .arg("--json")
+        .output()?;
+    let run = assert_json(&output, 0)?;
+    assert_eq!(run["status"], "sealed");
+    assert_eq!(run["outcome"], "completed");
+    assert_eq!(run["result"]["memory_bytes"], 65_536);
+    assert_eq!(run["result"]["marker"], 42);
+    assert_eq!(run["result"]["instantiated"], true);
+    let receipt_id = json_string(&run, "receipt_id")?;
+    let run_id = json_string(&run, "run_id")?;
+    assert_receipt_verifies(&root, &receipt_dir, receipt_id)?;
+    assert_run_sealed_with_local_receipt(&root, &receipt_dir, run_id, receipt_id)?;
+    Ok(())
+}
+
+#[test]
 fn agent_handoff_journey_pauses_recovers_resumes_verifies_and_clears_history() -> TestResult {
     let root = crate::support::temp_root("runx-operator-agent-handoff-journey");
     let skill_dir = crate::support::write_agent_task_skill(&root.join("skills"))?;

@@ -75,12 +75,31 @@ class RunxClientTests(unittest.TestCase):
 
             client = RunxClient(command=(sys.executable, str(fake_runx)))
             results = client.search_skills("sourcey")
-            run_report = client.run_skill("skills/example", inputs={"message": "hi"})
+            run_report = client.run_skill(
+                "skills/example",
+                inputs={
+                    "message": "hi",
+                    "enabled": False,
+                    "note": None,
+                    "count": 7,
+                    "config": {"mode": "fast"},
+                    "tags": ["a", "b"],
+                },
+            )
 
             self.assertEqual(results[0].skill_id, "acme/sourcey")
             self.assertEqual(
                 run_report["args"],
-                ["skill", "skills/example", "-i", "message=hi", "--json"],
+                [
+                    "skill", "skills/example",
+                    "-i", "message=hi",
+                    "-i", "enabled=false",
+                    "-i", "note=null",
+                    "-i", "count=7",
+                    "-i", 'config={"mode": "fast"}',
+                    "-i", 'tags=["a", "b"]',
+                    "--json",
+                ],
             )
 
     def test_continue_run_invokes_skill_with_run_id_and_answers_file(self) -> None:
