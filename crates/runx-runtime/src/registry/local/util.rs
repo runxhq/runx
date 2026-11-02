@@ -113,14 +113,17 @@ pub(super) fn write_registry_json(
     let staged = tempfile::Builder::new()
         .prefix(".runx-registry-")
         .suffix(".json.tmp")
-        .tempfile_in(parent)
+        .make_in(parent, |staged_path| {
+            let mut options = fs::OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o600);
+            }
+            options.open(staged_path)
+        })
         .map_err(|source| io_error("staging", path, source))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(staged.path(), fs::Permissions::from_mode(0o600))
-            .map_err(|source| io_error("staging", path, source))?;
-    }
     staged
         .as_file()
         .write_all(contents.as_bytes())
@@ -130,10 +133,13 @@ pub(super) fn write_registry_json(
         // A hard link publishes the record only if nothing holds the path.
         fs::hard_link(staged.path(), path).map_err(|source| io_error("writing", path, source))
     } else {
-        staged
-            .persist(path)
-            .map(|_| ())
-            .map_err(|error| io_error("writing", path, error.error))
+        // Rust's rename supports replacing an open Windows destination;
+        // tempfile::persist uses MoveFileExW alone. Keep the cleanup guard,
+        // close the staged handle, and use the same primitive as our other
+        // atomic writers. The custom creator above uses normal Windows file
+        // attributes so the published record is never marked temporary.
+        let staged_path = staged.into_temp_path();
+        fs::rename(&staged_path, path).map_err(|source| io_error("writing", path, source))
     }
 }
 
@@ -307,6 +313,27 @@ mod tests {
         assert_eq!(current.description.as_deref(), Some("first"));
         let leftovers = fs::read_dir(root.path())?.count();
         assert_eq!(leftovers, 1, "no staged file is left behind");
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn published_records_are_not_marked_as_windows_temporary_files()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use std::os::windows::fs::MetadataExt;
+
+        const FILE_ATTRIBUTE_TEMPORARY: u32 = 0x100;
+        let root = tempfile::tempdir()?;
+        let path = root.path().join("1.0.0.json");
+        for create_new in [true, false] {
+            write_registry_json(&path, &version("published")?, create_new)?;
+            assert_eq!(
+                fs::metadata(&path)?.file_attributes() & FILE_ATTRIBUTE_TEMPORARY,
+                0,
+                "published records must have persistent file attributes"
+            );
+        }
+        assert_eq!(fs::read_dir(root.path())?.count(), 1);
         Ok(())
     }
 
