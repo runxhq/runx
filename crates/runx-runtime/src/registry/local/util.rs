@@ -96,6 +96,16 @@ pub(super) fn write_registry_json(
         })?;
     contents.push('\n');
 
+    // Replacing a directory entry must not bypass the record's own write
+    // access. Check without truncating, so a refusal leaves its bytes intact.
+    if !create_new {
+        match fs::OpenOptions::new().write(true).open(path) {
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(io_error("writing", path, error)),
+        }
+    }
+
     // The record is written whole beside its path, then put in place in one
     // step, so a reader sees the old record or the new one and never a mix;
     // a failed write leaves the published record as it was.
@@ -297,6 +307,39 @@ mod tests {
         assert_eq!(current.description.as_deref(), Some("first"));
         let leftovers = fs::read_dir(root.path())?.count();
         assert_eq!(leftovers, 1, "no staged file is left behind");
+        Ok(())
+    }
+
+    #[test]
+    fn replacement_respects_the_existing_records_write_access()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let path = root.path().join("1.0.0.json");
+        write_registry_json(&path, &version("original")?, true)?;
+        let original = fs::read(&path)?;
+        let permissions = fs::metadata(&path)?.permissions();
+        let mut read_only = permissions.clone();
+        read_only.set_readonly(true);
+        fs::set_permissions(&path, read_only)?;
+
+        // Use the OS's access verdict: a privileged operator can still open
+        // a read-only file, while ordinary users must retain the old record.
+        let access_error = fs::OpenOptions::new().write(true).open(&path).err();
+        let result = write_registry_json(&path, &version("updated")?, false);
+        fs::set_permissions(&path, permissions)?;
+
+        if let Some(expected) = access_error {
+            assert!(matches!(
+                result,
+                Err(LocalRegistryError::Io { source, .. }) if source.kind() == expected.kind()
+            ));
+            assert_eq!(fs::read(&path)?, original);
+        } else {
+            result?;
+            let current: RegistrySkillVersion = serde_json::from_slice(&fs::read(&path)?)?;
+            assert_eq!(current.description.as_deref(), Some("updated"));
+        }
+        assert_eq!(fs::read_dir(root.path())?.count(), 1);
         Ok(())
     }
 }
