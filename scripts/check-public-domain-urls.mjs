@@ -3,8 +3,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const coreSkills = process.argv.includes("--core-only") ? new Set(bundledCoreSkills()) : null;
 const ignoredFileExtensions = new Set([
   ".ico",
   ".jpg",
@@ -35,7 +37,8 @@ console.log("checked public domain URLs");
 function trackedFiles() {
   return execFileSync("git", ["ls-files"], { cwd: workspaceRoot, encoding: "utf8" })
     .split("\n")
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((file) => !coreSkills || !file.startsWith("skills/") || coreSkills.has(file.split("/")[1]));
 }
 
 function scanFile(filePath) {

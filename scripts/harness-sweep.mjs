@@ -49,8 +49,7 @@ async function runSweep(options) {
   const runxBin = resolveRunxBinary(options);
   const admitted = options.skills ? new Set([...bundledCoreSkills(), ...options.skills]) : null;
   const skills = selectSkills(
-    repositorySkills(repoRoot, { ...process.env, RUNX_RUST_CLI_BIN: runxBin })
-      .filter((skill) => !admitted || admitted.has(skill.name)),
+    repositorySkills(repoRoot, { ...process.env, RUNX_RUST_CLI_BIN: runxBin }, admitted),
     options.skills,
   );
   const allowed = new Set(options.allowed);

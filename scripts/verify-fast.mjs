@@ -21,7 +21,7 @@ await runParallelGroup("source checks", [
   step("runtime architecture", "pnpm", ["runtime:architecture-check"]),
   step("test:boundary", "pnpm", ["test:boundary"]),
   step("typecheck", "pnpm", ["typecheck"]),
-  step("public domain URLs", "pnpm", ["domains:check"]),
+  step("public domain URLs", "pnpm", ["domains:check", "--core-only"]),
   step("release version sync", "pnpm", ["release:version:check"]),
   step("deterministic module engine decision", "node", [
     "scripts/check-deterministic-module-engine-decision.mjs",
@@ -60,8 +60,8 @@ if (rustBuild.status === 0) {
       step("fixtures:kernel:keys", "pnpm", ["fixtures:kernel:keys"]),
       step("fixtures:parser:check", "pnpm", ["fixtures:parser:check"]),
       step("contracts:schemas:check", "pnpm", ["contracts:schemas:check"]),
-      // Package packets: ownership, declarations, immutability, the site copy.
-      step("packets:check", "pnpm", ["packets:check"]),
+      // Bundled packets: ownership, declarations, immutability, the site copy.
+      step("packets:check", "pnpm", ["packets:check", "--core-only"]),
       step("x402 contract conformance", "pnpm", ["x402:contract-conformance"]),
       step("fixtures:contracts:check", "pnpm", ["fixtures:contracts:check"]),
       step("fixtures:contracts:keys", "pnpm", ["fixtures:contracts:keys"]),

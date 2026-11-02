@@ -1,8 +1,11 @@
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { bundledCoreSkills } from "../classify-ci-changes.mjs";
 
 export const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const skillsRoot = path.join(workspaceRoot, "skills");
+const coreSkills = new Set(bundledCoreSkills());
 const entryPath = path.join(workspaceRoot, "scripts/check-runtime-architecture-boundaries.mjs");
 const moduleRoot = path.join(workspaceRoot, "scripts/runtime-architecture");
 
@@ -38,6 +41,8 @@ export function walk(directory) {
   const entries = readdirSync(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
+    // Only bundled skills belong to the CLI's architecture gate.
+    if (directory === skillsRoot && !coreSkills.has(entry.name)) continue;
     if (entry.name === "target") {
       continue;
     }

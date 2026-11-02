@@ -19,6 +19,7 @@ export default defineConfig({
       "tests/least-privilege-scope.test.ts",
       "tests/scope-policy-differential.test.ts",
       "tests/runtime-architecture.test.ts",
+      "tests/core-skill-inventory.test.ts",
       "tests/policy-draft-validation.test.ts",
       "tests/runx-cli-release-evidence.test.ts",
       "tests/stripe-spt-rail-adapter.test.ts",

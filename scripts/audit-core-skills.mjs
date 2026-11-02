@@ -54,7 +54,7 @@ try {
 function buildReport(options) {
   nativeProcessCount = 0;
   const runx = resolveRunxBinary(options.runxBin);
-  const maintained = repositorySkills(root);
+  const maintained = repositorySkills(root, { ...process.env, RUNX_RUST_CLI_BIN: runx }, options.skills);
   const review = readProductReview(options.skills);
   const catalog = readNativeCatalog(runx, options.skills);
   const toolCatalog = readNativeToolCatalog(runx);

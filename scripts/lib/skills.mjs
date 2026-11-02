@@ -9,12 +9,15 @@ import { validateRunnerManifestYamlBatch } from "./native-parser.mjs";
  * run.yaml declares as the native parser reads them (a skill that declares
  * no visibility is internal). In name order.
  * @param {string} root
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {ReadonlySet<string> | null} [selected]
  * @returns {{ name: string, visibility: string, role: string | undefined }[]}
  */
-export function repositorySkills(root, env = process.env) {
+export function repositorySkills(root, env = process.env, selected = null) {
   const skillsRoot = path.join(root, "skills");
   const names = readdirSync(skillsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory()
+    .filter((entry) => (!selected || selected.has(entry.name))
+      && entry.isDirectory()
       && existsSync(path.join(skillsRoot, entry.name, "SKILL.md"))
       && existsSync(path.join(skillsRoot, entry.name, "run.yaml")))
     .map((entry) => entry.name)
