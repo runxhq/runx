@@ -18,6 +18,12 @@ runArtifacts(check ? ["--out", schemasDir, "--check"] : ["--out", schemasDir], "
 const declared = JSON.parse(runArtifacts(["--types"], "pipe")) as {
   readonly artifacts: Record<string, string>;
   readonly types: Record<string, Record<string, unknown>>;
+  readonly x402: {
+    readonly protocolVersion: number;
+    readonly upstreamPackage: string;
+    readonly upstreamPackageVersion: string;
+    readonly upstreamCommit: string;
+  };
 };
 
 reconcile(schemaArtifactsPath, renderSchemaArtifactsSource(schemasDir));
@@ -92,6 +98,8 @@ function renderSchemaArtifactsSource(sourceDir: string): string {
     "// Source of truth: Rust contract owners assembled by runx-schema-artifacts.",
     "",
     `import type { JsonSchema } from "./internal.js";`,
+    "",
+    `export const runxX402Metadata = ${JSON.stringify(declared.x402, null, 2)} as const;`,
     "",
     "export const runxSchemaArtifacts = {",
     artifactEntries.join(",\n"),

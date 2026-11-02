@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use runx_contracts::{JsonObject, JsonValue, ReceiptSchema, RunOutcome};
+use runx_contracts::{JsonObject, JsonValue, Receipt, ReceiptSchema, RunOutcome};
 use runx_receipts::canonical_receipt_json;
 use runx_runtime::{
     HarnessExpectedStatus, HarnessFixtureKind, load_harness_fixture, run_harness_fixture,
@@ -72,14 +72,19 @@ fn parses_harness_graph_fixture_contract() -> Result<(), Box<dyn std::error::Err
         receipt.subject_uri.as_deref(),
         Some("runx:run:harness-graph")
     );
+    let oracle: Receipt = serde_json::from_str(&std::fs::read_to_string(fixture_path(
+        "fixtures/harness/oracle/sequential-graph.receipt.json",
+    ))?)?;
     assert_eq!(
         receipt.child_receipt_uris,
-        Some(vec![
-            "runx:receipt:sha256:7661ac43e78cc5b7d4d878c0d8b9777f4f4532f6b0bbcdf76a6f38795243a2e7"
-                .to_owned(),
-            "runx:receipt:sha256:90685a39cb2fadeacb14300b9cf9d03d3afa109f79f020f40bdbd2ca42ff42ae"
-                .to_owned()
-        ])
+        Some(
+            oracle
+                .lineage
+                .children
+                .iter()
+                .map(|child| child.uri.to_string())
+                .collect()
+        )
     );
     // An omitted list asserts nothing; an empty one asserts there is none.
     assert_eq!(receipt.verification_uris, None);

@@ -195,7 +195,7 @@ pub const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
 /// execution closure binds it, so a queued or resumed run cannot silently
 /// cross a runtime upgrade while retaining the same closure digest, and every
 /// receipt's issuer states it.
-pub const RUNX_VERSION: &str = "0.11.0";
+pub const RUNX_VERSION: &str = "0.11.1";
 
 pub use services::{persist_json_artifact, read_json_artifact};
 

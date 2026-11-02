@@ -4,9 +4,9 @@ use runx_contracts::{ExecutionBoundaryKind, ExecutionBoundaryObservation, JsonOb
 use runx_core::state_machine::GraphState;
 use runx_runtime::Runtime;
 use runx_runtime::adapters::process_tool::ProcessToolAdapter;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ExpectedSummary {
     graph_name: String,
@@ -52,19 +52,27 @@ fn hello_graph_matches_post_cutover_fixture() -> Result<(), Box<dyn std::error::
     );
     assert_eq!(run.receipt.created_at, expected.created_at);
     if std::env::var("RUNX_REGEN_FIXTURES").is_ok() {
-        eprintln!(
-            "REGEN-HELLO graph_seal_digest={} child_seal_digests={:?} graph_receipt_id={} child_receipt_ids={:?}",
-            run.receipt.digest,
-            run.steps
+        let regenerated = ExpectedSummary {
+            graph_seal_digest: run.receipt.digest.to_string(),
+            child_seal_digests: run
+                .steps
                 .iter()
-                .map(|s| s.receipt.digest.clone())
-                .collect::<Vec<_>>(),
-            run.receipt.id,
-            run.steps
+                .map(|step| step.receipt.digest.to_string())
+                .collect(),
+            graph_receipt_id: run.receipt.id.to_string(),
+            child_receipt_ids: run
+                .steps
                 .iter()
-                .map(|s| s.receipt.id.clone())
-                .collect::<Vec<_>>(),
-        );
+                .map(|step| step.receipt.id.to_string())
+                .collect(),
+            ..expected
+        };
+        let summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/runtime/hello-graph/summary.json");
+        std::fs::write(
+            summary_path,
+            format!("{}\n", serde_json::to_string_pretty(&regenerated)?),
+        )?;
         return Ok(());
     }
     assert_eq!(run.receipt.digest, expected.graph_seal_digest);

@@ -16,32 +16,32 @@ importers:
         specifier: workspace:^
         version: link:packages/client
       '@runxhq/contracts':
-        specifier: workspace:^0.3.0
+        specifier: workspace:*
         version: link:packages/contracts
       '@runxhq/extension-sdk':
         specifier: workspace:^0.1.0
         version: link:packages/extension-sdk
       '@types/node':
-        specifier: ^26.5.1
-        version: 26.5.1
+        specifier: ^26.6.5
+        version: 26.6.6
       '@x402/core':
-        specifier: 2.27.0
-        version: 2.27.0
+        specifier: 2.29.0
+        version: 2.29.0
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
       tsx:
-        specifier: ^4.23.13
-        version: 4.23.13
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
       vite:
         specifier: ^8.3.5
-        version: 8.3.5(@types/node@26.5.1)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.1)
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^4.1.12
-        version: 4.1.12(@types/node@26.5.1)(vite@8.3.5(@types/node@26.5.1)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.1))
+        version: 4.1.12(@types/node@26.6.6)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/cli: {}
 
@@ -69,8 +69,8 @@ importers:
   packages/langchain:
     dependencies:
       '@langchain/core':
-        specifier: ^1.2.10
-        version: 1.2.11
+        specifier: ^1.3.0
+        version: 1.3.2
       '@runxhq/client':
         specifier: workspace:^
         version: link:../client
@@ -242,8 +242,8 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@langchain/core@1.2.11':
-    resolution: {integrity: sha512-8yuWLLloTSYA453akm2JSadOVa8kGDY8v+kTzQ6kTY6aIETTEIxgysjZWyKrWQLo3UazctsSoGJ8JrdCGFL4/w==}
+  '@langchain/core@1.3.2':
+    resolution: {integrity: sha512-kXI5wkIRy6MVNBFzFdN4MyNAGPTsodVZFQ9BRQTyOCNnKy+qPuipMCl+qaybtN6rQ+0YrJvfTxYd+u4goAHtFQ==}
     engines: {node: '>=20'}
 
   '@oxc-project/types@0.155.0':
@@ -354,8 +354,8 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
-  '@types/node@26.5.1':
-    resolution: {integrity: sha512-CzNm2FezW4VR/LjG6yUdiEgLE/rAQ9Slj5gCu/C2VrdcW7I0ahNZ8DRbHT7zOZ6r3ONgd/bsQIeSaoDGrd1C6g==}
+  '@types/node@26.6.6':
+    resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -506,8 +506,8 @@ packages:
   '@vitest/utils@4.1.12':
     resolution: {integrity: sha512-Q3awXrwOfEV+qc3WmO5ONyE0yO7Q1gQ9/oyHxGLZ/pl7N3NO/ZztqQwKLuwMkV+CA1JYSIeO3gkHnRDIo4AVaA==}
 
-  '@x402/core@2.27.0':
-    resolution: {integrity: sha512-UbxCKnoTsg5nQX9fYER3g9tt5l80jHm1IZOmDczQRqE0cwskls5r+VAAj0iUQfHVshnpv0qo/rLFI7UntqL96g==}
+  '@x402/core@2.29.0':
+    resolution: {integrity: sha512-fkS0JqVwHgczteDlwItLRipOlIzm28U9HWLvYnYpnNbfmepoBT/4ux7LjrR0xGD51JHoC8/r+Qo7uCfoAQYeuw==}
 
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
@@ -574,8 +574,8 @@ packages:
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
 
-  langsmith@0.7.10:
-    resolution: {integrity: sha512-3EjJx9zGMzqF60eT9JADHF+Hn/T5ayTgEVp4d3M5yvJIJi3q6seX0p5jT8ecBCWBi1kIvvssWrcDxfwgSier7Q==}
+  langsmith@0.11.6:
+    resolution: {integrity: sha512-5hfJM5DEZpXFxUS3U9nY2CMyBRmFnhkJj7znUODJ8vsr/Jx38tGJl4GIhV484xAY7yQFWrFOTDr33PB95kHUKg==}
     peerDependencies:
       '@opentelemetry/api': '*'
       '@opentelemetry/exporter-trace-otlp-proto': '*'
@@ -747,8 +747,8 @@ packages:
     resolution: {integrity: sha512-Bf+ILmBgretUrdJxzXM0SgXLZ3XfiaUuOj/IKQHuTXip+05Xn+uyEYdVg0kYDipTBcLrCVyUzAPz7QmArb0mmw==}
     engines: {node: '>=14.0.0'}
 
-  tsx@4.23.13:
-    resolution: {integrity: sha512-BL5MGkRln6aDYhb0xbQlEAGw743BaZYWdbWtdJOBriYJboKgUUYCadFp2/FpBBZquBC/ezNBn7wMMPx7FDZUDw==}
+  tsx@4.23.15:
+    resolution: {integrity: sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -854,9 +854,6 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
@@ -944,12 +941,12 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@langchain/core@1.2.11':
+  '@langchain/core@1.3.2':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@standard-schema/spec': 1.1.0
       js-tiktoken: 1.0.21
-      langsmith: 0.7.10
+      langsmith: 0.11.6
       mustache: 4.2.0
       p-queue: 6.6.2
       zod: 4.6.7
@@ -1020,7 +1017,7 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
-  '@types/node@26.5.1':
+  '@types/node@26.6.6':
     dependencies:
       undici-types: 8.9.0
 
@@ -1093,13 +1090,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@26.5.1)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.1))':
+  '@vitest/mocker@4.1.12(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@vitest/spy': 4.1.12
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.3.5(@types/node@26.5.1)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.1)
+      vite: 8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/pretty-format@4.1.12':
     dependencies:
@@ -1125,9 +1122,9 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  '@x402/core@2.27.0':
+  '@x402/core@2.29.0':
     dependencies:
-      zod: 3.25.76
+      zod: 4.6.7
 
   ajv@8.20.0:
     dependencies:
@@ -1202,7 +1199,7 @@ snapshots:
 
   json-schema-traverse@1.0.0: {}
 
-  langsmith@0.7.10:
+  langsmith@0.11.6:
     dependencies:
       p-queue: 6.6.2
 
@@ -1332,7 +1329,7 @@ snapshots:
 
   tinyrainbow@3.1.0: {}
 
-  tsx@4.23.13:
+  tsx@4.23.15:
     dependencies:
       esbuild: 0.28.1
     optionalDependencies:
@@ -1363,7 +1360,7 @@ snapshots:
 
   undici-types@8.9.0: {}
 
-  vite@8.3.5(@types/node@26.5.1)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.1):
+  vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -1371,16 +1368,16 @@ snapshots:
       rolldown: 1.2.15
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 26.5.1
+      '@types/node': 26.6.6
       esbuild: 0.28.1
       fsevents: 2.3.3
-      tsx: 4.23.13
+      tsx: 4.23.15
       yaml: 2.9.1
 
-  vitest@4.1.12(@types/node@26.5.1)(vite@8.3.5(@types/node@26.5.1)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.1)):
+  vitest@4.1.12(@types/node@26.6.6)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@vitest/expect': 4.1.12
-      '@vitest/mocker': 4.1.12(vite@8.3.5(@types/node@26.5.1)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.1))
+      '@vitest/mocker': 4.1.12(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(tsx@4.23.15)(yaml@2.9.1))
       '@vitest/pretty-format': 4.1.12
       '@vitest/runner': 4.1.12
       '@vitest/snapshot': 4.1.12
@@ -1397,10 +1394,10 @@ snapshots:
       tinyexec: 1.2.4
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.0
-      vite: 8.3.5(@types/node@26.5.1)(esbuild@0.28.1)(tsx@4.23.13)(yaml@2.9.1)
+      vite: 8.3.5(@types/node@26.6.6)(esbuild@0.28.1)(tsx@4.23.15)(yaml@2.9.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 26.5.1
+      '@types/node': 26.6.6
     transitivePeerDependencies:
       - msw
 
@@ -1410,7 +1407,5 @@ snapshots:
       stackback: 0.0.2
 
   yaml@2.9.1: {}
-
-  zod@3.25.76: {}
 
   zod@4.6.7: {}

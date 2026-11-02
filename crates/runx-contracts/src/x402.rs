@@ -22,9 +22,9 @@ use crate::{
 };
 
 pub const X402_PROTOCOL_VERSION: u8 = 2;
-pub const X402_UPSTREAM_COMMIT: &str = "71eb9a55e081e7b81ba3046d0bd17c3eb9c7bf81";
+pub const X402_UPSTREAM_COMMIT: &str = "e4a086819f419e9395acbbdc1679fe6627029ff7";
 pub const X402_UPSTREAM_PACKAGE: &str = "@x402/core";
-pub const X402_UPSTREAM_PACKAGE_VERSION: &str = "2.27.0";
+pub const X402_UPSTREAM_PACKAGE_VERSION: &str = "2.29.0";
 
 pub const X402_PAYMENT_REQUIRED_HEADER: &str = "PAYMENT-REQUIRED";
 pub const X402_PAYMENT_SIGNATURE_HEADER: &str = "PAYMENT-SIGNATURE";
@@ -76,7 +76,7 @@ impl RunxSchema for X402Version2 {
     }
 }
 
-/// x402 v2's upstream CAIP-2 reader: at least three bytes and one colon.
+/// Tolerant x402 network wire reader: at least three bytes and one colon.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct X402Network(String);

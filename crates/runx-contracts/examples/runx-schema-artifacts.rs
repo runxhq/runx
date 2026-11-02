@@ -48,7 +48,16 @@ fn print_types() -> Result<(), std::io::Error> {
             }
         }
     }
-    let document = serde_json::json!({ "artifacts": artifacts, "types": types });
+    let document = serde_json::json!({
+        "artifacts": artifacts,
+        "types": types,
+        "x402": {
+            "protocolVersion": runx_contracts::X402_PROTOCOL_VERSION,
+            "upstreamPackage": runx_contracts::X402_UPSTREAM_PACKAGE,
+            "upstreamPackageVersion": runx_contracts::X402_UPSTREAM_PACKAGE_VERSION,
+            "upstreamCommit": runx_contracts::X402_UPSTREAM_COMMIT,
+        },
+    });
     let mut stdout = std::io::stdout().lock();
     serde_json::to_writer(&mut stdout, &document).map_err(std::io::Error::other)?;
     writeln!(stdout)

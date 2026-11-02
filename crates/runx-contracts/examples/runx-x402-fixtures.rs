@@ -46,7 +46,7 @@ const SCHEMAS: &[(&str, &str)] = &[
 const SOURCES: &[(&str, &str)] = &[
     (
         "typescript/packages/core/src/schemas/index.ts",
-        "sha256:6a772c8c33307dc81ebc1e6d0af4697a518f9910e1fe128c480b304a187f7564",
+        "sha256:69031835b947524ef6acd29b43f6f1f331d2ff4dfb16981d7c4f618d10baf7ed",
     ),
     (
         "typescript/packages/core/src/types/payments.ts",
@@ -58,15 +58,15 @@ const SOURCES: &[(&str, &str)] = &[
     ),
     (
         "typescript/packages/core/src/http/index.ts",
-        "sha256:b111b21ae7cf1e7f34f088a580434480188c70a47b93e3f87f45d03747c326ed",
+        "sha256:b89a8ee62f4dc87b8c8b2a0c599223050c1953a9cb672739fed119a34713d11c",
     ),
     (
         "specs/x402-specification-v2.md",
-        "sha256:cb66bdef710298233316b02d48fce4a9417ec5449ed9cab7f5d9fe6a454920cd",
+        "sha256:c0c94b8cc8ed6b95ebc85c893277b6259a8ff92c0545d746c9574a1682ccb1a5",
     ),
     (
         "specs/transports-v2/http.md",
-        "sha256:4f0298aaa23ac75de0eb49b1e96e6e67a5b910d7527b3a71c63e426b3bf5bdfb",
+        "sha256:7f8b046916e78ba02b986a6738c63d757613fa45e2746c8382c5b51e3aad506c",
     ),
     (
         "specs/transports-v2/mcp.md",

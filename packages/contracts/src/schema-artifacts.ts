@@ -3,6 +3,13 @@
 
 import type { JsonSchema } from "./internal.js";
 
+export const runxX402Metadata = {
+  "protocolVersion": 2,
+  "upstreamCommit": "e4a086819f419e9395acbbdc1679fe6627029ff7",
+  "upstreamPackage": "@x402/core",
+  "upstreamPackageVersion": "2.29.0"
+} as const;
+
 export const runxSchemaArtifacts = {
   "act-assignment.schema.json": {
     "$id": "https://schemas.runx.ai/runx/act-assignment/v1.json",
