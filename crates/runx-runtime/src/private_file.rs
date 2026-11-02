@@ -275,12 +275,11 @@ mod platform {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     #[test]
     fn a_replaced_private_file_is_never_open_to_others() -> Result<(), Box<dyn std::error::Error>> {
         use std::os::unix::fs::PermissionsExt;
@@ -304,7 +303,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(unix)]
     #[test]
     fn a_directory_others_can_write_holds_no_private_file() -> Result<(), Box<dyn std::error::Error>>
     {

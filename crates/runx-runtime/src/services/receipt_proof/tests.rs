@@ -6,12 +6,17 @@ use runx_contracts::{JsonObject, JsonValue, Receipt};
 use serde::Deserialize;
 
 use super::prove_receipts;
+#[cfg(unix)]
 use crate::adapter::InvocationOutput;
-use crate::paths::{RUNX_HOME_ENV, RunxPaths};
+use crate::paths::RUNX_HOME_ENV;
+#[cfg(unix)]
+use crate::paths::RunxPaths;
 use crate::receipts::{
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
-    RUNX_RECEIPT_VERIFY_KID_ENV, RunScope, RuntimeReceiptSignatureConfig, step_receipt,
+    RUNX_RECEIPT_VERIFY_KID_ENV,
 };
+#[cfg(unix)]
+use crate::receipts::{RunScope, RuntimeReceiptSignatureConfig, step_receipt};
 use crate::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV};
 
 const MISSING_RECEIPT_ID: &str =

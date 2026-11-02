@@ -31,9 +31,14 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::{Path, PathBuf};
 
-    use crate::paths::{RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV};
+    #[cfg(unix)]
+    use crate::paths::RUNX_HOME_ENV;
+    use crate::paths::{RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV};
+    #[cfg(unix)]
     use crate::receipts::RUNX_RECEIPT_SIGN_KID_ENV;
-    use crate::services::{ReceiptServices, WorkspaceEnv};
+    #[cfg(unix)]
+    use crate::services::ReceiptServices;
+    use crate::services::WorkspaceEnv;
 
     #[test]
     fn skill_env_injects_workspace_and_project_paths() -> Result<(), Box<dyn std::error::Error>> {
