@@ -214,7 +214,7 @@ harness:
         resource: subject_requests
         aggregate_id: subject:scope-mismatch
         expected_version: 0
-        idempotency_key: scope-mismatch-v1
+        idempotency_key: scope-mismatch:verdict:v1
       expect:
         status: sealed
         steps:
