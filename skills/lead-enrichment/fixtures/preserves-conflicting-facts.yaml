@@ -1,6 +1,7 @@
 name: preserves-conflicting-facts
 kind: skill
 target: ..
+runner: enrich
 inputs:
   subject: {id: 'lead:example', kind: person}
   as_of: '2026-10-10T00:00:00Z'

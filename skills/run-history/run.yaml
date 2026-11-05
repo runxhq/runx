@@ -1,6 +1,5 @@
 skill: run-history
-version: "0.2.11"
-
+version: "0.2.12"
 catalog:
   publisher: runx
   kind: skill
@@ -11,16 +10,19 @@ catalog:
   completion: runtime_receipt
   approval: none
   category: data
-
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases:
     - name: reports-native-history-and-catalog-coverage
       operator_journeys:
         - mode: standalone
-          confusors: [receipt-query, receipt-audit]
+          confusors:
+            - receipt-query
+            - receipt-audit
           request: Summarize recent Runx outcomes and catalog test coverage for this project.
-          expected_outcome: Return deterministic bounded run outcomes, paused runs, and catalog coverage facts with truthful follow-ups.
+          expected_outcome: Return deterministic bounded run outcomes, paused runs, and catalog coverage facts
+            with truthful follow-ups.
         - mode: composed
           request: Analyze these existing run and catalog projections for operator follow-up.
           expected_outcome: Reuse supplied native projections without rereading run records or inventing metrics.
@@ -32,7 +34,6 @@ harness:
       inputs:
         objective: Show how Runx behaved over the supplied window.
         scope: workspace
-        period: 30d
         runs:
           - run_id: run_release_1
             skill: release
@@ -74,7 +75,6 @@ harness:
                   catalog: supplied_replay
         receipt:
           schema: runx.receipt.v1
-
     - name: filters-one-skill
       inputs:
         objective: Review release runs only.
@@ -93,7 +93,6 @@ harness:
         status: sealed
         receipt:
           schema: runx.receipt.v1
-
     - name: empty-history-stops-for-evidence
       inputs:
         objective: Show how our skills are doing.
@@ -103,7 +102,45 @@ harness:
         status: sealed
         receipt:
           schema: runx.receipt.v1
-
+    - name: scope-is-applied-before-the-replay-bound
+      inputs:
+        objective: Count the selected skill from the supplied projections.
+        scope: target
+        limit: 1
+        runs:
+          - run_id: other
+            skill: other
+            state: sealed
+            outcome: failed
+          - run_id: target
+            skill: target
+            state: sealed
+            outcome: completed
+        catalog_items: []
+      expect:
+        status: sealed
+        step_outputs:
+          finalize-replay:
+            subset:
+              history_report:
+                decision: ready
+                runs:
+                  terminal_count: 1
+                  outcomes:
+                    completed: 1
+        receipt:
+          schema: runx.receipt.v1
+    - name: replay-refuses-to-claim-an-unapplied-time-window
+      inputs:
+        objective: Do not relabel supplied rows as a fresh 7-day view.
+        period: 7d
+        runs: []
+        catalog_items: []
+      expect:
+        status: failure
+        receipt:
+          schema: runx.receipt.v1
+          outcome: failed
 runners:
   report:
     default: true
@@ -112,6 +149,9 @@ runners:
         type: string
         required: true
         description: The bounded history question.
+        schema:
+          minLength: 1
+          pattern: \S
       scope:
         type: string
         required: false
@@ -126,19 +166,65 @@ runners:
         required: false
         description: Optional RFC3339 anchor for a reproducible relative lookback.
       limit:
-        type: number
+        type: integer
         required: false
         default: 1000
         description: Maximum runs to inspect; must be from 1 to 1000.
+        schema:
+          minimum: 1
+          maximum: 1000
       runs:
-        type: json
+        type: array
         required: false
-        description: Explicit run rows for deterministic replay; live runs use the native run list.
+        description: Already-windowed native run projections for controlled replay; pair with catalog_items.
+          Period/as_of cannot be reapplied to replay.
+        schema:
+          items:
+            type: object
+            required:
+              - run_id
+              - skill
+              - state
+            additionalProperties: true
+            properties:
+              run_id:
+                type: string
+                minLength: 1
+              skill:
+                type: string
+                minLength: 1
+              state:
+                type: string
+                minLength: 1
+              outcome:
+                type:
+                  - string
+                  - "null"
       catalog_items:
-        type: json
+        type: array
         required: false
         description: Explicit catalog rows paired with runs for deterministic replay.
-    result_from: [finalize-live, finalize-replay]
+        schema:
+          items:
+            type: object
+            required:
+              - name
+            additionalProperties: true
+            properties:
+              name:
+                type: string
+                minLength: 1
+              fixtures:
+                type: integer
+                minimum: 0
+              harness_cases:
+                type: integer
+                minimum: 0
+    result_from:
+      - finalize-live
+      - finalize-replay
+    examples:
+      - objective: Which runs failed this week, and why?
     steps:
       - id: prepare
         label: normalize the bounded report request
@@ -150,7 +236,9 @@ runners:
           limit: $input.limit
           runs: $input.runs
           catalog_items: $input.catalog_items
-        tool: { module: run-history.mjs, export: prepareHistory }
+        tool:
+          module: run-history.mjs
+          export: prepareHistory
         outputs:
           history_context: object
         artifacts:
@@ -170,6 +258,7 @@ runners:
           period: $steps.prepare.history_context.lookback
           as_of: $steps.prepare.history_context.as_of
           limit: $steps.prepare.history_context.limit
+          until: $steps.prepare.history_context.as_of
       - id: catalog
         label: inspect native skill coverage
         when:
@@ -185,7 +274,9 @@ runners:
         when:
           value: $steps.prepare.history_context.path
           equals: live
-        tool: { module: run-history.mjs, export: finalizeHistory }
+        tool:
+          module: run-history.mjs
+          export: finalizeHistory
         outputs:
           history_report:
             type: object
@@ -207,7 +298,9 @@ runners:
           runs: $input.runs
           catalog_items: $input.catalog_items
           history_context: $steps.prepare.history_context
-        tool: { module: run-history.mjs, export: finalizeHistory }
+        tool:
+          module: run-history.mjs
+          export: finalizeHistory
         outputs:
           history_report:
             type: object

@@ -7,76 +7,132 @@
     "schema",
     "decision",
     "target",
-    "dependency_inventory",
     "advisories",
     "escalation_criteria",
     "remediation_plan",
     "operator_summary",
     "evidence_binding",
     "validation",
-    "publication_status"
+    "publication_status",
+    "exposure_evidence"
   ],
   "properties": {
-    "schema": { "type": "string", "const": "runx/vuln-triage.scan.v1" },
+    "schema": {
+      "type": "string",
+      "const": "runx/vuln-triage.scan.v1"
+    },
     "decision": {
       "type": "string",
       "enum": [
-        "needs_agent",
-        "needs_verified_evidence",
-        "no_verified_findings",
+        "no_matches_in_scope",
         "needs_more_evidence",
         "remediate",
         "monitor",
         "needs_human"
       ]
     },
-    "target": { "type": "string" },
-    "dependency_inventory": {
+    "target": {
+      "type": "string"
+    },
+    "advisories": {
       "type": "array",
-      "maxItems": 5000,
       "items": {
         "type": "object",
-        "required": ["name", "version", "path", "direct", "development"],
-        "properties": {
-          "name": { "type": "string", "minLength": 1 },
-          "version": { "type": "string", "minLength": 1 },
-          "path": { "type": "string", "minLength": 1 },
-          "direct": { "type": "boolean" },
-          "development": { "type": "boolean" }
-        },
         "additionalProperties": true
       }
     },
-    "advisories": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
     "escalation_criteria": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["advisory_id", "trigger", "action"],
+        "required": [
+          "finding_key",
+          "advisory_id",
+          "trigger",
+          "action"
+        ],
         "properties": {
-          "advisory_id": { "type": "string", "minLength": 1 },
-          "trigger": { "type": "string", "minLength": 1 },
-          "action": { "type": "string", "minLength": 1 }
+          "finding_key": {
+            "type": "string"
+          },
+          "advisory_id": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          }
         },
         "additionalProperties": false
       }
     },
-    "remediation_plan": { "type": "object", "additionalProperties": true },
-    "operator_summary": { "type": "object", "additionalProperties": true },
-    "evidence_binding": { "type": "object", "additionalProperties": true },
+    "remediation_plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_key",
+          "recommendation",
+          "fixed_version"
+        ],
+        "properties": {
+          "finding_key": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          },
+          "fixed_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "operator_summary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "evidence_binding": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "validation": {
       "type": "object",
-      "required": ["status", "findings"],
+      "required": [
+        "status",
+        "findings"
+      ],
       "properties": {
-        "status": { "type": "string", "enum": ["pass", "fail"] },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
         "findings": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "properties": {
-              "code": { "type": "string", "minLength": 1 },
-              "message": { "type": "string", "minLength": 1 }
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              }
             },
             "additionalProperties": false
           }
@@ -84,7 +140,17 @@
       },
       "additionalProperties": false
     },
-    "publication_status": { "type": "string", "const": "not_published" }
+    "publication_status": {
+      "type": "string",
+      "const": "not_published"
+    },
+    "exposure_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
   },
   "additionalProperties": false
 }

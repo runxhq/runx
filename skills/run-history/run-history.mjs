@@ -1,11 +1,14 @@
 export function prepareHistory(inputs) {
   const objective = requiredString(inputs.objective, "objective");
   const scope = stringValue(inputs.scope) || "workspace";
-  const limit = boundedLimit(inputs.limit);
+  const limit = inputs.limit;
   const historyReplay = Array.isArray(inputs.runs);
   const catalogReplay = Array.isArray(inputs.catalog_items);
   if (historyReplay !== catalogReplay) {
     throw new Error("runs and catalog_items must be supplied together for replay");
+  }
+  if (historyReplay && (stringValue(inputs.period) || stringValue(inputs.as_of))) {
+    throw new Error("Replay summarizes already-windowed projections; apply period/as_of through run.list before capturing them, or omit replay inputs for a live filtered report.");
   }
   return {
     history_context: {
@@ -30,14 +33,15 @@ export function finalizeHistory(inputs) {
   const catalogOverride = prepared.path === "replay";
   const nativeCatalog = record(inputs.authoring_context);
   const listedRuns = historyOverride
-    ? records(inputs.runs).slice(0, prepared.limit)
+    ? records(inputs.runs)
     : records(record(inputs.run_list).runs);
   const catalogItems = catalogOverride
     ? records(inputs.catalog_items)
     : records(nativeCatalog.catalog_skills);
   const matchesSkill = (name) =>
     !prepared.skill_filter || stringValue(name)?.toLowerCase().includes(prepared.skill_filter.toLowerCase());
-  const runs = listedRuns.filter((row) => matchesSkill(row.skill));
+  const matchingRuns = historyOverride ? listedRuns.filter((row) => matchesSkill(row.skill)) : listedRuns;
+  const runs = historyOverride ? matchingRuns.slice(0, prepared.limit) : matchingRuns;
   const sealed = runs.filter((row) => row.state === "sealed");
   const pending = runs.filter((row) => row.state === "paused");
   const filteredCatalog = catalogItems.filter((row) => matchesSkill(row.name));
@@ -82,6 +86,10 @@ export function finalizeHistory(inputs) {
       limitations: [
         "The run list exposes each run's state and sealed outcome, not its execution bodies.",
         "Catalog coverage proves declared fixtures or inline cases, not live provider behavior.",
+        "Rates describe only this bounded selection of sealed runs; active states are outside the sealed/paused metrics.",
+        ...(historyOverride ? ["Replay preserves the supplied row order and performs no temporal filtering; the source must already have the intended native window."] : []),
+        ...(runs.length >= prepared.limit ? [`The ${prepared.limit}-run bound was reached; older matching runs may be omitted.`] : []),
+        ...(prepared.as_of ? [`The native history window ends at ${prepared.as_of}.`] : []),
       ],
     },
   };
@@ -123,16 +131,10 @@ function rate(numerator, denominator) {
   return denominator === 0 ? null : Number((numerator / denominator).toFixed(4));
 }
 
-function boundedLimit(value) {
-  if (value === undefined || value === null || value === "") return 1_000;
-  const limit = Number(value);
-  if (!Number.isInteger(limit) || limit < 1 || limit > 1_000) throw new Error("limit must be an integer from 1 to 1000");
-  return limit;
-}
 
 function absoluteInstant(value) {
   const text = stringValue(value);
-  return text && text.includes("T") && Number.isFinite(Date.parse(text)) ? text : null;
+  return text && /[Tt]/u.test(text) ? text : null;
 }
 
 function numberValue(value) {

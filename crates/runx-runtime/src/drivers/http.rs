@@ -11,8 +11,8 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 
 use runx_contracts::connector::{
-    DecodeStep, HttpImplementation, HttpMethod as ManifestMethod, HttpPages, HttpReadback,
-    HttpRequest, RateLimit, TemplateError, TemplateInputs,
+    DecodeStep, HttpImplementation, HttpMethod as ManifestMethod, HttpPageCursorLocation,
+    HttpReadback, HttpRequest, RateLimit, TemplateError, TemplateInputs,
 };
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 use url::Url;
@@ -26,11 +26,12 @@ use crate::kernel::operation::hosted::Gateway;
 
 pub(crate) mod auth;
 mod oauth2;
+mod pages;
 
 /// The status a status-only checking read reports, for the kernel to match.
 pub(crate) const STATUS_FIELD: &str = "http_status";
 
-/// The ceilings of one paged read, whatever limit the call states.
+/// The ceilings of one declared paged request across all its repeated items.
 const MAX_PAGES: usize = 100;
 const MAX_PAGED_ITEMS: usize = 10_000;
 const MAX_PAGED_BYTES: usize = 32 * 1024 * 1024;
@@ -98,7 +99,6 @@ impl Driver for Http<'_> {
 
     fn perform(&self, item: Option<usize>) -> Result<Observed, Unperformed> {
         let spec = self.spec;
-        let mutation = self.call.mutation();
         if let Some(index) = item {
             let items = self.items().map_err(not_sent)?.unwrap_or_default();
             let item = items
@@ -111,7 +111,7 @@ impl Driver for Http<'_> {
                 .ok_or_else(|| not_sent("the write declares no request".to_owned()))?;
             let response = self.send(request, Some((index, item)), None, None)?;
             return Ok(Observed {
-                value: self.answered(&response, true)?,
+                value: self.answered(&response)?,
                 evidence: vec![response.body_digest],
             });
         }
@@ -119,35 +119,90 @@ impl Driver for Http<'_> {
         let mut decoded = Vec::with_capacity(spec.requests.len());
         // A read's later requests render from its earlier answers.
         let mut answers = BTreeMap::new();
-        for request in spec.requests.iter() {
-            let earlier = (!request.responses().is_empty()).then_some(&answers);
-            let value = match (&request.each, &request.pages) {
-                (Some(each), _) => {
-                    let items = match each.render(&self.inputs(None, earlier)) {
-                        Ok(JsonValue::Array(items)) => items,
-                        Ok(_) => return Err(not_sent("each must render to an array".to_owned())),
-                        Err(error) => return Err(not_sent(error.to_string())),
-                    };
-                    let mut repeated = Vec::with_capacity(items.len());
-                    for item in items.iter().enumerate() {
-                        let response = self.send(request, Some(item), earlier, None)?;
-                        evidence.push(response.body_digest.clone());
-                        repeated.push(self.answered(&response, false)?);
+        let performed = (|| {
+            for request in spec.requests.iter() {
+                let earlier = (!request.responses().is_empty()).then_some(&answers);
+                let mut page_budget = pages::PageBudget::new();
+                let value = match (&request.each, &request.pages) {
+                    (Some(each), _) => {
+                        let items = match each.render(&self.inputs(None, earlier)) {
+                            Ok(JsonValue::Array(items)) => items,
+                            Ok(_) => {
+                                return Err(not_sent("each must render to an array".to_owned()));
+                            }
+                            Err(error) => return Err(not_sent(error.to_string())),
+                        };
+                        let mut repeated = Vec::with_capacity(items.len());
+                        for item in items.iter().enumerate() {
+                            let value = if let Some(pages) = &request.pages {
+                                self.pages(
+                                    request,
+                                    pages,
+                                    Some(item),
+                                    earlier,
+                                    &mut page_budget,
+                                    &mut evidence,
+                                )?
+                            } else {
+                                let response = self.send(request, Some(item), earlier, None)?;
+                                let value = self.answered(&response)?;
+                                evidence.push(response.body_digest.clone());
+                                value
+                            };
+                            repeated.push(value);
+                        }
+                        JsonValue::Array(repeated)
                     }
-                    JsonValue::Array(repeated)
+                    (None, Some(pages)) => self.pages(
+                        request,
+                        pages,
+                        None,
+                        earlier,
+                        &mut page_budget,
+                        &mut evidence,
+                    )?,
+                    (None, None) => {
+                        let response = self.send(request, None, earlier, None)?;
+                        let value = self.answered(&response)?;
+                        evidence.push(response.body_digest.clone());
+                        value
+                    }
+                };
+                answers.insert(
+                    request.id.as_str().to_owned(),
+                    JsonObject::from([("json".to_owned(), value.clone())]),
+                );
+                decoded.push(value);
+            }
+            Ok::<(), Unperformed>(())
+        })();
+        if let Err(failure) = performed {
+            if !evidence.is_empty() {
+                if let Unperformed::Halted {
+                    code,
+                    reason,
+                    retry_at,
+                    ..
+                } = failure
+                {
+                    return Err(Unperformed::Halted {
+                        code,
+                        reason: format!(
+                            "an earlier provider request completed before this failure: {reason}"
+                        ),
+                        retry_at,
+                        partial: true,
+                    });
                 }
-                (None, Some(pages)) => self.pages(request, pages, earlier, &mut evidence)?,
-                (None, None) => {
-                    let response = self.send(request, None, earlier, None)?;
-                    evidence.push(response.body_digest.clone());
-                    self.answered(&response, mutation)?
-                }
-            };
-            answers.insert(
-                request.id.as_str().to_owned(),
-                JsonObject::from([("json".to_owned(), value.clone())]),
-            );
-            decoded.push(value);
+                return Err(Unperformed::MaybeSent {
+                    code: "partial_read",
+                    reason: format!(
+                        "an earlier provider request completed before this failure: {}",
+                        failure.reason()
+                    ),
+                });
+            }
+            return Err(failure);
         }
         let value = match <[JsonValue; 1]>::try_from(decoded) {
             Ok([single]) => single,
@@ -310,7 +365,7 @@ impl Http<'_> {
         request: &HttpRequest,
         item: Option<(usize, &JsonValue)>,
         responses: Option<&BTreeMap<String, JsonObject>>,
-        cursor: Option<&str>,
+        cursor: Option<&JsonValue>,
     ) -> Result<RuntimeHttpResponse, Unperformed> {
         let mut rendered = self
             .render(request, item.map(|(_, item)| item), responses, cursor)
@@ -355,7 +410,7 @@ impl Http<'_> {
         request: &HttpRequest,
         item: Option<&JsonValue>,
         responses: Option<&BTreeMap<String, JsonObject>>,
-        cursor: Option<&str>,
+        cursor: Option<&JsonValue>,
     ) -> Result<RuntimeHttpRequest, String> {
         let instance = match self.egress {
             Egress::Direct(_) => Some(self),
@@ -371,19 +426,15 @@ impl Http<'_> {
     }
 
     /// A call's answer, decoded. A rate limit, a refused credential or a
-    /// billing hold halts the caller. For a write, any other 4xx but a
-    /// timeout is the provider refusing to act, with its answer; any other
-    /// answer that cannot be decoded may have acted.
-    fn answered(
-        &self,
-        response: &RuntimeHttpResponse,
-        mutation: bool,
-    ) -> Result<JsonValue, Unperformed> {
+    /// billing hold halts the caller. Any other 4xx but a timeout is the
+    /// provider refusing the request; billing still follows the declared
+    /// basis. An answer that cannot be decoded may have acted or charged.
+    fn answered(&self, response: &RuntimeHttpResponse) -> Result<JsonValue, Unperformed> {
         if let Some(halted) = halted(response, self.spec.rate_limit.as_ref()) {
             return Err(halted);
         }
         decode(response, &self.spec.decode).map_err(|reason| match response.status {
-            400..=499 if mutation && response.status != 408 => Unperformed::Refused {
+            400..=499 if response.status != 408 => Unperformed::Refused {
                 code: "provider_rejected",
                 reason,
                 answer: if self
@@ -402,91 +453,6 @@ impl Http<'_> {
                 reason,
             },
         })
-    }
-
-    /// A paged read: each page in turn, until a page names no cursor, holds
-    /// no items, or the items reach the call's limit. Every page is whole, so
-    /// the last can carry the items past the limit; a cursor the provider
-    /// names twice fails the read. A read is finite whatever the call asks:
-    /// it stops at the paged read's ceilings and returns the provider's next
-    /// cursor with what it read.
-    fn pages(
-        &self,
-        request: &HttpRequest,
-        pages: &HttpPages,
-        responses: Option<&BTreeMap<String, JsonObject>>,
-        evidence: &mut Vec<String>,
-    ) -> Result<JsonValue, Unperformed> {
-        let limit = match pages
-            .limit
-            .as_ref()
-            .map(|limit| limit.render(&self.inputs(None, responses)))
-        {
-            None
-            | Some(Err(TemplateError::Unavailable {
-                binding: "$argument",
-                ..
-            })) => None,
-            Some(Ok(JsonValue::Number(JsonNumber::I64(limit)))) => Some(
-                usize::try_from(limit)
-                    .map_err(|_| not_sent("a page limit is a whole number".to_owned()))?,
-            ),
-            Some(Ok(_)) => return Err(not_sent("a page limit is a whole number".to_owned())),
-            Some(Err(error)) => return Err(not_sent(error.to_string())),
-        };
-        let mut items = Vec::new();
-        let mut cursor = None::<String>;
-        let mut cursors = std::collections::BTreeSet::new();
-        let started = std::time::Instant::now();
-        let (mut read_pages, mut read_bytes) = (0_usize, 0_usize);
-        loop {
-            let response = self.send(request, None, responses, cursor.as_deref())?;
-            evidence.push(response.body_digest.clone());
-            read_pages += 1;
-            read_bytes = read_bytes.saturating_add(response.body.len());
-            let page = self.answered(&response, false)?;
-            // A provider omits the items of an empty page.
-            let found = match at_path(&page, pages.items.as_str()) {
-                None | Some(JsonValue::Null) => Vec::new(),
-                Some(JsonValue::Array(found)) => found.clone(),
-                Some(_) => {
-                    return Err(Unperformed::MaybeSent {
-                        code: "invalid_response",
-                        reason: format!("page items at {} are not an array", pages.items),
-                    });
-                }
-            };
-            let empty = found.is_empty();
-            items.extend(found);
-            cursor = at_path(&page, pages.cursor.as_str()).and_then(scalar_string);
-            // A provider that names a cursor it already answered would page
-            // forever; the read fails rather than loop.
-            if let Some(next) = &cursor
-                && !cursors.insert(next.clone())
-            {
-                return Err(Unperformed::MaybeSent {
-                    code: "invalid_response",
-                    reason: format!("the provider repeated page cursor {next}"),
-                });
-            }
-            if cursor.is_none() || empty || limit.is_some_and(|limit| items.len() >= limit) {
-                break;
-            }
-            if read_pages >= MAX_PAGES
-                || items.len() >= MAX_PAGED_ITEMS
-                || read_bytes >= MAX_PAGED_BYTES
-                || started.elapsed() >= MAX_PAGED_DURATION
-            {
-                break;
-            }
-        }
-        Ok(JsonValue::Object(JsonObject::from([
-            ("items".to_owned(), JsonValue::Array(items)),
-            (
-                "next".to_owned(),
-                cursor.map_or(JsonValue::Null, JsonValue::String),
-            ),
-        ])))
     }
 
     fn authorization(
@@ -549,6 +515,38 @@ pub(crate) struct DeclaredCall<'a> {
     pub responses: Option<&'a BTreeMap<String, JsonObject>>,
 }
 
+/// The same object-member traversal serves body cursors and credential
+/// injection. Existing array parents can be addressed by canonical indices;
+/// no missing parent is created and the target is always an object member.
+fn body_parent<'a>(
+    body: Option<&'a mut JsonValue>,
+    parent: &[String],
+) -> Result<&'a mut JsonObject, String> {
+    let mut node = body.ok_or("the request has no body at the declared member")?;
+    for segment in parent {
+        let next = match node {
+            JsonValue::Object(object) => object.get_mut(segment),
+            JsonValue::Array(values)
+                if segment == "0"
+                    || !segment.is_empty()
+                        && !segment.starts_with('0')
+                        && segment.bytes().all(|value| value.is_ascii_digit()) =>
+            {
+                segment
+                    .parse::<usize>()
+                    .ok()
+                    .and_then(|index| values.get_mut(index))
+            }
+            _ => None,
+        };
+        node = next.ok_or("the request body has no value at the declared parent")?;
+    }
+    match node {
+        JsonValue::Object(object) => Ok(object),
+        _ => Err("the request body has no object at the declared parent".to_owned()),
+    }
+}
+
 /// Render a declared request as runx Connect does, after
 /// `renderDeclaredRequest` in `packages/contracts/src/connector.ts`. It
 /// carries no credential: Connect's gateway presents the grant's.
@@ -608,7 +606,7 @@ fn render_request(
     spec: &HttpImplementation,
     request: &HttpRequest,
     inputs: &TemplateInputs<'_>,
-    cursor: Option<&str>,
+    cursor: Option<&JsonValue>,
     instance: Option<&Http<'_>>,
 ) -> Result<RuntimeHttpRequest, String> {
     let mut url = Url::parse(
@@ -644,21 +642,33 @@ fn render_request(
     }
     // A page after the first carries the cursor in place of whatever the
     // call started from.
-    let paged = cursor.and_then(|cursor| {
-        request
-            .pages
-            .as_ref()
-            .map(|pages| (pages.param.as_str(), cursor))
-    });
+    let paged = match (cursor, request.pages.as_ref()) {
+        (Some(cursor), Some(pages)) if pages.location == HttpPageCursorLocation::Query => Some((
+            pages.param.as_str(),
+            scalar_string(cursor).ok_or("a page cursor must be a scalar")?,
+        )),
+        _ => None,
+    };
+    if let Some((param, _)) = &paged {
+        let retained: Vec<_> = url
+            .query_pairs()
+            .filter(|(name, _)| name != param)
+            .map(|(name, value)| (name.into_owned(), value.into_owned()))
+            .collect();
+        url.set_query(None);
+        if !retained.is_empty() {
+            url.query_pairs_mut().extend_pairs(retained);
+        }
+    }
     // A query parameter is optional: one whose argument the call does not
     // carry is not sent, and a request that sends none has no query.
     let mut pairs = Vec::with_capacity(request.query.len() + 1);
     let mut cursor_sent = false;
     for (name, template) in &request.query {
-        if let Some((param, cursor)) = paged
-            && param == name
+        if let Some((param, cursor)) = &paged
+            && *param == name
         {
-            pairs.push((param.to_owned(), cursor.to_owned()));
+            pairs.push(((*param).to_owned(), cursor.to_owned()));
             cursor_sent = true;
             continue;
         }
@@ -702,6 +712,11 @@ fn render_request(
         .map(|template| template.render(inputs))
         .transpose()
         .map_err(|error| error.to_string())?;
+    if let (Some(cursor), Some(pages)) = (cursor, request.pages.as_ref())
+        && pages.location == HttpPageCursorLocation::Body
+    {
+        pages::place_body_cursor(body.as_mut(), pages.param.as_str(), cursor)?;
+    }
     if let Some(instance) = instance {
         instance.credential_body(body.as_mut())?;
     }
@@ -770,18 +785,21 @@ fn halted(response: &RuntimeHttpResponse, rate_limit: Option<&RateLimit>) -> Opt
                     None => "the provider rate limited the request".to_owned(),
                 },
                 retry_at,
+                partial: false,
             })
         }
         401 => Some(Unperformed::Halted {
             code: "unauthorized",
             reason: "the provider did not accept the credential (HTTP 401)".to_owned(),
             retry_at: None,
+            partial: false,
         }),
         402 => Some(Unperformed::Halted {
             code: "billing_required",
             reason: "the provider holds the account until its billing is settled (HTTP 402)"
                 .to_owned(),
             retry_at: None,
+            partial: false,
         }),
         _ => None,
     }
@@ -873,6 +891,7 @@ fn not_sent(reason: String) -> Unperformed {
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod paging_cases;
 
     fn response(status: u16, body: &str) -> RuntimeHttpResponse {
         RuntimeHttpResponse::new(status, body)
@@ -1182,6 +1201,7 @@ mod tests {
             Err(Unperformed::Halted {
                 code: "rate_limited",
                 retry_at: Some(retry_at),
+                partial: true,
                 ..
             }) => assert_eq!(retry_at, "2027-01-15T08:00:00Z"),
             Err(other) => return Err(format!("expected a rate limit, got {other:?}")),

@@ -1,5 +1,5 @@
 skill: google-calendar
-version: "0.1.11"
+version: "0.1.12"
 catalog:
   kind: graph
   audience: public
@@ -10,57 +10,92 @@ catalog:
   execution: read
   completion: provider_readback
   approval: none
-
 input_definitions:
   calendar_id:
     type: string
-    required: true
+    required: false
     description: Exact selected Google calendar ID; primary selects the connected account's primary calendar.
-    schema: { pattern: '^(?:primary|[A-Za-z0-9][A-Za-z0-9._@+%-]{0,254})$' }
+    schema:
+      pattern: ^(?:primary|[A-Za-z0-9][A-Za-z0-9._@+%-]{0,254})$
+    default: primary
   time_min:
     type: string
     required: true
-    description: Inclusive window start with explicit UTC offset.
-    schema: { format: date-time }
+    description: Window lower boundary with explicit UTC offset. Events must end after it; events already underway
+      are included.
+    schema:
+      format: date-time
   time_max:
     type: string
     required: true
-    description: Exclusive window end with explicit UTC offset, at most 30 days after start.
-    schema: { format: date-time }
+    description: Window upper boundary with explicit UTC offset. Events must start before it. Must follow time_min.
+    schema:
+      format: date-time
   provider_result:
     type: object
     required: true
     description: Prior Google Calendar provider result, to normalize without another read.
-    schema: { additionalProperties: true }
-
+    schema:
+      additionalProperties: true
+  page_token:
+    type: string
+    required: false
+    default: ""
+    description: Exact next_page_token from the previous read of this calendar and unchanged window; empty starts
+      the window.
+    schema:
+      maxLength: 2000
+  page_size:
+    type: integer
+    required: false
+    default: 100
+    description: Maximum events requested in this provider page (1–2500); default 100. Continue next_page_token
+      for more results.
+    schema:
+      minimum: 1
+      maximum: 2500
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases:
     - name: normalizes-complete-private-and-cancelled-events
       runner: normalize-supplied
       operator_journeys:
         - mode: composed
           request: Reuse already read Google Calendar evidence for the assistant without another provider call.
-          expected_outcome: A bounded context packet preserves cancellation and removes private titles; it does not claim fresh provider readback.
-          prior_evidence: [An existing calendar read result and its separate receipt.]
-          must_not_repeat: [Do not call Google Calendar again.]
+          expected_outcome: A bounded context packet preserves cancellation and removes private titles; it does not
+            claim fresh provider readback.
+          prior_evidence:
+            - An existing calendar read result and its separate receipt.
+          must_not_repeat:
+            - Do not call Google Calendar again.
       inputs:
         kind: events
         calendar_id: primary
-        time_min: "2026-10-04T00:00:00Z"
-        time_max: "2026-10-05T00:00:00Z"
+        time_min: 2026-10-04T00:00:00Z
+        time_max: 2026-10-05T00:00:00Z
         provider_result:
           calendar_id: primary
-          time_min: "2026-10-04T00:00:00Z"
-          time_max: "2026-10-05T00:00:00Z"
-          fetched_at: "2026-10-04T01:00:00Z"
+          time_min: 2026-10-04T00:00:00Z
+          time_max: 2026-10-05T00:00:00Z
+          fetched_at: 2026-10-04T01:00:00Z
           complete: true
           events:
-            - { event_id: private-1, revision: v1, status: confirmed, visibility: private, summary: hidden, all_day: true, start: "2026-10-04", end: "2026-10-05" }
-            - { event_id: cancelled-1, status: cancelled, recurring_event_id: series-1 }
+            - event_id: private-1
+              revision: v1
+              status: confirmed
+              visibility: private
+              summary: hidden
+              all_day: true
+              start: 2026-10-04
+              end: 2026-10-05
+            - event_id: cancelled-1
+              status: cancelled
+              recurring_event_id: series-1
       expect:
         status: sealed
-        steps: [normalize]
+        steps:
+          - normalize
         step_outputs:
           normalize:
             subset:
@@ -70,9 +105,12 @@ harness:
                   coverage: complete
                   provider_status: not_called
                   events:
-                    - { event_id: private-1, all_day: true }
-                    - { event_id: cancelled-1, status: cancelled }
-        receipt: { schema: runx.receipt.v1 }
+                    - event_id: private-1
+                      all_day: true
+                    - event_id: cancelled-1
+                      status: cancelled
+        receipt:
+          schema: runx.receipt.v1
     - name: partial-freebusy-stays-unknown
       runner: normalize-supplied
       operator_journeys:
@@ -82,55 +120,76 @@ harness:
       inputs:
         kind: freebusy
         calendar_id: primary
-        time_min: "2026-10-04T00:00:00Z"
-        time_max: "2026-10-05T00:00:00Z"
+        time_min: 2026-10-04T00:00:00Z
+        time_max: 2026-10-05T00:00:00Z
         provider_result:
           calendar_id: primary
-          time_min: "2026-10-04T00:00:00Z"
-          time_max: "2026-10-05T00:00:00Z"
-          fetched_at: "2026-10-04T01:00:00Z"
+          time_min: 2026-10-04T00:00:00Z
+          time_max: 2026-10-05T00:00:00Z
+          fetched_at: 2026-10-04T01:00:00Z
           complete: false
-          errors: [{ reason: notFound }]
+          errors:
+            - reason: notFound
           busy: []
       expect:
         status: sealed
-        steps: [normalize]
+        steps:
+          - normalize
         step_outputs:
           normalize:
             subset:
               calendar_context:
-                data: { decision: partial, coverage: partial, provider_status: not_called }
-        receipt: { schema: runx.receipt.v1 }
-
+                data:
+                  decision: partial
+                  coverage: partial
+                  provider_status: not_called
+        receipt:
+          schema: runx.receipt.v1
 connectors:
   google/calendar:
-    operations: [events.list, freebusy.query]
+    operations:
+      - events.list
+      - freebusy.query
 runners:
   assistant-brief:
-    description: Read the upcoming window of a selected calendar for one scheduled goal occurrence and return the assistant's work result for it.
+    description: Read the upcoming window of a selected calendar for one scheduled goal occurrence and return the
+      assistant's work result for it.
     inputs:
-      calendar_id: { definition: calendar_id }
+      calendar_id:
+        definition: calendar_id
       occurrence_uri:
         type: string
         required: true
         description: Exact scheduled goal occurrence admitted by the local operator.
-        schema: { pattern: '^runx://assistant/goal/[a-z0-9_-]+/schedule/sha256:[0-9a-f]{64}/occurrence/[0-9]+$' }
+        schema:
+          pattern: ^runx://assistant/goal/[a-z0-9_-]+/schedule/sha256:[0-9a-f]{64}/occurrence/[0-9]+$
       observed_at:
         type: string
         required: true
         description: Actual host observation instant for this execution, with an explicit UTC offset.
-        schema: { format: date-time }
+        schema:
+          format: date-time
       window_hours:
         type: integer
         required: true
         description: Bounded upcoming calendar window in hours.
-        schema: { minimum: 1, maximum: 168 }
-    result_from: [finish]
+        schema:
+          minimum: 1
+          maximum: 168
+    result_from:
+      - finish
     steps:
       - id: window
-        inputs: { calendar_id: $input.calendar_id, occurrence_uri: $input.occurrence_uri, observed_at: $input.observed_at, window_hours: $input.window_hours }
-        tool: { module: google-calendar.mjs, export: prepareAssistantWindow }
-        outputs: { calendar_window: object }
+        inputs:
+          calendar_id: $input.calendar_id
+          occurrence_uri: $input.occurrence_uri
+          observed_at: $input.observed_at
+          window_hours: $input.window_hours
+        tool:
+          module: google-calendar.mjs
+          export: prepareAssistantWindow
+        outputs:
+          calendar_window: object
       - id: read
         skill: .
         runner: events
@@ -144,29 +203,55 @@ runners:
           occurrence_uri: $input.occurrence_uri
           window: $steps.window.calendar_window
           calendar_context: $steps.read.calendar_context
-        tool: { module: google-calendar.mjs, export: finishAssistantBrief }
-        outputs: { work_result: object }
+        tool:
+          module: google-calendar.mjs
+          export: finishAssistantBrief
+        outputs:
+          work_result: object
         artifacts:
-          named_emits: { work_result: work_result }
-          packets: { work_result: runx.work_outcome.v1 }
+          named_emits:
+            work_result: work_result
+          packets:
+            work_result: runx.work_outcome.v1
   events:
-    description: Read a selected calendar's event instances in a window of at most 30 days, recurrence expanded and private titles removed.
+    description: Read a bounded page of expanded event instances; preserve the cursor and distinguish a complete
+      window from a resumed tail.
     default: true
     inputs:
-      calendar_id: { definition: calendar_id }
-      time_min: { definition: time_min }
-      time_max: { definition: time_max }
+      calendar_id:
+        definition: calendar_id
+      time_min:
+        definition: time_min
+      time_max:
+        definition: time_max
+      page_token:
+        definition: page_token
+      page_size:
+        definition: page_size
     examples:
-      - { calendar_id: primary, time_min: "2026-10-04T00:00:00Z", time_max: "2026-10-11T00:00:00Z" }
-    result_from: [normalize]
+      - calendar_id: primary
+        time_min: 2026-10-04T00:00:00Z
+        time_max: 2026-10-11T00:00:00Z
+    result_from:
+      - normalize
     steps:
       - id: read
         operation: google/calendar/events.list
-        result_fields: [calendar_id, time_min, time_max, events, complete, fetched_at]
+        result_fields:
+          - calendar_id
+          - time_min
+          - time_max
+          - events
+          - page_token
+          - complete
+          - next_page_token
+          - fetched_at
         input:
           calendar_id: $input.calendar_id
           time_min: $input.time_min
           time_max: $input.time_max
+          page_token: $input.page_token
+          page_size: $input.page_size
       - id: normalize
         inputs:
           kind: events
@@ -175,21 +260,37 @@ runners:
           time_min: $input.time_min
           time_max: $input.time_max
           provider_result: $steps.read.provider_operation.result
-        tool: { module: google-calendar.mjs, export: normalizeCalendar }
-        outputs: { calendar_context: object }
+          page_token: $input.page_token
+        tool:
+          module: google-calendar.mjs
+          export: normalizeCalendar
+        outputs:
+          calendar_context: object
         artifacts:
-          named_emits: { calendar_context: calendar_context }
+          named_emits:
+            calendar_context: calendar_context
   freebusy:
     description: Read only a calendar's busy intervals in a window, when availability is all that matters.
     inputs:
-      calendar_id: { definition: calendar_id }
-      time_min: { definition: time_min }
-      time_max: { definition: time_max }
-    result_from: [normalize]
+      calendar_id:
+        definition: calendar_id
+      time_min:
+        definition: time_min
+      time_max:
+        definition: time_max
+    result_from:
+      - normalize
     steps:
       - id: read
         operation: google/calendar/freebusy.query
-        result_fields: [calendar_id, time_min, time_max, complete, errors, busy, fetched_at]
+        result_fields:
+          - calendar_id
+          - time_min
+          - time_max
+          - complete
+          - errors
+          - busy
+          - fetched_at
         input:
           calendar_id: $input.calendar_id
           time_min: $input.time_min
@@ -202,10 +303,14 @@ runners:
           time_min: $input.time_min
           time_max: $input.time_max
           provider_result: $steps.read.provider_operation.result
-        tool: { module: google-calendar.mjs, export: normalizeCalendar }
-        outputs: { calendar_context: object }
+        tool:
+          module: google-calendar.mjs
+          export: normalizeCalendar
+        outputs:
+          calendar_context: object
         artifacts:
-          named_emits: { calendar_context: calendar_context }
+          named_emits:
+            calendar_context: calendar_context
   normalize-supplied:
     description: Normalize calendar results already collected elsewhere, without calling Google.
     inputs:
@@ -213,12 +318,22 @@ runners:
         type: string
         required: true
         description: Event or freebusy result type.
-        schema: { enum: [events, freebusy] }
-      calendar_id: { definition: calendar_id }
-      time_min: { definition: time_min }
-      time_max: { definition: time_max }
-      provider_result: { definition: provider_result }
-    result_from: [normalize]
+        schema:
+          enum:
+            - events
+            - freebusy
+      calendar_id:
+        definition: calendar_id
+      time_min:
+        definition: time_min
+      time_max:
+        definition: time_max
+      provider_result:
+        definition: provider_result
+      page_token:
+        definition: page_token
+    result_from:
+      - normalize
     steps:
       - id: normalize
         inputs:
@@ -228,7 +343,48 @@ runners:
           time_min: $input.time_min
           time_max: $input.time_max
           provider_result: $input.provider_result
-        tool: { module: google-calendar.mjs, export: normalizeCalendar }
-        outputs: { calendar_context: object }
+          page_token: $input.page_token
+        tool:
+          module: google-calendar.mjs
+          export: normalizeCalendar
+        outputs:
+          calendar_context: object
         artifacts:
-          named_emits: { calendar_context: calendar_context }
+          named_emits:
+            calendar_context: calendar_context
+    operations: []
+    tools: []
+    skills: []
+    asks: false
+  combine-pages:
+    description: Combine an ordered contiguous chain of previously normalized event pages without another provider
+      call; hold gaps and conflicting event revisions.
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+    inputs:
+      pages:
+        type: array
+        required: true
+        description: Ordered calendar_context values, beginning with an initial page and linked by exact cursors.
+          Carry the source receipts separately.
+        schema:
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: true
+    result_from:
+      - combine
+    steps:
+      - id: combine
+        tool:
+          module: google-calendar.mjs
+          export: combineCalendarPages
+        inputs:
+          pages: $input.pages
+        outputs:
+          calendar_context: object
+        artifacts:
+          named_emits:
+            calendar_context: calendar_context

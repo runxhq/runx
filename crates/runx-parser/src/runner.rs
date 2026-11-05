@@ -125,7 +125,20 @@ pub fn validate_runner_manifest(
         "input_definitions",
     )?;
     let skill = FIELDS.required_string(raw.document.get("skill"), "skill")?;
-    let limits = TurnLimits::of(&raw.document, "")?;
+    let connectors = validate_connector_requirements(raw.document.get("connectors"))?;
+    let mut limits = TurnLimits::of(&raw.document, "")?;
+    limits.operations = connectors
+        .iter()
+        .flat_map(|(requirement, declared)| {
+            declared
+                .operations
+                .iter()
+                .map(|operation| AllowedOperation {
+                    requirement: requirement.as_str().into(),
+                    operation: operation.as_str().into(),
+                })
+        })
+        .collect();
     let runners_record = FIELDS.required_object(raw.document.get("runners"), "runners")?;
     let mut runners = BTreeMap::new();
     let mut runner_limits = BTreeMap::new();
@@ -154,13 +167,13 @@ pub fn validate_runner_manifest(
             }
         }
     }
-    let connectors = validate_connector_requirements(raw.document.get("connectors"))?;
     bind_operation_steps(&mut runners, &connectors)?;
     bind_turn_allowance(&mut runners, &runner_limits, &connectors);
     let TurnLimits {
         tools,
         skills,
         asks,
+        operations: _,
     } = limits;
     let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners, &connectors)?;
 
@@ -190,9 +203,10 @@ pub fn validate_runner_manifest(
     })
 }
 
-/// What an agent turn may call beyond the skill's connector operations: the
-/// skill's limits, or a runner's narrowing of them.
+/// Everything an agent turn may call: connector operations, tools, skills and
+/// asks, from the skill's limits or a runner's narrowing of them.
 struct TurnLimits {
+    operations: Vec<AllowedOperation>,
     tools: Vec<String>,
     skills: Vec<SkillAllowance>,
     asks: bool,
@@ -202,6 +216,27 @@ impl TurnLimits {
     /// The limits `document` declares, its fields named under `prefix`.
     fn of(document: &JsonObject, prefix: &str) -> Result<Self, ValidationError> {
         let field = |name: &str| format!("{prefix}{name}");
+        let operations = distinct_entries(
+            document.get("operations"),
+            &field("operations"),
+            |entry, value| {
+                let reference = FIELDS.required_string(Some(value), entry)?;
+                let (requirement, operation) = reference
+                    .rsplit_once('/')
+                    .filter(|(requirement, operation)| {
+                        !requirement.is_empty() && !operation.is_empty()
+                    })
+                    .ok_or_else(|| {
+                        FIELDS.validation_error(format!(
+                            "{entry} must name requirement/operation from the skill's connectors."
+                        ))
+                    })?;
+                Ok(AllowedOperation {
+                    requirement: requirement.into(),
+                    operation: operation.into(),
+                })
+            },
+        )?;
         let tools = distinct_entries(document.get("tools"), &field("tools"), |entry, value| {
             let tool = FIELDS.required_string(Some(value), entry)?;
             let admission = runx_core::policy::admit_agent_tool(&tool);
@@ -217,14 +252,16 @@ impl TurnLimits {
             .optional_bool(document.get("asks"), &field("asks"))?
             .unwrap_or(false);
         Ok(Self {
+            operations,
             tools,
             skills,
             asks,
         })
     }
 
-    /// The limits runner `name` declares, each a part of the skill's; a
-    /// runner that declares none of a kind keeps the skill's.
+    /// The limits runner `name` declares, each a part of the skill's.
+    /// Tools, skills and asks inherit unless narrowed. Connector requirements
+    /// are only a ceiling: direct agent operations always need an explicit list.
     fn narrowed(&self, runner: &JsonObject, name: &str) -> Result<Self, ValidationError> {
         let prefix = format!("runners.{name}.");
         let declared = Self::of(runner, &prefix)?;
@@ -233,6 +270,16 @@ impl TurnLimits {
                 "{prefix}{kind} names {entry}, which the skill's {kind} do not."
             ))
         };
+        if let Some(operation) = declared
+            .operations
+            .iter()
+            .find(|operation| !self.operations.contains(operation))
+        {
+            return Err(beyond(
+                "operations",
+                format!("{}/{}", operation.requirement, operation.operation),
+            ));
+        }
         if let Some(tool) = declared
             .tools
             .iter()
@@ -256,6 +303,7 @@ impl TurnLimits {
             )));
         }
         Ok(Self {
+            operations: declared.operations,
             tools: if runner.contains_key("tools") {
                 declared.tools
             } else {
@@ -274,21 +322,10 @@ impl TurnLimits {
         })
     }
 
-    /// The limits as one turn's allowance, beside the skill's operations.
-    fn allowance(&self, connectors: &BTreeMap<String, ConnectorRequirement>) -> TurnAllowance {
+    /// The selected limits as one turn's complete allowance.
+    fn allowance(&self) -> TurnAllowance {
         TurnAllowance {
-            operations: connectors
-                .iter()
-                .flat_map(|(requirement, declared)| {
-                    declared
-                        .operations
-                        .iter()
-                        .map(|operation| AllowedOperation {
-                            requirement: requirement.as_str().into(),
-                            operation: operation.as_str().into(),
-                        })
-                })
-                .collect(),
+            operations: self.operations.clone(),
             tools: self.tools.iter().map(|tool| tool.as_str().into()).collect(),
             skills: self.skills.clone(),
             asks: self.asks,
@@ -352,7 +389,7 @@ fn bind_turn_allowance(
         let Some(limits) = limits.get(name) else {
             continue;
         };
-        let allowance = limits.allowance(connectors);
+        let allowance = limits.allowance();
         for step in &mut runner.graph.steps {
             if let crate::StepKind::Agent(agent) = &mut step.kind {
                 agent.allowance = allowance.clone();

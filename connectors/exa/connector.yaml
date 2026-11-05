@@ -21,6 +21,9 @@ operations:
     verb: read
     scopes: [search.read]
     credentials: [api_key]
+    # The ceiling at the 20-result cap: $4 per 1,000 requests up to 10 results,
+    # plus $1 per 1,000 for each result above that.
+    cost: {usd_micro: 14000, per: request, source: docs, source_url: 'https://exa.ai/pricing'}
     target: {template: 'https://api.exa.ai/search'}
     input_schema:
       type: object

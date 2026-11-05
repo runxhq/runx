@@ -1,6 +1,5 @@
 skill: attention-review
-version: "0.4.13"
-
+version: "0.4.14"
 catalog:
   kind: graph
   audience: operator
@@ -291,6 +290,56 @@ harness:
                   validation: { status: fail }
         receipt: { schema: runx.receipt.v1 }
 
+    - name: holds-work-for-a-different-bound-occurrence
+      inputs:
+        objective: Check new personal observations.
+        as_of: 2026-10-02T10:00:00Z
+        evidence:
+          - source_id: chat-other
+            source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            thread_locator: https://github.com/example/project/pull/99
+            source_kind: chat
+            observed_at: 2026-10-02T09:55:00Z
+            summary: A colleague requests review of a pull request.
+        current_actions:
+          - source_id: chat-other
+            state: open
+        allowed_action_ids: []
+        work_routes:
+          - source_id: chat-1
+            source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+            route_id: pr_status
+            target_locator: https://github.com/example/project/pull/12
+        min_check_minutes: 15
+        max_check_minutes: 60
+      caller:
+        answers:
+          judge:
+            draft:
+              decision: brief
+              items:
+                - source_id: chat-other
+                  priority: high
+              recommended_action_ids: []
+              work_proposals:
+                - source_id: chat-other
+                  route_id: pr_status
+                  target_locator: https://github.com/example/project/pull/99
+                  inputs: {}
+                  due_at_unix_seconds: 0
+              next_check_minutes: 20
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              attention_packet:
+                data:
+                  decision: held
+                  work_proposals: []
+                  validation:
+                    status: fail
+
 runners:
   review:
     default: true
@@ -316,12 +365,12 @@ runners:
             required: [source_id, source_digest, source_kind, observed_at, summary]
             additionalProperties: false
             properties:
-              source_id: { type: string, minLength: 1, maxLength: 300 }
+              source_id: {"type":"string","minLength":1,"maxLength":300,"pattern":"\\S"}
               source_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
               thread_locator: { type: string, minLength: 1, maxLength: 1000 }
               source_kind: { type: string, enum: [mail, chat, task, other] }
               observed_at: { type: string, format: date-time }
-              summary: { type: string, minLength: 1, maxLength: 1000 }
+              summary: {"type":"string","minLength":1,"maxLength":1000,"pattern":"\\S"}
       current_actions:
         type: array
         required: true
@@ -333,7 +382,7 @@ runners:
             required: [source_id, state]
             additionalProperties: false
             properties:
-              source_id: { type: string, minLength: 1, maxLength: 300 }
+              source_id: {"type":"string","minLength":1,"maxLength":300,"pattern":"\\S"}
               state: { type: string, enum: [open, waiting, followed_up, resolved, dismissed] }
       allowed_action_ids:
         type: array
@@ -342,7 +391,7 @@ runners:
         schema:
           maxItems: 10
           uniqueItems: true
-          items: { type: string, minLength: 1, maxLength: 100 }
+          items: {"type":"string","minLength":1,"maxLength":100,"pattern":"\\S"}
       work_routes:
         type: array
         required: false
@@ -353,7 +402,38 @@ runners:
             type: object
             required: [route_id]
             properties:
-              route_id: { type: string, minLength: 1, maxLength: 64 }
+              route_id:
+                type: string
+                minLength: 1
+                maxLength: 64
+                pattern: \S
+              source_id:
+                type: string
+                minLength: 1
+                maxLength: 300
+                pattern: \S
+              source_digest:
+                type: string
+                pattern: ^sha256:[0-9a-f]{64}$
+              target_locator:
+                type: string
+                minLength: 1
+                maxLength: 1000
+              source_kinds:
+                type: array
+                items:
+                  type: string
+                  enum:
+                    - mail
+                    - chat
+                    - task
+                    - other
+              fixed_inputs:
+                type: object
+                additionalProperties: true
+              source_context_input:
+                type: string
+                minLength: 1
             additionalProperties: true
       work_results:
         type: array
@@ -397,9 +477,87 @@ runners:
     result_from: [finalize]
     steps:
       - id: judge
-        agent: { role: operator, task: runx_final_result }
+        agent: { role: operator, task: "attention-review-review" }
         outputs:
-          draft: object
+          draft:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - decision
+                - items
+                - recommended_action_ids
+                - next_check_minutes
+              properties:
+                decision:
+                  enum:
+                    - brief
+                    - idle
+                items:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - source_id
+                      - priority
+                    properties:
+                      source_id:
+                        type: string
+                        minLength: 1
+                        maxLength: 300
+                        pattern: \S
+                      priority:
+                        type: string
+                        enum:
+                          - high
+                          - medium
+                          - low
+                recommended_action_ids:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                    pattern: \S
+                work_proposals:
+                  type: array
+                  maxItems: 3
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - source_id
+                      - route_id
+                      - target_locator
+                      - inputs
+                      - due_at_unix_seconds
+                    properties:
+                      source_id:
+                        type: string
+                        minLength: 1
+                        maxLength: 300
+                        pattern: \S
+                      route_id:
+                        type: string
+                        minLength: 1
+                        maxLength: 64
+                        pattern: \S
+                      target_locator:
+                        type: string
+                        minLength: 1
+                        maxLength: 1000
+                      inputs:
+                        type: object
+                        additionalProperties: true
+                      due_at_unix_seconds:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                next_check_minutes:
+                  type: integer
         inputs:
           objective: $input.objective
           as_of: $input.as_of
@@ -425,7 +583,146 @@ runners:
           draft: $steps.judge.draft
         tool: { module: attention-review.mjs, export: finalizeAttention }
         outputs:
-          attention_packet: object
+          attention_packet:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - decision
+                - items
+                - recommended_action_ids
+                - work_proposals
+                - brief
+                - next_check_minutes
+                - delivery_status
+                - validation
+              properties:
+                decision:
+                  enum:
+                    - held
+                    - ready
+                    - idle
+                items:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - source_id
+                      - source_digest
+                      - source_kind
+                      - priority
+                      - summary
+                    properties:
+                      source_id:
+                        type: string
+                        minLength: 1
+                        maxLength: 300
+                        pattern: \S
+                      source_digest:
+                        type: string
+                        pattern: ^sha256:[0-9a-f]{64}$
+                      source_kind:
+                        type: string
+                        enum:
+                          - mail
+                          - chat
+                          - task
+                          - other
+                      priority:
+                        type: string
+                        enum:
+                          - high
+                          - medium
+                          - low
+                      summary:
+                        type: string
+                        minLength: 1
+                        maxLength: 1000
+                        pattern: \S
+                recommended_action_ids:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                    pattern: \S
+                work_proposals:
+                  type: array
+                  maxItems: 3
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - source_id
+                      - route_id
+                      - target_locator
+                      - inputs
+                      - due_at_unix_seconds
+                      - source_digest
+                    properties:
+                      source_id:
+                        type: string
+                        minLength: 1
+                        maxLength: 300
+                        pattern: \S
+                      route_id:
+                        type: string
+                        minLength: 1
+                        maxLength: 64
+                        pattern: \S
+                      target_locator:
+                        type: string
+                        minLength: 1
+                        maxLength: 1000
+                      inputs:
+                        type: object
+                        additionalProperties: true
+                      due_at_unix_seconds:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                      source_digest:
+                        type: string
+                        pattern: ^sha256:[0-9a-f]{64}$
+                brief:
+                  type: string
+                next_check_minutes:
+                  type:
+                    - integer
+                    - "null"
+                  minimum: 1
+                  maximum: 1440
+                delivery_status:
+                  const: not_sent
+                validation:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - status
+                    - findings
+                    - omitted_unconfigured_actions
+                    - omitted_unconfigured_work
+                  properties:
+                    status:
+                      enum:
+                        - pass
+                        - fail
+                    findings:
+                      type: array
+                      items:
+                        type: string
+                        minLength: 1
+                    omitted_unconfigured_actions:
+                      type: integer
+                      minimum: 0
+                      maximum: 10
+                    omitted_unconfigured_work:
+                      type: integer
+                      minimum: 0
+                      maximum: 3
         artifacts:
           named_emits:
             attention_packet: attention_packet

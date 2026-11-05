@@ -1,6 +1,5 @@
 skill: moltbook
-version: "0.4.12"
-
+version: "0.4.13"
 catalog:
   kind: skill
   audience: public
@@ -215,8 +214,8 @@ runners:
         description: Intended community and discussion context.
       as_of:
         type: string
-        required: true
-        description: Explicit ISO-8601 evaluation time.
+        required: false
+        description: ISO-8601 evaluation time for a replay. A live read is judged at its own observation time.
       max_age_hours:
         type: number
         required: false
@@ -234,11 +233,15 @@ runners:
     examples:
       - objective: Find one useful post for Runx builders.
         community_context: OSS operators evaluating governed agent workflows.
-        as_of: "2026-07-17T12:00:00Z"
         max_age_hours: 48
         max_items: 50
     result_from: [reject, finalize]
     steps:
+      - id: observed
+        tool: control.observed_at
+        outputs:
+          observed_at: string
+
       - id: read-feed
         operation: moltbook/feed.scan
         result_fields: [posts]
@@ -250,11 +253,13 @@ runners:
         inputs:
           objective: $input.objective
           as_of: $input.as_of
+          observed_at: $steps.observed.observed_at
           max_age_hours: $input.max_age_hours
           posts: $steps.read-feed.provider_operation.result.posts
         tool: { module: moltbook.mjs, export: admitFeed }
         outputs:
           feed_index: object
+          as_of: string
         artifacts:
           named_emits:
             feed_index: feed_index
@@ -286,13 +291,68 @@ runners:
           equals: ready
         agent: { role: researcher, task: moltbook-scan }
         outputs:
-          scan_draft: object
+          scan_draft:
+            type: object
+            schema:
+              properties:
+                decision:
+                  type: string
+                opportunity_report:
+                  type: object
+                  properties:
+                    topic:
+                      type: string
+                    rationale:
+                      type: string
+                    source_ids:
+                      type: array
+                      items:
+                        type: string
+                post_outline:
+                  type: object
+                  properties:
+                    headline:
+                      type: string
+                    beats:
+                      type: array
+                      items:
+                        type: string
+                    source_ids:
+                      type: array
+                      items:
+                        type: string
+                moderation_notes:
+                  type: object
+                  properties:
+                    sensitivity:
+                      type: string
+                    tone:
+                      type: string
+                follow_up_plan:
+                  type: object
+                  properties:
+                    monitor_for:
+                      type: array
+                      items:
+                        type: string
+              required:
+              - decision
+              if:
+                properties:
+                  decision:
+                    pattern: ^ready
+              then:
+                required:
+                - opportunity_report
+                - post_outline
+                - moderation_notes
+                - follow_up_plan
         inputs:
           objective: $input.objective
           community_context: $input.community_context
           feed_index: $steps.admit.feed_index
           evidence_digest: $steps.digest.digest_result.digest
-          as_of: $input.as_of
+          as_of: $steps.admit.as_of
           max_age_hours: $input.max_age_hours
           max_items: $input.max_items
           submolt: $input.submolt
@@ -360,6 +420,7 @@ runners:
         tool: { module: moltbook.mjs, export: admitFeed }
         outputs:
           feed_index: object
+          as_of: string
         artifacts:
           named_emits:
             feed_index: feed_index
@@ -391,7 +452,62 @@ runners:
           equals: ready
         agent: { role: researcher, task: moltbook-scan }
         outputs:
-          scan_draft: object
+          scan_draft:
+            type: object
+            schema:
+              properties:
+                decision:
+                  type: string
+                opportunity_report:
+                  type: object
+                  properties:
+                    topic:
+                      type: string
+                    rationale:
+                      type: string
+                    source_ids:
+                      type: array
+                      items:
+                        type: string
+                post_outline:
+                  type: object
+                  properties:
+                    headline:
+                      type: string
+                    beats:
+                      type: array
+                      items:
+                        type: string
+                    source_ids:
+                      type: array
+                      items:
+                        type: string
+                moderation_notes:
+                  type: object
+                  properties:
+                    sensitivity:
+                      type: string
+                    tone:
+                      type: string
+                follow_up_plan:
+                  type: object
+                  properties:
+                    monitor_for:
+                      type: array
+                      items:
+                        type: string
+              required:
+              - decision
+              if:
+                properties:
+                  decision:
+                    pattern: ^ready
+              then:
+                required:
+                - opportunity_report
+                - post_outline
+                - moderation_notes
+                - follow_up_plan
         inputs:
           objective: $input.objective
           community_context: $input.community_context
@@ -485,7 +601,59 @@ runners:
           equals: ready
         agent: { role: writer, task: moltbook-post }
         outputs:
-          post_draft: object
+          post_draft:
+            type: object
+            schema:
+              properties:
+                decision:
+                  type: string
+                post_payload:
+                  type: object
+                  properties:
+                    channel:
+                      type: string
+                    submolt:
+                      type: string
+                    title:
+                      type: string
+                    body:
+                      type: string
+                    claims:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          claim:
+                            type: string
+                          source_ids:
+                            type: array
+                            items:
+                              type: string
+                moderation_notes:
+                  type: object
+                  properties:
+                    final_check:
+                      type: array
+                      items:
+                        type: string
+                follow_up_plan:
+                  type: object
+                  properties:
+                    monitor_for:
+                      type: array
+                      items:
+                        type: string
+              required:
+              - decision
+              if:
+                properties:
+                  decision:
+                    pattern: ^ready
+              then:
+                required:
+                - post_payload
+                - moderation_notes
+                - follow_up_plan
         inputs:
           submolt: $input.submolt
           community_context: $input.community_context

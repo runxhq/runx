@@ -1,5 +1,5 @@
 ---
 schema: runx.catalog-presentation.v1
 title: Vulnerability triage
-summary: "Turn verified vulnerability findings into remediation steps without guessing exposure."
+summary: Prioritize exact-coordinate findings, preserve unknown exposure and prepare practical remediation or an unsent advisory.
 ---

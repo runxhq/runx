@@ -1,46 +1,86 @@
 ---
 name: lead-enrichment
-description: Normalize factual person and company evidence for one confidently matched lead, preserving provenance, freshness, missing fields and conflicts.
+description: Enrich an identified person or company through Apollo, or reuse supplied factual evidence, preserving match confidence, provenance, unavailable fields and conflicts.
 ---
 
 # Lead Enrichment
 
-Build factual context for one person or company. Enrichment answers what is
-known about the subject. `lead-qualify` decides whether those facts meet an ICP;
-`cold-outreach` prepares copy only after contact eligibility is supplied.
+Build factual context for one identified person or company. The default
+lookup reads the selected Apollo account; enrich normalizes observations
+already collected elsewhere with no provider request or extra credits.
+Use lead-qualify for ICP fit and cold-outreach for an unsent email. Neither
+an enriched record nor an email address establishes permission to contact.
 
-The default `enrich` runner reuses supplied structured evidence. It makes no
-provider request and spends no enrichment credits. An upstream declared
-connector operation can supply evidence; Apollo is the planned first lookup
-provider, whose credential presentation remains a native connector dependency.
-Do not claim that running this skill performs an Apollo lookup.
+## Direct lookup
 
-## Procedure
+Supply subject.id and subject.kind, a selector and requested_fields.
+The subject ID is the caller's stable reference, not a fabricated Apollo ID.
+After the provider response, the native clock records the observation instant.
+Approval delays therefore cannot turn a caller's earlier timestamp into the
+lookup time. This records the observation, not when Apollo last checked a field.
 
-1. Bind one subject reference and the professional fields actually needed.
-2. Supply source references, native or upstream digests, observation times,
-   explicit subject matches, and factual field/value pairs. A caller-supplied
-   digest is provenance, not independent provider verification.
-3. Reuse only fresh sources confidently matched to that exact subject. A weak
-   name match, stale observation or mismatched identity does not fill a field.
-4. Preserve conflicting values with their separate sources. Do not silently
-   choose the latest value or invent a merged person from several matches.
-5. Return `enriched`, `partial` or `needs_more_evidence`, supported facts,
-   missing fields, conflicts and the admitted source index.
+For a person, prefer Apollo id, email or linkedin_url. A full name requires
+an employer domain or organization_name; first_name and last_name require
+the same employer evidence. For a company use domain, website or a company
+linkedin_url. A name alone is ambiguous. Native connector inspection declares
+all allowed selector fields. Select only the professional fields needed for
+the task: person name, work email, title and LinkedIn profile, or company name,
+domain, industry, employee count, country and website.
 
-The runner performs deterministic normalization rather than an extra model
-turn. Evidence acquisition and entity matching belong to the selected provider;
-commercial fit belongs to qualification. It does not infer buying intent,
-budget, consent, sensitive traits or private personal details.
+Bind an appropriately owned Apollo key through the native connector. The
+provider may consume credits even though its business data is only read.
+Native admission accepts scoped use authority or asks for one exact
+provider-usage approval. A dollar ceiling cannot cover an unknown USD price;
+do not drop that ceiling or fabricate a zero quote to proceed. Authentication
+health does not establish enrichment entitlement or a credit balance.
 
-## Composition
+The graph performs one synchronous person or company lookup. It does not
+request personal email, phone, waterfall enrichment or a callback receiver.
+A parent can process a bounded set of leads through ordinary graph calls;
+this skill does not schedule continuing work or impose a global batch limit.
+Do not repeat an uncertain charged lookup. Preserve the paused run and native
+custody, reconcile its evidence and use remaining authority for any new attempt.
 
-Pass `lead_enrichment_packet` into `lead-qualify#qualify` together with the
-actual ICP criteria. Preserve the native artifact digest. For another lookup,
-request only missing professional fields with a bounded credit allowance and
-the same subject identity. Never enable personal-email/phone reveal or a
-waterfall merely to make an incomplete packet look complete.
+## Matching and field availability
 
-The skill neither updates CRM records nor authorizes messages. The calling
-application owns refresh schedules and continuing work; connectors own exact
-provider requests, credential custody and billing evidence.
+A successful HTTP response can contain no matched record. Person facts require
+Apollo's high-confidence match; medium, low or absent confidence remains
+ambiguous. Contradictory returned identifiers are an identity conflict, not a
+second person to merge into the subject. Company facts require an exact domain,
+website or company-profile match. Obtain a stronger selector when needed.
+
+Only requested fields enter the factual packet. A locked placeholder such as
+email_not_unlocked is never a contact address. Missing and malformed fields
+remain unavailable. A work email is provider-supplied factual data, not an
+independent deliverability, suppression or consent decision. Do not infer buying
+intent, budget, sensitive traits or permission to contact from the record.
+
+## Supplied evidence and composition
+
+Use enrich explicitly when factual observations already exist. Supply sources
+with source_id, source_digest, subject_id, observed_at, match_confidence and
+field/value facts, plus requested_fields and as_of. The existing freshness
+limit is configurable with max_age_days. Only fresh, confidently matched sources
+for that exact subject contribute facts; wrong-entity and stale observations
+remain blockers. Conflicting values keep their separate source references.
+No extra model turn, lookup, CRM write or message occurs in this phase.
+
+Both paths return the same lead_enrichment_packet for lead-qualify#qualify.
+Its acquisition and provenance labels describe the supplied observations at
+the normalization boundary. They are not an independent provider-verification
+claim. Lookup additionally returns lookup_evidence with the actual native
+readback URI, result digest, observed time, match outcome and cost uncertainty.
+Keep that evidence and the run receipt with the factual packet; do not relabel
+caller-supplied observations as provider proof. Existing composed graphs that
+have sources must select enrich and must not fetch them again.
+
+The packet distinguishes enriched, partial and needs_more_evidence. Present
+supported facts and missing fields together; do not report a partial result as
+complete. Qualification receives the same subject and source bindings with the
+actual ICP. Contact-consent-review and the selected delivery capability own
+contact eligibility and sending authority; this skill authorizes neither.
+
+The caller owns refresh schedules, subsequent work and persistence. The
+connector owns credential presentation and exact provider execution; Runx owns
+admission, uncertain-attempt custody, source digests and receipts. Publication
+is a separate registry operation, and offline fixtures are harness proof only.

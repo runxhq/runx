@@ -1,0 +1,50 @@
+{
+  "name": "point-missing-grid",
+  "kind": "skill",
+  "target": "..",
+  "inputs": {
+    "latitude": 38.8894,
+    "longitude": -77.0352
+  },
+  "caller": {
+    "http_exchanges": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.weather.gov/points/38.8894,-77.0352",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/geo+json"
+          },
+          "body": "{\"properties\":{\"timeZone\":\"America/New_York\"}}"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "status": "sealed",
+    "steps": [
+      "prepare-point",
+      "points",
+      "bind-grid"
+    ],
+    "step_outputs": {
+      "bind-grid": {
+        "subset": {
+          "location": {
+            "data": {
+              "decision": "needs_more_evidence"
+            }
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "public_skill": "nws-weather",
+    "source": "skills-fixture"
+  }
+}

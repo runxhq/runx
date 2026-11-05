@@ -1,6 +1,5 @@
 skill: release
-version: "0.4.12"
-
+version: "0.4.13"
 catalog:
   kind: graph
   audience: public
@@ -105,7 +104,40 @@ runners:
           value: $steps.interpret-prepare.preparation.status
           equals: ready
         agent: { role: builder, task: release-notes }
-        outputs: { release_notes: object }
+        outputs:
+          release_notes:
+            type: object
+            schema:
+              properties:
+                headline:
+                  type: string
+                summary:
+                  type: string
+                changelog:
+                  type: object
+                  properties:
+                    added:
+                      type: array
+                    fixed:
+                      type: array
+                      items:
+                        type: string
+                    changed:
+                      type: array
+                    removed:
+                      type: array
+                    breaking:
+                      type: array
+                upgrade_guidance:
+                  type: string
+                risks:
+                  type: array
+              required:
+              - headline
+              - summary
+              - changelog
+              - upgrade_guidance
+              - risks
         inputs:
           release_context: $steps.inspect-profile.release_context
           preparation: $steps.interpret-prepare.preparation
@@ -159,6 +191,11 @@ runners:
       last_tag: { type: string, required: false, description: Previous release anchor for notes. }
       operator_context: { type: string, required: false, description: "Bounded release context, never authority." }
     result_from: [interpret-verify]
+    examples:
+      - project_root: .
+        profile_path: release-profile.json
+        version: 1.4.2
+        channel: stable
     steps:
       - id: prepare
         skill: .

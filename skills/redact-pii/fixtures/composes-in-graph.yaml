@@ -1,19 +1,32 @@
 name: redact-pii-composes-in-graph
 kind: graph
 target: support/composed.graph
-caller:
-  answers:
-    detect:
-      redaction_draft:
-        decision: needs_review
-        detected:
-          - class: name
-            span: [0, 4]
-            confidence: 0.7
-        residual_risk:
-          level: medium
-          reason_code: ambiguous_semantics
 expect:
   status: sealed
-  steps: [redact-pii, digest]
-  receipt: { schema: runx.receipt.v1 }
+  steps:
+    - redact-pii
+    - digest
+  receipt:
+    schema: runx.receipt.v1
+  step_outputs:
+    redact-pii:
+      subset:
+        redaction_report:
+          data:
+            decision: needs_review
+            residual_risk:
+              level: medium
+              reason_code: ambiguous_semantics
+        redacted_content: ""
+operator_journeys:
+  - mode: composed
+    request: Apply this existing private PII review to the same admitted support text before any delivery.
+    expected_outcome: Reuse the exact source and reviewed quote selections; preserve the semantic hold with no
+      released text and no new detector turn.
+    prior_evidence:
+      - The exact source and existing name selection, class policy and medium semantic residual risk in the
+        composed graph.
+    must_not_repeat:
+      - Do not run PII detection again.
+      - Do not fetch the support request or send any text.
+    exercises_runner: from-detections

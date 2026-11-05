@@ -85,8 +85,13 @@ pub fn mcp_tool_result_from_run_result(
             value => serde_json::to_string(value).unwrap_or_default(),
         }
     } else {
+        // The receipt seals that it failed, not why; this is where why reaches the host.
+        let reason = ["refusal", "error"]
+            .into_iter()
+            .find_map(|key| runx.get(key)?.as_object()?.get("message")?.as_str())
+            .map_or_else(String::new, |message| format!(": {message}"));
         format!(
-            "{skill_name} ended with {}. Inspect receipt {}.",
+            "{skill_name} ended with {}{reason}. Receipt {}.",
             result.outcome.map_or("invalid", |value| value.label()),
             result.receipt_ids.first().map_or("n/a", String::as_str)
         )

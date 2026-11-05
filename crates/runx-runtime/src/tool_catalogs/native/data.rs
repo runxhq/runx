@@ -15,6 +15,39 @@ use super::{NativeInvocation, invalid_input};
 use crate::RuntimeError;
 
 const DIGEST_TOOL: &str = "data.digest";
+const DEFAULT_VALIDATION_VALUE_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_VALIDATION_VALUE_BYTES: u64 = 32 * 1024 * 1024;
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+struct ObservedAtInput {}
+impl CapabilityInput for ObservedAtInput {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+struct ObservedAtOutput {
+    observed_at: String,
+}
+impl CapabilityOutput for ObservedAtOutput {}
+
+static OBSERVED_AT: TypedNativeCapability<ObservedAtInput, ObservedAtOutput> =
+    TypedNativeCapability::new(
+        CapabilityDefinition {
+            id: "control.observed_at",
+            source: "runx-runtime/control",
+            summary: "Return this invocation's already-admitted observation time, without reading a clock.",
+            scopes: &[],
+            effect: CapabilityEffect::Read,
+            approval: CapabilityApproval::None,
+            artifacts: CapabilityArtifacts::None,
+            fields: &[],
+        },
+        |invocation| {
+            Ok(ObservedAtOutput {
+                observed_at: invocation.observed_at.to_owned(),
+            })
+        },
+    );
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -46,6 +79,8 @@ impl CapabilityInput for CompareInput {}
 struct ValidateInput {
     schema: JsonValue,
     values: Vec<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_value_bytes: Option<runx_contracts::schema::BoundedU64<1, MAX_VALIDATION_VALUE_BYTES>>,
 }
 
 impl CapabilityInput for ValidateInput {}
@@ -57,6 +92,23 @@ struct ValidateOutput {
 }
 
 impl CapabilityOutput for ValidateOutput {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+struct MinorUnitsInput {
+    decimal: String,
+    scale: runx_contracts::schema::BoundedU64<0, 18>,
+}
+
+impl CapabilityInput for MinorUnitsInput {}
+
+#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
+#[serde(deny_unknown_fields)]
+struct MinorUnitsOutput {
+    units: u64,
+}
+
+impl CapabilityOutput for MinorUnitsOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -199,15 +251,63 @@ static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNat
             ),
             field(
                 "values",
-                "Up to 128 values, at most 2 MiB total; error output contains paths, not sample contents.",
+                "Up to 128 values; 2 MiB total by default. Error output contains paths, not sample contents.",
+            ),
+            field(
+                "max_value_bytes",
+                "Explicit serialized-value budget, from 1 byte to 32 MiB. Omit to retain the 2 MiB default; this does not change schema, value-count or error-output bounds.",
             ),
         ],
     },
     validate_values,
 );
 
-pub(super) const CAPABILITIES: &[&dyn NativeCapability] =
-    &[&DIGEST, &COMPARE, &VALIDATE, &HARNESS_CONTEXT];
+static MINOR_UNITS: TypedNativeCapability<MinorUnitsInput, MinorUnitsOutput> =
+    TypedNativeCapability::new(
+        CapabilityDefinition {
+            id: "data.minor_units",
+            source: "runx-runtime/data",
+            summary: "Convert an exact decimal amount to whole smallest units at the caller's bound scale, with no rounding.",
+            scopes: &[],
+            effect: CapabilityEffect::Read,
+            approval: CapabilityApproval::None,
+            artifacts: CapabilityArtifacts::None,
+            fields: &[
+                field(
+                    "decimal",
+                    "Canonical decimal with exactly `scale` fractional digits.",
+                ),
+                field("scale", "Fractional digits of the currency unit, 0 to 18."),
+            ],
+        },
+        minor_units,
+    );
+
+pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[
+    &DIGEST,
+    &COMPARE,
+    &VALIDATE,
+    &MINOR_UNITS,
+    &HARNESS_CONTEXT,
+    &OBSERVED_AT,
+];
+
+fn minor_units(
+    invocation: &NativeInvocation<'_, MinorUnitsInput>,
+) -> Result<MinorUnitsOutput, RuntimeError> {
+    let MinorUnitsInput { decimal, scale } = invocation.inputs;
+    runx_contracts::connector::decimal_units(decimal, scale.get())
+        .map(|units| MinorUnitsOutput { units })
+        .ok_or_else(|| {
+            invalid_input(
+                "data.minor_units",
+                format!(
+                    "the amount needs a canonical decimal with exactly {} fractional digits in the portable integer range",
+                    scale.get()
+                ),
+            )
+        })
+}
 
 fn validate_values(
     invocation: &NativeInvocation<'_, ValidateInput>,
@@ -216,18 +316,17 @@ fn validate_values(
 }
 
 fn validate_batch(input: &ValidateInput) -> Result<DataValidation, RuntimeError> {
-    let schema_bytes = digest_bytes(&input.schema, "canonical_json")?;
-    let values = JsonValue::Array(input.values.clone());
-    let values_bytes = digest_bytes(&values, "canonical_json")?;
-    if input.values.len() > 128
-        || schema_bytes.len() > 256 * 1024
-        || values_bytes.len() > 2 * 1024 * 1024
-    {
+    if input.values.len() > 128 {
         return Err(invalid_input(
             "data.validate",
-            "validation exceeds the schema, value-count or payload byte bound",
+            "validation exceeds the value-count bound",
         ));
     }
+    let value_limit = input
+        .max_value_bytes
+        .map_or(DEFAULT_VALIDATION_VALUE_BYTES, |limit| limit.get());
+    let schema_bytes = validation_bytes(&input.schema, 256 * 1024)?;
+    let values_bytes = validation_bytes(&input.values, value_limit)?;
     let schema = serde_json::to_value(&input.schema)
         .map_err(|source| RuntimeError::json("serializing validation schema", source))?;
     let validator = jsonschema::draft202012::options()
@@ -270,6 +369,11 @@ fn validate_batch(input: &ValidateInput) -> Result<DataValidation, RuntimeError>
         values_digest: runx_contracts::sha256_prefixed(&values_bytes),
         results,
     })
+}
+
+fn validation_bytes(value: &impl Serialize, limit: u64) -> Result<Vec<u8>, RuntimeError> {
+    crate::services::bounded_json_bytes(value, limit)
+        .map_err(|_| invalid_input("data.validate", "validation byte budget exceeded"))
 }
 
 fn digest_value(
@@ -347,6 +451,47 @@ mod tests {
     use super::digest_bytes;
 
     #[test]
+    fn observation_time_is_admitted_metadata_without_ambient_authority()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use crate::credentials::CredentialDelivery;
+        use crate::effects::RuntimeEffectRegistry;
+        use crate::services::{LocalArtifactService, WorkspaceBounds};
+        use std::collections::BTreeMap;
+
+        let directory = tempfile::tempdir()?;
+        let effects = RuntimeEffectRegistry::default();
+        let artifacts = LocalArtifactService::default();
+        let delivery = CredentialDelivery::none();
+        let result = crate::tool_catalogs::native::invoke(
+            crate::tool_catalogs::native::NativeToolInvocation {
+                tool: "control.observed_at",
+                observed_at: "2026-11-03T06:00:00.123Z",
+                inputs: runx_contracts::JsonObject::new(),
+                scopes: &[],
+                env: &BTreeMap::new(),
+                skill_directory: directory.path(),
+                credential_delivery: &delivery,
+                local_artifacts: &artifacts,
+                effects: &effects,
+                bounds: WorkspaceBounds::Agent,
+                call: None,
+                effect_admission: None,
+            },
+        )
+        .ok_or("missing observation capability")?
+        .result?;
+        assert_eq!(
+            result
+                .as_object()
+                .and_then(|output| output.get("observed_at"))
+                .and_then(JsonValue::as_str),
+            Some("2026-11-03T06:00:00.123Z")
+        );
+        assert_eq!(std::fs::read_dir(directory.path())?.count(), 0);
+        Ok(())
+    }
+
+    #[test]
     fn digest_preserves_json_compatibility_and_exact_text() {
         let text = JsonValue::String("hello".to_owned());
         assert_eq!(
@@ -399,5 +544,29 @@ mod tests {
                 .expect("output")
                 .contains("private sample")
         );
+    }
+
+    #[test]
+    fn validate_retains_its_default_budget_and_admits_an_explicit_larger_read() {
+        let mut document = serde_json::json!({
+            "schema": {"type": "object", "properties": {"complete": {"const": true}}},
+            "values": [{"complete": true, "contents": "x".repeat(2 * 1024 * 1024)}]
+        });
+        let default = serde_json::from_value(document.clone()).expect("default input");
+        assert!(super::validate_batch(&default).is_err());
+        document["max_value_bytes"] = serde_json::json!(4 * 1024 * 1024);
+        let explicit = serde_json::from_value(document.clone()).expect("explicit input");
+        let result = super::validate_batch(&explicit).expect("bounded larger validation");
+        assert!(result.valid);
+        assert_eq!(
+            result.values_digest,
+            runx_contracts::sha256_prefixed(
+                &serde_json::to_vec(&explicit.values).expect("original canonical array")
+            )
+        );
+        for limit in [0, super::MAX_VALIDATION_VALUE_BYTES + 1] {
+            document["max_value_bytes"] = serde_json::json!(limit);
+            assert!(serde_json::from_value::<super::ValidateInput>(document.clone()).is_err());
+        }
     }
 }

@@ -666,7 +666,10 @@ fn contains_binding(value: &JsonValue) -> bool {
     }
 }
 
-fn decimal_units(value: &str, scale: u64) -> Option<u64> {
+/// An exact canonical decimal in whole smallest units: exactly `scale`
+/// fractional digits, no rounding, within the portable integer range.
+#[must_use]
+pub fn decimal_units(value: &str, scale: u64) -> Option<u64> {
     if scale > 18 || value.len() > 64 {
         return None;
     }

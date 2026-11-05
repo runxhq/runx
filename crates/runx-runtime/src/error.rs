@@ -98,7 +98,13 @@ pub enum RuntimeError {
     #[error(
         "provider mutation was applied but independent readback is unavailable at graph step '{step_id}': {reason}"
     )]
-    ProviderReadbackPending { step_id: String, reason: String },
+    ProviderReadbackPending {
+        step_id: String,
+        reason: String,
+        /// Reading back may itself charge the provider account. Pending
+        /// finality is not permission to repeat an unpriced request.
+        resend: runx_contracts::RetryResend,
+    },
     /// The driver was asked to stop, so `step_id` was not admitted; the run
     /// stays where it is, and its next driver continues it.
     #[error("run {run_id} stopped before {step_id}; runx resume continues it")]
@@ -371,7 +377,11 @@ impl RuntimeError {
                 projection.insert("retryable".to_owned(), JsonValue::Bool(false));
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
             }
-            Self::ProviderReadbackPending { step_id, reason } => {
+            Self::ProviderReadbackPending {
+                step_id,
+                reason,
+                resend,
+            } => {
                 projection.insert(
                     "code".to_owned(),
                     JsonValue::String("provider_readback_pending".to_owned()),
@@ -382,6 +392,16 @@ impl RuntimeError {
                     JsonValue::String("applied_unconfirmed".to_owned()),
                 );
                 projection.insert("retryable".to_owned(), JsonValue::Bool(false));
+                projection.insert(
+                    "resend".to_owned(),
+                    JsonValue::String(
+                        match resend {
+                            runx_contracts::RetryResend::Safe => "safe",
+                            runx_contracts::RetryResend::Unsafe => "unsafe",
+                        }
+                        .to_owned(),
+                    ),
+                );
                 projection.insert("reason".to_owned(), JsonValue::String(reason.clone()));
             }
             _ => {}
@@ -458,9 +478,10 @@ impl RuntimeError {
                 step_id: step_id.to_owned(),
                 reason,
             },
-            Self::ProviderReadbackPending { reason, .. } => Self::ProviderReadbackPending {
+            Self::ProviderReadbackPending { reason, resend, .. } => Self::ProviderReadbackPending {
                 step_id: step_id.to_owned(),
                 reason,
+                resend,
             },
             #[cfg(feature = "agent")]
             Self::ManagedAgentResolution {

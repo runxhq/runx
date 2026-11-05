@@ -101,6 +101,31 @@ fn a_missing_receipt_needs_more_evidence() -> Result<(), String> {
     Ok(())
 }
 
+#[test]
+fn malformed_verifier_reports_store_context_not_the_claim_tool() -> Result<(), String> {
+    let temp = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let mut env = workspace(temp.path());
+    env.insert(
+        RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV.to_owned(),
+        "hosted".to_owned(),
+    );
+    env.insert(
+        RUNX_RECEIPT_VERIFY_KID_ENV.to_owned(),
+        "proof-test".to_owned(),
+    );
+    env.insert(
+        RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV.to_owned(),
+        "not-base64!".to_owned(),
+    );
+    let error = prove_receipts(&inputs(MISSING_RECEIPT_ID), &env, temp.path())
+        .err()
+        .ok_or("malformed verifier was admitted")?;
+    let message = error.to_string();
+    assert!(message.contains("receipt store"), "{message}");
+    assert!(!message.contains("skill 'receipt.read'"), "{message}");
+    Ok(())
+}
+
 #[cfg(unix)]
 #[test]
 fn the_home_key_proves_the_receipts_it_sealed() -> Result<(), Box<dyn std::error::Error>> {

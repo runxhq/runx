@@ -19,9 +19,12 @@ caller carries into that flow.
    `approved_payees`, the request currency must match the policy currency, and
    the amount must fit both `remaining_budget` and `request_cap`. The
    first failed rule refuses with a named `refused_reason`.
-3. An in-policy amount that reaches `approval_threshold` returns `needs_human`
-   with the policy's `human_lane` (default `procurement-review`); approval below
-   the threshold is `approved`.
+3. Zero remaining budget/cap and an empty payee list are explicit deny settings,
+   not missing evidence. A zero-priced procurement is valid; no payment is implied.
+   An in-policy amount that reaches `approval_threshold` returns `needs_human`
+   with the policy's `human_lane` (default `procurement-review`). A zero threshold
+   requires review for every request. Below the threshold the policy result is
+   `approved`, which is not a native grant or approval to spend.
 4. A policy missing any required authority field refuses with
    `missing_policy_authority` and findings; nothing is inferred or invented.
 
@@ -36,3 +39,18 @@ digests so a downstream spend can prove which request and policy were decided.
 `validation`, and the two digests.
 
 Inputs are `procurement_request` and `procurement_policy`.
+
+## Evidence and execution boundary
+
+The host selects the current authoritative policy and available-budget snapshot.
+All compared amounts must use the same declared currency denomination; this
+skill performs no unit, FX or provider conversion. Retain the original source,
+observation time and both native digests with the decision.
+
+A snapshot is not a reservation. Concurrent decisions can each fit the same
+remaining budget; the selected payment/execution owner must refresh the relevant
+policy and enforce its own atomic budget, exact amount, authority and native
+approval before spending. Include any procurement review requirement in that
+owner's approval context, not a second caller-authored approval flag.
+This result never records payment, reserves funds or prevents another buyer
+from using the budget. Use it as a deterministic policy check, not a ledger.

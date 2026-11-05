@@ -1,6 +1,5 @@
 skill: research
-version: "0.3.13"
-
+version: "0.3.14"
 catalog:
   kind: graph
   audience: public
@@ -99,10 +98,84 @@ input_definitions:
         - { type: array, maxItems: 100 }
         - { type: object, maxProperties: 100 }
 
+tools: [fs.read_bundle]
+skills: [../web-fetch, ../web-search]
+asks: true
+
 runners:
+  investigate:
+    default: true
+    description: Answer a bounded question by reusing supplied evidence or acquiring missing local/web sources, then using the existing verified research analysis.
+    inputs:
+      objective: {definition: objective}
+      domain: {definition: domain}
+      deliverable: {definition: deliverable}
+      operator_context: {definition: operator_context}
+      target_entities: {definition: target_entities}
+      source_packets:
+        type: array
+        required: false
+        default: []
+        description: Existing governed readbacks; when supplied, acquisition is skipped.
+        schema: {maxItems: 20, items: {type: object, additionalProperties: true}}
+      urls:
+        type: array
+        required: false
+        default: []
+        description: Explicit public source URLs to read directly, without discovery.
+        schema: {maxItems: 20, uniqueItems: true, items: {type: string, format: uri, pattern: "^https?://"}}
+      paths:
+        type: array
+        required: false
+        default: []
+        description: Explicit contained local UTF-8 source paths to read directly.
+        schema: {maxItems: 16, uniqueItems: true, items: {type: string, minLength: 1}}
+    result_from: [reuse, analyze-acquired]
+    examples:
+      - objective: Which hosted Postgres providers offer point-in-time recovery under $50 a month?
+    steps:
+      - id: select
+        tool: data.compare
+        inputs: {actual: $input.source_packets, expected: []}
+      - id: reuse
+        when: {value: $steps.select.comparison.equal, equals: false}
+        skill: .
+        runner: research
+        inputs:
+          objective: $input.objective
+          domain: $input.domain
+          deliverable: $input.deliverable
+          operator_context: $input.operator_context
+          target_entities: $input.target_entities
+          source_packets: $input.source_packets
+      - id: acquire
+        when: {value: $steps.select.comparison.equal, equals: true}
+        agent: {role: researcher, task: research-acquire}
+        inputs:
+          objective: $input.objective
+          domain: $input.domain
+          deliverable: $input.deliverable
+          operator_context: $input.operator_context
+          target_entities: $input.target_entities
+          urls: $input.urls
+          paths: $input.paths
+        outputs:
+          source_packets:
+            type: array
+            schema: {maxItems: 20, items: {type: object, additionalProperties: true}}
+      - id: analyze-acquired
+        when: {value: $steps.select.comparison.equal, equals: true}
+        skill: .
+        runner: research
+        inputs:
+          objective: $input.objective
+          domain: $input.domain
+          deliverable: $input.deliverable
+          operator_context: $input.operator_context
+          target_entities: $input.target_entities
+          source_packets: $steps.acquire.source_packets
   research:
     description: Answer one question from governed source packets you supply, separating evidence from inference and citing every claim.
-    default: true
     inputs:
       objective: { definition: objective }
       source_packets:
@@ -136,6 +209,7 @@ runners:
 
       - id: analyze
         skill: graph/analyze
+        runner: analyze
         scopes: [runx:evidence:read]
         inputs:
           objective: $input.objective
@@ -209,6 +283,7 @@ runners:
 
       - id: analyze
         skill: graph/analyze
+        runner: analyze
         scopes: [runx:evidence:read]
         inputs:
           objective: $input.objective

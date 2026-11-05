@@ -1,0 +1,28 @@
+name: release-rejects-a-different-long-provider-version
+kind: graph
+target: support/release-wrong-version.graph
+caller:
+  answers:
+    draft-notes:
+      release_notes:
+        headline: Long-version identity check
+        summary: Prove that the exact requested release version survives independent verification.
+        changelog:
+          added: []
+          fixed: []
+          changed: []
+          removed: []
+          breaking: []
+        upgrade_guidance: None.
+        risks: []
+  approvals:
+    release#release.publish.approval: true
+expect:
+  status: failure
+  receipt:
+    schema: runx.receipt.v1
+    outcome: failed
+metadata:
+  public_skill: release
+  source_case: exact-command-readback
+  source: skills-fixture

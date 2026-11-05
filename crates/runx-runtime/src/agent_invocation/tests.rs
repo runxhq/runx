@@ -34,6 +34,7 @@ fn temp_skill(body: &str) -> Result<tempfile::TempDir, std::io::Error> {
 
 fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInvocation {
     SkillInvocation {
+        workspace_bounds: crate::WorkspaceBounds::Operator,
         historical_context: Vec::new(),
         skill_name: "contract-test".to_owned(),
         step_id: None,

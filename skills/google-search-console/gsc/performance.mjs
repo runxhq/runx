@@ -1,7 +1,6 @@
 import {
   digest,
   finding,
-  nonNegativeIntegerOrNull,
   object,
   stringArray,
   text,
@@ -38,7 +37,7 @@ export function normalizePerformance(inputs) {
   const startDate = text(supplied.start_date || expected.start_date);
   const endDate = text(supplied.end_date || expected.end_date);
   const dimensions = stringArray(
-    Array.isArray(supplied.dimensions) ? supplied.dimensions : expected.dimensions,
+    Array.isArray(supplied.dimensions) ? supplied.dimensions : (expected.dimensions ?? ["page"]),
   );
   const searchType = text(supplied.search_type || expected.search_type || "web");
   const dataState = text(supplied.data_state || expected.data_state || "final");
@@ -52,8 +51,8 @@ export function normalizePerformance(inputs) {
   if (!date(startDate) || !date(endDate) || startDate > endDate) {
     findings.push(finding("gsc.date_range.invalid", "start_date and end_date must form an ordered YYYY-MM-DD range"));
   }
-  if (dimensions.length === 0 || dimensions.some((dimension) => !ALLOWED_DIMENSIONS.has(dimension))) {
-    findings.push(finding("gsc.dimensions.invalid", "dimensions must be a non-empty supported ordered subset"));
+  if (dimensions.some((dimension) => !ALLOWED_DIMENSIONS.has(dimension))) {
+    findings.push(finding("gsc.dimensions.invalid", "dimensions must be a supported ordered subset"));
   }
   if (new Set(dimensions).size !== dimensions.length) {
     findings.push(finding("gsc.dimensions.duplicate", "dimensions cannot contain duplicates"));
@@ -86,7 +85,7 @@ export function normalizePerformance(inputs) {
   }
   const expectedDimensions = stringArray(expected.dimensions);
   if (
-    expectedDimensions.length > 0
+    Array.isArray(expected.dimensions)
     && dimensions.join("\u0000") !== expectedDimensions.join("\u0000")
   ) {
     findings.push(finding("gsc.request.dimensions_mismatch", "supplied dimensions do not match the request"));
@@ -122,13 +121,34 @@ export function normalizePerformance(inputs) {
   }
 
   const paginationInput = object(supplied.pagination);
-  const returnedRows = integerOr(paginationInput.returned_rows, rows.length);
-  const reportedRowCount = integerOr(supplied.row_count, rows.length);
-  const paginationComplete = typeof paginationInput.complete === "boolean"
-    ? paginationInput.complete
-    : returnedRows === 0 || returnedRows < integerOr(expected.row_limit, returnedRows);
+  const returnedRows = rows.length;
+  const startRow = expected.start_row ?? paginationInput.start_row ?? (Object.keys(expected).length > 0 ? 0 : null);
+  const rowLimit = expected.row_limit ?? paginationInput.row_limit ?? null;
+  if (paginationInput.returned_rows !== undefined && paginationInput.returned_rows !== returnedRows) {
+    findings.push(finding("gsc.pagination.row_count_mismatch", "returned_rows differs from the actual page"));
+  }
+  if (expected.start_row !== undefined && paginationInput.start_row !== undefined && expected.start_row !== paginationInput.start_row) {
+    findings.push(finding("gsc.pagination.position_mismatch", "returned start row differs from the request"));
+  }
+  if (expected.row_limit !== undefined && paginationInput.row_limit !== undefined && expected.row_limit !== paginationInput.row_limit) {
+    findings.push(finding("gsc.pagination.limit_mismatch", "returned row limit differs from the request"));
+  }
+  const exhausted = rowLimit !== null ? returnedRows < rowLimit : paginationInput.complete === true;
+  const nextStartRow = !exhausted && startRow !== null && returnedRows > 0 ? startRow + returnedRows : null;
+  if (nextStartRow !== null && !Number.isSafeInteger(nextStartRow)) {
+    findings.push(finding("gsc.pagination.position_invalid", "page position exceeds safe integer precision"));
+  }
+  if (paginationInput.next_start_row != null && paginationInput.next_start_row !== nextStartRow) {
+    findings.push(finding("gsc.pagination.continuation_mismatch", "next_start_row skips rows, repeats a page or continues beyond the end"));
+  }
+  if (!exhausted && returnedRows === 0) {
+    findings.push(finding("gsc.pagination.stalled", "empty page contradicts the continuation flag; refresh the same query"));
+  }
+  const paginationComplete = startRow === 0 && exhausted;
+  const reportedRowCount = returnedRows;
+  caveats.push("Search Console exposes top rows and does not guarantee every underlying row; row_count is the size of this page, not a query total.");
   if (!paginationComplete) {
-    caveats.push("The packet is a bounded page and does not claim complete property coverage.");
+    caveats.push("This packet does not cover the query from its first row; preserve the starting position and any continuation.");
   }
 
   return {
@@ -149,13 +169,15 @@ export function normalizePerformance(inputs) {
         dimensions,
         search_type: searchType,
         data_state: dataState,
+        start_row: startRow,
+        row_limit: rowLimit,
       },
       rows,
       row_count: reportedRowCount,
       pagination: {
         returned_rows: returnedRows,
         complete: paginationComplete,
-        next_start_row: nonNegativeIntegerOrNull(paginationInput.next_start_row),
+        next_start_row: nextStartRow,
       },
       aggregation_type: text(supplied.aggregation_type),
       freshness: {
@@ -230,8 +252,4 @@ function offsetHour(value) {
 
 function numberOrNull(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function integerOr(value, fallback) {
-  return Number.isInteger(value) && value >= 0 ? value : fallback;
 }

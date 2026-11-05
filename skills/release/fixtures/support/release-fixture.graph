@@ -1,8 +1,13 @@
 name: release-fixture-end-to-end
 steps:
   - id: setup
-    inputs: { prepare_status: ready }
-    tool: { command: node, args: [./setup_release_fixture.mjs] }
+    inputs:
+      prepare_status: ready
+      exact_argument: "  preserve this argument  "
+    tool:
+      command: node
+      args:
+        - ./setup_release_fixture.mjs
     outputs:
       project_root: string
       profile_path: string

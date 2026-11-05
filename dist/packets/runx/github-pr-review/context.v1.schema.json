@@ -1,0 +1,333 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "decision",
+    "repository",
+    "number",
+    "base_sha",
+    "head_sha",
+    "diff_base_sha",
+    "title",
+    "description",
+    "observed_at",
+    "files",
+    "checks",
+    "checks_complete",
+    "checks_source",
+    "coverage",
+    "blockers",
+    "limitations",
+    "sources",
+    "selection"
+  ],
+  "properties": {
+    "decision": {
+      "enum": [
+        "ready",
+        "needs_more_evidence"
+      ]
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "base_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "head_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "diff_base_sha": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "previous_path",
+          "status",
+          "blob_sha",
+          "patch"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "previous_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "added",
+              "removed",
+              "modified",
+              "renamed",
+              "copied",
+              "changed",
+              "unchanged"
+            ]
+          },
+          "blob_sha": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "patch": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "head_sha",
+          "name",
+          "status",
+          "conclusion"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "head_sha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string"
+          },
+          "conclusion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "checks_complete": {
+      "type": "boolean"
+    },
+    "checks_source": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "head_sha",
+        "total_count",
+        "artifact"
+      ],
+      "properties": {
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        "total_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifact": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Opaque retained native ProjectArtifact descriptor. Native artifact.open owns descriptor validation and source admission; this context does not redefine that core contract."
+        }
+      }
+    },
+    "coverage": {
+      "const": "available_pr_patches_only"
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      }
+    },
+    "sources": {
+      "type": "object",
+      "required": [
+        "pull",
+        "comparison",
+        "files"
+      ],
+      "properties": {
+        "pull": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Opaque retained native ProjectArtifact descriptor. Native artifact.open owns descriptor validation and source admission; this context does not redefine that core contract."
+        },
+        "comparison": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "description": "Opaque retained native ProjectArtifact descriptor. Native artifact.open owns descriptor validation and source admission; this context does not redefine that core contract."
+        },
+        "files": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "description": "Opaque retained native ProjectArtifact descriptor. Native artifact.open owns descriptor validation and source admission; this context does not redefine that core contract."
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_changed_files",
+        "observed_files",
+        "selected_files",
+        "excluded_files",
+        "gap_count",
+        "gap_preview",
+        "gap_preview_omitted",
+        "scan_complete",
+        "admitted_characters",
+        "patch_char_limit",
+        "paths",
+        "method"
+      ],
+      "properties": {
+        "expected_changed_files": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "observed_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selected_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gap_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gap_preview": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "reason"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "gap_preview_omitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scan_complete": {
+          "type": "boolean"
+        },
+        "admitted_characters": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "patch_char_limit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200000
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "method": {
+          "const": "source-before-tests-docs-generated"
+        }
+      }
+    },
+    "schema": {
+      "const": "runx/github-pr-review.context.v1"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/github-pr-review/context/v1.json",
+  "x-runx-packet-id": "runx/github-pr-review.context.v1"
+}

@@ -8,17 +8,21 @@ auth:
   none: {}
 placements:
   local:
-    auth: [none]
+    auth:
+      - none
 operations:
   vulnerabilities.query:
     description: Query vulnerabilities for exact package versions, one OSV query batch per request.
     verb: read
-    scopes: [vulnerabilities.read]
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes:
+      - vulnerabilities.read
     target:
-      template: "https://api.osv.dev/v1/querybatch"
+      template: https://api.osv.dev/v1/querybatch
     input_schema:
       type: object
-      required: [batches]
+      required:
+        - batches
       additionalProperties: false
       properties:
         batches:
@@ -27,7 +31,8 @@ operations:
           maxItems: 20
           items:
             type: object
-            required: [queries]
+            required:
+              - queries
             additionalProperties: false
             properties:
               queries:
@@ -36,47 +41,143 @@ operations:
                 maxItems: 500
                 items:
                   type: object
-                  required: [package, version]
+                  required:
+                    - package
+                    - version
                   additionalProperties: false
                   properties:
                     package:
                       type: object
-                      required: [ecosystem, name]
+                      required:
+                        - ecosystem
+                        - name
                       additionalProperties: false
                       properties:
-                        ecosystem: {type: string, minLength: 1, maxLength: 50}
-                        name: {type: string, minLength: 1, maxLength: 300}
-                    version: {type: string, minLength: 1, maxLength: 100}
-    result_fields: [batches]
+                        ecosystem:
+                          type: string
+                          minLength: 1
+                          maxLength: 50
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 300
+                    version:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+    result_fields:
+      - batches
     implementation:
       http:
-        allowed_hosts: [api.osv.dev]
+        allowed_hosts:
+          - api.osv.dev
         requests:
-          - each: {"$argument": "/batches"}
+          - each:
+              $argument: /batches
             method: POST
-            url: "https://api.osv.dev/v1/querybatch"
-            body: {"queries": {"$item": "/queries"}}
+            url: https://api.osv.dev/v1/querybatch
+            body:
+              queries:
+                $item: /queries
   vulnerabilities.read:
     description: Read complete advisory records by OSV id.
     verb: read
-    scopes: [vulnerabilities.read]
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes:
+      - vulnerabilities.read
     target:
-      template: "https://api.osv.dev/v1/vulns"
+      template: https://api.osv.dev/v1/vulns
     input_schema:
       type: object
-      required: [ids]
+      required:
+        - ids
       additionalProperties: false
       properties:
         ids:
           type: array
           maxItems: 50
           uniqueItems: true
-          items: {type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$"}
-    result_fields: [advisories]
+          items:
+            type: string
+            pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$
+    result_fields:
+      - advisories
     implementation:
       http:
-        allowed_hosts: [api.osv.dev]
+        allowed_hosts:
+          - api.osv.dev
         requests:
-          - each: {"$argument": "/ids"}
+          - each:
+              $argument: /ids
             method: GET
-            url: {"$concat": ["https://api.osv.dev/v1/vulns/", {"$item": ""}]}
+            url:
+              $concat:
+                - https://api.osv.dev/v1/vulns/
+                - $item: ""
+  vulnerabilities.query_pages:
+    description: Read full OSV vulnerability records for exact package versions, continuing each query with its
+      own body cursor. Preserve native partial and unstarted outcomes.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes:
+      - vulnerabilities.read
+    target:
+      template: https://api.osv.dev/v1/query
+    input_schema:
+      type: object
+      required:
+        - queries
+      additionalProperties: false
+      properties:
+        queries:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required:
+              - package
+              - version
+            additionalProperties: false
+            properties:
+              package:
+                type: object
+                required:
+                  - ecosystem
+                  - name
+                additionalProperties: false
+                properties:
+                  ecosystem:
+                    type: string
+                    minLength: 1
+                    maxLength: 50
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+              version:
+                type: string
+                minLength: 1
+                maxLength: 100
+              page_token:
+                type: string
+                minLength: 1
+                maxLength: 16384
+    result_fields:
+      - queries
+    implementation:
+      http:
+        allowed_hosts:
+          - api.osv.dev
+        requests:
+          - each:
+              $argument: /queries
+            method: POST
+            url: https://api.osv.dev/v1/query
+            body:
+              $item: ""
+            pages:
+              in: body
+              param: /page_token
+              cursor: next_page_token
+              items: vulns

@@ -1,0 +1,63 @@
+name: github-common-read-exact-issue
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - github-issue-triage
+      - github-issue-to-pr
+    request: Read issue 241 in runxhq/runx.
+    expected_outcome: Read the exact issue with the signed-in account; no synchronization direction, requested
+      scope, store write or mutation.
+setup:
+  sessions:
+    - github
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+inputs:
+  repo: runxhq/runx
+  number: 241
+caller:
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.github.com/user
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id": 7, "login": "operator"}'
+    - request:
+        method: GET
+        url: https://api.github.com/repos/runxhq/runx/issues/241
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"number":241,"title":"Sourcey output path is unclear","state":"open","body":"The docs mention two
+          different output
+          directories.","html_url":"https://github.com/runxhq/runx/issues/241","labels":[],"assignees":[]}'
+expect:
+  status: sealed
+  output:
+    subset:
+      provider_operation:
+        data:
+          status: success
+          provider: github
+          operation: issues.read
+          target: runxhq/runx
+          transport: local_http
+          result:
+            issues:
+              - number: 241
+                title: Sourcey output path is unclear
+                body: The docs mention two different output directories.
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: github
+  source_case: bounded-pull-local-gh
+  source: operator-journey

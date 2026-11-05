@@ -3,7 +3,7 @@ kind: skill
 target: ..
 runner: redact-pii
 inputs:
-  content: "Reach Dana at dana [at] example [dot] com for details."
+  content: Reach Dana at dana [at] example [dot] com for details.
   classes:
     - email
   mode: redact
@@ -19,13 +19,11 @@ caller:
 expect:
   status: sealed
   steps:
-    - digest-source
+    - block-policy
     - detect
-    - scrub
-    - digest-redacted
-    - finalize
+    - apply
   step_outputs:
-    finalize:
+    apply:
       subset:
         redaction_report:
           data:

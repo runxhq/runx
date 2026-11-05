@@ -2,12 +2,22 @@ name: redact-pii-composed
 steps:
   - id: redact-pii
     skill: ../..
-    runner: redact-pii
+    runner: from-detections
     inputs:
-      content: "Dana from the north office approved the draft."
+      content: Dana from the north office approved the draft.
       classes:
         - name
       mode: redact
+      redaction_draft:
+        decision: needs_review
+        detected:
+          - class: name
+            selector:
+              quote: Dana
+            confidence: 0.7
+        residual_risk:
+          level: medium
+          reason_code: ambiguous_semantics
   - id: digest
     tool: data.digest
     inputs:

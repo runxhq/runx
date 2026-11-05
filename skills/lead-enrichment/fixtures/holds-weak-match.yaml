@@ -1,0 +1,54 @@
+name: holds-weak-match
+kind: skill
+target: ..
+inputs:
+  subject:
+    id: lead:fixture
+    kind: person
+  selector:
+    id: person-1
+  requested_fields:
+    - person.title
+setup:
+  credentials:
+    - apollo
+env:
+  APOLLO_API_KEY: harness-apollo-key
+caller:
+  approvals:
+    person: true
+  http_exchanges:
+    - request:
+        method: POST
+        url: https://api.apollo.io/api/v1/people/match?id=person-1&reveal_personal_emails=false&reveal_phone_number=false&run_waterfall_email=false&run_waterfall_phone=false
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"match_confidence":"medium","person":{"id":"person-1","title":"CTO"}}'
+expect:
+  status: sealed
+  step_outputs:
+    normalize-person:
+      subset:
+        lookup_evidence:
+          data:
+            decision: ambiguous
+        lead_enrichment_packet:
+          data:
+            decision: needs_more_evidence
+            facts: []
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: lead-enrichment
+  source: skills-fixture
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - lead-qualify
+      - cold-outreach
+    request: Enrich this identified person for the requested professional facts.
+    expected_outcome: Return the actual match outcome and factual availability without qualification or outreach;
+      retain native charging and readback evidence.

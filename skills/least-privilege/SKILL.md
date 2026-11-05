@@ -33,6 +33,13 @@ reserved, recovery or compliance work. Even a recorded scope is not proved
 necessary. `repo:write` does not imply `repo:read`, and a wildcard cannot be
 replaced by the first matching string. Scope strings remain opaque here.
 
+A graph root can record no scopes while its verified child tree contains actual
+operations. Select attributable child receipts when reviewing those operations;
+root metadata is not an aggregated successful-usage log. Exact retained operation
+claims may provide further bounded evidence through their native reader, but
+they still do not prove full coverage, necessity or the semantics of a replacement
+grant.
+
 The current native evidence is insufficient to prove a minimal replacement
 grant. The runner therefore retains the entire grant, emits no executable
 attenuation proposal, and requests policy and representative usage review.
@@ -54,7 +61,11 @@ This skill neither grants new authority nor substitutes for those jobs.
 1. Supply the exact subject reference, current grant and exact receipt ids.
    `subject` must match each receipt's skill subject, actor reference or grant
    reference. A friendly label alone cannot establish attribution.
-2. Resolve evidence through `receipt-query#read` with native chain verification.
+2. Resolve missing evidence through `receipt-query#read` with native chain verification.
+   Supply an already completed `receipt_evidence` ledger packet to bypass that
+   query, or invoke `from-evidence` explicitly in a graph. That phase interprets
+   prior reported verification and does not independently recheck signatures;
+   preserve its source receipt alongside the result.
    Every requested id needs one verified, attributable native detail. Missing,
    duplicate, unverified or mismatched details stop the comparison. Unrelated
    receipt rows never contribute authority observations.
@@ -76,14 +87,15 @@ prove that a grant is minimal. Do not describe either status as safe to apply.
 - `granted_scopes`: current scope strings, including an empty grant.
 - `receipt_ids`: exact receipt ids; an empty set stops for evidence.
 - `objective`: optional review purpose; it does not supply policy authority.
+- `receipt_evidence`: completed `runx/receipt-query.answer.v1` to reuse without
+  another query. The explicit `from-evidence` phase accepts this same packet.
 - `receipt_rows` and `receipt_details`: supplied projections for replay only.
 
 `audit_report` returns the status, subject, completeness and chain verdict,
 limitations, scope-by-scope recorded authority, `retained_grant`,
 `not_recorded_scopes` and `reviewer_action`. `attenuation_proposals` stays empty
 until native evidence can support a replacement. `verdict` is a short operator
-summary. The existing `runx/least-privilege.audit.v1` packet is updated in
-place; there is no alternate contract or compatibility reader.
+summary. The existing `runx/least-privilege.audit.v1` packet is unchanged.
 
 For a verified review of `email:send` and `payment:spend`, a receipt recording
 only `email:send` yields `recorded` and `not_recorded`, respectively. Both remain

@@ -79,7 +79,7 @@ pub(crate) fn evaluate(
         .module_loader(loader.clone())
         .build()
         .map_err(|error| engine_failure("creating JavaScript context", error))?;
-    configure_context(&mut context, limits.stack_bytes)?;
+    configure_context(&mut context, limits)?;
 
     let parsed = parse_modules(modules, &loader, &mut context)?;
     let entry = parsed.get(entry_module).ok_or_else(|| {
@@ -167,14 +167,14 @@ fn execution_context(
     Ok(value)
 }
 
-fn configure_context(context: &mut Context, stack_bytes: usize) -> Result<(), EngineError> {
+fn configure_context(context: &mut Context, limits: InvocationLimits) -> Result<(), EngineError> {
     let mut runtime_limits = context.runtime_limits();
     runtime_limits.set_loop_iteration_limit(LOOP_ITERATION_LIMIT);
-    runtime_limits.set_stack_size_limit(stack_bytes / std::mem::size_of::<JsValue>());
+    runtime_limits.set_stack_size_limit(limits.stack_bytes / std::mem::size_of::<JsValue>());
     runtime_limits.set_recursion_limit(RECURSION_LIMIT);
     runtime_limits.set_backtrace_limit(BACKTRACE_LIMIT);
     context.set_runtime_limits(runtime_limits);
-    globals::install(context)
+    globals::install(context, limits.input_bytes, limits.output_bytes)
         .map_err(|error| engine_failure("installing deterministic globals", error))
 }
 

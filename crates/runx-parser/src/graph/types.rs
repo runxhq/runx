@@ -145,6 +145,9 @@ pub enum ToolTarget {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkerTool {
+    /// Helpers the module requires; unsupported names fail graph admission.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires: Vec<runx_contracts::javascript_worker::WorkerApi>,
     /// Relative ECMAScript module path inside the package.
     pub module: String,
     /// Named export; the module's default export when omitted.

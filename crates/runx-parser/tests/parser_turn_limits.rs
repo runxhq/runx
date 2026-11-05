@@ -30,7 +30,7 @@ fn allowance(manifest: &SkillRunnerManifest, runner: &str) -> Result<TurnAllowan
 }
 
 #[test]
-fn every_agent_turn_may_call_the_skills_declared_limits() -> Result<(), String> {
+fn every_agent_turn_receives_its_runners_explicit_operations() -> Result<(), String> {
     let manifest = manifest(
         r#"
 skill: triage
@@ -42,6 +42,7 @@ skills: [./label]
 asks: true
 runners:
   review:
+    operations: [github/issue.read, github/issue.comment]
     steps:
       - id: read
         agent: { role: reviewer, task: read }
@@ -232,6 +233,76 @@ runners:
         ))?;
         assert!(error.contains(expected), "{field}: {error}");
     }
+    Ok(())
+}
+
+#[test]
+fn runners_opt_into_connector_calls_without_changing_graph_operations() -> Result<(), String> {
+    let manifest = manifest(
+        r#"
+skill: inspect
+connectors:
+  fixture/forge:
+    operations: [issue.read, branch.push]
+runners:
+  supplied:
+    operations: []
+    outputs: { summary: string }
+  read:
+    operations: [fixture/forge/issue.read]
+    outputs: { summary: string }
+  omitted:
+    outputs: { summary: string }
+  graph:
+    operations: []
+    steps:
+    - id: read
+      operation: fixture/forge/issue.read
+      input: {repository: example/project, number: 1}
+"#,
+    )?;
+    assert!(allowance(&manifest, "supplied")?.operations.is_empty());
+    assert_eq!(
+        allowance(&manifest, "read")?.operations,
+        [AllowedOperation {
+            requirement: "fixture/forge".into(),
+            operation: "issue.read".into(),
+        }]
+    );
+    assert!(allowance(&manifest, "omitted")?.operations.is_empty());
+    assert!(matches!(
+        manifest.runners["graph"].graph.steps[0].kind,
+        StepKind::Operation(_)
+    ));
+    assert_eq!(manifest.connectors["fixture/forge"].operations.len(), 2);
+    Ok(())
+}
+
+#[test]
+fn runner_operations_cannot_widen_or_misstate_the_package_ceiling() -> Result<(), String> {
+    for (operations, expected) in [
+        (
+            "[github/issue.write]",
+            "which the skill's operations do not",
+        ),
+        ("[other/issue.read]", "which the skill's operations do not"),
+        ("[issue.read]", "must name requirement/operation"),
+        ("[/issue.read]", "must name requirement/operation"),
+        ("[github/]", "must name requirement/operation"),
+        ("[github/issue.read, github/issue.read]", "repeats"),
+        ("null", "is required"),
+        ("[42]", "must be a string"),
+    ] {
+        let error = refusal(&format!(
+            "skill: inspect\nconnectors:\n  github:\n    operations: [issue.read]\nrunners:\n  read:\n    operations: {operations}\n    outputs: {{ summary: string }}\n"
+        ))?;
+        assert!(error.contains("runners.read.operations"), "{error}");
+        assert!(error.contains(expected), "{operations}: {error}");
+    }
+    let error = refusal(
+        "skill: inspect\noperations: []\nrunners:\n  read:\n    outputs: { summary: string }\n",
+    )?;
+    assert!(error.contains("not supported"), "{error}");
     Ok(())
 }
 

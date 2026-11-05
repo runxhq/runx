@@ -4,19 +4,25 @@ target: ..
 runner: author
 operator_journeys:
   - mode: standalone
-    confusors: [least-privilege, work-plan]
+    confusors:
+      - least-privilege
+      - work-plan
     request: Author a fail-closed Runx issue-flow policy from this governance brief.
-    expected_outcome: Return a native-policy-validated contract covering sources, owners, merge authority, and close-after-verification rules.
+    expected_outcome: Return a native-policy-validated contract covering sources, owners, merge
+      authority, and close-after-verification rules.
   - mode: composed
     request: Compile this approved issue-flow governance brief into an operational policy.
-    expected_outcome: Reuse the supplied repositories, trust sources, owners, and merge constraints without re-planning governance.
+    expected_outcome: Reuse the supplied repositories, trust sources, owners, and merge constraints
+      without re-planning governance.
     prior_evidence:
       - The approved governance brief supplied in the fixture.
     must_not_repeat:
       - Do not rediscover repository ownership.
       - Do not weaken or reinterpret the supplied merge and closure constraints.
 inputs:
-  governance_brief: "Govern issue intake across acme/acme, acme/api, and acme/app. Trust GitHub issues and Sentry alerts. Kam owns platform; Chong owns product. Never auto-merge, require a human merge, and close source issues only after verification."
+  governance_brief: Govern issue intake across acme/acme, acme/api, and acme/app. Trust GitHub issues
+    and Sentry alerts. Kam owns platform; Chong owns product. Never auto-merge, require a human
+    merge, and close source issues only after verification.
   objective: Stand up a fail-closed issue-flow policy for the three repos.
 caller:
   answers:
@@ -127,7 +133,8 @@ caller:
             auto_merge: false
             mutate_target_repo: true
             require_human_merge_gate: true
-        rationale: The policy binds every source, target, runner, and owner while keeping mutation behind human review.
+        rationale: The policy binds every source, target, runner, and owner while keeping mutation behind
+          human review.
         blockers: []
         needs_input: []
         success_checkpoint:
@@ -138,6 +145,7 @@ expect:
   steps:
     - draft
     - prepare
+    - compare-fixed-settings
     - lint
     - finalize-lint
   step_outputs:

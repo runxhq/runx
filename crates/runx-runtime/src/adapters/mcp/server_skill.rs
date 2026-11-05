@@ -19,10 +19,10 @@ impl McpServerOptions {
         package_version: impl Into<String>,
         execution: McpServerExecutionOptions,
     ) -> Result<Self, RuntimeError> {
-        let mut tools = skill_paths
-            .iter()
-            .map(|path| load_mcp_server_tool(path, &execution))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut tools = Vec::new();
+        for path in skill_paths {
+            tools.extend(load_mcp_server_tools(path, &execution)?);
+        }
         tools.extend(super::server_turn::turn_tools(&McpTurnRuns::Named(
             std::sync::Arc::new(super::types::NamedRuns::new(execution.clone())),
         )));
@@ -39,9 +39,54 @@ impl McpServerOptions {
     }
 }
 
-pub(super) fn load_mcp_server_tool(
+/// A skill's tools: its selected runner's, and, unless the server was given
+/// one runner, a tool for each other standalone runner whose turns make calls.
+/// Those are the runners only this connection can work.
+pub(super) fn load_mcp_server_tools(
     skill_path: &Path,
     execution: &McpServerExecutionOptions,
+) -> Result<Vec<McpServerTool>, RuntimeError> {
+    let mut tools = vec![load_mcp_server_tool(
+        skill_path,
+        execution,
+        execution.runner.as_deref(),
+    )?];
+    if execution.runner.is_some() {
+        return Ok(tools);
+    }
+    let loaded = crate::load_validated_skill_package(skill_path)?;
+    let Some(manifest) = loaded.manifest() else {
+        return Ok(tools);
+    };
+    for runner in manifest.runners.values() {
+        if runner.default
+            || !crate::skill_package::runner_has_sealed_standalone_journey(
+                &loaded.package,
+                manifest,
+                runner,
+            )
+            || !crate::skill_package::runner_makes_calls(
+                loaded.clone().into(),
+                &runner.name,
+                &execution.env,
+            )
+            .map_err(|error| mcp_runner_error(&loaded.package.skill.name, error))?
+        {
+            continue;
+        }
+        tools.push(load_mcp_server_tool(
+            skill_path,
+            execution,
+            Some(&runner.name),
+        )?);
+    }
+    Ok(tools)
+}
+
+fn load_mcp_server_tool(
+    skill_path: &Path,
+    execution: &McpServerExecutionOptions,
+    selected: Option<&str>,
 ) -> Result<McpServerTool, RuntimeError> {
     let loaded = crate::load_validated_skill_package(skill_path)?;
     let skill_path = loaded
@@ -54,12 +99,12 @@ pub(super) fn load_mcp_server_tool(
             "skill package does not declare run.yaml runners",
         )
     })?;
-    let runner = crate::execution::skill_front::runner_manifest::selected_runner(
-        manifest,
-        execution.runner.as_deref(),
-    )
-    .map_err(|error| mcp_runner_error(&loaded.package.skill.name, error))?
-    .clone();
+    let runner =
+        crate::execution::skill_front::runner_manifest::selected_runner(manifest, selected)
+            .map_err(|error| mcp_runner_error(&loaded.package.skill.name, error))?
+            .clone();
+    // A server given one runner offers it under the skill's own name.
+    let tool_runner = selected.filter(|_| execution.runner.is_none());
     let skill = loaded.package.skill.clone();
     let package_digest = loaded.package.package_digest.clone();
     let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
@@ -73,7 +118,7 @@ pub(super) fn load_mcp_server_tool(
     .closure_digest
     .ok_or_else(|| mcp_runner_error(&skill.name, "skill requires an execution-closure binding"))?;
     Ok(McpServerTool {
-        name: skill.name.clone(),
+        name: crate::export::skill_tool_name(&skill.name, tool_runner),
         description: skill
             .description
             .clone()

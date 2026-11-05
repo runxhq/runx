@@ -76,6 +76,11 @@ impl ProcessToolAdapter {
                     error.to_string(),
                     Observations {
                         boundary: Some(process.boundary),
+                        credentials: credential_delivery
+                            .public_observation()
+                            .cloned()
+                            .into_iter()
+                            .collect(),
                         ..Observations::default()
                     },
                 ));
@@ -171,6 +176,11 @@ fn process_output(
         outcome.status.code(),
         Observations {
             boundary: Some(boundary),
+            credentials: credential_delivery
+                .public_observation()
+                .cloned()
+                .into_iter()
+                .collect(),
             ..Observations::default()
         },
     )
@@ -198,6 +208,7 @@ mod tests {
             tempfile::tempdir().map_err(|source| RuntimeError::io("creating workspace", source))?;
         DEFAULT_TIMEOUT_OVERRIDE_SECONDS.store(1, std::sync::atomic::Ordering::SeqCst);
         let output = ProcessToolAdapter.invoke(SkillInvocation {
+            workspace_bounds: crate::WorkspaceBounds::Operator,
             historical_context: Vec::new(),
             skill_name: "default-timeout".to_owned(),
             step_id: None,

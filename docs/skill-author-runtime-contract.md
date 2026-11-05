@@ -11,6 +11,16 @@ JSON-compatible value; Runx then owns every process detail described below.
 Internal receipt IDs, artifact IDs, execution-boundary metadata internals, and
 temporary paths are not part of this contract unless named here.
 
+For retained execution evidence, use native `receipt.prove` and `receipt.read`,
+not a reader over private Runx files. `receipt.read` selects one exact receipt's
+declared claim. When that claim must belong to an original composed run, also
+pass `root_receipt_id`: the native owner verifies that complete signed tree and
+admits only its root or a descendant. The response preserves this root binding.
+An unrelated valid receipt is insufficient. Claim access still requires
+`receipt.claim.read`, operator bounds and the current workspace's retained state;
+it does not expose raw inputs or transport diagnostics. Membership and signatures
+do not themselves establish provider truth or successful payment.
+
 ## JavaScript module boundary
 
 A pure package module needs no manifest, wrapper, environment parsing, stdout
@@ -63,6 +73,7 @@ that object merely because the CLI can read it.
 For one large immutable JSON-array export, declare a paged worker:
 
 ```yaml
+scopes: [fs.read]
 tool:
   module: archive-selection.mjs
   export: selectPage
@@ -76,6 +87,8 @@ tool:
 
 The runtime removes the path and scope fields before module invocation, admits
 the contained file to an immutable snapshot, and calls the export repeatedly.
+The step must declare `fs.read`. Native admission preserves the caller's bounds:
+agent-bound runs refuse secret files and Runx state, including symlink aliases.
 Each call receives `runx_page` with `artifact_uri`, media type, whole digest,
 source byte count, page index, exact offsets, range digest, `eof`, complete
 encoded records, and the prior continuation `state`. An intermediate result may
@@ -83,9 +96,43 @@ contain only `{ runx_page: { state, done? } }`; the final call also returns the
 declared domain output. A failed page reports its index and byte offset and
 cannot be mistaken for an empty page.
 
+For a retained provider array, reuse its native snapshot instead of deriving a
+private artifact path. For example, after a GitHub `commits.compare` step:
+
+```yaml
+- id: files
+  tool: artifact.store
+  scopes: [artifact.write]
+  inputs: {value: $steps.compare.provider_operation.result.comparison.files}
+- id: open
+  tool: artifact.open
+  scopes: [artifact.read]
+  inputs: {artifact: $steps.files.project_artifact}
+- id: select
+  scopes: [fs.read]
+  inputs: {files_source: $steps.open.local_artifact.artifact_uri}
+  tool:
+    module: review.mjs
+    pages: {artifact_from: files_source, framing: json_array, page_bytes: 524288}
+```
+
+`artifact_from` names an input containing the opaque URI from `artifact.admit`
+or `artifact.open` in this logical run. Its media type and bytes are already bound;
+do not also declare `path_from`, `path_scope_from` or `media_type`. The adapter
+looks up that immutable snapshot and uses the same bounded page loop. It never
+opens a caller-supplied URI as a path. Unknown references and references from a
+different logical run or project refuse.
+This has the same `fs.read` requirement as `artifact.read`; `artifact.open`
+retains its separate operator, scope, root and descriptor checks.
+
+The admitted snapshot survives process exit and pause/resume within the same
+logical run, including moving its project state to another path. Continue with
+the original reference and offset. Use the retained ProjectArtifact descriptor
+for a separate run, where `artifact.open` admits that content under the new run.
+
 The two artifact identities have different jobs. `artifact_uri` is an opaque,
-runtime-local capability for reading the admitted snapshot; it deliberately
-changes across runtime instances and belongs in receipt provenance, not in a
+logical-run-scoped reference for reading the admitted snapshot; it survives
+runtime restarts and belongs in receipt provenance, not in a
 domain plan or idempotency digest. `whole_digest` is the stable content identity
 to carry into deterministic domain output. Two runs over identical bytes must
 produce the same semantic plan even though their `artifact_uri` values differ.
@@ -123,6 +170,14 @@ their runtime effect, credential, artifact, and receipt boundaries. Local tool
 manifests retain the subprocess ABI below. The owning `SKILL.md` and any
 declared context-skill manuals provide operating judgment; tool schemas provide
 mechanics, not duplicate instructions.
+
+Provider calls need an explicit runner `operations: [requirement/operation]`
+list. Each entry must belong to the package's connector requirements. An omitted
+or empty list offers and admits no direct provider calls in that runner's agent
+turns. Connector requirements describe graph dependencies and the validation
+ceiling; they do not grant agent permissions. Static `operation` steps retain
+their declared behavior, and every provider call retains its existing grant,
+scope, credential, approval and readback requirements.
 
 Bundled local tools use
 `tools/<namespace>/<tool>/manifest.json`; the dotted manifest name must match

@@ -59,21 +59,28 @@ inputs:
     stop_conditions: []
     receipt_notes: {authority: context-only, mutation: false}
     validation: {status: pass, findings: []}
+caller:
+  answers:
+    draft:
+      content_draft:
+        decision: needs_more_evidence
+        content_brief: {objective: Offer a useful documentation review, audience: documentation maintainers, channel: email}
+        draft: {title: "", body: "", claims: []}
+        context_binding: {applied: []}
+        review_checklist:
+          - The brand voice is scoped to platform engineers on Reddit; applicability to an email for documentation maintainers has not been established.
+        distribution_notes: {}
 expect:
   status: sealed
-  steps: [admit-evidence, admit, hold]
+  steps: [admit-evidence, admit, draft, verify, digest-draft, review]
   step_outputs:
-    hold:
+    review:
       subset:
         outreach_review:
           data:
             decision: hold
             draft_status: withheld
             draft: null
-            draft_packet_digest: null
             delivery_status: not_sent
-            blockers:
-            - brand_voice context does not apply to the requested audience
-            - brand_voice context does not apply to the requested channel
   receipt: {schema: runx.receipt.v1}
 metadata: {public_skill: cold-outreach, source: skills-fixture}

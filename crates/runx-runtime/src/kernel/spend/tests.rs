@@ -49,18 +49,28 @@ fn a_call_spends_its_quote_and_the_dollars_it_moves() {
     assert!(charge(&on_success, None).unwrap().on_success);
 
     let unpriced = operation(None);
-    assert_eq!(charge(&unpriced, None).unwrap().usd_micro, 0);
+    assert!(
+        charge(&unpriced, None)
+            .unwrap_err()
+            .contains("no USD quote")
+    );
+    let credits = operation(Some(
+        serde_json::json!({"per": "request", "source": "docs"}),
+    ));
+    assert!(charge(&credits, None).unwrap_err().contains("no USD quote"));
+    let free = operation(Some(
+        serde_json::json!({"usd_micro": 0, "per": "request", "source": "docs"}),
+    ));
+    assert_eq!(charge(&free, None).unwrap().usd_micro, 0);
     // USDC's six decimals are micro-USD; USD is counted in cents.
     assert_eq!(
-        charge(&unpriced, Some(&amount(1_500_000, "USDC")))
+        charge(&free, Some(&amount(1_500_000, "USDC")))
             .unwrap()
             .usd_micro,
         1_500_000
     );
     assert_eq!(
-        charge(&unpriced, Some(&amount(150, "USD")))
-            .unwrap()
-            .usd_micro,
+        charge(&free, Some(&amount(150, "USD"))).unwrap().usd_micro,
         1_500_000
     );
     // A payment is billable whether or not the provider answers well.

@@ -3,7 +3,7 @@ kind: skill
 target: ..
 runner: redact-pii
 inputs:
-  content: "Email dana@example.com or call 415-555-0188."
+  content: Email dana@example.com or call 415-555-0188.
   classes:
     - email
     - phone
@@ -15,7 +15,8 @@ caller:
         decision: ready
         detected:
           - class: phone
-            span: [31, 43]
+            selector:
+              quote: 415-555-0188
             confidence: 0.99
         residual_risk:
           level: low
@@ -23,13 +24,11 @@ caller:
 expect:
   status: sealed
   steps:
-    - digest-source
+    - block-policy
     - detect
-    - scrub
-    - digest-redacted
-    - finalize
+    - apply
   step_outputs:
-    finalize:
+    apply:
       subset:
         redaction_report:
           data:
@@ -42,7 +41,9 @@ expect:
               status: hold
               findings:
                 - class: email
-                  span: [6, 22]
+                  span:
+                    - 6
+                    - 22
                   rule: direct_email
         redacted_content: ""
   receipt:

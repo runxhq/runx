@@ -1,6 +1,5 @@
 skill: skill-build
-version: "0.9.19"
-
+version: "0.9.20"
 catalog:
   publisher: runx
   kind: graph
@@ -11,9 +10,9 @@ catalog:
   execution: execute
   completion: runtime_receipt
   approval: none
-
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases:
     - name: skill-build-designs-bounded-package
       runner: design
@@ -87,7 +86,9 @@ harness:
                 context_skills:
                   - release
                 routes:
-                  - Hand the bounded release-note artifact and source change set to the canonical release skill; it owns release authority and execution, no connector is selected here, and publication remains unattempted until that lane completes its own approval and readback.
+                  - Hand the bounded release-note artifact and source change set to the canonical release
+                    skill; it owns release authority and execution, no connector is selected here, and
+                    publication remains unattempted until that lane completes its own approval and readback.
               resource_budget:
                 max_files: 20
                 max_executable_lines: 0
@@ -99,7 +100,8 @@ harness:
               proof_plan:
                 - name: release-notes-selection
                   kind: selection_trial
-                  expected: Release-note preparation selects release while a publication-only request does not select this runner.
+                  expected: Release-note preparation selects release while a publication-only request does not select this
+                    runner.
                 - name: release-notes-standalone
                   kind: standalone_operator_journey
                   expected: A direct change set produces reviewable notes without claiming publication.
@@ -114,18 +116,17 @@ harness:
           - inspect
           - architect
           - plan
-
     - name: skill-build-needs-objective
       runner: design
       inputs: {}
       expect:
         status: failure
-
 tools:
   - fs.read_bundle
   - git.status
   - runx.skill.plan
-
+  - artifact.open
+  - artifact.read
 runners:
   design:
     description: Plan a skill's catalog fit and architecture without writing any package bytes.
@@ -152,7 +153,8 @@ runners:
         repo_root: .
         target_dir: skills/research
         project_context: Preserve remote evidence support and reuse native file admission.
-    result_from: [plan]
+    result_from:
+      - plan
     steps:
       - id: inspect
         label: inspect target and catalog
@@ -164,7 +166,9 @@ runners:
           target_dir: $input.target_dir
       - id: architect
         label: decide ownership and architecture
-        agent: { role: builder, task: skill-build-architecture }
+        agent:
+          role: builder
+          task: skill-build-architecture
         outputs:
           architecture_decision: object
         inputs:
@@ -185,9 +189,9 @@ runners:
         inputs:
           base_digest: $steps.inspect.authoring_context.base_digest
           architecture: $steps.architect.architecture_decision
-
   build:
-    description: Create or update a skill package, writing it only once its exact staged bundle passes parsing, inspection and safe harness replay.
+    description: Create or update a skill package, writing it only once its exact staged bundle passes parsing,
+      inspection and safe harness replay.
     default: true
     inputs:
       objective:
@@ -216,7 +220,8 @@ runners:
         repo_root: .
         target_dir: skills/research
         project_context: Preserve remote evidence support and avoid package-local file readers.
-    result_from: [apply]
+    result_from:
+      - apply
     steps:
       - id: inspect
         label: inspect target and catalog
@@ -228,7 +233,9 @@ runners:
           target_dir: $input.target_dir
       - id: architect
         label: decide ownership and architecture
-        agent: { role: builder, task: skill-build-architecture }
+        agent:
+          role: builder
+          task: skill-build-architecture
         outputs:
           architecture_decision: object
         inputs:
@@ -252,7 +259,9 @@ runners:
           architecture: $steps.architect.architecture_decision
       - id: author
         label: author only the planned package bytes
-        agent: { role: builder, task: skill-build-author }
+        agent:
+          role: builder
+          task: skill-build-author
         outputs:
           change_draft: object
         inputs:
@@ -286,7 +295,6 @@ runners:
           repo_root: $input.repo_root
           mode: build
           change_bundle: $steps.bind.change_bundle
-
   improve:
     description: Turn one receipt or harness failure into a bounded update of a package, validated before it is written.
     inputs:
@@ -329,7 +337,8 @@ runners:
         target_dir: skills/github
         project_context: Preserve the existing contract version and provider boundary.
         harness_output: The agent could not construct the nested resources selector from inspection.
-    result_from: [apply]
+    result_from:
+      - apply
     steps:
       - id: inspect
         label: inspect target and evidence posture
@@ -341,7 +350,9 @@ runners:
           target_dir: $input.target_dir
       - id: architect
         label: decide the bounded correction architecture
-        agent: { role: builder, task: skill-build-architecture }
+        agent:
+          role: builder
+          task: skill-build-architecture
         outputs:
           architecture_decision: object
         inputs:
@@ -368,7 +379,9 @@ runners:
           architecture: $steps.architect.architecture_decision
       - id: author
         label: author the evidence-bound correction
-        agent: { role: builder, task: skill-build-author }
+        agent:
+          role: builder
+          task: skill-build-author
         outputs:
           change_draft: object
         inputs:
@@ -405,7 +418,6 @@ runners:
           repo_root: $input.repo_root
           mode: improve
           change_bundle: $steps.bind.change_bundle
-
   harness:
     description: Add fixtures to an existing package and replay its harness against them before writing.
     inputs:
@@ -435,7 +447,8 @@ runners:
         repo_root: .
         target_dir: skills/research
         project_context: Exercise the real native file and evidence capabilities.
-    result_from: [apply]
+    result_from:
+      - apply
     steps:
       - id: inspect
         label: inspect target package
@@ -447,7 +460,9 @@ runners:
           target_dir: $input.target_dir
       - id: architect
         label: decide the fixture architecture
-        agent: { role: builder, task: skill-build-architecture }
+        agent:
+          role: builder
+          task: skill-build-architecture
         outputs:
           architecture_decision: object
         inputs:
@@ -471,7 +486,9 @@ runners:
           architecture: $steps.architect.architecture_decision
       - id: author
         label: author only the planned fixtures
-        agent: { role: builder, task: skill-build-author }
+        agent:
+          role: builder
+          task: skill-build-author
         outputs:
           change_draft: object
         inputs:

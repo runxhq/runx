@@ -132,27 +132,13 @@ pub(super) fn prune_managed_files(
 }
 
 fn managed_source(contents: &str, target: Target) -> Option<&str> {
-    let prefix = format!("<!-- {} source=", target.marker());
-    let suffix = " - generated, do not edit -->";
-    contents.lines().find_map(|line| {
-        line.strip_prefix(&prefix)
-            .and_then(|value| value.strip_suffix(suffix))
-            .map(|value| {
-                value
-                    .split_once(" package-digest=")
-                    .map_or(value, |(source, _)| source)
-            })
-    })
+    let binding = runx_runtime::export::parse_export_binding(contents)?;
+    (format!("runx-export:{}", binding.target) == target.marker()).then_some(binding.source)
 }
 
 fn managed_package_digest(contents: &str, target: Target) -> Option<&str> {
-    let prefix = format!("<!-- {} source=", target.marker());
-    contents.lines().find_map(|line| {
-        line.strip_prefix(&prefix)?
-            .split_once(" package-digest=")?
-            .1
-            .strip_suffix(" - generated, do not edit -->")
-    })
+    let binding = runx_runtime::export::parse_export_binding(contents)?;
+    (format!("runx-export:{}", binding.target) == target.marker()).then_some(binding.package_digest)
 }
 
 /// A project export names its source relative to the export root, so it
@@ -220,7 +206,7 @@ fn replace_or_append_block(existing: &str, block: &str) -> String {
     output
 }
 
-fn read_to_string(path: &Path) -> Result<String, ExportError> {
+pub(super) fn read_to_string(path: &Path) -> Result<String, ExportError> {
     fs::read_to_string(path).map_err(|source| ExportError::Io {
         context: format!("reading {}", display_path(path)),
         source,

@@ -1,6 +1,5 @@
 skill: agent-session
-version: "0.1.5"
-
+version: "0.1.6"
 catalog:
   publisher: runx
   kind: skill
@@ -79,6 +78,11 @@ harness:
 
 runners:
   read:
+    examples:
+      - {}
+    operations:
+      - web/page.read
+      - exa/search.query
     description: Work a turn that reads, searches and asks, across the workspace's files and git history, the web and the catalog, and changes nothing.
     default: true
     tools:
@@ -100,6 +104,9 @@ runners:
         required: true
         description: What the turn did and found, what is still open, and what waits on the person.
   develop:
+    operations:
+      - web/page.read
+      - exa/search.query
     description: Work a turn that may also change the workspace, editing and writing files and running commands, each waiting on the person unless a standing approval covers it.
     outputs:
       summary:

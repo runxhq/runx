@@ -1,39 +1,19 @@
 # Providers Reference
 
-Use this reference for provider health, credentials, webhooks, deploys, syncs,
-and incident triage.
+Review observed provider/account health, credential status, webhook delivery,
+sync or deployment evidence without copying credentials into a report.
 
-## Rule
+Resolve every proposed check against an existing connector operation or the
+owning product's command/workflow. Health checks, webhook inspection, credential
+rotation and deploy smoke checks are categories of work, not universal operation
+names. If no selected implementation exists, report the exact missing route.
 
-Provider state is observed through governed checks and redacted refs. Secrets
-are never copied into ops desk packets.
+Preserve provider/account identity, observation time, redacted binding reference,
+target, latest relevant receipt and known degraded dependencies. Distinguish
+service availability, authentication, endpoint entitlement, quota and completed
+effects; success at one does not prove the others.
 
-## Common Lanes
-
-- `provider.health_check`: read-only.
-- `provider.sync`: may be read-only or mutation depending on provider.
-- `provider.webhook_check`: read-only unless changing configuration.
-- `provider.credential_status`: read-only redacted status.
-- `provider.credential_rotate`: credential mutation; approval required.
-- `deploy.smoke`: read-only verification after deploy.
-- `deploy.rollout`: deploy mutation; approval required.
-- `deploy.rollback`: deploy mutation; approval required.
-
-## Required Evidence
-
-- provider name and account/workspace/product ref;
-- status timestamp;
-- credential ref, never raw credential;
-- webhook endpoint and latest delivery status when relevant;
-- last successful receipt/effect/sync ref;
-- known degraded dependency.
-
-## Stop Conditions
-
-- Raw token, API key, wallet private key, seed, webhook secret, or customer data
-  appears in provider context.
-- Provider mutation requested without an owner or approval.
-- Deploy requested while health checks are unknown and no break-glass approval is
-  present.
-- Sync action would mutate public/customer-visible state but is framed as
-  read-only.
+Classify sync and configuration work by its actual effects. The execution owner
+enforces its authority and approval policy. Secret rotation, rollout and rollback
+must never be hidden inside a read-only proposal. A failed or unavailable check
+remains unknown or blocked; do not invent a healthy result.

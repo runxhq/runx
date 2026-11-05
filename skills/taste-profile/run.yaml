@@ -1,6 +1,5 @@
 skill: taste-profile
-version: "0.2.9"
-
+version: "0.2.10"
 catalog:
   kind: graph
   audience: public
@@ -20,9 +19,32 @@ runners:
         required: true
         description: Person, team, product, or audience whose taste is modeled.
       evidence:
-        type: json
+        type: array
         required: true
-        description: At least two bounded typed preference examples.
+        description: Selected preference records with exact kind, content and optional label. At least two are needed;
+          this run accepts up to 50 selected examples.
+        schema:
+          maxItems: 50
+          items:
+            type: object
+            required:
+              - kind
+              - content
+            additionalProperties: false
+            properties:
+              kind:
+                enum:
+                  - liked
+                  - disliked
+                  - correction
+                  - instruction
+              content:
+                type: string
+                minLength: 1
+                maxLength: 20000
+              label:
+                type: string
+                maxLength: 1000
       surface:
         type: string
         required: false
@@ -36,6 +58,13 @@ runners:
         required: false
         description: Policy, accessibility, legal, or operational boundaries.
     result_from: [reject, finalize]
+    examples:
+      - subject: Acme product team
+        evidence:
+        - kind: instruction
+          content: Lead with what the reader can do, and cut the adjectives.
+        - kind: instruction
+          content: Prefer one plain sentence to three clever ones.
     steps:
       - id: index
         inputs:
@@ -79,7 +108,83 @@ runners:
           equals: ready
         agent: { role: curator, task: taste-profile-synthesize }
         outputs:
-          taste_profile_draft: object
+          taste_profile_draft:
+            type: object
+            schema:
+              properties:
+                decision:
+                  type: string
+                subject:
+                  type: string
+                applicability:
+                  type: object
+                  properties:
+                    surfaces:
+                      type: array
+                      items:
+                        type: string
+                    audience:
+                      type: string
+                    expires_when:
+                      type: array
+                      items:
+                        type: string
+                taste_profile:
+                  type: object
+                  properties:
+                    principles:
+                      type: array
+                      items:
+                        type: string
+                    likes:
+                      type: array
+                      items:
+                        type: string
+                    dislikes:
+                      type: array
+                      items:
+                        type: string
+                    decision_rules:
+                      type: array
+                      items:
+                        type: string
+                    examples_to_emulate:
+                      type: array
+                    examples_to_avoid:
+                      type: array
+                evidence_bindings:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      rule:
+                        type: string
+                      source_ids:
+                        type: array
+                        items:
+                          type: string
+                      confidence:
+                        type: string
+                redactions:
+                  type: array
+                stop_conditions:
+                  type: array
+                  items:
+                    type: string
+              required:
+              - decision
+              if:
+                properties:
+                  decision:
+                    pattern: ^ready
+              then:
+                required:
+                - subject
+                - applicability
+                - taste_profile
+                - evidence_bindings
+                - redactions
+                - stop_conditions
         inputs:
           subject: $input.subject
           surface: $input.surface

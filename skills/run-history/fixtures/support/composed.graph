@@ -6,7 +6,6 @@ steps:
     inputs:
       objective: Show how Runx behaved over the supplied window.
       scope: workspace
-      period: 30d
       runs:
         - run_id: run_release_1
           skill: release

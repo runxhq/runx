@@ -43,7 +43,7 @@ caller:
         follow_up_plan: { monitor_for: [migration questions] }
 expect:
   status: sealed
-  steps: [read-feed, admit, digest, analyze, finalize]
+  steps: [observed, read-feed, admit, digest, analyze, finalize]
   step_outputs:
     finalize:
       subset:

@@ -1,6 +1,5 @@
 skill: skill-review
-version: "0.3.9"
-
+version: "0.3.10"
 catalog:
   publisher: runx
   kind: graph
@@ -11,7 +10,6 @@ catalog:
   completion: runtime_receipt
   approval: none
   category: authoring
-
 harness:
   files:
     - fixtures/subject/SKILL.md
@@ -21,14 +19,18 @@ harness:
     - name: skill-review-collects-native-evidence
       operator_journeys:
         - mode: standalone
-          confusors: [diagnose-skill-run, skill-build]
+          confusors:
+            - diagnose-skill-run
+            - skill-build
           request: Review the review-subject skill for capability, trust, and operator readiness.
-          expected_outcome: Collect native inspection and harness evidence, then return a bounded adoption or improvement recommendation.
+          expected_outcome: Collect native inspection and harness evidence, then return a bounded adoption or
+            improvement recommendation.
         - mode: composed
           request: Assess this skill from the native evidence already collected by the catalog review.
           expected_outcome: Reuse inspection and harness evidence without rerunning provider effects or rebuilding the skill.
           prior_evidence:
-            - The native package inspection, harness result, objective, and test constraints supplied in the fixture.
+            - The native package inspection, harness result, objective, and test constraints supplied in the
+              fixture.
           must_not_repeat:
             - Do not rerun live provider operations.
             - Do not rediscover package contracts already present in native inspection.
@@ -42,17 +44,38 @@ harness:
           assess:
             capability_profile:
               skill: fixtures/subject
-              summary: Digests one fixed value under a bounded read-only contract.
+              summary: Computes a digest of one fixed synthetic value.
+              operator_job: No distinct recurring operator job is established by this fixture.
+              default_result: A digest of a fixed fixture value, with a native receipt.
+              caller_work:
+                - Choose any real input, use case and downstream consumer outside this fixture.
+              value_judgment: thin_wrapper
+              value_reason: The local harness proves a native digest call; it does not establish useful domain judgment or a
+                new operator capability.
+              composition: A parent could consume the digest, but this fixture does not demonstrate a meaningful graph job
+                beyond the existing native data.digest capability.
             trust_assessment:
               tier: local_harness
               caveats:
-                - Provider effects are outside this skill's claim.
+                - Synthetic caller answers and a fixed native value are mechanical proof, not product
+                  usefulness or provider proof.
+              implementation_evidence:
+                - Native inspection of the fixture runner and its fixed data.digest operation.
+              product_evidence: []
             test_matrix:
-              - check: native harness
+              - check: Native isolated harness
                 status: passed
+                evidence: Native skill_validation.harness reports the fixture result.
+              - check: Useful ordinary operator outcome
+                status: required
+                evidence: No real operator request or downstream useful outcome is supplied.
             recommendation_report:
-              recommendation: adopt_with_caveats
-              rationale: The bounded read-only contract and local harness are proven.
+              recommendation: improve
+              rationale: Keep this as a mechanical test fixture; do not recommend adopting a fixed digest wrapper as a
+                useful public skill.
+              blockers:
+                - No distinct operator value or real-use outcome.
+              next_action: Define a useful recurring operator job before considering public adoption.
       expect:
         status: sealed
         receipt:
@@ -71,7 +94,6 @@ harness:
                     name: review-subject
                   harness:
                     status: passed
-
     - name: skill-review-assesses-supplied-evidence
       runner: assess
       inputs:
@@ -86,31 +108,49 @@ harness:
           assess:
             capability_profile:
               skill: example/skill
-              summary: Bounded example capability.
+              summary: Only inspection and harness status flags were supplied.
+              operator_job: Unknown from the supplied evidence.
+              default_result: Unknown; no actual implementation or artifact is present.
+              caller_work:
+                - Supply the actual manual, implementation, ordinary request and resulting artifact or effect
+                  evidence.
+              value_judgment: unknown
+              value_reason: A status of ok or passed does not describe what an agent can accomplish.
+              composition: No actual input/output or reuse contract is present in this evidence pack.
             trust_assessment:
-              tier: supplied_local_evidence
-              caveats: []
+              tier: supplied_status_only
+              caveats:
+                - The caller supplied status flags without source or real-use evidence.
+              implementation_evidence: []
+              product_evidence: []
             test_matrix:
-              - check: supplied harness
-                status: passed
+              - check: Implementation and advertised behavior
+                status: required
+                evidence: Not included.
+              - check: Actual ordinary or downstream job
+                status: required
+                evidence: Not included.
             recommendation_report:
-              recommendation: improve
-              rationale: Supplied evidence is useful but lacks independent provider proof.
+              recommendation: needs_more_evidence
+              rationale: The provided status flags cannot support an adoption or usefulness decision.
+              blockers:
+                - Missing capability, implementation and actual outcome evidence.
+              next_action: Provide bounded source and an ordinary-request result; reuse existing inspection rather than
+                rerun provider effects.
       expect:
         status: sealed
         receipt:
           schema: runx.receipt.v1
-
     - name: skill-review-assess-needs-evidence
       runner: assess
       inputs:
         skill: example/skill
       expect:
         status: needs_agent
-
 runners:
   review:
-    description: Inspect and safely test one skill package, then assess its capability, trust and readiness, recommending adopt, improve or reject.
+    description: Inspect one local skill, read relevant implementation through native tools, and assess actual
+      operator value, authority and direct/composed readiness.
     default: true
     inputs:
       skill:
@@ -129,7 +169,10 @@ runners:
         type: string
         required: false
         description: Time, environment, or safety constraints on evaluation.
-    result_from: [assess]
+    result_from:
+      - assess
+    examples:
+      - skill: skills/pr-summary
     steps:
       - id: collect-evidence
         label: inspect target and run safe native harness
@@ -140,17 +183,146 @@ runners:
           skill_path: $input.skill
           allow_execute_harness: false
       - id: assess
-        skill: .
-        runner: assess
+        agent:
+          role: reviewer
+          task: skill-review-assess
         inputs:
           skill: $input.skill
           objective: $input.objective
           evidence_pack: $input.evidence_pack
           test_constraints: $input.test_constraints
           native_validation: $steps.collect-evidence.skill_validation
-
+        outputs:
+          capability_profile:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - skill
+                - summary
+                - operator_job
+                - default_result
+                - caller_work
+                - value_judgment
+                - value_reason
+                - composition
+              properties:
+                skill:
+                  type: string
+                  minLength: 1
+                summary:
+                  type: string
+                  minLength: 1
+                operator_job:
+                  type: string
+                  minLength: 1
+                default_result:
+                  type: string
+                  minLength: 1
+                caller_work:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                value_judgment:
+                  enum:
+                    - useful
+                    - thin_wrapper
+                    - incomplete
+                    - unknown
+                value_reason:
+                  type: string
+                  minLength: 1
+                composition:
+                  type: string
+                  minLength: 1
+          trust_assessment:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - tier
+                - caveats
+                - implementation_evidence
+                - product_evidence
+              properties:
+                tier:
+                  type: string
+                  minLength: 1
+                caveats:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                implementation_evidence:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                product_evidence:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+          test_matrix:
+            type: array
+            schema:
+              items:
+                type: object
+                additionalProperties: false
+                required:
+                  - check
+                  - status
+                  - evidence
+                properties:
+                  check:
+                    type: string
+                    minLength: 1
+                  status:
+                    enum:
+                      - passed
+                      - failed
+                      - skipped
+                      - required
+                  evidence:
+                    type: string
+                    minLength: 1
+          recommendation_report:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - recommendation
+                - rationale
+                - blockers
+                - next_action
+              properties:
+                recommendation:
+                  enum:
+                    - adopt
+                    - adopt_with_caveats
+                    - improve
+                    - reject
+                    - needs_more_evidence
+                rationale:
+                  type: string
+                  minLength: 1
+                blockers:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                next_action:
+                  type: string
+                  minLength: 1
+        artifacts:
+          wrap_as: skill_evaluation_packet
+          packet: runx/skill-review.evaluation.v1
+    tools:
+      - fs.read_bundle
   assess:
-    description: Assess a skill from native test evidence you already hold, without testing it again.
+    description: Assess already supplied implementation and real-use evidence without filesystem reads, provider
+      operations or harness replay.
     inputs:
       skill:
         type: string
@@ -174,7 +346,9 @@ runners:
         description: Time, environment, or safety constraints on evaluation.
     steps:
       - id: assess
-        agent: { role: reviewer, task: skill-review-assess }
+        agent:
+          role: reviewer
+          task: skill-review-assess
         inputs:
           skill: $input.skill
           objective: $input.objective
@@ -182,10 +356,131 @@ runners:
           native_validation: $input.native_validation
           test_constraints: $input.test_constraints
         outputs:
-          capability_profile: object
-          trust_assessment: object
-          test_matrix: array
-          recommendation_report: object
+          capability_profile:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - skill
+                - summary
+                - operator_job
+                - default_result
+                - caller_work
+                - value_judgment
+                - value_reason
+                - composition
+              properties:
+                skill:
+                  type: string
+                  minLength: 1
+                summary:
+                  type: string
+                  minLength: 1
+                operator_job:
+                  type: string
+                  minLength: 1
+                default_result:
+                  type: string
+                  minLength: 1
+                caller_work:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                value_judgment:
+                  enum:
+                    - useful
+                    - thin_wrapper
+                    - incomplete
+                    - unknown
+                value_reason:
+                  type: string
+                  minLength: 1
+                composition:
+                  type: string
+                  minLength: 1
+          trust_assessment:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - tier
+                - caveats
+                - implementation_evidence
+                - product_evidence
+              properties:
+                tier:
+                  type: string
+                  minLength: 1
+                caveats:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                implementation_evidence:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                product_evidence:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+          test_matrix:
+            type: array
+            schema:
+              items:
+                type: object
+                additionalProperties: false
+                required:
+                  - check
+                  - status
+                  - evidence
+                properties:
+                  check:
+                    type: string
+                    minLength: 1
+                  status:
+                    enum:
+                      - passed
+                      - failed
+                      - skipped
+                      - required
+                  evidence:
+                    type: string
+                    minLength: 1
+          recommendation_report:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - recommendation
+                - rationale
+                - blockers
+                - next_action
+              properties:
+                recommendation:
+                  enum:
+                    - adopt
+                    - adopt_with_caveats
+                    - improve
+                    - reject
+                    - needs_more_evidence
+                rationale:
+                  type: string
+                  minLength: 1
+                blockers:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                next_action:
+                  type: string
+                  minLength: 1
         artifacts:
           wrap_as: skill_evaluation_packet
           packet: runx/skill-review.evaluation.v1
+    tools: []
+tools:
+  - fs.read_bundle

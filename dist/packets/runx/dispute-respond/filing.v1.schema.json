@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.runx.ai/packages/runx/dispute-respond/filing/v1.json",
+  "x-runx-packet-id": "runx/dispute-respond.filing.v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "state",
+    "provider",
+    "account_id",
+    "dispute_id",
+    "summary",
+    "prepared_response",
+    "provider_evidence",
+    "findings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "runx/dispute-respond.filing.v1"
+    },
+    "state": {
+      "enum": [
+        "filed",
+        "unconfirmed"
+      ]
+    },
+    "provider": {
+      "const": "stripe"
+    },
+    "account_id": {
+      "type": "string"
+    },
+    "dispute_id": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "prepared_response": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "The exact runx/dispute-respond.response.v1 packet admitted for this submission; the owning prepared packet and native file input validation define it."
+    },
+    "provider_evidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Actual graph-owned native provider-operation output, including independent readback. The core native contract owns its shape."
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

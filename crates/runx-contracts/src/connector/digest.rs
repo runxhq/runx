@@ -67,7 +67,8 @@ struct OperationAuthority<'a> {
 
 #[derive(Serialize)]
 struct Price {
-    usd_micro: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    usd_micro: Option<u64>,
     per: CostBasis,
 }
 

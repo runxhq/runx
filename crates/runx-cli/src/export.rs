@@ -11,6 +11,7 @@ use serde::Serialize;
 mod managed;
 mod parser;
 mod report;
+mod server;
 mod shim;
 
 pub use parser::parse_export_plan;
@@ -21,6 +22,12 @@ const CODEX_RULE_START: &str = "# >>> runx-export start (managed) >>>";
 const CODEX_RULE_END: &str = "# <<< runx-export end <<<";
 const CODEX_RULE_RUNX_ON_PATH: &str = "prefix_rule(pattern = [\"runx\", \"skill\"], decision = \"allow\", justification = \"runx skill invocations are trusted\")";
 const CODEX_RULE_RUNX_RESUME_ON_PATH: &str = "prefix_rule(pattern = [\"runx\", \"resume\"], decision = \"allow\", justification = \"runx resume invocations are trusted\")";
+
+/// The local MCP server a host works calling skills on. The hosted public
+/// server, which only discovers skills, is `runx`.
+const MCP_SERVER_NAME: &str = "runx-local";
+/// Marks a shim whose skill needs that server, beside its source binding.
+const MCP_SERVER_REF_MARKER: &str = "<!-- runx-export-needs-server -->";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExportPlan {
@@ -66,6 +73,7 @@ pub struct ExportReport {
     pub pruned: Vec<String>,
     pub rules_file: Option<String>,
     pub warnings: Vec<String>,
+    pub mcp_server: Option<server::ExportedServer>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -127,7 +135,6 @@ pub fn run_export_command(
     cwd: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<ExportReport, ExportError> {
-    validate_export_plan(plan)?;
     let root = canonicalize(cwd, "canonicalizing export root")?;
     validate_full_export_root(plan, &root)?;
     let runx_bin = exported_runx_binary(env, plan.project)?;
@@ -145,7 +152,7 @@ pub fn run_export_command(
         &skills,
         &skill_dir,
         &runx_bin,
-    )?;
+    );
     managed::validate_write_targets(plan.target, &files, &root, plan.refs.is_empty())?;
     let warnings = managed::managed_drift_warnings(plan.target, &files)?;
     managed::write_files(&files)?;
@@ -163,7 +170,18 @@ pub fn run_export_command(
         None
     };
 
-    Ok(export_report(plan, &files, pruned, rules_file, warnings))
+    let mcp_server = server::register(&server::ServerExport {
+        target: plan.target,
+        project: plan.project,
+        cwd,
+        env,
+        skill_dir: &skill_dir,
+        runx_bin: &runx_bin,
+    })?;
+
+    Ok(export_report(
+        plan, &files, pruned, rules_file, warnings, mcp_server,
+    ))
 }
 
 /// The runx a shim runs: this machine's binary for a user export, and runx
@@ -188,15 +206,6 @@ fn exported_runx_binary(
     })
 }
 
-fn validate_export_plan(plan: &ExportPlan) -> Result<(), ExportError> {
-    if plan.target == Target::Codex && plan.project {
-        return Err(ExportError::Unsupported(
-            "runx export codex --project is not supported until Codex project skill and rules paths are verified".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
 fn validate_full_export_root(plan: &ExportPlan, root: &Path) -> Result<(), ExportError> {
     if plan.refs.is_empty() && !root.join("SKILL.md").is_file() && !root.join("skills").is_dir() {
         return Err(ExportError::InvalidArgs(format!(
@@ -213,6 +222,7 @@ fn export_report(
     pruned: Vec<String>,
     rules_file: Option<PathBuf>,
     warnings: Vec<String>,
+    mcp_server: Option<server::ExportedServer>,
 ) -> ExportReport {
     ExportReport {
         target: plan.target.as_str().to_owned(),
@@ -233,6 +243,7 @@ fn export_report(
         pruned,
         rules_file: rules_file.map(|path| display_path(&path)),
         warnings,
+        mcp_server,
     }
 }
 
@@ -245,13 +256,13 @@ fn target_skill_dir(
     if project {
         return match target {
             Target::Claude => cwd.join(".claude").join("skills"),
-            Target::Codex => cwd.join(".codex").join("skills"),
+            Target::Codex => cwd.join(".agents").join("skills"),
         };
     }
     let home = home_dir(env, cwd);
     match target {
         Target::Claude => home.join(".claude").join("skills"),
-        Target::Codex => home.join(".codex").join("skills"),
+        Target::Codex => home.join(".agents").join("skills"),
     }
 }
 

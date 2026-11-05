@@ -3,7 +3,7 @@ kind: skill
 target: ..
 runner: redact-pii
 inputs:
-  content: "Dana from the north office approved the draft."
+  content: Dana from the north office approved the draft.
   classes:
     - name
   mode: redact
@@ -14,7 +14,8 @@ caller:
         decision: needs_review
         detected:
           - class: name
-            span: [0, 4]
+            selector:
+              quote: Dana
             confidence: 0.7
         residual_risk:
           level: medium
@@ -22,13 +23,11 @@ caller:
 expect:
   status: sealed
   steps:
-    - digest-source
+    - block-policy
     - detect
-    - scrub
-    - digest-redacted
-    - finalize
+    - apply
   step_outputs:
-    finalize:
+    apply:
       subset:
         redaction_report:
           data:

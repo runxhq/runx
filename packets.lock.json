@@ -7,7 +7,7 @@
     },
     {
       "id": "runx/code-intake.intake.v1",
-      "digest": "sha256:e31041db3f8098f85e5e291ffa2a6044d13c3a3d91d79e418e13ca40155e6f6f"
+      "digest": "sha256:e7070a9cc7653699658303fa0eb09711d951f78e74c80fd2b5e0625543e6836c"
     },
     {
       "id": "runx/code-plan.work_plan.v1",
@@ -27,31 +27,27 @@
     },
     {
       "id": "runx/cve-audit.audit.v1",
-      "digest": "sha256:5904c2c9b012d1ce3fa2a5cc0c474291cbf1b4d78d665eb98e10e109f90f6c00"
+      "digest": "sha256:df04be72b7d2031066797c7b394b8b4916974dc6630195346786ccf859561b8f"
     },
     {
-      "id": "runx/cve-audit.delivery.v1",
-      "digest": "sha256:503e9d44358900b2a8ebf049a0c69161c804f8792be41216d89147c30e3f7c04"
+      "id": "runx/cve-audit.locations.v1",
+      "digest": "sha256:b58ec7dd35645ad545d83f8d8af1e120e9a505fc760c66c409dfcb592426f896"
     },
     {
-      "id": "runx/cve-audit.evidence.v1",
-      "digest": "sha256:f622313604bd234761eae1eb0536b4a09788039d20e4432679e760f5aa79991f"
-    },
-    {
-      "id": "runx/cve-audit.report.v1",
-      "digest": "sha256:3270dcb633644bad243d8525b2e7a781506183a4839ea5197f8005707b163bc9"
-    },
-    {
-      "id": "runx/cve-audit.verification.v1",
-      "digest": "sha256:0c4360413ae4b0609b7eed9277ce76e1621a8171a713cf107eb40cf5139304f2"
+      "id": "runx/cve-audit.part.v1",
+      "digest": "sha256:32ad3317202643aed94e22cd9312784fbf7ff3af0123f879e109d60191b5788a"
     },
     {
       "id": "runx/diagnose-skill-run.diagnosis.v1",
       "digest": "sha256:04f60190d0cb33bc3290b92ad6b353e6938a9d09c6444354bb812c3e38622fbb"
     },
     {
+      "id": "runx/dispute-respond.filing.v1",
+      "digest": "sha256:6d1265e82894a124f904abfff6a55f941b4468a03849d499b4c45822be0719df"
+    },
+    {
       "id": "runx/dispute-respond.response.v1",
-      "digest": "sha256:e3f4defe96ba11a4e06f5de475f381d7b9692b43631ac7b14d6f1f30c3e7e0aa"
+      "digest": "sha256:415a4ca699d77dc4d52a488cdff1ea0acb6c6bc2c9e50c9fbef023338e9bd156"
     },
     {
       "id": "runx/extract.result.v1",
@@ -71,7 +67,7 @@
     },
     {
       "id": "runx/github-issue-to-pr.host_result.v1",
-      "digest": "sha256:c9db22c9c78b274a2934ce469d38e29aa653eaaabb1a4d2a292750a4c4a3453a"
+      "digest": "sha256:99ac6eee7ea18198a717405e767633599013268d8203cf49263f6440f42a5fdc"
     },
     {
       "id": "runx/github-issue-to-pr.issue_evidence.v1",
@@ -79,7 +75,7 @@
     },
     {
       "id": "runx/github-issue-to-pr.result.v1",
-      "digest": "sha256:5826a5fd4d7ae5e19d6e4638d356b25ff661fc961dd519b850449238e8f39a6f"
+      "digest": "sha256:848bc45df2374757409d44edac580f2c2663395251b2b24ee150e5e241a51d2e"
     },
     {
       "id": "runx/github-issue-triage.queue.v1",
@@ -88,6 +84,10 @@
     {
       "id": "runx/github-issue-triage.triage.v1",
       "digest": "sha256:b7367c269df060ab65196b02a86a4e88143b6fb5ba4d1d432513116dcc475909"
+    },
+    {
+      "id": "runx/github-pr-review.context.v1",
+      "digest": "sha256:1441c104423bc284e7512c6fdf699b33e1b5947d701363143ed308dbeea6f046"
     },
     {
       "id": "runx/github.sync_plan.v1",
@@ -171,7 +171,7 @@
     },
     {
       "id": "runx/release.context.v1",
-      "digest": "sha256:d0f587d2d7596d9c51a60b2d2ede7d0299667bdd56b2101c93364b1072c5dd41"
+      "digest": "sha256:f52f9f773c09165710758d5e5fc9b52b62835d93f0b7dda73f3b2d7d80963cd3"
     },
     {
       "id": "runx/release.phase_result.v1",
@@ -186,16 +186,16 @@
       "digest": "sha256:b8f8e3e25f7176218dd3c5de11b1d31848cabfc6031f42194936e762ab66e500"
     },
     {
+      "id": "runx/sbom-generate.inventory.v1",
+      "digest": "sha256:834799df9b64bd95665da5ef608876bb4e14e46aaac6ccf1407ef0743f329288"
+    },
+    {
       "id": "runx/sbom-generate.sbom.v1",
-      "digest": "sha256:f9cc2f1ab8db131056b8addf5e63a63afea7942c3ff4bcb510cd818476094723"
+      "digest": "sha256:bbcd053830371fc3f255a5888c9c7c3c72a4eb1244fceaf8bd7f00336893596f"
     },
     {
       "id": "runx/schema-check.check.v1",
       "digest": "sha256:a0eaa1560401321df824b6d0c4bc135797c9bed6dba0de1cb2917a003f410333"
-    },
-    {
-      "id": "runx/skill-adopt.overlay.v1",
-      "digest": "sha256:b8ec1ca1d50bfac40e22a904465a132c6d901cbf41ffe9ece917a164931bb2bc"
     },
     {
       "id": "runx/skill-review.evaluation.v1",
@@ -239,7 +239,7 @@
     },
     {
       "id": "runx/vuln-triage.scan.v1",
-      "digest": "sha256:86d8742885c806e1bddde6439eb3cf0041dfccf1a6acbedcfa5e8e57f585cf14"
+      "digest": "sha256:ea78758b421937e31e99e582cfedfb92dc75348da66ee89dbab8adec1b712c02"
     }
   ]
 }

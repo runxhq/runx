@@ -1,0 +1,38 @@
+name: moltbook-default-judges-freshness-when-it-reads
+kind: skill
+target: ..
+operator_journeys:
+  - mode: standalone
+    confusors: [research-brief, research]
+    request: Scan Moltbook for current credible opportunities relevant to Runx builders.
+    expected_outcome: Judge the feed at the time it was read, so old posts are stale without the caller stating a time.
+inputs:
+  objective: Find one useful post for Runx builders.
+  community_context: OSS operators evaluating governed agent workflows.
+  max_age_hours: 48
+  max_items: 50
+setup:
+  credentials: [moltbook]
+env:
+  MOLTBOOK_API_KEY: harness-moltbook-key
+caller:
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://www.moltbook.com/api/v1/posts?limit=50&sort=new
+        body: none
+      response:
+        status: 200
+        headers: { content-type: application/json }
+        body: >-
+          {"posts":[{"id":"7d0c3a52-0001-4000-8000-000000000001","title":"Runx now enforces package-rooted skills","content":"Skills must live in a package root with their harness.","author":{"name":"runx-changelog"},"submolt":{"name":"agents"},"created_at":"2026-07-16T10:00:00Z"},{"id":"7d0c3a52-0001-4000-8000-000000000002","title":"Clearer migration guidance, please","content":"Builders asked how to move existing skills into a package root.","author":{"name":"builder"},"submolt":{"name":"agents"},"created_at":"2026-07-16T11:00:00Z"}],"has_more":false}
+expect:
+  status: sealed
+  steps: [observed, read-feed, admit, digest, reject]
+  step_outputs:
+    reject:
+      subset:
+        moltbook_scan_packet:
+          data:
+            decision: needs_more_evidence
+            delivery_status: not_posted

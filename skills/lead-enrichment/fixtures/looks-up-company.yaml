@@ -1,0 +1,59 @@
+name: looks-up-company
+kind: skill
+target: ..
+inputs:
+  subject:
+    id: lead:fixture
+    kind: company
+  selector:
+    domain: example.com
+  requested_fields:
+    - company.name
+    - company.employee_count
+setup:
+  credentials:
+    - apollo
+env:
+  APOLLO_API_KEY: harness-apollo-key
+caller:
+  approvals:
+    company: true
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.apollo.io/api/v1/organizations/enrich?domain=example.com
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"organization":{"id":"org-1","name":"Example","primary_domain":"example.com","estimated_num_employees":120}}'
+expect:
+  status: sealed
+  step_outputs:
+    normalize-company:
+      subset:
+        lookup_evidence:
+          data:
+            decision: matched
+        lead_enrichment_packet:
+          data:
+            decision: enriched
+            facts:
+              - field: company.name
+                value: Example
+              - field: company.employee_count
+                value: 120
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: lead-enrichment
+  source: skills-fixture
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - lead-qualify
+      - cold-outreach
+    request: Enrich this identified company for the requested professional facts.
+    expected_outcome: Return the actual match outcome and factual availability without qualification or outreach;
+      retain native charging and readback evidence.

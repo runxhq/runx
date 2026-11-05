@@ -48,9 +48,10 @@ never sees the key or makes its own requests.
 
 ## Inputs and result
 
-Provider scanning takes the objective, community context, explicit `as_of`
-time, freshness window, at most 100 posts to read, and an optional submolt;
-supplied scanning accepts the equivalent feed snapshot. Posting takes the
+Provider scanning takes the objective, community context, freshness window, at
+most 100 posts to read, and an optional submolt, and judges freshness at its own
+observation time. Supplied scanning takes the equivalent feed snapshot and an
+explicit `as_of`, because only the caller knows when it was captured. Posting takes the
 validated scan packet, exact outline, target submolt, community context, and
 operator writing guidance. Operator guidance shapes the post; it does not
 authorize publication.

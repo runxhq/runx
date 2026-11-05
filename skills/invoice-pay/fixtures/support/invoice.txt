@@ -1,0 +1,8 @@
+Northstar Supplies
+Invoice INV-2026-0042
+
+Subtotal  USD 38.00
+Tax       USD 4.00
+Balance due USD 42.00
+
+Pay at https://payee.example/v1/invoices/pay

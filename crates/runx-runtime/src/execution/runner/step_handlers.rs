@@ -784,6 +784,7 @@ where
     };
     let requirements = step_requirements(step, &executable);
     let invocation = SkillInvocation {
+        workspace_bounds: crate::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
         historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
@@ -937,6 +938,7 @@ where
         None => runtime.options.clock.now(),
     };
     let invocation = SkillInvocation {
+        workspace_bounds: crate::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
         historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
@@ -1278,7 +1280,7 @@ where
         inputs: JsonObject,
         scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
-    ) -> Result<runx_contracts::JsonValue, String> {
+    ) -> Result<runx_contracts::JsonValue, crate::kernel::operation::confirm::Unperformed> {
         let directory = manifest.parent().unwrap_or(self.graph_dir);
         let output = crate::tool_catalogs::dispatch::dispatch_connector_tool(
             manifest,
@@ -1300,25 +1302,22 @@ where
                 call: None,
             },
             Instant::now(),
-        )
-        .map_err(|error| error.to_string())?;
+        )?;
         {
             let mut observed = self.observed.borrow_mut();
             if let Some(boundary) = output.observations.boundary() {
                 observed.boundary = Some(boundary);
             }
             for credential in output.observations.credentials() {
-                observed
-                    .record_credential(credential)
-                    .map_err(|error| error.to_string())?;
+                observed.record_credential(credential).map_err(|error| {
+                    crate::kernel::operation::confirm::Unperformed::MaybeSent {
+                        code: "observation_failed",
+                        reason: error.to_string(),
+                    }
+                })?;
             }
         }
-        match output.succeeded() {
-            true => Ok(output.value),
-            false => Err(output
-                .failure_message()
-                .unwrap_or_else(|| format!("tool {tool} failed"))),
-        }
+        crate::tool_catalogs::dispatch::connector_tool_result(output)
     }
 }
 

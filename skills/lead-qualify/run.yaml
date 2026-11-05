@@ -1,5 +1,5 @@
 skill: lead-qualify
-version: "0.1.5"
+version: "0.1.6"
 catalog:
   kind: graph
   audience: operator
@@ -41,8 +41,8 @@ runners:
               required: {const: true}
       contact_eligibility:
         type: object
-        required: true
-        description: Separate policy evidence for the exact enrichment subject, not inferred from enrichment or fit.
+        required: false
+        description: Optional contact-policy evidence for the exact subject. Omit for fit-only assessment; fit never establishes contact permission.
         schema:
           additionalProperties: false
           required: [subject, status, policy_id, evidence_ids]
@@ -63,6 +63,32 @@ runners:
               items: {type: string, minLength: 1, maxLength: 1000}
               uniqueItems: true
     result_from: [hold, finalize]
+    examples:
+      - enrichment_packet:
+          decision: enriched
+          subject:
+            id: company:northwind
+            kind: company
+          as_of: '2026-11-01T00:00:00Z'
+          facts:
+          - field: company.industry
+            value: B2B software
+            source_ids:
+            - crm:northwind
+          missing_fields: []
+          conflicts: []
+          sources:
+          - source_id: crm:northwind
+            source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            observed_at: '2026-10-30T00:00:00Z'
+            match_confidence: high
+            provenance: caller_supplied_source_digest
+          blockers: []
+          acquisition: supplied_evidence
+        criteria:
+        - id: industry
+          description: Sells B2B software.
+          required: true
     steps:
     - id: digest
       tool: data.digest

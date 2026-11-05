@@ -251,7 +251,7 @@ pub(crate) trait ToolRunner {
         inputs: JsonObject,
         scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
-    ) -> Result<JsonValue, String>;
+    ) -> Result<JsonValue, confirm::Unperformed>;
 }
 
 /// The runner of a runtime built without tool packages: it runs none.
@@ -267,10 +267,11 @@ impl ToolRunner for NoTools {
         _inputs: JsonObject,
         _scopes: &[String],
         _delivery: &crate::credentials::CredentialDelivery,
-    ) -> Result<JsonValue, String> {
-        Err(format!(
-            "tool {tool} needs a runtime built with tool packages"
-        ))
+    ) -> Result<JsonValue, confirm::Unperformed> {
+        Err(confirm::Unperformed::NotSent {
+            code: "tool_unavailable",
+            reason: format!("tool {tool} needs a runtime built with tool packages"),
+        })
     }
 }
 
@@ -288,12 +289,17 @@ fn mutation_resends_safely(
     ) || duplicates == Some(DuplicatePolicy::Visible)
 }
 
-/// Whether a call of `operation` that may have reached its provider can be
-/// sent again unseen: it only reads, or it is a mutation custody resends.
+/// Whether a call that may have reached its provider can be sent again.
+/// Read access and state idempotency do not establish charge idempotency.
 pub(crate) fn resends_safely(
     operation: &runx_contracts::connector::ConnectorOperation,
     duplicates: Option<DuplicatePolicy>,
 ) -> bool {
+    if operation.is_metered() {
+        // A recovery joins the same reservation. Tolerating duplicate effects
+        // cannot cover an additional provider charge from that reservation.
+        return operation.guarantees.provider_idempotency == ProviderIdempotency::Enforced;
+    }
     operation.access() == OperationAccess::Read || mutation_resends_safely(operation, duplicates)
 }
 
@@ -388,19 +394,22 @@ impl OperationAdmission {
 
     /// The key the provider sees, stable for the intent.
     fn provider_key(&self) -> Option<String> {
-        self.mutation().then(|| {
-            idempotency_key(
-                self.admitted.intent_digest().as_str(),
-                self.admitted.operation().idempotency_key_format,
-            )
-        })
+        (self.mutation()
+            || self.admitted.operation().guarantees.provider_idempotency
+                == ProviderIdempotency::Enforced)
+            .then(|| {
+                idempotency_key(
+                    self.admitted.intent_digest().as_str(),
+                    self.admitted.operation().idempotency_key_format,
+                )
+            })
     }
 
     /// Whether a request that may have reached the provider can be sent
     /// again: the provider enforces the key, the operation sets a state, or
     /// the step accepts duplicates.
     fn resend_safe(&self) -> bool {
-        mutation_resends_safely(self.admitted.operation(), self.duplicates)
+        resends_safely(self.admitted.operation(), self.duplicates)
     }
 
     /// The implementation that runs: any kind locally; only declared
@@ -848,10 +857,20 @@ pub(crate) fn execute(
         .ok_or_else(|| engine("the operation step was not prepared"))?;
     let intent_digest = admitted.intent_digest().as_str().to_owned();
     let provider_key = context.provider_key();
-    let unknown = |reason: String| RuntimeError::ProviderEffectUnknown {
-        plan_digest: intent_digest.clone(),
-        idempotency_key: provider_key.clone().unwrap_or_default(),
-        reason,
+    let unknown = |reason: String| {
+        if context.call.readback_of.is_some() {
+            RuntimeError::ProviderReadbackPending {
+                step_id: step_id.to_owned(),
+                reason,
+                resend: runx_contracts::RetryResend::Unsafe,
+            }
+        } else {
+            RuntimeError::ProviderEffectUnknown {
+                plan_digest: intent_digest.clone(),
+                idempotency_key: provider_key.clone().unwrap_or_default(),
+                reason,
+            }
+        }
     };
     let implementation_digest = context.implementation_digest();
     let instance_binding = admitted
@@ -887,22 +906,6 @@ pub(crate) fn execute(
                 "the implementation changed since the unsettled attempt; reconcile it before resuming".to_owned(),
             ));
         }
-        // Readback is provider evidence, not permission to settle under a
-        // different implementation or authority than the attempted call.
-        if let Some(readback) = pending.readback.clone() {
-            let produced = effects(context, &readback.result).map_err(unknown)?;
-            return finish(
-                context,
-                readback,
-                implementation_digest.as_deref(),
-                produced,
-            );
-        }
-        if pending.acknowledgement.is_none() && !context.resend_safe() {
-            return Err(unknown(
-                "an earlier attempt has an unknown outcome and this operation cannot be resent safely; reconcile the provider result before resuming".to_owned(),
-            ));
-        }
     }
 
     // Everything that can fail before the provider is reached runs before
@@ -929,6 +932,24 @@ pub(crate) fn execute(
     };
     let session = prepare(context, env, cwd, tools).map_err(preflight)?;
     let tool = context.process_tool(env, cwd).map_err(preflight)?;
+    if let Some(pending) = &context.admitted.pending {
+        // Readback is provider evidence, not permission to settle under a
+        // different implementation or authority than the attempted call.
+        if let Some(readback) = pending.readback.clone() {
+            let produced = effects(context, &readback.result).map_err(unknown)?;
+            return finish(
+                context,
+                readback,
+                implementation_digest.as_deref(),
+                produced,
+            );
+        }
+        if pending.acknowledgement.is_none() && !context.resend_safe() {
+            return Err(unknown(
+                "an earlier attempt has an unknown outcome and this operation cannot be resent safely; reconcile the provider result before resuming".to_owned(),
+            ));
+        }
+    }
     if let Some(custody) = &context.admitted.custody {
         record_attempt(
             custody,
@@ -966,6 +987,7 @@ pub(crate) fn execute(
                 connector: admitted.connector.manifest.id.as_str(),
                 operation: admitted.operation.as_str(),
                 target: &admitted.target,
+                mutation: context.mutation(),
                 idempotency_key: provider_key.as_deref(),
             })
             .map_err(Failure::Unknown)?;
@@ -1024,6 +1046,9 @@ pub(crate) fn execute(
                     .map_err(|error| {
                         RuntimeError::effect_state("recording the rejection", error.to_string())
                     })?;
+                if context.call.readback_of.is_some() {
+                    return Err(read_failure(context, step_id, reason));
+                }
                 return Err(RuntimeError::ProviderEffectRejected {
                     plan_digest: intent_digest,
                     idempotency_key: provider_key.unwrap_or_default(),
@@ -1042,7 +1067,11 @@ pub(crate) fn execute(
                     RuntimeError::effect_state("recording the unknown outcome", error.to_string())
                 })?;
             }
-            Err(unknown(reason))
+            Err(if context.call.readback_of.is_some() {
+                read_failure(context, step_id, reason)
+            } else {
+                unknown(reason)
+            })
         }
         Err(Failure::Unknown(reason) | Failure::ReadbackPending(reason)) => {
             Err(read_failure(context, step_id, reason))
@@ -1269,6 +1298,7 @@ fn dispatch(
             .as_ref()
             .and_then(|pending| pending.acknowledgement.clone()),
         resend_safe: context.resend_safe(),
+        may_charge: operation.is_metered(),
     };
     let mut record = |acknowledgement: &Acknowledgement| match &context.admitted.custody {
         Some(custody) => custody
@@ -2015,7 +2045,7 @@ fn finish(
                 // An answer the operation accepts is billable on either basis.
                 cost: operation.cost.as_ref().map(|cost| CallCost {
                     quoted_usd_micro: cost.usd_micro,
-                    settled_usd_micro: Some(cost.usd_micro),
+                    settled_usd_micro: cost.usd_micro,
                     payer: CostPayer::ProviderAccount,
                 }),
             },
@@ -2284,6 +2314,11 @@ fn read_failure(context: &OperationAdmission, step_id: &str, reason: String) -> 
         return RuntimeError::ProviderReadbackPending {
             step_id: step_id.to_owned(),
             reason,
+            resend: if context.resend_safe() {
+                runx_contracts::RetryResend::Safe
+            } else {
+                runx_contracts::RetryResend::Unsafe
+            },
         };
     }
     failed(context, reason)

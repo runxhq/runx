@@ -46,3 +46,8 @@ person, plainly. If the act cannot be done, end it as failed and say why.
 
 The project's instructions, when it has any, come with the act. Follow them
 as you would the person's.
+
+The read and develop turns explicitly declare `web/page.read` and
+`exa/search.query` as their provider tools. Connector requirements alone do not
+grant turn operations. Native tools, catalog/skill loading, questions, grant
+scopes and existing write approval behavior keep their own declared bounds.

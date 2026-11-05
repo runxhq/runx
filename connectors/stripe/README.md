@@ -2,6 +2,8 @@
 
 Collect a payment using a payment method already available to your Stripe
 account, read its processor status, and refund the original PaymentIntent.
+Read merchant disputes and submit an exact approved evidence response with
+independent case readback.
 The same declared HTTP operations run locally or through hosted credential
 custody. Marketplace funding, application fees and transfers are not part of
 these operations.
@@ -32,6 +34,23 @@ refundable amount, including concurrent requests. An independent refund read
 must match the original payment, requested amount, currency and `succeeded`
 status. A refund carries the native outgoing amount; collection does not debit
 the caller's outgoing budget.
+
+`dispute.read` reads the selected account's exact case, original charge identity,
+reason, response window, staged evidence and submission count. `dispute.file`
+checks that case, its original charge's current refunded amount, and the entire
+staged evidence object before submitting. Concurrent evidence or financial
+state changes refuse before the write. The form requires `submit: true` and
+supports Stripe's declared text fields and already uploaded `file_...` IDs.
+It never accepts liability, closes the case or refunds the customer.
+
+Filing requires native approval and a separate read that matches the case,
+charge, amount, currency, new submission count and evidence-present state. The
+`dispute-respond` skill prepares relevant cited fields, includes retained staged
+evidence explicitly in approval, derives the next count from the actual prior
+read, and verifies each approved value after submission. Its `file` phase
+reuses a prepared response without repeating drafting. A confirmed bank evidence
+submission is separate from the dispute outcome. Reconcile an uncertain attempt
+before another submission; unchanged metadata or a staged draft is not proof.
 
 Stripe retains idempotency keys for a limited time, so these operations do not
 claim unlimited safe resubmission. A stored acknowledgement resumes at readback.

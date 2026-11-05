@@ -12,7 +12,8 @@ steps:
         state: open
         body: Reuse prior evidence instead of reading the provider again.
         url: https://github.com/runxhq/runx/issues/442
-        labels: [operator-experience]
+        labels:
+          - operator-experience
         assignees: []
         source:
           provider: github
@@ -27,14 +28,12 @@ steps:
         repo_root: .
         branch: fix/442-operator-first
         commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-        files: [oss/skills/github-issue-to-pr/run.yaml]
+        files:
+          - oss/skills/github-issue-to-pr/run.yaml
         tests:
           - command: cargo test -p runx-cli --test integration issue_to_pr_journey
             status: passed
             evidence: receipt:test:github-issue-to-pr-composed
-        finalization:
-          receipt_path: fixtures/scafld-pass.json
-          contract_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
         publication:
           decision: hold
           title: ""
@@ -44,6 +43,12 @@ steps:
           draft: false
           idempotency_key: ""
         errors: []
+        summary: Implement the issue workflow correction and preserve the exact candidate.
+        governance:
+          kind: scafld
+          reason: The fixture explicitly exercises repository-required finalization.
+          receipt_path: fixtures/scafld-pass.json
+          contract_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   - id: digest
     tool: data.digest
     inputs:

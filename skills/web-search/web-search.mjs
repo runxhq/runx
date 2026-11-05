@@ -1,4 +1,9 @@
 export function validateQuery({ start_published_at, end_published_at }) {
+  for (const [field, value] of Object.entries({ start_published_at, end_published_at })) {
+    if (value !== undefined && !Number.isFinite(Date.parse(value))) {
+      throw new Error(`${field} is not a valid publication time; no search was dispatched`);
+    }
+  }
   if (start_published_at && end_published_at && Date.parse(start_published_at) > Date.parse(end_published_at)) {
     throw new Error("publication date bounds are reversed; no search was dispatched");
   }

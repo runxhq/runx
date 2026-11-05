@@ -1,16 +1,20 @@
+mod bounded_json;
 mod env;
 mod receipt_proof;
 mod receipt_query;
+mod receipt_read;
 mod receipts;
 mod skill_packages;
 mod tool_roots;
 mod verified_receipts;
 mod workspace_files;
 
+pub(crate) use bounded_json::bounded_json_bytes;
 pub use env::{WorkspaceEnv, WorkspaceEnvError};
 pub(crate) use env::{env_file_differs, merge_inferred_tool_roots, process_environment};
 pub(crate) use receipt_proof::prove_receipts;
 pub(crate) use receipt_query::{ReceiptQueryInput, query_receipts};
+pub(crate) use receipt_read::read_receipt_claim;
 pub(crate) use receipts::{ReceiptReadContext, ReceiptServices};
 pub(crate) use skill_packages::{
     apply_skill_change, bind_skill_change, inspect_skill_workspace, plan_skill_architecture,
@@ -19,11 +23,12 @@ pub(crate) use skill_packages::{
 pub use verified_receipts::VerifiedReceiptStore;
 pub(crate) use workspace_files::{
     ArtifactPageEncoding, ArtifactRecordPage, DEFAULT_ARTIFACT_PAGE_BYTES, LocalArtifact,
-    LocalArtifactService, WorkspaceBounds, WorkspaceFile, is_secret_path,
-    persist_canonical_json_artifact, resolve_scoped_root,
+    LocalArtifactService, MAX_ARTIFACT_BYTES, WorkspaceFile, is_secret_path,
+    persist_canonical_json_artifact, persist_json_bytes, resolve_scoped_root,
 };
 pub use workspace_files::{
-    WorkspaceFileError, persist_json_artifact, read_json_artifact, read_workspace_text,
+    WorkspaceBounds, WorkspaceFileError, persist_json_artifact, read_json_artifact,
+    read_workspace_text,
 };
 
 #[cfg(test)]

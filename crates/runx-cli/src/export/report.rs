@@ -44,5 +44,19 @@ fn human_report(report: &ExportReport) -> String {
     if let Some(path) = &report.rules_file {
         lines.push(format!("updated rules: {path}"));
     }
+    if let Some(server) = &report.mcp_server {
+        let skills = server.refs.len();
+        lines.push(if server.registered {
+            format!(
+                "registered MCP server {} for {skills} skill(s) whose agent makes calls; start a new host session to load it",
+                server.name
+            )
+        } else {
+            format!(
+                "{skills} skill(s) whose agent makes calls need the MCP server {}; register it with: {}",
+                server.name, server.command
+            )
+        });
+    }
     lines.join("\n")
 }

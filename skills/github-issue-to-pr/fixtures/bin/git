@@ -7,6 +7,15 @@ branch=refs/heads/fix/442-operator-first
 state=${RUNX_ISSUE_TO_PR_GIT_STATE:-.runx/issue-to-pr-fixture-ref}
 
 case "$*" in
+  "--no-pager --literal-pathspecs -c core.fsmonitor=false status --short --branch")
+    printf '%s\n' "## fix/442-operator-first"
+    ;;
+  "--no-pager --literal-pathspecs -c core.fsmonitor=false symbolic-ref --short HEAD")
+    printf '%s\n' "fix/442-operator-first"
+    ;;
+  "--no-pager --literal-pathspecs -c core.fsmonitor=false log "*)
+    printf '\036%s\037Fixture <fixture@example.test>\0372026-11-04T00:00:00Z\037fix: fixture\n\nfile.mjs\n' "$commit"
+    ;;
   "-c core.fsmonitor=false rev-parse --verify ${commit}^{commit}")
     printf '%s\n' "$commit"
     ;;

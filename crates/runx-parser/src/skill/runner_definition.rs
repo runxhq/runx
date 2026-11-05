@@ -13,6 +13,7 @@ const RUNNER_FIELDS: &[&str] = &[
     "examples",
     "inputs",
     "outputs",
+    "operations",
     "policy",
     "result_from",
     "skills",

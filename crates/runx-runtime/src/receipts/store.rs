@@ -1,6 +1,6 @@
 // Module rationale: local store read/write/index semantics stay
 // together.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::{ErrorKind, Write};
@@ -645,8 +645,9 @@ impl StoreTreeVerification {
 
 impl LocalReceiptStore {
     /// Every receipt tree in the store, or each one holding `receipt_id`,
-    /// verified under `signature_policy`. A file that does not read as a
-    /// receipt is reported, not fatal: one bad file never hides the rest.
+    /// verified under `signature_policy`. Unreadable files are reported for
+    /// the selected trees, including their signed child references. A whole-store
+    /// audit reports every unreadable receipt file.
     ///
     /// # Errors
     ///
@@ -692,6 +693,31 @@ impl LocalReceiptStore {
             return Err(ReceiptStoreError::ReceiptNotInStore {
                 receipt_id: receipt_id.to_owned(),
                 path: self.root.clone(),
+            });
+        }
+        if receipt_id.is_some() {
+            let member_ids = groups
+                .iter()
+                .flat_map(|group| group.member_ids.iter().map(String::as_str))
+                .collect::<BTreeSet<_>>();
+            let mut relevant = member_ids
+                .iter()
+                .map(|id| super::archive::receipt_uri(id))
+                .collect::<BTreeSet<_>>();
+            relevant.extend(
+                receipts
+                    .iter()
+                    .filter(|receipt| member_ids.contains(receipt.id.as_str()))
+                    .flat_map(runx_receipts::receipt_edge_references)
+                    .map(|reference| reference.uri.to_string()),
+            );
+            unreadable.retain(|issue| {
+                issue
+                    .file
+                    .file_stem()
+                    .and_then(OsStr::to_str)
+                    .and_then(receipt_id_from_file_stem)
+                    .is_some_and(|id| relevant.contains(&super::archive::receipt_uri(&id)))
             });
         }
         let trees = groups

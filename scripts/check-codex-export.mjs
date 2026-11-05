@@ -2,32 +2,35 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { repositorySkills } from "./lib/skills.mjs";
-
-const root =path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runx = path.resolve(process.env.RUNX_BIN ?? path.join(root, "crates", "target", "debug", "runx"));
-const codexHome = path.resolve(process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"));
-const installRoot = path.join(codexHome, "skills");
+const installRoot = path.resolve(process.env.RUNX_CODEX_SKILLS_DIR ?? path.join(os.homedir(), ".agents", "skills"));
 const maximumShimBytes = 64 * 1024;
 const failures = [];
 
 if (!existsSync(runx)) fail(`runx binary is missing: ${runx}`);
 if (!existsSync(installRoot)) fail(`Codex skill directory is missing: ${installRoot}`);
 
-const publicNames = repositorySkills(root, { ...process.env, RUNX_RUST_CLI_BIN: runx })
-  .filter((skill) => skill.visibility === "public")
-  .map((skill) => skill.name);
+// Export admission belongs to native Runx, including standalone readiness and
+// closure binding. A project export exercises that owner without touching the
+// user's installed skills or duplicating its selection rules here.
+const publicNames = exportableNames();
 const expectedManaged = [...publicNames, "runx"].sort();
 const installedManaged = readdirSync(installRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .filter((entry) => {
     const file = path.join(installRoot, entry.name, "SKILL.md");
-    return existsSync(file) && readFileSync(file, "utf8").includes("<!-- runx-export:codex ");
+    if (!existsSync(file)) return false;
+    const marker = managedMarker(readFileSync(file, "utf8"));
+    if (!marker) return false;
+    const source = path.resolve(marker.source);
+    const relative = path.relative(path.join(root, "skills"), source);
+    return source === root || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
   })
   .map((entry) => entry.name)
   .sort();
@@ -60,7 +63,7 @@ if (existsSync(runtimeFile)) {
 const report = {
   schema: "runx.codex_export_check.v1",
   status: failures.length === 0 ? "passed" : "failed",
-  codex_home: codexHome,
+  skills_dir: installRoot,
   runx_bin: runx,
   public_skills: publicNames.length,
   runtime_skills: 1,
@@ -97,6 +100,32 @@ function inspect(name) {
   }
 }
 
+function exportableNames() {
+  if (!existsSync(runx)) return [];
+  const scratch = path.join(root, ".runx");
+  mkdirSync(scratch, { recursive: true });
+  const project = mkdtempSync(path.join(scratch, "export-check-"));
+  try {
+    symlinkSync(path.join(root, "skills"), path.join(project, "skills"), process.platform === "win32" ? "junction" : "dir");
+    const result = spawnSync(runx, ["export", "codex", "--project", "--json"], {
+      cwd: project,
+      encoding: "utf8",
+      env: { ...process.env, RUNX_CWD: project, RUNX_EXPORT_BIN: runx },
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    if (result.status !== 0) {
+      fail(`native export selection failed: ${result.stderr.trim() || result.stdout.trim() || result.error?.message || result.status}`);
+      return [];
+    }
+    return JSON.parse(result.stdout).exported.map((entry) => entry.skill).sort();
+  } catch (error) {
+    fail(`native export selection failed: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+}
+
 function validateShim(name, inspection, source) {
   const file = path.join(installRoot, name, "SKILL.md");
   if (!existsSync(file)) {
@@ -116,6 +145,9 @@ function validateShim(name, inspection, source) {
   ) {
     fail(`${name}: embedded manual is not bound to the inspected package`);
   }
+  // A skill whose agent makes calls runs on the local MCP server, which binds
+  // the package and closure when it starts. Its shim carries no shell command.
+  if (contents.includes("MCP server rather than the shell")) return;
   const defaultRunner = inspection.semantic_report?.defaultRunner;
   const runner = inspection.runner_inspections?.find((entry) => entry.runner?.name === defaultRunner);
   const closureDigest = runner?.execution_closure?.closure_digest;

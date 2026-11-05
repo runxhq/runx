@@ -1,7 +1,10 @@
 export default function planSync(inputs) {
   const { repo, direction, scope, resources } = inputs;
   const blockers = [];
-  const filters = { ...(resources.filters ?? {}), limit: resources.filters?.limit ?? 30 };
+  const filters = {
+    ...(resources.filters ?? {}),
+    limit: resources.filters?.limit ?? 30,
+  };
   const paths = resources.paths ?? [];
   const mutations = resources.mutations ?? [];
 
@@ -9,19 +12,26 @@ export default function planSync(inputs) {
   if (direction === "push") {
     if (mutations.length > 0) mutation = mutations[0];
     else blockers.push("push requires at least one typed mutation");
-    if (resources.kind === "batch" && mutations.length === 0) blockers.push("batch push requires at least one mutation");
+    if (resources.kind === "batch" && mutations.length === 0)
+      blockers.push("batch push requires at least one mutation");
   } else if (mutations.length > 0) {
     blockers.push("pull does not accept mutations");
   } else if (resources.kind === "batch") {
     blockers.push("batch resources are only valid for push");
   }
 
-  const call = direction === "pull"
-    ? pullOperation(repo, resources.kind, filters, paths)
-    : direction === "push" ? writeOperation(repo, mutations) : null;
-  if (direction === "pull" && blockers.length === 0 && call === null) blockers.push("pull requires a readable resource selector");
+  const call =
+    direction === "pull"
+      ? pullOperation(repo, resources.kind, filters, paths)
+      : direction === "push"
+        ? writeOperation(repo, mutations)
+        : null;
+  if (direction === "pull" && blockers.length === 0 && call === null)
+    blockers.push("pull requires a readable resource selector");
   if (direction === "push" && blockers.length === 0 && call === null) {
-    blockers.push("a push applies one operation; send issue, pull request and comment changes as separate pushes");
+    blockers.push(
+      "a push applies one operation; send issue, pull request and comment changes as separate pushes",
+    );
   }
 
   let decision = blockers.length === 0 ? "ready" : "blocked";
@@ -55,9 +65,12 @@ export default function planSync(inputs) {
       })),
       provider_operation: call?.operation ?? "",
       provider_input: call?.input ?? null,
-      scope_used: direction === "push"
-        ? (call?.operation.startsWith("comments.") ? "issue.comment" : "repo.write")
-        : "repo.read",
+      scope_used:
+        direction === "push"
+          ? call?.operation.startsWith("comments.")
+            ? "issue.comment"
+            : "repo.write"
+          : "repo.read",
       provider_status: "not_called",
       blockers,
     },
@@ -68,49 +81,72 @@ export default function planSync(inputs) {
 // the selector names paths, the filtered list otherwise.
 /** A cursor is the GitHub page a listing continues from. */
 function page(cursor) {
-  return cursor === undefined ? undefined : Number(cursor);
+  if (cursor === undefined) return undefined;
+  const value = Number(cursor);
+  if (!Number.isSafeInteger(value) || value < 1)
+    throw new Error(
+      "GitHub page must be a positive portable integer; do not round a cursor.",
+    );
+  return value;
 }
 
 function pullOperation(repository, kind, filters, paths) {
-  const numbers = paths.map((path) => Number(String(path).split("/")[1])).filter(Number.isInteger);
-  const defined = (fields) => Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
+  const numbers = paths
+    .map((path) => Number(String(path).split("/")[1]))
+    .filter(Number.isInteger);
+  const defined = (fields) =>
+    Object.fromEntries(
+      Object.entries(fields).filter(([, value]) => value !== undefined),
+    );
   if (kind === "issues") {
     return numbers.length > 0
       ? { operation: "issues.read", input: { repository, numbers } }
       : {
-        operation: "issues.list",
-        input: defined({
-          repository,
-          state: filters.state,
-          labels: Array.isArray(filters.labels) ? filters.labels.join(",") : undefined,
-          since: filters.since,
-          per_page: filters.limit,
-          page: page(filters.cursor),
-        }),
-      };
+          operation: "issues.list",
+          input: defined({
+            repository,
+            state: filters.state,
+            labels: Array.isArray(filters.labels)
+              ? filters.labels.join(",")
+              : undefined,
+            since: filters.since,
+            per_page: filters.limit,
+            sort: filters.sort,
+            direction: filters.direction,
+            page: page(filters.cursor),
+          }),
+        };
   }
   if (kind === "prs") {
     return numbers.length > 0
       ? { operation: "pullrequests.read", input: { repository, numbers } }
       : {
-        operation: "pullrequests.list",
-        input: defined({
-          repository,
-          state: filters.state,
-          base: filters.base,
-          head: filters.head,
-          sort: filters.sort,
-          direction: filters.direction,
-          per_page: filters.limit,
-          page: page(filters.cursor),
-        }),
-      };
+          operation: "pullrequests.list",
+          input: defined({
+            repository,
+            state: filters.state,
+            base: filters.base,
+            head: filters.head,
+            sort: filters.sort,
+            direction: filters.direction,
+            per_page: filters.limit,
+            page: page(filters.cursor),
+          }),
+        };
   }
   if (kind === "threads") {
     const thread = String(filters.thread_path ?? paths[0] ?? "");
     const number = Number(thread.split("/")[1]);
     return Number.isInteger(number) && number > 0
-      ? { operation: "comments.list", input: defined({ repository, number, per_page: filters.limit }) }
+      ? {
+          operation: "comments.list",
+          input: defined({
+            repository,
+            number,
+            per_page: filters.limit,
+            page: page(filters.cursor),
+          }),
+        }
       : null;
   }
   return null;
@@ -121,16 +157,34 @@ function pullOperation(repository, kind, filters, paths) {
 function writeOperation(repository, mutations) {
   const calls = new Map();
   const add = (operation, field, item) => {
-    if (!calls.has(operation)) calls.set(operation, { operation, input: { repository, [field]: [] } });
+    if (!calls.has(operation))
+      calls.set(operation, { operation, input: { repository, [field]: [] } });
     calls.get(operation).input[field].push(item);
   };
   for (const mutation of mutations) {
     const [first, second, third] = String(mutation.path).split("/");
-    if (first === "issues" && second === "comments") add("comments.update", "comments", { comment_id: Number(third), body: mutation.payload.body });
-    else if (first === "issues" && second === undefined) add("issues.create", "issues", mutation.payload);
-    else if (third === "comments") add("comments.create", "comments", { number: Number(second), body: mutation.payload.body });
-    else if (first === "issues") add("issues.update", "updates", { number: Number(second), patch: mutation.payload });
-    else if (first === "pulls") add("pullrequests.update", "updates", { number: Number(second), patch: mutation.payload });
+    if (first === "issues" && second === "comments")
+      add("comments.update", "comments", {
+        comment_id: Number(third),
+        body: mutation.payload.body,
+      });
+    else if (first === "issues" && second === undefined)
+      add("issues.create", "issues", mutation.payload);
+    else if (third === "comments")
+      add("comments.create", "comments", {
+        number: Number(second),
+        body: mutation.payload.body,
+      });
+    else if (first === "issues")
+      add("issues.update", "updates", {
+        number: Number(second),
+        patch: mutation.payload,
+      });
+    else if (first === "pulls")
+      add("pullrequests.update", "updates", {
+        number: Number(second),
+        patch: mutation.payload,
+      });
     else return null;
   }
   return calls.size === 1 ? [...calls.values()][0] : null;
@@ -150,13 +204,26 @@ const BODY_CHARS = 600;
 /** The `issues.list` input that reads one page of everything updated since `since`. */
 export function activityWindow({ repo, since, page }) {
   return {
-    read_input: { repository: repo, since, state: "all", per_page: ACTIVITY_PAGE, page: page ?? 1 },
+    read_input: {
+      repository: repo,
+      since,
+      state: "all",
+      per_page: ACTIVITY_PAGE,
+      page: page ?? 1,
+      sort: "updated",
+      direction: "desc",
+    },
   };
 }
 
 /** The page the read returned, newest change first, and the next page when GitHub filled this one. */
-export function digestActivity({ read_input: read, provider_operation: operation }) {
-  const issues = Array.isArray(operation?.result?.issues) ? operation.result.issues : [];
+export function digestActivity({
+  read_input: read,
+  provider_operation: operation,
+}) {
+  const issues = Array.isArray(operation?.result?.issues)
+    ? operation.result.issues
+    : [];
   const items = issues
     .map((issue) => activityItem(issue, Date.parse(read.since)))
     .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
@@ -185,11 +252,56 @@ function activityItem(issue, since) {
     created_at: issue.created_at,
     updated_at: issue.updated_at,
     closed_at: issue.closed_at ?? null,
-    labels: (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
+    labels: (issue.labels ?? []).map((label) =>
+      typeof label === "string" ? label : label.name,
+    ),
     assignees: (issue.assignees ?? []).map((assignee) => assignee.login),
     comments: issue.comments ?? 0,
     url: issue.html_url,
     body: body.slice(0, BODY_CHARS),
     body_left_out: Math.max(0, body.length - BODY_CHARS),
   };
+}
+
+/** A common read uses the same typed operation planner as explicit sync. */
+export function planRead({
+  repo,
+  kind = "issues",
+  number,
+  state = "open",
+  labels = [],
+  since,
+  limit = 30,
+  page: requestedPage = 1,
+}) {
+  const resourceKind = {
+    issues: "issues",
+    pull_requests: "prs",
+    comments: "threads",
+  }[kind];
+  const filters = { limit, cursor: String(requestedPage) };
+  if (kind !== "comments") filters.state = state;
+  if (kind === "issues" && labels.length) filters.labels = labels;
+  if (kind === "issues" && since !== undefined) filters.since = since;
+  const prefix = kind === "pull_requests" ? "pulls" : "issues";
+  const paths =
+    number === undefined
+      ? []
+      : [`${prefix}/${number}${kind === "comments" ? "/comments" : ""}`];
+  const planned = planSync({
+    repo,
+    direction: "pull",
+    scope: "read",
+    resources: { kind: resourceKind, filters, paths },
+  });
+  if (kind === "comments" && number === undefined)
+    planned.sync_plan.blockers.push(
+      "A comments read needs the exact issue or pull-request number.",
+    );
+  if (kind !== "issues" && (labels.length || since !== undefined))
+    planned.sync_plan.blockers.push(
+      "Labels and since filter the issue feed; choose issues or use the explicit pull selector for other queries.",
+    );
+  if (planned.sync_plan.blockers.length) planned.sync_plan.decision = "blocked";
+  return planned;
 }

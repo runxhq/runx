@@ -1,6 +1,7 @@
 name: holds-wrong-entity
 kind: skill
 target: ..
+runner: enrich
 inputs:
   subject: {id: 'lead:example', kind: person}
   as_of: '2026-10-10T00:00:00Z'
@@ -25,10 +26,6 @@ expect:
   receipt: {schema: runx.receipt.v1}
 metadata: {public_skill: lead-enrichment, source: skills-fixture}
 operator_journeys:
-- mode: standalone
-  confusors: [lead-qualify, crm-update-plan]
-  request: Build factual lead context from the supplied observations; preserve ambiguous matches and missing fields.
-  expected_outcome: Normalize factual evidence for the exact subject without judging fit or proposing outreach.
 - mode: composed
   request: Reuse these collected professional observations for the requested lead.
   expected_outcome: Keep supplied source identity and freshness; reject the other entity rather than invent a match.

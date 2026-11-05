@@ -11,9 +11,10 @@ Qualification neither obtains consent nor creates a provider send plan.
 
 ## Procedure
 
-1. Supply the enrichment packet, explicit ICP criteria, and a separately sourced
-   contact-eligibility decision. At least one criterion must be mandatory.
-   The eligibility names the subject it decides, with the same `ref` and `kind`
+1. Supply the enrichment packet and explicit ICP criteria. At least one
+   criterion must be mandatory. Contact eligibility is optional for fit-only
+   assessment; do not invent a policy result to fill the input. When supplied,
+   eligibility names the subject it decides, with the same `id` and `kind`
    as the enrichment subject. Eligibility decided for any other subject
    requests evidence before any criterion is assessed.
 2. Keep missing and conflicting facts visible. Partial enrichment can support
@@ -31,6 +32,13 @@ buying authority, activity is not consent, and a matched work email is not
 permission to contact. Do not infer protected or sensitive personal traits.
 
 ## Result and composition
+
+For a fit-only request, the finished answer is `fit` plus the criterion
+assessments. `decision` and `next_action` separately describe outreach readiness:
+a matching lead without contact-policy evidence returns `fit: fit` with
+`decision: hold`, not a failed fit assessment. No eligibility object is invented.
+Supply independently sourced eligibility when a composed outreach workflow
+needs that additional decision.
 
 `lead_qualification` records the exact enrichment digest, subject, criteria,
 assessments, contact-eligibility evidence and a bounded next action:

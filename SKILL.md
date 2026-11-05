@@ -95,9 +95,24 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      authority, forged receipts, or bypassing an approval.
 
 5. **Run the skill**
-   - Use `runx skill <skill> --input ... --json` or the skill's documented runner.
-   - Provide structured inputs when possible. Do not bury critical values only
-     in prose.
+   - Inspect the selected runner with `runx skill inspect <skill> [runner] --json`.
+     Build one input object from the user's actual task, matching `input_schema`,
+     and pipe it to `runx skill <skill> [runner] --inputs - --json`. An exported
+     binding supplies the exact package and execution-closure digests; retain them.
+   - State the requested purpose with `--act '<json act with purpose>'`.
+     Preserve nested input types. Harness examples are test data, not the user's job.
+   - `needs_agent` is a pause. Read and verify its request artifact, follow its
+     output contract, and continue with the full request id and request digest.
+     `runx resume --help` gives the exact answer envelope. Keep one driver, the
+     same working project and Runx home across continuations.
+   - A skill whose agent makes governed calls runs on an MCP connection, because
+     each call must be admitted and recorded. `runx mcp <skill-ref...>` serves it
+     as a tool, and its open turns are worked on that connection with `turn_list`,
+     `turn_status`, `turn_read`, `turn_call` and `turn_complete`. `runx export`
+     registers this server as `runx-local`, and an exported skill says which way
+     it runs. `runx mcp --run <run-id>` is for a host that opens its own connection
+     to one paused run.
+     Human questions and approvals must reach the person; never invent them.
    - If inspection reports a missing declared credential, bind it once with
      `runx connector use <connector>`: it binds the variable the connector
      declares when that is set, and otherwise asks for the secret (hidden at a

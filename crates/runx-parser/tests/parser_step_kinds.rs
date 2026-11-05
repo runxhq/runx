@@ -90,9 +90,38 @@ fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
         return Err("expected a worker tool".to_owned());
     };
     let pages = worker.pages.as_ref().ok_or("pages were not parsed")?;
-    assert_eq!(pages.path_from, "archive_file");
-    assert_eq!(pages.path_scope_from.as_deref(), Some("archive_base"));
+    assert_eq!(
+        pages.source,
+        runx_parser::ArtifactPageInput::Path {
+            path_from: "archive_file".to_owned(),
+            path_scope_from: Some("archive_base".to_owned()),
+            media_type: "application/javascript".to_owned(),
+        }
+    );
     assert_eq!(pages.page_bytes, 524_288);
+    Ok(())
+}
+
+#[test]
+fn a_worker_parses_an_already_admitted_artifact_source() -> Result<(), String> {
+    let runner = runner_with(
+        "    inputs:\n      snapshot: {type: string, required: true}\n",
+        "      - id: run\n        scopes: [fs.read]\n        tool:\n          module: domain.mjs\n          pages:\n            artifact_from: snapshot\n            framing: json_array\n            page_bytes: 65536\n",
+    )?;
+    let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&runner).kind else {
+        return Err("expected a worker tool".to_owned());
+    };
+    let pages = worker.pages.as_ref().ok_or("pages were not parsed")?;
+    assert_eq!(
+        pages.source,
+        runx_parser::ArtifactPageInput::Artifact {
+            artifact_from: "snapshot".to_owned()
+        }
+    );
+    let encoded = serde_json::to_value(pages).map_err(|error| error.to_string())?;
+    let decoded: runx_parser::ArtifactPageSource =
+        serde_json::from_value(encoded).map_err(|error| error.to_string())?;
+    assert_eq!(&decoded, pages);
     Ok(())
 }
 
@@ -102,6 +131,15 @@ fn a_worker_rejects_ambiguous_or_reserved_page_inputs() {
         "path_from: runx_page, media_type: application/json, framing: json_array",
         "path_from: archive, path_scope_from: archive, media_type: application/json, framing: json_array",
         "path_from: archive, media_type: application/json, framing: json_array, page_bytes: 4194305",
+        "artifact_from: snapshot, path_from: archive, media_type: application/json, framing: json_array",
+        "artifact_from: snapshot, path_scope_from: scope, framing: json_array",
+        "artifact_from: snapshot, media_type: application/json, framing: json_array",
+        "artifact_from: runx_page, framing: json_array",
+        "artifact_from: nested.snapshot, framing: json_array",
+        "artifact_from: null, framing: json_array",
+        "artifact_from: 3, framing: json_array",
+        "artifact_from: '', framing: json_array",
+        "framing: json_array",
     ] {
         let steps =
             format!("      - id: run\n        tool: {{module: domain.mjs, pages: {{{pages}}}}}\n");

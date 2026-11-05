@@ -256,7 +256,11 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         Err(refusal) => return Ok(refusal),
     };
     if let Some(limit) = call.limit {
-        let status = spend::status(&store, spend::root_run(call.run_id)).map_err(state)?;
+        let status = spend::status(
+            &store,
+            crate::execution::run_record::root_run_id(call.run_id),
+        )
+        .map_err(state)?;
         let remaining = limit.saturating_sub(status.committed_usd_micro);
         if amount_micro > remaining {
             return Ok(refused(
@@ -630,6 +634,7 @@ fn settle_or_follow(
             _ if started.elapsed() >= wait => {
                 return Err(RuntimeError::ProviderReadbackPending {
                     step_id: call.step_id.to_owned(),
+                    resend: runx_contracts::RetryResend::Safe,
                     reason: format!(
                         "purchase {} is still running for its seller; resume the run to read it again",
                         reading.purchase.purchase_id
@@ -652,6 +657,7 @@ fn read(
     let pending = |reason: String| RuntimeError::ProviderReadbackPending {
         step_id: call.step_id.to_owned(),
         reason,
+        resend: runx_contracts::RetryResend::Safe,
     };
     let response = session
         .exchange(

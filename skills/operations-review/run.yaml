@@ -1,5 +1,5 @@
 skill: operations-review
-version: "0.3.12"
+version: "0.3.13"
 catalog:
   kind: skill
   audience: operator
@@ -12,10 +12,11 @@ catalog:
 connectors:
   store:
     operations:
-    - projection.read
+      - projection.read
 runners:
   operate:
-    description: Review an operations snapshot you supply, ranking the findings, choosing the next action and its governed lane, and saying what approval and evidence it needs.
+    description: Review an operations snapshot you supply, ranking the findings, choosing the next
+      action and its governed lane, and saying what approval and evidence it needs.
     inputs:
       objective:
         type: string
@@ -55,31 +56,47 @@ runners:
         required: false
         description: Optional action id or lane selected by the dashboard.
     steps:
-    - id: operate
-      agent:
-        role: operator
-        task: operations-review
-      inputs:
-        objective: $input.objective
-        scope: $input.scope
-        dashboard_snapshot: $input.dashboard_snapshot
-        receipt_summary: $input.receipt_summary
-        provider_status: $input.provider_status
-        approval_context: $input.approval_context
-        operator_policy: $input.operator_policy
-        project_profile: $input.project_profile
-        requested_action: $input.requested_action
-      outputs:
-        ops_desk_packet:
-          type: object
-      artifacts:
-        named_emits:
-          ops_desk_packet: ops_desk_packet
-        packets:
-          ops_desk_packet: runx/operations-review.desk.v1
+      - id: operate
+        agent:
+          role: operator
+          task: operations-review
+        inputs:
+          objective: $input.objective
+          scope: $input.scope
+          dashboard_snapshot: $input.dashboard_snapshot
+          receipt_summary: $input.receipt_summary
+          provider_status: $input.provider_status
+          approval_context: $input.approval_context
+          operator_policy: $input.operator_policy
+          project_profile: $input.project_profile
+          requested_action: $input.requested_action
+        outputs:
+          ops_desk_packet:
+            type: object
+        artifacts:
+          named_emits:
+            ops_desk_packet: ops_desk_packet
+          packets:
+            ops_desk_packet: runx/operations-review.desk.v1
     default: true
+    examples:
+      - objective: Review the remaining invoice-payment gap and choose the next bounded step.
+        scope: workspace:runx-skill-completion
+        dashboard_snapshot:
+          invoice_pay:
+            structured_settlement: available
+            automatic_intake: incomplete
+            reason: The rejected candidate trusted an unbound currency exponent and duplicated native exact
+              conversion.
+        project_profile: "Existing source owners: skills/invoice-pay handles invoice matching; skills/pay
+          owns buyer mandate/approval; crates/runx-contracts/src/connector/template.rs owns exact
+          template minor-unit conversion. prior-art#prior-art-agent inspects exact selected local
+          sources."
+        operator_policy: Return one useful read-only proposal. Do not invent execution aliases, payment
+          authority, delivery or a missing primitive.
   review-action:
-    description: Review one proposed action, its consequence, whether it needs approval, its blockers and the evidence that would prove it.
+    description: Review one proposed action, its consequence, whether it needs approval, its blockers
+      and the evidence that would prove it.
     inputs:
       action_packet:
         type: json
@@ -98,21 +115,21 @@ runners:
         required: false
         description: Project topology and expected execution surfaces.
     steps:
-    - id: review-action
-      agent:
-        role: reviewer
-        task: operations-review-action-review
-      inputs:
-        action_packet: $input.action_packet
-        receipt_summary: $input.receipt_summary
-        approval_context: $input.approval_context
-        project_profile: $input.project_profile
-      outputs:
-        action_review:
-          type: object
-      artifacts:
-        wrap_as: action_review_packet
-        packet: runx/operations-review.action_review.v1
+      - id: review-action
+        agent:
+          role: reviewer
+          task: operations-review-action-review
+        inputs:
+          action_packet: $input.action_packet
+          receipt_summary: $input.receipt_summary
+          approval_context: $input.approval_context
+          project_profile: $input.project_profile
+        outputs:
+          action_review:
+            type: object
+        artifacts:
+          wrap_as: action_review_packet
+          packet: runx/operations-review.action_review.v1
   operate_from_projection:
     description: Review the same way, reading a bounded product-owned projection first.
     inputs:
@@ -162,33 +179,33 @@ runners:
         required: false
         description: Optional action id or lane selected by the dashboard.
     result_from:
-    - operate
+      - operate
     steps:
-    - id: read-state
-      operation: store/projection.read
-      input:
-        data_source_uri: $input.data_source_uri
-        resource: $input.resource
-        aggregate_id: $input.aggregate_id
-    - id: operate
-      skill: .
-      runner: operate
-      inputs:
-        objective: $input.objective
-        scope: $input.scope
-        receipt_summary: $input.receipt_summary
-        provider_status: $input.provider_status
-        approval_context: $input.approval_context
-        operator_policy: $input.operator_policy
-        project_profile: $input.project_profile
-        requested_action: $input.requested_action
-        dashboard_snapshot: $steps.read-state.provider_operation.result.projection
-      artifacts:
-        named_emits:
-          ops_desk_packet: ops_desk_packet
-        packets:
-          ops_desk_packet: runx/operations-review.desk.v1
+      - id: read-state
+        operation: store/projection.read
+        input:
+          data_source_uri: $input.data_source_uri
+          resource: $input.resource
+          aggregate_id: $input.aggregate_id
+      - id: operate
+        skill: .
+        runner: operate
+        inputs:
+          objective: $input.objective
+          scope: $input.scope
+          receipt_summary: $input.receipt_summary
+          provider_status: $input.provider_status
+          approval_context: $input.approval_context
+          operator_policy: $input.operator_policy
+          project_profile: $input.project_profile
+          requested_action: $input.requested_action
+          dashboard_snapshot: $steps.read-state.provider_operation.result.projection
+        artifacts:
+          named_emits:
+            ops_desk_packet: ops_desk_packet
+          packets:
+            ops_desk_packet: runx/operations-review.desk.v1
 harness:
   files:
-  - fixtures/support/composed.graph
+    - fixtures/support/composed.graph
   cases: []

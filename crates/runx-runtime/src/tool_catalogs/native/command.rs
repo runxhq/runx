@@ -234,7 +234,13 @@ mod tests {
             ),
             (
                 "args".to_owned(),
-                JsonValue::Array(vec![JsonValue::String("{\"status\":\"ready\"}".to_owned())]),
+                JsonValue::Array(vec![
+                    JsonValue::String(
+                        "{\"status\":\"ready\",\"empty\":\"%s\",\"spaced\":\"%s\"}".to_owned(),
+                    ),
+                    JsonValue::String(String::new()),
+                    JsonValue::String("  exact  ".to_owned()),
+                ]),
             ),
             (
                 "output_mode".to_owned(),
@@ -273,6 +279,18 @@ mod tests {
         assert_eq!(
             execution.get("exit_code"),
             Some(&JsonValue::Number(JsonNumber::I64(0)))
+        );
+        let observed = execution
+            .get("json")
+            .and_then(JsonValue::as_object)
+            .ok_or("missing JSON")?;
+        assert_eq!(
+            observed.get("empty"),
+            Some(&JsonValue::String(String::new()))
+        );
+        assert_eq!(
+            observed.get("spaced"),
+            Some(&JsonValue::String("  exact  ".to_owned()))
         );
         Ok(())
     }

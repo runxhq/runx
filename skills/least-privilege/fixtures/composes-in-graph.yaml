@@ -3,5 +3,9 @@ kind: graph
 target: support/composed.graph
 expect:
   status: sealed
-  steps: [least-privilege, digest]
-  receipt: { schema: runx.receipt.v1 }
+  steps:
+    - evidence
+    - least-privilege
+    - digest
+  receipt:
+    schema: runx.receipt.v1

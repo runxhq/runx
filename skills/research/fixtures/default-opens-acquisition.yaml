@@ -1,0 +1,14 @@
+name: research-default-acquisition-is-a-real-open-turn
+kind: skill
+target: ..
+inputs:
+  objective: Decide where generic evidence admission belongs.
+  paths: [fixtures/local-architecture-evidence.txt]
+expect:
+  status: needs_agent
+metadata: {public_skill: research, source: skills-fixture}
+operator_journeys:
+- mode: standalone
+  confusors: [web-fetch, research-brief]
+  request: Research this architecture question from the named local source.
+  expected_outcome: Open an acquisition turn with native reader tools; do not pretend the source was read before the host calls them.

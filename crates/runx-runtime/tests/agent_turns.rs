@@ -1181,6 +1181,271 @@ fn completed(call: &TurnCallResult) -> bool {
     matches!(call.outcome, TurnCallOutcome::Completed { .. })
 }
 
+fn write_paged_read_skill(root: &Path, read_scope: bool) -> TestResult<PathBuf> {
+    let dir = root.join("paged-child");
+    let manifest = r#"skill: paged-child
+runners:
+  read:
+    default: true
+    inputs:
+      path: {type: string, required: true}
+    steps:
+    - id: page
+      scopes: [fs.read]
+      inputs: {source: $input.path}
+      tool:
+        module: page.mjs
+        export: observe
+        pages: {path_from: source, media_type: application/json, framing: json_array, page_bytes: 65536}
+      outputs: {record_count: number}
+"#;
+    let manifest = if read_scope {
+        manifest.to_owned()
+    } else {
+        manifest.replace("      scopes: [fs.read]\n", "")
+    };
+    crate::support::write_test_skill_package(
+        &dir,
+        "---\nname: paged-child\ndescription: Counts runtime-framed synthetic records.\n---\n# Page proof\n\nCount only the records the native reader admits.\n",
+        &manifest,
+    )?;
+    std::fs::write(
+        dir.join("page.mjs"),
+        "export function observe({runx_page: page}) { const count=(page.state?.count??0)+page.records.length; return {runx_page:{state:{count},done:page.eof},...(page.eof?{record_count:count}:{})}; }\n",
+    )?;
+    Ok(dir)
+}
+
+fn run_paged_read(root: &Path, skill: PathBuf, path: &str, agent: bool) -> TestResult<RunResult> {
+    run_page_fixture(root, skill, input(serde_json::json!({"path":path}))?, agent)
+}
+
+fn run_page_fixture(
+    root: &Path,
+    skill: PathBuf,
+    inputs: JsonObject,
+    agent: bool,
+) -> TestResult<RunResult> {
+    let mut authority = bounded(None, None);
+    authority.agent_bounds = agent;
+    Ok(LocalOrchestrator::default().run_skill(&SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: Some(authority),
+        act: None,
+        skill_path: skill,
+        receipt_dir: Some(root.join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs,
+        env: env(root),
+        cwd: root.to_path_buf(),
+        managed_agent: ManagedAgentPolicy::HostDriven,
+    })?)
+}
+
+#[test]
+fn admitted_artifact_pages_run_through_real_store_open_and_child_graphs() -> TestResult {
+    let temp = tempdir()?;
+    let child = temp.path().join("admitted-child");
+    crate::support::write_test_skill_package(
+        &child,
+        "---\nname: admitted-child\ndescription: Count a previously admitted synthetic snapshot.\n---\n# Admitted records\n\nRead the registered snapshot without reopening a file.\n",
+        r#"skill: admitted-child
+runners:
+  count:
+    default: true
+    inputs:
+      source: {type: string, required: true}
+    steps:
+    - id: page
+      scopes: [fs.read]
+      inputs: {source_uri: $input.source}
+      tool:
+        module: page.mjs
+        pages: {artifact_from: source_uri, framing: json_array, page_bytes: 65536}
+      outputs: {record_count: number}
+"#,
+    )?;
+    std::fs::write(
+        child.join("page.mjs"),
+        "export default ({runx_page:page}) => {const count=(page.state?.count??0)+page.records.length;return {runx_page:{state:{count},done:page.eof},...(page.eof?{record_count:count}:{})};};\n",
+    )?;
+    let parent = temp.path().join("admitted-parent");
+    crate::support::write_test_skill_package(
+        &parent,
+        "---\nname: admitted-parent\ndescription: Retain and process one selected record array natively.\n---\n# Retained records\n\nStore, open and pass the native snapshot to the existing child.\n",
+        r#"skill: admitted-parent
+runners:
+  count:
+    default: true
+    inputs:
+      records: {type: array, required: true}
+    result_from: [count]
+    steps:
+    - id: retain
+      tool: artifact.store
+      scopes: [artifact.write]
+      inputs: {value: $input.records}
+    - id: open
+      tool: artifact.open
+      scopes: [artifact.read]
+      inputs: {artifact: $steps.retain.project_artifact}
+    - id: count
+      skill: ../admitted-child
+      inputs: {source: $steps.open.local_artifact.artifact_uri}
+"#,
+    )?;
+    let records = (0..5_000)
+        .map(|id| serde_json::json!({"id":id,"text":"日本語 😀"}))
+        .collect::<Vec<_>>();
+    let values = input(serde_json::json!({"records":records}))?;
+    let allowed = run_page_fixture(temp.path(), parent.clone(), values.clone(), false)?;
+    assert!(allowed.succeeded(), "{allowed:?}");
+    assert_eq!(
+        serde_json::to_value(&allowed.output)?["result"]["record_count"],
+        5_000
+    );
+    let denied = run_page_fixture(temp.path(), parent, values, true)?;
+    assert!(!denied.succeeded(), "{denied:?}");
+    assert!(
+        format!("{:?}", denied.output).contains("protected operator state"),
+        "{denied:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn paged_file_reads_keep_the_real_graph_callers_bounds() -> TestResult {
+    let temp = tempdir()?;
+    std::fs::write(temp.path().join("ordinary.json"), "[{}]")?;
+    std::fs::write(temp.path().join(".env.page-proof"), "[{}]")?;
+    std::fs::create_dir_all(temp.path().join(".runx"))?;
+    std::fs::write(temp.path().join(".runx/page-proof.json"), "[{}]")?;
+    let skill = write_paged_read_skill(temp.path(), true)?;
+    assert!(run_paged_read(temp.path(), skill.clone(), "ordinary.json", true)?.succeeded());
+    for path in [".env.page-proof", ".runx/page-proof.json"] {
+        let denied = run_paged_read(temp.path(), skill.clone(), path, true)?;
+        assert!(
+            !denied.succeeded(),
+            "protected page source was admitted: {denied:?}"
+        );
+        assert!(
+            format!("{:?}", denied.output).contains("secret"),
+            "{denied:?}"
+        );
+        assert!(run_paged_read(temp.path(), skill.clone(), path, false)?.succeeded());
+    }
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(".env.page-proof", temp.path().join("alias.json"))?;
+        let denied = run_paged_read(temp.path(), skill, "alias.json", true)?;
+        assert!(!denied.succeeded(), "{denied:?}");
+        assert!(
+            format!("{:?}", denied.output).contains("secret"),
+            "{denied:?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn paged_file_reads_require_scope_before_resolving_the_source() -> TestResult {
+    let temp = tempdir()?;
+    let skill = write_paged_read_skill(temp.path(), false)?;
+    for agent in [false, true] {
+        let denied = run_paged_read(temp.path(), skill.clone(), "does-not-exist.json", agent)?;
+        assert!(!denied.succeeded(), "{denied:?}");
+        let detail = format!("{:?}", denied.output);
+        assert!(detail.contains("fs.read"), "{denied:?}");
+        assert!(
+            !detail.contains("unavailable"),
+            "source resolved before scope admission: {denied:?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn paged_file_reads_keep_bounds_when_an_agent_calls_a_child_skill() -> TestResult {
+    let temp = tempdir()?;
+    std::fs::write(temp.path().join("ordinary.json"), "[{}]")?;
+    std::fs::write(temp.path().join(".env.page-proof"), "[{}]")?;
+    write_paged_read_skill(temp.path(), true)?;
+    let parent = temp.path().join("paged-parent");
+    crate::support::write_test_skill_package(
+        &parent,
+        "---\nname: paged-parent\ndescription: Reuses a declared native page reader.\n---\n# Page parent\n\nUse only the admitted child reader.\n",
+        "skill: paged-parent\nskills: [../paged-child]\nrunners:\n  answer:\n    default: true\n    inputs:\n      question: {type: string, required: true}\n    outputs: {answer: string}\n",
+    )?;
+    let mut authority = bounded(None, None);
+    authority.agent_bounds = true;
+    let started = start_bounded(temp.path(), parent, authority)?;
+    let turn = opened(temp.path(), &started)?;
+    let denied = turn.call(
+        TURN,
+        "skill__paged-child",
+        None,
+        input(serde_json::json!({"path": ".env.page-proof"}))?,
+    )?;
+    assert!(!completed(&denied), "{denied:?}");
+    assert!(format!("{denied:?}").contains("secret"), "{denied:?}");
+    let allowed = turn.call(
+        TURN,
+        "skill__paged-child",
+        None,
+        input(serde_json::json!({"path": "ordinary.json"}))?,
+    )?;
+    assert!(completed(&allowed), "{allowed:?}");
+    Ok(())
+}
+
+#[test]
+fn a_runner_excludes_provider_calls_before_connector_authentication() -> TestResult {
+    for operation_limit in ["", "    operations: []\n"] {
+        let temp = tempdir()?;
+        crate::support::plugin_with_fixture_connectors(temp.path(), &["fixture/forge"])?;
+        let skill_dir = temp.path().join("source-review");
+        crate::support::write_test_skill_package(
+            &skill_dir,
+            "---\nname: source-review\ndescription: Interpret supplied evidence.\n---\n# Source review\n\nUse the supplied evidence without a provider read.\n",
+            &format!(
+                r#"skill: source-review
+connectors:
+  fixture/forge:
+    operations: [issue.read, branch.push]
+runners:
+  answer:
+    default: true
+{operation_limit}    inputs:
+      question: {{type: string, required: true}}
+    outputs:
+      answer: string
+"#
+            ),
+        )?;
+        let paused = Paused::start(temp.path(), skill_dir, TURN)?;
+        let turn = paused.open()?;
+        assert!(turn.status(TURN)?.tools.is_empty());
+        for tool in ["fixture_forge__issue_read", "fixture_forge__branch_push"] {
+            let error = turn
+            .call(
+                TURN,
+                tool,
+                None,
+                input(
+                    serde_json::json!({"input": {"repository": "example/project", "number": 1}}),
+                )?,
+            )
+            .err()
+            .ok_or("an excluded provider call was admitted")?;
+            assert!(error.to_string().contains("offers no tool"), "{error}");
+        }
+        assert!(turn.status(TURN)?.tools.is_empty());
+    }
+    Ok(())
+}
+
 #[test]
 fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -> TestResult {
     let temp = tempdir()?;
@@ -1794,6 +2059,104 @@ runners:
 }
 
 #[test]
+fn a_project_artifact_packet_input_receives_the_descriptor_instead_of_its_content() -> TestResult {
+    let temp = tempdir()?;
+    let child = temp.path().join("artifact-child");
+    crate::support::write_test_skill_package(
+        &child,
+        "---\nname: artifact-child\ndescription: Stores and opens immutable values.\n---\n# Artifact child\n\nStore and reopen selected values.\n",
+        r#"skill: artifact-child
+runners:
+  store:
+    default: true
+    inputs:
+      value: { type: json, required: true }
+    steps:
+      - id: store
+        tool: artifact.store
+        scopes: [artifact.write]
+        inputs:
+          value: $input.value
+"#,
+    )?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("artifact-reader"),
+        "---\nname: artifact-reader\ndescription: Reads a retained value by its descriptor.\n---\n# Artifact reader\n\nOpen an exact retained value without substituting its contents as the descriptor.\n",
+        r#"skill: artifact-reader
+runners:
+  read:
+    default: true
+    inputs:
+      cursor: { type: json, required: true, packet: runx.project_artifact.v1 }
+    steps:
+      - id: open
+        tool: artifact.open
+        scopes: [artifact.read]
+        inputs:
+          artifact: $input.cursor
+      - id: read
+        tool: artifact.read
+        scopes: [fs.read]
+        inputs:
+          artifact_uri: $steps.open.local_artifact.artifact_uri
+          encoding: json_array
+"#,
+    )?;
+    let parent = temp.path().join("artifact-turn");
+    crate::support::write_test_skill_package(
+        &parent,
+        "---\nname: artifact-turn\ndescription: Hands retained artifact descriptors to child skills.\n---\n# Artifact turn\n\nContinue retained work through a declared child skill.\n",
+        r#"skill: artifact-turn
+skills: [../artifact-child, ../artifact-reader]
+runners:
+  answer:
+    default: true
+    inputs:
+      question: { type: string, required: true }
+    outputs:
+      answer: string
+"#,
+    )?;
+    let paused = Paused::start(temp.path(), parent, TURN)?;
+    let turn = paused.open()?;
+    let stored = turn.call(
+        TURN,
+        "skill__artifact-child",
+        None,
+        input(serde_json::json!({"value": [{"id": 1, "label": "日本語"}]}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = stored.outcome else {
+        return Err(format!("store did not complete: {stored:?}").into());
+    };
+    let descriptor = output
+        .get("project_artifact")
+        .and_then(JsonValue::as_object)
+        .and_then(|value| value.get("data"))
+        .ok_or("store returned its exact descriptor")?;
+    let reopened = turn.call(
+        TURN,
+        "skill__artifact-reader",
+        None,
+        input(serde_json::json!({"cursor": descriptor}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = reopened.outcome else {
+        return Err(format!("open did not complete: {reopened:?}").into());
+    };
+    let page = &serde_json::to_value(output)?["artifact_page"]["data"];
+    let records = page["records"].as_array().ok_or("framed records")?;
+    assert_eq!(records.len(), 1);
+    let record: serde_json::Value =
+        serde_json::from_str(records[0].as_str().ok_or("record text")?)?;
+    assert_eq!(record, serde_json::json!({"id": 1, "label": "日本語"}));
+    assert_eq!(
+        page["whole_digest"],
+        serde_json::to_value(descriptor)?["digest"]
+    );
+    turn.complete(TURN, input(serde_json::json!({"answer": "reopened"}))?)?;
+    Ok(())
+}
+
+#[test]
 fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_packet_skills(temp.path())?, TURN)?;
@@ -1893,7 +2256,9 @@ fn a_packet_one_call_returned_feeds_the_next_by_reference() -> TestResult {
         "{reused:?}"
     );
     let mut forged = serde_json::to_value(reference)?;
-    forged["digest"] = serde_json::json!(format!("sha256:{}", "0".repeat(64)));
+    let forged_digest = format!("sha256:{}", "0".repeat(64));
+    forged["digest"] = serde_json::json!(forged_digest);
+    forged["uri"] = serde_json::json!(format!("runx:project-artifact:{forged_digest}"));
     let outside = temp.path().join("outside.json");
     std::fs::write(&outside, br#"{"algorithm":"sha256"}"#)?;
     let mut escaped = forged.clone();

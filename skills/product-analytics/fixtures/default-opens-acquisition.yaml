@@ -1,0 +1,14 @@
+name: ordinary-question-opens-bounded-insight-selection
+kind: skill
+target: ..
+inputs:
+  objective: Where does our saved activation funnel lose people?
+  source_context:
+    current_insight_id: launch01
+expect:
+  status: needs_agent
+  steps:
+    - select
+metadata:
+  public_skill: product-analytics
+  source: skills-fixture

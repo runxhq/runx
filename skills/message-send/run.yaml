@@ -1,6 +1,5 @@
 skill: message-send
-version: "0.1.4"
-
+version: "0.1.5"
 catalog:
   kind: graph
   audience: public
@@ -10,7 +9,6 @@ catalog:
   completion: provider_readback
   approval: required
   category: ops
-
 input_definitions:
   content:
     type: object
@@ -19,20 +17,36 @@ input_definitions:
     schema:
       additionalProperties: false
       properties:
-        message: { type: string, minLength: 1, maxLength: 4000 }
-        content_uri: { type: string, minLength: 1, maxLength: 2048 }
-        digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+        message:
+          type: string
+          minLength: 1
+          maxLength: 40000
+          pattern: \S
+        content_uri:
+          type: string
+          minLength: 1
+          maxLength: 2048
+        digest:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
       oneOf:
-        - required: [message]
-        - required: [content_uri, digest]
-
+        - required:
+            - message
+        - required:
+            - content_uri
+            - digest
 harness:
-  files: [fixtures/support/composed.graph, fixtures/support/plan.graph, fixtures/support/reply.graph]
+  files:
+    - fixtures/support/composed.graph
+    - fixtures/support/plan.graph
+    - fixtures/support/reply.graph
   cases:
     - name: reply-holds-incomplete-source-before-effect
       operator_journeys:
         - mode: standalone
-          confusors: [conversation-review, slack]
+          confusors:
+            - conversation-review
+            - slack
           request: Reply to this exact conversation after approval.
           expected_outcome: Hold when the source packet does not prove complete coverage; do not send.
         - mode: composed
@@ -48,41 +62,79 @@ harness:
         source_context:
           schema: runx.source_packet.v1
           packet_id: slack://T123/C123/1.000001:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          source_ref: { type: event, uri: 'slack://T123/C123/1.000001' }
+          source_ref:
+            type: event
+            uri: slack://T123/C123/1.000001
           signal_type: conversation
           title: Conversation evidence
-          observed_at: '2026-10-05T00:00:00Z'
+          observed_at: 2026-10-05T00:00:00Z
           redaction_status: unredacted
           workflow_inputs:
-            source_locator: 'slack://T123/C123/1.000001'
+            source_locator: slack://T123/C123/1.000001
             source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-            thread_locator: 'slack://T123/C123/1.000001'
+            thread_locator: slack://T123/C123/1.000001
             source_complete: false
-            thread: { thread_locator: 'slack://T123/C123/1.000001', coverage_incomplete: true }
+            thread:
+              thread_locator: slack://T123/C123/1.000001
+              coverage_incomplete: true
         turn_id: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
         expected_provider: slack
-        thread_locator: 'slack://T123/C123/1.000001'
+        thread_locator: slack://T123/C123/1.000001
         draft_message: I will check this.
       expect:
         status: sealed
-        steps: [digest, prepare, held]
+        steps:
+          - digest
+          - prepare
+          - held
         step_outputs:
           held:
             subset:
               work_result:
-                data: { state: held, completion_evidence: [], followups: [] }
-        receipt: { schema: runx.receipt.v1 }
-
+                data:
+                  state: held
+                  completion_evidence: []
+                  followups: []
+        receipt:
+          schema: runx.receipt.v1
+    - name: planning-supports-provider-length-without-trimming
+      runner: plan_post_exact
+      inputs:
+        channel: slack://T123/C456
+        content:
+          message: |2
+              AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        principal: runx:principal:operator
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              notify_plan:
+                data:
+                  decision: ready_for_provider
+                  provider_status: not_called
+                  delivery_status: not_sent
+        receipt:
+          schema: runx.receipt.v1
 connectors:
   slack:
-    operations: [channel.post, channel.post.read, thread.reply, thread.reply.read]
+    operations:
+      - channel.post
+      - channel.post.read
+      - thread.reply
+      - thread.reply.read
   reply:
-    operations: [thread.reply, thread.reply.read]
+    operations:
+      - thread.reply
+      - thread.reply.read
     connector_from: $input.expected_provider
-    allowed_connectors: [slack]
+    allowed_connectors:
+      - slack
 runners:
   send:
-    description: Post one message to a channel, planning it, asking approval at the live post, posting once and reading it back.
+    description: Post one message to a channel, planning it, asking approval at the live post, posting
+      once and reading it back.
     default: true
     inputs:
       channel_locator:
@@ -93,6 +145,10 @@ runners:
         type: string
         required: true
         description: Exact Slack message to bind, approve, post, and read back.
+        schema:
+          minLength: 1
+          maxLength: 40000
+          pattern: \S
       principal:
         type: string
         required: true
@@ -104,7 +160,13 @@ runners:
         type: string
         required: true
         description: Stable retry key for this exact notification.
-    result_from: [deliver]
+    result_from:
+      - deliver
+    examples:
+      - channel_locator: slack://acme/C0123
+        principal: ops-bot
+        idempotency_key: deploy-note-2026-11-05
+        text: Today's deploy finished. Exports now run in the background.
     steps:
       - id: plan
         skill: .
@@ -123,15 +185,17 @@ runners:
           text: $input.text
           idempotency_key: $input.idempotency_key
           notification_plan: $steps.plan.notify_plan
-
   plan_post_exact:
-    description: Plan a post whose destination, principal and text an operator already chose under its own policy, with no second judgment. Posts nothing.
+    description: Plan a post whose destination, principal and text an operator already chose under its
+      own policy, with no second judgment. Posts nothing.
     inputs:
       channel:
         type: string
         required: true
         description: Exact slack://workspace/channel destination for a message already selected by the caller.
-        schema: { pattern: '^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+$', maxLength: 300 }
+        schema:
+          pattern: ^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+$
+          maxLength: 300
       content:
         definition: content
       principal:
@@ -140,16 +204,20 @@ runners:
         description: Exact principal bound to the later provider permission grant.
     examples:
       - channel: slack://T123/C456
-        content: { message: A new personal update needs attention. }
+        content:
+          message: A new personal update needs attention.
         principal: runx:principal:operator
-    result_from: [finalize]
+    result_from:
+      - finalize
     steps:
       - id: prepare
         inputs:
           channel: $input.channel
           content: $input.content
           principal: $input.principal
-        tool: { module: post.mjs, export: prepareNotification }
+        tool:
+          module: post.mjs
+          export: prepareNotification
         outputs:
           notification_admission: object
           digest_input: string
@@ -162,7 +230,9 @@ runners:
         inputs:
           notification_admission: $steps.prepare.notification_admission
           digest_result: $steps.digest-content.digest_result
-        tool: { module: post.mjs, export: bindNotification }
+        tool:
+          module: post.mjs
+          export: bindNotification
         outputs:
           slack_context: object
         artifacts:
@@ -171,7 +241,9 @@ runners:
       - id: finalize
         inputs:
           slack_context: $steps.bind-content.slack_context
-        tool: { module: post.mjs, export: finalizeExactNotification }
+        tool:
+          module: post.mjs
+          export: finalizeExactNotification
         outputs:
           notify_plan: object
         artifacts:
@@ -179,9 +251,9 @@ runners:
             notify_plan: notify_plan
           packets:
             notify_plan: runx/message-send.notification_plan.v1
-
   plan_post:
-    description: Plan one channel post, checking its destination, digesting its text and binding the plan, without posting or asking approval. Post it with post.
+    description: Plan one channel post, checking its destination, digesting its text and binding the
+      plan, without posting or asking approval. Post it with post.
     inputs:
       channel:
         type: string
@@ -199,17 +271,24 @@ runners:
         description: Connector and workspace readiness supplied to the send plan.
     examples:
       - channel: slack://T123/C456
-        content: { message: Release 0.8.2 is live. }
+        content:
+          message: Release 0.8.2 is live.
         principal: runx:principal:kam
-        provider_context: { provider: slack, connector_status: ready }
-    result_from: [finalize, reject]
+        provider_context:
+          provider: slack
+          connector_status: ready
+    result_from:
+      - finalize
+      - reject
     steps:
       - id: prepare
         inputs:
           channel: $input.channel
           content: $input.content
           principal: $input.principal
-        tool: { module: post.mjs, export: prepareNotification }
+        tool:
+          module: post.mjs
+          export: prepareNotification
         outputs:
           notification_admission: object
           digest_input: string
@@ -222,7 +301,9 @@ runners:
         inputs:
           notification_admission: $steps.prepare.notification_admission
           digest_result: $steps.digest-content.digest_result
-        tool: { module: post.mjs, export: bindNotification }
+        tool:
+          module: post.mjs
+          export: bindNotification
         outputs:
           slack_context: object
         artifacts:
@@ -247,7 +328,9 @@ runners:
         inputs:
           slack_context: $steps.bind-content.slack_context
           send_plan: $steps.authorize.send_plan
-        tool: { module: post.mjs, export: finalizeNotification }
+        tool:
+          module: post.mjs
+          export: finalizeNotification
         outputs:
           notify_plan: object
         artifacts:
@@ -261,7 +344,9 @@ runners:
           equals: blocked
         inputs:
           slack_context: $steps.bind-content.slack_context
-        tool: { module: post.mjs, export: finalizeNotification }
+        tool:
+          module: post.mjs
+          export: finalizeNotification
         outputs:
           notify_plan: object
         artifacts:
@@ -270,7 +355,8 @@ runners:
           packets:
             notify_plan: runx/message-send.notification_plan.v1
   post:
-    description: Post a planned message once, exactly as planned, under approval or a standing authority, and read it back.
+    description: Post a planned message once, exactly as planned, under approval or a standing
+      authority, and read it back.
     inputs:
       notification_plan:
         type: json
@@ -285,6 +371,10 @@ runners:
         type: string
         required: true
         description: Exact message text whose digest must match notification_plan.
+        schema:
+          minLength: 1
+          maxLength: 40000
+          pattern: \S
       idempotency_key:
         type: string
         required: true
@@ -298,15 +388,24 @@ runners:
           channel: slack://T123/C456
           content_uri: inline:sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
           content_digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
-          send_plan: { decision: ready }
+          send_plan:
+            decision: ready
           provider_status: not_called
           delivery_status: not_sent
-          downstream_handoff: { skill: message-send, runner: post, state: ready_for_approval }
-          validation: { status: pass, findings: [] }
+          downstream_handoff:
+            skill: message-send
+            runner: post
+            state: ready_for_approval
+          validation:
+            status: pass
+            findings: []
         channel_locator: slack://T123/C456
         text: Release 0.8.2 is live.
         idempotency_key: 00000000-0000-4000-8000-000000000001
-    result_from: [readback]
+    result_from:
+      - hold-plan
+      - hold-content
+      - readback
     steps:
       - id: digest
         tool: data.digest
@@ -336,6 +435,41 @@ runners:
         inputs:
           expected: $input.notification_plan.content_digest
           actual: $steps.digest.digest_result.digest
+      - id: hold-plan
+        when:
+          value: $steps.bind-plan.comparison.equal
+          equals: false
+        tool:
+          module: reply.mjs
+          export: holdMessage
+        inputs:
+          reply_plan:
+            reason: Message destination or delivery plan changed; prepare the exact plan again before delivery.
+        outputs:
+          work_result: object
+        artifacts:
+          named_emits:
+            work_result: work_result
+          packets:
+            work_result: runx.work_outcome.v1
+      - id: hold-content
+        when:
+          value: $steps.bind-content.comparison.equal
+          equals: false
+        tool:
+          module: reply.mjs
+          export: holdMessage
+        inputs:
+          reply_plan:
+            reason: Message text differs from the approved plan; prepare and approve the changed content before
+              delivery.
+        outputs:
+          work_result: object
+        artifacts:
+          named_emits:
+            work_result: work_result
+          packets:
+            work_result: runx.work_outcome.v1
       - id: deliver
         operation: slack/channel.post
         idempotency_key: $input.idempotency_key
@@ -348,11 +482,14 @@ runners:
         expected_result:
           conversation_locator: $input.channel_locator
           content_digest: $input.notification_plan.content_digest
-        result_fields: [message_locator, conversation_locator, content_digest, occurred_at]
+        result_fields:
+          - message_locator
+          - conversation_locator
+          - content_digest
+          - occurred_at
         input:
           channel_locator: $input.channel_locator
           text: $input.text
-
       - id: prepare-readback
         when:
           value: $steps.bind-content.comparison.equal
@@ -360,48 +497,87 @@ runners:
         inputs:
           text: $input.text
           delivery: $steps.deliver.provider_operation
-        tool: { module: post.mjs, export: prepareNotificationReadback }
-        outputs: { read_request: object }
+          operation: channel.post
+        tool:
+          module: post.mjs
+          export: prepareMessageReadback
+        outputs:
+          read_request: object
       - id: readback
         when:
           value: $steps.bind-content.comparison.equal
           equals: true
         operation: slack/channel.post.read
-        result_fields: [message_locator, conversation_locator, content_digest, occurred_at]
+        result_fields:
+          - message_locator
+          - conversation_locator
+          - content_digest
+          - occurred_at
         expected_result: $steps.deliver.provider_operation.result
         input: $steps.prepare-readback.read_request
   reconcile_post:
-    description: Read back a post whose delivery was uncertain, without posting again.
+    description: Independently observe one selected message after an uncertain post, without resending
+      or changing the original native custody.
     inputs:
-      notification_plan: { type: json, packet: runx/message-send.notification_plan.v1, required: true }
-      channel_locator: { type: string, required: true }
-      text: { type: string, required: true }
-      message_locator: { type: string, required: true }
-      failed_at: { type: string, required: true }
-    result_from: [finish]
+      notification_plan:
+        type: json
+        packet: runx/message-send.notification_plan.v1
+        required: true
+      channel_locator:
+        type: string
+        required: true
+      text:
+        type: string
+        required: true
+      message_locator:
+        type: string
+        required: true
+      failed_at:
+        type: string
+        required: true
+    result_from:
+      - finish
     steps:
-      - id: read
-        skill: ../slack
-        runner: read_thread
-        inputs:
-          thread_locator: $input.message_locator
-          limit: 1
       - id: digest
         tool: data.digest
-        inputs: { value: $input.text, encoding: utf8_text }
-      - id: finish
+        inputs:
+          value: $input.text
+          encoding: utf8_text
+      - id: prepare-readback
+        tool:
+          module: post.mjs
+          export: prepareReconciliationRead
         inputs:
           notification_plan: $input.notification_plan
           channel_locator: $input.channel_locator
-          text: $input.text
           message_locator: $input.message_locator
+          text: $input.text
           failed_at: $input.failed_at
-          provider_operation: $steps.read.provider_operation
           digest_result: $steps.digest.digest_result
-        tool: { module: post.mjs, export: reconcileExactNotification }
-        outputs: { reconciliation: object }
+        outputs:
+          read_request: object
+          expected_result: object
+      - id: read
+        operation: slack/channel.post.read
+        input: $steps.prepare-readback.read_request
+        expected_result: $steps.prepare-readback.expected_result
+        result_fields:
+          - message_locator
+          - conversation_locator
+          - content_digest
+          - occurred_at
+      - id: finish
+        tool:
+          module: post.mjs
+          export: reconcileExactNotification
+        inputs:
+          provider_operation: $steps.read.provider_operation
+          failed_at: $input.failed_at
+        outputs:
+          reconciliation: object
   plan:
-    description: Authorize a message without sending it, binding the principal, audience, content digest, consent and approval into a send plan.
+    description: Authorize a message without sending it, binding the principal, audience, content
+      digest, consent and approval into a send plan.
     inputs:
       objective:
         type: string
@@ -434,10 +610,13 @@ runners:
       connector:
         type: json
         required: false
-        description: Provider and target identity available to the direct send; planning never receives credentials.
+        description: Provider and target identity available to the direct send; planning never receives
+          credentials.
     steps:
       - id: plan
-        agent: { role: reviewer, task: message-send }
+        agent:
+          role: reviewer
+          task: message-send
         inputs:
           objective: $input.objective
           principal: $input.principal
@@ -454,9 +633,9 @@ runners:
             send_plan: send_plan
           packets:
             send_plan: runx/message-send.plan.v1
-
   reply:
-    description: Reply once in a conversation from an admitted source packet, under exact approval, and read the reply back.
+    description: Reply once in a conversation from an admitted source packet, under exact approval, and
+      read the reply back.
     inputs:
       source_context:
         type: json
@@ -465,7 +644,8 @@ runners:
       turn_id:
         type: string
         required: true
-        schema: { pattern: '^sha256:[0-9a-f]{64}$' }
+        schema:
+          pattern: ^sha256:[0-9a-f]{64}$
       expected_provider:
         type: string
         required: true
@@ -475,12 +655,18 @@ runners:
       draft_message:
         type: string
         required: true
-        schema: { minLength: 1, maxLength: 4000 }
-    result_from: [held, finish]
+        schema:
+          minLength: 1
+          maxLength: 40000
+    result_from:
+      - held
+      - finish
     steps:
       - id: digest
         tool: data.digest
-        inputs: { value: $input.draft_message, encoding: utf8_text }
+        inputs:
+          value: $input.draft_message
+          encoding: utf8_text
       - id: prepare
         inputs:
           source_context: $input.source_context
@@ -489,19 +675,31 @@ runners:
           thread_locator: $input.thread_locator
           draft_message: $input.draft_message
           digest: $steps.digest.digest_result
-        tool: { module: reply.mjs, export: prepareReply }
-        outputs: { reply_plan: object }
+        tool:
+          module: reply.mjs
+          export: prepareReply
+        outputs:
+          reply_plan: object
       - id: held
-        when: { value: $steps.prepare.reply_plan.ready, equals: false }
+        when:
+          value: $steps.prepare.reply_plan.ready
+          equals: false
         inputs:
           reply_plan: $steps.prepare.reply_plan
-        tool: { module: reply.mjs, export: holdReply }
-        outputs: { work_result: object }
+        tool:
+          module: reply.mjs
+          export: holdMessage
+        outputs:
+          work_result: object
         artifacts:
-          named_emits: { work_result: work_result }
-          packets: { work_result: runx.work_outcome.v1 }
+          named_emits:
+            work_result: work_result
+          packets:
+            work_result: runx.work_outcome.v1
       - id: deliver
-        when: { value: $steps.prepare.reply_plan.ready, equals: true }
+        when:
+          value: $steps.prepare.reply_plan.ready
+          equals: true
         operation: reply/thread.reply
         approval:
           reason: Approve sending this exact reply to the bound conversation.
@@ -509,30 +707,45 @@ runners:
         idempotency_key: $steps.prepare.reply_plan.idempotency_key
         input: $steps.prepare.reply_plan.request
       - id: prepare_readback
-        when: { value: $steps.prepare.reply_plan.ready, equals: true }
+        when:
+          value: $steps.prepare.reply_plan.ready
+          equals: true
         inputs:
           reply_plan: $steps.prepare.reply_plan
           mutation: $steps.deliver.provider_operation
-        tool: { module: reply.mjs, export: prepareReadback }
-        outputs: { read_request: object }
+        tool:
+          module: reply.mjs
+          export: prepareReadback
+        outputs:
+          read_request: object
       - id: readback
-        when: { value: $steps.prepare.reply_plan.ready, equals: true }
+        when:
+          value: $steps.prepare.reply_plan.ready
+          equals: true
         operation: reply/thread.reply.read
         readback_of: $steps.deliver.provider_operation
         input: $steps.prepare_readback.read_request
       - id: finish
-        when: { value: $steps.prepare.reply_plan.ready, equals: true }
+        when:
+          value: $steps.prepare.reply_plan.ready
+          equals: true
         inputs:
           reply_plan: $steps.prepare.reply_plan
           mutation: $steps.deliver.provider_operation
           readback: $steps.readback.provider_operation
-        tool: { module: reply.mjs, export: finishReply }
-        outputs: { work_result: object }
+        tool:
+          module: reply.mjs
+          export: finishReply
+        outputs:
+          work_result: object
         artifacts:
-          named_emits: { work_result: work_result }
-          packets: { work_result: runx.work_outcome.v1 }
+          named_emits:
+            work_result: work_result
+          packets:
+            work_result: runx.work_outcome.v1
   plan_reply:
-    description: Plan one Slack thread reply, binding the thread and the text's digest, without sending it. Deliver it with deliver_reply.
+    description: Plan one Slack thread reply, binding the thread and the text's digest, without sending
+      it. Deliver it with deliver_reply.
     inputs:
       principal:
         type: string
@@ -542,12 +755,16 @@ runners:
         type: string
         required: true
         description: Exact Slack thread that would receive the reply.
-        schema: { pattern: '^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+/[0-9]+\.[0-9]+$', maxLength: 300 }
+        schema:
+          pattern: ^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+/[0-9]+\.[0-9]+$
+          maxLength: 300
       text:
         type: string
         required: true
         description: Exact proposed reply text.
-        schema: { minLength: 1, maxLength: 4000 }
+        schema:
+          minLength: 1
+          maxLength: 40000
       provider_context:
         type: json
         required: false
@@ -560,9 +777,12 @@ runners:
       - principal: user:kam
         thread_locator: slack://T123ABC/C123ABC/1750000000.000001
         text: I’ll verify this now.
-        provider_context: { connector: runx-connect, workspace: T123ABC }
+        provider_context:
+          connector: runx-connect
+          workspace: T123ABC
         operator_context: Reply only in the supplied thread and require approval before delivery.
-    result_from: [authorize]
+    result_from:
+      - authorize
     steps:
       - id: digest
         tool: data.digest
@@ -582,7 +802,6 @@ runners:
             requires_reconfirmation: false
           operator_context: $input.operator_context
           content: $steps.digest.digest_result
-
   deliver_reply:
     description: Deliver a reply planned by plan_reply once, under approval, and read it back.
     inputs:
@@ -595,33 +814,51 @@ runners:
         type: string
         required: true
         description: Exact Slack thread locator bound by the plan and Connect grant.
-        schema: { pattern: '^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+/[0-9]+\.[0-9]+$', maxLength: 300 }
+        schema:
+          pattern: ^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+/[0-9]+\.[0-9]+$
+          maxLength: 300
       text:
         type: string
         required: true
         description: Exact reply text whose digest must match the plan.
-        schema: { minLength: 1, maxLength: 4000 }
+        schema:
+          minLength: 1
+          maxLength: 40000
+          pattern: \S
       idempotency_key:
         type: string
         required: true
         description: Stable UUID for this exact Slack reply.
-        schema: { format: uuid }
+        schema:
+          format: uuid
     examples:
       - send_plan:
           decision: ready
           action_family: message-send
-          principal: { type: user, uri: "user:kam" }
-          provider: { name: slack, account_id: "workspace:T123ABC", runtime_path: slack }
+          principal:
+            type: user
+            uri: user:kam
+          provider:
+            name: slack
+            account_id: workspace:T123ABC
+            runtime_path: slack
           send_class: internal
           channel: chat
-          audience: { type: thread, locator: 'slack://T123ABC/C123ABC/1750000000.000001', requires_reconfirmation: false }
+          audience:
+            type: thread
+            locator: slack://T123ABC/C123ABC/1750000000.000001
+            requires_reconfirmation: false
           content:
             draft_uri: inline
-            digest: 'sha256:8604f5c08db8d76b6fa8066c769fbdc6a4992101373d0d17bcfe426cf8e77647'
+            digest: sha256:8604f5c08db8d76b6fa8066c769fbdc6a4992101373d0d17bcfe426cf8e77647
             subject_or_title: Slack thread reply
-          gates: { preflight_required: true, human_approval_required: true, approval_id: slack.deliver-reply.approval }
+          gates:
+            preflight_required: true
+            human_approval_required: true
+            approval_id: slack.deliver-reply.approval
           blockers: []
-          provider_actions: [thread.reply]
+          provider_actions:
+            - thread.reply
           evidence_locators: []
           success_checkpoint:
             milestone: plan_ready
@@ -629,7 +866,10 @@ runners:
         thread_locator: slack://T123ABC/C123ABC/1750000000.000001
         text: I’ll verify this now.
         idempotency_key: 00000000-0000-4000-8000-000000000001
-    result_from: [readback]
+    result_from:
+      - hold-plan
+      - hold-content
+      - readback
     steps:
       - id: digest
         tool: data.digest
@@ -659,6 +899,41 @@ runners:
         inputs:
           expected: $input.send_plan.content.digest
           actual: $steps.digest.digest_result.digest
+      - id: hold-plan
+        when:
+          value: $steps.bind-plan.comparison.equal
+          equals: false
+        tool:
+          module: reply.mjs
+          export: holdMessage
+        inputs:
+          reply_plan:
+            reason: Message destination or delivery plan changed; prepare the exact plan again before delivery.
+        outputs:
+          work_result: object
+        artifacts:
+          named_emits:
+            work_result: work_result
+          packets:
+            work_result: runx.work_outcome.v1
+      - id: hold-content
+        when:
+          value: $steps.bind-content.comparison.equal
+          equals: false
+        tool:
+          module: reply.mjs
+          export: holdMessage
+        inputs:
+          reply_plan:
+            reason: Message text differs from the approved plan; prepare and approve the changed content before
+              delivery.
+        outputs:
+          work_result: object
+        artifacts:
+          named_emits:
+            work_result: work_result
+          packets:
+            work_result: runx.work_outcome.v1
       - id: deliver
         operation: slack/thread.reply
         idempotency_key: $input.idempotency_key
@@ -671,7 +946,12 @@ runners:
         expected_result:
           thread_locator: $input.thread_locator
           content_digest: $input.send_plan.content.digest
-        result_fields: [message_locator, conversation_locator, thread_locator, content_digest, occurred_at]
+        result_fields:
+          - message_locator
+          - conversation_locator
+          - thread_locator
+          - content_digest
+          - occurred_at
         input:
           thread_locator: $input.thread_locator
           text: $input.text
@@ -682,13 +962,22 @@ runners:
         inputs:
           text: $input.text
           delivery: $steps.deliver.provider_operation
-        tool: { module: reply-readback.mjs, export: prepareReplyReadback }
-        outputs: { read_request: object }
+          operation: thread.reply
+        tool:
+          module: post.mjs
+          export: prepareMessageReadback
+        outputs:
+          read_request: object
       - id: readback
         when:
           value: $steps.bind-content.comparison.equal
           equals: true
         operation: slack/thread.reply.read
-        result_fields: [message_locator, conversation_locator, thread_locator, content_digest, occurred_at]
+        result_fields:
+          - message_locator
+          - conversation_locator
+          - thread_locator
+          - content_digest
+          - occurred_at
         expected_result: $steps.deliver.provider_operation.result
         input: $steps.prepare-readback.read_request

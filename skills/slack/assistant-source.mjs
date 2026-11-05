@@ -71,6 +71,7 @@ export function decideAssistantRequest(inputs) {
 
 export function prepareAssistantScan(inputs) {
   const query = { ...object(object(inputs.config).query) };
+  if (query.include_bots === undefined) query.include_bots = false;
   const limit = Number(inputs.page_limit);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20 ||
       query.limit !== limit || Object.hasOwn(query, "cursor")) {

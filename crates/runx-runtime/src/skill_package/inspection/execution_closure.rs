@@ -352,9 +352,33 @@ struct ExecutionClosureInspector<'a> {
     package_root: PathBuf,
     env: Option<&'a BTreeMap<String, String>>,
     unheld_registry_refs: UnheldRegistryRefs,
+    /// Each package root's connectors, read once per walk: building a scope
+    /// parses every connector manifest the project holds.
+    connector_scopes: BTreeMap<PathBuf, Arc<crate::kernel::connectors::ConnectorScope>>,
 }
 
 impl<'a> ExecutionClosureInspector<'a> {
+    fn connector_scope(
+        &mut self,
+        package_root: &Path,
+    ) -> Result<Arc<crate::kernel::connectors::ConnectorScope>, SkillInspectionError> {
+        if let Some(scope) = self.connector_scopes.get(package_root) {
+            return Ok(Arc::clone(scope));
+        }
+        let scope = match self.env {
+            Some(env) => crate::kernel::connectors::ConnectorScope::in_project(
+                package_root,
+                &crate::paths::RunxPaths::resolve(env, package_root),
+            ),
+            None => crate::kernel::connectors::ConnectorScope::at(package_root),
+        }
+        .map(Arc::new)
+        .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
+        self.connector_scopes
+            .insert(package_root.to_path_buf(), Arc::clone(&scope));
+        Ok(scope)
+    }
+
     fn new(
         root: Arc<LoadedSkillPackage>,
         env: Option<&'a BTreeMap<String, String>>,
@@ -368,6 +392,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             package_root,
             env,
             unheld_registry_refs,
+            connector_scopes: BTreeMap::new(),
         })
     }
 
@@ -493,14 +518,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             .runners
             .insert((skill_directory.clone(), runner_name.clone()));
         let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
-        let scope = match self.env {
-            Some(env) => crate::kernel::connectors::ConnectorScope::in_project(
-                &package_root,
-                &crate::paths::RunxPaths::resolve(env, &package_root),
-            ),
-            None => crate::kernel::connectors::ConnectorScope::at(&package_root),
-        }
-        .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
+        let scope = self.connector_scope(&package_root)?;
         for (key, requirement) in loaded
             .manifest()
             .into_iter()

@@ -1,0 +1,10 @@
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      alias: {specifier: 'npm:real@1.0.0', version: 'real@1.0.0(peer@2.0.0)'}
+packages:
+  real@1.0.0: {resolution: {integrity: sha512-fixture}}
+snapshots:
+  real@1.0.0(peer@2.0.0): {}
+  real@1.0.0(peer@3.0.0): {}

@@ -17,7 +17,7 @@ export function indexEvidence(inputs) {
       blockers.push(`evidence[${position}].kind is invalid`);
       continue;
     }
-    if (!content || content.length > 20_000) {
+    if (!content || [...content].length > 20_000) {
       blockers.push(`evidence[${position}].content is missing or too large`);
       continue;
     }

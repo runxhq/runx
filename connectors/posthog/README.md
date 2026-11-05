@@ -6,10 +6,12 @@ with `insight:read` access through native credential custody. An event-capture
 project key does not grant management access. US and EU accounts do not fall
 back to each other. Self-hosted deployments are not implemented by this manifest.
 
-`insights.list` reads one page with an explicit limit and offset. It preserves
+`insights.list` reads one page with an explicit limit and offset, with optional
+`search` and `short_id` filters. The page size bounds each request, not the total
+number of saved insights. It preserves
 the provider's `count`, `next`, `previous` and `results`; it does not follow
-provider-supplied URLs. `insight.read` uses the numeric insight ID, not its
-`short_id`. Both request cached results with `refresh=force_cache`. Preserve
+provider-supplied URLs. `insight.read` accepts a numeric primary key or the
+`short_id` shown in an insight URL. Both request cached results with `refresh=force_cache`. Preserve
 `query`, `last_refresh`, `result` and any incomplete-result flags: an empty or
 old cache is not a fresh report and must not be presented as one.
 

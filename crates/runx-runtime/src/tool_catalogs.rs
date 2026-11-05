@@ -19,6 +19,8 @@ pub use search::{ToolSearchOptions, search_tools, search_tools_with_effects};
 /// each time the call is sent, and the actor that run acts for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ToolCall {
+    /// The run that owns this call; retained as structured context, not parsed from key.
+    pub(crate) run_id: String,
     /// `<run id>#<step id>@<attempt>`.
     pub(crate) key: String,
     /// The run authority's actor; none for an operator's run, or for one
@@ -36,6 +38,7 @@ impl ToolCall {
         authority: Option<&crate::RunAuthority>,
     ) -> Self {
         Self {
+            run_id: run_id.to_owned(),
             key: format!("{run_id}#{step_id}@{attempt}"),
             actor: authority
                 .and_then(|authority| authority.actor_ref.as_ref())

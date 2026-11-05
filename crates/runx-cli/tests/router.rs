@@ -256,7 +256,7 @@ fn filesystem_paths_do_not_require_utf8() {
 }
 
 #[test]
-fn documented_command_help_is_native() {
+fn documented_command_help_is_native() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(
         plan(&["list", "--help"]),
         RouterAction::PrintCommandHelp("list")
@@ -291,16 +291,24 @@ fn documented_command_help_is_native() {
         "runx login [--provider name] [--for default|publish] [--token-stdin] [--api-base-url url] [--allow-local-api] [-j|--json]",
     );
     let resume_help = command_help_text("resume").unwrap_or_default();
-    assert!(resume_help.contains("Put agent/task responses under"));
+    let example = resume_help
+        .lines()
+        .find(|line| line.trim().starts_with("{\"answers\":"))
+        .ok_or("resume help must include a bound answer document")?;
+    let example: runx_contracts::ResumeDocument = serde_json::from_str(example.trim())?;
     assert!(
-        resume_help
-            .contains("this is a host attestation that a human approved the exact pending gate")
+        example
+            .answers
+            .values()
+            .all(|answer| !answer.request_digest.as_str().is_empty())
     );
+    assert!(resume_help.contains("Agents must never author it"));
     assert_help_line(
         &registry_help_text(),
         "runx registry search <query> [--registry url|path] [--limit n] [-j|--json]",
     );
     assert!(!registry_help_text().contains("--installation-id"));
+    Ok(())
 }
 
 #[test]

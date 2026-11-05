@@ -102,3 +102,58 @@ test("all requests pin one stable provider API and charge reads expose cumulativ
   assert.equal(call.url, "https://api.stripe.com/v1/charges/ch_original42");
   assert.ok(manifest.operations["payment.stripe.charge.read"].result_fields.includes("amount_refunded"));
 });
+
+const disputeTerms = {
+  account_id: "acct_northstar", dispute_id: "du_case42", charge_id: "ch_original42",
+  amount_minor: 2500, currency: "aud", expected_status: "needs_response",
+  amount_refunded: 0,
+  expected_evidence: {},
+  prior_submission_count: 0, submission_count: 1,
+  evidence_form: {
+    submit: true,
+    "evidence[product_description]": "The purchased report.",
+    "evidence[access_activity_log]": "Report downloaded at the recorded time.",
+    "evidence[service_documentation]": "file_delivery42",
+  },
+};
+
+test("dispute filing submits exact structured evidence and never stages or concedes", () => {
+  const call = render("dispute.file", "file", disputeTerms);
+  assert.equal(call.method, "POST");
+  assert.equal(call.url, "https://api.stripe.com/v1/disputes/du_case42");
+  assert.equal(call.headers["idempotency-key"], effectKey);
+  assert.deepEqual(Object.fromEntries(new URLSearchParams(call.body)), {
+    ...disputeTerms.evidence_form, submit: "true",
+  });
+  assert.equal(manifest.operations["dispute.file"].approval, "required");
+  assert.equal(render("dispute.file", "before", disputeTerms).method, "GET");
+  assert.equal(render("dispute.file", "after", disputeTerms).method, "GET");
+  assert.equal(render("dispute.file", "after", disputeTerms).url, call.url);
+  assert.ok(!Object.keys(manifest.operations).some((name) => /accept|concede|close/.test(name)));
+});
+
+test("dispute checks bind the selected case and payment before filing and require a new submission afterwards", () => {
+  const http = manifest.operations["dispute.file"].implementation.http;
+  const before = http.preconditions.find((item) => item.request.id === "before");
+  for (const field of ["dispute_id", "charge_id", "amount_minor", "currency", "status", "submission_count", "past_due", "evidence"]) {
+    assert.ok(before.matches.some((item) => item.observed === field), field);
+  }
+  const after = http.readbacks[0];
+  assert.ok(after.matches.some((item) => item.observed === "submission_count" && item.expected.path === "submission_count"));
+  assert.ok(after.matches.some((item) => item.observed === "has_evidence" && item.expected.value === true));
+  assert.equal(http.result_paths.evidence, "readbacks.0.evidence");
+  assert.equal(http.result_paths.submission_count, "readbacks.0.submission_count");
+});
+
+test("dispute operation admission refuses draft staging, arbitrary form fields and unsafe provider IDs", () => {
+  for (const patch of [
+    { dispute_id: "du_case42/close" },
+    { evidence_form: { ...disputeTerms.evidence_form, submit: false } },
+    { evidence_form: { submit: true } },
+    { evidence_form: { ...disputeTerms.evidence_form, "metadata[pretend_verified]": "true" } },
+    { evidence_form: { submit: true, "evidence[receipt]": "https://unverified.example/receipt.pdf" } },
+    { submission_count: 0 }, { expected_status: "won" },
+  ]) {
+    assert.equal(typeof operationInputError(manifest.operations["dispute.file"], { ...disputeTerms, ...patch }), "string");
+  }
+});

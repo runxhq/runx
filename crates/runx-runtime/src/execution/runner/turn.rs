@@ -186,13 +186,19 @@ pub(crate) fn admit_tool(
 
 /// What the tool a turn offers as `tool` names.
 fn offered_target(turn: &dyn Turn, tool: &str) -> Result<TurnTarget, RuntimeError> {
-    turn.tools()?
+    let tools = turn.tools()?;
+    let names = tools
+        .iter()
+        .map(|offered| offered.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    tools
         .into_iter()
         .find(|offered| offered.name.as_str() == tool)
         .map(|offered| offered.target)
         .ok_or_else(|| RuntimeError::ContinuationRejected {
             reason: format!(
-                "turn {} offers no tool {tool}",
+                "turn {} offers no tool {tool}; it offers: {names}",
                 turn.invocation().id.as_str()
             ),
         })
@@ -1060,6 +1066,28 @@ where
                 .map_err(|error| {
                     format!("input {name} is not a project artifact reference: {error}")
                 })?;
+            // An input explicitly taking the descriptor's own packet type
+            // receives the descriptor as its value. Other packet types use
+            // it as a reference to retained content below.
+            if input.packet.as_ref().map(|packet| packet.as_str())
+                == step.inputs[&name]
+                    .as_object()
+                    .and_then(|value| value.get("schema"))
+                    .and_then(JsonValue::as_str)
+            {
+                let value = if input.artifact == Some(true) {
+                    JsonValue::Object(JsonObject::from([(
+                        "data".to_owned(),
+                        step.inputs[&name].clone(),
+                    )]))
+                } else {
+                    step.inputs[&name].clone()
+                };
+                crate::input_contract::admit_input_value(declared_by, &name, input, &value)
+                    .map_err(|error| error.to_string())?;
+                step.inputs.insert(name, value);
+                continue;
+            }
             let produced = recorded.iter().find_map(|call| {
                 let CallOutcome::Completed(run) = &call.outcome else {
                     return None;

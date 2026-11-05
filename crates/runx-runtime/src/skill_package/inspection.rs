@@ -332,21 +332,19 @@ pub(crate) fn inspect_loaded_skill_package(
     };
     if let Some(manifest) = manifest {
         for definition in manifest.runners.values() {
-            let examples = super::effective_runner_examples(&loaded.package, manifest, definition);
             let execution_closure = closure_of(&definition.name)?;
             if runner.is_some_and(|runner| runner.name == definition.name) {
                 output.execution_closure = Some(execution_closure.clone());
             }
             output.runner_inspections.push(RunnerInspectionEntry {
-                runner: inspect_runner(manifest, definition, &examples)?,
+                runner: inspect_runner(manifest, definition, &definition.examples)?,
                 execution_closure,
             });
         }
     }
     if let Some(runner) = runner {
         let manifest = manifest.ok_or(SkillInspectionError::ManifestUnavailable)?;
-        let examples = super::effective_runner_examples(&loaded.package, manifest, runner);
-        output.runner = Some(inspect_runner(manifest, runner, &examples)?);
+        output.runner = Some(inspect_runner(manifest, runner, &runner.examples)?);
         output.readiness = Some(InspectionReadiness {
             status: InspectionReadinessStatus::Ready,
         });
@@ -374,6 +372,33 @@ pub(crate) struct InspectedExecutionClosureBinding {
     /// Every package the closure binds, as it was loaded, by canonical
     /// directory.
     pub(crate) packages: BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
+}
+
+/// Whether a run of `runner` reaches an agent turn that can make calls, child
+/// skills included. Such a turn is worked on an MCP connection; a turn that
+/// only answers is continued with `runx resume`.
+pub(crate) fn runner_makes_calls(
+    loaded: Arc<LoadedSkillPackage>,
+    runner: &str,
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<bool, SkillInspectionError> {
+    Ok(
+        execution_closure::inspect_runner_closure_runners(loaded, runner, env)?
+            .into_iter()
+            .any(|(package, runner)| {
+                package
+                    .manifest()
+                    .and_then(|manifest| manifest.runners.get(&runner))
+                    .is_some_and(|runner| {
+                        runner.graph.steps.iter().any(|step| {
+                            matches!(
+                                &step.kind,
+                                runx_parser::StepKind::Agent(agent) if !agent.allowance.is_empty()
+                            )
+                        })
+                    })
+            }),
+    )
 }
 
 pub(crate) fn inspect_loaded_execution_closure_binding(

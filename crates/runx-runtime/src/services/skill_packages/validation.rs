@@ -3,8 +3,8 @@ use std::fs;
 use std::path::Path;
 
 use runx_contracts::{
-    JsonObject, JsonValue, SkillArchitectureDecision, SkillValidation, SkillValidationSchema,
-    SkillValidationVerdict,
+    JsonObject, JsonValue, SkillArchitectureDecision, SkillPackageVisibility, SkillValidation,
+    SkillValidationSchema, SkillValidationVerdict,
 };
 
 use super::path::{canonical_directory, display_repo_path, invalid_skill_change};
@@ -32,6 +32,7 @@ pub(super) fn validate_candidate(
 ) -> Result<CandidateValidation, RuntimeError> {
     let loaded = crate::load_validated_skill_package(candidate)?;
     if let Some(architecture) = architecture {
+        validate_architecture_identity(architecture, &loaded.package, loaded.manifest())?;
         validate_architecture_resources(architecture, &candidate_resource_usage(&loaded.package))?;
     }
     let inspect = crate::inspect_skill_package(candidate, None, Some(env))
@@ -47,6 +48,41 @@ pub(super) fn validate_candidate(
         skipped_harness()
     };
     Ok(CandidateValidation { inspect, harness })
+}
+
+fn validate_architecture_identity(
+    architecture: &SkillArchitectureDecision,
+    package: &runx_parser::ValidatedSkillPackage,
+    manifest: Option<&runx_parser::SkillRunnerManifest>,
+) -> Result<(), RuntimeError> {
+    // The package loader already enforces public catalog readiness. This
+    // boundary binds that validated package to the admitted architecture.
+    let identity = architecture.identity.as_ref().ok_or_else(|| {
+        invalid_skill_change("a written package requires its admitted identity decision")
+    })?;
+    if identity.proposed_name.as_ref().map(|name| name.as_str())
+        != Some(package.skill.name.as_str())
+    {
+        return Err(invalid_skill_change(
+            "candidate package name differs from the admitted identity",
+        ));
+    }
+    let manifest = manifest.ok_or_else(|| {
+        invalid_skill_change("an authored package requires an explicit runner manifest and catalog")
+    })?;
+    let catalog = manifest.catalog.as_ref().ok_or_else(|| {
+        invalid_skill_change("candidate catalog visibility must match the admitted identity")
+    })?;
+    let visibility = match identity.visibility {
+        SkillPackageVisibility::Public => runx_parser::CatalogVisibility::Public,
+        SkillPackageVisibility::Internal => runx_parser::CatalogVisibility::Internal,
+    };
+    if catalog.visibility != visibility {
+        return Err(invalid_skill_change(
+            "candidate catalog visibility differs from the admitted identity",
+        ));
+    }
+    Ok(())
 }
 
 fn run_candidate_harness(

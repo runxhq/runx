@@ -1,0 +1,20 @@
+name: github-common-reader-to-issue-triage
+steps:
+  - id: read
+    skill: ../..
+    runner: github
+    inputs:
+      repo: runxhq/runx
+      number: 241
+  - id: triage
+    skill: ../../../github-issue-triage
+    runner: respond
+    inputs:
+      issue_snapshot:
+        repository: runxhq/runx
+        number: "241"
+        title: $steps.read.provider_operation.result.issues.0.title
+        state: $steps.read.provider_operation.result.issues.0.state
+        body: $steps.read.provider_operation.result.issues.0.body
+        source_locator: $steps.read.provider_operation.result.issues.0.html_url
+      objective: Draft the next helpful maintainer response from the actual existing issue evidence.

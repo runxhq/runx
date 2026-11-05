@@ -1,6 +1,5 @@
 skill: crm-update-plan
-version: "0.1.9"
-
+version: "0.1.10"
 catalog:
   kind: graph
   audience: operator
@@ -10,31 +9,39 @@ catalog:
   execution: plan
   completion: runtime_receipt
   approval: none
-
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases:
     - name: crm-update-plan-proposes-traced-updates
       operator_journeys:
         - mode: standalone
-          confusors: [lead-enrichment, lead-qualify]
+          confusors:
+            - lead-enrichment
+            - lead-qualify
           request: Reconcile this call transcript against the CRM records and propose the field updates.
-          expected_outcome: Return allowlisted field updates, each traced to a verbatim transcript quote, with no CRM write performed.
+          expected_outcome: Return allowlisted field updates, each traced to a verbatim transcript quote, with
+            no CRM write performed.
         - mode: composed
-          request: Continue from this sealed update proposal into the CRM write step.
-          expected_outcome: Hand the sealed proposal to the gated CRM operator without re-deriving updates.
+          request: Reconcile the transcript and selected record snapshot already captured upstream.
+          expected_outcome: Return one reviewable proposal without reading the CRM again or writing any field.
           prior_evidence:
-            - The transcript, records, and sealed proposal supplied by the prior step.
+            - The original transcript and current selected CRM record snapshots captured upstream.
           must_not_repeat:
-            - Do not re-reconcile updates already sealed.
+            - Do not fetch or rediscover records.
+            - Do not apply any write or repeat an earlier write.
       inputs:
-        transcript: "Call with Globex on renewal. Dana said the rollout stalled and they want an executive review before renewing. Next step agreed: send the Q3 usage report by Friday."
+        transcript: "Call with Globex on renewal. Dana said the rollout stalled and they want an executive
+          review before renewing. Next step agreed: send the Q3 usage report by Friday."
         crm_records:
           - id: acct-globex
             account_status: healthy
             next_action: none
         crm_schema:
-          allowed_fields: [account_status, next_action, health_score]
+          allowed_fields:
+            - account_status
+            - next_action
+            - health_score
       caller:
         answers:
           reconcile:
@@ -47,10 +54,14 @@ harness:
                 - record_id: acct-globex
                   field: next_action
                   to: send the Q3 usage report by Friday
-                  evidence_quote: "send the Q3 usage report by Friday"
+                  evidence_quote: send the Q3 usage report by Friday
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
+        steps:
+          - digest-transcript
+          - digest-records
+          - reconcile
+          - finalize
         step_outputs:
           finalize:
             subset:
@@ -61,17 +72,20 @@ harness:
                   write_performed: false
                   gate: crm-operator-or-human-approver
                   rejected_updates: []
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
-
+                  validation:
+                    status: pass
+                    findings: []
+        receipt:
+          schema: runx.receipt.v1
     - name: crm-update-plan-rejects-unlisted-field
       inputs:
-        transcript: "Owner said move the account to Kim."
+        transcript: Owner said move the account to Kim.
         crm_records:
           - id: acct-1
             owner: lee
         crm_schema:
-          allowed_fields: [next_action]
+          allowed_fields:
+            - next_action
       caller:
         answers:
           reconcile:
@@ -83,7 +97,11 @@ harness:
                   evidence_quote: move the account to Kim
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
+        steps:
+          - digest-transcript
+          - digest-records
+          - reconcile
+          - finalize
         step_outputs:
           finalize:
             subset:
@@ -95,17 +113,20 @@ harness:
                     - record_id: acct-1
                       field: owner
                       reason: field is outside the crm_schema allowlist
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
-
+                  validation:
+                    status: pass
+                    findings: []
+        receipt:
+          schema: runx.receipt.v1
     - name: crm-update-plan-refuses-invented-quote
       inputs:
-        transcript: "Short call, no changes discussed."
+        transcript: Short call, no changes discussed.
         crm_records:
           - id: acct-1
             account_status: healthy
         crm_schema:
-          allowed_fields: [account_status]
+          allowed_fields:
+            - account_status
       caller:
         answers:
           reconcile:
@@ -117,7 +138,11 @@ harness:
                   evidence_quote: customer threatened to churn immediately
       expect:
         status: sealed
-        steps: [digest-transcript, digest-records, reconcile, finalize]
+        steps:
+          - digest-transcript
+          - digest-records
+          - reconcile
+          - finalize
         step_outputs:
           finalize:
             subset:
@@ -125,18 +150,86 @@ harness:
                 data:
                   decision: refused
                   updates: []
-                  validation: { status: fail }
-        receipt: { schema: runx.receipt.v1 }
-
+                  validation:
+                    status: fail
+        receipt:
+          schema: runx.receipt.v1
     - name: crm-update-plan-needs-transcript
       inputs:
         crm_records:
           - id: acct-1
         crm_schema:
-          allowed_fields: [next_action]
+          allowed_fields:
+            - next_action
       expect:
         status: failure
-
+    - name: refuses-two-proposals-for-one-field
+      inputs:
+        transcript: The old next step was a usage report. Replace that with an executive review on Friday.
+        crm_records:
+          - id: northstar
+            next_action: send usage report
+        crm_schema:
+          allowed_fields:
+            - next_action
+      caller:
+        answers:
+          reconcile:
+            update_draft:
+              updates:
+                - record_id: northstar
+                  field: next_action
+                  to: send usage report
+                  evidence_quote: The old next step was a usage report.
+                - record_id: northstar
+                  field: next_action
+                  to: executive review on Friday
+                  evidence_quote: Replace that with an executive review on Friday.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              crm_update_proposal:
+                data:
+                  decision: refused
+                  updates: []
+                  write_performed: false
+    - name: proposes-explicit-field-clear
+      inputs:
+        transcript: Clear the secondary email; it belongs to a former employee. Keep the account owner
+          unchanged.
+        crm_records:
+          - id: northstar
+            secondary_email: former@northstar.example
+            owner: Dana
+        crm_schema:
+          allowed_fields:
+            - secondary_email
+      caller:
+        answers:
+          reconcile:
+            update_draft:
+              updates:
+                - record_id: northstar
+                  field: secondary_email
+                  to: null
+                  evidence_quote: Clear the secondary email; it belongs to a former employee.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              crm_update_proposal:
+                data:
+                  decision: proposed
+                  updates:
+                    - record_id: northstar
+                      field: secondary_email
+                      from: former@northstar.example
+                      to: null
+                      evidence_quote: Clear the secondary email; it belongs to a former employee.
+                  write_performed: false
 runners:
   reconcile:
     default: true
@@ -145,14 +238,32 @@ runners:
         type: string
         required: true
         description: Call transcript that is the only evidence for proposed updates.
+        schema:
+          minLength: 1
+          maxLength: 1000000
+          pattern: \S
       crm_records:
-        type: json
+        type: array
         required: true
-        description: Current CRM records read from the caller's source of truth.
+        description: Current selected CRM record snapshots; id is stable and other properties are
+          provider/domain field values. Retain the source and fetch time upstream.
+        schema:
+          maxItems: 1000
+          items:
+            type: object
+            required:
+              - id
+            additionalProperties: true
+            properties:
+              id:
+                type: string
+                minLength: 1
+                maxLength: 500
+                pattern: \S
       crm_schema:
         type: object
         required: true
-        description: Explicit update authority; fields outside allowed_fields are rejected.
+        description: Proposal field allowlist; this is not CRM write authority.
         schema:
           additionalProperties: false
           properties:
@@ -160,32 +271,78 @@ runners:
               type: array
               minItems: 1
               maxItems: 100
-              items: { type: string, minLength: 1, maxLength: 200 }
+              items:
+                type: string
+                minLength: 1
+                maxLength: 200
+                pattern: \S
+              uniqueItems: true
+          required:
+            - allowed_fields
     examples:
-      - transcript: "Dana said the rollout stalled."
+      - transcript: Dana said the rollout stalled.
         crm_records:
           - id: acct-globex
             account_status: healthy
         crm_schema:
-          allowed_fields: [account_status]
-    result_from: [finalize]
+          allowed_fields:
+            - account_status
+    result_from:
+      - finalize
     steps:
       - id: digest-transcript
         tool: data.digest
         inputs:
           value: $input.transcript
           encoding: utf8_text
-
       - id: digest-records
         tool: data.digest
         inputs:
           value: $input.crm_records
-
       - id: reconcile
         label: derive candidate field updates from the transcript
-        agent: { role: reviewer, task: crm-update-plan-reconcile }
+        agent:
+          role: reviewer
+          task: crm-update-plan-reconcile
         outputs:
-          update_draft: object
+          update_draft:
+            type: object
+            schema:
+              type: object
+              required:
+                - updates
+              additionalProperties: false
+              properties:
+                updates:
+                  type: array
+                  maxItems: 200
+                  items:
+                    type: object
+                    required:
+                      - record_id
+                      - field
+                      - to
+                      - evidence_quote
+                    additionalProperties: false
+                    properties:
+                      record_id:
+                        type: string
+                        minLength: 1
+                        maxLength: 500
+                        pattern: \S
+                      field:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                        pattern: \S
+                      to:
+                        description: Exact intended provider/domain field value; null or an empty string may deliberately
+                          clear a field when supported by the transcript.
+                      evidence_quote:
+                        type: string
+                        minLength: 1
+                        maxLength: 4000
+                        pattern: \S
         inputs:
           transcript: $input.transcript
           crm_records: $input.crm_records
@@ -193,7 +350,6 @@ runners:
         artifacts:
           named_emits:
             update_draft: update_draft
-
       - id: finalize
         label: enforce allowlist and transcript traceability deterministically
         inputs:
@@ -203,7 +359,9 @@ runners:
           update_draft: $steps.reconcile.update_draft
           transcript_digest: $steps.digest-transcript.digest_result.digest
           records_digest: $steps.digest-records.digest_result.digest
-        tool: { module: crm-update-plan.mjs, export: finalizeUpdates }
+        tool:
+          module: crm-update-plan.mjs
+          export: finalizeUpdates
         outputs:
           crm_update_proposal:
             type: object
@@ -212,3 +370,5 @@ runners:
             crm_update_proposal: crm_update_proposal
           packets:
             crm_update_proposal: runx/crm-update-plan.proposal.v1
+    description: Propose exact supported CRM field changes from a transcript and supplied current
+      records, including deliberate clearing, without writing.

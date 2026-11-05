@@ -1,6 +1,5 @@
 skill: conversation-review
-version: "0.1.10"
-
+version: "0.1.11"
 catalog:
   kind: graph
   audience: operator
@@ -12,7 +11,7 @@ catalog:
   category: ops
 
 harness:
-  files: [fixtures/support/composed.graph]
+  files: ["fixtures/support/composed.graph","fixtures/operates-from-source.yaml"]
   cases:
     - name: conversation-review-keeps-ordinary-reply-out-of-coding
       operator_journeys:
@@ -39,7 +38,7 @@ harness:
           source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           thread_locator: nitrosend://example/1
           coverage_incomplete: false
-          messages: [{ text: Could we find time to talk next week? }]
+          messages: [{ text: "Could we find time to talk next week?" }]
         source_complete: true
       caller:
         answers:
@@ -141,7 +140,7 @@ runners:
         type: string
         required: true
         description: Exact observed message locator.
-        schema: { minLength: 1, maxLength: 1000 }
+        schema: {"minLength":1,"maxLength":1000,"pattern":"\\S"}
       source_digest:
         type: string
         required: true
@@ -151,28 +150,28 @@ runners:
         type: string
         required: true
         description: Exact provider thread locator.
-        schema: { minLength: 1, maxLength: 1000 }
+        schema: {"minLength":1,"maxLength":1000,"pattern":"\\S"}
       title:
         type: string
         required: true
         description: Bounded provider-backed thread title.
-        schema: { minLength: 1, maxLength: 200 }
+        schema: {"minLength":1,"maxLength":200,"pattern":"\\S"}
       body:
         type: string
         required: true
         description: Bounded text of the selected message.
-        schema: { minLength: 1, maxLength: 4000 }
+        schema: {"minLength":1,"maxLength":4000,"pattern":"\\S"}
       thread:
-        type: json
+        type: "object"
         required: true
         description: Bounded provider-neutral messages and coverage metadata.
         schema:
           required: [source_locator, source_digest, thread_locator, coverage_incomplete, messages]
           additionalProperties: false
           properties:
-            source_locator: { type: string, minLength: 1, maxLength: 1000 }
+            source_locator: {"type":"string","minLength":1,"maxLength":1000,"pattern":"\\S"}
             source_digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-            thread_locator: { type: string, minLength: 1, maxLength: 1000 }
+            thread_locator: {"type":"string","minLength":1,"maxLength":1000,"pattern":"\\S"}
             coverage_incomplete: { type: boolean }
             omitted_before_count: { type: [integer, "null"], minimum: 0 }
             messages:
@@ -194,11 +193,70 @@ runners:
         required: true
         description: Whether the source reader proved the supplied context complete.
     result_from: [finalize]
+    examples:
+      - title: Export job keeps timing out
+        body: Is there a way to run the export overnight? It keeps timing out for us.
+        source_locator: slack://acme/C0123/1730000000.000200
+        source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        source_complete: true
+        thread_locator: slack://acme/C0123/1730000000.000100
+        thread:
+          source_locator: slack://acme/C0123/1730000000.000200
+          source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          thread_locator: slack://acme/C0123/1730000000.000100
+          coverage_incomplete: false
+          messages:
+          - message_locator: slack://acme/C0123/1730000000.000200
+            author_id: customer
+            is_self: false
+            text: Is there a way to run the export overnight? It keeps timing out for us.
     steps:
       - id: judge
         agent: { role: operator, task: conversation-review }
         outputs:
-          draft: object
+          draft:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - kind
+                - summary
+                - reason
+                - draft_message
+                - request_quote
+              properties:
+                kind:
+                  enum:
+                    - reply
+                    - follow_up
+                    - coding
+                    - no_action
+                    - needs_context
+                summary:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+                  pattern: \S
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+                  pattern: \S
+                draft_message:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 4000
+                request_quote:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 1000
+                follow_up_task:
+                  type:
+                    - string
+                    - "null"
+                  maxLength: 1000
         inputs:
           title: $input.title
           body: $input.body

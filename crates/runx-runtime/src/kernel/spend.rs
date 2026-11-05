@@ -11,6 +11,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::execution::run_record::root_run_id;
 use runx_contracts::OperationAmount;
 use runx_contracts::connector::{ConnectorOperation, CostBasis};
 use serde::{Deserialize, Serialize};
@@ -108,7 +109,14 @@ pub(crate) fn charge(
             }
         },
     };
-    let quote = operation.cost.as_ref().map_or(0, |cost| cost.usd_micro);
+    let quote = operation
+        .cost
+        .as_ref()
+        .and_then(|cost| cost.usd_micro)
+        .ok_or_else(|| {
+            "the provider charge has no USD quote and cannot be covered by the run's money limit"
+                .to_owned()
+        })?;
     Ok(Charge {
         usd_micro: quote
             .checked_add(moved)
@@ -119,11 +127,6 @@ pub(crate) fn charge(
                 .as_ref()
                 .is_some_and(|cost| cost.per == CostBasis::Success),
     })
-}
-
-/// The root of a run's tree, whose ledger every run in it spends from.
-pub(crate) fn root_run(run_id: &str) -> &str {
-    run_id.split('/').next().unwrap_or(run_id)
 }
 
 /// What the run whose root is `root` has committed against its limit.
@@ -179,7 +182,7 @@ pub(crate) fn cover(
     intent_digest: &str,
     usd_micro: u64,
 ) -> Result<SpendCover, SpendError> {
-    let root = root_run(run_id);
+    let root = root_run_id(run_id);
     let status = status(store, root)?;
     let recorded = status.spends.contains_key(spend_key);
     let remaining = limit.saturating_sub(status.committed_usd_micro);
@@ -231,7 +234,7 @@ fn close(
     spend_key: &str,
     event: impl FnOnce(String) -> SpendEvent,
 ) -> Result<Option<Append>, SpendError> {
-    let root = root_run(run_id);
+    let root = root_run_id(run_id);
     let status = status(store, root)?;
     if status
         .spends

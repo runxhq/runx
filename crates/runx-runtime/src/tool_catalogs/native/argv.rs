@@ -55,7 +55,10 @@ pub(super) fn admit<I: ?Sized>(
         invocation.skill_directory,
         invocation.bounds,
     )?;
-    let command = bounded_text(tool, request.command, "command", MAX_COMMAND_ARG_BYTES)?;
+    if request.command.is_empty() {
+        return Err(invalid_input(tool, "command must not be empty"));
+    }
+    let command = bounded_string(tool, request.command, "command", MAX_COMMAND_ARG_BYTES)?;
     let args = arguments(tool, request.args)?;
     let cwd = working_directory(tool, request.cwd, &repo_root)?;
     let cwd_relative = relative_path(tool, &repo_root, &cwd)?;
@@ -81,7 +84,7 @@ fn arguments(tool: &str, values: &[String]) -> Result<Vec<String>, RuntimeError>
         .iter()
         .enumerate()
         .map(|(index, value)| {
-            bounded_text(
+            bounded_string(
                 tool,
                 value,
                 &format!("args[{index}]"),
@@ -109,7 +112,7 @@ fn explicit_env(
             }
             Ok((
                 name.clone(),
-                bounded_text(tool, value, &format!("env.{name}"), MAX_ENV_VALUE_BYTES)?,
+                bounded_string(tool, value, &format!("env.{name}"), MAX_ENV_VALUE_BYTES)?,
             ))
         })
         .collect()
@@ -131,15 +134,12 @@ fn working_directory(tool: &str, requested: &str, root: &Path) -> Result<PathBuf
     Ok(candidate)
 }
 
-pub(super) fn bounded_text(
+fn bounded_string(
     tool: &str,
     value: &str,
     field: &str,
     max_bytes: usize,
 ) -> Result<String, RuntimeError> {
-    if value.is_empty() {
-        return Err(invalid_input(tool, format!("{field} must not be empty")));
-    }
     if value.len() > max_bytes {
         return Err(invalid_input(
             tool,
@@ -169,4 +169,70 @@ fn relative_path(tool: &str, root: &Path, path: &Path) -> Result<String, Runtime
 
 fn valid_env_name(value: &str) -> bool {
     runx_contracts::ProcessEnvName::new(value).is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ArgvRequest, admit};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn admits_empty_values_without_relaxing_executable_or_argument_bounds()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let workspace = tempfile::tempdir()?;
+        let env = BTreeMap::from([(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            workspace.path().to_string_lossy().into_owned(),
+        )]);
+        let delivery = crate::credentials::CredentialDelivery::none();
+        let effects = crate::RuntimeEffectRegistry::default();
+        let invocation = super::NativeInvocation {
+            inputs: &(),
+            observed_at: "2026-01-01T00:00:00Z",
+            env: &env,
+            skill_directory: workspace.path(),
+            credential_delivery: &delivery,
+            local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
+            effects: &effects,
+            bounds: crate::services::WorkspaceBounds::Operator,
+            call: None,
+        };
+        let args = vec![String::new(), "  exact  ".to_owned()];
+        let explicit_env = BTreeMap::from([("CLEAR_VALUE".to_owned(), String::new())]);
+        let request = || ArgvRequest {
+            repo_root: ".",
+            command: "program",
+            args: &args,
+            cwd: ".",
+            env: &explicit_env,
+        };
+        let admitted = admit("test", &invocation, request())?;
+        assert_eq!(admitted.args, args);
+        assert_eq!(admitted.explicit_env, explicit_env);
+        assert!(
+            admit(
+                "test",
+                &invocation,
+                ArgvRequest {
+                    command: "",
+                    ..request()
+                }
+            )
+            .is_err()
+        );
+        for invalid in ["contains\0nul".to_owned(), "x".repeat(8193)] {
+            assert!(
+                admit(
+                    "test",
+                    &invocation,
+                    ArgvRequest {
+                        args: &[invalid],
+                        ..request()
+                    }
+                )
+                .is_err()
+            );
+        }
+        Ok(())
+    }
 }

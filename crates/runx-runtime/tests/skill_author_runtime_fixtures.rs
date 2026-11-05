@@ -50,6 +50,7 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
         let temp_dir = tempfile::tempdir()?;
         let started = Instant::now();
         let output = ProcessToolAdapter.invoke(SkillInvocation {
+            workspace_bounds: runx_runtime::WorkspaceBounds::Operator,
             historical_context: Vec::new(),
             skill_name: format!("skill-author-runtime.{}", fixture.id),
             step_id: None,

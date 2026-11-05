@@ -5,6 +5,25 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
 pub const PROTOCOL_VERSION: u16 = 3;
+
+/// Authority-free helpers exposed by every matching supervised worker.
+/// Profiles declare the helpers they need so unsupported runtimes reject them
+/// during graph admission, before any step executes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkerApi {
+    ParseUrl,
+    ParseData,
+}
+
+impl WorkerApi {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ParseUrl => "parseUrl",
+            Self::ParseData => "parseData",
+        }
+    }
+}
 pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_INPUT_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_OUTPUT_BYTES: usize = 4 * 1024 * 1024;

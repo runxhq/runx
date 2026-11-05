@@ -1,5 +1,5 @@
 skill: cold-outreach
-version: "0.1.8"
+version: "0.1.9"
 catalog:
   kind: graph
   audience: public
@@ -82,14 +82,41 @@ runners:
         description: Optional lead qualification for prospect.id; a supplied hold or mismatched subject stops drafting.
       evidence_pack:
         type: json
-        required: true
+        required: false
         packet: runx/research.packet.v1
         description: Validated recipient research and disclosure-approved offer evidence.
+      facts:
+        type: array
+        required: false
+        description: Actual supplied prospect/offer facts instead of a research packet; never send both source forms. They remain caller assertions, not independent verification or contact eligibility.
+        schema: {minItems: 1, maxItems: 100, items: {type: string, minLength: 1, maxLength: 4000}}
       brand_context: {type: json, required: false, packet: runx/brand-voice.context.v1, description: 'Scoped validated
           brand voice, selected by the caller.'}
       taste_context: {type: json, required: false, packet: runx/taste-profile.context.v1, description: 'Scoped validated
           taste, selected by the caller.'}
     result_from: [hold, review]
+    examples:
+      - sender:
+          name: Sam at Acme
+          from_address: sam@acme.example
+          reply_to: sam@acme.example
+        prospect:
+          email: priya@northwind.example
+          name: Priya
+          company: Northwind
+        audience: engineering leads at mid-size SaaS companies
+        purpose: Offer a short review of their release process.
+        offer: A free review of one release pipeline.
+        required_footer: Acme Inc, 1 Main St, Hobart. Reply to opt out.
+        contact_policy:
+          recipient: priya@northwind.example
+          status: eligible
+          suppressed: false
+          policy_id: acme-outreach-policy
+          evidence_ids:
+          - crm:northwind-opted-in
+        facts:
+        - Northwind publishes release notes every two weeks.
     steps:
     - id: admit-evidence
       skill: ../ghostwrite
@@ -99,6 +126,7 @@ runners:
         audience: $input.audience
         channel: email
         evidence_pack: $input.evidence_pack
+        facts: $input.facts
         brand_context: $input.brand_context
         taste_context: $input.taste_context
     - id: admit
@@ -219,7 +247,102 @@ runners:
       when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}
       agent: {role: writer, task: cold-outreach-draft}
       outputs:
-        content_draft: object
+        content_draft:
+          type: object
+          schema:
+            properties:
+              decision:
+                type: string
+              content_brief:
+                type: object
+                properties:
+                  objective:
+                    type: string
+                  audience:
+                    type: string
+                  channel:
+                    type: string
+                required:
+                - objective
+                - audience
+                - channel
+              draft:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  body:
+                    type: string
+                  claims:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        claim:
+                          type: string
+                        source_digests:
+                          type: array
+                          items:
+                            type: string
+                      required:
+                      - claim
+                      - source_digests
+                required:
+                - title
+                - body
+                - claims
+              review_checklist:
+                type: array
+                items:
+                  type: string
+              distribution_notes:
+                type: object
+                properties:
+                  primary_channel:
+                    type: string
+              context_binding:
+                type: object
+                properties:
+                  applied:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        packet_digest:
+                          type: string
+                        applied_rules:
+                          type: array
+                          items:
+                            type: string
+                        scope_review:
+                          type: object
+                          properties:
+                            decision:
+                              type: string
+                            reason:
+                              type: string
+                          required:
+                          - decision
+                          - reason
+                      required:
+                      - packet_digest
+                      - applied_rules
+                      - scope_review
+                required:
+                - applied
+            required:
+            - decision
+            if:
+              properties:
+                decision:
+                  pattern: ^ready
+            then:
+              required:
+              - content_brief
+              - draft
+              - review_checklist
+              - distribution_notes
+              - context_binding
       inputs:
         sender: $steps.admit.contact_brief.sender
         prospect: $steps.admit.contact_brief.prospect

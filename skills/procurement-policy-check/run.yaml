@@ -1,6 +1,5 @@
 skill: procurement-policy-check
-version: "0.1.8"
-
+version: "0.1.9"
 catalog:
   kind: graph
   audience: operator
@@ -10,23 +9,29 @@ catalog:
   execution: read
   completion: runtime_receipt
   approval: none
-
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases:
     - name: procurement-policy-check-approves-in-policy
       operator_journeys:
         - mode: standalone
-          confusors: [pay, invoice-pay]
-          request: Decide whether this procurement request is allowed under the procurement policy before any money moves.
-          expected_outcome: Return an approval decision bound to the exact request and policy digests, with no spend executed.
+          confusors:
+            - pay
+            - invoice-pay
+          request: Decide whether this procurement request is allowed under the procurement policy before any
+            money moves.
+          expected_outcome: Return an approval decision bound to the exact request and policy digests, with no
+            spend executed.
         - mode: composed
-          request: Continue from this already decided procurement approval into the spend flow.
-          expected_outcome: Reuse the sealed approval decision without re-deciding policy.
+          request: Check this already captured procurement request against its supplied policy/budget
+            snapshot.
+          expected_outcome: Reuse the exact policy/request evidence without fetching accounts, reserving funds
+            or executing a spend.
           prior_evidence:
-            - The procurement request, procurement policy, and sealed decision supplied by the prior step.
+            - The original procurement terms and policy/budget snapshot selected upstream.
           must_not_repeat:
-            - Do not re-derive the policy decision already sealed.
+            - Do not refresh provider accounts or reserve/spend funds inside this policy decision.
       inputs:
         procurement_request:
           payee: sourcey
@@ -37,11 +42,16 @@ harness:
           currency: USD
           remaining_budget: 300
           request_cap: 200
-          approved_payees: [sourcey, runx]
+          approved_payees:
+            - sourcey
+            - runx
           approval_threshold: 200
       expect:
         status: sealed
-        steps: [digest-request, digest-policy, decide]
+        steps:
+          - digest-request
+          - digest-policy
+          - decide
         step_outputs:
           decide:
             subset:
@@ -54,9 +64,11 @@ harness:
                   human_lane: null
                   refused_reason: null
                   spend_executed: false
-                  validation: { status: pass, findings: [] }
-        receipt: { schema: runx.receipt.v1 }
-
+                  validation:
+                    status: pass
+                    findings: []
+        receipt:
+          schema: runx.receipt.v1
     - name: procurement-policy-check-refuses-unapproved-payee
       inputs:
         procurement_request:
@@ -68,11 +80,16 @@ harness:
           currency: USD
           remaining_budget: 300
           request_cap: 200
-          approved_payees: [sourcey, runx]
+          approved_payees:
+            - sourcey
+            - runx
           approval_threshold: 200
       expect:
         status: sealed
-        steps: [digest-request, digest-policy, decide]
+        steps:
+          - digest-request
+          - digest-policy
+          - decide
         step_outputs:
           decide:
             subset:
@@ -81,8 +98,8 @@ harness:
                   decision: refused
                   refused_reason: unapproved_payee
                   spend_executed: false
-        receipt: { schema: runx.receipt.v1 }
-
+        receipt:
+          schema: runx.receipt.v1
     - name: procurement-policy-check-routes-threshold-to-human
       inputs:
         procurement_request:
@@ -94,12 +111,17 @@ harness:
           currency: USD
           remaining_budget: 500
           request_cap: 400
-          approved_payees: [sourcey, runx]
+          approved_payees:
+            - sourcey
+            - runx
           approval_threshold: 200
           human_lane: finance-review
       expect:
         status: sealed
-        steps: [digest-request, digest-policy, decide]
+        steps:
+          - digest-request
+          - digest-policy
+          - decide
         step_outputs:
           decide:
             subset:
@@ -108,8 +130,8 @@ harness:
                   decision: needs_human
                   human_lane: finance-review
                   spend_executed: false
-        receipt: { schema: runx.receipt.v1 }
-
+        receipt:
+          schema: runx.receipt.v1
     - name: procurement-policy-check-refuses-missing-policy
       inputs:
         procurement_request:
@@ -120,7 +142,10 @@ harness:
           currency: USD
       expect:
         status: sealed
-        steps: [digest-request, digest-policy, decide]
+        steps:
+          - digest-request
+          - digest-policy
+          - decide
         step_outputs:
           decide:
             subset:
@@ -128,9 +153,57 @@ harness:
                 data:
                   decision: refused
                   refused_reason: missing_policy_authority
-                  validation: { status: fail }
-        receipt: { schema: runx.receipt.v1 }
-
+                  validation:
+                    status: fail
+        receipt:
+          schema: runx.receipt.v1
+    - name: zero-budget-is-exhausted-not-missing
+      inputs:
+        procurement_request:
+          payee: selected-vendor
+          amount: 1
+          currency: USD
+        procurement_policy:
+          currency: USD
+          remaining_budget: 0
+          request_cap: 100
+          approved_payees:
+            - selected-vendor
+      expect:
+        status: sealed
+        step_outputs:
+          decide:
+            subset:
+              procurement_approval:
+                data:
+                  decision: refused
+                  refused_reason: over_remaining_budget
+                  validation:
+                    status: pass
+    - name: zero-threshold-can-require-review-for-every-request
+      inputs:
+        procurement_request:
+          payee: selected-vendor
+          amount: 0
+          currency: USD
+        procurement_policy:
+          currency: USD
+          remaining_budget: 0
+          request_cap: 0
+          approved_payees:
+            - selected-vendor
+          approval_threshold: 0
+          human_lane: procurement-owner
+      expect:
+        status: sealed
+        step_outputs:
+          decide:
+            subset:
+              procurement_approval:
+                data:
+                  decision: needs_human
+                  amount: 0
+                  spend_executed: false
 runners:
   decide:
     default: true
@@ -142,10 +215,26 @@ runners:
         schema:
           additionalProperties: false
           properties:
-            payee: { type: string, minLength: 1, maxLength: 500 }
-            amount: { type: number, exclusiveMinimum: 0 }
-            currency: { type: string, minLength: 1, maxLength: 10 }
-            purpose: { type: string, maxLength: 2000 }
+            payee:
+              type: string
+              minLength: 1
+              maxLength: 500
+              pattern: \S
+            amount:
+              type: number
+              minimum: 0
+            currency:
+              type: string
+              minLength: 1
+              maxLength: 10
+              pattern: \S
+            purpose:
+              type: string
+              maxLength: 2000
+          required:
+            - payee
+            - amount
+            - currency
       procurement_policy:
         type: object
         required: true
@@ -153,15 +242,33 @@ runners:
         schema:
           additionalProperties: false
           properties:
-            currency: { type: string, minLength: 1, maxLength: 10 }
-            remaining_budget: { type: number, exclusiveMinimum: 0 }
-            request_cap: { type: number, exclusiveMinimum: 0 }
+            currency:
+              type: string
+              minLength: 1
+              maxLength: 10
+              pattern: \S
+            remaining_budget:
+              type: number
+              minimum: 0
+            request_cap:
+              type: number
+              minimum: 0
             approved_payees:
               type: array
               maxItems: 500
-              items: { type: string, minLength: 1, maxLength: 500 }
-            approval_threshold: { type: number, exclusiveMinimum: 0 }
-            human_lane: { type: string, minLength: 1, maxLength: 200 }
+              items:
+                type: string
+                minLength: 1
+                maxLength: 500
+                pattern: \S
+              uniqueItems: true
+            approval_threshold:
+              type: number
+              minimum: 0
+            human_lane:
+              type: string
+              minLength: 1
+              maxLength: 200
     examples:
       - procurement_request:
           payee: sourcey
@@ -172,20 +279,21 @@ runners:
           currency: USD
           remaining_budget: 300
           request_cap: 200
-          approved_payees: [sourcey, runx]
+          approved_payees:
+            - sourcey
+            - runx
           approval_threshold: 200
-    result_from: [decide]
+    result_from:
+      - decide
     steps:
       - id: digest-request
         tool: data.digest
         inputs:
           value: $input.procurement_request
-
       - id: digest-policy
         tool: data.digest
         inputs:
           value: $input.procurement_policy
-
       - id: decide
         label: apply the procurement policy deterministically
         inputs:
@@ -193,7 +301,9 @@ runners:
           procurement_policy: $input.procurement_policy
           request_digest: $steps.digest-request.digest_result.digest
           policy_digest: $steps.digest-policy.digest_result.digest
-        tool: { module: procurement-policy-check.mjs, export: decideProcurement }
+        tool:
+          module: procurement-policy-check.mjs
+          export: decideProcurement
         outputs:
           procurement_approval:
             type: object

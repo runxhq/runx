@@ -5,5 +5,8 @@ env:
   PATH: fixtures/bin:/usr/bin:/bin
 expect:
   status: sealed
-  steps: [github-issue-to-pr, digest]
-  receipt: { schema: runx.receipt.v1 }
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - github-issue-to-pr
+    - digest

@@ -11,13 +11,13 @@ return that slice by digest with the provenance needed to trust it later.
 ## What this skill does
 
 `web-fetch` retrieves a single public URL,
-extracts text, metadata, or links, and seals the result so a downstream step can
+extracts text, metadata, links, or a JSON document, and seals the result so a downstream step can
 cite the fetch without re-fetching. It checks the final host against the
 effective host policy before and after redirects, reads the page whole, and returns
 the final URL, the HTTP status, a `content_digest` over the retrieved body, the
 extracted slice, and a provenance block recording when it ran, every redirect
-hop, and how many bytes it read. The body is referenced by digest; only the
-extracted slice is inlined.
+hop, and how many bytes it read. The digest identifies the original response body; the selected extraction is
+returned in the native result. A digest alone is not a stored-body locator.
 
 This is the primitive an agent reaches for when it has already decided which page
 to read. The decision it makes easier is "can I read this page, and what did it
@@ -26,6 +26,10 @@ paraphrase. The calling agent decides which sources matter and synthesizes
 across them; `web-fetch` retrieves exactly one source. By default it may follow
 that source across any publicly routable host. Supply `allowlist` only when the
 operator needs to narrow the initial request and every redirect to named hosts.
+
+The built-in operation declares zero provider cost: it makes an unauthenticated
+local GET and never performs payment or metered provider dispatch. Host/network
+failures still need real transport evidence; they are not fetched content.
 
 The request path is native Runx code. Skills do not supply a JavaScript HTTP
 client: the runtime owns public-network enforcement, redirect admission,
@@ -51,8 +55,9 @@ receipt-safe evidence.
   reached only through a redirect.
 - To write anything. The only scope is `web.read`; there is no repo, file,
   wallet, or send authority here.
-- To inline a large raw body. The extracted slice is the payload; the full body
-  lives behind `content_digest`.
+- To archive an original response body for later retrieval. `content_digest`
+  identifies the bytes read; this operation returns the selected extraction and
+  does not promise a separately retrievable raw-body artifact.
 - To carry credentials, cookies, or custom authorization headers. Use the
   appropriate authenticated provider capability for those reads.
 
@@ -91,8 +96,9 @@ receipt-safe evidence.
 - **Page past the ceiling:** fail with `response_too_large`; the operator
   raises `RUNX_WEB_READ_MAX_BYTES` to read it. A partial page is never
   returned.
-- **Large raw body:** never inline beyond the extracted slice; anything bigger
-  than the requested view is reachable only through `content_digest`.
+- **Raw-body identity:** retain the selected extraction and original
+  `content_digest`; do not pass that digest to an artifact reader as if it were
+  a registered artifact locator.
 - **Authenticated source:** stop and use the relevant provider read skill; this
   public fetch does not accept credentials or custom headers.
 

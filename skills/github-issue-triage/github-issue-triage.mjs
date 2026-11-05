@@ -8,7 +8,10 @@ export function indexIssues(inputs) {
     return issue;
   });
   const query = inputs.query.trim();
-  const snapshotDigest = requiredDigest(inputs.snapshot_digest, "snapshot_digest");
+  const snapshotDigest = requiredDigest(
+    inputs.snapshot_digest,
+    "snapshot_digest",
+  );
   return {
     issue_index: {
       query,
@@ -21,8 +24,15 @@ export function indexIssues(inputs) {
 
 export function finalizeDiscovery(inputs) {
   const index = object(inputs.issue_index);
-  const known = new Map((Array.isArray(index.issues) ? index.issues : []).map((issue) => [text(issue.id), issue]));
-  const candidates = Array.isArray(inputs.issue_candidates) ? inputs.issue_candidates : [];
+  const known = new Map(
+    (Array.isArray(index.issues) ? index.issues : []).map((issue) => [
+      text(issue.id),
+      issue,
+    ]),
+  );
+  const candidates = Array.isArray(inputs.issue_candidates)
+    ? inputs.issue_candidates
+    : [];
   if (candidates.length === 0 || candidates.length > known.size) {
     throw new Error("issue_candidates must select a bounded non-empty subset");
   }
@@ -46,7 +56,9 @@ export function finalizeDiscovery(inputs) {
       query: index.query,
       issue_candidates: selected,
       selection_rationale: object(inputs.selection_rationale),
-      evidence_digests: [requiredDigest(index.snapshot_digest, "issue_index.snapshot_digest")],
+      evidence_digests: [
+        requiredDigest(index.snapshot_digest, "issue_index.snapshot_digest"),
+      ],
       provider_status: "supplied_snapshot",
     },
   };
@@ -59,20 +71,31 @@ export function admitIssue(inputs) {
   const number = text(issue.number || issue.id);
   const title = text(issue.title);
   const state = text(issue.state);
-  const body = text(issue.body);
-  if (!repository || !number || !title || !state) throw new Error("issue_snapshot is incomplete");
-  if (body.length > 20_000) throw new Error("issue_snapshot.body exceeds 20000 characters");
+  const body = issueBody(issue.body);
+  if (!repository || !number || !title || !state)
+    throw new Error("issue_snapshot is incomplete");
+  if ([...body].length > 65_536)
+    throw new Error(
+      "issue_snapshot.body exceeds GitHub’s 65536-character contract",
+    );
   const evidence = { repository, number, title, state, body };
-  const snapshotDigest = requiredDigest(inputs.snapshot_digest, "snapshot_digest");
+  const snapshotDigest = requiredDigest(
+    inputs.snapshot_digest,
+    "snapshot_digest",
+  );
   return {
     issue_evidence: {
       ...evidence,
-      source_locator: text(issue.source_locator)
-        || text(providerOperation.readback_uri)
-        || text(providerOperation.operation_id)
-        || "supplied:issue_snapshot",
+      source_locator:
+        text(issue.source_locator) ||
+        text(providerOperation.readback_uri) ||
+        text(providerOperation.operation_id) ||
+        "supplied:issue_snapshot",
       digest: snapshotDigest,
-      provider_status: providerOperation.status === "success" ? "readback" : "supplied_snapshot",
+      provider_status:
+        providerOperation.status === "success"
+          ? "readback"
+          : "supplied_snapshot",
     },
   };
 }
@@ -140,17 +163,21 @@ function normalizeIssue(value) {
   const number = text(issue.number);
   const title = text(issue.title);
   const state = text(issue.state);
-  const body = text(issue.body);
+  const body = issueBody(issue.body);
   const id = `${repository}#${number}`;
   return { id, repository, number, title, state, body };
 }
 
 function object(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
 }
 
 function text(value) {
-  return typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+  return typeof value === "string" || typeof value === "number"
+    ? String(value).trim()
+    : "";
 }
 
 function required(value, label) {
@@ -161,6 +188,16 @@ function required(value, label) {
 
 function requiredDigest(value, label) {
   const result = text(value);
-  if (!/^sha256:[0-9a-f]{64}$/u.test(result)) throw new Error(`${label} must be a native sha256 digest`);
+  if (!/^sha256:[0-9a-f]{64}$/u.test(result))
+    throw new Error(`${label} must be a native sha256 digest`);
   return result;
+}
+
+function issueBody(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string")
+    throw new Error(
+      "Issue body must be text or the provider’s empty null value.",
+    );
+  return value;
 }

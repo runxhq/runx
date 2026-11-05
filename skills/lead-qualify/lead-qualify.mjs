@@ -15,8 +15,8 @@ export function admitQualification({ enrichment_packet, criteria, contact_eligib
   if (new Set(criteria.map((criterion) => criterion.id)).size !== criteria.length) {
     blockers.push("criterion IDs must be unique");
   }
-  const bound = contact_eligibility.subject.id === enrichment_packet.subject.id
-    && contact_eligibility.subject.kind === enrichment_packet.subject.kind;
+  const bound = !contact_eligibility || (contact_eligibility.subject.id === enrichment_packet.subject.id
+    && contact_eligibility.subject.kind === enrichment_packet.subject.kind);
   if (!bound) blockers.push("contact eligibility belongs to a different or unbound subject");
   return {
     qualification_context: {
@@ -24,7 +24,7 @@ export function admitQualification({ enrichment_packet, criteria, contact_eligib
       subject: enrichment_packet.subject,
       facts: enrichment_packet.facts,
       criteria,
-      ...(bound && { contact_eligibility }),
+      ...(contact_eligibility && bound && { contact_eligibility }),
       blockers,
     },
   };

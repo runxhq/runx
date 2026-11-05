@@ -1,5 +1,5 @@
 skill: support-triage
-version: "0.1.10"
+version: "0.1.11"
 catalog:
   kind: skill
   audience: public
@@ -70,6 +70,14 @@ runners:
         description: Support tone, escalation routes and constraints. Context, never proof of approval.
     result_from:
     - finalize
+    examples:
+      - support_request:
+          source: helpdesk:ticket-5512
+          subject: Export keeps timing out
+          body: Our nightly export has timed out three times this week. Can you help?
+        product_evidence:
+        - source_id: docs:exports
+          text: Exports over 1 GB run in the background and email a link when finished.
     steps:
     - id: request-digest
       tool: data.digest

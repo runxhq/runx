@@ -1,107 +1,77 @@
-const object = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
-const text = (value) => typeof value === "string" ? value.trim() : "";
-const array = (value) => Array.isArray(value) ? value : [];
-const parseTime = (value) => Date.parse(text(value).replace(/\.(\d{3})\d+(Z|[+-]\d{2}:\d{2})$/, ".$1$2"));
-
 export function finalizeAttention(inputs) {
-  const draft = object(inputs.draft);
-  const evidence = array(inputs.evidence);
-  const asOf = parseTime(inputs.as_of);
-  const sourcesById = new Map(evidence.map((item) => [text(item.source_id), item]));
-  const actionStates = new Map(array(inputs.current_actions).map((item) => [text(item.source_id), item]));
-  const allowed = new Set(array(inputs.allowed_action_ids).map(text));
-  const routes = new Map(array(inputs.work_routes).map((route) => [text(route.route_id), route]));
+  const {draft, evidence, current_actions: currentActions} = inputs;
+  const workRoutes = inputs.work_routes ?? [];
+  const sources = new Map(evidence.map(item => [item.source_id, item]));
+  const states = new Map(currentActions.map(item => [item.source_id, item]));
+  const routes = new Map(workRoutes.map(route => [route.route_id, route]));
+  const allowed = new Set(inputs.allowed_action_ids);
   const findings = [];
-  if (routes.size !== array(inputs.work_routes).length) findings.push("work routes contain duplicates");
-  if (!Number.isFinite(asOf) || sourcesById.size !== evidence.length) findings.push("evaluation time or source references are invalid");
-  const min = Number(inputs.min_check_minutes);
-  const max = Number(inputs.max_check_minutes);
-  if (!Number.isInteger(min) || !Number.isInteger(max) || min > max) findings.push("next-check bounds are invalid");
+  const asOf = Date.parse(inputs.as_of.replace(/\.(\d{3})\d+(Z|[+-]\d{2}:\d{2})$/, ".$1$2"));
+  if (!Number.isFinite(asOf)) findings.push("evaluation time is invalid");
+  if (sources.size !== evidence.length) findings.push("source references contain duplicates");
+  if (states.size !== currentActions.length) findings.push("current action states contain duplicate source references");
+  if (routes.size !== workRoutes.length) findings.push("work routes contain duplicates");
+  const min = inputs.min_check_minutes;
+  const max = inputs.max_check_minutes;
+  if (min > max) findings.push("next-check bounds are invalid");
+
   const selected = [];
   const seen = new Set();
-  for (const raw of array(draft.items)) {
-    const sourceId = text(raw?.source_id);
-    const priority = text(raw?.priority);
-    const source = sourcesById.get(sourceId);
-    const action = object(actionStates.get(sourceId));
-    if (!source || seen.has(sourceId) || !["high", "medium", "low"].includes(priority)) {
-      findings.push("draft item cites an unknown, repeated or invalid source");
+  for (const item of draft.items) {
+    const source = sources.get(item.source_id);
+    if (!source || seen.has(item.source_id)) {
+      findings.push("draft item cites an unknown or repeated source");
       continue;
     }
-    if (action.state && action.state !== "open") {
+    if (states.has(item.source_id) && states.get(item.source_id).state !== "open") {
       findings.push("draft item selects an action already handled");
       continue;
     }
-    seen.add(sourceId);
-    selected.push({
-      source_id: sourceId,
-      source_digest: text(source.source_digest),
-      source_kind: text(source.source_kind),
-      priority,
-      summary: text(source.summary).replace(/\s+/g, " "),
-    });
+    seen.add(item.source_id);
+    selected.push({source_id: item.source_id, source_digest: source.source_digest,
+      source_kind: source.source_kind, priority: item.priority,
+      summary: source.summary.trim().replace(/\s+/g, " ")});
   }
-  if (selected.length > 5 || array(draft.items).length !== selected.length) findings.push("draft items exceed the limit or contain an invalid selection");
+
+  const proposedWork = draft.work_proposals ?? [];
+  const admittedWork = proposedWork.filter(item => routes.has(item.route_id));
   const work = [];
   const seenWork = new Set();
-  const proposedWork = array(draft.work_proposals);
-  const candidateRoutes = new Set(routes.keys());
-  const admittedWork = proposedWork.filter((item) => candidateRoutes.has(text(item?.route_id)));
-  for (const raw of admittedWork) {
-    const sourceId = text(raw?.source_id);
-    const routeId = text(raw?.route_id);
-    const targetLocator = text(raw?.target_locator);
-    const key = JSON.stringify([sourceId, routeId, targetLocator]);
-    const route = routes.get(routeId);
-    const source = sourcesById.get(sourceId);
-    const action = object(actionStates.get(sourceId));
-    if (!route || !source || targetLocator !== text(source.thread_locator || source.source_id)
-        || (array(route.source_kinds).length && !array(route.source_kinds).includes(text(source.source_kind)))
-        || !raw.inputs || typeof raw.inputs !== "object" || Array.isArray(raw.inputs)
-        || !Number.isSafeInteger(raw.due_at_unix_seconds) || raw.due_at_unix_seconds < 0
-        || !seen.has(sourceId) || (action.state && action.state !== "open") || seenWork.has(key)) {
+  for (const item of admittedWork) {
+    const route = routes.get(item.route_id);
+    const source = sources.get(item.source_id);
+    const key = JSON.stringify([item.source_id, item.route_id, item.target_locator]);
+    const candidateMatches = source &&
+      (route.source_id === undefined || route.source_id === source.source_id) &&
+      (route.source_digest === undefined || route.source_digest === source.source_digest) &&
+      (route.target_locator === undefined || route.target_locator === item.target_locator) &&
+      (!route.source_kinds?.length || route.source_kinds.includes(source.source_kind));
+    if (!candidateMatches || item.target_locator !== (source.thread_locator ?? source.source_id) ||
+        !seen.has(item.source_id) || seenWork.has(key)) {
       findings.push("work proposal is not an exact candidate for an open selected source");
       continue;
     }
     seenWork.add(key);
-    // Configured route inputs are operator authority, never model input.
-    const fixed = object(route.fixed_inputs);
-    const inputs = Object.fromEntries(Object.entries(raw.inputs)
-      .filter(([key]) => !Object.hasOwn(fixed, key)));
-    work.push({ source_id: sourceId, source_digest: text(source.source_digest), route_id: routeId, target_locator: targetLocator, inputs, due_at_unix_seconds: raw.due_at_unix_seconds });
+    const fixed = route.fixed_inputs ?? {};
+    const workInputs = Object.fromEntries(Object.entries(item.inputs)
+      .filter(([name]) => !Object.hasOwn(fixed, name) && name !== route.source_context_input));
+    work.push({source_id: item.source_id, source_digest: source.source_digest, route_id: item.route_id,
+      target_locator: item.target_locator, inputs: workInputs, due_at_unix_seconds: item.due_at_unix_seconds});
   }
-  if (work.length > 3 || work.length !== admittedWork.length) findings.push("work proposals exceed the limit or contain an invalid selection");
-  const proposedActions = array(draft.recommended_action_ids).map(text);
-  const actions = proposedActions.filter((id) => allowed.has(id));
-  if (proposedActions.length > 10 || new Set(actions).size !== actions.length) {
-    findings.push("draft action proposal exceeds the limit or repeats an admitted action");
-  }
-  const requested = Number(draft.next_check_minutes);
-  if (!Number.isInteger(requested)) findings.push("next-check proposal is invalid");
-  const minutes = Number.isFinite(min) && Number.isFinite(max) && min <= max
-    ? Math.min(max, Math.max(min, Number.isInteger(requested) ? requested : max)) : null;
-  if (draft.decision !== "brief" && draft.decision !== "idle") findings.push("draft decision is invalid");
-  if (selected.length === 0 && (actions.length > 0 || work.length > 0)) findings.push("draft proposes action without an admitted item");
+
+  const actions = draft.recommended_action_ids.filter(id => allowed.has(id));
+  if (new Set(actions).size !== actions.length) findings.push("draft repeats an admitted action");
+  if (!selected.length && (actions.length || work.length)) findings.push("draft proposes action without an admitted item");
   const valid = findings.length === 0;
-  const decision = !valid ? "held" : selected.length > 0 ? "ready" : "idle";
-  const brief = decision === "ready"
-    ? selected.map((item) => `${item.priority.toUpperCase()}: ${item.summary} (${item.source_id})`).join("\n")
-    : "";
-  return {
-    attention_packet: {
-      decision,
-      items: valid ? selected : [],
-      recommended_action_ids: valid ? actions : [],
-      work_proposals: valid ? work : [],
-      brief,
-      next_check_minutes: minutes,
-      delivery_status: "not_sent",
-      validation: {
-        status: valid ? "pass" : "fail",
-        findings,
-        omitted_unconfigured_actions: proposedActions.length - actions.length,
-        omitted_unconfigured_work: proposedWork.length - admittedWork.length,
-      },
-    },
-  };
+  const decision = !valid ? "held" : selected.length ? "ready" : "idle";
+  return {attention_packet: {
+    decision, items: valid ? selected : [], recommended_action_ids: valid ? actions : [],
+    work_proposals: valid ? work : [],
+    brief: decision === "ready" ? selected.map(item => item.priority.toUpperCase() + ": " + item.summary + " (" + item.source_id + ")").join("\n") : "",
+    next_check_minutes: min <= max ? Math.min(max, Math.max(min, draft.next_check_minutes)) : null,
+    delivery_status: "not_sent",
+    validation: {status: valid ? "pass" : "fail", findings,
+      omitted_unconfigured_actions: draft.recommended_action_ids.length - actions.length,
+      omitted_unconfigured_work: proposedWork.length - admittedWork.length},
+  }};
 }

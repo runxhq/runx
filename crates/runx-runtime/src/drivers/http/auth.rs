@@ -95,16 +95,7 @@ pub(crate) fn credential_body(
     let (last, parent) = segments
         .split_last()
         .ok_or("the credential's body pointer names no member")?;
-    let mut object = match body {
-        Some(runx_contracts::JsonValue::Object(object)) => object,
-        _ => return Err("the request has no JSON object body to carry the credential".to_owned()),
-    };
-    for segment in parent {
-        object = match object.get_mut(segment) {
-            Some(runx_contracts::JsonValue::Object(child)) => child,
-            _ => return Err("the request body has no object where the credential goes".to_owned()),
-        };
-    }
+    let object = super::body_parent(body, parent)?;
     if object.contains_key(last) {
         return Err("the request body already sets the credential's member".to_owned());
     }

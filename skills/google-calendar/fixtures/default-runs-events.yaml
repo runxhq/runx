@@ -3,35 +3,51 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [google-analytics, attention-review]
+    confusors:
+      - google-analytics
+      - attention-review
     request: Read the next day of events on my selected Google Calendar.
-    expected_outcome: Read exact selected calendar once and return bounded evidence with provider readback and complete coverage.
+    expected_outcome: Read exact selected calendar once and return bounded evidence with provider readback and
+      complete coverage.
 inputs:
   calendar_id: primary
-  time_min: "2026-10-04T00:00:00Z"
-  time_max: "2026-10-05T00:00:00Z"
+  time_min: 2026-10-04T00:00:00Z
+  time_max: 2026-10-05T00:00:00Z
 caller:
   provider_responses:
     principal_id: operator-fixture
     grant:
-        grant_id: calendar-events-fixture
-        provider: google/calendar
-        scopes: [events.read]
+      grant_id: calendar-events-fixture
+      provider: google/calendar
+      scopes:
+        - events.read
     operations:
       - operation: events.list
         target: primary
         access: read
         result:
           calendar_id: primary
-          time_min: "2026-10-04T00:00:00Z"
-          time_max: "2026-10-05T00:00:00Z"
-          fetched_at: "2026-10-04T01:00:00Z"
+          time_min: 2026-10-04T00:00:00Z
+          time_max: 2026-10-05T00:00:00Z
+          fetched_at: 2026-10-04T01:00:00Z
           complete: true
           events:
-            - { event_id: instance-1, revision: v1, status: confirmed, visibility: default, transparency: opaque, summary: Review, all_day: false, start: "2026-10-04T09:00:00Z", end: "2026-10-04T10:00:00Z" }
+            - event_id: instance-1
+              revision: v1
+              status: confirmed
+              visibility: default
+              transparency: opaque
+              summary: Review
+              all_day: false
+              start: 2026-10-04T09:00:00Z
+              end: 2026-10-04T10:00:00Z
+          page_token: ""
+          next_page_token: ""
 expect:
   status: sealed
-  steps: [read, normalize]
+  steps:
+    - read
+    - normalize
   step_outputs:
     normalize:
       subset:
@@ -45,4 +61,7 @@ expect:
     schema: runx.receipt.v1
     state: sealed
     outcome: completed
-metadata: { public_skill: google-calendar, source_case: direct-default-success, source: skills-fixture }
+metadata:
+  public_skill: google-calendar
+  source_case: direct-default-success
+  source: skills-fixture

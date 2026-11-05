@@ -1,6 +1,7 @@
 //! The pure Rust parser for runx skills, graphs, and tools.
 
 pub mod connector;
+pub mod data;
 pub mod error;
 pub mod eval;
 pub mod graph;
@@ -49,15 +50,15 @@ pub use runner::{
     validate_runner_manifest,
 };
 pub use skill::{
-    ArtifactPageFraming, ArtifactPageSource, CatalogApproval, CatalogAudience, CatalogCompletion,
-    CatalogExecution, CatalogKind, CatalogMetadata, CatalogOperatorReadiness, CatalogRole,
-    CatalogSemanticCode, CatalogSemanticDiagnostic, CatalogSemanticReport, CatalogVisibility,
-    ConnectorRequirement, HarnessCaller, HarnessExpectation, HarnessHttpExchangeFixture,
-    HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture, HarnessMcpCallFixture,
-    HarnessProcessCallFixture, InputMode, OperatorJourneyClaim, OperatorJourneyMode, RawSkillIr,
-    ReceiptExpectation, RunnerHarnessCase, RunnerHarnessManifest, SkillArtifactContract,
-    SkillIdempotencyPolicy, SkillInput, SkillRunnerDefinition, ValidateSkillMode,
-    ValidateSkillOptions, ValidatedSkill, analyze_catalog_semantics,
+    ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, CatalogApproval, CatalogAudience,
+    CatalogCompletion, CatalogExecution, CatalogKind, CatalogMetadata, CatalogOperatorReadiness,
+    CatalogRole, CatalogSemanticCode, CatalogSemanticDiagnostic, CatalogSemanticReport,
+    CatalogVisibility, ConnectorRequirement, HarnessCaller, HarnessExpectation,
+    HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture,
+    HarnessMcpCallFixture, HarnessProcessCallFixture, InputMode, OperatorJourneyClaim,
+    OperatorJourneyMode, RawSkillIr, ReceiptExpectation, RunnerHarnessCase, RunnerHarnessManifest,
+    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillRunnerDefinition,
+    ValidateSkillMode, ValidateSkillOptions, ValidatedSkill, analyze_catalog_semantics,
     analyze_package_catalog_semantics, parse_skill_markdown, validate_input_examples,
     validate_skill, validate_skill_artifact_contract, validate_skill_with_options,
 };

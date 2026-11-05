@@ -1,5 +1,5 @@
 skill: github-pr-review
-version: "0.1.5"
+version: "0.1.6"
 catalog:
   kind: graph
   audience: public
@@ -10,304 +10,838 @@ catalog:
   approval: none
   category: code
 connectors:
-  github: {operations: [pullrequest.read, commits.compare, checks.list]}
+  github:
+    operations:
+      - pullrequest.read
+      - commits.compare
+      - checks.list
+      - git.commit.read
+      - git.tree.read
+      - git.blob.read
+input_definitions:
+  repository:
+    type: string
+    required: true
+    description: Exact selected GitHub owner/repository.
+    schema:
+      maxLength: 201
+      pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+  number:
+    type: integer
+    required: true
+    description: Exact positive pull-request number.
+    schema:
+      minimum: 1
+      maximum: 1000000000
+  expected_head:
+    type: string
+    required: false
+    default: ""
+    description: Optional known head precondition. Omit it to pin the actual head once; a mismatch stops before
+      comparison.
+    schema:
+      pattern: ^(?:[0-9a-f]{40}(?:[0-9a-f]{24})?)?$
+  patch_char_limit:
+    type: integer
+    required: false
+    default: 60000
+    description: Upper bound on admitted patch text and associated file context. Full source remains retained for
+      another selection.
+    schema:
+      minimum: 1000
+      maximum: 200000
+  paths:
+    type: array
+    required: false
+    default: []
+    description: Optional exact changed-file paths or directory prefixes. Empty selects a bounded set with
+      source/config ahead of tests, docs and generated files.
+    schema:
+      items:
+        type: string
+        minLength: 1
+  snapshot:
+    type: json
+    required: true
+    packet: runx.project_artifact.v1
+    description: Exact native descriptor returned by capture; retains the original observation and complete
+      available file array.
+  review_context:
+    type: json
+    required: true
+    description: Already prepared bounded changed-line context with source identities, selection gaps and check
+      coverage. No provider acquisition is implied.
+    packet: runx/github-pr-review.context.v1
 runners:
   review:
+    operations: []
+    skills: []
+    tools: []
+    asks: false
     default: true
+    description: Review one PR from its ordinary repository/number, pinning the actual head and retaining a
+      reusable immutable snapshot.
     inputs:
       repository:
-        type: string
-        required: true
-        description: Exact selected GitHub owner/repository.
-        schema: {maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        definition: repository
       number:
-        type: integer
-        required: true
-        description: Exact positive pull-request number.
-        schema: {minimum: 1, maximum: 1000000000}
+        definition: number
       expected_head:
-        type: string
-        required: true
-        description: Exact head commit to review; a different current head stops the review.
-        schema: {pattern: '^[0-9a-f]{40}$'}
+        definition: expected_head
       patch_char_limit:
-        type: integer
-        required: false
-        default: 60000
-        description: Maximum aggregate patch characters admitted to the model.
-        schema: {minimum: 1000, maximum: 200000}
-    result_from: [hold, finalize]
+        definition: patch_char_limit
+      paths:
+        definition: paths
+    examples:
+      - repository: runxhq/runx
+        number: 554
+    result_from:
+      - capture
+      - assess
     steps:
-    - id: read-pull
-      operation: github/pullrequest.read
-      input: {repository: $input.repository, number: $input.number}
-    - id: read-files
-      operation: github/commits.compare
-      input: {repository: $input.repository, base: $steps.read-pull.provider_operation.result.pull.base.sha, head: $input.expected_head}
-    - id: read-checks
-      operation: github/checks.list
-      input: {repository: $input.repository, commit: $input.expected_head, per_page: 100, page: 1}
-    - id: prepare
-      tool: {module: github-pr-review.mjs, export: prepareReview}
-      inputs:
-        repository: $input.repository
-        number: $input.number
-        expected_head: $input.expected_head
-        patch_char_limit: $input.patch_char_limit
-        pull: $steps.read-pull.provider_operation
-        files: $steps.read-files.provider_operation
-        checks: $steps.read-checks.provider_operation
-      outputs:
-        review_context:
-          type: object
-          schema:
-            additionalProperties: false
-            required:
-            - decision
-            - repository
-            - number
-            - base_sha
-            - head_sha
-            - title
-            - description
-            - files
-            - checks
-            - checks_complete
-            - coverage
-            - blockers
-            - diff_base_sha
-            properties:
-              decision: {enum: [ready, needs_more_evidence]}
-              repository: {type: string, minLength: 1, maxLength: 201}
-              number: {type: integer, minimum: 1}
-              base_sha:
-                oneOf:
-                - {type: string, pattern: '^[0-9a-f]{40}$'}
-                - {type: 'null'}
-              head_sha: {type: string, pattern: '^[0-9a-f]{40}$'}
-              title: {type: string, maxLength: 1000}
-              description: {type: string, maxLength: 65536}
-              files:
-                type: array
-                maxItems: 100
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [path, previous_path, status, patch, left_lines, right_lines]
-                  properties:
-                    path: {type: string, minLength: 1, maxLength: 1000}
-                    previous_path: {type: [string, 'null'], maxLength: 1000}
-                    status: {enum: [added, removed, modified, renamed, copied, changed, unchanged]}
-                    patch: {type: string, minLength: 1, maxLength: 200000}
-                    left_lines:
-                      type: array
-                      maxItems: 200000
-                      items: {type: integer, minimum: 1}
-                    right_lines:
-                      type: array
-                      maxItems: 200000
-                      items: {type: integer, minimum: 1}
-              checks:
-                type: array
-                maxItems: 100
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [name, status, conclusion]
-                  properties:
-                    name: {type: string, minLength: 1, maxLength: 1000}
-                    status: {type: string, maxLength: 100}
-                    conclusion: {type: [string, 'null'], maxLength: 100}
-              checks_complete: {type: boolean}
-              coverage: {const: available_pr_patches_only}
-              blockers:
-                type: array
-                maxItems: 200
-                items: {type: string, minLength: 1, maxLength: 2000}
-              diff_base_sha:
-                oneOf:
-                - {type: string, pattern: '^[0-9a-f]{40}$'}
-                - {type: 'null'}
-    - id: hold
-      when: {value: $steps.prepare.review_context.decision, equals: needs_more_evidence}
-      tool: {module: github-pr-review.mjs, export: finalizeReview}
-      inputs: {review_context: $steps.prepare.review_context}
-      outputs:
-        pr_review:
-          type: object
-          schema:
-            additionalProperties: false
-            required:
-            - decision
-            - repository
-            - number
-            - base_sha
-            - head_sha
-            - context_digest
-            - coverage
-            - checks_complete
+      - id: capture
+        skill: .
+        runner: capture
+        inputs:
+          repository: $input.repository
+          number: $input.number
+          expected_head: $input.expected_head
+      - id: select
+        skill: .
+        runner: select-context
+        inputs:
+          snapshot: $steps.capture.project_artifact
+          patch_char_limit: $input.patch_char_limit
+          paths: $input.paths
+      - id: assess
+        skill: .
+        runner: assess
+        inputs:
+          review_context: $steps.select.review_context
+  capture:
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+    description: Read and pin the selected PR/head once, retaining complete provider packets and the available
+      comparison file array before worker processing.
+    inputs:
+      repository:
+        definition: repository
+      number:
+        definition: number
+      expected_head:
+        definition: expected_head
+    result_from:
+      - held-source
+      - snapshot-source
+    steps:
+      - id: observe
+        tool: control.observed_at
+        outputs:
+          observed_at: string
+      - id: read-pull
+        operation: github/pullrequest.read
+        input:
+          repository: $input.repository
+          number: $input.number
+      - id: pull-source
+        tool: artifact.store
+        scopes:
+          - artifact.write
+        inputs:
+          value: $steps.read-pull.provider_operation
+      - id: pin
+        tool:
+          module: github-pr-review.mjs
+          export: pinPull
+        inputs:
+          repository: $input.repository
+          number: $input.number
+          expected_head: $input.expected_head
+          observed_at: $steps.observe.observed_at
+          pull: $steps.read-pull.provider_operation
+          pull_artifact: $steps.pull-source.project_artifact
+        outputs:
+          snapshot: object
+      - id: held-source
+        tool: artifact.store
+        scopes:
+          - artifact.write
+        inputs:
+          value: $steps.pin.snapshot
+        when:
+          value: $steps.pin.snapshot.decision
+          equals: needs_more_evidence
+      - id: read-files
+        when:
+          value: $steps.pin.snapshot.decision
+          equals: ready
+        operation: github/commits.compare
+        input:
+          repository: $input.repository
+          base: $steps.pin.snapshot.base_sha
+          head: $steps.pin.snapshot.head_sha
+      - id: comparison-source
+        tool: artifact.store
+        scopes:
+          - artifact.write
+        inputs:
+          value: $steps.read-files.provider_operation
+        when:
+          value: $steps.pin.snapshot.decision
+          equals: ready
+      - id: file-source
+        tool: artifact.store
+        scopes:
+          - artifact.write
+        inputs:
+          value: $steps.read-files.provider_operation.result.comparison.files
+        when:
+          value: $steps.pin.snapshot.decision
+          equals: ready
+      - id: bind
+        tool:
+          module: github-pr-review.mjs
+          export: bindComparison
+        inputs:
+          snapshot: $steps.pin.snapshot
+          comparison_artifact: $steps.comparison-source.project_artifact
+          files_artifact: $steps.file-source.project_artifact
+          comparison_provider: $steps.read-files.provider_operation.provider
+          comparison_operation: $steps.read-files.provider_operation.operation
+          comparison_status: $steps.read-files.provider_operation.status
+          comparison_target: $steps.read-files.provider_operation.target
+          comparison_base: $steps.read-files.provider_operation.result.comparison.base_commit.sha
+          comparison_merge_base: $steps.read-files.provider_operation.result.comparison.merge_base_commit.sha
+          comparison_url: $steps.read-files.provider_operation.result.comparison.url
+        outputs:
+          snapshot: object
+        when:
+          value: $steps.pin.snapshot.decision
+          equals: ready
+      - id: snapshot-source
+        tool: artifact.store
+        scopes:
+          - artifact.write
+        inputs:
+          value: $steps.bind.snapshot
+        when:
+          value: $steps.pin.snapshot.decision
+          equals: ready
+  select-context:
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+    description: Select bounded valid patches from an existing retained snapshot without another provider read.
+    inputs:
+      snapshot:
+        definition: snapshot
+      expected_head:
+        definition: expected_head
+      patch_char_limit:
+        definition: patch_char_limit
+      paths:
+        definition: paths
+    result_from:
+      - held
+      - select
+    steps:
+      - id: snapshot-open
+        tool: artifact.open
+        scopes:
+          - artifact.read
+        inputs:
+          artifact: $input.snapshot
+      - id: snapshot-read
+        tool: artifact.read
+        scopes:
+          - fs.read
+        inputs:
+          artifact_uri: $steps.snapshot-open.local_artifact.artifact_uri
+          encoding: utf8
+          max_bytes: 1048576
+      - id: decode
+        tool:
+          module: github-pr-review.mjs
+          export: readSnapshot
+          requires:
+            - parseData
+        inputs:
+          page: $steps.snapshot-read.artifact_page
+          expected_head: $input.expected_head
+        outputs:
+          snapshot: object
+      - id: held
+        tool:
+          module: github-pr-review.mjs
+          export: heldContext
+        inputs:
+          snapshot: $steps.decode.snapshot
+        outputs:
+          review_context: object
+        when:
+          value: $steps.decode.snapshot.decision
+          equals: needs_more_evidence
+        artifacts:
+          named_emits:
+            review_context: review_context
+          packets:
+            review_context: runx/github-pr-review.context.v1
+      - id: files-open
+        when:
+          value: $steps.decode.snapshot.decision
+          equals: ready
+        tool: artifact.open
+        scopes:
+          - artifact.read
+        inputs:
+          artifact: $steps.decode.snapshot.files_artifact
+      - id: select
+        tool:
+          module: github-pr-review.mjs
+          export: selectFilePage
+          requires:
+            - parseData
+          pages:
+            artifact_from: source_uri
+            framing: json_array
+            page_bytes: 524288
+        inputs:
+          snapshot: $steps.decode.snapshot
+          source_uri: $steps.files-open.local_artifact.artifact_uri
+          patch_char_limit: $input.patch_char_limit
+          paths: $input.paths
+        outputs:
+          review_context: object
+        when:
+          value: $steps.decode.snapshot.decision
+          equals: ready
+        scopes:
+          - fs.read
+        artifacts:
+          named_emits:
+            review_context: review_context
+          packets:
+            review_context: runx/github-pr-review.context.v1
+  from-snapshot:
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+    description: Reuse the full retained comparison with a new path/budget selection and offline analysis; never
+      reread GitHub.
+    inputs:
+      snapshot:
+        definition: snapshot
+      expected_head:
+        definition: expected_head
+      patch_char_limit:
+        definition: patch_char_limit
+      paths:
+        definition: paths
+    result_from:
+      - select
+      - analyze
+    steps:
+      - id: select
+        skill: .
+        runner: select-context
+        inputs:
+          snapshot: $input.snapshot
+          expected_head: $input.expected_head
+          patch_char_limit: $input.patch_char_limit
+          paths: $input.paths
+      - id: analyze
+        skill: .
+        runner: analyze
+        inputs:
+          review_context: $steps.select.review_context
+  assess:
+    operations:
+      - github/checks.list
+      - github/git.commit.read
+      - github/git.tree.read
+      - github/git.blob.read
+    skills: []
+    tools: []
+    asks: false
+    description: Review prepared patches with optional exact-head checks and immutable related-source reads;
+      optional read failure becomes a limitation.
+    inputs:
+      review_context:
+        definition: review_context
+    result_from:
+      - held
+      - finalize
+    steps:
+      - id: validate
+        tool:
+          module: github-pr-review.mjs
+          export: validateContext
+        inputs:
+          review_context: $input.review_context
+        outputs:
+          review_context: object
+        artifacts:
+          named_emits:
+            review_context: review_context
+          packets:
+            review_context: runx/github-pr-review.context.v1
+      - id: ready
+        tool: data.compare
+        inputs:
+          actual: $steps.validate.review_context.decision
+          expected: ready
+      - id: held
+        when:
+          value: $steps.ready.comparison.equal
+          equals: false
+        skill: .
+        runner: finalize
+        inputs:
+          review_context: $steps.validate.review_context
+      - id: review
+        when:
+          value: $steps.ready.comparison.equal
+          equals: true
+        agent:
+          role: code
+          task: github-pr-review-assess-live
+        inputs:
+          review_context: $steps.validate.review_context
+        outputs:
+          review_draft:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - summary
+                - findings
+                - limitations
+              properties:
+                summary:
+                  type: string
+                  minLength: 1
+                  maxLength: 4000
+                findings:
+                  type: array
+                  maxItems: 30
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - path
+                      - side
+                      - line
+                      - severity
+                      - title
+                      - trigger
+                      - impact
+                      - suggested_change
+                    properties:
+                      path:
+                        type: string
+                        minLength: 1
+                      side:
+                        enum:
+                          - LEFT
+                          - RIGHT
+                      line:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                      severity:
+                        enum:
+                          - critical
+                          - high
+                          - medium
+                          - low
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      trigger:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                      impact:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                      suggested_change:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                limitations:
+                  type: array
+                  maxItems: 30
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 2000
+      - id: finalize
+        when:
+          value: $steps.ready.comparison.equal
+          equals: true
+        skill: .
+        runner: finalize
+        inputs:
+          review_context: $steps.validate.review_context
+          review_draft: $steps.review.review_draft
+  analyze:
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+    description: Review an already prepared context without provider calls, source discovery or repeated acquisition.
+    inputs:
+      review_context:
+        definition: review_context
+    result_from:
+      - held
+      - finalize
+    steps:
+      - id: validate
+        tool:
+          module: github-pr-review.mjs
+          export: validateContext
+        inputs:
+          review_context: $input.review_context
+        outputs:
+          review_context: object
+        artifacts:
+          named_emits:
+            review_context: review_context
+          packets:
+            review_context: runx/github-pr-review.context.v1
+      - id: ready
+        tool: data.compare
+        inputs:
+          actual: $steps.validate.review_context.decision
+          expected: ready
+      - id: held
+        when:
+          value: $steps.ready.comparison.equal
+          equals: false
+        skill: .
+        runner: finalize
+        inputs:
+          review_context: $steps.validate.review_context
+      - id: review
+        when:
+          value: $steps.ready.comparison.equal
+          equals: true
+        agent:
+          role: code
+          task: github-pr-review-assess
+        inputs:
+          review_context: $steps.validate.review_context
+        outputs:
+          review_draft:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - summary
+                - findings
+                - limitations
+              properties:
+                summary:
+                  type: string
+                  minLength: 1
+                  maxLength: 4000
+                findings:
+                  type: array
+                  maxItems: 30
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - path
+                      - side
+                      - line
+                      - severity
+                      - title
+                      - trigger
+                      - impact
+                      - suggested_change
+                    properties:
+                      path:
+                        type: string
+                        minLength: 1
+                      side:
+                        enum:
+                          - LEFT
+                          - RIGHT
+                      line:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                      severity:
+                        enum:
+                          - critical
+                          - high
+                          - medium
+                          - low
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      trigger:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                      impact:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                      suggested_change:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                limitations:
+                  type: array
+                  maxItems: 30
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 2000
+      - id: finalize
+        when:
+          value: $steps.ready.comparison.equal
+          equals: true
+        skill: .
+        runner: finalize
+        inputs:
+          review_context: $steps.validate.review_context
+          review_draft: $steps.review.review_draft
+  finalize:
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+    description: Bind the exact context natively, verify changed-line anchors, retain useful partial findings and
+      enforce unsent/not-tested finality.
+    inputs:
+      review_context:
+        definition: review_context
+      review_draft:
+        type: object
+        required: false
+        description: Assessment from the declared reviewer; empty only when source context is held.
+        schema:
+          additionalProperties: false
+          required:
             - summary
             - findings
             - limitations
-            - blockers
-            - publication_status
-            - execution_status
-            - diff_base_sha
-            properties:
-              decision: {enum: [draft_ready, needs_more_evidence]}
-              repository: {type: string, minLength: 1, maxLength: 201}
-              number: {type: integer, minimum: 1}
-              base_sha:
-                oneOf:
-                - {type: string, pattern: '^[0-9a-f]{40}$'}
-                - {type: 'null'}
-              head_sha: {type: string, pattern: '^[0-9a-f]{40}$'}
-              context_digest: {type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$'}
-              coverage: {const: available_pr_patches_only}
-              checks_complete: {type: boolean}
-              summary: {type: string, maxLength: 4000}
-              findings:
-                type: array
-                maxItems: 30
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [path, side, line, severity, title, trigger, impact, suggested_change]
-                  properties:
-                    path: {type: string, minLength: 1, maxLength: 1000}
-                    side: {enum: [LEFT, RIGHT]}
-                    line: {type: integer, minimum: 1, maximum: 10000000}
-                    severity: {enum: [critical, high, medium, low]}
-                    title: {type: string, minLength: 1, maxLength: 200}
-                    trigger: {type: string, minLength: 1, maxLength: 2000}
-                    impact: {type: string, minLength: 1, maxLength: 2000}
-                    suggested_change: {type: string, minLength: 1, maxLength: 2000}
-              limitations:
-                type: array
-                maxItems: 30
-                items: {type: string, minLength: 1, maxLength: 2000}
-              blockers:
-                type: array
-                maxItems: 200
-                items: {type: string, minLength: 1, maxLength: 2000}
-              publication_status: {const: not_posted}
-              execution_status: {const: not_tested}
-              diff_base_sha:
-                oneOf:
-                - {type: string, pattern: '^[0-9a-f]{40}$'}
-                - {type: 'null'}
-      artifacts:
-        named_emits: {pr_review: pr_review}
-    - id: digest
-      when: {value: $steps.prepare.review_context.decision, equals: ready}
-      tool: data.digest
-      inputs: {value: $steps.prepare.review_context}
-    - id: review
-      when: {value: $steps.prepare.review_context.decision, equals: ready}
-      agent: {role: code, task: github-pr-review-assess}
-      inputs: {review_context: $steps.prepare.review_context, context_digest: $steps.digest.digest_result.digest}
-      outputs:
-        review_draft:
-          type: object
-          schema:
-            additionalProperties: false
-            required: [summary, findings, limitations]
-            properties:
-              summary: {type: string, minLength: 1, maxLength: 4000}
-              findings:
-                type: array
-                maxItems: 30
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [path, side, line, severity, title, trigger, impact, suggested_change]
-                  properties:
-                    path: {type: string, minLength: 1, maxLength: 1000}
-                    side: {enum: [LEFT, RIGHT]}
-                    line: {type: integer, minimum: 1, maximum: 10000000}
-                    severity: {enum: [critical, high, medium, low]}
-                    title: {type: string, minLength: 1, maxLength: 200}
-                    trigger: {type: string, minLength: 1, maxLength: 2000}
-                    impact: {type: string, minLength: 1, maxLength: 2000}
-                    suggested_change: {type: string, minLength: 1, maxLength: 2000}
-              limitations:
-                type: array
-                maxItems: 30
-                items: {type: string, minLength: 1, maxLength: 2000}
-    - id: finalize
-      when: {value: $steps.prepare.review_context.decision, equals: ready}
-      tool: {module: github-pr-review.mjs, export: finalizeReview}
-      inputs:
-        review_context: $steps.prepare.review_context
-        context_digest: $steps.digest.digest_result.digest
-        review_draft: $steps.review.review_draft
-      outputs:
-        pr_review:
-          type: object
-          schema:
-            additionalProperties: false
-            required:
-            - decision
-            - repository
-            - number
-            - base_sha
-            - head_sha
-            - context_digest
-            - coverage
-            - checks_complete
-            - summary
-            - findings
-            - limitations
-            - blockers
-            - publication_status
-            - execution_status
-            - diff_base_sha
-            properties:
-              decision: {enum: [draft_ready, needs_more_evidence]}
-              repository: {type: string, minLength: 1, maxLength: 201}
-              number: {type: integer, minimum: 1}
-              base_sha:
-                oneOf:
-                - {type: string, pattern: '^[0-9a-f]{40}$'}
-                - {type: 'null'}
-              head_sha: {type: string, pattern: '^[0-9a-f]{40}$'}
-              context_digest: {type: [string, 'null'], pattern: '^sha256:[0-9a-f]{64}$'}
-              coverage: {const: available_pr_patches_only}
-              checks_complete: {type: boolean}
-              summary: {type: string, maxLength: 4000}
-              findings:
-                type: array
-                maxItems: 30
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [path, side, line, severity, title, trigger, impact, suggested_change]
-                  properties:
-                    path: {type: string, minLength: 1, maxLength: 1000}
-                    side: {enum: [LEFT, RIGHT]}
-                    line: {type: integer, minimum: 1, maximum: 10000000}
-                    severity: {enum: [critical, high, medium, low]}
-                    title: {type: string, minLength: 1, maxLength: 200}
-                    trigger: {type: string, minLength: 1, maxLength: 2000}
-                    impact: {type: string, minLength: 1, maxLength: 2000}
-                    suggested_change: {type: string, minLength: 1, maxLength: 2000}
-              limitations:
-                type: array
-                maxItems: 30
-                items: {type: string, minLength: 1, maxLength: 2000}
-              blockers:
-                type: array
-                maxItems: 200
-                items: {type: string, minLength: 1, maxLength: 2000}
-              publication_status: {const: not_posted}
-              execution_status: {const: not_tested}
-              diff_base_sha:
-                oneOf:
-                - {type: string, pattern: '^[0-9a-f]{40}$'}
-                - {type: 'null'}
-      artifacts:
-        named_emits: {pr_review: pr_review}
-
+          properties:
+            summary:
+              type: string
+              minLength: 1
+              maxLength: 4000
+            findings:
+              type: array
+              maxItems: 30
+              items:
+                type: object
+                additionalProperties: false
+                required:
+                  - path
+                  - side
+                  - line
+                  - severity
+                  - title
+                  - trigger
+                  - impact
+                  - suggested_change
+                properties:
+                  path:
+                    type: string
+                    minLength: 1
+                  side:
+                    enum:
+                      - LEFT
+                      - RIGHT
+                  line:
+                    type: integer
+                    minimum: 1
+                    maximum: 9007199254740991
+                  severity:
+                    enum:
+                      - critical
+                      - high
+                      - medium
+                      - low
+                  title:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                  trigger:
+                    type: string
+                    minLength: 1
+                    maxLength: 2000
+                  impact:
+                    type: string
+                    minLength: 1
+                    maxLength: 2000
+                  suggested_change:
+                    type: string
+                    minLength: 1
+                    maxLength: 2000
+            limitations:
+              type: array
+              maxItems: 30
+              items:
+                type: string
+                minLength: 1
+                maxLength: 2000
+    result_from:
+      - finalize
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $input.review_context
+      - id: finalize
+        tool:
+          module: github-pr-review.mjs
+          export: finalizeReview
+        inputs:
+          review_context: $input.review_context
+          context_digest: $steps.digest.digest_result.digest
+          review_draft: $input.review_draft
+        outputs:
+          pr_review:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - decision
+                - repository
+                - number
+                - base_sha
+                - head_sha
+                - context_digest
+                - coverage
+                - checks_complete
+                - summary
+                - findings
+                - limitations
+                - blockers
+                - publication_status
+                - execution_status
+                - diff_base_sha
+              properties:
+                decision:
+                  enum:
+                    - draft_ready
+                    - needs_more_evidence
+                repository:
+                  type: string
+                  minLength: 1
+                  maxLength: 201
+                number:
+                  type: integer
+                  minimum: 1
+                base_sha:
+                  oneOf:
+                    - type: string
+                      pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+                    - type: "null"
+                head_sha:
+                  type: string
+                  pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+                context_digest:
+                  type:
+                    - string
+                    - "null"
+                  pattern: ^sha256:[0-9a-f]{64}$
+                coverage:
+                  const: available_pr_patches_only
+                checks_complete:
+                  type: boolean
+                summary:
+                  type: string
+                  maxLength: 4000
+                findings:
+                  type: array
+                  maxItems: 30
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - path
+                      - side
+                      - line
+                      - severity
+                      - title
+                      - trigger
+                      - impact
+                      - suggested_change
+                    properties:
+                      path:
+                        type: string
+                        minLength: 1
+                      side:
+                        enum:
+                          - LEFT
+                          - RIGHT
+                      line:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                      severity:
+                        enum:
+                          - critical
+                          - high
+                          - medium
+                          - low
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      trigger:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                      impact:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                      suggested_change:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                limitations:
+                  type: array
+                  maxItems: 30
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 2000
+                blockers:
+                  type: array
+                  maxItems: 200
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 2000
+                publication_status:
+                  const: not_posted
+                execution_status:
+                  const: not_tested
+                diff_base_sha:
+                  oneOf:
+                    - type: string
+                      pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
+                    - type: "null"
+        artifacts:
+          named_emits:
+            pr_review: pr_review
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases: []

@@ -117,7 +117,6 @@
               }
             },
             "required": [
-              "usd_micro",
               "per",
               "source"
             ],

@@ -3,6 +3,118 @@ use std::path::Path;
 use super::{ArtifactPageEncoding, LocalArtifactService, MAX_ARTIFACT_PAGE_BYTES};
 
 #[test]
+fn run_scoped_artifacts_survive_service_restart_without_reopening_the_source()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let project = workspace.path().join("state");
+    std::fs::create_dir(&project)?;
+    std::fs::write(workspace.path().join("source.txt"), "original 🙂 source")?;
+    let first = LocalArtifactService::for_run(&project, "run-one");
+    let artifact = first.admit(
+        workspace.path(),
+        Path::new("source.txt"),
+        "text/plain",
+        crate::services::WorkspaceBounds::Operator,
+    )?;
+    drop(first);
+    std::fs::write(workspace.path().join("source.txt"), "changed source")?;
+    let restored = LocalArtifactService::for_run(&project, "run-one");
+    let page = restored.read_page(&artifact.reference, 0, 1024, ArtifactPageEncoding::Utf8)?;
+    assert_eq!(page.data, "original 🙂 source");
+    assert_eq!(page.artifact, artifact);
+    assert!(
+        LocalArtifactService::for_run(&project, "run-two")
+            .read_page(&artifact.reference, 0, 1024, ArtifactPageEncoding::Utf8)
+            .is_err()
+    );
+    let other = tempfile::tempdir()?;
+    assert!(
+        LocalArtifactService::for_run(other.path(), "run-one")
+            .read_page(&artifact.reference, 0, 1024, ArtifactPageEncoding::Utf8)
+            .is_err()
+    );
+    let moved = workspace.path().join("moved-state");
+    std::fs::rename(&project, &moved)?;
+    let moved_service = LocalArtifactService::for_run(&moved, "run-one");
+    let moved_page =
+        moved_service.read_page(&artifact.reference, 0, 1024, ArtifactPageEncoding::Utf8)?;
+    assert_eq!(moved_page.data, "original 🙂 source");
+    assert_eq!(moved_page.artifact, artifact);
+    assert!(
+        LocalArtifactService::for_run(&moved, "run-two")
+            .read_page(&artifact.reference, 0, 1024, ArtifactPageEncoding::Utf8)
+            .is_err()
+    );
+    Ok(())
+}
+
+#[test]
+fn run_scoped_artifacts_verify_chunks_and_bound_the_integrity_manifest()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let project = workspace.path().join("state");
+    std::fs::create_dir(&project)?;
+    let source = "x".repeat(super::storage::SNAPSHOT_CHUNK_BYTES * 2 + 17);
+    std::fs::write(workspace.path().join("source.txt"), &source)?;
+    let service = LocalArtifactService::for_run(&project, "run-one");
+    let artifact = service.admit(
+        workspace.path(),
+        Path::new("source.txt"),
+        "text/plain",
+        crate::services::WorkspaceBounds::Operator,
+    )?;
+    let mut offset = 0;
+    let mut actual = String::new();
+    loop {
+        let fresh = LocalArtifactService::for_run(&project, "run-one");
+        let page = fresh.read_page(
+            &artifact.reference,
+            offset,
+            700_001,
+            ArtifactPageEncoding::Utf8,
+        )?;
+        actual.push_str(&page.data);
+        offset = page.next_offset;
+        if page.eof {
+            break;
+        }
+    }
+    assert_eq!(actual, source);
+    let namespace = std::fs::read_dir(project.join(crate::paths::ARTIFACTS_DIR).join("snapshots"))?
+        .next()
+        .ok_or("snapshot namespace")??
+        .path();
+    let name = artifact
+        .reference
+        .rsplit(':')
+        .next()
+        .ok_or("snapshot name")?;
+    let blob = namespace.join(format!("{name}.blob"));
+    let mut damaged = source.into_bytes();
+    damaged[3] = b'y';
+    std::fs::write(&blob, &damaged)?;
+    assert!(
+        LocalArtifactService::for_run(&project, "run-one")
+            .read_page(&artifact.reference, 0, 1024, ArtifactPageEncoding::Utf8)
+            .is_err()
+    );
+    let metadata = namespace.join(format!("{name}.json"));
+    let mut manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(&metadata)?)?;
+    manifest["whole_digest"] = serde_json::json!(format!("sha256:{}", "a".repeat(64)));
+    std::fs::write(metadata, serde_json::to_vec(&manifest)?)?;
+    let error = LocalArtifactService::for_run(&project, "run-one")
+        .descriptor(&artifact.reference)
+        .err()
+        .ok_or("tampered snapshot manifest must refuse")?;
+    assert!(
+        error
+            .to_string()
+            .contains("local artifact snapshot manifest")
+    );
+    Ok(())
+}
+
+#[test]
 fn volume_independent_artifacts_snapshot_is_immutable_and_pages_are_contiguous()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = tempfile::tempdir()?;

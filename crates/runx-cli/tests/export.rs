@@ -47,6 +47,131 @@ fn exports_public_skills_to_claude_global_with_absolute_delegation()
 }
 
 #[test]
+fn a_skill_whose_agent_makes_calls_runs_on_the_registered_server()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut fixture = ExportFixture::new("runx-export-server")?;
+    fixture.write_skill("plain", None)?;
+    fixture.write_calling_skill("caller")?;
+    let bin = fixture.root.join("bin");
+    let log = fixture.root.join("claude.log");
+    fs::create_dir_all(&bin)?;
+    fs::write(
+        bin.join("claude"),
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\n",
+            path_string(&log)?
+        ),
+    )?;
+    fs::set_permissions(bin.join("claude"), fs::Permissions::from_mode(0o755))?;
+    fixture.env.insert("PATH".to_owned(), path_string(&bin)?);
+
+    let report = fixture.export(Target::Claude, &[])?;
+
+    let server = report.mcp_server.ok_or("the server is registered")?;
+    assert_eq!(server.name, "runx-local");
+    assert!(server.registered);
+    let caller_dir = path_string(&fixture.project.join("skills/caller").canonicalize()?)?;
+    assert_eq!(server.refs, vec![caller_dir.clone()]);
+    assert_eq!(
+        fs::read_to_string(&log)?,
+        format!(
+            "mcp remove runx-local --scope user\nmcp add --scope user runx-local -- /opt/runx/bin/runx mcp {caller_dir}\n"
+        )
+    );
+    let caller = fixture.read_home_file(".claude/skills/caller/SKILL.md")?;
+    assert!(caller.contains("Call the `caller` tool"));
+    assert!(caller.contains("mcp__runx-local__caller mcp__runx-local__turn_list"));
+    assert!(!caller.contains("--package-digest"));
+    let plain = fixture.read_home_file(".claude/skills/plain/SKILL.md")?;
+    assert!(plain.contains("--package-digest"));
+    assert!(!plain.contains("mcp__runx-local"));
+    Ok(())
+}
+
+#[test]
+fn without_the_host_cli_the_report_gives_the_registration_command()
+-> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-server-unregistered")?;
+    fixture.write_calling_skill("caller")?;
+
+    let report = fixture.export(Target::Claude, &[])?;
+
+    let server = report.mcp_server.ok_or("the server is reported")?;
+    assert!(!server.registered);
+    assert!(
+        server
+            .command
+            .starts_with("claude mcp add --scope user runx-local -- /opt/runx/bin/runx mcp "),
+        "{}",
+        server.command
+    );
+    Ok(())
+}
+
+#[test]
+fn codex_config_tracks_exported_callers_and_keeps_everything_else()
+-> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-server-codex")?;
+    fixture.write_skill("plain", None)?;
+    fixture.write_calling_skill("caller")?;
+    let existing =
+        "# my settings\nmodel = \"chosen\"\n\n[mcp_servers.other]\ncommand = \"other\"\n";
+    fs::create_dir_all(fixture.home.join(".codex"))?;
+    fs::write(fixture.home.join(".codex/config.toml"), existing)?;
+
+    fixture.export(Target::Codex, &[])?;
+
+    let config = fixture.read_home_file(".codex/config.toml")?;
+    assert!(config.starts_with(existing), "{config}");
+    let parsed = config.parse::<toml_edit::DocumentMut>()?;
+    let server = &parsed["mcp_servers"]["runx-local"];
+    assert_eq!(server["command"].as_str(), Some("/opt/runx/bin/runx"));
+    let args = server["args"].as_array().ok_or("args")?;
+    assert_eq!(args.get(0).and_then(|arg| arg.as_str()), Some("mcp"));
+    assert_eq!(args.len(), 2);
+    assert!(server["startup_timeout_sec"].as_integer() > Some(10));
+
+    // A later export updates what runx owns and keeps what the person set.
+    let tuned = fixture.read_home_file(".codex/config.toml")?.replace(
+        "tool_timeout_sec = 600",
+        "tool_timeout_sec = 30\nenabled = false\nenv = { RUNX_HOME = \"/chosen\" }",
+    );
+    fs::write(fixture.home.join(".codex/config.toml"), tuned)?;
+    fixture.export(Target::Codex, &[])?;
+    let parsed = fixture
+        .read_home_file(".codex/config.toml")?
+        .parse::<toml_edit::DocumentMut>()?;
+    let server = &parsed["mcp_servers"]["runx-local"];
+    assert_eq!(server["command"].as_str(), Some("/opt/runx/bin/runx"));
+    assert_eq!(server["tool_timeout_sec"].as_integer(), Some(30));
+    assert_eq!(server["enabled"].as_bool(), Some(false));
+    assert_eq!(server["env"]["RUNX_HOME"].as_str(), Some("/chosen"));
+
+    // A partial export of another skill keeps what an earlier one registered.
+    fixture.export(Target::Codex, &["plain"])?;
+    let parsed = fixture
+        .read_home_file(".codex/config.toml")?
+        .parse::<toml_edit::DocumentMut>()?;
+    assert_eq!(
+        parsed["mcp_servers"]["runx-local"]["args"]
+            .as_array()
+            .map(toml_edit::Array::len),
+        Some(2)
+    );
+
+    // Once no exported skill needs it, the entry is gone and the rest remains.
+    fs::remove_dir_all(fixture.project.join("skills/caller"))?;
+    let report = fixture.export(Target::Codex, &[])?;
+    assert!(report.mcp_server.is_none());
+    let config = fixture.read_home_file(".codex/config.toml")?;
+    assert!(!config.contains("runx-local"), "{config}");
+    assert!(config.contains("[mcp_servers.other]"), "{config}");
+    Ok(())
+}
+
+#[test]
 fn exports_claude_project_scope_with_project_relative_skill_ref()
 -> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-claude-project")?;
@@ -65,7 +190,8 @@ fn exports_claude_project_scope_with_project_relative_skill_ref()
 
     let shim = fixture.read_project_file(".claude/skills/visible/SKILL.md")?;
     assert!(shim.contains("/opt/runx/bin/runx skill skills/visible"));
-    assert!(shim.contains("-i 'objective=fixture'"));
+    assert!(shim.contains("--inputs -"));
+    assert!(!shim.contains("objective=fixture"));
     assert!(!shim.contains(&format!(
         "runx skill {}",
         fixture.project.to_str().unwrap_or_default()
@@ -161,16 +287,17 @@ fn codex_global_writes_shim_and_idempotent_permission_block()
         &fixture.env,
     )?;
 
-    let shim = fixture.read_home_file(".codex/skills/visible/SKILL.md")?;
+    let shim = fixture.read_home_file(".agents/skills/visible/SKILL.md")?;
     assert!(shim.contains("name: visible"));
     assert!(!shim.contains("allowed-tools"));
-    assert!(shim.contains("-i 'objective=fixture'"));
+    assert!(shim.contains("--inputs -"));
+    assert!(!shim.contains("objective=fixture"));
     assert!(shim.contains("this home's own local key"));
     assert!(shim.contains("complete signer tuple"));
     assert!(shim.contains("If runx returns `needs_agent` or `needs_approval`"));
     assert!(shim.contains("digest-bound request artifact"));
-    assert!(shim.contains("allowed_tools"));
-    assert!(shim.contains("Answer each request by the id the run lists"));
+    assert!(shim.contains("full pending request id and its request_digest"));
+    assert!(!shim.contains("turn_call"));
     assert!(shim.contains("resume \"<run_id>\" - --package-digest sha256:"));
     assert!(shim.contains("--execution-closure-digest sha256:"));
     assert!(shim.contains("runx-export:codex"));
@@ -231,7 +358,7 @@ Choose the smallest governed skill and invoke it with `runx skill`.
         &fixture.env,
     )?;
 
-    let shim = fixture.read_home_file(".codex/skills/runx/SKILL.md")?;
+    let shim = fixture.read_home_file(".agents/skills/runx/SKILL.md")?;
     assert!(shim.contains("# Runx operator guide"));
     assert!(shim.contains("Choose the smallest governed skill"));
     assert!(shim.contains("runx-export:codex"));
@@ -258,7 +385,12 @@ fn codex_global_initializes_missing_codex_home() -> Result<(), Box<dyn std::erro
 
     assert_eq!(report.exported.len(), 1);
     assert_eq!(report.exported[0].skill, "visible");
-    assert!(fixture.home.join(".codex/skills/visible/SKILL.md").exists());
+    assert!(
+        fixture
+            .home
+            .join(".agents/skills/visible/SKILL.md")
+            .exists()
+    );
     assert!(fixture.home.join(".codex/rules/default.rules").exists());
     let rules = fixture.read_home_file(".codex/rules/default.rules")?;
     assert!(rules.contains("prefix_rule(pattern = [\"runx\", \"skill\"]"));
@@ -285,9 +417,10 @@ fn exports_default_runner_inputs_when_skill_frontmatter_has_none()
         &fixture.env,
     )?;
 
-    let shim = fixture.read_home_file(".codex/skills/code-plan/SKILL.md")?;
-    assert!(shim.contains("-i 'objective=fixture'"));
-    assert!(shim.contains("-i 'principal=fixture'"));
+    let shim = fixture.read_home_file(".agents/skills/code-plan/SKILL.md")?;
+    assert!(shim.contains("--inputs -"));
+    assert!(!shim.contains("objective=fixture"));
+    assert!(shim.contains("RUNX_INPUTS_JSON"));
     assert!(!shim.contains("\"input_schema\""));
     assert!(!shim.contains("\"required\": ["));
     assert!(shim.contains("skill inspect"));
@@ -322,7 +455,7 @@ fn omits_multi_runner_skill_without_default() -> Result<(), Box<dyn std::error::
     assert!(
         !fixture
             .home
-            .join(".codex/skills/acme-operator/SKILL.md")
+            .join(".agents/skills/acme-operator/SKILL.md")
             .exists()
     );
     Ok(())
@@ -345,7 +478,7 @@ fn generated_shims_are_compact_digest_bound_and_detect_drift()
         &fixture.env,
     )?;
 
-    let shim = fixture.read_home_file(".codex/skills/visible/SKILL.md")?;
+    let shim = fixture.read_home_file(".agents/skills/visible/SKILL.md")?;
     assert!(
         shim.len() < 16 * 1024,
         "compact shim was {} bytes",
@@ -434,10 +567,11 @@ fn a_skill_in_a_skill_root_exports_by_its_name() -> Result<(), Box<dyn std::erro
 
     assert_eq!(report.exported.len(), 1);
     assert_eq!(report.exported[0].skill, "code-plan");
-    let shim = fixture.read_home_file(".codex/skills/code-plan/SKILL.md")?;
+    let shim = fixture.read_home_file(".agents/skills/code-plan/SKILL.md")?;
     assert!(shim.contains("skill "));
     assert!(shim.contains("/skills/code-plan"));
-    assert!(shim.contains("-i 'objective=fixture'"));
+    assert!(shim.contains("--inputs -"));
+    assert!(!shim.contains("objective=fixture"));
     Ok(())
 }
 
@@ -454,7 +588,7 @@ fn reexport_prunes_only_marked_generated_files() -> Result<(), Box<dyn std::erro
     fs::write(
         &managed,
         format!(
-            "---\nname: stale\ndescription: stale fixture.\n---\n<!-- runx-export:claude source={} - generated, do not edit -->\n",
+            "---\nname: stale\ndescription: stale fixture.\n---\n<!-- runx-export:claude source={} package-digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa - generated, do not edit -->\n",
             fs::canonicalize(&fixture.project)?
                 .join("skills/stale")
                 .display()
@@ -462,7 +596,7 @@ fn reexport_prunes_only_marked_generated_files() -> Result<(), Box<dyn std::erro
     )?;
     fs::write(
         &foreign,
-        "---\nname: foreign\ndescription: foreign fixture.\n---\n<!-- runx-export:claude source=/another/workspace/skills/foreign - generated, do not edit -->\n",
+        "---\nname: foreign\ndescription: foreign fixture.\n---\n<!-- runx-export:claude source=/another/workspace/skills/foreign package-digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa - generated, do not edit -->\n",
     )?;
     fs::write(
         &manual,
@@ -492,13 +626,13 @@ fn full_export_outside_a_skill_workspace_fails_before_pruning()
 -> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-invalid-root")?;
     let unrelated = fixture.project.join("unrelated");
-    let managed = fixture.home.join(".codex/skills/existing/SKILL.md");
+    let managed = fixture.home.join(".agents/skills/existing/SKILL.md");
     fs::create_dir_all(&unrelated)?;
     fs::create_dir_all(managed.parent().ok_or("managed parent")?)?;
     fs::write(
         &managed,
         format!(
-            "---\nname: existing\ndescription: existing fixture.\n---\n<!-- runx-export:codex source={} - generated, do not edit -->\n",
+            "---\nname: existing\ndescription: existing fixture.\n---\n<!-- runx-export:codex source={} package-digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa - generated, do not edit -->\n",
             fixture.project.join("skills/existing").display()
         ),
     )?;
@@ -530,7 +664,7 @@ fn full_export_outside_a_skill_workspace_fails_before_pruning()
 fn export_refuses_to_overwrite_an_unmanaged_skill() -> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-unmanaged-collision")?;
     fixture.write_skill("visible", None)?;
-    let manual = fixture.home.join(".codex/skills/visible/SKILL.md");
+    let manual = fixture.home.join(".agents/skills/visible/SKILL.md");
     fs::create_dir_all(manual.parent().ok_or("manual parent")?)?;
     fs::write(
         &manual,
@@ -592,17 +726,17 @@ fn explicit_ref_export_preserves_other_managed_skills() -> Result<(), Box<dyn st
     )?;
 
     assert!(report.pruned.is_empty());
-    assert!(fixture.home.join(".codex/skills/first/SKILL.md").exists());
-    assert!(fixture.home.join(".codex/skills/second/SKILL.md").exists());
+    assert!(fixture.home.join(".agents/skills/first/SKILL.md").exists());
+    assert!(fixture.home.join(".agents/skills/second/SKILL.md").exists());
     Ok(())
 }
 
 #[test]
-fn codex_project_scope_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
+fn codex_project_scope_uses_agent_skills_without_approval_rules()
+-> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-codex-project")?;
     fixture.write_skill("visible", None)?;
-
-    let error = match run_export_command(
+    let report = run_export_command(
         &ExportPlan {
             target: Target::Codex,
             refs: Vec::new(),
@@ -611,17 +745,74 @@ fn codex_project_scope_fails_closed() -> Result<(), Box<dyn std::error::Error>> 
         },
         &fixture.project,
         &fixture.env,
-    ) {
-        Ok(_) => return Err("codex project export should be disabled".into()),
-        Err(error) => error,
-    };
+    )?;
+    let shim = fixture.read_project_file(".agents/skills/visible/SKILL.md")?;
+    assert!(shim.contains("skill skills/visible"));
+    assert!(!shim.contains(fixture.project.to_str().ok_or("project path")?));
+    assert!(report.rules_file.is_none());
+    assert!(!fixture.project.join(".codex/rules").exists());
+    assert!(!fixture.home.join(".codex/rules").exists());
+    Ok(())
+}
 
-    match error {
-        ExportError::Unsupported(message) => {
-            assert!(message.contains("not supported until Codex project skill"));
-        }
-        other => return Err(format!("unexpected error: {other}").into()),
+#[test]
+fn generated_project_shims_resolve_after_the_project_moves()
+-> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-relocated-project")?;
+    fixture.write_skill("visible", None)?;
+    for target in [Target::Codex, Target::Claude] {
+        run_export_command(
+            &ExportPlan {
+                target,
+                refs: Vec::new(),
+                project: true,
+                json: false,
+            },
+            &fixture.project,
+            &fixture.env,
+        )?;
     }
+    let moved = fixture.root.join("moved project with spaces");
+    fs::rename(&fixture.project, &moved)?;
+    for host in [".agents", ".claude"] {
+        let shim = moved.join(host).join("skills/visible");
+        for path in [shim.clone(), shim.join("SKILL.md")] {
+            let output = crate::support::unsigned_runx_command_at(&moved)
+                .args(["skill", "inspect"])
+                .arg(path)
+                .arg("--json")
+                .output()?;
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            let report: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+            assert_eq!(
+                report["package_digest"],
+                runx_runtime::load_validated_skill_package(&moved.join("skills/visible"))?
+                    .package
+                    .package_digest
+            );
+        }
+    }
+    fs::write(
+        moved.join("skills/visible/SKILL.md"),
+        "---\nname: visible\ndescription: Changed source.\n---\n# Changed\n",
+    )?;
+    let output = crate::support::unsigned_runx_command_at(&moved)
+        .args(["skill", "inspect"])
+        .arg(moved.join(".agents/skills/visible"))
+        .arg("--json")
+        .output()?;
+    assert!(!output.status.success());
+    let refused: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert!(
+        refused["error"]["message"]
+            .as_str()
+            .ok_or("error")?
+            .contains("is stale")
+    );
     Ok(())
 }
 
@@ -658,11 +849,12 @@ fn rejects_skill_names_that_escape_export_directory() -> Result<(), Box<dyn std:
 }
 
 #[test]
-fn rejects_input_names_that_are_not_safe_shell_flags() -> Result<(), Box<dyn std::error::Error>> {
-    let fixture = ExportFixture::new("runx-export-unsafe-input")?;
-    fixture.write_skill_with_input("bad", "bad$name")?;
-
-    let error = match run_export_command(
+fn json_inputs_do_not_become_shell_flags() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-json-input-names")?;
+    for (name, input_name) in [("punctuation", "bad$name"), ("flag", "json")] {
+        fixture.write_skill_with_input(name, input_name)?;
+    }
+    let report = run_export_command(
         &ExportPlan {
             target: Target::Claude,
             refs: Vec::new(),
@@ -671,46 +863,197 @@ fn rejects_input_names_that_are_not_safe_shell_flags() -> Result<(), Box<dyn std
         },
         &fixture.project,
         &fixture.env,
-    ) {
-        Ok(_) => return Err("unsafe input name should fail".into()),
-        Err(error) => error,
-    };
-
-    match error {
-        ExportError::InvalidArgs(message) => {
-            assert!(message.contains("not a safe runx skill flag"));
-        }
-        other => return Err(format!("unexpected error: {other}").into()),
+    )?;
+    assert_eq!(report.exported.len(), 2);
+    for name in ["punctuation", "flag"] {
+        let shim = fixture.read_home_file(&format!(".claude/skills/{name}/SKILL.md"))?;
+        assert!(shim.contains("--inputs -"));
+        assert!(!shim.contains("-i "));
     }
     Ok(())
 }
 
 #[test]
-fn rejects_input_names_that_collide_with_runx_skill_flags() -> Result<(), Box<dyn std::error::Error>>
-{
-    let fixture = ExportFixture::new("runx-export-reserved-input")?;
-    fixture.write_skill_with_input("bad", "json")?;
-
-    let error = match run_export_command(
-        &ExportPlan {
+fn rejects_public_package_without_standalone_proof() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-composed-only")?;
+    fixture.write_skill("stage", None)?;
+    let profile = fixture.project.join("skills/stage/run.yaml");
+    fs::write(
+        &profile,
+        fs::read_to_string(&profile)?.replace(
+            "mode: standalone",
+            "mode: composed\n          prior_evidence: [A supplied result.]\n          must_not_repeat: [Do not repeat completed work.]",
+        ),
+    )?;
+    for refs in [Vec::new(), vec!["stage".to_owned()]] {
+        let plan = ExportPlan {
             target: Target::Claude,
+            refs,
+            project: false,
+            json: false,
+        };
+        let error = run_export_command(&plan, &fixture.project, &fixture.env)
+            .err()
+            .ok_or("package without standalone proof exported")?;
+        assert!(
+            error
+                .to_string()
+                .contains("missing_standalone_default_proof")
+        );
+    }
+    assert!(!fixture.home.join(".claude/skills/stage/SKILL.md").exists());
+    Ok(())
+}
+
+#[test]
+fn exported_contract_drives_typed_inputs_bound_resume_and_verified_receipt()
+-> Result<(), Box<dyn std::error::Error>> {
+    use serde_json::{Value, json};
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let fixture = ExportFixture::new("runx-export-cold-journey")?;
+    fixture.write_skill_with_runner_inputs("compose")?;
+    let source = fixture.project.join("skills/compose");
+    let profile = source.join("run.yaml");
+    let yaml = fs::read_to_string(&profile)?.replace(
+        "        outputs:",
+        "        inputs:\n          objective: $input.objective\n          principal: $input.principal\n          provider_context: $input.provider_context\n        outputs:",
+    );
+    fs::write(profile, yaml)?;
+    run_export_command(
+        &ExportPlan {
+            target: Target::Codex,
             refs: Vec::new(),
             project: false,
             json: false,
         },
         &fixture.project,
         &fixture.env,
-    ) {
-        Ok(_) => return Err("reserved input name should fail".into()),
-        Err(error) => error,
-    };
+    )?;
+    let shim = fixture.read_home_file(".agents/skills/compose/SKILL.md")?;
+    let exported_source = fixture.home.join(".agents/skills/compose");
+    let package = flag_value(&shim, "--package-digest")?;
+    let closure = flag_value(&shim, "--execution-closure-digest")?;
+    let inspected = crate::support::unsigned_runx_command_at(&fixture.project)
+        .arg("skill")
+        .arg("inspect")
+        .arg(&exported_source)
+        .args(["plan", "--json"])
+        .output()?;
+    let inspected: Value = serde_json::from_slice(&inspected.stdout)?;
+    // Harness setup is not a public invocation example.
+    assert!(
+        inspected["runner"]["input_schema"]["examples"].is_null(),
+        "{inspected}"
+    );
+    let inputs = json!({"objective": "review the user's actual task", "principal": "local operator",
+        "provider_context": {"ready": false, "nested": [true, 3, "quotes \" and newline\n"]}});
+    let mut child = crate::support::unsigned_runx_command_at(&fixture.project)
+        .arg("skill")
+        .arg(&exported_source)
+        .args([
+            "plan",
+            "--inputs",
+            "-",
+            "--package-digest",
+            package,
+            "--execution-closure-digest",
+            closure,
+            "--json",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    child
+        .stdin
+        .take()
+        .ok_or("input stdin")?
+        .write_all(serde_json::to_string(&inputs)?.as_bytes())?;
+    let started = child.wait_with_output()?;
+    assert_eq!(
+        started.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&started.stderr)
+    );
+    let started: Value = serde_json::from_slice(&started.stdout)?;
+    assert_eq!(started["status"], "needs_agent", "{started}");
+    let request = &started["requests"][0];
+    let run_id = started["run_id"].as_str().ok_or("run id")?;
+    let id = request["id"].as_str().ok_or("request id")?;
+    let digest = request["request_digest"].as_str().ok_or("request digest")?;
+    let artifact = request["artifact"]["path"]
+        .as_str()
+        .ok_or("artifact path")?;
+    let artifact: Value = serde_json::from_slice(&fs::read(fixture.project.join(artifact))?)?;
+    assert_eq!(artifact["invocation"]["envelope"]["inputs"], inputs);
 
-    match error {
-        ExportError::InvalidArgs(message) => {
-            assert!(message.contains("not a safe runx skill flag"));
-        }
-        other => return Err(format!("unexpected error: {other}").into()),
-    }
+    let envelope = shim
+        .split_once("```json\n")
+        .ok_or("answer example")?
+        .1
+        .split_once("\n```")
+        .ok_or("answer example end")?
+        .0;
+    let mut answer: Value = serde_json::from_str(envelope)?;
+    let mut bound = answer["answers"]
+        .as_object_mut()
+        .ok_or("answers")?
+        .remove("<request-id>")
+        .ok_or("answer slot")?;
+    bound["request_digest"] = json!(digest);
+    bound["value"] =
+        json!({"result": {"summary": "reviewed the supplied task; provider is not ready"}});
+    answer["answers"][id] = bound;
+    let mut child = crate::support::unsigned_runx_command_at(&fixture.project)
+        .args([
+            "resume",
+            run_id,
+            "-",
+            "--package-digest",
+            package,
+            "--execution-closure-digest",
+            closure,
+            "--json",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    child
+        .stdin
+        .take()
+        .ok_or("resume stdin")?
+        .write_all(serde_json::to_string(&answer)?.as_bytes())?;
+    let completed = child.wait_with_output()?;
+    assert!(
+        completed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&completed.stderr)
+    );
+    let completed: Value = serde_json::from_slice(&completed.stdout)?;
+    assert_eq!(completed["status"], "sealed", "{completed}");
+    assert_eq!(completed["outcome"], "completed", "{completed}");
+    let receipt = completed["receipt_id"].as_str().ok_or("receipt id")?;
+    fs::write(
+        fixture
+            .project
+            .join(".runx/receipts")
+            .join(format!("sha256-{}.json", "a".repeat(64))),
+        "{",
+    )?;
+    let verified = crate::support::unsigned_runx_command_at(&fixture.project)
+        .args(["verify", receipt, "--json"])
+        .output()?;
+    assert!(
+        verified.status.success(),
+        "{}",
+        String::from_utf8_lossy(&verified.stderr)
+    );
+    let verified: Value = serde_json::from_slice(&verified.stdout)?;
+    assert_eq!(verified["valid"], true, "{verified}");
     Ok(())
 }
 
@@ -857,6 +1200,36 @@ fn readiness_harness(runner: &str, inputs: &[&str]) -> String {
     format!(
         "harness:\n  cases:\n    - name: export-operator-journeys\n      runner: {runner}\n      operator_journeys:\n        - mode: standalone\n          confusors: [research, code-intake, extract]\n          request: Run the advertised default operation from a cold selection.\n          expected_outcome: Return the promised bounded result.\n        - mode: composed\n          request: Continue from a prior bounded result.\n          expected_outcome: Reuse supplied evidence without repeating completed work.\n          prior_evidence:\n            - A typed result supplied by the prior step.\n          must_not_repeat:\n            - Do not repeat prior discovery.\n      inputs:\n{inputs}      expect:\n        status: sealed\n"
     )
+}
+
+impl ExportFixture {
+    /// A skill whose agent can make a governed call.
+    fn write_calling_skill(&self, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.write_skill(name, None)?;
+        let manifest = self.project.join("skills").join(name).join("run.yaml");
+        fs::write(
+            &manifest,
+            format!("tools: [data.digest]\n{}", fs::read_to_string(&manifest)?),
+        )?;
+        Ok(())
+    }
+
+    fn export(
+        &self,
+        target: Target,
+        refs: &[&str],
+    ) -> Result<runx_cli::export::ExportReport, Box<dyn std::error::Error>> {
+        Ok(run_export_command(
+            &ExportPlan {
+                target,
+                refs: refs.iter().map(|name| (*name).to_owned()).collect(),
+                project: false,
+                json: false,
+            },
+            &self.project,
+            &self.env,
+        )?)
+    }
 }
 
 impl Drop for ExportFixture {

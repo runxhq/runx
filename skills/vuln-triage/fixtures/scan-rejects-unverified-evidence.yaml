@@ -1,34 +1,19 @@
-name: scan-rejects-unverified-evidence
+name: verification-boolean-is-not-findings
 kind: skill
 target: ..
-runner: scan
 inputs:
   target: example/service
-  cve_evidence:
-    receipt_id: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-    audit_result:
-      schema: runx/cve-audit.audit.v1
-      findings:
-        - dependency: invented-lib
-          exact_version: 9.9.9
-          advisory_id: CVE-unverified
-          advisory_url: https://osv.dev/vulnerability/CVE-unverified
-    verification:
-      verified: false
+  evidence:
+    verified: true
 expect:
   status: sealed
-  steps: [digest-evidence, admit, stop]
   step_outputs:
     stop:
       subset:
-        vulnerability_scan_packet:
+        vulnerability_review:
           data:
-            decision: needs_verified_evidence
-            validation: { status: fail }
-            publication_status: not_published
+            decision: needs_more_evidence
+            validation:
+              status: fail
   receipt:
     schema: runx.receipt.v1
-metadata:
-  public_skill: vuln-triage
-  source_case: scan-rejects-unverified-evidence
-  source: skills-fixture

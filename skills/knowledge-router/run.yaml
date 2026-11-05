@@ -1,6 +1,5 @@
 skill: knowledge-router
-version: "0.2.12"
-
+version: "0.2.13"
 catalog:
   kind: graph
   audience: operator
@@ -10,24 +9,32 @@ catalog:
   completion: runtime_receipt
   approval: none
   category: ops
-
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases:
     - name: knowledge-router-validates-source-owner-and-skill
       operator_journeys:
         - mode: standalone
-          confusors: [research, research-brief]
-          request: Route this question to the validated knowledge source, owner, and next skill.
-          expected_outcome: Return exact source, ownership, escalation, and follow-up references from the supplied catalog.
+          confusors:
+            - research
+            - research-brief
+          request: Route this question to the validated knowledge source, owner, and next
+            skill.
+          expected_outcome: Return exact source, ownership, escalation, and follow-up
+            references from the supplied catalog.
         - mode: composed
-          request: Route this source event using the knowledge catalog already attached to the case.
-          expected_outcome: Reuse the supplied catalog and event without broad discovery or inventing owners.
+          request: Route this source event using the knowledge catalog already attached to
+            the case.
+          expected_outcome: Reuse the supplied catalog and event without broad discovery
+            or inventing owners.
           prior_evidence:
-            - The knowledge catalog, question, and source event supplied in the fixture.
+            - The knowledge catalog, question, and source event supplied in the
+              fixture.
           must_not_repeat:
             - Do not search outside the supplied catalog.
-            - Do not re-resolve an owner or source already validated in the packet.
+            - Do not re-resolve an owner or source already validated in the
+              packet.
       inputs:
         question: Can API keys be scoped to read-only campaign analytics?
         available_sources:
@@ -99,7 +106,6 @@ harness:
                   validation:
                     valid: true
                     unknown_entries: []
-
     - name: knowledge-router-rejects-invented-reference
       inputs:
         question: Where is the retention policy documented?
@@ -124,8 +130,8 @@ harness:
                 - source_id: invented-docs
                   matching_signal: retention policy
                   reason: Invented source must be rejected.
-              owner_recommendation: {}
-              next_skill: {}
+              owner_recommendation: null
+              next_skill: null
       expect:
         status: sealed
         receipt:
@@ -134,13 +140,167 @@ harness:
           - digest
           - propose
           - validate
-
     - name: knowledge-router-needs-sources
       inputs:
         question: Where should this go?
       expect:
         status: failure
-
+    - name: enforces-source-allowlist
+      inputs:
+        question: Which existing source and owner should I inspect before changing
+          artifact lifetime across CLI process exits?
+        available_sources:
+          sources:
+            - id: artifact-store
+              kind: code
+              summary: Native local artifact admission, immutable snapshots and run-scoped
+                reads.
+              locator: crates/runx-runtime/src/services/workspace_files/artifacts.rs
+            - id: author-contract
+              kind: docs
+              summary: Declared artifact URI lifetime and page-consumption contract.
+              locator: docs/skill-author-runtime-contract.md
+            - id: registry-pages
+              kind: docs
+              summary: Catalog product presentation and review status.
+              locator: docs/core-skill-review.md
+          owners:
+            - id: native-runtime
+              domains:
+                - artifact-lifetime
+                - local-execution
+            - id: skill-authoring
+              domains:
+                - skill-authoring
+          skills:
+            - id: prior-art
+              purpose: Inspect bounded local sources and return an evidence-bound reuse or
+                amendment recommendation.
+            - id: research
+              purpose: Research admitted external sources.
+        constraints:
+          allowed_sources:
+            - artifact-store
+            - author-contract
+          allowed_owners:
+            - native-runtime
+          allowed_skills:
+            - prior-art
+      caller:
+        answers:
+          propose:
+            route_proposal:
+              verdict: routed
+              route:
+                domain: artifact-lifetime
+                rationale: Inspect the artifact owner and its execution contract before changing
+                  lifecycle behavior.
+                source_ids:
+                  - registry-pages
+              source_matches:
+                - source_id: registry-pages
+                  matching_signal: catalog
+                  reason: Selected despite the source restriction.
+              owner_recommendation:
+                owner_id: native-runtime
+                rationale: This catalog assigns artifact-lifetime to the native runtime owner.
+                escalation_required: false
+              next_skill:
+                skill: prior-art
+                rationale: Inspect the two exact local sources without rediscovery or a
+                  provider.
+      expect:
+        status: sealed
+        step_outputs:
+          validate:
+            subset:
+              knowledge_route:
+                data:
+                  verdict: refused
+                  validation:
+                    valid: false
+    - name: accepts-local-retrieval-route-without-reading-sources
+      inputs:
+        question: Which existing source and owner should I inspect before changing
+          artifact lifetime across CLI process exits?
+        available_sources:
+          sources:
+            - id: artifact-store
+              kind: code
+              summary: Native local artifact admission, immutable snapshots and run-scoped
+                reads.
+              locator: crates/runx-runtime/src/services/workspace_files/artifacts.rs
+            - id: author-contract
+              kind: docs
+              summary: Declared artifact URI lifetime and page-consumption contract.
+              locator: docs/skill-author-runtime-contract.md
+            - id: registry-pages
+              kind: docs
+              summary: Catalog product presentation and review status.
+              locator: docs/core-skill-review.md
+          owners:
+            - id: native-runtime
+              domains:
+                - artifact-lifetime
+                - local-execution
+            - id: skill-authoring
+              domains:
+                - skill-authoring
+          skills:
+            - id: prior-art
+              purpose: Inspect bounded local sources and return an evidence-bound reuse or
+                amendment recommendation.
+            - id: research
+              purpose: Research admitted external sources.
+        constraints:
+          allowed_sources:
+            - artifact-store
+            - author-contract
+          allowed_owners:
+            - native-runtime
+          allowed_skills:
+            - prior-art
+      caller:
+        answers:
+          propose:
+            route_proposal:
+              verdict: routed
+              route:
+                domain: artifact-lifetime
+                rationale: Inspect the artifact owner and its execution contract before changing
+                  lifecycle behavior.
+                source_ids:
+                  - artifact-store
+                  - author-contract
+              source_matches:
+                - source_id: artifact-store
+                  matching_signal: CLI process exit and snapshot lifetime
+                  reason: Contains the owning artifact admission and page service.
+                - source_id: author-contract
+                  matching_signal: Artifact URI lifetime
+                  reason: Defines the public execution contract that must match the owner.
+              owner_recommendation:
+                owner_id: native-runtime
+                rationale: This catalog assigns artifact-lifetime to the native runtime owner.
+                escalation_required: false
+              next_skill:
+                skill: prior-art
+                rationale: Inspect the two exact local sources without rediscovery or a
+                  provider.
+      expect:
+        status: sealed
+        step_outputs:
+          validate:
+            subset:
+              knowledge_route:
+                data:
+                  verdict: routed
+                  route:
+                    source_ids:
+                      - artifact-store
+                      - author-contract
+                  validation:
+                    valid: true
 runners:
   route:
     default: true
@@ -149,27 +309,261 @@ runners:
         type: string
         required: true
         description: Question, source event, or thread summary to route.
+        schema:
+          minLength: 1
       available_sources:
-        type: json
+        type: object
         required: true
-        description: Explicit sources, owners, and skills collections.
+        description: The maintained bounded index selected by this host. Exact source,
+          owner/domain and follow-up skill records; selected source locators are
+          resolved against this same catalog.
+        schema:
+          additionalProperties: false
+          required:
+            - sources
+            - owners
+            - skills
+          properties:
+            sources:
+              type: array
+              items:
+                type: object
+                required:
+                  - id
+                  - kind
+                  - summary
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    maxLength: 1000
+                    pattern: \S
+                  kind:
+                    type: string
+                    minLength: 1
+                    maxLength: 500
+                    pattern: \S
+                  summary:
+                    type: string
+                    minLength: 1
+                    maxLength: 10000
+                    pattern: \S
+                  locator:
+                    type: string
+                    minLength: 1
+                    maxLength: 4000
+                    pattern: \S
+                additionalProperties: true
+            owners:
+              type: array
+              items:
+                type: object
+                required:
+                  - id
+                  - domains
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    maxLength: 1000
+                    pattern: \S
+                  domains:
+                    type: array
+                    uniqueItems: true
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 500
+                      pattern: \S
+                additionalProperties: true
+            skills:
+              type: array
+              items:
+                type: object
+                required:
+                  - id
+                  - purpose
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    maxLength: 1000
+                    pattern: \S
+                  purpose:
+                    type: string
+                    minLength: 1
+                    maxLength: 10000
+                    pattern: \S
+                additionalProperties: true
       constraints:
-        type: json
+        type: object
         required: false
-        description: Allowed sources, sensitivity, excluded systems, and preferred owners.
-    result_from: [validate]
+        description: Selection limits, not authority. An absent allowlist imposes no
+          additional limit; an empty one allows no selections of that kind.
+          notes is advisory context.
+        schema:
+          additionalProperties: false
+          properties:
+            allowed_sources:
+              type: array
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 1000
+            excluded_sources:
+              type: array
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 1000
+            allowed_owners:
+              type: array
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 1000
+            allowed_skills:
+              type: array
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                maxLength: 1000
+            notes:
+              type: string
+              maxLength: 10000
+    result_from:
+      - validate
     steps:
       - id: digest
         tool: data.digest
         inputs:
           value: $input.available_sources
-
       - id: propose
         label: propose bounded knowledge route
-        agent: { role: router, task: knowledge-router-propose }
+        agent:
+          role: router
+          task: knowledge-router-propose
         inputs: $input
         outputs:
-          route_proposal: object
+          route_proposal:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - verdict
+                - route
+                - source_matches
+                - owner_recommendation
+                - next_skill
+              properties:
+                verdict:
+                  enum:
+                    - routed
+                    - needs_more_context
+                    - manual_review
+                  type: string
+                  minLength: 1
+                  pattern: \S
+                route:
+                  additionalProperties: false
+                  properties:
+                    domain:
+                      maxLength: 500
+                      type:
+                        - string
+                        - "null"
+                      minLength: 1
+                      pattern: \S
+                    rationale:
+                      maxLength: 4000
+                      minLength: 1
+                      type: string
+                      pattern: \S
+                    source_ids:
+                      items:
+                        maxLength: 1000
+                        minLength: 1
+                        type: string
+                        pattern: \S
+                      maxItems: 500
+                      type: array
+                      uniqueItems: true
+                  required:
+                    - domain
+                    - rationale
+                    - source_ids
+                  type: object
+                source_matches:
+                  items:
+                    additionalProperties: false
+                    properties:
+                      matching_signal:
+                        maxLength: 4000
+                        type: string
+                        minLength: 1
+                        pattern: \S
+                      reason:
+                        maxLength: 4000
+                        type: string
+                        minLength: 1
+                        pattern: \S
+                      source_id:
+                        maxLength: 1000
+                        minLength: 1
+                        type: string
+                        pattern: \S
+                    required:
+                      - source_id
+                      - matching_signal
+                      - reason
+                    type: object
+                  maxItems: 500
+                  type: array
+                owner_recommendation:
+                  additionalProperties: false
+                  properties:
+                    escalation_required:
+                      type: boolean
+                    owner_id:
+                      maxLength: 1000
+                      minLength: 1
+                      type: string
+                      pattern: \S
+                    rationale:
+                      maxLength: 4000
+                      type: string
+                      minLength: 1
+                      pattern: \S
+                  required:
+                    - owner_id
+                    - rationale
+                    - escalation_required
+                  type:
+                    - object
+                    - "null"
+                next_skill:
+                  additionalProperties: false
+                  properties:
+                    rationale:
+                      maxLength: 4000
+                      type: string
+                      minLength: 1
+                      pattern: \S
+                    skill:
+                      maxLength: 1000
+                      minLength: 1
+                      type: string
+                      pattern: \S
+                  required:
+                    - skill
+                    - rationale
+                  type:
+                    - object
+                    - "null"
         artifacts:
           named_emits:
             route_proposal: route_proposal
@@ -180,7 +574,8 @@ runners:
           constraints: $input.constraints
           route_proposal: $steps.propose.route_proposal
           catalog_digest: $steps.digest.digest_result.digest
-        tool: { module: knowledge-router.mjs }
+        tool:
+          module: knowledge-router.mjs
         outputs:
           knowledge_route:
             type: object
@@ -189,3 +584,23 @@ runners:
             knowledge_route: knowledge_route
           packets:
             knowledge_route: runx/knowledge-router.route.v1
+    examples:
+      - question: Can API keys be scoped to read-only campaign analytics?
+        available_sources:
+          sources:
+            - id: auth-docs
+              kind: docs
+              summary: Authentication and API key scopes.
+            - id: campaigns-docs
+              kind: docs
+              summary: Campaign analytics fields and export limits.
+          owners:
+            - id: security-team
+              domains:
+                - authentication
+            - id: growth-team
+              domains:
+                - campaigns
+          skills:
+            - id: research
+              purpose: Resolve a bounded source-backed question.

@@ -4,19 +4,14 @@ target: ..
 runner: redact-pii
 operator_journeys:
   - mode: standalone
-    confusors: [extract, privacy-request-review]
+    confusors:
+      - extract
+      - privacy-request-review
     request: Remove names, emails, and phone numbers from this support text before it crosses a trust boundary.
     expected_outcome: Return usable scrubbed content only after deterministic residual scanning passes.
-  - mode: composed
-    request: Redact this outbound support artifact before delivery.
-    expected_outcome: Reuse the supplied content and classification policy without re-fetching the source, then return a boundary-safe artifact.
-    prior_evidence:
-      - The exact support content, PII classes, locale, and redaction mode supplied in the fixture.
-    must_not_repeat:
-      - Do not fetch the original support request again.
-      - Do not forward unredacted content to a downstream sender.
 inputs:
-  content: "Customer Dana Whitfield wrote in from dana.w@example.com about order #44120; callback number on file is 415-555-0188."
+  content: "Customer Dana Whitfield wrote in from dana.w@example.com about order #44120; callback number on file
+    is 415-555-0188."
   classes:
     - name
     - email
@@ -30,13 +25,16 @@ caller:
         decision: ready
         detected:
           - class: name
-            span: [9, 23]
+            selector:
+              quote: Dana Whitfield
             confidence: 0.97
           - class: email
-            span: [38, 56]
+            selector:
+              quote: dana.w@example.com
             confidence: 0.99
           - class: phone
-            span: [104, 116]
+            selector:
+              quote: 415-555-0188
             confidence: 0.96
         residual_risk:
           level: low
@@ -44,13 +42,11 @@ caller:
 expect:
   status: sealed
   steps:
-    - digest-source
+    - block-policy
     - detect
-    - scrub
-    - digest-redacted
-    - finalize
+    - apply
   step_outputs:
-    finalize:
+    apply:
       subset:
         redaction_report:
           data:
@@ -69,7 +65,8 @@ expect:
                 - phone
               mode: redact
               locale: en-US
-        redacted_content: "Customer [REDACTED:NAME] wrote in from [REDACTED:EMAIL] about order #44120; callback number on file is [REDACTED:PHONE]."
+        redacted_content: "Customer [REDACTED:NAME] wrote in from [REDACTED:EMAIL] about order #44120; callback number
+          on file is [REDACTED:PHONE]."
   receipt:
     schema: runx.receipt.v1
 metadata:

@@ -3,5 +3,26 @@ kind: graph
 target: support/composed.graph
 expect:
   status: sealed
-  steps: [schema-check, digest]
-  receipt: { schema: runx.receipt.v1 }
+  steps:
+    - schema-check
+    - digest
+  receipt:
+    schema: runx.receipt.v1
+  step_outputs:
+    schema-check:
+      subset:
+        schema_check:
+          data:
+            decision: compatible
+            proposal:
+              live_write_performed: false
+operator_journeys:
+  - mode: composed
+    exercises_runner: check
+    request: Assess these prepared local-ref array contracts once, then let the parent retain the resulting verdict.
+    expected_outcome: Native validation and reference-aware inclusion produce the same source-bound proposal as direct use.
+    prior_evidence:
+      - Exact current/proposed schemas, real payload examples and explicit compatibility policy.
+    must_not_repeat:
+      - Do not fetch schemas or publish the proposal.
+      - The parent consumes the verdict rather than checking the same pair again.

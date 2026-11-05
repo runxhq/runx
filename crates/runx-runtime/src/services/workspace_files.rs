@@ -9,12 +9,12 @@ use thiserror::Error;
 mod artifacts;
 mod project_artifacts;
 
-pub(crate) use project_artifacts::persist_canonical_json_artifact;
+pub(crate) use project_artifacts::{persist_canonical_json_artifact, persist_json_bytes};
 pub use project_artifacts::{persist_json_artifact, read_json_artifact};
 
 pub(crate) use artifacts::{
     ArtifactPageEncoding, ArtifactRecordPage, DEFAULT_ARTIFACT_PAGE_BYTES, LocalArtifact,
-    LocalArtifactService,
+    LocalArtifactService, MAX_ARTIFACT_BYTES,
 };
 
 /// How far a run's native file, git, command and authoring tools reach. An
@@ -23,7 +23,7 @@ pub(crate) use artifacts::{
 /// (`RunAuthority.agent_bounds`) stays inside its workspace, and never reads
 /// or writes a secret file or runx's own state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum WorkspaceBounds {
+pub enum WorkspaceBounds {
     #[default]
     Operator,
     Agent,
@@ -127,9 +127,13 @@ pub enum WorkspaceFileError {
     SnapshotUnavailable(std::io::Error),
     #[error("local artifact store is unavailable")]
     ArtifactStoreUnavailable,
+    #[error("project artifact digest or byte count differs from the selected descriptor")]
+    ArtifactDescriptorMismatch,
+    #[error("local artifact snapshot manifest is corrupt or not bound to this reference")]
+    SnapshotIntegrity,
     #[error("local artifact reference is malformed")]
     InvalidArtifactReference,
-    #[error("local artifact reference is unknown in this invocation")]
+    #[error("local artifact reference is unknown in this run")]
     UnknownArtifactReference,
     #[error("artifact page size must be between 1 and {maximum} bytes")]
     InvalidPageSize { maximum: usize },

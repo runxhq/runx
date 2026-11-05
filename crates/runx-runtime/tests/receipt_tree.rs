@@ -15,6 +15,41 @@ use runx_runtime::{
 const CREATED_AT: &str = "2026-05-18T00:00:00Z";
 
 #[test]
+fn selected_tree_scopes_unreadable_files_without_ignoring_a_corrupt_child()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = runx_runtime::LocalReceiptStore::new(directory.path());
+    let (root, children) = graph_with_steps("selected-tree", &["read"])?;
+    for receipt in children.iter().chain(std::iter::once(&root)) {
+        store.write_receipt(receipt, crate::support::fixture_policy()?)?;
+    }
+    let unrelated = directory
+        .path()
+        .join(format!("sha256-{}.json", "a".repeat(64)));
+    std::fs::write(&unrelated, "{")?;
+    for selected in [&root.id, &children[0].id] {
+        let report =
+            store.verify_trees(Some(selected.as_str()), crate::support::fixture_policy()?)?;
+        assert!(report.valid(), "{:?}", report);
+        assert_eq!(report.trees.len(), 1);
+        assert_eq!(report.trees[0].root_receipt_id, root.id.as_str());
+    }
+    let audit = store.verify_trees(None, crate::support::fixture_policy()?)?;
+    assert!(!audit.valid());
+    assert_eq!(audit.unreadable.len(), 1);
+    assert_eq!(audit.unreadable[0].file, unrelated);
+
+    let child_path = store.receipt_path(children[0].id.as_str())?;
+    std::fs::write(&child_path, "{")?;
+    let report = store.verify_trees(Some(root.id.as_str()), crate::support::fixture_policy()?)?;
+    assert!(!report.valid());
+    assert!(!report.trees[0].verification.valid);
+    assert_eq!(report.unreadable.len(), 1);
+    assert_eq!(report.unreadable[0].file, child_path);
+    Ok(())
+}
+
+#[test]
 fn runtime_resolver_verifies_graph_receipt_with_children() -> Result<(), Box<dyn std::error::Error>>
 {
     let (root, children) = graph_with_steps("tree_runtime_graph", &["plan", "apply"])?;

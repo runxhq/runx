@@ -47,13 +47,15 @@ pub(crate) fn principal(
         .iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>();
-    let answer = tools.run(
-        tool,
-        &manifest,
-        input,
-        &scopes,
-        &crate::credentials::CredentialDelivery::none(),
-    )?;
+    let answer = tools
+        .run(
+            tool,
+            &manifest,
+            input,
+            &scopes,
+            &crate::credentials::CredentialDelivery::none(),
+        )
+        .map_err(crate::kernel::operation::confirm::Unperformed::reason)?;
     Principal::read(
         &answer,
         "id",
@@ -123,13 +125,21 @@ mod tests {
             input: JsonObject,
             _: &[String],
             _: &CredentialDelivery,
-        ) -> Result<JsonValue, String> {
+        ) -> Result<JsonValue, crate::kernel::operation::confirm::Unperformed> {
             if tool != "browser.probe"
                 || input.get("operation").and_then(JsonValue::as_str) != Some("session")
             {
-                return Err(format!("unexpected call to {tool}"));
+                return Err(crate::kernel::operation::confirm::Unperformed::NotSent {
+                    code: "test_input",
+                    reason: format!("unexpected call to {tool}"),
+                });
             }
-            serde_json::from_str(self.0).map_err(|error| error.to_string())
+            serde_json::from_str(self.0).map_err(|error| {
+                crate::kernel::operation::confirm::Unperformed::NotSent {
+                    code: "test_input",
+                    reason: error.to_string(),
+                }
+            })
         }
     }
 

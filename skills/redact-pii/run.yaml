@@ -1,5 +1,5 @@
 skill: redact-pii
-version: "0.2.9"
+version: "0.2.10"
 catalog:
   kind: graph
   audience: public
@@ -12,49 +12,173 @@ catalog:
 runners:
   redact-pii:
     default: true
+    description: Detect and remove selected personal data from the supplied content using semantic review and
+      deterministic exact text selection; block policy skips the model.
+    operations: []
+    tools: []
+    skills: []
+    asks: false
     inputs:
       content:
-        type: string
-        required: true
-        description: Content to inspect and scrub before it crosses a trust boundary.
+        definition: content
       classes:
-        type: json
-        required: false
-        description: Personal-data classes to target; omitted classes use the broad default policy.
+        definition: classes
       mode:
-        type: string
-        required: false
-        description: "Treatment to apply: redact, tokenize, or block. Defaults to redact."
+        definition: mode
       locale:
-        type: string
-        required: false
-        description: Locale for semantic identifier and address judgment.
+        definition: locale
       operator_context:
-        type: string
-        required: false
-        description: Boundary purpose and risk posture for the review pass.
-    result_from: [finalize]
+        definition: operator_context
+    result_from:
+      - block
+      - apply
     steps:
-      - id: digest-source
-        tool: data.digest
+      - id: block-policy
+        tool: data.compare
         inputs:
-          value: $input.content
-          encoding: utf8_text
-
+          actual: $input.mode
+          expected: block
       - id: detect
-        label: detect personal-data spans and semantic risk
-        agent: { role: reviewer, task: redact-pii-detect }
-        outputs:
-          redaction_draft: object
+        when:
+          value: $steps.block-policy.comparison.equal
+          equals: false
+        agent:
+          role: reviewer
+          task: redact-pii-detect
         inputs:
           content: $input.content
           classes: $input.classes
           mode: $input.mode
           locale: $input.locale
           operator_context: $input.operator_context
-        artifacts:
-          named_emits:
-            redaction_draft: redaction_draft
+        outputs:
+          redaction_draft:
+            type: object
+            schema:
+              required:
+                - decision
+                - detected
+                - residual_risk
+              properties:
+                decision:
+                  enum:
+                    - ready
+                    - needs_review
+                    - blocked
+                detected:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - class
+                      - selector
+                      - confidence
+                    properties:
+                      class:
+                        type: string
+                        minLength: 1
+                      selector:
+                        type: object
+                        required:
+                          - quote
+                        properties:
+                          quote:
+                            type: string
+                            minLength: 1
+                          all:
+                            type: boolean
+                          occurrence:
+                            type: integer
+                            minimum: 1
+                          prefix:
+                            type: string
+                          suffix:
+                            type: string
+                        additionalProperties: false
+                      confidence:
+                        type: number
+                        minimum: 0
+                        maximum: 1
+                    additionalProperties: false
+                residual_risk:
+                  type: object
+                  required:
+                    - level
+                    - reason_code
+                  properties:
+                    level:
+                      enum:
+                        - low
+                        - medium
+                        - high
+                    reason_code:
+                      enum:
+                        - none
+                        - ambiguous_semantics
+                        - scrubbing_destroys_meaning
+                        - policy_block
+                        - insufficient_context
+                  additionalProperties: false
+              additionalProperties: false
+      - id: block
+        skill: .
+        runner: from-detections
+        inputs:
+          content: $input.content
+          classes: $input.classes
+          mode: $input.mode
+          locale: $input.locale
+          redaction_draft:
+            decision: blocked
+            detected: []
+            residual_risk:
+              level: high
+              reason_code: policy_block
+        when:
+          value: $steps.block-policy.comparison.equal
+          equals: true
+      - id: apply
+        skill: .
+        runner: from-detections
+        inputs:
+          content: $input.content
+          classes: $input.classes
+          mode: $input.mode
+          locale: $input.locale
+          redaction_draft: $steps.detect.redaction_draft
+        when:
+          value: $steps.block-policy.comparison.equal
+          equals: false
+    examples:
+      - content: Reply to Jane at jane@example.test.
+        operator_context: Prepare a private support export.
+        mode: redact
+  from-detections:
+    description: Reuse reviewed source selections and semantic risk, apply the chosen treatment, scan the selected
+      classes and bind the unchanged public report to native source/residual digests.
+    operations: []
+    tools: []
+    skills: []
+    asks: false
+    inputs:
+      content:
+        definition: content
+      classes:
+        definition: classes
+      mode:
+        definition: mode
+      locale:
+        definition: locale
+      redaction_draft:
+        definition: redaction_draft
+    result_from:
+      - finalize
+    steps:
+      - id: digest-source
+        tool: data.digest
+        inputs:
+          value: $input.content
+          encoding: utf8_text
       - id: scrub
         label: scrub and scan residual content
         inputs:
@@ -62,27 +186,146 @@ runners:
           classes: $input.classes
           mode: $input.mode
           locale: $input.locale
-          redaction_draft: $steps.detect.redaction_draft
-        tool: { module: redact-pii.mjs, export: scrubRedaction }
+          redaction_draft: $input.redaction_draft
+        tool:
+          module: redact-pii.mjs
+          export: scrubRedaction
         outputs:
-          redaction_candidate: object
+          redaction_candidate:
+            type: object
+            schema:
+              required:
+                - decision
+                - detected
+                - redacted_content
+                - residual_risk
+                - scanner
+                - policy
+              properties:
+                decision:
+                  type: string
+                  enum:
+                    - ready
+                    - needs_review
+                    - blocked
+                detected:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - class
+                      - span
+                      - confidence
+                    properties:
+                      class:
+                        type: string
+                        minLength: 1
+                      span:
+                        type: array
+                        items:
+                          type: integer
+                          minimum: 0
+                        minItems: 2
+                        maxItems: 2
+                      confidence:
+                        type: number
+                        minimum: 0
+                        maximum: 1
+                    additionalProperties: false
+                redacted_content:
+                  type: string
+                residual_risk:
+                  type: object
+                  required:
+                    - level
+                    - reason_code
+                    - reason
+                  properties:
+                    level:
+                      type: string
+                      enum:
+                        - low
+                        - medium
+                        - high
+                    reason_code:
+                      type: string
+                      minLength: 1
+                    reason:
+                      type: string
+                  additionalProperties: false
+                scanner:
+                  type: object
+                  required:
+                    - status
+                    - findings
+                  properties:
+                    status:
+                      enum:
+                        - pass
+                        - hold
+                        - block
+                    findings:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - class
+                          - span
+                          - rule
+                        properties:
+                          class:
+                            type: string
+                          span:
+                            type: array
+                            minItems: 2
+                            maxItems: 2
+                            items:
+                              type: integer
+                              minimum: 0
+                          rule:
+                            type: string
+                        additionalProperties: false
+                  additionalProperties: false
+                policy:
+                  type: object
+                  required:
+                    - classes
+                    - mode
+                    - locale
+                  properties:
+                    classes:
+                      type: array
+                      items:
+                        type: string
+                        minLength: 1
+                    mode:
+                      type: string
+                      enum:
+                        - redact
+                        - tokenize
+                        - block
+                    locale:
+                      type: string
+                      minLength: 1
+                  additionalProperties: false
+              additionalProperties: false
         artifacts:
           named_emits:
             redaction_candidate: redaction_candidate
-
       - id: digest-redacted
         tool: data.digest
         inputs:
           encoding: utf8_text
           value: $steps.scrub.redaction_candidate.redacted_content
-
       - id: finalize
         label: bind native content digests and release the report
         inputs:
           redaction_candidate: $steps.scrub.redaction_candidate
           source_digest: $steps.digest-source.digest_result.digest
           redacted_digest: $steps.digest-redacted.digest_result.digest
-        tool: { module: redact-pii.mjs, export: finalizeRedaction }
+        tool:
+          module: redact-pii.mjs
+          export: finalizeRedaction
         outputs:
           redaction_report: object
           redacted_content: string
@@ -91,7 +334,128 @@ runners:
             redaction_report: redaction_report
           packets:
             redaction_report: runx/redact-pii.report.v1
-
+    examples:
+      - content: Email jane@example.test.
+        redaction_draft:
+          decision: ready
+          detected:
+            - class: email
+              selector:
+                quote: jane@example.test
+              confidence: 1
+          residual_risk:
+            level: low
+            reason_code: none
+        mode: redact
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases: []
+input_definitions:
+  content:
+    type: string
+    required: true
+    description: Content to inspect and scrub before it crosses a trust boundary.
+  classes:
+    type: array
+    required: false
+    description: Selected personal-data class labels; omission uses the broad default policy. Custom
+      sensitive-data classes are supported.
+    schema:
+      minItems: 1
+      uniqueItems: true
+      items:
+        type: string
+        minLength: 1
+  mode:
+    type: string
+    required: false
+    default: redact
+    description: Redact values, use stable per-document tokens, or block without a detector turn.
+    schema:
+      enum:
+        - redact
+        - tokenize
+        - block
+  locale:
+    type: string
+    required: false
+    default: und
+    description: Locale for semantic identifier judgment; und means unspecified.
+    schema:
+      minLength: 1
+  operator_context:
+    type: string
+    required: false
+    description: Boundary purpose and risk posture for the review pass.
+  redaction_draft:
+    type: object
+    required: true
+    description: Existing private semantic review and exact quote selectors for this source. The phase locates the
+      selected text and computes the public spans itself.
+    schema:
+      required:
+        - decision
+        - detected
+        - residual_risk
+      properties:
+        decision:
+          enum:
+            - ready
+            - needs_review
+            - blocked
+        detected:
+          type: array
+          items:
+            type: object
+            required:
+              - class
+              - selector
+              - confidence
+            properties:
+              class:
+                type: string
+                minLength: 1
+              selector:
+                type: object
+                required:
+                  - quote
+                properties:
+                  quote:
+                    type: string
+                    minLength: 1
+                  all:
+                    type: boolean
+                  occurrence:
+                    type: integer
+                    minimum: 1
+                  prefix:
+                    type: string
+                  suffix:
+                    type: string
+                additionalProperties: false
+              confidence:
+                type: number
+                minimum: 0
+                maximum: 1
+            additionalProperties: false
+        residual_risk:
+          type: object
+          required:
+            - level
+            - reason_code
+          properties:
+            level:
+              enum:
+                - low
+                - medium
+                - high
+            reason_code:
+              enum:
+                - none
+                - ambiguous_semantics
+                - scrubbing_destroys_meaning
+                - policy_block
+                - insufficient_context
+          additionalProperties: false
+      additionalProperties: false

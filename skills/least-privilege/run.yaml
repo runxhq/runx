@@ -1,5 +1,5 @@
 skill: least-privilege
-version: "0.3.11"
+version: "0.3.12"
 catalog:
   publisher: runx
   kind: graph
@@ -17,7 +17,8 @@ runners:
       subject:
         type: string
         required: false
-        description: Exact skill, actor, or grant reference matching the receipt detail; labels alone cannot bind evidence.
+        description: Exact skill, actor, or grant reference matching the receipt detail; labels alone cannot bind
+          evidence.
       granted_scopes:
         type: json
         required: true
@@ -38,8 +39,28 @@ runners:
         type: json
         required: false
         description: Explicit native redacted receipt-detail projections for deterministic replay only.
-    result_from: [analyze]
+      receipt_evidence:
+        type: object
+        required: false
+        default: {}
+        description: Completed ledger packet to reuse without querying again; preserves its original verification posture.
+    result_from:
+      - analyze
+      - review-supplied
+    examples:
+      - subject: research/research-brief
+        granted_scopes:
+        - web:read
+        - repo:read
+        receipt_ids:
+        - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        objective: Check whether this skill still needs repository read access.
     steps:
+      - id: select
+        tool: data.compare
+        inputs:
+          actual: $input.receipt_evidence
+          expected: {}
       - id: evidence
         label: resolve receipt evidence
         skill: ../receipt-query
@@ -51,6 +72,9 @@ runners:
             verify_chain: true
           receipts: $input.receipt_rows
           receipt_details: $input.receipt_details
+        when:
+          value: $steps.select.comparison.equal
+          equals: true
       - id: analyze
         label: review grant against attributable recorded authority
         inputs:
@@ -59,7 +83,9 @@ runners:
           receipt_ids: $input.receipt_ids
           objective: $input.objective
           ledger_evidence: $steps.evidence.ledger_answer_packet
-        tool: { module: least-privilege.mjs }
+          evidence_source: native_query
+        tool:
+          module: least-privilege.mjs
         outputs:
           audit_report:
             type: object
@@ -68,7 +94,92 @@ runners:
         artifacts:
           wrap_as: least_privilege_packet
           packet: runx/least-privilege.audit.v1
-
+        when:
+          value: $steps.select.comparison.equal
+          equals: true
+      - id: review-supplied
+        when:
+          value: $steps.select.comparison.equal
+          equals: false
+        skill: .
+        runner: from-evidence
+        inputs:
+          subject: $input.subject
+          granted_scopes: $input.granted_scopes
+          receipt_ids: $input.receipt_ids
+          objective: $input.objective
+          receipt_evidence: $input.receipt_evidence
+    description: Resolve exact native receipt evidence or reuse a completed ledger packet, then compare only
+      attributable recorded authority with the grant baseline.
+  from-evidence:
+    description: Review an already completed ledger packet without another receipt query; retain every scope
+      unless native policy and representative usage support a change.
+    operations: []
+    tools: []
+    skills: []
+    asks: false
+    inputs:
+      subject:
+        definition: subject
+      granted_scopes:
+        definition: granted_scopes
+      receipt_ids:
+        definition: receipt_ids
+      objective:
+        definition: objective
+      receipt_evidence:
+        type: json
+        packet: runx/receipt-query.answer.v1
+        required: true
+        description: Already collected ledger evidence. Supplied/replay labels do not become fresh verification.
+    result_from:
+      - analyze
+    steps:
+      - id: analyze
+        label: review grant against attributable recorded authority
+        inputs:
+          subject: $input.subject
+          granted_scopes: $input.granted_scopes
+          receipt_ids: $input.receipt_ids
+          objective: $input.objective
+          ledger_evidence: $input.receipt_evidence
+          evidence_source: supplied
+        tool:
+          module: least-privilege.mjs
+        outputs:
+          audit_report:
+            type: object
+          attenuation_proposals: array
+          verdict: string
+        artifacts:
+          wrap_as: least_privilege_packet
+          packet: runx/least-privilege.audit.v1
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases: []
+input_definitions:
+  subject:
+    type: string
+    required: false
+    description: Exact skill, actor, or grant reference matching the receipt detail; labels alone cannot bind evidence.
+  granted_scopes:
+    type: json
+    required: true
+    description: Current scopes granted to the subject.
+  receipt_ids:
+    type: json
+    required: true
+    description: Receipt ids whose native detail shows the exercised scopes.
+  objective:
+    type: string
+    required: false
+    description: Operator intent focusing the audit.
+  receipt_rows:
+    type: json
+    required: false
+    description: Explicit native-projection rows for deterministic replay only.
+  receipt_details:
+    type: json
+    required: false
+    description: Explicit native redacted receipt-detail projections for deterministic replay only.

@@ -67,21 +67,51 @@ export function normalizeReport(inputs) {
   }
 
   const paginationInput = object(supplied.pagination);
-  const returnedRows = nonNegativeInteger(paginationInput.returned_rows, rows.length);
-  const rowCount = nonNegativeInteger(supplied.row_count, rows.length);
+  const returnedRows = rows.length;
+  const offset = nonNegativeInteger(request.offset, 0);
   const limit = nonNegativeInteger(request.limit, returnedRows);
-  const paginationComplete = typeof paginationInput.complete === "boolean"
-    ? paginationInput.complete
-    : returnedRows === 0 || returnedRows < limit;
+  const knownTotal = Number.isSafeInteger(supplied.row_count) && supplied.row_count >= 0 ? supplied.row_count : null;
+  const pageEnd = offset + returnedRows;
+  const rowCount = knownTotal ?? pageEnd;
+  if (paginationInput.returned_rows !== undefined && paginationInput.returned_rows !== returnedRows) {
+    findings.push(finding("ga.pagination.row_count_mismatch", "returned_rows differs from the actual page"));
+  }
+  if (!Number.isSafeInteger(pageEnd) || (knownTotal !== null && returnedRows > 0 && pageEnd > knownTotal)) {
+    findings.push(finding("ga.pagination.total_mismatch", "page position and rows exceed the reported total"));
+  }
+  const exhausted = knownTotal !== null ? pageEnd >= knownTotal
+    : paginationInput.complete === true || (request.limit !== undefined && returnedRows < limit);
+  const nextOffset = !exhausted && returnedRows > 0 ? pageEnd : null;
+  if (!exhausted && returnedRows === 0) {
+    findings.push(finding("ga.pagination.stalled", "no rows returned before the reported end; refresh the same query instead of advancing"));
+  }
+  if (paginationInput.next_offset != null && paginationInput.next_offset !== nextOffset) {
+    findings.push(finding("ga.pagination.continuation_mismatch", "next_offset skips rows, repeats a page or continues beyond the end"));
+  }
+  if (knownTotal === null) {
+    caveats.push("No total row count was supplied; row_count is only the observed lower bound, not a query total.");
+  }
+  if (knownTotal !== null && typeof paginationInput.complete === "boolean" && paginationInput.complete !== exhausted) {
+    caveats.push("The connector completeness flag contradicts the reported total; coverage follows the total and actual page position.");
+  }
+  const paginationComplete = offset === 0 && exhausted && knownTotal !== null;
   if (!paginationComplete) {
-    caveats.push("The response is a bounded page and does not claim complete property coverage.");
+    caveats.push("This packet does not contain the complete query result; retain the offset and any continuation before aggregating.");
   }
 
   const dateRanges = normalizeDateRanges(request.date_ranges, reportType, findings);
   const currencyCode = text(metadata.currency_code || request.currency_code);
   const timeZone = text(metadata.time_zone);
 
+  const sourceQuery = object(supplied.request);
+  if (Object.keys(sourceQuery).length === 0) {
+    caveats.push("The original query was not echoed with this result; query identity relies on the caller or the current native provider invocation.");
+  }
+  const expectedQuery = queryIdentity(request, property, reportType);
   return {
+    expected_query: expectedQuery,
+    source_query: Object.keys(sourceQuery).length > 0
+      ? queryIdentity(sourceQuery, property, "standard") : expectedQuery,
     report_draft: {
       schema: "runx/google-analytics.report_evidence.v1",
       decision: findings.length > 0
@@ -103,7 +133,7 @@ export function normalizeReport(inputs) {
         order_bys: Array.isArray(request.order_bys) ? request.order_bys : [],
         minute_ranges: Array.isArray(request.minute_ranges) ? request.minute_ranges : [],
         limit,
-        offset: nonNegativeInteger(request.offset, 0),
+        offset,
       },
       dimension_headers: dimensionHeaders,
       metric_headers: metricHeaders,
@@ -112,7 +142,7 @@ export function normalizeReport(inputs) {
       pagination: {
         returned_rows: returnedRows,
         complete: paginationComplete,
-        next_offset: nullableNonNegativeInteger(paginationInput.next_offset),
+        next_offset: nextOffset,
       },
       measurement: {
         time_zone: timeZone,
@@ -132,6 +162,27 @@ export function normalizeReport(inputs) {
         findings,
       },
     },
+  };
+}
+
+export function bindQuery(inputs) {
+  const draft = inputs.report_draft;
+  if (inputs.comparison.equal) return { report_draft: draft };
+  return { report_draft: { ...draft, decision: "blocked", validation: {
+    status: "fail", findings: [...draft.validation.findings,
+      finding("ga.request.mismatch", "the source query differs from the requested report; do not relabel or combine its rows")],
+  } } };
+}
+
+function queryIdentity(request, property, reportType) {
+  return {
+    property: request.property ?? property,
+    report_type: request.report_type ?? reportType,
+    date_ranges: (request.date_ranges ?? []).map(range => ({ ...range, name: range.name ?? "" })),
+    dimensions: request.dimensions ?? [], metrics: request.metrics ?? [],
+    dimension_filter: request.dimension_filter ?? {}, metric_filter: request.metric_filter ?? {},
+    order_bys: request.order_bys ?? [], minute_ranges: request.minute_ranges ?? [],
+    currency_code: request.currency_code ?? "", limit: request.limit ?? 1000, offset: request.offset ?? 0,
   };
 }
 
@@ -252,8 +303,4 @@ function text(value) {
 
 function nonNegativeInteger(value, fallback) {
   return Number.isInteger(value) && value >= 0 ? value : fallback;
-}
-
-function nullableNonNegativeInteger(value) {
-  return Number.isInteger(value) && value >= 0 ? value : null;
 }

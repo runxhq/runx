@@ -1,14 +1,23 @@
-name: skill-adopt-composed
+name: adoption-after-native-capture
 steps:
-  - id: skill-adopt
-    skill: ../..
-    runner: generate
+  - id: capture
+    tool: fs.read_bundle
+    scopes:
+      - fs.read
     inputs:
-      upstream:
-        host: github.com
-      registry:
-        publisher: example
+      repo_root: .
+      paths:
+        - fixtures/upstream/decision-note/SKILL.md
+      max_bytes: 524288
+  - id: adopt
+    skill: ../..
+    runner: from-source
+    inputs:
+      objective: Adopt this captured decision-note procedure as a runnable local Runx package.
+      repo_root: .
+      target_dir: .runx-tmp/skill-build-fixtures/fixture-decision-note
+      source_snapshot: $steps.capture.file_read_bundle
   - id: digest
     tool: data.digest
     inputs:
-      value: $steps.skill-adopt
+      value: $steps.adopt

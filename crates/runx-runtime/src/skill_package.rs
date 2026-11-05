@@ -18,7 +18,6 @@ mod inspection;
 mod resolve;
 
 pub use inspection::inspect_connector_readiness;
-pub(crate) use inspection::inspect_loaded_execution_closure_binding;
 pub(crate) use inspection::{
     CaseClosureTarget, LocalExecutionClosure, case_closure_connectors,
     inspect_loaded_local_execution_closure, unheld_loaded_registry_refs,
@@ -26,6 +25,7 @@ pub(crate) use inspection::{
 pub use inspection::{
     SkillInspectionError, inspect_skill_package, inspect_skill_readiness, unheld_registry_refs_at,
 };
+pub(crate) use inspection::{inspect_loaded_execution_closure_binding, runner_makes_calls};
 pub use resolve::resolve_local_skill_reference;
 
 pub(crate) const MAX_PACKAGE_FILES: usize = 500;
@@ -69,54 +69,24 @@ pub(crate) fn catalog_runners(
         .collect()
 }
 
-/// Return the authored runner examples, or derive the smallest copy-valid
-/// direct-use example from the standalone harness journey that already proves
-/// the public runner. This keeps generated agent instructions executable
-/// without duplicating fixture payloads in every manifest.
-pub(crate) fn effective_runner_examples(
-    package: &ValidatedSkillPackage,
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
-) -> Vec<runx_contracts::JsonObject> {
-    if !runner.examples.is_empty() {
-        return runner.examples.clone();
-    }
-    sealed_standalone_inputs(package, manifest, runner)
-        .cloned()
-        .into_iter()
-        .collect()
-}
-
 pub(crate) fn runner_has_sealed_standalone_journey(
     package: &ValidatedSkillPackage,
     manifest: &SkillRunnerManifest,
     runner: &SkillRunnerDefinition,
 ) -> bool {
-    sealed_standalone_inputs(package, manifest, runner).is_some()
-}
-
-fn sealed_standalone_inputs<'a>(
-    package: &'a ValidatedSkillPackage,
-    manifest: &'a SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
-) -> Option<&'a runx_contracts::JsonObject> {
     manifest
         .harness
         .iter()
         .flat_map(|harness| harness.cases.iter())
-        .find(|case| {
+        .any(|case| {
             fixture_selects_runner(case.runner.as_deref(), manifest, runner)
                 && usable_example_status(case.expect.status.as_ref())
                 && has_standalone_journey(&case.operator_journeys, &runner.name)
         })
-        .map(|case| &case.inputs)
-        .or_else(|| {
-            package.harness_fixtures.values().find_map(|fixture| {
-                (fixture_selects_runner(fixture.runner.as_deref(), manifest, runner)
-                    && usable_example_status(fixture.expect.status.as_ref())
-                    && has_standalone_journey(&fixture.operator_journeys, &runner.name))
-                .then_some(&fixture.inputs)
-            })
+        || package.harness_fixtures.values().any(|fixture| {
+            fixture_selects_runner(fixture.runner.as_deref(), manifest, runner)
+                && usable_example_status(fixture.expect.status.as_ref())
+                && has_standalone_journey(&fixture.operator_journeys, &runner.name)
         })
 }
 
@@ -577,7 +547,10 @@ fn relative_path(path: &Path) -> Result<String, RuntimeError> {
 }
 
 pub(crate) fn ignored_package_entry(name: &str) -> bool {
-    matches!(name, ".git" | ".runx" | "node_modules" | "target")
+    matches!(
+        name,
+        ".git" | ".runx" | "node_modules" | "target" | "__pycache__"
+    )
 }
 
 /// Validate and materialize a proposed invocation without dispatching it.

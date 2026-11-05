@@ -94,6 +94,7 @@ fn a_start_no_supervisor_confirmed_is_settled_by_its_lock_and_sent_again_to_the_
     );
 
     let call = ToolCall {
+        run_id: "run".to_owned(),
         key: "run#start@1".to_owned(),
         actor: None,
     };
@@ -347,6 +348,7 @@ mod supervised {
         Box<dyn std::error::Error>,
     > {
         let call = crate::tool_catalogs::ToolCall {
+            run_id: "test-run".to_owned(),
             key: key.to_owned(),
             actor: None,
         };

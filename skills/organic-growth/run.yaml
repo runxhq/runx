@@ -1,13 +1,12 @@
 skill: organic-growth
-version: "0.1.10"
-
+version: "0.1.11"
 catalog:
   kind: graph
   audience: public
   visibility: public
   category: growth
   role: canonical
-  execution: plan
+  execution: read
   completion: runtime_receipt
   approval: none
 
@@ -15,6 +14,7 @@ harness:
   files: [fixtures/support/composed.graph]
   cases:
     - name: produces-cross-source-priorities-with-bound-evidence
+      runner: analyze
       operator_journeys:
         - mode: standalone
           confusors: [google-search-console, google-analytics]
@@ -167,6 +167,7 @@ harness:
         receipt: { schema: runx.receipt.v1 }
 
     - name: rejects-invented-recommendation-evidence
+      runner: analyze
       inputs:
         objective: Improve the guide.
         site_url: https://example.com/
@@ -224,6 +225,7 @@ harness:
         receipt: { schema: runx.receipt.v1 }
 
     - name: stops-without-evidence
+      runner: analyze
       inputs:
         objective: Maximize organic growth.
         site_url: https://example.com/
@@ -242,10 +244,117 @@ harness:
                   validation: { status: fail }
         receipt: { schema: runx.receipt.v1 }
 
+skills: [../web-fetch, ../google-search-console, ../google-analytics]
+asks: true
+
 runners:
-  analyze:
+  review:
     default: true
+    description: Collect missing site or selected measurement evidence, then prioritize organic-growth work through the existing analysis phase.
     inputs:
+      collection_notes:
+        type: array
+        required: false
+        default: []
+        description: Prior source-read failures and measurement caveats to preserve when existing evidence is reused.
+        schema: {items: {type: string}}
+      objective:
+        type: string
+        required: true
+        description: Bounded organic-discovery outcome or decision.
+      site_url:
+        type: string
+        required: true
+        description: Canonical HTTPS site root.
+      search_evidence:
+        type: object
+        required: false
+        default: {}
+        description: Sealed search-performance evidence packet.
+      analytics_evidence:
+        type: object
+        required: false
+        default: {}
+        description: Sealed analytics report evidence packet.
+      site_evidence:
+        type: array
+        required: false
+        default: []
+        description: Bounded site or market evidence records with SHA-256 digests.
+      business_context:
+        type: json
+        required: false
+        description: Business outcomes, audiences, offers, and known constraints; context is not source evidence.
+      constraints:
+        type: json
+        required: false
+        description: Time, risk, brand, legal, technical, and resource constraints.
+      source_context:
+        type: object
+        required: false
+        default: {}
+        description: Known property/date/measurement selectors and relevant page URLs; never credentials or hosted backend ids.
+    result_from: [reuse, analyze-collected]
+    examples:
+      - site_url: https://acme.example/
+        objective: Find which pages to improve to earn more organic signups this quarter.
+    steps:
+      - id: select-evidence
+        tool: data.compare
+        inputs:
+          actual: {search: $input.search_evidence, analytics: $input.analytics_evidence, site: $input.site_evidence}
+          expected: {search: {}, analytics: {}, site: []}
+      - id: reuse
+        when: {value: $steps.select-evidence.comparison.equal, equals: false}
+        skill: .
+        runner: analyze
+        inputs:
+          objective: $input.objective
+          site_url: $input.site_url
+          business_context: $input.business_context
+          constraints: $input.constraints
+          collection_notes: $input.collection_notes
+          search_evidence: $input.search_evidence
+          analytics_evidence: $input.analytics_evidence
+          site_evidence: $input.site_evidence
+      - id: collect
+        when: {value: $steps.select-evidence.comparison.equal, equals: true}
+        agent: {role: researcher, task: organic-growth-collect}
+        inputs:
+          objective: $input.objective
+          site_url: $input.site_url
+          business_context: $input.business_context
+          constraints: $input.constraints
+          source_context: $input.source_context
+        outputs:
+          search_evidence: {type: object}
+          analytics_evidence: {type: object}
+          site_evidence: {type: array}
+          collection_notes: {type: array, schema: {items: {type: string}}}
+      - id: analyze-collected
+        when: {value: $steps.select-evidence.comparison.equal, equals: true}
+        skill: .
+        runner: analyze
+        inputs:
+          objective: $input.objective
+          site_url: $input.site_url
+          business_context: $input.business_context
+          constraints: $input.constraints
+          search_evidence: $steps.collect.search_evidence
+          analytics_evidence: $steps.collect.analytics_evidence
+          site_evidence: $steps.collect.site_evidence
+          collection_notes: $steps.collect.collection_notes
+
+  analyze:
+    description: "Interpret supplied search, analytics and site evidence without collecting the same sources again."
+    skills: []
+    asks: false
+    inputs:
+      collection_notes:
+        type: array
+        required: false
+        description: Actual source-read gaps and caveats from a preceding acquisition; these are context, not invented metrics.
+        schema: {items: {type: string}}
       objective:
         type: string
         required: true
@@ -278,6 +387,7 @@ runners:
     steps:
       - id: admit
         inputs:
+          collection_notes: $input.collection_notes
           objective: $input.objective
           site_url: $input.site_url
           search_evidence: $input.search_evidence
@@ -339,7 +449,150 @@ runners:
           equals: ready
         agent: { role: growth, task: organic-growth-analyze }
         outputs:
-          growth_candidate: object
+          growth_candidate:
+            type: object
+            schema:
+              properties:
+                decision:
+                  type: string
+                objective:
+                  type: string
+                site_url:
+                  type: string
+                executive_summary:
+                  type: string
+                observations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      statement:
+                        type: string
+                      epistemic_status:
+                        type: string
+                      source_digests:
+                        type: array
+                        items:
+                          type: string
+                hypotheses:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      statement:
+                        type: string
+                      epistemic_status:
+                        type: string
+                      source_digests:
+                        type: array
+                        items:
+                          type: string
+                opportunities:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                      rationale:
+                        type: string
+                      source_digests:
+                        type: array
+                        items:
+                          type: string
+                recommended_actions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      title:
+                        type: string
+                      rationale:
+                        type: string
+                      priority:
+                        type: string
+                      confidence:
+                        type: string
+                      effort:
+                        type: string
+                      owner_type:
+                        type: string
+                      expected_signal:
+                        type: string
+                      verification:
+                        type: string
+                      stop_condition:
+                        type: string
+                      source_digests:
+                        type: array
+                        items:
+                          type: string
+                geo_review:
+                  type: object
+                  properties:
+                    assessment:
+                      type: string
+                    source_digests:
+                      type: array
+                      items:
+                        type: string
+                measurement_plan:
+                  type: object
+                  properties:
+                    baseline:
+                      type: string
+                    leading_signals:
+                      type: string
+                    business_outcomes:
+                      type: string
+                    comparison_window:
+                      type: string
+                    reconsideration_trigger:
+                      type: string
+                claims:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      claim:
+                        type: string
+                      source_digests:
+                        type: array
+                        items:
+                          type: string
+                risks:
+                  type: array
+                  items:
+                    type: string
+                missing_evidence:
+                  type: array
+                  items:
+                    type: string
+                external_status:
+                  type: string
+              required:
+              - decision
+              if:
+                properties:
+                  decision:
+                    pattern: ^ready
+              then:
+                required:
+                - objective
+                - site_url
+                - executive_summary
+                - observations
+                - hypotheses
+                - opportunities
+                - recommended_actions
+                - geo_review
+                - measurement_plan
+                - claims
+                - risks
+                - missing_evidence
+                - external_status
         inputs:
           growth_context: $steps.admit.growth_context
           objective: $input.objective

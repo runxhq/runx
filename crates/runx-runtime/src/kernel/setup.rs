@@ -65,10 +65,14 @@ impl ToolRunner for SetupTools<'_> {
         inputs: JsonObject,
         scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
-    ) -> Result<runx_contracts::JsonValue, String> {
-        let directory = manifest
-            .parent()
-            .ok_or_else(|| format!("tool {tool} has no directory"))?;
+    ) -> Result<runx_contracts::JsonValue, super::operation::confirm::Unperformed> {
+        let directory =
+            manifest
+                .parent()
+                .ok_or_else(|| super::operation::confirm::Unperformed::NotSent {
+                    code: "tool_not_started",
+                    reason: format!("tool {tool} has no directory"),
+                })?;
         let output = crate::tool_catalogs::dispatch::dispatch_connector_tool(
             manifest,
             &crate::tool_catalogs::dispatch::ToolDispatchRequest {
@@ -87,14 +91,8 @@ impl ToolRunner for SetupTools<'_> {
                 call: None,
             },
             Instant::now(),
-        )
-        .map_err(|error| error.to_string())?;
-        match output.succeeded() {
-            true => Ok(output.value),
-            false => Err(output
-                .failure_message()
-                .unwrap_or_else(|| format!("tool {tool} failed"))),
-        }
+        )?;
+        crate::tool_catalogs::dispatch::connector_tool_result(output)
     }
 }
 

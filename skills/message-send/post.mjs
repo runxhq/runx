@@ -14,17 +14,10 @@ export function prepareNotification(inputs) {
 
   const suppliedUri = text(content.content_uri);
   const suppliedDigest = text(content.digest);
-  const message = text(content.message);
+  const message = typeof content.message === "string" ? content.message : "";
   const contentMode = message ? "inline" : "reference";
-  if (message) {
-    if (message.length > 4000) {
-      findings.push({ code: "slack.message.too_large", message: "message exceeds 4000 characters" });
-    }
-  } else if (!suppliedUri || !isDigest(suppliedDigest)) {
-    findings.push({
-      code: "slack.content.unbound",
-      message: "content requires message or content_uri with sha256 digest",
-    });
+  if (!message && (!suppliedUri || !isDigest(suppliedDigest))) {
+    findings.push({ code: "slack.content.unbound", message: "content requires message or content_uri with sha256 digest" });
   }
 
   return {
@@ -102,56 +95,39 @@ export function finalizeExactNotification(inputs) {
   return { notify_plan: notificationPacket(context, sendPlan, findings) };
 }
 
-function slackDisplayedText(value) {
-  return value
-    .replace(/<@([UW][A-Z0-9]+)\|[^>]+>/gu, "<@$1>")
-    .replace(/<(slack:\/\/[^<>\s|]+)(?:\|[^>]*)?>/gu, "$1")
-    .replace(/\s+/gu, " ").trim();
+export function prepareReconciliationRead(inputs) {
+  const plan = inputs.notification_plan;
+  const channel = inputs.channel_locator;
+  const locator = inputs.message_locator;
+  if (plan.schema !== "runx/message-send.notification_plan.v1" || plan.decision !== "ready_for_provider"
+      || plan.provider !== "slack" || plan.channel !== channel || plan.validation.status !== "pass"
+      || plan.content_digest !== inputs.digest_result.digest || !locator.startsWith(channel + "/")
+      || !Number.isFinite(Date.parse(inputs.failed_at))) {
+    throw new Error("Selected Slack message, original plan and exact text must be bound before readback");
+  }
+  return {
+    read_request: { conversation_locator: channel, message_locator: locator, expected_text: inputs.text },
+    expected_result: { conversation_locator: channel, message_locator: locator, content_digest: plan.content_digest },
+  };
 }
 
 export function reconcileExactNotification(inputs) {
-  const plan = object(inputs.notification_plan);
-  const read = object(inputs.provider_operation);
-  const result = object(read.result);
-  const messages = Array.isArray(result.messages) ? result.messages : [];
-  const message = object(messages[0]);
-  const observed = typeof message.preview === "string" ? message.preview : "";
-  const expected = typeof inputs.text === "string" ? inputs.text : "";
-  const locator = text(inputs.message_locator);
-  const channel = text(inputs.channel_locator);
-  const occurredAt = Date.parse(text(message.occurred_at));
-  const attemptAt = Date.parse(text(inputs.failed_at));
-  if (plan.schema !== "runx/message-send.notification_plan.v1" || plan.decision !== "ready_for_provider"
-      || plan.provider !== "slack" || plan.channel !== channel
-      || plan.content_digest !== text(object(inputs.digest_result).digest)
-      || read.schema !== "runx.provider.operation.v1" || read.status !== "success"
-      || read.provider !== "slack" || read.operation !== "thread.read"
-      || read.finality !== "confirmed" || result.thread_locator !== locator
-      || messages.length !== 1 || message.message_locator !== locator
-      || !locator.startsWith(`${channel}/`)
-      || message.author?.external_id !== result.connected_subject_ref
-      || !Number.isFinite(occurredAt) || !Number.isFinite(attemptAt)
-      || occurredAt < attemptAt - 300000
-      || !observed || observed.length >= 2000
-      || slackDisplayedText(observed) !== slackDisplayedText(expected)
-      || !text(read.readback_uri).startsWith("runx:provider-readback:sha256:")) {
-    throw new Error("Slack post could not be reconciled to the exact pending notification");
-  }
-  // The post is reconciled from the thread read that observed it; that read
-  // is the provider operation, and this is what it proves about the post.
+  const read = inputs.provider_operation;
   return { reconciliation: {
-    message_locator: locator, conversation_locator: channel,
-    content_digest: plan.content_digest, occurred_at: message.occurred_at,
-    normalization: "slack_bounded_preview", provider_result_digest: read.result_digest,
+    ...read.result,
+    normalization: "native_exact_message_read",
+    provider_result_digest: read.result_digest,
     readback_uri: read.readback_uri,
+    original_effect_status: "unchanged",
+    attempt_reported_at: inputs.failed_at,
   } };
 }
 
-export function prepareNotificationReadback(inputs) {
+export function prepareMessageReadback(inputs) {
   const delivery = object(inputs.delivery);
   const result = object(delivery.result);
   const expected = typeof inputs.text === "string" ? inputs.text : "";
-  if (delivery.status !== "success" || delivery.operation !== "channel.post" ||
+  if (delivery.status !== "success" || delivery.operation !== inputs.operation ||
       !text(result.message_locator) || !expected) {
     throw new Error("notification delivery lacks a bound message for readback");
   }

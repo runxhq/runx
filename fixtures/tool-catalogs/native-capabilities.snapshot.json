@@ -1,12 +1,27 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 45,
+  "capability_count": 50,
   "capabilities": [
     {
       "id": "artifact.admit",
       "source": "runx-runtime/local-artifacts",
       "scopes": [
         "fs.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "local_artifact",
+        "packet": "runx.local_artifact.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "artifact.open",
+      "source": "runx-runtime/project-artifacts",
+      "scopes": [
+        "artifact.read"
       ],
       "effect": "read",
       "approval": "none",
@@ -29,6 +44,21 @@
         "kind": "wrapped",
         "output": "artifact_page",
         "packet": "runx.local_artifact.page.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "artifact.store",
+      "source": "runx-runtime/project-artifacts",
+      "scopes": [
+        "artifact.write"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "project_artifact",
+        "packet": "runx.project_artifact.v1"
       },
       "execution_boundary": "native_capability"
     },
@@ -91,6 +121,15 @@
       "execution_boundary": "native_capability"
     },
     {
+      "id": "control.observed_at",
+      "source": "runx-runtime/control",
+      "scopes": [],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": null,
+      "execution_boundary": "native_capability"
+    },
+    {
       "id": "control.prepare_handoff",
       "source": "runx-runtime/control",
       "scopes": [],
@@ -127,6 +166,15 @@
         "output": "digest_result",
         "packet": "runx.data.digest.v1"
       },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "data.minor_units",
+      "source": "runx-runtime/data",
+      "scopes": [],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": null,
       "execution_boundary": "native_capability"
     },
     {
@@ -531,6 +579,21 @@
         "kind": "named",
         "output": "receipt_query",
         "packet": "runx.receipt.query.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "receipt.read",
+      "source": "runx-runtime/receipts",
+      "scopes": [
+        "receipt.claim.read"
+      ],
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "named",
+        "output": "receipt_read",
+        "packet": "runx.receipt.read.v1"
       },
       "execution_boundary": "native_capability"
     },

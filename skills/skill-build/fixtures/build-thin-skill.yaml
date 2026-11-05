@@ -9,7 +9,9 @@ inputs:
   project_context: Keep the package declarative and prove its native harness.
 operator_journeys:
   - mode: standalone
-    confusors: [skill-adopt, skill-review]
+    confusors:
+      - skill-adopt
+      - skill-review
     request: Create a bounded decision-note skill without package-local runtime code.
     expected_outcome: A validated declarative skill package is applied with a useful manual and semantic harness.
 caller:
@@ -21,20 +23,8 @@ caller:
         identity:
           proposed_name: fixture-decision-note
           action: create
-          visibility: public
+          visibility: internal
           rationale: Decision note is the exact bounded artifact the fixture promises.
-        direct_use:
-          trigger_requests:
-            - Make a bounded decision note from this objective.
-          non_trigger_requests:
-            - Execute the recommendation in this note.
-          default_outcome: Return one reviewable decision note.
-          routine_host_work:
-            - Read the supplied objective.
-          runx_boundary: Bind the objective and decision note in a reusable receipt.
-          terminal_result: A bounded decision-note packet.
-          blocker_behavior: Stop once and request the missing objective.
-          native_escape: Return the unchanged objective for direct host reasoning.
         chain_use:
           accepted_inputs:
             - A bounded objective or prior objective artifact.
@@ -128,12 +118,11 @@ caller:
               ### `fixture-decision-note`
 
               Return `decision_note` with the objective preserved exactly and
-              one concise recommendation. Do not claim external effects.
+              one concise recommendation and an explicit caveats array. Do not claim external effects.
           - path: run.yaml
             contents: |
               skill: fixture-decision-note
               version: "0.1.0"
-
               catalog:
                 kind: skill
                 audience: builder
@@ -142,7 +131,6 @@ caller:
                 execution: read
                 completion: runtime_receipt
                 approval: none
-
               harness:
                 cases:
                   - name: fixture-decision-note-ready
@@ -155,11 +143,12 @@ caller:
                           decision_note:
                             objective: Choose the bounded next action.
                             recommendation: Inspect the supplied evidence first.
+                            caveats:
+                              - No external action is performed.
                     expect:
                       status: sealed
                       receipt:
                         schema: runx.receipt.v1
-
               runners:
                 note:
                   default: true
@@ -170,11 +159,32 @@ caller:
                       description: Bounded decision objective.
                   steps:
                     - id: note
-                      agent: { role: analyst, task: fixture-decision-note }
+                      agent:
+                        role: analyst
+                        task: fixture-decision-note
                       inputs:
                         objective: $input.objective
                       outputs:
-                        decision_note: object
+                        decision_note:
+                          type: object
+                          schema:
+                            additionalProperties: false
+                            required:
+                              - objective
+                              - recommendation
+                              - caveats
+                            properties:
+                              objective:
+                                type: string
+                                minLength: 1
+                              recommendation:
+                                type: string
+                                minLength: 1
+                              caveats:
+                                type: array
+                                items:
+                                  type: string
+                                  minLength: 1
         deletes: []
         expected_outputs:
           - name: decision_note

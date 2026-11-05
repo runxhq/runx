@@ -12,11 +12,13 @@ use super::helpers::{
 use super::types::{ProcessTool, ToolTarget, WorkerTool};
 use crate::ValidationError;
 use crate::skill::{
-    ArtifactPageFraming, ArtifactPageSource, InputMode, validate_environment_requirements,
+    ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, InputMode,
+    validate_environment_requirements,
 };
 
 const WORKER_FIELDS: &[&str] = &[
     "module",
+    "requires",
     "export",
     "timeout_seconds",
     "pages",
@@ -84,7 +86,19 @@ fn validate_worker(tool: &JsonObject, field: &str) -> Result<WorkerTool, Validat
             )));
         }
     }
+    let requires = optional_string_array(tool.get("requires"), &format!("{field}.requires"))?
+        .unwrap_or_default()
+        .into_iter()
+        .map(|name| {
+            serde_json::from_value(serde_json::Value::String(name.clone())).map_err(|_| {
+                validation_error(format!(
+                    "{field}.requires names unsupported worker API {name:?}."
+                ))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(WorkerTool {
+        requires,
         module: validate_module(tool.get("module"), &format!("{field}.module"))?,
         export: validate_export(tool.get("export"), &format!("{field}.export"))?,
         timeout_seconds,
@@ -197,6 +211,7 @@ fn validate_pages(
         &pages,
         field,
         &[
+            "artifact_from",
             "framing",
             "media_type",
             "page_bytes",
@@ -204,27 +219,51 @@ fn validate_pages(
             "path_scope_from",
         ],
     )?;
-    let path_from = page_input_name(
-        &required_string(pages.get("path_from"), &format!("{field}.path_from"))?,
-        &format!("{field}.path_from"),
-    )?;
-    let path_scope_from = optional_string(
-        pages.get("path_scope_from"),
-        &format!("{field}.path_scope_from"),
-    )?
-    .map(|name| page_input_name(&name, &format!("{field}.path_scope_from")))
-    .transpose()?;
-    if path_from == "runx_page" || path_scope_from.as_deref() == Some("runx_page") {
-        return Err(validation_error(format!(
-            "{field} input names cannot use the runtime-reserved runx_page field."
-        )));
-    }
-    if path_scope_from.as_deref() == Some(path_from.as_str()) {
-        return Err(validation_error(format!(
-            "{field}.path_from and path_scope_from must name different inputs."
-        )));
-    }
-    let media_type = required_string(pages.get("media_type"), &format!("{field}.media_type"))?;
+    let source = match (pages.get("path_from"), pages.get("artifact_from")) {
+        (Some(path), None) => {
+            let path_from = page_input_name(
+                &required_string(Some(path), &format!("{field}.path_from"))?,
+                &format!("{field}.path_from"),
+            )?;
+            let path_scope_from = optional_string(
+                pages.get("path_scope_from"),
+                &format!("{field}.path_scope_from"),
+            )?
+            .map(|name| page_input_name(&name, &format!("{field}.path_scope_from")))
+            .transpose()?;
+            if path_scope_from.as_deref() == Some(path_from.as_str()) {
+                return Err(validation_error(format!(
+                    "{field}.path_from and path_scope_from must name different inputs."
+                )));
+            }
+            ArtifactPageInput::Path {
+                path_from,
+                path_scope_from,
+                media_type: required_string(
+                    pages.get("media_type"),
+                    &format!("{field}.media_type"),
+                )?,
+            }
+        }
+        (None, Some(artifact)) => {
+            if pages.contains_key("path_scope_from") || pages.contains_key("media_type") {
+                return Err(validation_error(format!(
+                    "{field}.artifact_from uses the admitted snapshot's media type and cannot select a file scope."
+                )));
+            }
+            ArtifactPageInput::Artifact {
+                artifact_from: page_input_name(
+                    &required_string(Some(artifact), &format!("{field}.artifact_from"))?,
+                    &format!("{field}.artifact_from"),
+                )?,
+            }
+        }
+        _ => {
+            return Err(validation_error(format!(
+                "{field} must select exactly one of path_from or artifact_from."
+            )));
+        }
+    };
     let framing = match required_string(pages.get("framing"), &format!("{field}.framing"))?.as_str()
     {
         "json_array" => ArtifactPageFraming::JsonArray,
@@ -243,15 +282,18 @@ fn validate_pages(
         )));
     }
     Ok(Some(ArtifactPageSource {
-        path_from,
-        path_scope_from,
-        media_type,
+        source,
         framing,
         page_bytes,
     }))
 }
 
 fn page_input_name(name: &str, field: &str) -> Result<String, ValidationError> {
+    if name == "runx_page" {
+        return Err(validation_error(format!(
+            "{field} cannot use the runtime-reserved runx_page field."
+        )));
+    }
     if name.is_empty()
         || !name
             .chars()
@@ -262,4 +304,48 @@ fn page_input_name(name: &str, field: &str) -> Result<String, ValidationError> {
         )));
     }
     Ok(name.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use runx_contracts::javascript_worker::WorkerApi;
+
+    #[test]
+    fn worker_requirements_are_admitted_before_execution() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let target = validate_tool_target(
+            &serde_json::from_value(serde_json::json!({
+                "module": "parse.mjs", "requires": ["parseData", "parseUrl"]
+            }))?,
+            "tool",
+        )?;
+        let ToolTarget::Worker(worker) = target else {
+            return Err("expected worker".into());
+        };
+        assert_eq!(
+            worker.requires,
+            vec![WorkerApi::ParseData, WorkerApi::ParseUrl]
+        );
+        for requirement in [
+            serde_json::json!(["readFile"]),
+            serde_json::json!("parseData"),
+            serde_json::json!([3]),
+        ] {
+            let value = serde_json::from_value(
+                serde_json::json!({"module": "parse.mjs", "requires": requirement}),
+            )?;
+            assert!(validate_tool_target(&value, "tool").is_err());
+        }
+        let target = validate_tool_target(
+            &serde_json::from_value(serde_json::json!({"module":"plain.mjs"}))?,
+            "tool",
+        )?;
+        let ToolTarget::Worker(worker) = target else {
+            return Err("expected worker".into());
+        };
+        assert!(worker.requires.is_empty());
+        assert!(serde_json::to_value(worker)?.get("requires").is_none());
+        Ok(())
+    }
 }

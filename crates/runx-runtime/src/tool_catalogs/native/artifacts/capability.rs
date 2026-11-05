@@ -87,7 +87,7 @@ const ADMIT_FIELDS: &[CapabilityField] = &[
 const READ_FIELDS: &[CapabilityField] = &[
     CapabilityField {
         name: "artifact_uri",
-        description: "Opaque invocation-scoped reference returned by artifact.admit.",
+        description: "Opaque logical-run reference returned by artifact.admit or artifact.open; survives native process restart but grants no authority.",
     },
     CapabilityField {
         name: "offset",

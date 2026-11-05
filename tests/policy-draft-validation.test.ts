@@ -42,6 +42,7 @@ describe("policy-draft domain validation", () => {
     }).policy_context;
     const proposal = finalizePolicy({
       policy_context: prepared,
+      fixed_comparison: { equal: true },
       policy_lint: {
         status: "fail",
         findings: [{

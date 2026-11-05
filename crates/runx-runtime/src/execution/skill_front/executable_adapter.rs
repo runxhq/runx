@@ -13,12 +13,7 @@ pub(crate) struct ExecutableAdapter;
 impl SkillAdapter for ExecutableAdapter {
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
         if matches!(request.executable, Executable::Process(_)) {
-            let credential_observation = request.credential_delivery.public_observation().cloned();
-            let mut output = ProcessToolAdapter.invoke(request)?;
-            if let Some(observation) = &credential_observation {
-                output.observations.record_credential(observation)?;
-            }
-            return Ok(output);
+            return ProcessToolAdapter.invoke(request);
         }
         Err(RuntimeError::UnsupportedExecutable {
             kind: request.executable.kind().to_owned(),

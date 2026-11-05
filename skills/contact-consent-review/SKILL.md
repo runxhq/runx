@@ -11,8 +11,10 @@ must be suppressed, or needs human review. When policy justifies a state
 transition, it records that decision in the operator's consent ledger with
 optimistic concurrency and verifies the exact event through a second read.
 
-This skill never sends a message and never mutates a mailing provider. A later
-`message-send` run must read the current consent state again at delivery time. The
+This skill never sends a message and never mutates a mailing provider. The operator-selected mail delivery capability must read the current ledger
+decision and provider unsubscribe/bounce state again at delivery time. This
+skill does not wire that check into a sender; a delivery lane that cannot
+enforce it must remain unused. The
 ledger records the operator's policy decision; it does not replace provider
 unsubscribe or bounce data.
 
@@ -21,7 +23,11 @@ unsubscribe or bounce data.
 The caller supplies one bounded engagement observation, the current consent
 observation, and the policy threshold that applies to the contact. The evidence
 must be marked `read` and versioned to the same ledger head that the runner
-reads through the store's `projection.read`. Missing, stale, ambiguous, or conflicting
+reads through the store's `events.read`. The read returns only the latest
+event, its ledger version and projection digest. Once a transition exists, its
+recorded state must agree with the caller observation; matching versions alone
+are insufficient. A conflicting or unrecognized ledger head requires review.
+Missing, stale, ambiguous, or conflicting
 evidence produces `human_review` without a write.
 
 The deterministic decision order is conservative:
@@ -43,15 +49,15 @@ remain unchanged.
 
 ## Authority and finality
 
-The runner requests `runx:data:read` and, only for an admitted transition,
-`runx:data:append`. These scopes authorize a bounded consent-ledger operation;
+The store reader requires `store.read` and, only for an admitted transition,
+the append requires `store.append`. These scopes authorize a bounded consent-ledger operation;
 they do not authorize delivery or changes to a CRM or mailing provider. The
 data-source binding owns storage and credentials.
 
 A sealed result proves the ledger reads and any exact recorded transition. It
 does not prove provider state, re-subscription, campaign approval, or delivery.
-Every result therefore keeps `downstream_send.status` at `not_run` and names
-`message-send` as the separate delivery boundary.
+Every result therefore keeps `downstream_send.status` at `not_run` and leaves
+`downstream_send.skill` null: this review neither selects nor executes a sender.
 
 ## Decisions and recovery
 

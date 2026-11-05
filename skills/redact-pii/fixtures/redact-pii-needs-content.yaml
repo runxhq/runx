@@ -16,13 +16,11 @@ caller:
 expect:
   status: sealed
   steps:
-    - digest-source
+    - block-policy
     - detect
-    - scrub
-    - digest-redacted
-    - finalize
+    - apply
   step_outputs:
-    finalize:
+    apply:
       subset:
         redaction_report:
           data:

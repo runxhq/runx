@@ -43,7 +43,7 @@ pub const RETIRED_KERNEL_STORE_FILE: &str = "kernel.sqlite";
 const BUSY_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_KEY_BYTES: usize = 512;
 const MAX_EVENT_BYTES: usize = 1024 * 1024;
-const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
+pub(crate) const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 const MAX_BATCH: usize = 1024;
 
 /// A typed event in one stream kind. The event's tag is stored beside its
@@ -298,6 +298,14 @@ impl KernelStore {
     #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// The authoritative project state directory this store was opened in.
+    #[must_use]
+    pub(crate) fn project_dir(&self) -> PathBuf {
+        let mut project = self.path.clone();
+        project.pop();
+        project
     }
 
     /// Append every event or none. Each stream must still be at the version

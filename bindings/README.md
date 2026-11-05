@@ -1,46 +1,23 @@
-# Upstream Bindings
+# Upstream Binding Records
 
-Bindings connect a verified upstream `SKILL.md` to a runx execution profile.
+This directory contains checked-in upstream provenance and profile records.
+A binding.json and run.yaml pair is not a complete runnable skill package:
+it does not contain the upstream manual or its required resources. These
+records do not constitute registry publication or an installation.
 
-The upstream repository remains the source of truth for the portable skill
-document. This directory stores runx-owned binding data:
+For a new adoption, use skill-adopt with captured local source and a deliberate
+package destination, or its from-source runner with an existing native source
+snapshot. It passes an immutable artifact to canonical skill-build, which
+plans, validates, safely replays and atomically applies the complete package.
+The upstream manual, licenses and necessary resources remain part of that
+source context. Only the actual apply_result establishes local application.
 
-- `binding.json`: upstream repo/path/commit provenance, trust tier,
-  registry publisher, publication state, and proof pointers.
-- `run.yaml`: the execution profile artifact containing runner metadata,
-  harness cases, policy, scopes, and receipt expectations.
+First-party packages use skill-build directly. Publication uses the canonical
+registry operator after the complete package is ready, with independent
+identity, version and digest readback. No metadata-only binding generator or
+hidden materialization step is part of adoption.
 
-Use `bindings/` only when runx does **not** own the upstream `SKILL.md`.
-First-party runx packages belong in `skills/<name>/`. Product-specific operator
-wrappers belong in the product repo that owns their policy.
-
-Do not add candidate or placeholder directories here. A binding is eligible only
-after the upstream repository has a merged, pinned `SKILL.md` that starts with
-YAML frontmatter and a `name` matching `bindings/<publisher>/<skill>`.
-
-Overlay produces an exact, digest-bound `binding.json` and `run.yaml` bundle from
-the pinned upstream manual. Apply that bundle through the repository's normal
-authoring lane, then publish the validated package through the native registry
-command. No generated `dist/` mirror is a source of truth.
-
-Example:
-
-```bash
-runx skill ./skills/skill-adopt generate --json \
-  -i skill_path=vendor/acme/SKILL.md \
-  -i upstream='{"host":"github.com","owner":"acme","repo":"project","path":"SKILL.md","commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","source_of_truth":true,"html_url":"https://github.com/acme/project/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md","raw_url":"https://raw.githubusercontent.com/acme/project/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/SKILL.md"}' \
-  -i registry='{"publisher":"acme","trust_tier":"community","version":"upstream-aaaaaaaa"}'
-```
-
-If the run yields `needs_agent`, continue with the exact `runx resume` command
-from the envelope. The resulting files remain a proposal until the owning
-authoring lane applies them.
-
-Validate the checked-in binding catalog:
-
-```bash
-pnpm bindings:check
-```
+The existing record catalog is checked with pnpm bindings:check.
 
 ## Candidate Queue
 

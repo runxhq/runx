@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::fs;
 
 use runx_contracts::{EnvironmentRequirements, ExecutionRequirements, JsonObject, JsonValue};
-use runx_parser::{ArtifactPageFraming, ArtifactPageSource, WorkerTool};
+use runx_parser::{ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, WorkerTool};
 use runx_runtime::adapter::{
     Executable, InvocationOutput, InvocationStatus, SkillAdapter, SkillInvocation,
 };
@@ -75,7 +75,7 @@ impl JavaScriptPackage {
         &self,
         inputs: JsonObject,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
-        self.invoke_worker(inputs, javascript_worker(), BTreeMap::new())
+        self.invoke_worker(inputs, javascript_worker(), BTreeMap::new(), Vec::new())
     }
 
     pub(super) fn invoke_with_environment(
@@ -86,7 +86,7 @@ impl JavaScriptPackage {
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
         let mut worker = javascript_worker();
         worker.environment = requirements;
-        self.invoke_worker(inputs, worker, environment)
+        self.invoke_worker(inputs, worker, environment, Vec::new())
     }
 
     pub(super) fn invoke_paged(
@@ -111,13 +111,15 @@ impl JavaScriptPackage {
         );
         let mut worker = javascript_worker();
         worker.pages = Some(ArtifactPageSource {
-            path_from: "archive_file".to_owned(),
-            path_scope_from: Some("archive_base".to_owned()),
-            media_type: "application/javascript".to_owned(),
+            source: ArtifactPageInput::Path {
+                path_from: "archive_file".to_owned(),
+                path_scope_from: Some("archive_base".to_owned()),
+                media_type: "application/javascript".to_owned(),
+            },
             framing: ArtifactPageFraming::JsonArray,
             page_bytes,
         });
-        Ok(self.invoke_worker(inputs, worker, BTreeMap::new())?)
+        Ok(self.invoke_worker(inputs, worker, BTreeMap::new(), vec!["fs.read".to_owned()])?)
     }
 
     fn invoke_worker(
@@ -125,12 +127,14 @@ impl JavaScriptPackage {
         inputs: JsonObject,
         worker: WorkerTool,
         env: BTreeMap<String, String>,
+        scopes: Vec<String>,
     ) -> Result<InvocationOutput, runx_runtime::RuntimeError> {
         let requirements = ExecutionRequirements {
+            scopes,
             environment: worker.environment.clone(),
-            ..ExecutionRequirements::default()
         };
         self.adapter.invoke(SkillInvocation {
+            workspace_bounds: runx_runtime::WorkspaceBounds::Operator,
             historical_context: Vec::new(),
             skill_name: "deterministic-module".to_owned(),
             step_id: None,
@@ -176,6 +180,7 @@ pub(super) fn expected_json(value: serde_json::Value) -> JsonValue {
 
 fn javascript_worker() -> WorkerTool {
     WorkerTool {
+        requires: Vec::new(),
         module: "main.mjs".to_owned(),
         export: None,
         timeout_seconds: None,

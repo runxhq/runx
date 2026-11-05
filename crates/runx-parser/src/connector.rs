@@ -11,10 +11,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use runx_contracts::connector::{
     AmountRule, ApprovalFloor, ConnectorAuth, ConnectorManifest, ConnectorOperation,
     CredentialDeclaration, CredentialName, Digest, HoldAction, HostedAuth, HttpAuth,
-    HttpImplementation, HttpMethod, HttpReadback, HttpRequest, Implementation, LocalAuth,
-    McpServer, OperationAccess, OperationName, OperationVerb, PrincipalRequest,
-    ProviderIdempotency, ReadbackExpected, ReadbackGuarantee, ReadbackMatch, ReferenceDeclaration,
-    SessionAuth, Template, manifest_digest, operation_digest,
+    HttpBodyEncoding, HttpImplementation, HttpMethod, HttpPageCursorLocation, HttpReadback,
+    HttpRequest, Implementation, LocalAuth, McpServer, OperationAccess, OperationName,
+    OperationVerb, PrincipalRequest, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee,
+    ReadbackMatch, ReferenceDeclaration, SessionAuth, Template, json_pointer_segments,
+    manifest_digest, operation_digest,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ReferenceType};
@@ -656,10 +657,10 @@ fn validate_operation(
     }
 
     if read {
-        if operation.approval == ApprovalFloor::Required {
+        if operation.approval == ApprovalFloor::Required && !operation.is_metered() {
             errors.push(
                 &format!("{field}.approval"),
-                "a read cannot require approval",
+                "a read cannot require approval without a declared provider charge",
             );
         }
         if operation.amount.requires_amount() {
@@ -757,8 +758,10 @@ fn validate_operation(
                 "a price's source is an https page",
             );
         }
-        // One call is one priced request; a paged read has no fixed count.
+        // A quote covers this whole operation, including its bounded request
+        // sequence. A paged metered read has no fixed request count.
         if let Some(Implementation::Http(http)) = &operation.implementation
+            && operation.is_metered()
             && http.requests.iter().any(|request| request.pages.is_some())
         {
             errors.push(
@@ -1343,22 +1346,26 @@ fn validate_enforced(manifest: &ConnectorManifest, errors: &mut Errors) {
     for (name, operation) in &manifest.operations {
         let enforced = operation.guarantees.provider_idempotency == ProviderIdempotency::Enforced;
         let field = format!("operations.{name}.guarantees.provider_idempotency");
-        // A read changes nothing for its provider to deduplicate, and the
-        // kernel derives no key for it to send.
+        // A metered read may deduplicate its billed call. Ordinary reads
+        // have no provider effect for this guarantee to describe.
         if operation.access() == OperationAccess::Read {
-            if enforced {
+            if enforced && !operation.is_metered() {
                 errors.push(
                     &field,
                     "a read changes nothing for its provider to deduplicate",
                 );
             }
-            if call_templates(manifest, operation).any(Template::binds_idempotency_key) {
+            if (!operation.is_metered() || !enforced)
+                && call_templates(manifest, operation).any(Template::binds_idempotency_key)
+            {
                 errors.push(
                     &format!("operations.{name}"),
                     "a read has no idempotency key: it binds no {\"$runx\": \"idempotency_key\"}",
                 );
             }
-            continue;
+            if !operation.is_metered() {
+                continue;
+            }
         }
         if !enforced {
             continue;
@@ -1815,11 +1822,47 @@ fn validate_http(
             );
         }
         if let Some(pages) = &request.pages {
-            if !read || request.method != HttpMethod::Get || request.each.is_some() {
+            if !read {
                 errors.push(
                     &format!("{field}.requests"),
-                    format!("request {} pages only as a read's single GET", request.id),
+                    format!("request {} pages only as a declared read", request.id),
                 );
+            }
+            if pages.location == HttpPageCursorLocation::Body {
+                if request.body_encoding == HttpBodyEncoding::Form {
+                    errors.push(
+                        &format!("{field}.requests"),
+                        "a body page cursor requires JSON encoding",
+                    );
+                }
+                if request.body.is_none() {
+                    errors.push(
+                        &format!("{field}.requests"),
+                        "a body page cursor needs a request body",
+                    );
+                }
+                match json_pointer_segments(pages.param.as_str()) {
+                    None => errors.push(
+                        &format!("{field}.requests"),
+                        "a body page cursor names an object member with a JSON pointer",
+                    ),
+                    Some(segments) => {
+                        if http
+                            .auth
+                            .values()
+                            .filter_map(HttpAuth::body_pointer)
+                            .any(|credential| {
+                                segments.starts_with(&credential)
+                                    || credential.starts_with(&segments)
+                            })
+                        {
+                            errors.push(
+                                &format!("{field}.requests"),
+                                "a page cursor cannot overlap a credential-owned body member",
+                            );
+                        }
+                    }
+                }
             }
             if pages
                 .limit

@@ -37,7 +37,7 @@ The agent may:
 - ask for missing inputs;
 - prepare approval copy;
 - route to a governed lane;
-- verify the receipt after action.
+- assess already supplied verified receipt/readback evidence after action.
 
 The agent must not:
 
@@ -66,22 +66,15 @@ card:
 
 ## Action Catalog
 
-Actions should be small named lanes:
+Resolve small named actions from the current skill/connector catalog and the
+selected project profile. Examples of real owners are `receipt-query`,
+`run-history`, `least-privilege`, `pay`, `refund`,
+`message-send` for Slack and `release` for a configured project.
+Product-specific checks and deployment belong to their owning project.
 
-- `ledger.query`
-- `receipt.verify`
-- `payment.spend`
-- `payment.refund`
-- `payment.payout`
-- `send.plan`
-- `send.approve`
-- `provider.health_check`
-- `provider.sync`
-- `deploy.smoke`
-- `access.audit`
-
-Products may alias these for UX, but the ops desk packet should still
-include the canonical lane.
+A UI label does not create a canonical operation. Keep the exact inspected
+skill/runner or existing command/workflow in the execution proposal; report a
+missing owner rather than inventing dotted aliases or backend methods.
 
 ## Stop Conditions
 

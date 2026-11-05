@@ -36,7 +36,7 @@ impl ReceiptReadContext {
     ) -> Result<Self, RuntimeError> {
         let paths = RunxPaths::resolve(env, cwd);
         let verifier = receipt_verifier(env, &paths, ReceiptTrust::HomeAndConfigured)
-            .map_err(|error| receipt_read_error(error.to_string()))?;
+            .map_err(|error| receipt_store_error(error.to_string()))?;
         let resolved = resolve_receipt_path(ReceiptPathInputs {
             explicit_dir: None,
             runtime_config: Some(&RuntimeReceiptConfig::default()),
@@ -107,9 +107,9 @@ impl ReceiptServices {
     }
 }
 
-fn receipt_read_error(message: impl Into<String>) -> RuntimeError {
+fn receipt_store_error(message: impl Into<String>) -> RuntimeError {
     RuntimeError::SkillFailed {
-        skill_name: "receipt.read".to_owned(),
+        skill_name: "receipt store".to_owned(),
         message: message.into(),
     }
 }

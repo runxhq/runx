@@ -11,11 +11,17 @@ inputs:
     channel: slack://T123ABC/C123ABC
     content_uri: inline:sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
     content_digest: sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
-    send_plan: { decision: ready }
+    send_plan:
+      decision: ready
     provider_status: not_called
     delivery_status: not_sent
-    downstream_handoff: { skill: message-send, runner: post, state: ready_for_approval }
-    validation: { status: pass, findings: [] }
+    downstream_handoff:
+      skill: message-send
+      runner: post
+      state: ready_for_approval
+    validation:
+      status: pass
+      findings: []
   channel_locator: slack://T123ABC/C123ABC
   text: changed
   idempotency_key: 00000000-0000-4000-8000-000000000002
@@ -25,12 +31,19 @@ expect:
     - digest
     - bind-plan
     - bind-content
+    - hold-content
   step_outputs:
     bind-content:
       subset:
         comparison:
           data:
             equal: false
+    hold-content:
+      subset:
+        work_result:
+          data:
+            state: held
+            completion_evidence: []
   receipt:
     schema: runx.receipt.v1
 metadata:

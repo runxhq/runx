@@ -15,9 +15,49 @@ evidence shows from what the analyst infers, ranks the next actions by expected
 impact, confidence, and effort, and says how each action should be measured. No
 action is executed by this skill.
 
+## Direct collection and reuse
+
+The default `review` starts from an objective and the canonical site root. It
+collects only missing evidence, then uses the same `analyze` phase as a composed
+graph. Any supplied search, analytics or site evidence takes the reuse branch
+immediately: no page fetch, measurement query or extra research turn runs.
+Forward any prior `collection_notes` with those sources so access failures and
+measurement gaps survive the handoff.
+Choose `analyze` explicitly for a source-only graph that must never acquire data.
+
+With no sources, the collection turn can use `web-fetch#web-fetch` for relevant
+public pages and the read-only defaults `google-search-console#performance` or
+`google-analytics#report` on the operator's selected compatible bindings. Google
+is optional; no private report is required to inspect a public page. Supply known
+property/date/measurement selectors or relevant page URLs in `source_context`.
+Ask when a private selector is ambiguous. A missing binding or unavailable
+report means unavailable evidence, not zero traffic or no commercial demand.
+
+Collection returns actual reader packets and gaps, not a growth strategy. The
+existing analysis owns priorities, causal caution and measurement. For public
+page text, pass the unchanged `provider_operation.data.result` from a successful
+`web-fetch` with `extract: text` into `site_evidence`; its final URL, full body
+digest, extracted text and provenance survive the handoff. Preserve complete
+Google normalized evidence packets, including their request and coverage caveats.
+Never manufacture a digest, rewrite a report as live, or treat snippets as page
+content. Failed reads stay in `collection_notes`; they are not SEO observations.
+
+A long page yields a labelled bounded text view for analysis, while its original
+source identity stays bound. Omitted content was not assessed. Focus another
+source read only if the decision needs evidence outside that view; do not turn a
+presentation ceiling into a claim that the site itself is unsupported.
+
+## Composes
+
+<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
+
+- `google-analytics#report`
+- `google-search-console#performance`
+- `web-fetch#web-fetch`
+
 ## Evidence comes first
 
-The default `analyze` runner accepts a bounded objective, the site, optional
+The supplied-evidence `analyze` runner accepts a bounded objective, the site, optional
 business constraints, and any combination of:
 
 - search-performance evidence, such as a sealed
@@ -140,3 +180,21 @@ priority, confidence, effort, expected_signal, verification, and stop_condition.
 Mark statements as observed, inferred, or hypothesized. Preserve source caveats,
 do not invent metrics or causes, and do not claim a change, publication,
 provider call, ranking result, or AI citation occurred.
+
+### `organic-growth-collect`
+
+Acquire relevant missing evidence for the exact objective/site, using the named
+read-only skill defaults and native asks if a genuine selector is missing. Do
+not submit sitemaps, alter analytics, publish, crawl unrelated sites or invent
+missing metrics. Use the returned tool schemas. Google sources are optional.
+Read a useful relevant public page if no source was supplied. Fetch explicit
+page URLs directly; avoid redundant reads and broad speculative crawling.
+
+Return exactly `search_evidence`, `analytics_evidence`, `site_evidence` and
+`collection_notes`. Use empty objects/array for absent sources. Forward actual
+normalized Google packet data unchanged. For a text page, forward the unchanged
+`provider_operation.data.result` as an individual site-evidence record, never
+the provider packet wrapper. Preserve final URL, digest, text and provenance.
+Record inaccessible sources, actual read errors and missing measurement context
+as notes. Do not perform synthesis; the next analysis turn owns it. No source
+means honest missing evidence. Do not claim a provider call you did not make.

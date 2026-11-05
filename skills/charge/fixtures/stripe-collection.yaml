@@ -1,3 +1,5 @@
+# The effect-key golden comes from the native, unapproved intent for these exact terms.
+# Update only with an intentional operation-contract change; keep exact wire matching.
 name: charge-stripe-exact-collection
 kind: skill
 target: ..
@@ -41,7 +43,7 @@ caller:
         method: POST
         url: https://api.stripe.com/v1/payment_intents
         body:
-          text: amount=150&automatic_payment_methods%5Ballow_redirects%5D=never&automatic_payment_methods%5Benabled%5D=true&confirm=true&currency=usd&metadata%5Brunx_effect_key%5D=runx%3Asha256%3A3bf9e9a679e77e4100bfc84badc3a3c66894e211b84cb03541d565a641ad7717&metadata%5Brunx_reference%5D=invoice-42&payment_method=pm_northstar
+          text: amount=150&automatic_payment_methods%5Ballow_redirects%5D=never&automatic_payment_methods%5Benabled%5D=true&confirm=true&currency=usd&metadata%5Brunx_effect_key%5D=runx%3Asha256%3Ae4009458da606e65994bcc973c422a245d758e5a851869993d3b4001cb17fedc&metadata%5Brunx_reference%5D=invoice-42&payment_method=pm_northstar
       response:
         status: 200
         headers:
@@ -60,6 +62,7 @@ expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
+    outcome: completed
   step_outputs:
     stripe:
       subset:

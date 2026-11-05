@@ -3,17 +3,18 @@ use std::path::Path;
 
 use runx_contracts::{JsonObject, JsonValue};
 
+use crate::RuntimeError;
 use crate::receipts::RuntimeReceiptSignaturePolicy;
 use crate::receipts::inspection::project_receipt_inspection;
 use crate::receipts::store::LocalReceiptStore;
 use crate::services::ReceiptReadContext;
-use crate::{ReceiptTreeConfig, RuntimeError, verify_runtime_receipt_tree};
 
 mod projection;
 mod tree;
 
-use projection::{matched_receipt, proof_packet, to_json_value, tree_findings, tree_projection};
-use tree::{load_children, store_finding};
+use projection::{matched_receipt, proof_packet, to_json_value, tree_projection};
+pub(crate) use tree::load_verified_tree;
+use tree::store_finding;
 
 const TOOL: &str = "receipt.prove";
 const MAX_RECEIPTS: usize = 100;
@@ -42,30 +43,22 @@ impl ProofProjection {
         store_label: &crate::ReceiptStoreLabel,
         policy: RuntimeReceiptSignaturePolicy<'_>,
     ) -> Result<(), RuntimeError> {
-        let root = match store.read_exact(receipt_id, policy) {
-            Ok(receipt) => receipt,
+        let tree = match load_verified_tree(store, receipt_id, policy) {
+            Ok(tree) => tree,
             Err(error) => {
                 store_finding(&mut self.findings, receipt_id, &error, store_label);
                 return Ok(());
             }
         };
-        let (children, load_findings) = load_children(store, &root, policy);
-        self.findings.extend(load_findings);
-        let verification = verify_runtime_receipt_tree(
-            &root,
-            children.clone(),
-            ReceiptTreeConfig::default(),
-            policy,
-        );
-        let tree_findings = tree_findings(&verification.findings);
-        self.findings.extend(tree_findings.clone());
-        let inspection = project_receipt_inspection(&root, policy);
+        self.findings.extend(tree.findings);
+        let tree_findings = projection::tree_findings(&tree.verification.findings);
+        let inspection = project_receipt_inspection(&tree.root, policy);
         self.matched.push(matched_receipt(&inspection));
         self.details.push(to_json_value(&inspection)?);
         self.trees.push(tree_projection(
             receipt_id,
-            children.len() + 1,
-            verification.valid,
+            tree.receipt_count,
+            tree.verification.valid,
             tree_findings,
         ));
         Ok(())

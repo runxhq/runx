@@ -57,7 +57,8 @@ pub use process::{
 pub use receipts::{
     MatchedReceipt, RECEIPT_TOOL_MAX_RECEIPTS, ReceiptProof, ReceiptProofDecision,
     ReceiptProofSchema, ReceiptProofStore, ReceiptProofVerification, ReceiptQuery,
-    ReceiptQuerySchema, ReceiptQuerySource, ReceiptQueryVerification,
+    ReceiptQuerySchema, ReceiptQuerySource, ReceiptQueryVerification, ReceiptRead,
+    ReceiptReadSchema, ReceiptReadStatus,
 };
 pub use registry::{
     CatalogHit, CatalogPackageKind, CatalogRunner, CatalogSource, ConnectorInspection,

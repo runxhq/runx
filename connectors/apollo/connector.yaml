@@ -1,7 +1,7 @@
 schema: runx.connector.v1
 id: apollo
 name: Apollo
-description: Inspect the selected Apollo API key without enriching contacts or consuming enrichment credits.
+description: Inspect the selected Apollo key and enrich a matched person or company through declared, credit-aware operations.
 category: marketing
 runtime_capability: false
 auth:
@@ -20,6 +20,7 @@ operations:
   auth.inspect:
     description: Inspect API health and whether the exact selected key authenticates; this does not prove account identity, enrichment permissions or credits.
     verb: read
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://docs.apollo.io/reference/authentication'}
     scopes: [auth.read]
     credentials: [api_key]
     target: {template: 'https://api.apollo.io/api/v1/auth/health'}
@@ -35,3 +36,89 @@ operations:
             method: GET
             url: https://api.apollo.io/api/v1/auth/health
             headers: {accept: application/json}
+  person.enrich:
+    description: Match one identified professional and return Apollo evidence; may consume account credits. Personal-email, phone and waterfall expansion are not requested.
+    verb: read
+    scopes: [person.enrich]
+    credentials: [api_key]
+    cost: {per: request, source: docs, source_url: 'https://docs.apollo.io/reference/people-enrichment'}
+    target: {template: 'https://api.apollo.io/api/v1/people/match'}
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, minLength: 1, maxLength: 128}
+        email: {type: string, format: email, maxLength: 320}
+        linkedin_url: {type: string, format: uri, maxLength: 2000, pattern: '^https://(www\.)?linkedin\.com/in/'}
+        name: {type: string, minLength: 1, maxLength: 300}
+        first_name: {type: string, minLength: 1, maxLength: 150}
+        last_name: {type: string, minLength: 1, maxLength: 150}
+        domain: {type: string, minLength: 1, maxLength: 253}
+        organization_name: {type: string, minLength: 1, maxLength: 300}
+      anyOf:
+        - required: [id]
+        - required: [email]
+        - required: [linkedin_url]
+        - required: [name, domain]
+        - required: [name, organization_name]
+        - required: [first_name, last_name, domain]
+        - required: [first_name, last_name, organization_name]
+    result_fields: [match]
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts: [api.apollo.io]
+        auth: {api_key: {type: header, name: x-api-key, field: api_key}}
+        requests:
+          - id: match
+            method: POST
+            url: https://api.apollo.io/api/v1/people/match
+            headers: {accept: application/json}
+            query:
+              id: {$argument: /id}
+              email: {$argument: /email}
+              linkedin_url: {$argument: /linkedin_url}
+              name: {$argument: /name}
+              first_name: {$argument: /first_name}
+              last_name: {$argument: /last_name}
+              domain: {$argument: /domain}
+              organization_name: {$argument: /organization_name}
+              reveal_personal_emails: false
+              reveal_phone_number: false
+              run_waterfall_email: false
+              run_waterfall_phone: false
+  company.enrich:
+    description: Enrich one identified company and return Apollo evidence; may consume account credits and does not discover prospects or contact anyone.
+    verb: read
+    scopes: [company.enrich]
+    credentials: [api_key]
+    cost: {per: request, source: docs, source_url: 'https://docs.apollo.io/reference/organization-enrichment'}
+    target: {template: 'https://api.apollo.io/api/v1/organizations/enrich'}
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        domain: {type: string, minLength: 1, maxLength: 253}
+        linkedin_url: {type: string, format: uri, maxLength: 2000, pattern: '^https://(www\.)?linkedin\.com/company/'}
+        website: {type: string, format: uri, maxLength: 2000, pattern: '^https?://'}
+        name: {type: string, minLength: 1, maxLength: 300}
+      anyOf:
+        - required: [domain]
+        - required: [linkedin_url]
+        - required: [website]
+    result_fields: [match]
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts: [api.apollo.io]
+        auth: {api_key: {type: header, name: x-api-key, field: api_key}}
+        requests:
+          - id: match
+            method: GET
+            url: https://api.apollo.io/api/v1/organizations/enrich
+            headers: {accept: application/json}
+            query:
+              domain: {$argument: /domain}
+              linkedin_url: {$argument: /linkedin_url}
+              website: {$argument: /website}
+              name: {$argument: /name}

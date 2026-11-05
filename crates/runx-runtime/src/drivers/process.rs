@@ -33,9 +33,13 @@ impl ToolRunner for StandIn<'_> {
         inputs: JsonObject,
         scopes: &[String],
         _delivery: &CredentialDelivery,
-    ) -> Result<JsonValue, String> {
-        let declared =
-            crate::tool_catalogs::manifest::read(manifest).map_err(|error| error.to_string())?;
+    ) -> Result<JsonValue, Unperformed> {
+        let declared = crate::tool_catalogs::manifest::read(manifest).map_err(|error| {
+            Unperformed::NotSent {
+                code: "harness_input",
+                reason: error.to_string(),
+            }
+        })?;
         crate::capability::enforce_required_scopes(
             tool,
             declared
@@ -45,19 +49,28 @@ impl ToolRunner for StandIn<'_> {
                 .map(String::as_str),
             scopes,
         )
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| Unperformed::NotSent {
+            code: "harness_input",
+            reason: error.to_string(),
+        })?;
         let inputs = crate::input_contract::materialize_tool_inputs(
             &declared.inputs,
             &inputs,
             &JsonObject::new(),
         )
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| Unperformed::NotSent {
+            code: "harness_input",
+            reason: error.to_string(),
+        })?;
         self.calls
             .iter()
             .find(|call| call.tool == tool && call.arguments == inputs)
             .map(|call| call.result.clone())
-            .ok_or_else(|| {
-                format!("the harness declares no process result for {tool} with these arguments")
+            .ok_or_else(|| Unperformed::NotSent {
+                code: "harness_result_missing",
+                reason: format!(
+                    "the harness declares no process result for {tool} with these arguments"
+                ),
             })
     }
 }
@@ -76,12 +89,7 @@ pub(crate) struct Process<'a> {
 
 impl Driver for Process<'_> {
     fn perform(&self, _item: Option<usize>) -> Result<Observed, Unperformed> {
-        let answer = self
-            .run("perform", None)
-            .map_err(|reason| Unperformed::MaybeSent {
-                code: "tool_failed",
-                reason,
-            })?;
+        let answer = self.run("perform", None)?;
         if let Some(reason) = refusal(&answer) {
             return Err(Unperformed::Refused {
                 code: "tool_refused",
@@ -103,7 +111,10 @@ impl Driver for Process<'_> {
         else {
             return Err(format!("the implementation declares no {check:?}"));
         };
-        observed(self.run("readback", Some(write))?)
+        observed(
+            self.run("readback", Some(write))
+                .map_err(Unperformed::reason)?,
+        )
     }
 
     fn result(
@@ -135,14 +146,21 @@ impl Driver for Process<'_> {
 
 impl Process<'_> {
     /// Run the tool for `phase`; a read's tool sees only the call's input.
-    fn run(&self, phase: &str, acknowledgement: Option<&JsonValue>) -> Result<JsonValue, String> {
+    fn run(
+        &self,
+        phase: &str,
+        acknowledgement: Option<&JsonValue>,
+    ) -> Result<JsonValue, Unperformed> {
         let mut inputs = match self.call.arguments {
             JsonValue::Object(arguments) => arguments.clone(),
             _ => JsonObject::new(),
         };
         if let Some(principal) = self.call.session_principal {
             if inputs.contains_key("principal_uri") {
-                return Err("principal_uri is kernel-supplied process context".to_owned());
+                return Err(Unperformed::NotSent {
+                    code: "invalid_context",
+                    reason: "principal_uri is kernel-supplied process context".to_owned(),
+                });
             }
             inputs.insert(
                 "principal_uri".to_owned(),
@@ -217,16 +235,28 @@ mod tests {
             inputs: JsonObject,
             _scopes: &[String],
             _delivery: &CredentialDelivery,
-        ) -> Result<JsonValue, String> {
+        ) -> Result<JsonValue, Unperformed> {
             self.runs.borrow_mut().push(inputs.clone());
             match inputs.get("branch").and_then(JsonValue::as_str) {
                 Some("blocked") => Ok(serde_json::from_value(
                     serde_json::json!({"refused": "protected"}),
                 )
-                .map_err(|error| error.to_string())?),
-                Some("broken") => Err("the tool exited 1".to_owned()),
-                _ => Ok(serde_json::from_value(serde_json::json!({"sha": "abc123"}))
-                    .map_err(|error| error.to_string())?),
+                .map_err(|error| Unperformed::NotSent {
+                    code: "test_input",
+                    reason: error.to_string(),
+                })?),
+                Some("broken") => Err(Unperformed::MaybeSent {
+                    code: "tool_failed",
+                    reason: "the tool exited 1".to_owned(),
+                }),
+                _ => Ok(
+                    serde_json::from_value(serde_json::json!({"sha": "abc123"})).map_err(
+                        |error| Unperformed::NotSent {
+                            code: "test_input",
+                            reason: error.to_string(),
+                        },
+                    )?,
+                ),
             }
         }
     }

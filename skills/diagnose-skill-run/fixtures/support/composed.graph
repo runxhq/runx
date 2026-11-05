@@ -1,22 +1,26 @@
 name: diagnose-skill-run-composed
 steps:
-  - id: diagnose-skill-run
-    skill: ../..
-    runner: review
+  - id: evidence
+    skill: ../../../receipt-query
+    runner: read
     inputs:
-      receipt_id: rcpt_context_flattening
-      receipt_rows:
+      question: Resolve the exact selected failed receipt.
+      receipt_ids:
+        - rcpt_context_flattening
+      proof:
+        verify_chain: true
+      receipts:
         - receipt_id: rcpt_context_flattening
           skill: skills/skill-build
           outcome: failed
-          created_at: "2026-07-16T00:00:00Z"
+          created_at: 2026-07-16T00:00:00Z
           verification_status: verified
       receipt_details:
         - id: rcpt_context_flattening
           receipt_uri: runx:receipt:rcpt_context_flattening
           subject_kind: graph
           subject_uri: skills/skill-build
-          created_at: "2026-07-16T00:00:00Z"
+          created_at: 2026-07-16T00:00:00Z
           outcome: failed
           verification:
             status: verified
@@ -41,8 +45,14 @@ steps:
           artifact_uris: []
           lineage_uris: []
           seal_reason: graph_step_failed
+  - id: diagnose-skill-run
+    skill: ../..
+    runner: from-evidence
+    inputs:
+      receipt_id: rcpt_context_flattening
       harness_output: Context edge pointed at stdout and flattened the payload.
       skill_path: skills/skill-build
+      receipt_evidence: $steps.evidence.ledger_answer_packet
   - id: digest
     tool: data.digest
     inputs:

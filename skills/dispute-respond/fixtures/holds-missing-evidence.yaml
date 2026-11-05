@@ -1,0 +1,83 @@
+name: stripe-dispute-holds-missing-fulfillment
+kind: skill
+target: ..
+setup:
+  credentials:
+    - stripe
+env:
+  STRIPE_API_KEY: fixture-stripe-key
+inputs:
+  dispute_id: du_case42
+  evidence: []
+caller:
+  answers:
+    prepare-auto#draft:
+      response_draft:
+        posture: needs_more_evidence
+        summary: The payment is real, but payment does not prove delivery of the disputed product.
+        fields: {}
+        citations: []
+        open_questions:
+          - Provide the order-specific delivery or access record that addresses non-receipt.
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/disputes/du_case42
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"du_case42","charge":"ch_original42","payment_intent":"pi_original42","amount":150,"currency":"usd","reason":"product_not_received","status":"needs_response","evidence_details":{"due_by":1893456000,"past_due":false,"has_evidence":false,"submission_count":0},"evidence":{},"livemode":false}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/charges/ch_original42
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"ch_original42","payment_intent":"pi_original42","amount":200,"amount_refunded":0,"currency":"usd","status":"succeeded"}'
+expect:
+  status: sealed
+  steps:
+    - account
+    - prepare-auto
+  step_outputs:
+    prepare-auto:
+      subset:
+        prepared_response:
+          data:
+            decision: held
+            filing_status: not_attempted
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

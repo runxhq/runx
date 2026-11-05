@@ -8,6 +8,11 @@ use runx_runtime::{ManagedAgentPolicy, ResumeRequest, WorkspaceEnv};
 
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 
+pub(crate) const ANSWER_DOCUMENT_EXAMPLE: &str =
+    r#"{"answers":{"<request-id>":{"request_digest":"<request-digest>","value":{}}}}"#;
+pub(crate) const ANSWER_DOCUMENT_GUIDANCE: &str = "Use the full pending request id and its request_digest. Put the response directly in value, matching the request artifact's output_schema; do not add a result or output wrapper.";
+pub(crate) const APPROVAL_DOCUMENT_GUIDANCE: &str = r#"Explicit human decisions use {"approvals":{"<request-id>":{"request_digest":"<request-digest>","approved":true,"reason":"..."}}}. This attests that a human approved the exact pending gate. Agents must never author it."#;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ResumePlan {
     pub run_id: String,

@@ -1,6 +1,5 @@
 skill: github-issue-triage
-version: "0.4.12"
-
+version: "0.4.13"
 catalog:
   kind: graph
   audience: public
@@ -10,42 +9,65 @@ catalog:
   completion: provider_readback
   approval: none
   category: ops
-
 harness:
   files:
     - fixtures/bin/gh
     - fixtures/support/composed.graph
   cases: []
-
 input_definitions:
   repository:
     type: string
     required: true
     description: GitHub repository as owner/name.
     schema:
-      pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
-      examples: [runxhq/runx]
+      pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+      examples:
+        - runxhq/runx
   issue_number:
     type: string
     required: true
     description: Positive GitHub issue number.
     schema:
-      pattern: '^[1-9][0-9]*$'
-      examples: ['241']
+      pattern: ^[1-9][0-9]*$
+      examples:
+        - "241"
   issue_snapshot:
     type: object
     required: true
     description: One bounded GitHub issue snapshot from a declared provider or supplied source.
     schema:
-      required: [repository, number, title, state, body]
+      required:
+        - repository
+        - number
+        - title
+        - state
+        - body
       additionalProperties: false
       properties:
-        repository: { type: string, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' }
-        number: { type: string, pattern: '^[1-9][0-9]*$' }
-        title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
-        state: { type: string, enum: [open, closed] }
-        body: { type: string, maxLength: 20000, pattern: '^[^\u0000]*$' }
-        source_locator: { type: string, minLength: 1, maxLength: 1024 }
+        repository:
+          type: string
+          pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        number:
+          type: string
+          pattern: ^[1-9][0-9]*$
+        title:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: ^[^\u0000]+$
+        state:
+          type: string
+          enum:
+            - open
+            - closed
+        body:
+          type: string
+          maxLength: 65536
+          pattern: ^[^\u0000]*$
+        source_locator:
+          type: string
+          minLength: 1
+          maxLength: 1024
   issue_snapshots:
     type: array
     required: true
@@ -55,26 +77,53 @@ input_definitions:
       maxItems: 100
       items:
         type: object
-        required: [repository, number, title, state, body]
+        required:
+          - repository
+          - number
+          - title
+          - state
+          - body
         additionalProperties: false
         properties:
-          repository: { type: string, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' }
-          number: { type: string, pattern: '^[1-9][0-9]*$' }
-          title: { type: string, minLength: 1, maxLength: 256, pattern: '^[^\u0000]+$' }
-          state: { type: string, enum: [open, closed] }
-          body: { type: string, maxLength: 20000, pattern: '^[^\u0000]*$' }
-          source_locator: { type: string, minLength: 1, maxLength: 1024 }
-
+          repository:
+            type: string
+            pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+          number:
+            type: string
+            pattern: ^[1-9][0-9]*$
+          title:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: ^[^\u0000]+$
+          state:
+            type: string
+            enum:
+              - open
+              - closed
+          body:
+            type: string
+            maxLength: 65536
+            pattern: ^[^\u0000]*$
+          source_locator:
+            type: string
+            minLength: 1
+            maxLength: 1024
 connectors:
   github:
-    operations: [issue.read, comments.create]
+    operations:
+      - issue.read
+      - comments.create
 runners:
   provider-respond:
-    description: Read one issue from GitHub and draft the maintainer's next action, its profile, posture, reply and follow-up. Posts nothing.
+    description: Read one issue from GitHub and draft the maintainer's next action, its profile, posture, reply
+      and follow-up. Posts nothing.
     default: true
     inputs:
-      repository: { definition: repository }
-      issue_number: { definition: issue_number }
+      repository:
+        definition: repository
+      issue_number:
+        definition: issue_number
       objective:
         type: string
         required: false
@@ -85,40 +134,77 @@ runners:
         description: Repository norms, tone, and release posture.
     examples:
       - repository: runxhq/runx
-        issue_number: '241'
+        issue_number: "241"
         objective: Draft the next helpful maintainer response.
-    result_from: [finalize]
+    result_from:
+      - finalize
     steps:
       - id: read-issue
         operation: github/issue.read
         input:
           repository: $input.repository
           number: $input.issue_number
-
       - id: digest-snapshot
         tool: data.digest
         inputs:
           value: $steps.read-issue.provider_operation.result.issue
-
       - id: admit
         inputs:
           repository: $input.repository
           issue_snapshot: $steps.read-issue.provider_operation.result.issue
           provider_operation: $steps.read-issue.provider_operation
           snapshot_digest: $steps.digest-snapshot.digest_result.digest
-        tool: { module: github-issue-triage.mjs, export: admitIssue }
+        tool:
+          module: github-issue-triage.mjs
+          export: admitIssue
         outputs:
           issue_evidence: object
         artifacts:
           named_emits:
             issue_evidence: issue_evidence
-
       - id: draft
-        agent: { role: builder, task: github-issue-triage-respond }
+        agent:
+          role: builder
+          task: github-issue-triage-respond
         outputs:
-          issue_profile: object
-          response_strategy: object
-          response_draft: object
+          issue_profile:
+            type: object
+            schema:
+              properties:
+                repository:
+                  type: string
+                number:
+                  type: string
+                title:
+                  type: string
+                state:
+                  type: string
+                summary:
+                  type: string
+              required:
+              - repository
+              - number
+              - title
+              - state
+          response_strategy:
+            type: object
+            schema:
+              properties:
+                stance:
+                  type: string
+              required:
+              - stance
+          response_draft:
+            type: object
+            schema:
+              properties:
+                channel:
+                  type: string
+                body:
+                  type: string
+              required:
+              - channel
+              - body
           follow_up_actions: array
         inputs:
           objective: $input.objective
@@ -126,7 +212,6 @@ runners:
           issue_evidence: $steps.admit.issue_evidence
           repository: $input.repository
           issue_number: $input.issue_number
-
       - id: finalize
         inputs:
           issue_evidence: $steps.admit.issue_evidence
@@ -134,7 +219,9 @@ runners:
           response_strategy: $steps.draft.response_strategy
           response_draft: $steps.draft.response_draft
           follow_up_actions: $steps.draft.follow_up_actions
-        tool: { module: github-issue-triage.mjs, export: finalizeResponse }
+        tool:
+          module: github-issue-triage.mjs
+          export: finalizeResponse
         outputs:
           issue_triage_packet: object
         artifacts:
@@ -142,11 +229,15 @@ runners:
             issue_triage_packet: issue_triage_packet
           packets:
             issue_triage_packet: runx/github-issue-triage.triage.v1
-
+    operations: []
+    skills: []
+    tools: []
+    asks: false
   discover:
     description: Pick the issue that most deserves attention from a queue of issue snapshots you supply.
     inputs:
-      issue_snapshots: { definition: issue_snapshots }
+      issue_snapshots:
+        definition: issue_snapshots
       query:
         type: string
         required: true
@@ -161,43 +252,61 @@ runners:
     examples:
       - query: Find unanswered issues where a maintainer response would unblock progress.
         issue_snapshots:
-          - { repository: runxhq/runx, number: '241', title: Sourcey output path is unclear, state: open, body: The docs name two different output directories. }
-    result_from: [finalize]
+          - repository: runxhq/runx
+            number: "241"
+            title: Sourcey output path is unclear
+            state: open
+            body: The docs name two different output directories.
+    result_from:
+      - finalize
     steps:
       - id: digest-snapshots
         tool: data.digest
         inputs:
           value: $input.issue_snapshots
-
       - id: index
         inputs:
           issue_snapshots: $input.issue_snapshots
           query: $input.query
           snapshot_digest: $steps.digest-snapshots.digest_result.digest
-        tool: { module: github-issue-triage.mjs, export: indexIssues }
+        tool:
+          module: github-issue-triage.mjs
+          export: indexIssues
         outputs:
           issue_index: object
         artifacts:
           named_emits:
             issue_index: issue_index
-
       - id: select
-        agent: { role: researcher, task: github-issue-triage-discover }
+        agent:
+          role: researcher
+          task: github-issue-triage-discover
         outputs:
           issue_candidates: array
-          selection_rationale: object
+          selection_rationale:
+            type: object
+            schema:
+              properties:
+                chosen_issue:
+                  type: string
+                rationale:
+                  type: string
+              required:
+              - chosen_issue
+              - rationale
         inputs:
           maintainer_context: $input.maintainer_context
           issue_index: $steps.index.issue_index
           issue_snapshots: $input.issue_snapshots
           query: $input.query
-
       - id: finalize
         inputs:
           issue_index: $steps.index.issue_index
           issue_candidates: $steps.select.issue_candidates
           selection_rationale: $steps.select.selection_rationale
-        tool: { module: github-issue-triage.mjs, export: finalizeDiscovery }
+        tool:
+          module: github-issue-triage.mjs
+          export: finalizeDiscovery
         outputs:
           issue_triage_queue: object
         artifacts:
@@ -205,11 +314,15 @@ runners:
             issue_triage_queue: issue_triage_queue
           packets:
             issue_triage_queue: runx/github-issue-triage.queue.v1
-
+    operations: []
+    skills: []
+    tools: []
+    asks: false
   respond:
     description: Draft the next action for one issue snapshot you already hold, or replay one. Posts nothing.
     inputs:
-      issue_snapshot: { definition: issue_snapshot }
+      issue_snapshot:
+        definition: issue_snapshot
       objective:
         type: string
         required: false
@@ -219,39 +332,81 @@ runners:
         required: false
         description: Repository norms, tone, and release posture.
     examples:
-      - issue_snapshot: { repository: runxhq/runx, number: '241', title: Sourcey output path is unclear, state: open, body: The docs name two different output directories. }
+      - issue_snapshot:
+          repository: runxhq/runx
+          number: "241"
+          title: Sourcey output path is unclear
+          state: open
+          body: The docs name two different output directories.
         objective: Draft the next helpful maintainer response.
-    result_from: [finalize]
+    result_from:
+      - finalize
     steps:
       - id: digest-snapshot
         tool: data.digest
         inputs:
           value: $input.issue_snapshot
-
       - id: admit
         inputs:
           issue_snapshot: $input.issue_snapshot
           snapshot_digest: $steps.digest-snapshot.digest_result.digest
-        tool: { module: github-issue-triage.mjs, export: admitIssue }
+        tool:
+          module: github-issue-triage.mjs
+          export: admitIssue
         outputs:
           issue_evidence: object
         artifacts:
           named_emits:
             issue_evidence: issue_evidence
-
       - id: draft
-        agent: { role: builder, task: github-issue-triage-respond }
+        agent:
+          role: builder
+          task: github-issue-triage-respond
         outputs:
-          issue_profile: object
-          response_strategy: object
-          response_draft: object
+          issue_profile:
+            type: object
+            schema:
+              properties:
+                repository:
+                  type: string
+                number:
+                  type: string
+                title:
+                  type: string
+                state:
+                  type: string
+                summary:
+                  type: string
+              required:
+              - repository
+              - number
+              - title
+              - state
+          response_strategy:
+            type: object
+            schema:
+              properties:
+                stance:
+                  type: string
+              required:
+              - stance
+          response_draft:
+            type: object
+            schema:
+              properties:
+                channel:
+                  type: string
+                body:
+                  type: string
+              required:
+              - channel
+              - body
           follow_up_actions: array
         inputs:
           objective: $input.objective
           maintainer_context: $input.maintainer_context
           issue_evidence: $steps.admit.issue_evidence
           issue_snapshot: $input.issue_snapshot
-
       - id: finalize
         inputs:
           issue_evidence: $steps.admit.issue_evidence
@@ -259,7 +414,9 @@ runners:
           response_strategy: $steps.draft.response_strategy
           response_draft: $steps.draft.response_draft
           follow_up_actions: $steps.draft.follow_up_actions
-        tool: { module: github-issue-triage.mjs, export: finalizeResponse }
+        tool:
+          module: github-issue-triage.mjs
+          export: finalizeResponse
         outputs:
           issue_triage_packet: object
         artifacts:
@@ -267,7 +424,10 @@ runners:
             issue_triage_packet: issue_triage_packet
           packets:
             issue_triage_packet: runx/github-issue-triage.triage.v1
-
+    operations: []
+    skills: []
+    tools: []
+    asks: false
   post:
     description: Post the exact accepted reply of a triage packet as an issue comment, read back.
     inputs:
@@ -280,7 +440,8 @@ runners:
         type: string
         required: true
         description: Stable retry key for this exact issue comment.
-    result_from: [post-comment]
+    result_from:
+      - post-comment
     steps:
       - id: validate
         tool: data.compare
@@ -296,7 +457,9 @@ runners:
             delivery_status: not_sent
             channel: github_issue_comment
       - id: post-comment
-        when: { value: $steps.validate.comparison.equal, equals: true }
+        when:
+          value: $steps.validate.comparison.equal
+          equals: true
         operation: github/comments.create
         idempotency_key: $input.idempotency_key
         input:

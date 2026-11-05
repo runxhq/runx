@@ -180,8 +180,9 @@ pub use native_packets::{
     ProcessOutputChunk, ProcessState, ProcessStream, ProviderNotCalled, RECEIPT_TOOL_MAX_RECEIPTS,
     RUN_LIST_MAX_RUNS, ReceiptProof, ReceiptProofDecision, ReceiptProofSchema, ReceiptProofStore,
     ReceiptProofVerification, ReceiptQuery, ReceiptQuerySchema, ReceiptQuerySource,
-    ReceiptQueryVerification, RegistryInspection, RegistrySearchPacket, RunList, RunListEntry,
-    RunListSchema, RuntimeSealPending, RunxProcess, TerminalSize,
+    ReceiptQueryVerification, ReceiptRead, ReceiptReadSchema, ReceiptReadStatus,
+    RegistryInspection, RegistrySearchPacket, RunList, RunListEntry, RunListSchema,
+    RuntimeSealPending, RunxProcess, TerminalSize,
 };
 pub use operational_policy::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAdmission,

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use criterion::Criterion;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
-use runx_parser::{ArtifactPageFraming, ArtifactPageSource, WorkerTool};
+use runx_parser::{ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, WorkerTool};
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
 use runx_runtime::{CredentialDelivery, Executable, SkillAdapter, SkillInvocation};
 use tempfile::TempDir;
@@ -63,24 +63,31 @@ impl TwitterFixture {
             twitter_archive(record_count),
         )?;
         let invocation = SkillInvocation {
+            workspace_bounds: runx_runtime::WorkspaceBounds::Operator,
             historical_context: Vec::new(),
             skill_name: "twitter".to_owned(),
             step_id: None,
             executable: Executable::Worker(WorkerTool {
+                requires: Vec::new(),
                 module: "twitter-selection.mjs".to_owned(),
                 export: Some("selectArchivePage".to_owned()),
                 timeout_seconds: None,
                 pages: Some(ArtifactPageSource {
-                    path_from: "archive_file".to_owned(),
-                    path_scope_from: Some("archive_base".to_owned()),
-                    media_type: "application/javascript".to_owned(),
+                    source: ArtifactPageInput::Path {
+                        path_from: "archive_file".to_owned(),
+                        path_scope_from: Some("archive_base".to_owned()),
+                        media_type: "application/javascript".to_owned(),
+                    },
                     framing: ArtifactPageFraming::JsonArray,
                     page_bytes: 512 * 1024,
                 }),
                 environment: Default::default(),
             }),
             outputs: None,
-            requirements: Default::default(),
+            requirements: runx_contracts::ExecutionRequirements {
+                scopes: vec!["fs.read".to_owned()],
+                ..Default::default()
+            },
             artifacts: None,
             inputs: selection_inputs(),
             resolved_inputs: JsonObject::new(),

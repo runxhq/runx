@@ -16,16 +16,12 @@
           "additionalProperties": false,
           "properties": {
             "args": {
+              "type": "array",
               "items": {
-                "maxLength": 2000,
-                "minLength": 1,
                 "type": "string"
-              },
-              "maxItems": 63,
-              "type": "array"
+              }
             },
             "command": {
-              "maxLength": 2000,
               "minLength": 1,
               "type": "string"
             },
@@ -34,7 +30,6 @@
               "type": "string"
             },
             "cwd": {
-              "maxLength": 512,
               "minLength": 1,
               "type": "string"
             },

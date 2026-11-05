@@ -2,7 +2,6 @@ const WRITABLE_STATES = new Set(["re_permission", "suppress"]);
 
 export function decideListHygiene(inputs) {
   const projectionResult = object(inputs.contact_readback);
-  const projection = object(projectionResult.projection);
   const base = {
     aggregate_id: inputs.aggregate_id,
     data_source_uri: inputs.data_source_uri,
@@ -10,7 +9,7 @@ export function decideListHygiene(inputs) {
     expected_version: inputs.expected_version,
     idempotency_key: inputs.idempotency_key,
     observed_state: inputs.consent_evidence.state,
-    projection_version: integer(projection.version),
+    projection_version: integer(projectionResult.after_version),
     projection_digest: string(projectionResult.projection_digest),
   };
 
@@ -42,6 +41,21 @@ export function decideListHygiene(inputs) {
       `evidence version ${consent.evidence_version} does not match expected version ${base.expected_version}`,
       "stale_evidence",
     );
+  }
+  if (base.projection_version > 0) {
+    const latest = projectionResult.events?.[0];
+    const event = latest?.event;
+    if (latest?.version !== base.projection_version ||
+        latest.event_type !== "list_hygiene.consent_transitioned" ||
+        event?.type !== "list_hygiene.consent_transitioned" ||
+        event.aggregate_id !== base.aggregate_id ||
+        !WRITABLE_STATES.has(event.new_state)) {
+      return noWrite(base, "human_review", "the ledger head is not an exact recognized consent transition", "unrecognized_ledger_state");
+    }
+    base.observed_state = event.new_state;
+    if (consent.state !== event.new_state) {
+      return noWrite(base, "human_review", "supplied consent state conflicts with the recorded ledger state", "conflicting_consent_state");
+    }
   }
   if (consent.active_unsubscribe_marker || consent.state === "unsubscribed") {
     return noWrite(base, "human_review", "an unsubscribe marker forbids automated re-permission", "active_unsubscribe");
@@ -144,9 +158,9 @@ export function finalizeListHygiene(inputs) {
         ? { lane: "human:list-hygiene-reviewer", reason_code: plan.reason_code, status: "required_before_any_write" }
         : null,
       downstream_send: {
-        skill: "message-send",
+        skill: null,
         status: "not_run",
-        requirement: "read current consent evidence again and enforce it at delivery time",
+        requirement: "The operator-selected mail capability must reread the current ledger decision and provider unsubscribe/bounce state at delivery; this review grants no send authority.",
       },
     },
   };

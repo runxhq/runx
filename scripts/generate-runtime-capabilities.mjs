@@ -3,15 +3,14 @@
 // `runtime_capability: true`) in the runtime: they are part of runx, implemented
 // by the runtime and shipping no tool package, so an installed runx resolves
 // them without the source tree or a registry. Every other connector here is
-// published like any publisher's, with `runx registry publish`. Each connector
-// is read as `runx registry package` reads it, so a manifest or tool the
-// runtime would refuse fails the generation.
-import { spawnSync } from "node:child_process";
+// published like any publisher's, with `runx registry publish`. Read source
+// manifests through the native parser: loading them against an older runtime
+// would reject the very capability change this generator needs to embed.
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { resolveNativeRunxBinary } from "./lib/native-parser.mjs";
+import { evaluateParserRequests } from "./lib/native-parser.mjs";
 
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const connectorsRoot = path.join(workspaceRoot, "connectors");
@@ -42,20 +41,6 @@ function connectorIds() {
     if (surfaces.length === 0) throw new Error(`connectors/${namespace} holds no connector.yaml`);
     return surfaces;
   });
-}
-
-// Whether the runtime reads the connector at `id` as a runtime capability.
-function isRuntimeCapability(binary, id) {
-  const result = spawnSync(binary, ["registry", "package", path.join("connectors", id), "--json"], {
-    cwd: workspaceRoot,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`connectors/${id}: ${result.stderr || result.stdout}`);
-  const connector = JSON.parse(result.stdout).registry?.connector;
-  if (connector?.connector !== id) throw new Error(`connectors/${id} packaged as ${connector?.connector}`);
-  return connector.manifest.runtime_capability === true;
 }
 
 function literal(fields) {
@@ -90,8 +75,15 @@ function render(embedded) {
   ].join("\n");
 }
 
-const binary = resolveNativeRunxBinary();
-const embedded = connectorIds().filter((id) => isRuntimeCapability(binary, id));
+const ids = connectorIds();
+const manifests = evaluateParserRequests(ids.map((id) => ({
+  kind: "parser.validateConnectorManifestYaml",
+  yaml: readFileSync(path.join(connectorsRoot, id, "connector.yaml"), "utf8"),
+})));
+const embedded = ids.filter((id, index) => {
+  if (manifests[index].id !== id) throw new Error(`connectors/${id} declares ${manifests[index].id}`);
+  return manifests[index].runtime_capability === true;
+});
 for (const id of embedded) {
   if (existsSync(path.join(connectorsRoot, id, "tools"))) {
     throw new Error(`connectors/${id} is a runtime capability, implemented by the runtime; it ships no tools/`);

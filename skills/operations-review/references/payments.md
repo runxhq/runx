@@ -1,69 +1,35 @@
 # Payments Reference
 
-Use this reference for funding, payouts, refunds, target changes, chargebacks,
-settlement health, and payment reconciliation.
+Review payment readiness without treating plans or dashboard labels as settlement.
+Payment skills run through an operator-selected local, self-hosted or hosted
+connector. Runx Hosted is optional; merchant credentials do not confer buyer
+spending authority.
 
-## Rule
+Choose the actual capability by role:
 
-Money state changes only after rail proof becomes a receipt/effect. UI state,
-provider optimism, local API success, or agent narration is not settlement.
+- `charge` collects a merchant payment.
+- `pay` pays a known merchant resource through a held buyer method.
+- `invoice-pay` binds already admitted invoice terms before `pay`.
+- `refund` reverses an original collection.
+- `dispute-respond` prepares or files the selected processor's dispute response.
+- `procurement-policy-check` evaluates purchase policy; it does not reserve
+  budget or grant payment authority.
 
-The ops desk spine is rail-neutral. It selects a public payment contract and
-stops at the right approval gate. Real payment execution always requires Runx
-Hosted. Rail-specific funding, wallet, webhook, dispute, settlement, recovery,
-and ledger details stay in the private hosted implementation.
+Inspect the chosen runner and connector before naming operations or arguments.
+Do not invent dotted payment aliases, unsupported rails, a payout capability or
+a private endpoint to fill a gap. Account custody and provider protocol stay
+with the selected connector; the local operating host retains its state.
 
-## Common Lanes
+A useful proposal preserves exact amount/currency, principal/payee, account,
+resource or original payment, original request identity, quote/mandate evidence,
+required approval and the independent readback that establishes the result.
+Never convert units, infer FX or select another account from dashboard prose.
 
-- `payment.charge`: hosted seller-side settlement; approval required.
-- `payment.spend`: hosted buyer-side settlement; approval required.
-- `payment.invoice.settle`: hosted invoice settlement; approval required.
-- `payment.x402`: hosted x402 settlement; approval required.
-- `payment.refund`: money movement; approval required.
-- matching `.read` operations: provider readback; no mutation approval.
-- `payment.dispute_response`: customer/provider communication; approval
-  depends on whether it submits externally.
+A quote, reservation, consent or transaction acknowledgement is not confirmed
+settlement. Keep uncertain outcomes explicit and continue the original effect
+through its owner. x402 completion includes the paid resource result; Link
+payment evidence does not by itself prove merchant delivery. Never mark paid,
+refunded or fulfilled from a recommendation.
 
-## Rail Adapter Contract
-
-A payment rail adapter must make these fields explicit before settlement:
-
-- operation: charge, spend, invoice settlement, x402, refund, dispute, or readback;
-- amount and currency;
-- payer, payee, or refund target;
-- network, rail, account, asset, or processor path;
-- cap, expiry, and idempotency key;
-- approval or payer-signature requirement;
-- settlement proof shape;
-- readback source after settlement.
-
-Do not infer cross-rail compatibility. A balance, address, token, processor
-account, webhook, or credential on one rail does not imply readiness on another
-rail. If a product supports multiple rails, each rail has its own adapter status,
-target configuration, proof, and reconciliation readback.
-
-## Operator Packet Requirements
-
-For each payment proposal include:
-
-- payer/payee refs, redacted when necessary;
-- amount and currency;
-- rail adapter and network/account path;
-- quote, reservation, approval, or settlement refs;
-- expiry or idempotency key;
-- approval requirement;
-- expected receipt/effect;
-- reconciliation readback.
-
-## Stop Conditions
-
-- Missing amount, payee, rail adapter, quote, approval, signature, or
-  idempotency key.
-- Requested manual funded/paid/refunded marking without receipt-backed proof.
-- Network, asset, account, or rail mismatch between quote and payer funds.
-- Target update requested without explicit operator approval.
-- Refund or payout amount not tied to the original settlement or policy.
-- Payout requested for a claim, invoice, or obligation that has not reached the
-  product's payable state.
-- Rail-specific funding or recovery requested without loading the rail adapter
-  or product runbook that owns that procedure.
+Use the existing execution owner's one native approval when required. This
+review prepares the proposal and approval context, not another approval gate.

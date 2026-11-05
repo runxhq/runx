@@ -1,0 +1,24 @@
+name: ghostwrite-admits-supplied-facts-without-research
+kind: skill
+target: ..
+runner: admit
+inputs:
+  objective: Write a short fixture-project status update.
+  audience: maintainers
+  channel: brief
+  facts: [The fixture project updated its setup guidance.]
+expect:
+  status: sealed
+  step_outputs:
+    prepare:
+      subset:
+        evidence_context:
+          data: {decision: ready, evidence_assurance: operator_supplied_facts}
+  receipt: {schema: runx.receipt.v1}
+metadata: {public_skill: ghostwrite, source: skills-fixture}
+operator_journeys:
+- mode: composed
+  prior_evidence: [The actual operator factual statements and writing scope.]
+  must_not_repeat: [Do not invoke research or author the draft inside admission.]
+  request: Admit these already supplied facts for a composing writer.
+  expected_outcome: Return a ready source-bound writing context without writing, researching or claiming independent verification.

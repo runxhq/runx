@@ -332,3 +332,8 @@ public evidence is enough but browser identity or eligibility is unavailable.
 Return `needs_browser` only when required evidence cannot be obtained without
 the browser, and `held` for disallowed rules or known ineligibility.
 
+
+The default research turn explicitly offers only the connector’s account,
+navigation, feed, rules, thread, composer and contribution readback operations.
+It cannot call post, comment or vote operations. Existing explicit effect
+phases retain their one native approval and independent readback boundary.

@@ -1,111 +1,53 @@
-export function finalizePostmortem(inputs) {
-  const fragments = (Array.isArray(inputs.incident_fragments) ? inputs.incident_fragments : []).map(record);
-  const draft = record(inputs.postmortem_draft);
-  const fragmentsById = new Map(fragments.map((fragment) => [stringValue(fragment.id), fragment]));
+export function finalizePostmortem({incident_id, incident_fragments, postmortem_draft: draft, fragments_digest}) {
+  const fragments = new Map(incident_fragments.map(fragment => [fragment.id, fragment]));
   const findings = [];
-
-  const timeline = (Array.isArray(draft.timeline) ? draft.timeline : []).map(record);
-  const validTimeline = [];
-  for (const entry of timeline) {
-    const cited = citedQuote(entry, fragmentsById);
-    if (!cited.ok) {
-      findings.push({ code: "timeline.unsupported", message: `timeline entry ${JSON.stringify(stringValue(entry.entry) ?? "")} ${cited.reason}.` });
-      continue;
-    }
-    validTimeline.push({
-      entry: stringValue(entry.entry) ?? "",
-      fragment_id: cited.fragmentId,
-      quote: cited.quote,
-    });
-  }
-  if (validTimeline.length === 0) {
-    findings.push({ code: "timeline.empty", message: "the draft carries no evidence-cited timeline entries." });
-  }
-
-  const rootCause = record(draft.root_cause);
-  const rootStatus = stringValue(rootCause.status);
-  if (!["known", "suspected", "unknown"].includes(rootStatus ?? "")) {
-    findings.push({ code: "root_cause.invalid", message: "root_cause.status must be known, suspected, or unknown." });
-  } else if (rootStatus !== "unknown") {
-    const cited = citedQuote(rootCause, fragmentsById);
-    if (!stringValue(rootCause.statement)) {
-      findings.push({ code: "root_cause.invalid", message: `a ${rootStatus} root cause must carry a statement.` });
-    } else if (!cited.ok) {
-      findings.push({ code: "root_cause.unsupported", message: `the ${rootStatus} root cause ${cited.reason}.` });
-    }
-  }
-
-  const unknowns = uniqueStrings(draft.unknowns);
-  const actionItems = (Array.isArray(draft.action_items) ? draft.action_items : []).map(record).flatMap((item) => {
-    const action = stringValue(item.action);
-    const owner = stringValue(item.owner);
-    if (!action || !owner) {
-      findings.push({ code: "action_item.incomplete", message: "every action item needs an action and an owner." });
-      return [];
-    }
-    return [{ action, owner }];
-  });
-
-  const failed = findings.length > 0;
-  const publishable = !failed && rootStatus !== "unknown" && unknowns.length === 0;
-  const decision = failed ? "refused" : publishable ? "publishable" : "needs_more_evidence";
-  return {
-    postmortem: {
-      schema: "runx/postmortem-draft.postmortem.v1",
-      decision,
-      reason: failed
-        ? "Refused: the draft claims facts the supplied fragments do not support."
-        : publishable
-          ? "Every timeline entry and the root cause are fragment-cited with no open unknowns."
-          : "The postmortem is evidence-grounded but incomplete; unknowns remain and nothing publishes.",
-      summary: failed ? null : stringValue(draft.summary),
-      timeline: failed ? [] : validTimeline,
-      root_cause: failed
-        ? null
-        : {
-            status: rootStatus,
-            statement: rootStatus === "unknown" ? null : stringValue(rootCause.statement),
-            fragment_id: rootStatus === "unknown" ? null : stringValue(rootCause.fragment_id),
-          },
-      unknowns,
-      action_items: failed ? [] : actionItems,
-      publish_proposal: publishable
-        ? { gate: "human-approver", delivery_skill: "message-send", sent: false }
-        : null,
-      publish_performed: false,
-      fragments_digest: requiredDigest(inputs.fragments_digest),
-      validation: { status: failed ? "fail" : "pass", findings },
-    },
+  if (fragments.size !== incident_fragments.length) findings.push({code:"fragments.ambiguous",message:"Fragment ids must identify one exact source."});
+  const citationError = entry => {
+    const fragment = fragments.get(entry.fragment_id);
+    if (!fragment) return "cites an unknown fragment";
+    return fragment.text.includes(entry.quote) ? null : "quotes text absent from its fragment";
   };
-}
-
-function citedQuote(entry, fragmentsById) {
-  const fragmentId = stringValue(entry.fragment_id);
-  const quote = stringValue(entry.quote);
-  const fragment = fragmentsById.get(fragmentId);
-  if (!fragment) return { ok: false, reason: "cites an unknown fragment" };
-  if (!quote) return { ok: false, reason: "carries no supporting quote" };
-  const text = typeof fragment.text === "string" ? fragment.text : "";
-  if (!text.includes(quote)) return { ok: false, reason: "cites a quote that is not present in its fragment" };
-  return { ok: true, fragmentId, quote };
-}
-
-function requiredDigest(value) {
-  if (typeof value !== "string" || !value.startsWith("sha256:")) {
-    throw new Error("native digest evidence is missing");
+  for (const entry of draft.timeline) {
+    const error = citationError(entry);
+    if (error) {
+      findings.push({code:"timeline.unsupported",message:"Timeline fragment "+entry.fragment_id+" "+error+"."});
+      break;
+    }
   }
-  return value;
-}
-
-function stringValue(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function uniqueStrings(value) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.map(stringValue).filter(Boolean))];
-}
-
-function record(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const root = draft.root_cause;
+  if (root.status !== "unknown") {
+    const error = citationError(root);
+    if (error) findings.push({code:"root_cause.unsupported",message:"Root-cause fragment "+root.fragment_id+" "+error+"."});
+  }
+  const failed = findings.length > 0;
+  const publishable = !failed && root.status === "known" && draft.unknowns.length === 0;
+  const decision = failed ? "refused" : publishable ? "publishable" : "needs_more_evidence";
+  const postmortem = {
+    schema:"runx/postmortem-draft.postmortem.v1",decision,
+    reason:failed ? "The draft has ambiguous or absent citation evidence." :
+      publishable ? "The source-cited draft has a known root cause and no declared open unknowns; publication remains a human decision." :
+      "The draft retains unresolved cause or questions; no publication is proposed.",
+    summary:failed ? null : draft.summary,timeline:failed ? [] : draft.timeline,
+    root_cause:failed ? null : {status:root.status,statement:root.status === "unknown" ? null : root.statement,fragment_id:root.status === "unknown" ? null : root.fragment_id},
+    unknowns:draft.unknowns,action_items:failed ? [] : draft.action_items,
+    publish_proposal:publishable ? {gate:"human-approver",delivery_skill:"message-send",sent:false} : null,
+    publish_performed:false,fragments_digest,validation:{status:failed ? "fail" : "pass",findings},
+  };
+  const document = failed
+    ? "# "+incident_id+"\n\nDraft withheld: "+findings.map(item => item.message).join(" ")
+    : [
+      "# "+incident_id,"## Summary",draft.summary,"## Timeline",
+      ...draft.timeline.map(entry => "- "+entry.entry+" ["+entry.fragment_id+"]"),
+      "## Root cause ("+root.status+")",root.status === "unknown" ? "Not established." : root.statement+" ["+root.fragment_id+"]",
+      "## Open questions",draft.unknowns.length ? draft.unknowns.map(item => "- "+item).join("\n") : "None declared.",
+      "## Actions",draft.action_items.length ? draft.action_items.map(item => "- "+item.owner+": "+item.action).join("\n") : "No actions assigned.",
+      "## Source evidence",
+      ...[...new Set([...draft.timeline.map(entry => entry.fragment_id),...(root.status === "unknown" ? [] : [root.fragment_id])])].map(id => {
+        const fragment = fragments.get(id);
+        const quotes = [...new Set([...draft.timeline.filter(entry => entry.fragment_id === id).map(entry => entry.quote),...(root.status !== "unknown" && root.fragment_id === id ? [root.quote] : [])])];
+        return "["+id+"] "+fragment.source+"\n"+quotes.map(quote => "> "+quote.replace(/\n/g,"\n> ")).join("\n");
+      }),
+      "Publication: not performed.",
+    ].join("\n\n");
+  return {postmortem,document};
 }

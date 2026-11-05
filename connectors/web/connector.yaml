@@ -14,6 +14,8 @@ operations:
     description: Fetch one public web page and extract its text, metadata, links or JSON document. Private networks are refused, and redirects must stay inside the call's host allowlist.
     verb: read
     scopes: [web.read]
+    # Local unauthenticated GET; no metered provider or payment dispatch.
+    cost: {usd_micro: 0, per: request, source: observed}
     target:
       template: {"$argument": "/url"}
     input_schema:

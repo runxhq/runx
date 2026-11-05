@@ -121,7 +121,6 @@
                   }
                 },
                 "required": [
-                  "usd_micro",
                   "per",
                   "source"
                 ],
@@ -902,7 +901,6 @@
                   }
                 },
                 "required": [
-                  "usd_micro",
                   "per",
                   "source"
                 ],

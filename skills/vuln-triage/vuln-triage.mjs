@@ -1,219 +1,380 @@
-export function admitScan(inputs) {
-  const evidence = object(inputs.cve_evidence);
-  const audit = unwrap(evidence.audit_result) || (evidence.schema === "runx/cve-audit.audit.v1" ? evidence : {});
-  const verification = unwrap(evidence.verification);
-  const findings = [];
-  const finding = (code, message) => findings.push({ code, message });
-  const target = text(inputs.target, 1_000);
-  const receiptId = text(evidence.receipt_id, 200);
-  const evidenceDigest = text(inputs.evidence_digest, 80);
+const object = (v) =>
+  v && typeof v === "object" && !Array.isArray(v) ? v : {};
+const array = (v) => (Array.isArray(v) ? v : []);
+const text = (v) => (typeof v === "string" ? v.trim() : "");
+const strings = (v) => array(v).filter((x) => typeof x === "string");
+const nativeDigest = (v) => /^sha256:[0-9a-f]{64}$/.test(text(v));
+const key = (f) =>
+  JSON.stringify([
+    text(f.ecosystem),
+    text(f.dependency),
+    text(f.exact_version),
+    text(f.advisory_id),
+  ]);
 
-  if (!target) finding("vuln.target.missing", "target is required");
-  if (audit.schema !== "runx/cve-audit.audit.v1") finding("vuln.audit.missing", "cve_evidence must include an exact cve-audit packet");
-  if (verification.verified !== true) finding("vuln.audit.unverified", "cve_evidence must include successful independent verification");
-  if (!/^sha256:[0-9a-f]{64}$/u.test(receiptId)) finding("vuln.receipt.missing", "cve_evidence must include its sealed receipt id");
-  if (!/^sha256:[0-9a-f]{64}$/u.test(evidenceDigest)) finding("vuln.evidence.unbound", "native CVE evidence digest is required");
-
-  const verifiedFindings = array(audit.findings).slice(0, 500).map((item, index) => {
-    const value = object(item);
-    const verifiedFinding = {
-      dependency: text(value.dependency, 300),
-      exact_version: text(value.exact_version, 100),
-      advisory_id: text(value.advisory_id, 200),
-      advisory_url: text(value.advisory_url, 1_000),
-      dependency_path: text(value.dependency_path, 1_000),
-      direct: value.direct === true,
-      development: value.development === true,
-      summary: text(value.summary, 2_000),
-      aliases: strings(value.aliases, 50, 300),
-      severity: array(value.severity).slice(0, 20),
-    };
-    for (const field of ["dependency", "exact_version", "advisory_id", "advisory_url"]) {
-      if (!verifiedFinding[field]) finding("vuln.finding.identity", `finding[${index}].${field} is required`);
+export function admitScan({
+  target,
+  evidence,
+  scan_context = {},
+  evidence_digest,
+}) {
+  const source = object(evidence),
+    diagnostics = [];
+  const note = (code, message) => diagnostics.push({ code, message });
+  if (!text(target))
+    note(
+      "target.missing",
+      "Name the repository, deployment or package set being reviewed.",
+    );
+  if (!nativeDigest(evidence_digest))
+    note(
+      "evidence.unbound",
+      "A native digest of the supplied evidence is required.",
+    );
+  if (!Array.isArray(source.findings))
+    note(
+      "findings.missing",
+      "Supply actual exact-coordinate findings, not a verification boolean or a delivery digest.",
+    );
+  const known = new Map();
+  for (const [i, raw] of array(source.findings).entries()) {
+    const f = object(raw);
+    if (!text(f.dependency) || !text(f.exact_version) || !text(f.advisory_id)) {
+      note(
+        "finding.identity",
+        "Finding " + i + " lacks dependency, exact_version or advisory_id.",
+      );
+      continue;
     }
-    if (verifiedFinding.advisory_url && !/^https:\/\/osv\.dev\/vulnerability\//u.test(verifiedFinding.advisory_url)) {
-      finding("vuln.finding.source", `finding[${index}] advisory_url is not an OSV advisory URL`);
+    const identity = key(f),
+      before = known.get(identity);
+    const locations = [
+      ...new Set([
+        ...array(before?.dependency_paths),
+        ...array(f.dependency_paths),
+        ...(text(f.dependency_path) ? [f.dependency_path] : []),
+      ]),
+    ];
+    if (before) {
+      if (
+        locations.length ||
+        Array.isArray(before.dependency_paths) ||
+        Array.isArray(f.dependency_paths)
+      )
+        before.dependency_paths = locations;
+      before.additional_observations = [
+        ...array(before.additional_observations),
+        f,
+      ];
+      if (before.modified && f.modified && before.modified !== f.modified)
+        note(
+          "finding.conflict",
+          "Repeated advisory identity has different modification evidence: " +
+            identity,
+        );
+      continue;
     }
-    return verifiedFinding;
-  });
-
-  const path = findings.length > 0 ? "stop" : verifiedFindings.length === 0 ? "complete" : "assess";
+    known.set(identity, {
+      ...f,
+      finding_key: identity,
+      ...(Array.isArray(f.dependency_paths) || text(f.dependency_path)
+        ? { dependency_paths: locations }
+        : {}),
+    });
+  }
+  const isScan = source.schema === "runx/cve-audit.audit.v1";
+  const complete =
+    isScan &&
+    source.status === "complete" &&
+    source.coverage?.complete === true &&
+    source.coverage?.inventory_complete === true &&
+    source.coverage?.omitted_components === 0 &&
+    source.findings_scope === "all_observed" &&
+    source.previous_result_part === null;
+  const findings = [...known.values()];
   return {
     triage_context: {
-      schema: "runx/vuln-triage.triage_context.v1",
-      path,
-      stop_decision: findings.some(({ code }) => code.endsWith(".missing")) ? "needs_agent" : "needs_verified_evidence",
-      target,
-      source: {
-        receipt_id: receiptId,
-        evidence_digest: evidenceDigest,
-        target: object(audit.target),
-        dependency_scope: text(audit.dependency_scope, 100),
-      },
-      dependency_inventory: array(audit.inventory).slice(0, 5_000),
-      verified_findings: verifiedFindings,
-      scan_context: object(inputs.scan_context),
+      path: diagnostics.length ? "stop" : findings.length ? "assess" : "empty",
+      target: text(target),
       findings,
+      source: {
+        evidence_digest,
+        kind: isScan ? "provided_cve_scan" : "provided_findings",
+        assurance: "source_bound_not_independently_verified",
+        scan_status: isScan ? source.status : null,
+        coverage: isScan ? source.coverage : object(source.coverage),
+        analysis_complete: complete,
+        inventory_digest: isScan ? source.inventory_digest : null,
+        inventory_artifact: isScan ? (source.inventory_artifact ?? null) : null,
+        components_artifact: isScan
+          ? (source.components_artifact ?? null)
+          : null,
+        result_part: isScan ? source.result_part : null,
+        previous_result_part: isScan ? source.previous_result_part : null,
+        continuation: isScan ? source.continuation : null,
+      },
+      scan_context: object(scan_context),
+      diagnostics,
     },
   };
 }
-
-export function finalizeScan(inputs) {
-  const context = object(inputs.triage_context);
-  const draft = object(inputs.risk_assessment_draft);
-  const findings = array(context.findings).slice();
-  const finding = (code, message) => findings.push({ code, message });
-  const known = new Map(array(context.verified_findings).map((item) => [findingKey(item), item]));
-  const proposed = new Map();
-
-  if (context.path === "assess") {
-    for (const [index, candidate] of array(draft.advisory_assessments).entries()) {
-      const item = object(candidate);
-      const identity = findingKey(item);
-      if (!known.has(identity)) {
-        finding("vuln.assessment.unbound", `assessment[${index}] does not match verified CVE evidence`);
+function fixedVersions(f) {
+  return new Set(
+    array(f.affected)
+      .filter(
+        (a) =>
+          a?.package?.name === f.dependency &&
+          (!f.ecosystem || a?.package?.ecosystem === f.ecosystem),
+      )
+      .flatMap((a) =>
+        array(a.ranges).flatMap((r) =>
+          array(object(r).events).map((e) => text(object(e).fixed)),
+        ),
+      )
+      .filter(Boolean),
+  );
+}
+export function finalizeScan({ triage_context, risk_assessment_draft = {} }) {
+  const c = triage_context,
+    d = object(risk_assessment_draft),
+    diagnostics = [...c.diagnostics];
+  const note = (code, message) => diagnostics.push({ code, message });
+  const known = new Map(c.findings.map((f) => [f.finding_key, f])),
+    proposed = new Map();
+  const contextEvidence = new Set(
+    array(c.scan_context.evidence)
+      .filter((e) => text(e.id) && text(e.source) && text(e.excerpt))
+      .map((e) => e.id),
+  );
+  if (c.path === "assess")
+    for (const [i, raw] of array(d.advisory_assessments).entries()) {
+      const a = object(raw),
+        identity = text(a.finding_key),
+        f = known.get(identity);
+      if (!f || proposed.has(identity)) {
+        note(
+          "assessment.identity",
+          "Assessment " + i + " has an unknown or repeated finding_key.",
+        );
         continue;
       }
-      if (!["urgent", "high", "normal", "low", "unknown"].includes(text(item.priority))) finding("vuln.assessment.priority", `assessment[${index}] has invalid priority`);
-      if (!["confirmed", "not_established"].includes(text(item.exposure))) finding("vuln.assessment.exposure", `assessment[${index}] exposure must be confirmed or not_established`);
-      if (!["high", "medium", "low"].includes(text(item.confidence))) finding("vuln.assessment.confidence", `assessment[${index}] confidence must be high, medium, or low`);
-      if (!text(item.rationale)) finding("vuln.assessment.rationale", `assessment[${index}] rationale is required`);
+      const priority = ["urgent", "high", "normal", "low", "unknown"].includes(
+        a.priority,
+      )
+        ? a.priority
+        : "unknown";
+      if (priority !== a.priority)
+        note(
+          "assessment.priority",
+          "Select a supported priority for " + identity + ".",
+        );
+      const confidence = ["high", "medium", "low"].includes(a.confidence)
+        ? a.confidence
+        : "low";
+      if (confidence !== a.confidence)
+        note("assessment.confidence", "Select high, medium or low confidence.");
+      const refs = strings(a.exposure_evidence);
+      let exposure = a.exposure;
+      if (!["confirmed", "not_established"].includes(exposure)) {
+        exposure = "not_established";
+        note(
+          "assessment.exposure",
+          "Exposure must be confirmed or not_established.",
+        );
+      }
+      if (
+        exposure === "confirmed" &&
+        (!refs.length || refs.some((r) => !contextEvidence.has(r)))
+      ) {
+        exposure = "not_established";
+        note(
+          "assessment.exposure_unbound",
+          "Confirmed exposure needs actual scan_context.evidence references for " +
+            identity +
+            ".",
+        );
+      }
+      if (refs.some((r) => !contextEvidence.has(r)))
+        note("assessment.source", "An exposure source reference is missing.");
+      if (!text(a.rationale) || !text(a.recommendation))
+        note(
+          "assessment.incomplete",
+          "Each finding needs rationale and a concrete recommendation.",
+        );
+      const fixed = text(a.fixed_version);
+      if (fixed && !fixedVersions(f).has(fixed))
+        note(
+          "assessment.fixed_version",
+          "The proposed fixed version is not declared by this package advisory; retain it as an unverified investigation instead.",
+        );
       proposed.set(identity, {
-        priority: text(item.priority),
-        exposure: text(item.exposure),
-        confidence: text(item.confidence),
-        evidence_status: "verified_exact_cve",
-        rationale: text(item.rationale, 2_000),
+        priority,
+        confidence,
+        exposure,
+        exposure_evidence: refs.filter((r) => contextEvidence.has(r)),
+        evidence_status: "source_bound",
+        rationale: text(a.rationale),
+        recommendation: text(a.recommendation),
+        fixed_version: fixed && fixedVersions(f).has(fixed) ? fixed : null,
       });
     }
-    for (const identity of known.keys()) if (!proposed.has(identity)) finding("vuln.assessment.missing", `verified finding was not assessed: ${identity}`);
-  }
-
-  const advisories = [...known.entries()].map(([identity, item]) => ({
-    ...item,
-    assessment: proposed.get(identity) || { priority: "unknown", exposure: "not_established", confidence: "low", evidence_status: "verified_exact_cve", rationale: "No bounded assessment was available." },
-  }));
-  const escalationCriteria = advisories.flatMap(({ advisory_id, assessment }) => {
-    const criteria = [];
-    if (["urgent", "high"].includes(assessment.priority)) criteria.push({ advisory_id, trigger: "priority_high_or_urgent", action: "human_remediation_review" });
-    if (assessment.exposure === "not_established") criteria.push({ advisory_id, trigger: "exposure_not_established", action: "verify_exposure_before_downgrade" });
-    if (assessment.confidence === "low") criteria.push({ advisory_id, trigger: "assessment_confidence_low", action: "human_risk_review" });
-    return criteria;
-  });
-  const requestedDecision = text(draft.decision);
-  const decision = context.path === "stop"
-    ? text(context.stop_decision)
-    : context.path === "complete"
-      ? "no_verified_findings"
-      : findings.length > 0
-        ? "needs_more_evidence"
-        : ["remediate", "monitor", "needs_human"].includes(requestedDecision)
-          ? requestedDecision
-          : "needs_human";
-  if (context.path === "assess" && !["remediate", "monitor", "needs_human"].includes(requestedDecision)) finding("vuln.decision.invalid", "decision must be remediate, monitor, or needs_human");
-
-  return {
-    vulnerability_scan_packet: {
-      schema: "runx/vuln-triage.scan.v1",
-      decision: findings.length > 0 && context.path === "assess" ? "needs_more_evidence" : decision,
-      target: context.target,
-      dependency_inventory: context.dependency_inventory,
-      advisories,
-      escalation_criteria: escalationCriteria,
-      remediation_plan: context.path === "assess" ? object(draft.remediation_plan) : {},
-      operator_summary: context.path === "assess" ? object(draft.operator_summary) : {
-        verdict: decision,
-        summary: context.path === "complete" ? "The verified exact-version audit reported no current findings." : "Verified exact-version CVE evidence is required.",
+  const advisories = c.findings.map((f) => {
+    const assessment = proposed.get(f.finding_key);
+    if (!assessment && c.path === "assess")
+      note(
+        "assessment.missing",
+        "A finding was not assessed: " + f.finding_key,
+      );
+    return {
+      ...f,
+      assessment: assessment || {
+        priority: "unknown",
+        confidence: "low",
+        exposure: "not_established",
+        exposure_evidence: [],
+        evidence_status: "source_bound",
+        rationale: "No valid assessment was available.",
+        recommendation: "Review the retained source evidence.",
+        fixed_version: null,
       },
-      evidence_binding: context.source,
-      validation: { status: findings.length === 0 ? "pass" : "fail", findings },
+    };
+  });
+  let decision =
+    c.path === "empty"
+      ? c.source.analysis_complete
+        ? "no_matches_in_scope"
+        : "needs_more_evidence"
+      : ["remediate", "monitor", "needs_human"].includes(d.decision)
+        ? d.decision
+        : "needs_human";
+  if (
+    c.path === "assess" &&
+    !["remediate", "monitor", "needs_human"].includes(d.decision)
+  )
+    note("decision.invalid", "Choose remediate, monitor or needs_human.");
+  if (diagnostics.length) decision = "needs_more_evidence";
+  const summary =
+    c.path === "assess"
+      ? text(object(d.operator_summary).summary)
+      : c.path === "empty"
+        ? c.source.analysis_complete
+          ? "No active advisory matches were supplied for the complete selected scan."
+          : "No finding is present in this part; the overall review is incomplete."
+        : "Usable exact-coordinate evidence is missing.";
+  if (c.path === "assess" && !summary)
+    note("summary.missing", "Provide a useful operator summary.");
+  if (diagnostics.length) decision = "needs_more_evidence";
+  return {
+    vulnerability_review: {
+      schema: "runx/vuln-triage.scan.v1",
+      decision: diagnostics.length ? "needs_more_evidence" : decision,
+      target: c.target,
+      advisories,
+      remediation_plan: advisories.map((f) => ({
+        finding_key: f.finding_key,
+        recommendation: f.assessment.recommendation,
+        fixed_version: f.assessment.fixed_version,
+      })),
+      escalation_criteria: advisories.flatMap((f) => {
+        const triggers = [];
+        if (["urgent", "high"].includes(f.assessment.priority))
+          triggers.push("priority_high_or_urgent");
+        if (f.assessment.exposure === "not_established")
+          triggers.push("exposure_not_established");
+        if (f.assessment.confidence === "low")
+          triggers.push("assessment_confidence_low");
+        return triggers.map((trigger) => ({
+          finding_key: f.finding_key,
+          advisory_id: f.advisory_id,
+          trigger,
+          action: "human_remediation_review",
+        }));
+      }),
+      operator_summary: { verdict: decision, summary },
+      evidence_binding: c.source,
+      exposure_evidence: array(c.scan_context.evidence),
+      validation: {
+        status: diagnostics.length ? "fail" : "pass",
+        findings: diagnostics,
+      },
       publication_status: "not_published",
     },
   };
 }
-
-export function admitAdvisory(inputs) {
-  const packet = object(inputs.triage_packet);
-  const findings = [];
-  const finding = (code, message) => findings.push({ code, message });
-  if (packet.schema !== "runx/vuln-triage.scan.v1") finding("vuln.advisory.packet", "triage_packet must be runx/vuln-triage.scan.v1");
-  if (object(packet.validation).status !== "pass") finding("vuln.advisory.validation", "triage packet validation must pass");
-  const advisories = array(packet.advisories).slice(0, 500);
-  const evidenceBinding = object(packet.evidence_binding);
-  if (!/^sha256:[0-9a-f]{64}$/u.test(text(evidenceBinding.receipt_id))) finding("vuln.advisory.receipt", "triage packet requires a sealed receipt id");
-  if (!/^sha256:[0-9a-f]{64}$/u.test(text(evidenceBinding.evidence_digest))) finding("vuln.advisory.digest", "triage packet requires an evidence digest");
-  for (const [index, advisory] of advisories.entries()) {
-    const item = object(advisory);
-    const assessment = object(item.assessment);
-    if (!text(item.advisory_id)) finding("vuln.advisory.identity", `advisories[${index}].advisory_id is required`);
-    if (!["high", "medium", "low"].includes(text(assessment.confidence))) finding("vuln.advisory.confidence", `advisories[${index}] requires bounded assessment confidence`);
-    if (text(assessment.evidence_status) !== "verified_exact_cve") finding("vuln.advisory.evidence", `advisories[${index}] is not bound to verified exact-version CVE evidence`);
-  }
-  const path = findings.length > 0 || advisories.length === 0 ? "stop" : "draft";
+export function admitAdvisory({ triage_packet, audience = "affected_users" }) {
+  const p = object(triage_packet),
+    diagnostics = [];
+  if (
+    p.schema !== "runx/vuln-triage.scan.v1" ||
+    p.validation?.status !== "pass" ||
+    !nativeDigest(p.evidence_binding?.evidence_digest)
+  )
+    diagnostics.push({
+      code: "advisory.evidence",
+      message: "Supply a validated source-bound vulnerability review.",
+    });
   return {
     advisory_context: {
-      schema: "runx/vuln-triage.advisory_context.v1",
-      path,
-      stop_decision: findings.length > 0 ? "needs_verified_evidence" : "no_advisory_needed",
-      target: packet.target,
-      decision: packet.decision,
-      advisories,
-      remediation_plan: object(packet.remediation_plan),
-      evidence_binding: evidenceBinding,
-      audience: text(inputs.audience) || "affected_users",
-      findings,
+      path:
+        diagnostics.length || !array(p.advisories).length ? "stop" : "draft",
+      target: p.target,
+      audience,
+      advisories: array(p.advisories),
+      remediation_plan: array(p.remediation_plan),
+      evidence_binding: object(p.evidence_binding),
+      diagnostics,
     },
   };
 }
-
-export function finalizeAdvisory(inputs) {
-  const context = object(inputs.advisory_context);
-  const draft = object(inputs.advisory_draft);
-  const findings = array(context.findings).slice();
-  const finding = (code, message) => findings.push({ code, message });
-  const allowedIds = new Set(array(context.advisories).map((item) => text(object(item).advisory_id)).filter(Boolean));
-  const affectedIds = strings(draft.affected_advisory_ids, 500);
-  if (context.path === "draft") {
-    if (!text(draft.title)) finding("vuln.advisory.title", "title is required");
-    if (!text(draft.body)) finding("vuln.advisory.body", "body is required");
-    if (affectedIds.length === 0) finding("vuln.advisory.ids", "at least one affected advisory id is required");
-    for (const id of affectedIds) if (!allowedIds.has(id)) finding("vuln.advisory.unbound", `advisory id is not in the verified triage packet: ${id}`);
+export function finalizeAdvisory({ advisory_context, advisory_draft = {} }) {
+  const c = advisory_context,
+    d = object(advisory_draft),
+    diagnostics = [...c.diagnostics];
+  const known = new Set(c.advisories.map((a) => a.advisory_id)),
+    ids = strings(d.affected_advisory_ids);
+  if (c.path === "draft") {
+    if (!text(d.title) || !text(d.body) || !ids.length)
+      diagnostics.push({
+        code: "advisory.incomplete",
+        message: "Supply title, body and affected advisory ids.",
+      });
+    if (ids.some((id) => !known.has(id)))
+      diagnostics.push({
+        code: "advisory.identity",
+        message: "The draft names an advisory outside the reviewed evidence.",
+      });
   }
-  const decision = context.path === "stop" ? context.stop_decision : findings.length === 0 ? "ready_for_review" : "needs_more_evidence";
   return {
     vulnerability_advisory_packet: {
       schema: "runx/vuln-triage.advisory.v1",
-      decision,
-      target: context.target,
-      audience: context.audience,
-      advisory_draft: context.path === "draft" ? {
-        title: text(draft.title, 500),
-        summary: text(draft.summary, 2_000),
-        body: text(draft.body, 20_000),
-        affected_advisory_ids: affectedIds,
-      } : {},
-      disclosure_checklist: strings(draft.disclosure_checklist, 100),
-      source_advisories: array(context.advisories).filter((item) => affectedIds.includes(text(object(item).advisory_id))),
-      remediation_plan: context.remediation_plan,
-      evidence_binding: context.evidence_binding,
-      validation: { status: findings.length === 0 ? "pass" : "fail", findings },
+      decision: diagnostics.length
+        ? "needs_more_evidence"
+        : c.path === "stop"
+          ? "no_advisory_needed"
+          : "ready_for_review",
+      target: c.target,
+      audience: c.audience,
+      advisory_draft:
+        c.path === "draft"
+          ? {
+              title: text(d.title),
+              summary: text(d.summary),
+              body: text(d.body),
+              affected_advisory_ids: ids,
+            }
+          : {},
+      disclosure_checklist: strings(d.disclosure_checklist),
+      source_advisories: c.advisories.filter((a) =>
+        ids.includes(a.advisory_id),
+      ),
+      remediation_plan: { actions: c.remediation_plan },
+      evidence_binding: c.evidence_binding,
+      validation: {
+        status: diagnostics.length ? "fail" : "pass",
+        findings: diagnostics,
+      },
       publication_status: "not_published",
       provider_status: "not_called",
     },
   };
 }
-
-function findingKey(value) {
-  const item = object(value);
-  return [text(item.dependency), text(item.exact_version), text(item.advisory_id)].join("@");
-}
-
-function unwrap(value) {
-  const item = object(value);
-  return object(item.data || item);
-}
-
-function object(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
-function array(value) { return Array.isArray(value) ? value : []; }
-function strings(value, max, maxText = 1_000) { return array(value).map((item) => text(item, maxText)).filter(Boolean).slice(0, max); }
-function text(value, max = 1_000) { return typeof value === "string" ? value.trim().slice(0, max) : ""; }

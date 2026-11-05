@@ -196,7 +196,7 @@ fn resolve_skill_ref(
 ) -> Result<ResolvedSkillRef, String> {
     let local_path = crate::RunxPaths::resolve(options.env, cwd).existing_input(skill_ref);
     if local_path.exists() {
-        let path = resolve_exported_skill_shim(&local_path)?;
+        let path = resolve_exported_skill_shim(&local_path, cwd, options.env)?;
         let kind = if path == local_path {
             SkillRefKind::ExplicitPath
         } else {
@@ -333,7 +333,7 @@ fn resolve_workspace_skill(
     else {
         return Ok(None);
     };
-    let path = resolve_exported_skill_shim(&candidate)?;
+    let path = resolve_exported_skill_shim(&candidate, cwd, options.env)?;
     let kind = if path != candidate {
         SkillRefKind::ExportedShim
     } else if candidate.starts_with(cwd.join("skills")) {
@@ -517,7 +517,11 @@ fn local_resolved(kind: SkillRefKind, runnable_path: PathBuf) -> ResolvedSkillRe
     }
 }
 
-fn resolve_exported_skill_shim(skill_ref: &Path) -> Result<PathBuf, String> {
+fn resolve_exported_skill_shim(
+    skill_ref: &Path,
+    cwd: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<PathBuf, String> {
     let skill_dir = if skill_ref.is_file() {
         skill_ref.parent().unwrap_or(skill_ref)
     } else {
@@ -538,33 +542,24 @@ fn resolve_exported_skill_shim(skill_ref: &Path) -> Result<PathBuf, String> {
 
     let source = fs::read_to_string(&skill_md)
         .map_err(|error| format!("failed to read {}: {error}", skill_md.display()))?;
-    let Some(source_path) = exported_source_path(&source) else {
+    let Some(binding) = crate::export::parse_export_binding(&source) else {
         return Ok(skill_ref.to_path_buf());
     };
-    if source_path.join(runx_parser::PROFILE_FILE).exists() {
-        return Ok(source_path);
+    let source_path = crate::RunxPaths::resolve(env, cwd).existing_input(binding.source);
+    let loaded = crate::load_validated_skill_package(&source_path).map_err(|error| {
+        format!(
+            "exported skill shim {} points at missing or invalid source {}: {error}; rerun `runx export`",
+            skill_md.display(),
+            source_path.display()
+        )
+    })?;
+    if loaded.package.package_digest != binding.package_digest {
+        return Err(format!(
+            "exported skill shim {} is stale: source package digest differs; rerun `runx export`",
+            skill_md.display()
+        ));
     }
-    Err(format!(
-        "exported skill shim {} points at missing or invalid source {}; rerun `runx export`",
-        skill_md.display(),
-        source_path.display()
-    ))
-}
-
-fn exported_source_path(source: &str) -> Option<PathBuf> {
-    source
-        .lines()
-        .find(|line| line.contains("runx-export:") && line.contains(" source="))
-        .and_then(|line| line.split_once(" source=").map(|(_prefix, value)| value))
-        .map(|value| {
-            let raw = value.trim().trim_end_matches("-->").trim();
-            let raw = raw
-                .strip_suffix("- generated, do not edit")
-                .unwrap_or(raw)
-                .trim();
-            PathBuf::from(raw)
-        })
-        .filter(|path| !path.as_os_str().is_empty())
+    Ok(loaded.directory)
 }
 
 #[cfg(test)]

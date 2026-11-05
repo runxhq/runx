@@ -31,6 +31,7 @@ pub(crate) const PROCESSES_DIR: &str = "processes";
 pub const RUNX_REGISTRY_DIR_ENV: &str = "RUNX_REGISTRY_DIR";
 
 const RUNX_DIR: &str = ".runx";
+pub(crate) const ARTIFACTS_DIR: &str = "artifacts";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunxPaths {
@@ -228,7 +229,7 @@ impl RunxPaths {
     /// Digest-bound JSON artifacts a run hands back by reference.
     #[must_use]
     pub fn artifacts(&self) -> PathBuf {
-        self.project.join("artifacts")
+        self.project.join(ARTIFACTS_DIR)
     }
 
     /// The SQLite file of the `store` connector when no instance names one.

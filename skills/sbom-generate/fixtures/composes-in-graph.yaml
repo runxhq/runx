@@ -1,7 +1,17 @@
-name: sbom-generate-composes-in-graph
+name: completed-inventory-reused
 kind: graph
 target: support/composed.graph
 expect:
   status: sealed
-  steps: [sbom-generate, digest]
-  receipt: { schema: runx.receipt.v1 }
+  steps:
+    - inventory
+    - generate
+    - same
+  step_outputs:
+    same:
+      subset:
+        comparison:
+          data:
+            equal: true
+  receipt:
+    schema: runx.receipt.v1

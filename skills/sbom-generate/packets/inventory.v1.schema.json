@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "$id": "https://schemas.runx.ai/packages/runx/sbom-generate/inventory/v1.json",
+  "x-runx-packet-id": "runx/sbom-generate.inventory.v1",
+  "required": [
+    "schema",
+    "source",
+    "lockfile",
+    "scope",
+    "project",
+    "components",
+    "gaps",
+    "coverage"
+  ],
+  "properties": {
+    "schema": {
+      "const": "runx/sbom-generate.inventory.v1"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "label",
+        "digest",
+        "digest_encoding"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "digest_encoding": {
+          "enum": [
+            "source_bytes",
+            "utf8_text",
+            "canonical_json"
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "lockfile": {
+      "type": "object",
+      "required": [
+        "type",
+        "version"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "package-lock",
+            "npm-shrinkwrap",
+            "pnpm",
+            "cargo"
+          ]
+        },
+        "version": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "enum": [
+        "all-locked",
+        "direct-production"
+      ]
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "ecosystem",
+          "location",
+          "source_kind",
+          "direct",
+          "development",
+          "licenses",
+          "exact_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ecosystem": {
+            "enum": [
+              "npm",
+              "crates.io"
+            ]
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_kind": {
+            "enum": [
+              "local",
+              "git",
+              "registry",
+              "other-source",
+              "unknown"
+            ]
+          },
+          "direct": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "development": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "licenses": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "exact_version": {
+            "type": "boolean"
+          },
+          "checksum": {
+            "type": "string"
+          },
+          "snapshot_locations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "direct_locations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "location",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "basis",
+        "installed_state_verified",
+        "complete",
+        "package_visibility_verified"
+      ],
+      "properties": {
+        "basis": {
+          "const": "lockfile"
+        },
+        "installed_state_verified": {
+          "const": false
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "package_visibility_verified": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

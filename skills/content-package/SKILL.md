@@ -21,19 +21,26 @@ or enable a concrete next step—not merely prove that research happened.
 - `ghostwrite#draft`
 - `ghostwrite#handoff`
 - `ghostwrite#package`
+- `research#investigate`
 - `research#research`
 
 ## How the chain works
 
-1. The caller provides the objective, audience, channel, and governed source
-   packets. Usually those packets come from `web-fetch` or a provider reader.
-2. `research` admits the sources, verifies citations, and decides whether the
-   evidence supports a useful deliverable.
+1. The default `prepare` runner takes the objective, audience and channel, with
+   optional `paths`, `urls` or completed `source_packets`. `research#investigate`
+   reads explicit sources directly and acquires only missing evidence. Nonempty
+   supplied source packets skip acquisition. The explicit `content-package`
+   runner retains its bounded-source-only contract for existing graphs.
+2. `research` admits the sources, binds citations, and decides whether the
+   evidence supports a useful deliverable. For a completed `research_packet`,
+   select `from-research` to skip both acquisition and research synthesis.
 3. `ghostwrite` drafts only from the admitted claims and digests, applying any
    supplied voice or operator context without treating it as factual evidence.
 4. The validated draft is packaged deterministically for the declared channel.
-5. A provider-neutral handoff records the target and approval requirement. The
-   lane stops before external delivery.
+5. When a nonempty `publication_target` is supplied, a provider-neutral handoff
+   records that target and the later approval requirement. Without a target,
+   the prepared content remains available and no ready handoff is invented.
+   Both paths stop before external delivery.
 
 Local research, drafting, and packaging require no approval. A later provider
 skill owns the consequential gate, idempotency, send or publish request,
@@ -42,7 +49,10 @@ acknowledgement, and readback.
 ## Inputs and result
 
 - `objective` states what the content should change for its reader.
-- `source_packets` contain bounded governed evidence.
+- `paths` and `urls` select sources to read. `source_packets` reuse completed
+  governed reads; `from-research` instead accepts their completed `research_packet`.
+- Optional `brand_context` and `taste_context` retain their declared audience
+  and channel scope through canonical writing admission.
 - `audience`, `channel`, and `domain` shape the artifact.
 - `operator_context` and `target_entities` narrow interpretation but are not
   source evidence.
@@ -51,7 +61,7 @@ acknowledgement, and readback.
   delivering lane's own approval.
 
 The result preserves the citation-validated research packet, the evidence-bound
-draft, a deterministic channel package with `not_sent` state, and a
+draft, a deterministic channel package with `not_sent` state, and, when a target was supplied, a
 provider-neutral handoff. `needs_more_evidence`, `needs_review`, and
 `not_worth_publishing` are valid terminal states when the topic is unsupported,
 stale, duplicative, or unhelpful.

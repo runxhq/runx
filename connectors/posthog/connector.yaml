@@ -36,7 +36,9 @@ operations:
       required: [limit, offset]
       properties:
         limit: {type: integer, minimum: 1, maximum: 100}
-        offset: {type: integer, minimum: 0, maximum: 100000}
+        offset: {type: integer, minimum: 0}
+        search: {type: string, minLength: 1}
+        short_id: {type: string, minLength: 1, pattern: '^[A-Za-z0-9_-]+$'}
     result_fields: [insights]
     implementation:
       http:
@@ -48,7 +50,10 @@ operations:
             query:
               limit: {$argument: /limit}
               offset: {$argument: /offset}
+              search: {$argument: /search}
+              short_id: {$argument: /short_id}
               refresh: force_cache
+              basic: true
             headers: {accept: application/json}
   insight.read:
     description: Read one saved insight and its cached result, query definition and freshness; empty or stale results remain visible.
@@ -62,7 +67,11 @@ operations:
       additionalProperties: false
       required: [insight_id]
       properties:
-        insight_id: {type: string, pattern: '^[1-9][0-9]{0,19}$'}
+        insight_id:
+          type: string
+          minLength: 1
+          pattern: '^[A-Za-z0-9_-]+$'
+          description: Numeric primary key or saved insight short_id, without a URL path.
     result_fields: [insight]
     implementation:
       http:

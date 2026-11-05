@@ -1,165 +1,110 @@
-export function makeSbom(inputs) {
-  const digest = requiredDigest(inputs.lockfile_digest);
-  const lockfileType = typeof inputs.lockfile_type === "string" && inputs.lockfile_type.trim()
-    ? inputs.lockfile_type.trim()
-    : "package-lock";
-  const lockfile = inputs.lockfile;
-  const findings = [];
-  if (!isRecord(lockfile)) {
-    findings.push({ code: "lockfile.invalid", message: "lockfile must be a parsed JSON object." });
+export function makeSbom({ inventory, inventory_digest }) {
+  if (
+    inventory.schema !== "runx/sbom-generate.inventory.v1" ||
+    !/^sha256:[0-9a-f]{64}$/.test(inventory_digest)
+  ) {
+    throw new Error(
+      "A completed inventory and its native digest are required.",
+    );
   }
-  const components = findings.length === 0 ? extractComponents(lockfile, findings) : [];
-  if (findings.length === 0 && components.length === 0) {
-    findings.push({ code: "lockfile.empty", message: "lockfile has no dependency map with pinned components." });
-  }
-  if (findings.length > 0) {
-    return {
-      sbom_result: {
-        schema: "runx/sbom-generate.sbom.v1",
-        decision: "refused",
-        lockfile_type: lockfileType,
-        lockfile_digest: digest,
-        sbom: null,
-        component_count: 0,
-        license_summary: null,
-        license_risks: [],
-        validation: { status: "fail", findings },
-      },
+  const components = inventory.components.map((entry) => {
+    const slash =
+      entry.ecosystem === "npm" && entry.name.startsWith("@")
+        ? entry.name.indexOf("/")
+        : -1;
+    const name = slash > 0 ? entry.name.slice(slash + 1) : entry.name;
+    const group = slash > 0 ? entry.name.slice(0, slash) : "";
+    const component = {
+      type: "library",
+      "bom-ref": `lockfile:${entry.location}`,
+      name,
+      ...(group && { group }),
+      ...(entry.version && { version: entry.version }),
+      ...(entry.licenses.length && {
+        licenses: entry.licenses.map((name) => ({ license: { name } })),
+      }),
+      properties: [
+        { name: "runx:evidence_location", value: entry.location },
+        { name: "runx:source_kind", value: entry.source_kind },
+        { name: "runx:ecosystem", value: entry.ecosystem },
+      ],
     };
-  }
-
-  components.sort(
-    (left, right) =>
-      left.name.localeCompare(right.name) ||
-      left.version.localeCompare(right.version) ||
-      left.evidence_location.localeCompare(right.evidence_location),
-  );
-  const licenseCounts = {};
-  const licenseRisks = [];
-  for (const entry of components) {
-    licenseCounts[entry.license] = (licenseCounts[entry.license] ?? 0) + 1;
-    const risk = licenseRisk(entry);
-    if (risk) licenseRisks.push(risk);
-  }
-  const rootPackage = isRecord(lockfile.packages) && isRecord(lockfile.packages[""]) ? lockfile.packages[""] : {};
-  const projectName = firstString(rootPackage.name, lockfile.name, "unnamed-project");
-  const projectVersion = firstString(rootPackage.version, lockfile.version, "0.0.0");
+    if (entry.exact_version && entry.source_kind === "registry") {
+      const namespace = group ? `${encodeURIComponent(group)}/` : "";
+      component.purl = `pkg:${entry.ecosystem === "npm" ? "npm" : "cargo"}/${namespace}${encodeURIComponent(name)}@${encodeURIComponent(entry.version)}`;
+    }
+    if (/^[0-9a-f]{64}$/.test(entry.checksum || ""))
+      component.hashes = [{ alg: "SHA-256", content: entry.checksum }];
+    return component;
+  });
+  const project = inventory.project;
+  const document = {
+    bomFormat: "CycloneDX",
+    specVersion: "1.5",
+    version: 1,
+    metadata: {
+      ...(project.name && {
+        component: {
+          type: "application",
+          name: project.name,
+          ...(project.version && { version: project.version }),
+        },
+      }),
+      properties: [
+        { name: "runx:source_digest", value: inventory.source.digest },
+        {
+          name: "runx:source_digest_encoding",
+          value: inventory.source.digest_encoding,
+        },
+        { name: "runx:inventory_digest", value: inventory_digest },
+        { name: "runx:lockfile_type", value: inventory.lockfile.type },
+        { name: "runx:dependency_scope", value: inventory.scope },
+        {
+          name: "runx:inventory_basis",
+          value: "locked declarations; installed state is not verified",
+        },
+      ],
+    },
+    components,
+  };
+  const counts = new Map();
+  for (const entry of inventory.components)
+    for (const license of entry.licenses.length
+      ? entry.licenses
+      : ["UNKNOWN"]) {
+      counts.set(license, (counts.get(license) || 0) + 1);
+    }
   return {
+    inventory,
     sbom_result: {
       schema: "runx/sbom-generate.sbom.v1",
-      decision: "generated",
-      lockfile_type: lockfileType,
-      lockfile_digest: digest,
-      sbom: {
-        bomFormat: "CycloneDX",
-        specVersion: "1.5",
-        serialNumber: `urn:uuid:${digestUuid(digest)}`,
-        version: 1,
-        metadata: {
-          component: { type: "application", name: projectName, version: projectVersion },
-          properties: [
-            { name: "runx:source_digest", value: digest },
-            { name: "runx:lockfile_type", value: lockfileType },
-          ],
-        },
-        components: components.map((entry) => ({
-          type: "library",
-          name: entry.name,
-          version: entry.version,
-          license: entry.license,
-          properties: [{ name: "runx:evidence_location", value: entry.evidence_location }],
-        })),
-      },
+      decision: inventory.coverage.complete ? "generated" : "partial",
+      source: inventory.source,
+      inventory_digest,
       component_count: components.length,
-      license_summary: { total_components: components.length, license_counts: sortRecord(licenseCounts) },
-      license_risks: licenseRisks,
-      validation: { status: "pass", findings: [] },
+      document,
+      license_summary: {
+        declarations: Object.fromEntries(
+          [...counts].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+        ),
+        missing_evidence: inventory.components.filter(
+          (entry) => !entry.licenses.length,
+        ).length,
+      },
+      caveats: [
+        "Lockfile declarations are not proof of installed packages, active features or target selection.",
+        "Licenses are source declarations, not verified legal conclusions; missing evidence stays unknown.",
+        ...inventory.gaps.map((gap) => `${gap.code}: ${gap.message}`),
+      ],
     },
   };
 }
 
-function extractComponents(lockfile, findings) {
-  if (isRecord(lockfile.packages)) {
-    return Object.entries(lockfile.packages)
-      .filter(([packagePath, details]) => packagePath !== "" && isRecord(details))
-      .flatMap(([packagePath, details]) => {
-        const version = firstString(details.version);
-        const marker = "node_modules/";
-        const markerIndex = packagePath.lastIndexOf(marker);
-        if (!version || markerIndex < 0) return [];
-        const name = packagePath.slice(markerIndex + marker.length);
-        return [component(name, version, details.license, `packages[${JSON.stringify(packagePath)}]`)];
-      });
-  }
-  if (isRecord(lockfile.dependencies)) {
-    const components = [];
-    walkClassicDependencies(lockfile.dependencies, "dependencies", components);
-    return components;
-  }
-  findings.push({ code: "lockfile.unsupported", message: "lockfile carries neither a packages map nor a dependencies map." });
-  return [];
-}
-
-function walkClassicDependencies(dependencies, location, output) {
-  for (const [name, details] of Object.entries(dependencies)) {
-    if (!isRecord(details)) continue;
-    const componentLocation = `${location}[${JSON.stringify(name)}]`;
-    const version = firstString(details.version);
-    if (version) output.push(component(name, version, details.license, componentLocation));
-    if (isRecord(details.dependencies)) {
-      walkClassicDependencies(details.dependencies, `${componentLocation}.dependencies`, output);
-    }
-  }
-}
-
-function component(name, version, license, evidenceLocation) {
-  return { name, version, license: normalizeLicense(license), evidence_location: evidenceLocation };
-}
-
-function normalizeLicense(value) {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (isRecord(value) && typeof value.type === "string" && value.type.trim()) return value.type.trim();
-  return "UNKNOWN";
-}
-
-function licenseRisk(entry) {
-  const license = entry.license.toUpperCase();
-  const base = { component: entry.name, version: entry.version, license: entry.license, evidence_location: entry.evidence_location };
-  if (license.includes("AGPL") || license.includes("GPL-3")) {
-    return { ...base, risk: "high", reason: "strong copyleft license requires distribution and linking review" };
-  }
-  if (license.includes("LGPL") || license.includes("MPL")) {
-    return { ...base, risk: "medium", reason: "weak copyleft license requires modification and relinking review" };
-  }
-  if (license === "UNKNOWN") {
-    return { ...base, risk: "review", reason: "lockfile contains no license evidence" };
-  }
-  return null;
-}
-
-function digestUuid(digest) {
-  const hex = digest.slice("sha256:".length, "sha256:".length + 32);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-}
-
-function sortRecord(value) {
-  return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)));
-}
-
-function firstString(...values) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return values.at(-1);
-}
-
-function requiredDigest(value) {
-  if (typeof value !== "string" || !value.startsWith("sha256:")) {
-    throw new Error("native digest evidence is missing");
-  }
-  return value;
-}
-
-function isRecord(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+export function renderDocument({ sbom_result }) {
+  if (
+    sbom_result.schema !== "runx/sbom-generate.sbom.v1" ||
+    sbom_result.document.bomFormat !== "CycloneDX"
+  )
+    throw new Error("A generated SBOM report is required.");
+  return { contents: JSON.stringify(sbom_result.document, null, 2) + "\n" };
 }

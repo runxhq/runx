@@ -1,0 +1,23 @@
+name: release-rejects-truncated-identity
+steps:
+  - id: setup
+    inputs:
+      prepare_status: ready
+      verify_version_suffix: -different
+    tool:
+      command: node
+      args:
+        - ./setup_release_fixture.mjs
+    outputs:
+      project_root: string
+      profile_path: string
+  - id: release
+    skill: ../..
+    runner: release
+    inputs:
+      channel: fixture
+      version: 1.2.3+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      last_tag: v1.2.2
+      operator_context: Fixture release proves exact-command publication and separate readback.
+      project_root: $steps.setup.project_root
+      profile_path: $steps.setup.profile_path

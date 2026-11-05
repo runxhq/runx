@@ -577,7 +577,7 @@ fn a_request_reads_only_earlier_answers() {
 }
 
 #[test]
-fn only_a_reads_single_get_pages_and_its_limit_comes_from_the_call() {
+fn a_page_limit_comes_from_the_call_and_post_reads_can_page() {
     assert_rejects(
         &SOCIAL.replace(
             "items: data, limit: {\"$argument\": \"/limit\"}",
@@ -585,12 +585,146 @@ fn only_a_reads_single_get_pages_and_its_limit_comes_from_the_call() {
         ),
         "takes its page limit from the call",
     );
+    validate(&SOCIAL.replace(
+        "method: GET\n            url: {\"$concat\"",
+        "method: POST\n            url: {\"$concat\"",
+    ))
+    .expect("a declared POST read can carry its page cursor in the query");
+}
+
+#[test]
+fn default_query_paging_preserves_the_existing_wire_shape_and_operation_digest() {
+    let legacy = validate(SOCIAL).expect("existing query pager");
+    let explicit =
+        validate(&SOCIAL.replace("pages: {param: cursor", "pages: {in: query, param: cursor"))
+            .expect("explicit query placement");
+    let name = OperationName::new("account.posts.read").expect("operation name");
+    let old_operation = &legacy.manifest.operations[&name];
+    let explicit_operation = &explicit.manifest.operations[&name];
+    assert_eq!(
+        operation_digest(&legacy.manifest.id, &name, old_operation).expect("digest"),
+        operation_digest(&explicit.manifest.id, &name, explicit_operation).expect("digest")
+    );
+    let Some(Implementation::Http(http)) = &old_operation.implementation else {
+        unreachable!("HTTP fixture");
+    };
+    let page = serde_json::to_value(&http.requests[1].pages).expect("page serialization");
+    assert_eq!(
+        page,
+        serde_json::json!({"param":"cursor","cursor":"meta.next","items":"data","limit":{"$argument":"/limit"}})
+    );
+}
+
+const BODY_PAGE_READ: &str = r#"
+schema: runx.connector.v1
+id: pager
+name: Pager
+description: Bounded provider reads.
+runtime_capability: false
+auth:
+  credentials:
+    key:
+      kind: api_key
+      fields: [{name: token}]
+      delivery: {env: PAGER_KEY}
+      audience: [api.example.test]
+placements: {local: {auth: [credentials]}}
+operations:
+  items.read:
+    description: Read selected items.
+    verb: read
+    scopes: [items.read]
+    credentials: [key]
+    target: {template: https://api.example.test/query}
+    input_schema:
+      type: object
+      required: [queries]
+      additionalProperties: false
+      properties:
+        queries: {type: array, minItems: 1, maxItems: 4, items: {type: object}}
+    result_fields: [rows]
+    implementation:
+      http:
+        allowed_hosts: [api.example.test]
+        auth: {key: {type: header, name: x-api-key, field: token}}
+        requests:
+          - id: query
+            each: {"$argument": "/queries"}
+            method: POST
+            url: https://api.example.test/query
+            body: {"$item": ""}
+            pages: {in: body, param: /page_token, cursor: next, items: data}
+        result_paths: {rows: acknowledgement}
+"#;
+
+#[test]
+fn body_paging_admits_bounded_repeated_reads_and_rejects_malformed_locations() {
+    validate(BODY_PAGE_READ).expect("a bounded repeated POST read can page");
     assert_rejects(
-        &SOCIAL.replace(
-            "method: GET\n            url: {\"$concat\"",
-            "method: POST\n            url: {\"$concat\"",
+        &BODY_PAGE_READ.replace(
+            "method: POST",
+            "method: POST\n            body_encoding: form",
         ),
-        "pages only as a read's single GET",
+        "requires JSON encoding",
+    );
+    assert_rejects(
+        &BODY_PAGE_READ.replace("param: /page_token", "param: /bad~2member"),
+        "JSON pointer",
+    );
+    assert_rejects(
+        &BODY_PAGE_READ.replace("            body: {\"$item\": \"\"}\n", ""),
+        "needs a request body",
+    );
+    assert_rejects(&BODY_PAGE_READ.replace(", maxItems: 4", ""), "maxItems");
+    assert_rejects(
+        &BODY_PAGE_READ.replace("method: POST", "method: DELETE"),
+        "a read issues GET or POST",
+    );
+}
+
+#[test]
+fn page_cursors_cannot_overlap_credential_owned_structure() {
+    let manifest = BODY_PAGE_READ
+        .replace("            each: {\"$argument\": \"/queries\"}\n", "")
+        .replace("body: {\"$item\": \"\"}", "body: {payload: {}}")
+        .replace(
+            "type: header, name: x-api-key, field: token",
+            "type: body, field: token, pointer: /token",
+        );
+    validate(&manifest).expect("the cursor and credential occupy independent fields");
+    assert_rejects(
+        &manifest.replace("param: /page_token", "param: /token"),
+        "cannot overlap",
+    );
+    assert_rejects(
+        &manifest.replace("param: /page_token", "param: /token/child"),
+        "cannot overlap",
+    );
+    let parent = manifest
+        .replace(
+            "field: token, pointer: /token",
+            "field: token, pointer: /payload/token",
+        )
+        .replace("param: /page_token", "param: /payload");
+    assert_rejects(&parent, "cannot overlap");
+}
+
+#[test]
+fn paging_preserves_metering_and_hosted_placement_restrictions() {
+    assert_rejects(
+        &BODY_PAGE_READ.replace(
+            "    result_fields: [rows]",
+            "    result_fields: [rows]\n    cost: {usd_micro: 1, per: request, source: docs}",
+        ),
+        "cannot page",
+    );
+    let hosted = BODY_PAGE_READ
+        .replace("placements: {local: {auth: [credentials]}}", "placements: {local: {auth: [credentials]}, hosted: {auth: credential, credential: key}}")
+        .replace("    result_fields: [rows]", "    result_fields: [rows]\n    hosted: {}");
+    assert_rejects(&hosted, "a hosted read is not paged");
+    assert_rejects(
+        &BODY_PAGE_READ.replace("    verb: read", "    verb: create"),
+        "pages only as a declared read",
     );
 }
 
@@ -622,6 +756,12 @@ fn a_price_is_part_of_what_an_operation_means() {
         unpriced, priced_at_5000,
         "declaring a price changes the operation"
     );
+    let metered_without_quote = priced(5000).replace("usd_micro: 5000, ", "");
+    assert_ne!(unpriced, item_read_digest(&metered_without_quote));
+    assert_ne!(
+        item_read_digest(&priced(0)),
+        item_read_digest(&metered_without_quote)
+    );
     assert_ne!(
         priced_at_5000,
         item_read_digest(&priced(6000)),
@@ -651,6 +791,29 @@ fn a_price_names_an_https_source_and_one_request() {
             "    target: {template: \"https://api.social.example\"}\n    cost: {usd_micro: 10, per: request, source: docs}",
         ),
         "a priced operation sends one request and cannot page",
+    );
+}
+
+#[test]
+fn metered_reads_can_gate_usage_and_deduplicate_only_with_a_real_provider_key() {
+    let gated = priced(5000).replace(
+        "    scopes: [item.read]",
+        "    scopes: [item.read]\n    approval: required",
+    );
+    validate(&gated).expect("a provider charge can require exact approval");
+    let keyed = priced(5000).replace(
+        "    scopes: [item.read]",
+        "    scopes: [item.read]\n    guarantees: {provider_idempotency: enforced}",
+    );
+    assert_rejects(
+        &keyed,
+        "enforced deduplication needs the request to send the call's key",
+    );
+    let sent = keyed.replace("          - method: GET", "          - method: GET\n            headers: {idempotency-key: {\"$runx\": \"idempotency_key\"}}");
+    validate(&sent).expect("the metered read sends the declared deduplication key");
+    assert_rejects(
+        &sent.replace("    guarantees: {provider_idempotency: enforced}\n", ""),
+        "a read has no idempotency key",
     );
 }
 

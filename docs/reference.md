@@ -215,8 +215,19 @@ not hold is refused. A turn's address is the id of the step
 that asks it, as an approval's is its gate. A turn that a call opens in a child
 skill is addressed by the child's place in the run, as in `answer/0#report`,
 and is worked on the same connection. `turn_status` lists the calls a turn may make, one per entry of
-its skill's limits (`tools:`, `skills:`, connector operations, and
+its selected runner's limits (`tools:`, `skills:`, explicit connector operations, and
 `ask_human` when the skill declares `asks: true`), with their input schemas.
+A runner grants direct provider calls with `operations: [posthog/insight.read]`;
+every entry must be an exact requirement/operation declared by the package's
+`connectors:` block. Omitting the field or declaring `operations: []`
+offers and admits no package-declared connector operation in those turns. Namespaced requirements
+use the same syntax as graph operations, such as `fixture/forge/issue.read`.
+This limits agent calls, as `tools:` and `skills:` do; explicit operation steps
+remain part of the runner's declared graph. Narrowing never changes a connector's
+credential, approval, scope or provider semantics.
+Explicit catalog-loading grants remain separate authority. A phase that should
+only interpret supplied inputs also declares `skills: []`, `tools: []` and
+`asks: false` to remove inherited loading, tool and human-question capabilities.
 `ask_human` takes `{reason}`, a yes or no, or `{questions}`: one to three, each
 `{id, prompt, options?: [{label, detail?}], free_text?, required?}` with at most
 four options, the recommended first; a question without options takes text.
@@ -240,12 +251,17 @@ or one an earlier run left. Runx reads it from the project's artifact store
 (the artifact an earlier call of the turn recorded, when one did), checks its
 digest and the input's packet schema, gives the input its content, and names
 the artifact, labeled with the input, in the call's receipt; a reference whose
-digest is not its content's, or that leaves the artifact store, is refused. A skill call states its `act` beside
+digest is not its content's, or that leaves the artifact store, is refused.
+An input explicitly typed `runx.project_artifact.v1` receives the descriptor
+itself; it is not automatically dereferenced. The child can then open its exact
+retained content through `artifact.open` with the required scope and bounds.
+A skill call states its `act` beside
 the child's inputs, as an operation call does; it becomes the child run's act.
 A write names its `idempotency_key`, which a retry reuses. A call whose outcome
 runx cannot confirm stays pending on its own retry request, which says whether
-sending it again is safe (`resend`: a read, a journaled file change, or a write
-its provider deduplicates); a safe one runs again with the same input when `runx resume`
+sending it again is safe (`resend`: a documented free read, a journaled file
+change, or a call its provider deduplicates, including billed usage); a safe
+one runs again with the same input when `runx resume`
 answers it under `approvals` with `{"retry": true}`, and an unsafe one is never
 resent: check what it did, then close the run. A bounded retry (one with
 `retry_after_seconds`) is runx's own: the next resume after its delay runs it. A call that needs approval stays pending until `runx resume`
@@ -266,8 +282,10 @@ USDC, is reserved against what is left before anything is sent, so a call over
 it is refused as `cost_limit_exceeded` and seals the run blocked. Child runs and
 turn calls spend from the same limit, and none can widen it. A call that
 proves nothing billable gives its reservation back. A payment in any other
-currency is refused under a limit, since it cannot be counted. With no limit,
-nothing is counted. A run started with `--managed-agent` is worked by the
+currency is refused under a limit, since it cannot be counted. Unknown provider
+prices are also refused under a money limit; missing price information is not
+zero. With no money limit, no dollar reservation is made, while scoped use
+limits, charge custody and applicable approval still hold. A run started with `--managed-agent` is worked by the
 managed agent: `runx mcp --run` refuses it, and `--managed-agent` cannot take
 over a run its host drives.
 
@@ -490,7 +508,7 @@ moves the workspace's streams to another SQLite file, Postgres or Redis.
 
 Large local inputs use `artifact.admit` and `artifact.read`. Admission snapshots
 one contained regular file, binds its media type, byte count, and whole-file
-digest to an opaque invocation-scoped reference, and never exposes the host
+digest to an opaque logical-run-scoped reference, and never exposes the host
 path. The current total admission ceiling is 512 MiB. Reads return exact
 offsets, range and whole-file digests, `next_offset`, and `eof` in pages of at
 most 4 MiB using base64, character-safe UTF-8, or JSON-array record framing;
@@ -612,6 +630,12 @@ scopes still govern the native or hosted operations Runx performs on the
 skill's behalf; a local subprocess cannot turn those strings into OS
 permissions.
 
+Authors declare newly required JavaScript helpers, for example
+`tool: {module: inventory.mjs, requires: [parseData]}`. Unsupported declared
+requirements fail graph admission before effects. Runx does not infer helper
+calls or use this declaration as a permission; omitting it loses the old-runtime
+guard. The baseline `parseUrl` helper predates this declaration.
+
 JavaScript modules use a different boundary. Their worker receives no ambient
 OS environment, credentials, workspace path, network API, process API, clock,
 or randomness; only the validated in-memory module closure, JSON input, exact
@@ -619,6 +643,15 @@ declared non-secret environment, and fixed limits cross the worker protocol.
 Native integer inputs outside JavaScript's safe integer range are refused
 before module execution rather than silently rounded. Pass exact large IDs or
 amounts as strings. Floating-point inputs retain IEEE 754 semantics.
+
+`artifact.store` retains a selected canonical JSON result as the existing
+ProjectArtifact descriptor. `artifact.open` checks its current-project root,
+size and digest, then returns a local artifact URI for `artifact.read` pages.
+Store and open require operator bounds and `artifact.write` / `artifact.read`
+scopes respectively. The existing `artifact.read` page tool requires `fs.read`;
+it accepts logical-run-scoped URIs admitted by either source. References do not
+grant permission. Use immutable result parts and a
+compact continuation instead of growing history in CLI input.
 
 ## Capability Packs
 
@@ -827,18 +860,35 @@ sets remain `needs_agent`. Both resume the same sealed checkpoint through
 Payment capabilities also set the typed `amount: {units, unit}` input. It is
 part of the plan digest and appears in the operator summary; it is not copied
 into the provider payload or inferred from provider-specific JSON. Under a
-money limit, `USDC` units count as micro-USD and `USD` units as cents.
+money limit, `USDC` units count as micro-USD and `USD` units as cents. The
+provider operation also needs a declared USD quote, including an explicitly
+documented zero when it charges no call fee. A known transfer amount does not
+establish an unknown provider fee, and a missing quote is refused under the
+limit rather than counted as zero.
 
 An operation may declare what its provider charges per call:
 `cost: {usd_micro, per: request | success, source: docs | rate_card | observed,
 source_url}`. `per: request` is billable once the request may have left;
 `per: success` only when the provider answers as the operation accepts. The
 price and its basis are part of the operation digest, so a changed price is
-confirmed again before it runs; where it was read is not. A priced operation
-sends one request and cannot page. Absent, no charge is known and the call
-counts nothing; `usd_micro: 0` is an explicit free. `runx skill inspect` shows
-each priced operation's price, and a priced call's packet carries
-`cost: {quoted_usd_micro, settled_usd_micro, payer}`.
+confirmed again before it runs; where it was read is not. The quote covers the
+whole operation's declared request sequence. Metered paging needs separately
+accounted requests; a free reader may page. `usd_micro: 0` explicitly declares
+free. Omitting `usd_micro` from a cost declaration describes metered usage whose
+USD quote is unknown; omitting the declaration does not establish a free call.
+A strict money limit accepts neither unknown case. Without such a limit, declared
+unpriced metering uses bounded-use authority or asks once for native approval of
+the exact call. An empty use-limit object is not a bound.
+
+`runx skill inspect` shows the declaration. A call's packet carries
+`cost: {quoted_usd_micro?, settled_usd_micro?, payer}` when cost is declared;
+unknown quotes and settlement stay absent rather than becoming fictional zeroes.
+A possibly charged timeout, invalid response or partially completed read retains
+its reservation and evidence use. State idempotency and duplicate-effect
+tolerance do not cover another charge from the original reservation: reconcile
+the result, or admit a new separately bounded call while preserving the original
+uncertain attempt. A provider's enforced deduplication must cover the whole call
+and its charge, and its implementation must actually send the native key.
 
 `result_from` is not a list of graph leaves. It returns each selected successful
 step's complete declared contract, including packet envelopes. Approvals and
@@ -1004,6 +1054,26 @@ a tree: each receipt is committed once by its parent, and a tree holds at most
 1024 receipts and 64 levels below its root. A receipt two parents commit is
 refused, and two different signed bodies under the same receipt ID are
 ambiguous and fail verification.
+
+Native `receipt.prove` and `receipt.query` expose redacted metadata and tree
+verification. `receipt.read` additionally requires `receipt.claim.read` and
+returns an exact retained declared output from the current workspace, after
+verifying its receipt tree and signed output digest. An optional RFC 6901
+`json_pointer` selects a value; `max_bytes` limits the complete serialized JSON
+selection. An oversized selection is refused rather than truncated. The reader
+does not load raw invocation inputs, transport diagnostics or credential stores.
+Declared outputs can contain sensitive source data; they are returned exactly,
+without a redaction that would change their signed meaning.
+
+A graph receipt returns `not_a_step` with its verified child references; it
+does not directly sign an assembled result. A valid step receipt imported
+without its matching local run record returns `not_retained`. The reader
+neither replays the run nor searches another workspace. Runs confined by
+`agent_bounds` cannot access these protected claim bodies. A verified claim
+establishes what its signer recorded, not independent truth about a provider
+or the absence of secrets in data that was not inspected. A child receipt of
+an open turn becomes readable through the receipt store when the existing turn
+completion lifecycle publishes it.
 
 Notarize a local receipt with:
 
@@ -1232,3 +1302,11 @@ the platform package that matches the machine.
   `runx-runtime` dependency, or a core repository fork.
 - CLI, SDK, IDE plugin, host adapter, and MCP entrypoints delegate to runner
   contracts or external protocols instead of duplicating the engine.
+
+### Admitted observation time
+
+`control.observed_at` takes no inputs and returns this native invocation's
+`observed_at`. It forwards admitted execution metadata; it does not read an
+ambient clock or attest to a provider event time. Deterministic JavaScript keeps
+its fixed clock. Acquisition skills preserve provider times separately and may
+use this native value to label when Runx observed their evidence.

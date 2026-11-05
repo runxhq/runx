@@ -1,0 +1,54 @@
+name: holds-identity-conflict
+kind: skill
+target: ..
+inputs:
+  subject:
+    id: lead:fixture
+    kind: company
+  selector:
+    domain: example.com
+  requested_fields:
+    - company.name
+setup:
+  credentials:
+    - apollo
+env:
+  APOLLO_API_KEY: harness-apollo-key
+caller:
+  approvals:
+    company: true
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.apollo.io/api/v1/organizations/enrich?domain=example.com
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"organization":{"id":"org-2","name":"Other","primary_domain":"other.example"}}'
+expect:
+  status: sealed
+  step_outputs:
+    normalize-company:
+      subset:
+        lookup_evidence:
+          data:
+            decision: identity_conflict
+        lead_enrichment_packet:
+          data:
+            decision: needs_more_evidence
+            facts: []
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: lead-enrichment
+  source: skills-fixture
+operator_journeys:
+  - mode: standalone
+    confusors:
+      - lead-qualify
+      - cold-outreach
+    request: Enrich this identified company for the requested professional facts.
+    expected_outcome: Return the actual match outcome and factual availability without qualification or outreach;
+      retain native charging and readback evidence.

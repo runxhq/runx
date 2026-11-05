@@ -7,7 +7,7 @@ export function admitGrowthEvidence(inputs) {
   const siteUrl = text(inputs.site_url);
   const findings = [];
   const blockers = [];
-  const caveats = [];
+  const caveats = stringArray(inputs.collection_notes);
   const sources = [];
   const sourceRecords = [];
   const evidence = [];
@@ -207,16 +207,16 @@ function admitSite(value, findings, caveats, sources, sourceRecords, evidence, s
     if (!summary) {
       local.push(finding("growth.site_evidence.summary_missing", `site evidence ${index} requires a bounded summary or extracted value`));
     }
-    if (summary.length > MAX_SITE_SUMMARY) {
-      local.push(finding("growth.site_evidence.summary_too_large", `site evidence ${index} exceeds ${MAX_SITE_SUMMARY} characters`));
-    }
+    const cut = summary.charCodeAt(MAX_SITE_SUMMARY - 1);
+    const summaryView = summary.slice(0, MAX_SITE_SUMMARY - (cut >= 0xd800 && cut <= 0xdbff ? 1 : 0));
+    if (summaryView !== summary) caveats.push(`${kind}: analysis text is a bounded prefix; omitted content was not assessed. The complete source identity remains ${sourceDigest}.`);
     if (local.length > 0) {
       findings.push(...local);
       return;
     }
     if (!register(sourceDigest, kind, {
       source_uri: sourceUri,
-      observed_at: text(record.observed_at),
+      observed_at: text(record.observed_at || object(record.provenance).fetched_at),
       decision: text(record.decision),
     }, sources, sourceRecords, seen)) return;
 
@@ -224,8 +224,8 @@ function admitSite(value, findings, caveats, sources, sourceRecords, evidence, s
       kind,
       source_digest: sourceDigest,
       source_uri: sourceUri,
-      observed_at: text(record.observed_at),
-      summary,
+      observed_at: text(record.observed_at || object(record.provenance).fetched_at),
+      summary: summaryView,
     });
     const recordCaveats = stringArray(record.caveats);
     caveats.push(...recordCaveats.map((item) => `${kind}: ${item}`));

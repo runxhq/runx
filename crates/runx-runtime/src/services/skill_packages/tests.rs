@@ -344,6 +344,54 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
 }
 
 #[test]
+fn skill_authoring_rejects_candidate_identity_drift_before_writing()
+-> Result<(), Box<dyn std::error::Error>> {
+    let no_catalog = VALID_MANIFEST.replacen(
+        "catalog:\n  kind: skill\n  audience: builder\n  visibility: public\n  role: canonical\n  execution: plan\n  completion: plan\n  approval: none\n",
+        "",
+        1,
+    );
+    let wrong_visibility = VALID_MANIFEST.replace("visibility: public", "visibility: internal");
+    let other_manifest = VALID_MANIFEST.replacen("skill: demo", "skill: other", 1);
+    let other_manual = VALID_MANUAL.replacen("name: demo", "name: other", 1);
+    for (manual, manifest, expected) in [
+        (VALID_MANUAL, no_catalog.as_str(), "catalog visibility"),
+        (
+            VALID_MANUAL,
+            wrong_visibility.as_str(),
+            "catalog visibility",
+        ),
+        (
+            other_manual.as_str(),
+            other_manifest.as_str(),
+            "package name",
+        ),
+    ] {
+        let temp = tempfile::tempdir()?;
+        let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
+        let bundle = change_bundle(
+            &base,
+            SkillChangeDecision::Write,
+            architecture(SkillArchitectureChoice::Build, &[]),
+            &[("SKILL.md", manual), ("run.yaml", manifest)],
+            &[],
+        );
+        let error = apply_skill_change(
+            temp.path(),
+            "skills/demo",
+            "build",
+            &bundle,
+            &BTreeMap::new(),
+            &RuntimeEffectRegistry::default(),
+        )
+        .expect_err("identity drift must fail before committing files");
+        assert!(error.to_string().contains(expected), "{error}");
+        assert!(!temp.path().join("skills/demo").exists());
+    }
+    Ok(())
+}
+
+#[test]
 fn skill_authoring_needs_core_does_not_touch_workspace() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
     let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;

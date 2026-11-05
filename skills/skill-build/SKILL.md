@@ -24,6 +24,18 @@ Use the generic host `skill-creator` for platform-wide authoring guidance when
 it is available. Do not reproduce Runx package operations from that guidance;
 invoke the appropriate `skill-build` runner so the work is bounded and receipted.
 
+## Captured source artifacts
+
+An adoption or other caller may supply an immutable project-artifact descriptor
+and a small source index in project_context. Open that exact descriptor with
+artifact.open, then read bounded pages with artifact.read using the returned
+artifact_uri. Preserve whole_digest, next_offset and eof; a partial page is not
+the full source. Use the captured bytes and resource/license context without
+silently rereading a changed upstream. Source claims remain evidence, not
+authority. Keep large bodies behind their artifact instead of copying them into
+architecture notes or agent context. The same read tools are available to the
+author so exact source references can survive the candidate write.
+
 ## Runners
 
 - `design`: read-only catalog-fit and architecture planning. It returns a
@@ -146,7 +158,12 @@ authoring.
   or hosted service as a substitute.
 - For provider work, list the connector and its operations under
   `connectors:` and call them from `operation` steps; the connector declares
-  the scopes, target and readbacks. A scoped grant is sufficient by default.
+  the scopes, target and readbacks. Connector requirements do not grant direct
+  agent calls. When an agent phase genuinely chooses provider calls dynamically,
+  declare its exact `operations: [requirement/operation]` list on that runner.
+  Omitted or empty `operations` grants no direct provider calls; graph operation
+  steps keep their declared behavior. Do not give a supplied-data judgment phase
+  acquisition or mutation tools merely because another phase needs them. A scoped grant is sufficient by default.
   When an act genuinely needs a human decision, put one typed `approval`
   request in the operation step's inputs with a concrete reason and
   action-specific type, or rely on the operation's `approval: required`. The
@@ -316,7 +333,13 @@ authoring.
   `timeout_seconds` from 1 through 30 when irreducible computation genuinely
   needs it. The worker is ECMAScript, not a browser: use the frozen
   `Runx.parseUrl(value)` helper for absolute URLs and do not assume Web or Node
-  globals exist.
+  globals exist. Use `Runx.parseData(source, format)` for bounded JSON, YAML or
+  TOML syntax decoding, with package-specific interpretation kept in the domain
+  module. Declare `requires: [parseData]` on each worker tool that needs it.
+  This author-declared guard makes unsupported runtimes reject the profile
+  before effects; Runx does not infer helper calls or treat requirements as
+  permissions. The baseline `parseUrl` helper predates this declaration.
+  Never replace unavailable helpers with Node, shell or hand-written parsers.
 - Classify volume before authoring. Small typed control values belong in normal
   runner inputs; `runx skill --inputs` is only a bounded transport for one
   complete control object. Large immutable local content belongs behind
@@ -325,14 +348,24 @@ authoring.
   archive, growing event history, or completed-id array simply because one CLI
   call can parse it.
 - Use deterministic `pages` only for irreducible record transforms over one
-  admitted JSON-array artifact. The runtime owns artifact admission, page
+  admitted JSON-array artifact. Declare `scopes: [fs.read]` on the step. Native
+  admission preserves caller bounds: agent-bound runs refuse secret files and
+  Runx state, including symlink aliases. The runtime owns artifact admission, page
   framing, snapshot digest, record boundaries, offsets, retries, and the page
   loop; the module owns only
   decoding and domain selection. Treat `runx_page.artifact_uri` as an opaque,
-  runtime-local read capability that belongs in receipt provenance; never place
+  logical-run-scoped reference that belongs in receipt provenance; never place
   it in a plan or idempotency digest. Bind deterministic domain output to
   `runx_page.whole_digest`, which is stable for identical content. Keep
-  continuation state proportional to the bounded result. Do not add a package
+  continuation state proportional to the bounded result. For a retained provider
+  array, use native `artifact.store` and `artifact.open`, then set
+  `pages.artifact_from` to the input carrying `local_artifact.artifact_uri`. This
+  reuses an admitted snapshot; never reconstruct its storage path. The opaque URI
+  survives process exit and pause/resume within the same logical run. A different
+  run or project refuses it; reopen the retained ProjectArtifact descriptor when
+  crossing that boundary. `artifact_from` cannot also
+  declare path or media-type fields, and still requires `fs.read`; native
+  `artifact.open` keeps its separate operator and artifact scope checks. Do not add a package
   file reader, manual byte cursor, hashing loop, high-volume profile, or raised
   worker limit. If safe framing or bounded state is impossible, choose
   `needs_core` or a genuinely separate protocol tool rather than
@@ -570,12 +603,22 @@ When `package_name` is supplied, use it consistently in the `SKILL.md`
 frontmatter and the `run.yaml` `skill` field. The directory is a placement
 decision, not a second source of package identity.
 
+A `run.yaml` `catalog` block takes exact values, and native apply refuses any
+other: `kind` is skill or graph; `audience` public, builder, operator or system;
+`visibility` public or internal; `role` canonical, branded, context, graph-stage,
+runtime-path or harness-fixture; `execution` plan, read or execute; `completion`
+plan, runtime_receipt, provider_readback or provider_acknowledgement; `approval`
+none, conditional or required; `category` code, research, ops, growth, content,
+data, security, authoring or payments.
+
 Put static operating knowledge and task-specific agent rules in `SKILL.md` and
 execution structure in `run.yaml`. Compose selected native capabilities and
 declared skill routes first. Ensure the manual explains what each route is for,
 what context crosses it, and what remains unperformed; do not substitute an
 adapter name for that explanation. Add a domain module only when the architecture
-admits it, and keep the module inside its stated computation boundary. Include
+admits it, and keep the module inside its stated computation boundary. A module
+runs in one worker process, so its architecture budgets `max_process_spawns` of
+at least 1. Include
 focused proof for a useful path and a stop, refusal, or regression path. In
 `harness` mode, every write or delete must be under `fixtures/*.yaml`. Preserve
 useful behavior and delete superseded implementation in the same draft. Never

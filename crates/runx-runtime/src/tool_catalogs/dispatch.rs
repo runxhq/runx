@@ -12,6 +12,7 @@ use crate::adapter::{InvocationOutput, InvocationStatus};
 use crate::adapter_pipeline::AdapterProjection;
 use crate::credentials::CredentialDelivery;
 use crate::effects::{EffectAdmission, RuntimeEffectRegistry};
+use crate::kernel::operation::confirm::Unperformed;
 use crate::observations::Observations;
 use crate::tool_catalogs::ToolCatalogError;
 
@@ -89,8 +90,36 @@ pub(crate) fn dispatch_connector_tool(
     manifest: &Path,
     request: &ToolDispatchRequest<'_>,
     started: Instant,
-) -> Result<InvocationOutput, RuntimeError> {
-    local::invoke_manifest(manifest, request, started)
+) -> Result<InvocationOutput, Unperformed> {
+    // This exact-manifest path reaches only ProcessToolAdapter. Its errors
+    // precede launch; once launched it returns an output with a native
+    // execution-boundary observation, even when supervision or parsing fails.
+    local::invoke_manifest(manifest, request, started).map_err(|error| Unperformed::NotSent {
+        code: "tool_not_started",
+        reason: error.to_string(),
+    })
+}
+
+/// Preserve the dispatch boundary when a connector tool fails. A local
+/// validation failure delivered no request; a launched process may have.
+pub(crate) fn connector_tool_result(output: InvocationOutput) -> Result<JsonValue, Unperformed> {
+    if output.succeeded() {
+        return Ok(output.value);
+    }
+    let reason = output
+        .failure_message()
+        .unwrap_or_else(|| "connector tool failed".to_owned());
+    Err(if output.observations.boundary().is_some() {
+        Unperformed::MaybeSent {
+            code: "tool_failed",
+            reason,
+        }
+    } else {
+        Unperformed::NotSent {
+            code: "tool_not_started",
+            reason,
+        }
+    })
 }
 
 fn invoke_resolved_tool(

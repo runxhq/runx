@@ -1,65 +1,77 @@
 ---
 name: schema-check
-description: Check a proposed API or data contract against the current contract, real sample payloads, and a compatibility policy, and gate publication behind a refusable verdict with native digest evidence.
+description: Compare current and proposed JSON Schema acceptance, validate real payloads natively, and return a path-specific compatibility verdict with a gated publication proposal.
 ---
 
 # Schema Check
 
-Schema Check decides whether a proposed contract change can move forward
-without silently breaking callers. It compares the current and proposed JSON
-Schema contracts field by field, validates every supplied sample payload
-against the proposed contract, applies the caller's compatibility policy, and
-either refuses or emits a gated publish proposal. It never publishes anything
-itself.
+Check whether a contract change can reject payloads the current contract accepts.
+Supply the current schema, proposed schema, real payload examples and your
+compatibility policy. The default `check` runner returns the affected paths,
+sample failures, unsupported proof cases and, when allowed, a publication proposal
+bound to the exact schema and sample values. It does not publish.
 
-## Procedure
+## What the comparison means
 
-1. Native `data.digest` binds the exact current schema, proposed schema, and
-   sample set before any judgment, so the verdict is tied to specific bytes.
-2. Deterministic comparison walks both contracts: removed fields, type changes,
-   fields that became required, new required fields, and narrowed enums are
-   breaking; additive optional fields and expanded enums are notes.
-3. Native `data.validate` compiles both schemas and validates every sample against
-   each contract using JSON Schema 2020-12, with external retrieval disabled. Coverage is
-   reported honestly: paths no sample exercises are flagged, not assumed
-   covered.
-4. The policy decides the verdict. Breaking changes are refused unless
-   `breaking_allowed` is explicitly true, and policy `required_fields` must
-   exist in the proposed contract.
-5. A compatible verdict emits a `proposal` with the three digests and changed
-   paths, gated on a schema publisher or human approver. A refused verdict
-   emits no proposal. `live_write_performed` is always false.
+The direction is **current accepted instances → proposed accepted instances**.
+For example, widening integer to number preserves acceptance. Adding an optional
+string field to an open object can break it: that key previously allowed a
+number. Adding the same field to an object that previously forbade it expands
+acceptance. Removing a property follows the new additionalProperties rule; a
+removed declaration is not automatically a rejected payload.
 
-Invalid requests refuse with `policy_result: invalid_input` and findings rather
-than guessing. Missing required inputs fail at admission.
+This is an input/data acceptance check. It does not establish response-consumer
+compatibility, output completeness, business meaning or behavior across two API
+implementations. Set policy `required_fields` for declarations the proposed
+contract must retain, and assess consumer expectations separately. It never
+transforms or strips fields from the actual data.
 
-## Output
+## How it works
 
-`schema_check` (`runx/schema-check.check.v1`) carries `decision`, `policy_result`,
-`breaking_changes`, per-sample `validation_results`, `migration_notes`
-including coverage, the gated `proposal` or null, and `validation`.
+1. Native `data.digest` binds the exact supplied JSON values for both schemas
+   and the sample array. These identify values, not an unprovided original file.
+2. Native `data.validate` compiles each original schema with external retrieval
+   disabled and validates every sample against both contracts. Formats are
+   annotations. The native validation steps retain both sets of diagnostics;
+   the result includes the proposed-schema errors by sample index.
+3. The domain comparison checks implication for practical object properties,
+   required declarations, schema-valued additionalProperties, homogeneous arrays,
+   JSON types/unions, enum/const values, string and collection lengths, numeric
+   endpoints and unchanged patterns. Integer is included in number. Integer
+   multipleOf relaxations are proved; decimal-divisor changes remain conservative.
+   Local JSON Pointer references resolve against each original schema, including
+   escaped pointer segments. Equal ref strings do not hide a changed definition.
+4. Potential narrowing is refused unless `breaking_allowed` is true. A policy
+   exception is stated in the notes; it does not turn that break into an
+   unchanged acceptance guarantee. Missing policy-required fields always refuse.
+5. Passing samples supplement the implication check. They never prove a changed
+   unsupported constraint. Changed composition/tuple/conditional applicators,
+   changed regular-expression inclusion, recursive inclusion, ref assertion
+   siblings, nested resource IDs and external references require separate review.
+   Identical assertion sets need no new inference. A policy exception cannot
+   bypass an unsupported proof case.
 
-Inputs are `current_schema`, `proposed_schema`, `sample_payloads`, and
-`compatibility_policy`.
+The proof is conservative: interacting constraints can make a reported potential
+break unreachable. Inspect its path and the exact contracts rather than treating
+a potential break as an exhibited failing payload. Unknown semantics hold the
+proposal instead of disappearing behind the examples.
 
-## What compatibility means
+## Using the result
 
-Sample validity is not a proof that every existing caller remains compatible.
-The inclusion comparison supports object properties, required fields, scalar
-types, enums and boolean additionalProperties. It compares root constraints as
-well as nested fields. A newly constrained enum and a newly closed object are
-changes that may reject existing callers.
+`schema_check` keeps the existing `runx/schema-check.check.v1` packet.
+`breaking_changes` explains potential narrowing; `validation.findings` explains
+unproven semantics. `migration_notes` records changes, policy exceptions and
+which declared paths occur in samples, including homogeneous array items.
+`proposal` is null when held. When present, it carries the native schema/sample
+digests, affected paths and `live_write_performed: false`.
 
-The native validator supports the full self-contained schema, including
-minLength, numeric bounds, nested arrays, composition and local references. If
-a changed contract uses constraints outside the inclusion comparison's supported
-language, the result is refused with `compatibility.unsupported` findings, even
-if its samples happen to pass or breaking changes are allowed. Identical schemas
-need no inclusion inference but still compile and validate their samples.
-Formats are annotations. This skill never fetches remote schemas.
+The same runner is reusable in a graph. A parent supplies its exact schemas,
+samples and policy, then consumes this verdict and these digests without a second
+comparison. No discovery, provider credentials, model turn or delivery is needed.
+Publication belongs to the schema publisher under its own authorization and
+readback. A compatible proposal is not publication approval.
 
-For example, adding `minLength: 10` to a string with sample `"x"` fails native
-validation; it cannot receive a compatible verdict. Missing required fields,
-removed enum values and unknown comparison semantics remain visible. A proposal
-is not publication approval. Its digests bind the exact proposed change; the
-actual schema publisher owns authorization, publication and readback.
+For a normal list-contract change, widening a locally referenced item from
+integer to number while lowering minItems preserves acceptance. Requiring a new
+item field, tightening an endpoint or constraining a formerly open extra key
+produces a path-specific refusal even when the examples happen to pass.

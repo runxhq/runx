@@ -30,7 +30,9 @@ pub(crate) struct Expected<'a> {
     pub connector: &'a str,
     pub operation: &'a str,
     pub target: &'a str,
-    /// The provider key, for mutations.
+    /// A mutation requires an acknowledgement; a keyed read does not.
+    pub mutation: bool,
+    /// The provider key, for mutations or deduplicated metered reads.
     pub idempotency_key: Option<&'a str>,
 }
 
@@ -65,7 +67,7 @@ impl Readback {
             return Err("the readback carries no evidence reference".to_owned());
         }
         if let Some(key) = expected.idempotency_key {
-            if self.operation_id.as_deref().is_none_or(str::is_empty) {
+            if expected.mutation && self.operation_id.as_deref().is_none_or(str::is_empty) {
                 return Err("the mutation was not acknowledged with an operation id".to_owned());
             }
             if self.idempotency_key.as_deref() != Some(key) {
@@ -218,6 +220,7 @@ mod tests {
             connector: "slack",
             operation: "thread.reply",
             target: "slack://T/C/2",
+            mutation: true,
             idempotency_key: key,
         }
     }
@@ -244,5 +247,16 @@ mod tests {
                 .verify(&expected(Some("runx:expected")))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn a_deduplicated_read_binds_its_key_without_inventing_a_mutation_acknowledgement() {
+        let mut read = readback();
+        read.operation_id = None;
+        let mut selected = expected(Some("runx:expected"));
+        selected.mutation = false;
+        assert!(read.verify(&selected).is_ok());
+        read.idempotency_key = Some("another-call".to_owned());
+        assert!(read.verify(&selected).is_err());
     }
 }

@@ -70,12 +70,6 @@ function validateDraft(value, state) {
   if (sourceChangeSet && !sourceChangeSetPreserved) {
     findings.push({ code: "change_set.drift", path: "change_set", message: "A supplied code-intake change set must be preserved exactly." });
   }
-  if (sourceChangeSet && sourceChangeSet.action_decision !== "proceed_to_plan") {
-    findings.push({ code: "change_set.not_plannable", path: "change_set.action_decision", message: "The supplied change set does not authorize a planning lane." });
-  }
-  if (sourceChangeSet && sourceChangeSet.commence_decision !== "approve") {
-    findings.push({ code: "change_set.not_commenced", path: "change_set.commence_decision", message: "The supplied change set has not approved commencement." });
-  }
 
   const inputThread = optionalString(inputs.thread_locator)
     || optionalString(record(inputs.thread).thread_locator)

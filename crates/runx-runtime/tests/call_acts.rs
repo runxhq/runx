@@ -50,6 +50,7 @@ runners:
         input: {channel_locator: $input.channel_locator, text: $input.text}
         act: $act
   turn:
+    operations: [fixture/chat/channel.post]
     outputs:
       answer: string
 "#;

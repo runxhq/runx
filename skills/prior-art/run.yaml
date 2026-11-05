@@ -1,5 +1,5 @@
 skill: prior-art
-version: "0.2.13"
+version: "0.2.14"
 catalog:
   kind: graph
   audience: builder
@@ -18,12 +18,15 @@ harness:
     - name: prior-art-recommends-catalog-reuse
       operator_journeys:
         - mode: standalone
-          confusors: [research, knowledge-router]
+          confusors:
+            - research
+            - knowledge-router
           request: Inspect prior art for this design before I create anything new.
           expected_outcome: Return bounded citation-backed findings and a reuse, amend, new-work, or stop recommendation.
         - mode: composed
           request: Continue this design decision from the supplied repository and catalog evidence.
-          expected_outcome: Reuse the bounded source set and return a prior-art recommendation without broad repository rediscovery.
+          expected_outcome: Reuse the bounded source set and return a prior-art recommendation without broad repository
+            rediscovery.
           prior_evidence:
             - The explicit source paths, objective, and catalog evidence supplied in the fixture.
           must_not_repeat:
@@ -142,9 +145,6 @@ harness:
                     path: docs/does-not-exist.md
         receipt:
           schema: runx.receipt.v1
-tools:
-  - fs.read
-
 runners:
   prior-art-agent:
     default: true
@@ -153,6 +153,9 @@ runners:
         type: string
         required: true
         description: Build, content, or operator objective being researched.
+        schema:
+          minLength: 1
+          pattern: \S
       decomposition:
         type: json
         required: false
@@ -170,22 +173,35 @@ runners:
         required: false
         description: Expected downstream output shape.
       source_paths:
-        type: json
+        type: array
         required: false
-        description: Bounded repo-relative files to inspect in addition to catalog manifests derived from decomposition.
+        default: []
+        description: Exact repo-relative files selected by the host or parent; at most sixteen files after
+          decomposition-derived manifests are included.
+        schema:
+          maxItems: 16
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
       repo_root:
         type: string
         required: false
         default: .
         description: Workspace root used for native catalog and bounded file inspection.
-    result_from: [validate]
+    result_from:
+      - validate
+    examples:
+      - objective: Check whether this repository already has a retry helper before adding one.
     steps:
       - id: plan
         label: derive the bounded source set
         inputs:
           decomposition: $input.decomposition
           source_paths: $input.source_paths
-        tool: { module: prior-art.mjs, export: planSources }
+        tool:
+          module: prior-art.mjs
+          export: planSources
         outputs:
           paths: array
           limits: object
@@ -212,7 +228,9 @@ runners:
           paths: $steps.plan.paths
       - id: index
         label: bind catalog and file evidence
-        tool: { module: prior-art.mjs, export: indexSources }
+        tool:
+          module: prior-art.mjs
+          export: indexSources
         outputs:
           evidence_index: object
         inputs:
@@ -224,9 +242,121 @@ runners:
             evidence_index: evidence_index
       - id: research
         label: compare inspected prior art
-        agent: { role: researcher, task: prior-art-research }
+        agent:
+          role: researcher
+          task: prior-art-research
         outputs:
-          prior_art_draft: object
+          prior_art_draft:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - decision
+                - findings
+                - catalog_fit
+                - quality_bar
+                - recommended_flow
+                - sources
+                - risks
+              properties:
+                decision:
+                  enum:
+                    - ready
+                    - needs_more_evidence
+                findings:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - claim
+                      - source
+                      - relevance
+                      - confidence
+                    properties:
+                      claim:
+                        type: string
+                        minLength: 1
+                      source:
+                        type: string
+                        minLength: 1
+                      relevance:
+                        type: string
+                        minLength: 1
+                      confidence:
+                        enum:
+                          - verified
+                          - likely
+                          - unverified
+                catalog_fit:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - decision
+                    - adjacent_skills
+                    - rationale
+                  properties:
+                    decision:
+                      enum:
+                        - reuse
+                        - amend
+                        - new_work
+                        - stop
+                    adjacent_skills:
+                      type: array
+                      items:
+                        type: string
+                        minLength: 1
+                    rationale:
+                      type: string
+                      minLength: 1
+                quality_bar:
+                  type: object
+                  additionalProperties: true
+                  properties:
+                    audience:
+                      type: string
+                    artifact:
+                      type: string
+                    evidence:
+                      type: string
+                    stop_conditions:
+                      type: array
+                      items:
+                        type: string
+                recommended_flow:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                    properties:
+                      step:
+                        type: string
+                      rationale:
+                        type: string
+                sources:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - path
+                    properties:
+                      path:
+                        type: string
+                        minLength: 1
+                      kind:
+                        type: string
+                risks:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                    properties:
+                      risk:
+                        type: string
+                      mitigation:
+                        type: string
         inputs:
           objective: $input.objective
           decomposition: $input.decomposition
@@ -236,6 +366,7 @@ runners:
           evidence_index: $steps.index.evidence_index
           source_paths: $input.source_paths
           repo_root: $input.repo_root
+          inspected_bundle: $steps.read.file_read_bundle
         artifacts:
           named_emits:
             prior_art_draft: prior_art_draft
@@ -244,7 +375,9 @@ runners:
         inputs:
           evidence_index: $steps.index.evidence_index
           prior_art_draft: $steps.research.prior_art_draft
-        tool: { module: prior-art.mjs, export: validatePriorArt }
+        tool:
+          module: prior-art.mjs
+          export: validatePriorArt
         outputs:
           decision: string
           findings: array

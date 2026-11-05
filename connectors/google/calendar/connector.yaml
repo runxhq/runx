@@ -11,17 +11,19 @@ placements:
     auth: delegated
 operations:
   events.list:
-    description: List events on a calendar within a window of at most 30 days.
+    description: Read one bounded page of expanded calendar events within a selected window. Pass page_token to continue the same query.
     verb: read
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://developers.google.com/workspace/calendar/api/guides/quota'}
     scopes: [events.read]
     target:
       template: {"$argument": "/calendar_id"}
-    result_fields: [calendar_id, time_min, time_max, events, complete, next_page_token, fetched_at]
+    result_fields: [calendar_id, time_min, time_max, events, page_token, complete, next_page_token, fetched_at]
     hosted:
       provider_scopes: ["https://www.googleapis.com/auth/calendar.events.readonly", "openid"]
   freebusy.query:
-    description: Read busy intervals on a calendar within a window of at most 30 days.
+    description: Read busy intervals on a calendar within a selected positive window.
     verb: read
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://developers.google.com/workspace/calendar/api/guides/quota'}
     scopes: [freebusy.read]
     target:
       template: {"$argument": "/calendar_id"}

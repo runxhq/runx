@@ -507,7 +507,6 @@
               }
             },
             "required": [
-              "usd_micro",
               "per",
               "source"
             ],
@@ -1255,6 +1254,13 @@
                                       "minLength": 1,
                                       "type": "string"
                                     },
+                                    "in": {
+                                      "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
+                                      "enum": [
+                                        "body"
+                                      ],
+                                      "type": "string"
+                                    },
                                     "items": {
                                       "description": "Where a decoded page holds its items.",
                                       "minLength": 1,
@@ -1264,7 +1270,7 @@
                                       "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                     },
                                     "param": {
-                                      "description": "The query parameter that carries the cursor.",
+                                      "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
                                       "minLength": 1,
                                       "type": "string"
                                     }
@@ -1620,6 +1626,13 @@
                                       "minLength": 1,
                                       "type": "string"
                                     },
+                                    "in": {
+                                      "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
+                                      "enum": [
+                                        "body"
+                                      ],
+                                      "type": "string"
+                                    },
                                     "items": {
                                       "description": "Where a decoded page holds its items.",
                                       "minLength": 1,
@@ -1629,7 +1642,7 @@
                                       "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                     },
                                     "param": {
-                                      "description": "The query parameter that carries the cursor.",
+                                      "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
                                       "minLength": 1,
                                       "type": "string"
                                     }
@@ -1713,6 +1726,13 @@
                                   "minLength": 1,
                                   "type": "string"
                                 },
+                                "in": {
+                                  "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
+                                  "enum": [
+                                    "body"
+                                  ],
+                                  "type": "string"
+                                },
                                 "items": {
                                   "description": "Where a decoded page holds its items.",
                                   "minLength": 1,
@@ -1722,7 +1742,7 @@
                                   "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                 },
                                 "param": {
-                                  "description": "The query parameter that carries the cursor.",
+                                  "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
                                   "minLength": 1,
                                   "type": "string"
                                 }

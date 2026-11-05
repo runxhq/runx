@@ -36,7 +36,8 @@ Start with the narrowest question.
 
 A useful performance run names the property, date range, search type, data state,
 and row bound. It defaults to the `page` dimension; supply another ordered set only
-when the decision needs it. Keep dimensions minimal: adding query, page, country,
+when the decision needs it. An explicit empty list requests a total without
+grouping. Keep dimensions minimal: adding query, page, country,
 device, date, hour, or search appearance changes aggregation and can produce a
 much larger, privacy-filtered result. Use `hourly_all` only with the `hour`
 dimension; those rows are provisional and their timestamps use Google's reported
@@ -48,12 +49,19 @@ do not silently rewrite an HTTP property to HTTPS. Compare like with like and do
 not interpret a differently grouped query as a trend.
 
 The performance packet preserves clicks, impressions, CTR, average position,
-aggregation type, pagination state, and Google's incomplete-data metadata.
-`decision: usable_with_caveats` means the evidence can inform exploration but
-must not be treated as a settled period. A packet with `pagination.complete:
-false` is a bounded slice, not the whole property. Search Console can omit
-low-volume queries and does not guarantee that row totals reproduce every chart
-total, so never manufacture missing rows or causal explanations.
+aggregation, query page position and limit, and Google's incomplete-data metadata.
+`freshness.complete` concerns settled data; `pagination.complete` concerns
+coverage of the retrievable query from row zero. Neither promises every underlying
+search row. Search Console exposes top rows and may omit low-volume queries,
+so performance evidence always carries that coverage caveat. `row_count` is
+the current page size, never an invented query total.
+
+Continue through `performance` with the exact `next_start_row` and unchanged
+query. A final page starting later than zero remains partial evidence, with no
+further continuation. Retain all source pages before comparing aggregates.
+Supplied evidence without a known starting position cannot claim full coverage.
+Do not manufacture missing rows, sum overlapping pages, or infer causality from
+an incomplete or differently grouped comparison.
 
 URL inspection is a point-in-time observation. A non-indexed result does not by
 itself prove a defect or authorize a mutation. Check the canonical URL, robots

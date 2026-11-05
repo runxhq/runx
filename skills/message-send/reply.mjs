@@ -23,7 +23,7 @@ export function prepareReply(inputs) {
     && evidence.source_locator.startsWith(`${provider}://`)
     && /^sha256:[0-9a-f]{64}$/.test(evidence.source_digest)
     && /^sha256:[0-9a-f]{64}$/.test(digest)
-    && !!idempotencyKey && !!message.trim() && message === message.trim() && message.length <= 4000;
+    && !!idempotencyKey && !!message.trim();
   return { reply_plan: { ready, provider, target, content_digest: digest,
     idempotency_key: idempotencyKey, request: { thread_locator: target, text: message },
     reason: ready ? "" : "Reply needs complete, exact source evidence and an admitted turn." } };
@@ -42,7 +42,7 @@ export function prepareReadback(inputs) {
     expected_text: plan.request.text } };
 }
 
-export function holdReply(inputs) {
+export function holdMessage(inputs) {
   const plan = object(inputs.reply_plan);
   return { work_result: { state: "held", summary: text(plan.reason) || "Reply could not be bound.",
     completion_evidence: [], followups: [] } };

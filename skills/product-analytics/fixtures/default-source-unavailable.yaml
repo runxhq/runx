@@ -1,0 +1,24 @@
+name: unavailable-current-source-is-an-explicit-gap
+kind: skill
+target: ..
+inputs:
+  objective: Review activation.
+caller:
+  answers:
+    collect:
+      selection:
+        current: null
+        baseline: null
+        notes:
+          - No selected PostHog grant is available.
+expect:
+  status: sealed
+  steps:
+    - select
+    - collect
+    - collected
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: product-analytics
+  source: skills-fixture

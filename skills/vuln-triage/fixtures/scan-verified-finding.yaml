@@ -1,80 +1,65 @@
-name: scan-verified-finding
+name: source-bound-findings-default
 kind: skill
 target: ..
-runner: scan
 operator_journeys:
   - mode: standalone
-    confusors: [cve-audit, sbom-generate]
-    request: Triage these verified exact-version vulnerability findings for remediation priority.
-    expected_outcome: Return a bounded remediation packet from verified evidence without inventing exposure or publishing an advisory.
+    confusors:
+      - cve-audit
+      - sbom-generate
+    request: Triage these exact dependency findings and tell me what to fix.
+    expected_outcome: Return concrete recommendations and keep unproven exposure explicit without a fabricated sealed receipt.
 inputs:
   target: example/service
-  objective: choose today's remediation priority
-  cve_evidence:
-    receipt_id: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-    audit_result:
-      schema: runx/cve-audit.audit.v1
-      target:
-        name: example/service
-        commit: 1111111111111111111111111111111111111111
-      dependency_scope: direct-production
-      inventory:
-        - name: example-lib
-          version: 1.2.3
-          path: node_modules/example-lib
-          direct: true
-          development: false
-      findings:
-        - dependency: example-lib
-          exact_version: 1.2.3
-          advisory_id: GHSA-example-1234
-          advisory_url: https://osv.dev/vulnerability/GHSA-example-1234
-          direct: true
-          development: false
-          summary: Exact-version fixture advisory.
-    verification:
-      verified: true
-  scan_context:
-    internet_facing: true
+  evidence:
+    findings:
+      - ecosystem: npm
+        dependency: example-lib
+        exact_version: 1.2.3
+        advisory_id: GHSA-example-1234
+        summary: Synthetic exact-version fixture advisory.
+        dependency_paths:
+          - node_modules/example-lib
+        affected:
+          - package:
+              ecosystem: npm
+              name: example-lib
+            ranges:
+              - events:
+                  - introduced: "0"
+                  - fixed: 1.2.4
 caller:
   answers:
     assess:
       risk_assessment_draft:
         decision: remediate
         advisory_assessments:
-          - dependency: example-lib
-            exact_version: 1.2.3
-            advisory_id: GHSA-example-1234
+          - finding_key: '["npm","example-lib","1.2.3","GHSA-example-1234"]'
             priority: high
-            exposure: confirmed
-            confidence: high
-            rationale: The verified direct dependency is present in the declared internet-facing service.
-        remediation_plan:
-          immediate:
-            - upgrade example-lib after compatibility testing
+            exposure: not_established
+            confidence: medium
+            exposure_evidence: []
+            rationale: The source matches the exact dependency version, but no call-site or runtime trace establishes
+              reachability.
+            recommendation: Test the advisory-declared fixed version, then verify deployment and vulnerable call sites.
+            fixed_version: 1.2.4
         operator_summary:
-          verdict: remediate
-          summary: Prioritize the verified direct dependency finding.
+          summary: Prioritize a tested dependency update; verify actual deployment exposure.
 expect:
   status: sealed
   step_outputs:
     finalize:
       subset:
-        vulnerability_scan_packet:
+        vulnerability_review:
           data:
+            schema: runx/vuln-triage.scan.v1
             decision: remediate
+            validation:
+              status: pass
             advisories:
               - advisory_id: GHSA-example-1234
                 assessment:
-                  confidence: high
-                  evidence_status: verified_exact_cve
-            escalation_criteria:
-              - advisory_id: GHSA-example-1234
-                trigger: priority_high_or_urgent
-                action: human_remediation_review
+                  exposure: not_established
+                  fixed_version: 1.2.4
+                  evidence_status: source_bound
   receipt:
     schema: runx.receipt.v1
-metadata:
-  public_skill: vuln-triage
-  source_case: scan-verified-finding
-  source: skills-fixture

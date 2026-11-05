@@ -3,21 +3,31 @@ kind: skill
 target: ..
 operator_journeys:
   - mode: standalone
-    confusors: [google-search-console, organic-growth]
-    request: Show which organic landing pages produced engaged sessions and conversions in this GA4 property.
-    expected_outcome: Query the configured GA4 property once and return a normalized evidence packet with verified provider readback.
+    confusors:
+      - google-search-console
+      - organic-growth
+    request: Show which organic landing pages produced engaged sessions and conversions in this GA4
+      property.
+    expected_outcome: Query the configured GA4 property once and return a normalized evidence packet
+      with verified provider readback.
 inputs:
   property: properties/123456
-  date_ranges: [{ start_date: 30daysAgo, end_date: yesterday }]
-  dimensions: [landingPagePlusQueryString]
-  metrics: [sessions, keyEvents]
+  date_ranges:
+    - start_date: 30daysAgo
+      end_date: yesterday
+  dimensions:
+    - landingPagePlusQueryString
+  metrics:
+    - sessions
+    - keyEvents
 caller:
   provider_responses:
     principal_id: operator-fixture
     grant:
-        grant_id: ga-report-fixture
-        provider: google/analytics
-        scopes: [reports.read]
+      grant_id: ga-report-fixture
+      provider: google/analytics
+      scopes:
+        - reports.read
     operations:
       - operation: reports.run
         target: properties/123456
@@ -26,27 +36,46 @@ caller:
           property: properties/123456
           request:
             property: properties/123456
-            date_ranges: [{ start_date: 30daysAgo, end_date: yesterday }]
-            dimensions: [landingPagePlusQueryString]
-            metrics: [sessions, keyEvents]
-          dimension_headers: [{ name: landingPagePlusQueryString }]
+            date_ranges:
+              - start_date: 30daysAgo
+                end_date: yesterday
+            dimensions:
+              - landingPagePlusQueryString
+            metrics:
+              - sessions
+              - keyEvents
+          dimension_headers:
+            - name: landingPagePlusQueryString
           metric_headers:
-            - { name: sessions, type: TYPE_INTEGER }
-            - { name: keyEvents, type: TYPE_FLOAT }
+            - name: sessions
+              type: TYPE_INTEGER
+            - name: keyEvents
+              type: TYPE_FLOAT
           rows:
-            - dimension_values: [/guides/runx]
-              metric_values: ["120", "9"]
+            - dimension_values:
+                - /guides/runx
+              metric_values:
+                - "120"
+                - "9"
           row_count: 1
-          pagination: { complete: true, returned_rows: 1 }
+          pagination:
+            complete: true
+            returned_rows: 1
           metadata:
             time_zone: Australia/Sydney
             subject_to_thresholding: false
             data_loss_from_other_row: false
           property_quota: {}
-          fetched_at: "2026-07-01T03:00:00Z"
+          fetched_at: 2026-07-01T03:00:00Z
 expect:
   status: sealed
-  steps: [read, normalize, digest, finalize]
+  steps:
+    - read
+    - normalize
+    - compare-query
+    - bind-query
+    - digest
+    - finalize
   step_outputs:
     finalize:
       subset:
@@ -56,9 +85,13 @@ expect:
             provider_status: readback_verified
             source_status: provider_readback
             property: properties/123456
-            validation: { status: pass }
+            validation:
+              status: pass
   receipt:
     schema: runx.receipt.v1
     state: sealed
     outcome: completed
-metadata: { public_skill: google-analytics, source_case: direct-default-success, source: skills-fixture }
+metadata:
+  public_skill: google-analytics
+  source_case: direct-default-success
+  source: skills-fixture

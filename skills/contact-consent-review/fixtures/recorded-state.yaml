@@ -1,0 +1,16 @@
+name: recorded-suppression-cannot-be-overridden-by-caller-state
+kind: graph
+target: support/recorded-state.graph
+expect:
+  status: sealed
+  step_outputs:
+    review-again:
+      subset:
+        list_hygiene_result:
+          data:
+            decision:
+              state: human_review
+            observed_state: suppress
+            recorded_transition:
+              recorded: false
+              after_version: 1

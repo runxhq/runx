@@ -1,0 +1,11 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { normalizePerformance } from "./gsc/performance.mjs";
+const request={property:"sc-domain:example.com",start_date:"2026-10-01",end_date:"2026-10-31",dimensions:["page"],row_limit:2,start_row:0};
+const result={...request,rows:[{keys:["https://example.com/docs"],clicks:10,impressions:100,ctr:0.1,position:2}],row_count:900,pagination:{returned_rows:1,complete:true}};
+const report=(req=request,data=result)=>normalizePerformance({request:req,provider_result:data}).performance_draft;
+test("preserves page position and never invents a Search Console total",()=>{const r=report();assert.equal(r.decision,"usable_with_caveats");assert.equal(r.row_count,1);assert.equal(r.request.start_row,0);assert.equal(r.request.row_limit,2);assert.equal(r.pagination.complete,true);});
+test("a final later page is partial with no further continuation",()=>{const r=report({...request,start_row:7});assert.equal(r.pagination.complete,false);assert.equal(r.pagination.next_start_row,null);assert.equal(r.request.start_row,7);});
+test("a full page yields the exact continuation regardless of a misleading complete flag",()=>{const r=report({...request,row_limit:1});assert.equal(r.pagination.complete,false);assert.equal(r.pagination.next_start_row,1);});
+test("skipped pages, mismatched positions and row counts block interpretation",()=>{for(const pagination of [{complete:false,next_start_row:8},{start_row:5},{returned_rows:2}])assert.equal(report({...request,row_limit:1},{...result,pagination}).decision,"blocked");});
+test("an explicit empty dimension list supports an aggregate",()=>{const r=report({...request,dimensions:[]},{...result,dimensions:[],rows:[{keys:[],clicks:10,impressions:100,ctr:0.1,position:2}]});assert.equal(r.validation.status,"pass");assert.deepEqual(r.request.dimensions,[]);});

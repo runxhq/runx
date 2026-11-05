@@ -1,6 +1,5 @@
 skill: google-analytics
-version: "0.1.13"
-
+version: "0.1.14"
 catalog:
   kind: graph
   audience: public
@@ -12,13 +11,13 @@ catalog:
   execution: read
   completion: provider_readback
   approval: none
-
 input_definitions:
   property:
     type: string
     required: true
     description: Exact GA4 property resource, such as properties/123456.
-    schema: { pattern: '^properties/[1-9][0-9]*$' }
+    schema:
+      pattern: ^properties/[1-9][0-9]*$
   date_ranges:
     type: array
     required: true
@@ -28,19 +27,30 @@ input_definitions:
       maxItems: 4
       items:
         type: object
-        required: [start_date, end_date]
+        required:
+          - start_date
+          - end_date
         additionalProperties: false
         properties:
-          start_date: { type: string, pattern: '^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|today|yesterday|[0-9]+daysAgo)$' }
-          end_date: { type: string, pattern: '^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|today|yesterday|[0-9]+daysAgo)$' }
-          name: { type: string, maxLength: 64 }
+          start_date:
+            type: string
+            pattern: ^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|today|yesterday|[0-9]+daysAgo)$
+          end_date:
+            type: string
+            pattern: ^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|today|yesterday|[0-9]+daysAgo)$
+          name:
+            type: string
+            maxLength: 64
   dimensions:
     type: array
     required: true
     description: Zero to nine ordered GA4 dimension names; an empty list supports metric-only reports.
     schema:
       maxItems: 9
-      items: { type: string, minLength: 1, maxLength: 256 }
+      items:
+        type: string
+        minLength: 1
+        maxLength: 256
   metrics:
     type: array
     required: true
@@ -48,7 +58,10 @@ input_definitions:
     schema:
       minItems: 1
       maxItems: 10
-      items: { type: string, minLength: 1, maxLength: 256 }
+      items:
+        type: string
+        minLength: 1
+        maxLength: 256
   filter:
     type: object
     required: false
@@ -61,7 +74,9 @@ input_definitions:
     description: Ordered GA4 OrderBy records passed intact to the provider connector.
     schema:
       maxItems: 10
-      items: { type: object, additionalProperties: true }
+      items:
+        type: object
+        additionalProperties: true
   minute_ranges:
     type: array
     required: false
@@ -70,62 +85,159 @@ input_definitions:
       maxItems: 4
       items:
         type: object
-        required: [start_minutes_ago, end_minutes_ago]
+        required:
+          - start_minutes_ago
+          - end_minutes_ago
         additionalProperties: false
         properties:
-          start_minutes_ago: { type: integer, minimum: 0, maximum: 59 }
-          end_minutes_ago: { type: integer, minimum: 0, maximum: 59 }
-          name: { type: string, maxLength: 64 }
+          start_minutes_ago:
+            type: integer
+            minimum: 0
+            maximum: 59
+          end_minutes_ago:
+            type: integer
+            minimum: 0
+            maximum: 59
+          name:
+            type: string
+            maxLength: 64
   report_request:
     type: object
     required: true
     description: Expected GA4 report identity and ordered headers for supplied-result normalization.
     schema:
-      required: [property, report_type, dimensions, metrics]
+      required:
+        - property
+        - report_type
+        - dimensions
+        - metrics
       additionalProperties: false
       properties:
-        property: { type: string, pattern: '^properties/[1-9][0-9]*$' }
-        report_type: { type: string, enum: [standard, realtime] }
-        date_ranges: { type: array, maxItems: 4, items: { type: object, additionalProperties: true } }
-        dimensions: { type: array, maxItems: 9, items: { type: string, minLength: 1, maxLength: 256 } }
-        metrics: { type: array, minItems: 1, maxItems: 10, items: { type: string, minLength: 1, maxLength: 256 } }
-        dimension_filter: { type: object, additionalProperties: true }
-        metric_filter: { type: object, additionalProperties: true }
-        order_bys: { type: array, maxItems: 10, items: { type: object, additionalProperties: true } }
-        minute_ranges: { type: array, maxItems: 4, items: { type: object, additionalProperties: true } }
-        currency_code: { type: string, pattern: '^[A-Z]{3}$' }
-        limit: { type: integer, minimum: 1, maximum: 100000 }
-        offset: { type: integer, minimum: 0 }
+        property:
+          type: string
+          pattern: ^properties/[1-9][0-9]*$
+        report_type:
+          type: string
+          enum:
+            - standard
+            - realtime
+        date_ranges:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            additionalProperties: true
+        dimensions:
+          type: array
+          maxItems: 9
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+        metrics:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+        dimension_filter:
+          type: object
+          additionalProperties: true
+        metric_filter:
+          type: object
+          additionalProperties: true
+        order_bys:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            additionalProperties: true
+        minute_ranges:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            additionalProperties: true
+        currency_code:
+          type: string
+          pattern: ^[A-Z]{3}$
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        offset:
+          type: integer
+          minimum: 0
   provider_result:
     type: object
     required: true
     description: GA4 report readback with ordered headers and bounded rows; provider metadata is preserved.
     schema:
-      required: [dimension_headers, metric_headers, rows]
+      required:
+        - dimension_headers
+        - metric_headers
+        - rows
       properties:
-        property: { type: string, pattern: '^properties/[1-9][0-9]*$' }
-        dimension_headers: { type: array, maxItems: 9, items: { type: [string, object], additionalProperties: true } }
-        metric_headers: { type: array, maxItems: 10, items: { type: [string, object], additionalProperties: true } }
-        rows: { type: array, maxItems: 100000, items: { type: object, additionalProperties: true } }
-        row_count: { type: integer, minimum: 0 }
-        pagination: { type: object, additionalProperties: true }
-        metadata: { type: object, additionalProperties: true }
-        property_quota: { type: object, additionalProperties: true }
-        fetched_at: { type: string, format: date-time }
-
+        property:
+          type: string
+          pattern: ^properties/[1-9][0-9]*$
+        dimension_headers:
+          type: array
+          maxItems: 9
+          items:
+            type:
+              - string
+              - object
+            additionalProperties: true
+        metric_headers:
+          type: array
+          maxItems: 10
+          items:
+            type:
+              - string
+              - object
+            additionalProperties: true
+        rows:
+          type: array
+          maxItems: 100000
+          items:
+            type: object
+            additionalProperties: true
+        row_count:
+          type: integer
+          minimum: 0
+        pagination:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        property_quota:
+          type: object
+          additionalProperties: true
+        fetched_at:
+          type: string
+          format: date-time
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases:
     - name: normalizes-organic-landing-page-outcomes
       operator_journeys:
         - mode: standalone
-          request: Show which organic landing pages produced engaged sessions and conversions in this GA4 property.
-          expected_outcome: Return a normalized bounded GA4 report with property identity, dimensions, metrics, dates, and measurement caveats intact.
+          request: Show which organic landing pages produced engaged sessions and conversions in this GA4
+            property.
+          expected_outcome: Return a normalized bounded GA4 report with property identity, dimensions,
+            metrics, dates, and measurement caveats intact.
         - mode: composed
           request: Normalize this connector-returned GA4 report for the growth analysis chain.
-          expected_outcome: Reuse provider evidence without querying GA4 again or hiding thresholding and attribution caveats.
+          expected_outcome: Reuse provider evidence without querying GA4 again or hiding thresholding and
+            attribution caveats.
           prior_evidence:
-            - The compatible connector response, property binding, report request, and measurement metadata supplied in the fixture.
+            - The compatible connector response, property binding, report request, and measurement
+              metadata supplied in the fixture.
           must_not_repeat:
             - Do not call the analytics provider again.
             - Do not recompute or discard provider measurement caveats.
@@ -135,39 +247,61 @@ harness:
           property: properties/123456
           report_type: standard
           date_ranges:
-            - { start_date: "2026-06-01", end_date: "2026-06-30", name: june }
-          dimensions: [landingPagePlusQueryString, sessionDefaultChannelGroup]
-          metrics: [sessions, keyEvents, totalRevenue]
+            - start_date: 2026-06-01
+              end_date: 2026-06-30
+              name: june
+          dimensions:
+            - landingPagePlusQueryString
+            - sessionDefaultChannelGroup
+          metrics:
+            - sessions
+            - keyEvents
+            - totalRevenue
         provider_result:
           property: properties/123456
           dimension_headers:
-            - { name: landingPagePlusQueryString }
-            - { name: sessionDefaultChannelGroup }
+            - name: landingPagePlusQueryString
+            - name: sessionDefaultChannelGroup
           metric_headers:
-            - { name: sessions, type: TYPE_INTEGER }
-            - { name: keyEvents, type: TYPE_FLOAT }
-            - { name: totalRevenue, type: TYPE_CURRENCY }
+            - name: sessions
+              type: TYPE_INTEGER
+            - name: keyEvents
+              type: TYPE_FLOAT
+            - name: totalRevenue
+              type: TYPE_CURRENCY
           rows:
-            - dimension_values: [/guides/runx, Organic Search]
-              metric_values: ["120", "9", "450.25"]
+            - dimension_values:
+                - /guides/runx
+                - Organic Search
+              metric_values:
+                - "120"
+                - "9"
+                - "450.25"
           row_count: 1
-          pagination: { complete: true, returned_rows: 1 }
+          pagination:
+            complete: true
+            returned_rows: 1
           metadata:
             time_zone: Australia/Sydney
             currency_code: AUD
             subject_to_thresholding: false
             data_loss_from_other_row: false
-          fetched_at: "2026-07-01T03:00:00Z"
+          fetched_at: 2026-07-01T03:00:00Z
       expect:
         status: sealed
-        steps: [normalize, digest, finalize]
+        steps:
+          - normalize
+          - compare-query
+          - bind-query
+          - digest
+          - finalize
         step_outputs:
           finalize:
             subset:
               report_evidence:
                 data:
                   schema: runx/google-analytics.report_evidence.v1
-                  decision: ready
+                  decision: usable_with_caveats
                   provider: google-analytics
                   provider_status: not_called
                   source_status: supplied_result
@@ -182,11 +316,16 @@ harness:
                         keyEvents: 9
                         totalRevenue: 450.25
                   row_count: 1
-                  pagination: { complete: true, returned_rows: 1 }
-                  measurement: { time_zone: Australia/Sydney, currency_code: AUD }
-                  validation: { status: pass }
-        receipt: { schema: runx.receipt.v1 }
-
+                  pagination:
+                    complete: true
+                    returned_rows: 1
+                  measurement:
+                    time_zone: Australia/Sydney
+                    currency_code: AUD
+                  validation:
+                    status: pass
+        receipt:
+          schema: runx.receipt.v1
     - name: carries-privacy-thresholding-as-caveat
       runner: normalize-report
       inputs:
@@ -194,35 +333,52 @@ harness:
           property: properties/123456
           report_type: standard
           date_ranges:
-            - { start_date: "2026-07-01", end_date: "2026-07-19" }
-          dimensions: [city]
-          metrics: [activeUsers]
+            - start_date: 2026-07-01
+              end_date: 2026-07-19
+          dimensions:
+            - city
+          metrics:
+            - activeUsers
         provider_result:
           property: properties/123456
-          dimension_headers: [{ name: city }]
-          metric_headers: [{ name: activeUsers, type: TYPE_INTEGER }]
+          dimension_headers:
+            - name: city
+          metric_headers:
+            - name: activeUsers
+              type: TYPE_INTEGER
           rows:
-            - dimension_values: [Sydney]
-              metric_values: ["18"]
+            - dimension_values:
+                - Sydney
+              metric_values:
+                - "18"
           row_count: 1
-          pagination: { complete: true, returned_rows: 1 }
+          pagination:
+            complete: true
+            returned_rows: 1
           metadata:
             subject_to_thresholding: true
             data_loss_from_other_row: false
             time_zone: Australia/Sydney
       expect:
         status: sealed
-        steps: [normalize, digest, finalize]
+        steps:
+          - normalize
+          - compare-query
+          - bind-query
+          - digest
+          - finalize
         step_outputs:
           finalize:
             subset:
               report_evidence:
                 data:
                   decision: usable_with_caveats
-                  privacy: { subject_to_thresholding: true }
-                  validation: { status: pass }
-        receipt: { schema: runx.receipt.v1 }
-
+                  privacy:
+                    subject_to_thresholding: true
+                  validation:
+                    status: pass
+        receipt:
+          schema: runx.receipt.v1
     - name: blocks-returned-header-drift
       runner: normalize-report
       inputs:
@@ -230,36 +386,183 @@ harness:
           property: properties/123456
           report_type: standard
           date_ranges:
-            - { start_date: "2026-06-01", end_date: "2026-06-30" }
-          dimensions: [landingPage]
-          metrics: [sessions]
+            - start_date: 2026-06-01
+              end_date: 2026-06-30
+          dimensions:
+            - landingPage
+          metrics:
+            - sessions
         provider_result:
           property: properties/123456
-          dimension_headers: [{ name: landingPage }]
-          metric_headers: [{ name: totalUsers, type: TYPE_INTEGER }]
+          dimension_headers:
+            - name: landingPage
+          metric_headers:
+            - name: totalUsers
+              type: TYPE_INTEGER
           rows:
-            - dimension_values: [/]
-              metric_values: ["100"]
+            - dimension_values:
+                - /
+              metric_values:
+                - "100"
           row_count: 1
-          pagination: { complete: true, returned_rows: 1 }
+          pagination:
+            complete: true
+            returned_rows: 1
       expect:
         status: sealed
-        steps: [normalize, digest, finalize]
+        steps:
+          - normalize
+          - compare-query
+          - bind-query
+          - digest
+          - finalize
         step_outputs:
           finalize:
             subset:
               report_evidence:
                 data:
                   decision: blocked
-                  validation: { status: fail }
-        receipt: { schema: runx.receipt.v1 }
-
+                  validation:
+                    status: fail
+        receipt:
+          schema: runx.receipt.v1
+    - name: short-page-does-not-hide-remaining-query
+      runner: normalize-report
+      inputs:
+        request:
+          property: properties/123456
+          report_type: standard
+          date_ranges:
+            - start_date: 2026-10-01
+              end_date: 2026-10-31
+          dimensions:
+            - landingPage
+          metrics:
+            - sessions
+          limit: 2
+          offset: 0
+        provider_result:
+          property: properties/123456
+          dimension_headers:
+            - name: landingPage
+          metric_headers:
+            - name: sessions
+              type: TYPE_INTEGER
+          rows:
+            - dimension_values:
+                - /docs
+              metric_values:
+                - "50"
+          row_count: 10
+          pagination:
+            returned_rows: 1
+            complete: true
+          metadata:
+            time_zone: UTC
+            currency_code: USD
+          fetched_at: 2026-11-05T00:00:00Z
+      expect:
+        status: sealed
+        steps:
+          - normalize
+          - compare-query
+          - bind-query
+          - digest
+          - finalize
+        step_outputs:
+          finalize:
+            subset:
+              report_evidence:
+                data:
+                  decision: usable_with_caveats
+                  row_count: 10
+                  pagination:
+                    returned_rows: 1
+                    complete: false
+                    next_offset: 1
+                  validation:
+                    status: pass
+        receipt:
+          schema: runx.receipt.v1
+    - name: rejects-relabeling-a-different-source-query
+      runner: normalize-report
+      inputs:
+        request:
+          property: properties/123456
+          report_type: standard
+          date_ranges:
+            - start_date: 2026-10-01
+              end_date: 2026-10-31
+          dimensions:
+            - landingPage
+          metrics:
+            - sessions
+          limit: 2
+          offset: 0
+        provider_result:
+          property: properties/123456
+          dimension_headers:
+            - name: landingPage
+          metric_headers:
+            - name: sessions
+              type: TYPE_INTEGER
+          rows:
+            - dimension_values:
+                - /docs
+              metric_values:
+                - "50"
+          row_count: 1
+          pagination:
+            returned_rows: 1
+            complete: true
+          metadata:
+            time_zone: UTC
+            currency_code: USD
+          fetched_at: 2026-11-05T00:00:00Z
+          request:
+            property: properties/123456
+            report_type: standard
+            date_ranges:
+              - start_date: 2026-01-01
+                end_date: 2026-01-31
+            dimensions:
+              - landingPage
+            metrics:
+              - sessions
+            limit: 2
+            offset: 0
+      expect:
+        status: sealed
+        steps:
+          - normalize
+          - compare-query
+          - bind-query
+          - digest
+          - finalize
+        step_outputs:
+          finalize:
+            subset:
+              report_evidence:
+                data:
+                  decision: blocked
+                  validation:
+                    status: fail
+                    findings:
+                      - code: ga.request.mismatch
+                        message: the source query differs from the requested report; do not relabel or combine its rows
+        receipt:
+          schema: runx.receipt.v1
 connectors:
   google/analytics:
-    operations: [reports.run, reports.run_realtime, properties.list, metadata.get]
+    operations:
+      - reports.run
+      - reports.run_realtime
+      - properties.list
+      - metadata.get
 runners:
   report:
-    description: Run one date-bounded GA4 report on a property, with its measurement caveats. Check unfamiliar fields with metadata first.
+    description: Run one date-bounded GA4 report on a property, with its measurement caveats. Check
+      unfamiliar fields with metadata first.
     default: true
     inputs:
       property:
@@ -285,23 +588,42 @@ runners:
         required: false
         default: 1000
         description: Bounded row limit, at most 100000.
-        schema: { minimum: 1, maximum: 100000 }
+        schema:
+          minimum: 1
+          maximum: 100000
       offset:
         type: integer
         required: false
         default: 0
         description: Zero-based row offset.
-        schema: { minimum: 0 }
+        schema:
+          minimum: 0
     examples:
       - property: properties/123456
-        date_ranges: [{ start_date: 30daysAgo, end_date: yesterday }]
-        dimensions: [landingPagePlusQueryString]
-        metrics: [sessions, keyEvents]
-    result_from: [finalize]
+        date_ranges:
+          - start_date: 30daysAgo
+            end_date: yesterday
+        dimensions:
+          - landingPagePlusQueryString
+        metrics:
+          - sessions
+          - keyEvents
+    result_from:
+      - finalize
     steps:
       - id: read
         operation: google/analytics/reports.run
-        result_fields: [property, request, dimension_headers, metric_headers, rows, row_count, pagination, metadata, property_quota, fetched_at]
+        result_fields:
+          - property
+          - request
+          - dimension_headers
+          - metric_headers
+          - rows
+          - row_count
+          - pagination
+          - metadata
+          - property_quota
+          - fetched_at
         input:
           property: $input.property
           date_ranges: $input.date_ranges
@@ -329,25 +651,46 @@ runners:
             limit: $input.limit
             offset: $input.offset
           provider_result: $steps.read.provider_operation.result
-        tool: { module: google-analytics.mjs, export: normalizeReport }
+        tool:
+          module: google-analytics.mjs
+          export: normalizeReport
+        outputs:
+          report_draft: object
+          expected_query: object
+          source_query: object
+      - id: compare-query
+        tool: data.compare
+        inputs:
+          expected: $steps.normalize.expected_query
+          actual: $steps.normalize.source_query
+      - id: bind-query
+        tool:
+          module: google-analytics.mjs
+          export: bindQuery
+        inputs:
+          report_draft: $steps.normalize.report_draft
+          comparison: $steps.compare-query.comparison
         outputs:
           report_draft: object
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.normalize.report_draft
+          value: $steps.bind-query.report_draft
       - id: finalize
         inputs:
-          report_draft: $steps.normalize.report_draft
+          report_draft: $steps.bind-query.report_draft
           digest_result: $steps.digest.digest_result
-        tool: { module: google-analytics.mjs, export: finalizeReport }
+        tool:
+          module: google-analytics.mjs
+          export: finalizeReport
         outputs:
           report_evidence: object
         artifacts:
-          named_emits: { report_evidence: report_evidence }
-
+          named_emits:
+            report_evidence: report_evidence
   normalize-report:
-    description: Check and normalize a GA4-shaped result a trusted import already supplied, without calling Google, so never proof that runx reached Google.
+    description: Check and normalize a GA4-shaped result a trusted import already supplied, without
+      calling Google, so never proof that runx reached Google.
     inputs:
       provider_result:
         definition: provider_result
@@ -357,43 +700,74 @@ runners:
       - request:
           property: properties/123456
           report_type: standard
-          date_ranges: [{ start_date: "2026-06-01", end_date: "2026-06-30" }]
-          dimensions: [landingPagePlusQueryString]
-          metrics: [sessions]
+          date_ranges:
+            - start_date: 2026-06-01
+              end_date: 2026-06-30
+          dimensions:
+            - landingPagePlusQueryString
+          metrics:
+            - sessions
         provider_result:
           property: properties/123456
-          dimension_headers: [{ name: landingPagePlusQueryString }]
-          metric_headers: [{ name: sessions, type: TYPE_INTEGER }]
+          dimension_headers:
+            - name: landingPagePlusQueryString
+          metric_headers:
+            - name: sessions
+              type: TYPE_INTEGER
           rows:
-            - dimension_values: [/guides/runx]
-              metric_values: ["120"]
+            - dimension_values:
+                - /guides/runx
+              metric_values:
+                - "120"
           row_count: 1
-    result_from: [finalize]
+    result_from:
+      - finalize
     steps:
       - id: normalize
         inputs:
           provider_result: $input.provider_result
           request: $input.request
           source_status: supplied_result
-        tool: { module: google-analytics.mjs, export: normalizeReport }
+        tool:
+          module: google-analytics.mjs
+          export: normalizeReport
+        outputs:
+          report_draft: object
+          expected_query: object
+          source_query: object
+      - id: compare-query
+        tool: data.compare
+        inputs:
+          expected: $steps.normalize.expected_query
+          actual: $steps.normalize.source_query
+      - id: bind-query
+        tool:
+          module: google-analytics.mjs
+          export: bindQuery
+        inputs:
+          report_draft: $steps.normalize.report_draft
+          comparison: $steps.compare-query.comparison
         outputs:
           report_draft: object
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.normalize.report_draft
+          value: $steps.bind-query.report_draft
       - id: finalize
         inputs:
-          report_draft: $steps.normalize.report_draft
+          report_draft: $steps.bind-query.report_draft
           digest_result: $steps.digest.digest_result
-        tool: { module: google-analytics.mjs, export: finalizeReport }
+        tool:
+          module: google-analytics.mjs
+          export: finalizeReport
         outputs:
           report_evidence: object
         artifacts:
-          named_emits: { report_evidence: report_evidence }
-
+          named_emits:
+            report_evidence: report_evidence
   realtime:
-    description: Read a short GA4 realtime window, a current pulse after a deployment or campaign, provisional rather than settled reporting.
+    description: Read a short GA4 realtime window, a current pulse after a deployment or campaign,
+      provisional rather than settled reporting.
     inputs:
       property:
         definition: property
@@ -412,16 +786,31 @@ runners:
         required: false
         default: 1000
         description: Bounded realtime row limit.
-        schema: { minimum: 1, maximum: 100000 }
+        schema:
+          minimum: 1
+          maximum: 100000
     examples:
       - property: properties/123456
-        dimensions: [unifiedScreenName]
-        metrics: [activeUsers]
-    result_from: [finalize]
+        dimensions:
+          - unifiedScreenName
+        metrics:
+          - activeUsers
+    result_from:
+      - finalize
     steps:
       - id: read
         operation: google/analytics/reports.run_realtime
-        result_fields: [property, request, dimension_headers, metric_headers, rows, row_count, pagination, metadata, property_quota, fetched_at]
+        result_fields:
+          - property
+          - request
+          - dimension_headers
+          - metric_headers
+          - rows
+          - row_count
+          - pagination
+          - metadata
+          - property_quota
+          - fetched_at
         input:
           property: $input.property
           dimensions: $input.dimensions
@@ -443,33 +832,54 @@ runners:
             minute_ranges: $input.minute_ranges
             limit: $input.limit
           provider_result: $steps.read.provider_operation.result
-        tool: { module: google-analytics.mjs, export: normalizeReport }
+        tool:
+          module: google-analytics.mjs
+          export: normalizeReport
+        outputs:
+          report_draft: object
+          expected_query: object
+          source_query: object
+      - id: compare-query
+        tool: data.compare
+        inputs:
+          expected: $steps.normalize.expected_query
+          actual: $steps.normalize.source_query
+      - id: bind-query
+        tool:
+          module: google-analytics.mjs
+          export: bindQuery
+        inputs:
+          report_draft: $steps.normalize.report_draft
+          comparison: $steps.compare-query.comparison
         outputs:
           report_draft: object
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.normalize.report_draft
+          value: $steps.bind-query.report_draft
       - id: finalize
         inputs:
-          report_draft: $steps.normalize.report_draft
+          report_draft: $steps.bind-query.report_draft
           digest_result: $steps.digest.digest_result
-        tool: { module: google-analytics.mjs, export: finalizeReport }
+        tool:
+          module: google-analytics.mjs
+          export: finalizeReport
         outputs:
           report_evidence: object
         artifacts:
-          named_emits: { report_evidence: report_evidence }
-
+          named_emits:
+            report_evidence: report_evidence
   properties:
     description: List the GA4 properties the grant can read, when the property is unknown.
     inputs: {}
-    result_from: [read]
+    result_from:
+      - read
     steps:
       - id: read
         operation: google/analytics/properties.list
-        result_fields: [properties]
+        result_fields:
+          - properties
         input: {}
-
   metadata:
     description: Read a property's dimension and metric catalog, before composing an unfamiliar report.
     inputs:
@@ -479,9 +889,15 @@ runners:
         description: Exact GA4 property resource.
     examples:
       - property: properties/123456
-    result_from: [read]
+    result_from:
+      - read
     steps:
       - id: read
         operation: google/analytics/metadata.get
-        result_fields: [property, dimensions, metrics, fetched_at]
-        input: { property: $input.property }
+        result_fields:
+          - property
+          - dimensions
+          - metrics
+          - fetched_at
+        input:
+          property: $input.property

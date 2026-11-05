@@ -258,7 +258,9 @@ function nextLock(packets: readonly (readonly [string, string])[]): LockEntry[] 
     const digest = `sha256:${createHash("sha256").update(source).digest("hex")}`;
     const was = frozen.get(id);
     if (was && was !== digest) {
-      findings.push(`${id} changed bytes since it was published; add a new version beside it instead`);
+      findings.push(
+        `${id} changed bytes since it was locked. Keep its id and version: correct it in place by removing its lock entry and regenerating. A new version needs the owner's explicit instruction`,
+      );
     }
     if (!was) next.set(id, digest);
   }

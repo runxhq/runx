@@ -1,11 +1,11 @@
 ---
 name: operations-review
-description: "Operate a project, workspace, or account from an agent or manager dashboard: inspect state, triage risks, prepare governed actions, route to the right skill lane, require approvals for consequential acts, and verify receipts after execution."
+description: Review bounded project or account state, prioritize useful next work and return exact existing execution routes with their evidence and authority requirements.
 ---
 
 # Operations Review
 
-Operate a project, workspace, or account from an agent-controlled desk.
+Review a project, workspace or account from a bounded operating snapshot.
 
 This skill is the generic operations desk layer. It turns a state snapshot, an
 operator objective, and receipt-backed evidence into one safe ops desk packet:
@@ -25,14 +25,13 @@ gate.
 The default `operate` runner reviews an already-supplied snapshot. The explicit
 `operate_from_projection` runner can read a bounded product-owned projection
 before review. Neither owns the product state or a continuing work lifecycle. Both classify findings,
-rank the next action, select the governed lane, name blockers, write the
-approval prompt when a human decision is required, and states the
+rank the next action, select the governed lane, name blockers, prepare reviewable approval text when the execution owner requires a human decision, and state the
 receipt/effect/readback that will prove success.
 
 It is useful before an action and after an action:
 
 - before action, it turns state into proposals and approval requests;
-- after action, it checks whether the expected receipt and projection appeared.
+- after action, it assesses supplied receipt and projection evidence. The host uses native receipt verification or the owning provider reader first; this review does not independently verify an effect.
 
 The model may diagnose and write the operator rationale. The mutation itself
 must be a deterministic handoff to an existing skill runner, CLI command, hosted
@@ -87,8 +86,8 @@ Ops desk packets name existing execution surfaces; they do not implement them.
 - `release` owns release preparation, approval, publish handoff, and
   post-release verification.
 - `receipt-query`, `receipt-audit`, and `run-history` own proof questions.
-- `message-send` owns authority for live communications; branded provider skills and
-  their connectors own provider-specific execution details.
+- `message-send` owns its supported Slack delivery lanes. Email/SMS and social
+  delivery belong to the selected product or account skill and its native authority.
 - `pay`, `charge`, `refund`, and `invoice-pay` own money movement.
 - Project skills own product vocabulary and product-specific actions.
 - CLI commands, hosted API routes, and GitHub workflows remain deterministic
@@ -125,8 +124,7 @@ product gap. Do not invent a private workaround.
      existing release workflow/commands.
    - Audit questions route to `receipt-query`, `receipt-audit`, `run-history`,
      or `least-privilege`.
-   - Live communication routes through `message-send` and then the provider's
-     connector.
+   - Slack delivery routes through `message-send`; mail/SMS and social delivery route through their selected product/account capability.
    - Payment collection, payout, refund, chargeback, or target changes route to
      the matching payment lane.
    - Board, thread, and provider actions route to the product's own governed
@@ -197,35 +195,11 @@ Load only the reference needed for the objective:
 
 The `operate` runners return one `ops_desk_packet`, the
 `runx/operations-review.desk.v1` packet: the decision (`ready`,
-`awaiting_approval`, `needs_input`, `no_action` or `refused`), the scope,
+`awaiting_approval`, `needs_input` or `refused`), the scope,
 objective and mode, the dashboard state per area, evidence-backed findings,
 proposals with their consequence, approval, verification and execution lane,
 the ordered next steps, refusals, missing inputs and the success checkpoint.
 `review-action` returns the `runx/operations-review.action_review.v1` packet.
-
-The `advance` runner returns one `dispatch_decision`:
-
-```yaml
-dispatch_decision:
-  decision: dispatch | escalate | done
-  reason: string
-  dispatch:                 # present when decision == dispatch
-    member: string          # a role from candidate_roster
-    skill: string           # that role's roster skill, echoed
-    task: string            # what the member should do
-    needed_scope: [string]  # subset of the member's scope ceiling
-    consequence: read_only | draft | live_mutation | money_movement | public_send | deploy
-    verification:
-      expected_receipt: string
-      readback: string
-  escalation:               # present when decision == escalate
-    to: string              # a roster role or "human"
-    trigger: string
-    ask: string
-    approval_prompt: string | null
-  resolution:               # present when decision == done
-    reason: string
-```
 
 ## Decision rules
 

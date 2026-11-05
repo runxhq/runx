@@ -1,5 +1,5 @@
 skill: code-intake
-version: "0.1.10"
+version: "0.1.11"
 catalog:
   kind: skill
   audience: public
@@ -10,520 +10,337 @@ catalog:
   approval: none
   category: ops
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases:
-    - name: bounded-docs-fix
+    - name: ordinary-docs-request
       operator_journeys:
         - mode: standalone
-          confusors: [github-issue-triage, code-plan]
-          request: Turn this noisy documentation bug report into a bounded intake artifact.
-          expected_outcome: Return the normalized request, evidence gaps, mutation posture, and explicit next Runx lane.
+          confusors:
+            - code-plan
+            - github-issue-triage
+          request: Turn this noisy README bug report into a bounded request.
+          expected_outcome: Return a useful summary, reply and host recommendation without a synthetic provider event.
         - mode: composed
-          request: Normalize this inbound issue signal for downstream planning.
-          expected_outcome: Preserve the supplied source signal and return a reusable intake artifact without performing triage or implementation.
+          request: Bound the request using the supplied source context.
+          expected_outcome: Preserve original source context and return a change set without planning or implementation.
           prior_evidence:
-            - The inbound request and source evidence supplied in the fixture.
+            - The exact source context supplied by the upstream reader.
           must_not_repeat:
-            - Do not fetch or reinterpret the source signal after it is bound into intake.
-            - Do not perform downstream triage or work planning inside intake.
+            - Do not fetch source context again.
+            - Do not plan or implement the proposed change.
       inputs:
-        thread_title: README should point users to github-issue-to-pr
-        thread_body: The public docs should present github-issue-to-pr as the canonical command.
-        thread_locator: github://example/repo/issues/101
-        outbox_entry:
-          entry_id: github_issue_101
-          kind: message
-          locator: https://github.com/example/repo/issues/101
-          status: published
-          thread_locator: github://example/repo/issues/101
-        artifact:
-          schema: runx.artifact.v1
-          artifact_id: eb_docs_work_101
-          subject_locator: github://example/repo/issues/101
-          hydration:
-            status: complete
-            summary: GitHub issue body was the complete evidence for this docs fix.
-          sources:
-            - provider: github
-              kind: source_thread
-              locator: github://example/repo/issues/101
-              thread_locator: github://example/repo/issues/101
-              title: README should point users to github-issue-to-pr
-              body_preview: The public docs should present github-issue-to-pr as the canonical command.
-              hydration_status: complete
-          redaction:
-            status: not_required
-            summary: No provider secrets or direct identifiers were present.
-          summary: Bounded docs evidence is ready for triage.
-          created_at: 2026-05-15T00:00:00Z
-          updated_at: 2026-05-15T00:00:00Z
-        product_context: OSS runx documentation
-        operator_context: Prefer the canonical github-issue-to-pr name in user-facing replies.
+        request: The README install example is stale. It needs to match the current CLI help.
+        project_context: Runx OSS documentation
       caller:
         answers:
           intake:
-            intake_report:
+            intake_draft:
               category: docs
               severity: low
-              summary: The docs are outdated and still point users at the removed skill name instead of the canonical skill name.
-              suggested_reply: We'll update the public docs to point at github-issue-to-pr as the canonical command.
-              recommended_lane: github-issue-to-pr
-              rationale: The report is a bounded one-repo documentation fix with low risk.
-              needs_human: false
-              commence_decision: approve
-              action_decision: proceed_to_build
-              review_target: none
-              operator_notes: []
-              thread_change_request:
-                task_id: docs_issue_to_pr_command
-                thread_title: README should point users to github-issue-to-pr
-                thread_body: The public docs should present github-issue-to-pr as the canonical command.
-                thread_locator: github://example/repo/issues/101
-                outbox_entry:
-                  entry_id: github_issue_101
-                  kind: message
-                  locator: https://github.com/example/repo/issues/101
-                  status: published
-                  thread_locator: github://example/repo/issues/101
-                size: micro
-                risk: low
-            closure:
-              outcome: completed
-              reason_code: issue_intake_completed
-              summary: Bounded docs fix is ready for the github-issue-to-pr lane.
-            change_set:
-              change_set_id: change_set_docs_work_101
-              thread_locator: github://example/repo/issues/101
-              summary: Update the public docs to point at github-issue-to-pr as the canonical skill name.
-              category: docs
-              severity: low
-              recommended_lane: github-issue-to-pr
-              commence_decision: approve
-              action_decision: proceed_to_build
-              outbox_entry:
-                entry_id: github_issue_101
-                kind: message
-                locator: https://github.com/example/repo/issues/101
-                status: published
-                thread_locator: github://example/repo/issues/101
+              summary: Correct the README example to use the current documented install command.
+              suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example
+                locally.
+              recommended_lane: host
+              rationale: A bounded documentation correction can be handled by the existing host without a separate governed
+                implementation lane.
               target_surfaces:
                 - surface: oss-docs
                   kind: docs
                   mutating: true
-                  rationale: The bug is confined to the public runx documentation surface.
+                  rationale: Only the README example changes.
               shared_invariants:
-                - Update only the canonical public wording for github-issue-to-pr.
+                - Use the current CLI help as the command source.
               success_criteria:
-                - Public docs point to github-issue-to-pr as the canonical command.
-                - The change remains bounded to one repo-scoped remediation lane.
-            signal:
-              schema: runx.signal.v1
-              signal_id: sig_docs_work_101
-              state: build_ready
-              source_events:
-                - provider: github
-                  source_locator: github://example/repo/issues/101
-                  thread_locator: github://example/repo/issues/101
-                  title: README should point users to github-issue-to-pr
-                  body_preview: The public docs should present github-issue-to-pr as the canonical command.
-              dedupe:
-                algorithm: sha256
-                source_locator: github://example/repo/issues/101
-                digest: sha256:docs-issue-to-pr-command
-              triage:
-                category: docs
-                severity: low
-                confidence: 0.95
-                action: github-issue-to-pr
-                recommended_lane: github-issue-to-pr
-                needs_human: false
-                rationale: The report is a bounded one-repo documentation fix with low risk.
-              change_set:
-                change_set_id: change_set_docs_work_101
-              artifact:
-                schema: runx.artifact.v1
-                artifact_id: eb_docs_work_101
-                subject_locator: github://example/repo/issues/101
-                hydration:
-                  status: complete
-                  summary: GitHub issue body was the complete evidence for this docs fix.
-                sources:
-                  - provider: github
-                    kind: source_thread
-                    locator: github://example/repo/issues/101
-                    thread_locator: github://example/repo/issues/101
-                    title: README should point users to github-issue-to-pr
-                    body_preview: The public docs should present github-issue-to-pr as the canonical command.
-                    hydration_status: complete
-                redaction:
-                  status: not_required
-                  summary: No provider secrets or direct identifiers were present.
-                summary: Bounded docs evidence is ready for triage.
-                created_at: 2026-05-15T00:00:00Z
-                updated_at: 2026-05-15T00:00:00Z
-              status_summary: Bounded docs fix is ready for github-issue-to-pr.
-              created_at: 2026-05-15T00:00:00Z
-              updated_at: 2026-05-15T00:00:00Z
-      expect:
-        status: sealed
-        receipt:
-          schema: runx.receipt.v1
-          state: sealed
-          outcome: completed
-    - name: feature-needs-decomposition
-      inputs:
-        thread_title: Add abandoned cart recovery across email and SMS
-        thread_body: We need a generated workflow, copy, timing rules, and reporting for abandoned cart recovery.
-        thread_locator: support://request/982
-        product_context: Multi-channel marketing automation product
-      caller:
-        answers:
-          intake:
-            intake_report:
-              category: feature_request
-              severity: medium
-              summary: The request is a multi-step product capability that spans workflow design, content, and reporting.
-              suggested_reply: This needs decomposition into a governed implementation plan before code changes start.
-              recommended_lane: code-plan
-              rationale: The request spans multiple deliverables and should be broken into governed steps first.
-              needs_human: true
-              commence_decision: approve
-              action_decision: proceed_to_plan
-              review_target: none
-              operator_notes:
-                - Confirm the target repos and user-facing scope before mutation.
-              workspace_change_plan_request:
-                change_set_id: change_set_abandoned_cart_982
-                objective: Add abandoned cart recovery across email and SMS
-                project_context: Multi-channel marketing automation product
-                thread_locator: support://request/982
-                target_surfaces:
-                  - surface: api
-                    kind: repo
-                    mutating: true
-                    rationale: Backend flow state and trigger rules will need product changes.
-                  - surface: app
-                    kind: repo
-                    mutating: true
-                    rationale: The UI and operator surfaces will need coordinated updates.
-                  - surface: mcp
-                    kind: repo
-                    mutating: true
-                    rationale: The MCP contract may need new surfaced capabilities.
-                shared_invariants:
-                  - Preserve existing checkout and cart event semantics.
-                  - Keep rollout behind governed approvals.
-                success_criteria:
-                  - One shared plan exists before repo mutation starts.
-                  - Repo-scoped workers receive explicit shared invariants.
-            closure:
-              outcome: completed
-              reason_code: issue_intake_completed
-              summary: Feature request needs a planning lane before mutation.
-            change_set:
-              change_set_id: change_set_abandoned_cart_982
-              thread_locator: support://request/982
-              summary: Add abandoned cart recovery across email and SMS with coordinated backend, UI, and MCP work.
-              category: feature_request
-              severity: medium
-              recommended_lane: code-plan
-              commence_decision: approve
-              action_decision: proceed_to_plan
-              target_surfaces:
-                - surface: api
-                  kind: repo
-                  mutating: true
-                  rationale: Backend automation and policy changes are required.
-                - surface: app
-                  kind: repo
-                  mutating: true
-                  rationale: UI configuration and user-visible messaging will change.
-                - surface: mcp
-                  kind: repo
-                  mutating: true
-                  rationale: The surfaced tools and contracts may need updates.
-              shared_invariants:
-                - Preserve current checkout and cart tracking semantics.
-                - Plan before mutation; do not start repo workers from support text alone.
-              success_criteria:
-                - A phased workspace change plan is authored before repo mutation.
-                - Child workers preserve one shared abandoned-cart objective.
-            signal:
-              schema: runx.signal.v1
-              signal_id: sig_abandoned_cart_982
-              state: planning_ready
-              source_events:
-                - provider: other
-                  source_locator: support://request/982
-                  thread_locator: support://request/982
-                  title: Add abandoned cart recovery across email and SMS
-                  body_preview: We need a generated workflow, copy, timing rules, and reporting for abandoned cart recovery.
-              dedupe:
-                algorithm: sha256
-                source_locator: support://request/982
-                digest: sha256:abandoned-cart-recovery
-              triage:
-                category: feature_request
-                severity: medium
-                confidence: 0.86
-                action: code-plan
-                recommended_lane: code-plan
-                needs_human: true
-                rationale: The request spans multiple deliverables and should be planned before mutation.
-              change_set:
-                change_set_id: change_set_abandoned_cart_982
-              status_summary: Cross-surface feature request is ready for code-plan.
-              created_at: 2026-05-15T00:00:00Z
-              updated_at: 2026-05-15T00:00:00Z
-      expect:
-        status: sealed
-        receipt:
-          schema: runx.receipt.v1
-          state: sealed
-          outcome: completed
-    - name: reply-only-question
-      inputs:
-        thread_title: How do I rotate my API key?
-        thread_body: I only need the operator instructions for rotating an API key safely.
-        thread_locator: support://request/983
-      caller:
-        answers:
-          intake:
-            intake_report:
-              category: question
-              severity: low
-              summary: The user is asking for operator guidance, not a product mutation.
-              suggested_reply: Share the documented API key rotation steps and confirm whether they need a UI walkthrough.
-              recommended_lane: reply-only
-              rationale: No code or planning lane is required to answer this request.
-              needs_human: false
-              commence_decision: approve
-              action_decision: stop
-              review_target: none
+                - The README install example agrees with current CLI help.
               operator_notes: []
-            closure:
-              outcome: completed
-              reason_code: issue_intake_completed
-              summary: Support question should be answered without a mutation lane.
-            change_set:
-              change_set_id: change_set_support_983
-              thread_locator: support://request/983
-              summary: Respond with operator guidance for rotating an API key safely.
-              category: question
-              severity: low
-              recommended_lane: reply-only
-              commence_decision: approve
-              action_decision: stop
-              target_surfaces:
-                - surface: support
-                  kind: support
-                  mutating: false
-                  rationale: This is a guidance-only support interaction.
-              shared_invariants:
-                - Do not open a mutation lane for guidance-only requests.
-              success_criteria:
-                - The operator sends or adapts the documented API key rotation guidance.
-            signal:
-              schema: runx.signal.v1
-              signal_id: sig_support_983
-              state: outcome_closed
-              source_events:
-                - provider: other
-                  source_locator: support://request/983
-                  thread_locator: support://request/983
-                  title: How do I rotate my API key?
-                  body_preview: I only need the operator instructions for rotating an API key safely.
-              dedupe:
-                algorithm: sha256
-                source_locator: support://request/983
-                digest: sha256:api-key-rotation-guidance
-              triage:
-                category: question
-                severity: low
-                confidence: 0.98
-                action: reply-only
-                recommended_lane: reply-only
-                needs_human: false
-                rationale: No code or planning lane is required to answer this request.
-              change_set:
-                change_set_id: change_set_support_983
-              outcome:
-                state: closed
-                summary: Guidance-only request should be answered without mutation.
-              status_summary: Reply-only request does not need a PR lane.
-              created_at: 2026-05-15T00:00:00Z
-              updated_at: 2026-05-15T00:00:00Z
+              open_questions: []
       expect:
         status: sealed
+        steps:
+          - digest
+          - intake
+          - finalize
         receipt:
           schema: runx.receipt.v1
-          state: sealed
-          outcome: completed
-    - name: request-review-before-mutation
+    - name: preserves-adapter-context
       inputs:
-        thread_title: Clarify the affected repo before we start
-        thread_body: The report mentions API failures and docs drift, but it is not yet clear whether this is one bounded fix or cross-repo work.
-        thread_locator: github://example/repo/issues/984
-        outbox_entry:
-          entry_id: github_issue_984
-          kind: message
-          locator: https://github.com/example/repo/issues/984
-          status: published
-          thread_locator: github://example/repo/issues/984
-        product_context: Workspace repo with multiple bounded mutation surfaces
+        request: The README install example is stale. It needs to match the current CLI help.
+        project_context: Runx OSS documentation
+        source_context:
+          thread_locator: github://example/project/issues/101
+          issue_locator: https://github.com/example/project/issues/101
+          artifact:
+            opaque_id: adapter-source-101
+            hydration:
+              status: complete
+            evidence:
+              - quote: The README install example is stale.
       caller:
         answers:
           intake:
-            intake_report:
-              category: other
-              severity: medium
-              summary: The report is directionally actionable but still too ambiguous to start a worker or planner safely.
-              suggested_reply: Please confirm which repo owns the failing path before we start governed mutation.
-              recommended_lane: manual-review
-              rationale: The maintainer needs to confirm the target surface before runx opens a downstream lane.
-              needs_human: false
-              commence_decision: approve
-              action_decision: request_review
-              review_target: thread
-              review_comment: Please confirm whether the failing path belongs to the API repo, the docs repo, or both. runx is holding mutation until the target surface is explicit.
-              operator_notes:
-                - Do not open github-issue-to-pr until the target repo is explicit.
-            closure:
-              outcome: completed
-              reason_code: issue_intake_completed
-              summary: Ambiguous request needs review before mutation.
-            change_set:
-              change_set_id: change_set_support_984
-              thread_locator: github://example/repo/issues/984
-              summary: Clarify the affected repo before opening a governed worker or plan.
-              category: other
-              severity: medium
-              recommended_lane: manual-review
-              commence_decision: approve
-              action_decision: request_review
-              outbox_entry:
-                entry_id: github_issue_984
-                kind: message
-                locator: https://github.com/example/repo/issues/984
-                status: published
-                thread_locator: github://example/repo/issues/984
+            intake_draft:
+              category: docs
+              severity: low
+              summary: Correct the README example to use the current documented install command.
+              suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example
+                locally.
+              recommended_lane: github-issue-to-pr
+              rationale: The operator selected an existing repository issue for its governed implementation lane.
               target_surfaces:
-                - surface: workspace
-                  kind: other
-                  mutating: false
-                  rationale: Repo ownership is still ambiguous, so the supervisor must stop at a public review comment first.
+                - surface: oss-docs
+                  kind: docs
+                  mutating: true
+                  rationale: Only the README example changes.
               shared_invariants:
-                - Do not guess the target repo from incomplete issue text.
+                - Use the current CLI help as the command source.
               success_criteria:
-                - The maintainer confirms the target surface before any planner or worker starts.
-            signal:
-              schema: runx.signal.v1
-              signal_id: sig_support_984
-              state: blocked
-              source_events:
-                - provider: github
-                  source_locator: github://example/repo/issues/984
-                  thread_locator: github://example/repo/issues/984
-                  title: Clarify the affected repo before we start
-                  body_preview: The report mentions API failures and docs drift, but target ownership is ambiguous.
-              dedupe:
-                algorithm: sha256
-                source_locator: github://example/repo/issues/984
-                digest: sha256:ambiguous-api-docs-drift
-              triage:
-                category: other
-                severity: medium
-                confidence: 0.74
-                action: manual-review
-                recommended_lane: manual-review
-                needs_human: false
-                rationale: The maintainer needs to confirm the target surface before mutation starts.
-              change_set:
-                change_set_id: change_set_support_984
-              status_summary: Mutation is blocked until the target surface is confirmed.
-              created_at: 2026-05-15T00:00:00Z
-              updated_at: 2026-05-15T00:00:00Z
+                - The README install example agrees with current CLI help.
+              operator_notes: []
+              open_questions: []
       expect:
         status: sealed
+        steps:
+          - digest
+          - intake
+          - finalize
         receipt:
           schema: runx.receipt.v1
-          state: sealed
-          outcome: completed
+    - name: retains-blocking-question
+      inputs:
+        request: Fix the onboarding flow; I have not chosen whether this means the web UI or CLI.
+        project_context: Runx OSS documentation
+      caller:
+        answers:
+          intake:
+            intake_draft:
+              category: docs
+              severity: low
+              summary: Onboarding needs correction but the affected surface is not yet identified.
+              suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example
+                locally.
+              recommended_lane: manual-review
+              rationale: A bounded documentation correction can be handled by the existing host without a separate governed
+                implementation lane.
+              target_surfaces: []
+              shared_invariants:
+                - Use the current CLI help as the command source.
+              success_criteria: []
+              operator_notes: []
+              open_questions:
+                - Which onboarding surface and behavior should change?
+      expect:
+        status: sealed
+        steps:
+          - digest
+          - intake
+          - finalize
+        receipt:
+          schema: runx.receipt.v1
+    - name: does-not-invent-issue-identity
+      inputs:
+        request: The README install example is stale. It needs to match the current CLI help.
+        project_context: Runx OSS documentation
+      caller:
+        answers:
+          intake:
+            intake_draft:
+              category: docs
+              severity: low
+              summary: Correct the README example to use the current documented install command.
+              suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example
+                locally.
+              recommended_lane: github-issue-to-pr
+              rationale: A bounded documentation correction can be handled by the existing host without a separate governed
+                implementation lane.
+              target_surfaces:
+                - surface: oss-docs
+                  kind: docs
+                  mutating: true
+                  rationale: Only the README example changes.
+              shared_invariants:
+                - Use the current CLI help as the command source.
+              success_criteria:
+                - The README install example agrees with current CLI help.
+              operator_notes: []
+              open_questions: []
+      expect:
+        status: sealed
+        steps:
+          - digest
+          - intake
+          - finalize
+        receipt:
+          schema: runx.receipt.v1
 runners:
   intake:
     default: true
+    description: Bound an ordinary engineering request and recommend a next lane without granting authority.
     inputs:
-      thread_title:
+      request:
+        type: string
+        required: true
+        description: Actual request or report text, as supplied by the operator or source adapter.
+        schema:
+          minLength: 1
+          pattern: \S
+      project_context:
         type: string
         required: false
-        description: Canonical thread title.
-      thread_body:
-        type: string
-        required: false
-        description: Canonical thread body or request text.
-      thread_locator:
-        type: string
-        required: false
-        description: Canonical locator for the bounded thread.
-      thread:
-        type: json
-        required: false
-        description: Portable thread when the caller already has it.
-      outbox_entry:
-        type: json
-        required: false
-        description: Current outbox entry for replies, status, or refreshes.
-      signal:
-        type: json
-        required: false
-        description: Optional runx.signal.v1 observation supplied by the source adapter.
-      artifact:
-        type: json
-        required: false
-        description: Optional bounded, reviewer-safe source artifact supplied by the source adapter.
-      product_context:
-        type: string
-        required: false
-        description: Product or repo context that constrains the intake decision.
+        default: ""
+        description: Actual product, repository and constraints.
       operator_context:
         type: string
         required: false
-        description: Tone, escalation, or operator posture guidance.
-      source_event:
-        type: json
+        default: ""
+        description: Scoped preferences or escalation guidance.
+      source_context:
+        type: object
         required: false
-        description: Optional admitted source event used to seed the portable signal packet.
-      source_policy:
-        type: json
-        required: false
-        description: Optional consuming-repo source admission policy; channel and owner rules stay outside runx core.
-      operational_policy:
-        type: json
-        required: false
-        description: Optional runx.operational_policy.v1 packet for source, target, runner, and source-thread admission.
+        default: {}
+        description: Original source evidence and locators, copied unchanged. Optional issue_locator selects an actual
+          GitHub issue; never invent one.
+        schema:
+          additionalProperties: true
+          properties:
+            thread_locator:
+              type: string
+              minLength: 1
+            issue_locator:
+              type: string
+              minLength: 1
+    result_from:
+      - finalize
+    examples:
+      - request: Checkout returns a 500 when the cart has a discount code applied. It started after Tuesday's deploy.
     steps:
-      - id: intake
-        agent: { role: builder, task: code-intake }
+      - id: digest
+        tool: data.digest
         inputs:
-          thread_title: $input.thread_title
-          thread_body: $input.thread_body
-          thread_locator: $input.thread_locator
-          thread: $input.thread
-          outbox_entry: $input.outbox_entry
-          signal: $input.signal
-          artifact: $input.artifact
-          product_context: $input.product_context
+          value:
+            request: $input.request
+            project_context: $input.project_context
+            operator_context: $input.operator_context
+            source_context: $input.source_context
+      - id: intake
+        agent:
+          role: builder
+          task: code-intake
+        inputs:
+          request: $input.request
+          project_context: $input.project_context
           operator_context: $input.operator_context
-          source_event: $input.source_event
-          source_policy: $input.source_policy
-          operational_policy: $input.operational_policy
+          source_context: $input.source_context
         outputs:
-          intake_report:
+          intake_draft:
             type: object
-          change_set:
-            type: object
-          signal:
-            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - category
+                - severity
+                - summary
+                - suggested_reply
+                - recommended_lane
+                - rationale
+                - target_surfaces
+                - shared_invariants
+                - success_criteria
+                - operator_notes
+                - open_questions
+              properties:
+                category:
+                  enum:
+                    - bug
+                    - feature_request
+                    - docs
+                    - billing
+                    - account
+                    - question
+                    - other
+                severity:
+                  enum:
+                    - low
+                    - medium
+                    - high
+                    - critical
+                summary:
+                  type: string
+                  minLength: 1
+                  pattern: \S
+                suggested_reply:
+                  type: string
+                  minLength: 1
+                  pattern: \S
+                recommended_lane:
+                  enum:
+                    - host
+                    - code-plan
+                    - github-issue-to-pr
+                    - reply-only
+                    - manual-review
+                rationale:
+                  type: string
+                  minLength: 1
+                  pattern: \S
+                operator_notes:
+                  type: array
+                  items:
+                    type: string
+                open_questions:
+                  type: array
+                  items:
+                    type: string
+                target_surfaces:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - surface
+                      - kind
+                      - mutating
+                      - rationale
+                    properties:
+                      surface:
+                        type: string
+                        minLength: 1
+                        pattern: \S
+                      kind:
+                        enum:
+                          - repo
+                          - package
+                          - docs
+                          - support
+                          - other
+                      mutating:
+                        type: boolean
+                      rationale:
+                        type: string
+                        minLength: 1
+                        pattern: \S
+                    additionalProperties: false
+                shared_invariants:
+                  type: array
+                  items:
+                    type: string
+                success_criteria:
+                  type: array
+                  items:
+                    type: string
+      - id: finalize
+        tool:
+          module: code-intake.mjs
+        inputs:
+          request: $input.request
+          project_context: $input.project_context
+          operator_context: $input.operator_context
+          source_context: $input.source_context
+          input_digest: $steps.digest.digest_result.digest
+          intake_draft: $steps.intake.intake_draft
+        outputs:
+          request_packet: object
         artifacts:
-          wrap_as: issue_intake_packet
-          packet: runx/code-intake.intake.v1
+          named_emits:
+            request_packet: request_packet
+          packets:
+            request_packet: runx/code-intake.intake.v1

@@ -38,6 +38,7 @@ runx-runtime = { workspace = true, features = ["mcp", "mcp-http-server", "agent"
 runx-x402.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+toml_edit = { workspace = true, features = ["display"] }
 url.workspace = true
 
 [dev-dependencies]

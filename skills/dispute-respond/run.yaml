@@ -1,167 +1,511 @@
 skill: dispute-respond
-version: "0.6.5"
-
+version: "0.6.6"
 catalog:
   kind: graph
   audience: operator
   visibility: public
   role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
+  execution: execute
+  completion: provider_readback
+  approval: required
   category: payments
-
 input_definitions:
-  dispute_event:
-    type: object
-    required: true
-    description: Normalized provider dispute event with no raw provider fields.
-    schema:
-      required: [dispute_id, provider, provider_charge_id, amount_minor, currency, reason_code]
-      additionalProperties: false
-      properties:
-        dispute_id: { type: string, minLength: 1, maxLength: 256, pattern: '^\S+$' }
-        provider: { type: string, minLength: 1, maxLength: 64, pattern: '^\S+$' }
-        provider_charge_id: { type: string, minLength: 1, maxLength: 256, pattern: '^\S+$' }
-        amount_minor: { type: integer, minimum: 1 }
-        currency: { type: string, pattern: '^[A-Z]{3}$' }
-        reason_code: { type: string, minLength: 1, maxLength: 128, pattern: '^\S+$' }
-        response_due_at: { type: string, format: date-time }
-  receipt_ids:
-    type: array
+  account_id:
+    type: string
     required: false
-    description: Up to 100 unique opaque Runx receipt ids for prior refunds.
+    default: ""
+    description: Selected Stripe account ID. Omit to resolve the selected credential’s actual merchant account.
     schema:
-      maxItems: 100
-      uniqueItems: true
-      items: { type: string, minLength: 1, maxLength: 256, pattern: '^\S+$' }
+      pattern: ^(?:acct_[A-Za-z0-9]{1,64})?$
+  dispute_id:
+    type: string
+    required: true
+    description: Exact Stripe dispute ID from the merchant case or webhook.
+    schema:
+      pattern: ^du_[A-Za-z0-9]{1,128}$
   evidence:
     type: array
     required: false
-    description: Up to 100 digest-bound evidence references supporting the response.
+    default: []
+    description: "Relevant source content for this case: actual delivery/access logs, consent, policy,
+      communications, or existing refund evidence. Selected bounded records, not an entire archive.
+      Caller-supplied material is not independently verified."
     schema:
-      maxItems: 100
       items:
         type: object
-        required: [locator, digest, kind, summary]
         additionalProperties: false
+        required:
+          - id
+          - kind
+          - content
+          - source
         properties:
-          locator: { type: string, minLength: 1, maxLength: 512, pattern: '^\S+$' }
-          digest: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
-          kind: { type: string, enum: [delivery, consent, support, provider, contract, refund] }
-          summary: { type: string, minLength: 1, maxLength: 1000 }
-
+          id:
+            type: string
+            minLength: 1
+            maxLength: 256
+          kind:
+            enum:
+              - delivery
+              - consent
+              - support
+              - contract
+              - refund
+              - other
+          content:
+            type: string
+            minLength: 1
+          source:
+            type: string
+            minLength: 1
+  case_evidence:
+    type: json
+    required: true
+    description: Actual prior stripe/dispute.read native provider-operation packet, retained with its original
+      receipt. No new read is claimed.
+  charge_evidence:
+    type: json
+    required: true
+    description: Actual prior stripe/payment.stripe.charge.read packet for the disputed original charge, retained
+      with its receipt.
+  prepared_response:
+    type: json
+    required: true
+    packet: runx/dispute-respond.response.v1
+    description: An unchanged ready prepared response. Its exact request is revalidated and the current provider
+      case/payment state is checked before submission.
+connectors:
+  stripe:
+    operations:
+      - account.read
+      - dispute.read
+      - payment.stripe.charge.read
+      - dispute.file
 runners:
-  respond:
+  file-response:
     default: true
+    description: Read one selected Stripe dispute and its original charge, prepare a relevant grounded response,
+      then submit only a ready exact packet after native approval and independent readback.
     inputs:
-      dispute_event:
-        definition: dispute_event
-      original_receipt_id:
-        type: string
-        required: true
-        description: Exact Runx receipt id for the original charge.
-        schema: { minLength: 1, maxLength: 256, pattern: '^\S+$' }
-      prior_refund_receipt_ids:
-        definition: receipt_ids
+      account_id:
+        definition: account_id
+      dispute_id:
+        definition: dispute_id
       evidence:
         definition: evidence
-      operator_posture:
-        type: string
-        required: false
-        description: Optional preferred posture; evidence remains authoritative.
-        schema:
-          enum: [accept, contest, refund_already_sent, needs_more_evidence, operator_review]
     examples:
-      - dispute_event:
-          dispute_id: dp_demo_001
-          provider: stripe
-          provider_charge_id: ch_demo_001
-          amount_minor: 1250
-          currency: USD
-          reason_code: product_not_received
-        original_receipt_id: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-        prior_refund_receipt_ids: []
+      - dispute_id: du_case42
         evidence: []
-        operator_posture: operator_review
-    result_from: [finalize, stop]
+    result_from:
+      - prepare-known
+      - prepare-auto
+      - file-known
+      - file-auto
     steps:
-      - id: admit
-        inputs:
-          dispute_event: $input.dispute_event
-          original_receipt_id: $input.original_receipt_id
-          prior_refund_receipt_ids: $input.prior_refund_receipt_ids
-          evidence: $input.evidence
-          operator_posture: $input.operator_posture
-        tool: { module: dispute-respond.mjs, export: admitDispute }
-        outputs:
-          dispute_context: object
-        artifacts:
-          named_emits:
-            dispute_context: dispute_context
-
-      - id: evidence
+      - id: account
         when:
-          value: $steps.admit.dispute_context.path
-          equals: review
-        tool: receipt.prove
-        scopes:
-          - receipt.read
+          value: $input.account_id
+          equals: ""
+        operation: stripe/account.read
+        input: {}
+      - id: prepare-known
+        when:
+          value: $input.account_id
+          not_equals: ""
+        skill: .
+        runner: respond
         inputs:
-          receipt_ids: $steps.admit.dispute_context.receipt_ids
-
+          account_id: $input.account_id
+          dispute_id: $input.dispute_id
+          evidence: $input.evidence
+      - id: prepare-auto
+        when:
+          value: $input.account_id
+          equals: ""
+        skill: .
+        runner: respond
+        inputs:
+          account_id: $steps.account.provider_operation.result.account_id
+          dispute_id: $input.dispute_id
+          evidence: $input.evidence
+      - id: file-known
+        when:
+          value: $steps.prepare-known.prepared_response.decision
+          equals: ready
+        skill: .
+        runner: file
+        inputs:
+          prepared_response: $steps.prepare-known.prepared_response
+      - id: file-auto
+        when:
+          value: $steps.prepare-auto.prepared_response.decision
+          equals: ready
+        skill: .
+        runner: file
+        inputs:
+          prepared_response: $steps.prepare-auto.prepared_response
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+  respond:
+    description: Read the merchant case and original charge and prepare an unsent response. Holds with specific
+      missing evidence; never files, concedes or refunds.
+    inputs:
+      account_id:
+        type: string
+        required: true
+        description: Selected Stripe account ID. Omit to resolve the selected credential’s actual merchant account.
+        schema:
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+      dispute_id:
+        definition: dispute_id
+      evidence:
+        definition: evidence
+    result_from:
+      - prepare
+      - held
+    steps:
+      - id: context
+        skill: .
+        runner: capture
+        inputs:
+          account_id: $input.account_id
+          dispute_id: $input.dispute_id
+          evidence: $input.evidence
       - id: draft
         when:
-          value: $steps.admit.dispute_context.path
-          equals: review
-        agent: { role: operator, task: dispute-response-draft }
-        outputs:
-          response_draft: object
+          value: $steps.context.case_context.actionable
+          equals: true
+        agent:
+          role: operator
+          task: dispute-response-draft
         inputs:
-          dispute_context: $steps.admit.dispute_context
-          receipt_proof: $steps.evidence.receipt_proof
-          dispute_event: $input.dispute_event
-          original_receipt_id: $input.original_receipt_id
-          prior_refund_receipt_ids: $input.prior_refund_receipt_ids
-          evidence: $input.evidence
-          operator_posture: $input.operator_posture
+          case_context: $steps.context.case_context
+        outputs:
+          response_draft:
+            type: object
+            schema:
+              properties:
+                posture:
+                  type: string
+                summary:
+                  type: string
+                fields:
+                  type: object
+                  properties:
+                    access_activity_log:
+                      type: string
+                citations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      field:
+                        type: string
+                      evidence_id:
+                        type: string
+                      quote:
+                        type: string
+                open_questions:
+                  type: array
+                  items:
+                    type: string
+              required:
+              - posture
+              - summary
+              - fields
+              - citations
+              - open_questions
         artifacts:
           named_emits:
             response_draft: response_draft
-
-      - id: finalize
-        when:
-          value: $steps.admit.dispute_context.path
-          equals: review
+      - id: prepare
+        tool:
+          module: dispute-respond.mjs
+          export: prepareResponse
         inputs:
-          dispute_context: $steps.admit.dispute_context
-          receipt_proof: $steps.evidence.receipt_proof
+          case_context: $steps.context.case_context
           response_draft: $steps.draft.response_draft
-        tool: { module: dispute-respond.mjs, export: finalizeResponse }
         outputs:
-          dispute_packet:
-            type: object
+          prepared_response: object
         artifacts:
           named_emits:
-            dispute_packet: dispute_packet
+            prepared_response: prepared_response
           packets:
-            dispute_packet: runx/dispute-respond.response.v1
-
-      - id: stop
+            prepared_response: runx/dispute-respond.response.v1
         when:
-          value: $steps.admit.dispute_context.path
-          equals: stop
+          value: $steps.context.case_context.actionable
+          equals: true
+      - id: held
+        tool:
+          module: dispute-respond.mjs
+          export: prepareResponse
         inputs:
-          dispute_context: $steps.admit.dispute_context
-        tool: { module: dispute-respond.mjs, export: finalizeResponse }
+          case_context: $steps.context.case_context
         outputs:
-          dispute_packet: object
+          prepared_response: object
         artifacts:
           named_emits:
-            dispute_packet: dispute_packet
+            prepared_response: prepared_response
           packets:
-            dispute_packet: runx/dispute-respond.response.v1
-
+            prepared_response: runx/dispute-respond.response.v1
+        when:
+          value: $steps.context.case_context.actionable
+          equals: false
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+  from-evidence:
+    description: Prepare a response from exact prior merchant case and charge evidence without repeating provider
+      acquisition or filing.
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+    inputs:
+      dispute_id:
+        definition: dispute_id
+      evidence:
+        definition: evidence
+      case_evidence:
+        definition: case_evidence
+      charge_evidence:
+        definition: charge_evidence
+      account_id:
+        type: string
+        required: true
+        description: Selected Stripe account ID. Omit to resolve the selected credential’s actual merchant account.
+        schema:
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+    result_from:
+      - prepare
+      - held
+    steps:
+      - id: clock
+        tool: control.observed_at
+        outputs:
+          observed_at: string
+      - id: context
+        tool:
+          module: dispute-respond.mjs
+          export: prepareContext
+        inputs:
+          account_id: $input.account_id
+          dispute_id: $input.dispute_id
+          case_evidence: $input.case_evidence
+          charge_evidence: $input.charge_evidence
+          observed_at: $steps.clock.observed_at
+          evidence: $input.evidence
+          acquisition: prior_evidence
+        outputs:
+          case_context: object
+        artifacts:
+          named_emits:
+            case_context: case_context
+      - id: draft
+        when:
+          value: $steps.context.case_context.actionable
+          equals: true
+        agent:
+          role: operator
+          task: dispute-response-draft
+        inputs:
+          case_context: $steps.context.case_context
+        outputs:
+          response_draft:
+            type: object
+            schema:
+              properties:
+                posture:
+                  type: string
+                summary:
+                  type: string
+                fields:
+                  type: object
+                  properties:
+                    access_activity_log:
+                      type: string
+                citations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      field:
+                        type: string
+                      evidence_id:
+                        type: string
+                      quote:
+                        type: string
+                open_questions:
+                  type: array
+                  items:
+                    type: string
+              required:
+              - posture
+              - summary
+              - fields
+              - citations
+              - open_questions
+        artifacts:
+          named_emits:
+            response_draft: response_draft
+      - id: prepare
+        tool:
+          module: dispute-respond.mjs
+          export: prepareResponse
+        inputs:
+          case_context: $steps.context.case_context
+          response_draft: $steps.draft.response_draft
+        outputs:
+          prepared_response: object
+        artifacts:
+          named_emits:
+            prepared_response: prepared_response
+          packets:
+            prepared_response: runx/dispute-respond.response.v1
+        when:
+          value: $steps.context.case_context.actionable
+          equals: true
+      - id: held
+        tool:
+          module: dispute-respond.mjs
+          export: prepareResponse
+        inputs:
+          case_context: $steps.context.case_context
+        outputs:
+          prepared_response: object
+        artifacts:
+          named_emits:
+            prepared_response: prepared_response
+          packets:
+            prepared_response: runx/dispute-respond.response.v1
+        when:
+          value: $steps.context.case_context.actionable
+          equals: false
+  file:
+    description: Continue one ready prepared response. Revalidate it, use current provider case and refund-state
+      preconditions, request one exact native approval, submit once, then verify exact evidence readback. No
+      repeated drafting or source research.
+    inputs:
+      prepared_response:
+        definition: prepared_response
+    result_from:
+      - confirm
+    steps:
+      - id: clock
+        tool: control.observed_at
+        outputs:
+          observed_at: string
+      - id: admit
+        tool:
+          module: dispute-respond.mjs
+          export: admitFiling
+        inputs:
+          prepared_response: $input.prepared_response
+          observed_at: $steps.clock.observed_at
+        outputs:
+          filing: object
+        artifacts:
+          named_emits:
+            filing: filing
+      - id: identity
+        tool: data.digest
+        inputs:
+          encoding: canonical_json
+          value: $steps.admit.filing.request
+      - id: submit
+        operation: stripe/dispute.file
+        input: $steps.admit.filing.request
+        idempotency_key: $steps.identity.digest_result.digest
+        approval:
+          reason: Submit this exact evidence to the bank for this merchant dispute. Review the complete evidence fields;
+            submission may be final.
+          type: dispute_evidence_submission
+      - id: confirm
+        tool:
+          module: dispute-respond.mjs
+          export: confirmFiling
+        inputs:
+          filing: $steps.admit.filing
+          provider_result: $steps.submit.provider_operation
+        outputs:
+          filing_result: object
+        artifacts:
+          named_emits:
+            filing_result: filing_result
+          packets:
+            filing_result: runx/dispute-respond.filing.v1
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+  capture:
+    description: Read the exact selected merchant dispute and original charge once. Return case_context and actual
+      native source packets for a graph; no drafting or submission.
+    operations: []
+    skills: []
+    tools: []
+    asks: false
+    inputs:
+      account_id:
+        type: string
+        required: true
+        description: Selected Stripe account ID. Omit to resolve the selected credential’s actual merchant account.
+        schema:
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+      dispute_id:
+        definition: dispute_id
+      evidence:
+        definition: evidence
+    result_from:
+      - context
+    steps:
+      - id: case
+        operation: stripe/dispute.read
+        input:
+          account_id: $input.account_id
+          dispute_id: $input.dispute_id
+      - id: charge-target
+        tool:
+          module: dispute-respond.mjs
+          export: chargeTarget
+        inputs:
+          merchant:
+            account_id: $input.account_id
+            dispute_id: $input.dispute_id
+          case_evidence: $steps.case.provider_operation
+        outputs:
+          charge_target: object
+        artifacts:
+          named_emits:
+            charge_target: charge_target
+      - id: charge
+        operation: stripe/payment.stripe.charge.read
+        input: $steps.charge-target.charge_target
+      - id: clock
+        tool: control.observed_at
+        outputs:
+          observed_at: string
+      - id: context
+        tool:
+          module: dispute-respond.mjs
+          export: prepareContext
+        inputs:
+          account_id: $input.account_id
+          dispute_id: $input.dispute_id
+          case_evidence: $steps.case.provider_operation
+          charge_evidence: $steps.charge.provider_operation
+          observed_at: $steps.clock.observed_at
+          evidence: $input.evidence
+          acquisition: provider_read
+        outputs:
+          case_context: object
+        artifacts:
+          named_emits:
+            case_context: case_context
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases: []

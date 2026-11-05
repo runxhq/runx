@@ -9,7 +9,7 @@ Turn one objective into a plan that downstream runners can consume without reint
 
 ## Procedure
 
-1. Start from `objective`. When `change_set` is supplied by `code-intake`, preserve it exactly; do not rewrite its target surfaces, invariants, success criteria, or commencement decision.
+1. Start from `objective`. When `change_set` is supplied by `code-intake`, preserve it exactly; do not rewrite its target surfaces, invariants, success criteria, or supplied source context.
 2. Classify the plan as `workspace_change` or `skill_package`. Skill-package authoring belongs to `skill-build`; do not route it through a generic repo-change step.
 3. Split work at authority, mutation, dependency, and review boundaries. Keep steps coarse enough to produce a meaningful artifact.
 4. Declare ordered phases and repo change requests. Parallel work must have no dependency or shared mutation target.
@@ -19,6 +19,8 @@ Turn one objective into a plan that downstream runners can consume without reint
    domain validator then verifies source preservation, ordered DAGs, mutation
    declarations, context references, catalog ownership, and the `skill-build`
    boundary. Invalid candidates are withheld and returned as a blocked packet.
+
+Planning is permitted by the operator request, not by a model-authored commencement field. Upstream recommendation fields, when present, are preserved as context and never treated as authority.
 
 This skill does not approve or execute mutations. A `mutating: true` field describes authority a future step will need.
 

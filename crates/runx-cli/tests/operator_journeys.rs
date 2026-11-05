@@ -1,11 +1,310 @@
 use std::fs;
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 use serde_json::Value;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
+#[test]
+fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResult {
+    let root = crate::support::temp_root("runx-operator-artifact-lifetime");
+    let skill = root.join("skills/artifact-demo");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: artifact-demo\ndescription: Read a captured local source.\n---\n# Artifact demo\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        "skill: artifact-demo\ntools: [artifact.admit, artifact.read]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+    )?;
+    fs::write(root.join("source.txt"), "a🙂bc")?;
+    let started = assert_json(
+        &command(&root)
+            .arg("skill")
+            .arg(&skill)
+            .arg("--json")
+            .output()?,
+        2,
+    )?;
+    let run = json_string(&started, "run_id")?;
+    let call = |run: &str, tool: &str, id: &str, input: Value| {
+        turn_tool(
+            &root,
+            run,
+            "turn_call",
+            serde_json::json!({"turn": "answer", "tool": tool, "call_id": id, "input": input}),
+        )
+    };
+    let admitted = call(
+        run,
+        "artifact_admit",
+        "capture-source",
+        serde_json::json!({"path": "source.txt", "media_type": "text/plain"}),
+    )?;
+    let artifact = &admitted["outcome"]["output"]["local_artifact"]["data"];
+    let reference = artifact["artifact_uri"]
+        .as_str()
+        .ok_or("artifact reference")?;
+    fs::write(root.join("source.txt"), "changed after admission")?;
+    let mut text = String::new();
+    let mut offset = 0;
+    for index in 0..2 {
+        let page = call(
+            run,
+            "artifact_read",
+            &format!("page-{index}"),
+            serde_json::json!({"artifact_uri": reference, "offset": offset, "max_bytes": 5, "encoding": "utf8"}),
+        )?;
+        let page = &page["outcome"]["output"]["artifact_page"]["data"];
+        text.push_str(page["data"].as_str().ok_or("page text")?);
+        offset = page["next_offset"].as_u64().ok_or("page offset")?;
+        assert_eq!(page["eof"], index == 1);
+    }
+    assert_eq!(text, "a🙂bc");
+    let completed = turn_tool(
+        &root,
+        run,
+        "turn_complete",
+        serde_json::json!({"turn": "answer", "output": {"answer": text}}),
+    )?;
+    assert_receipt_verifies(
+        &root,
+        &root.join(".runx/receipts"),
+        json_string(&completed["runx"], "receipt_id")?,
+    )?;
+
+    let other = assert_json(
+        &command(&root)
+            .arg("skill")
+            .arg(&skill)
+            .arg("--json")
+            .output()?,
+        2,
+    )?;
+    let other_run = json_string(&other, "run_id")?;
+    let refused = call(
+        other_run,
+        "artifact_read",
+        "foreign-reference",
+        serde_json::json!({"artifact_uri": reference, "encoding": "utf8"}),
+    )?;
+    assert_eq!(refused["outcome"]["status"], "failed");
+    assert!(
+        refused["outcome"]["reason"]
+            .as_str()
+            .ok_or("refusal")?
+            .contains("unknown in this run")
+    );
+    turn_tool(
+        &root,
+        other_run,
+        "turn_complete",
+        serde_json::json!({"turn": "answer", "output": {"answer": "The other run's local reference was refused."}}),
+    )?;
+    Ok(())
+}
+
+#[test]
+fn a_paused_graph_reads_its_original_snapshot_after_process_exit() -> TestResult {
+    let root = crate::support::temp_root("runx-operator-artifact-resume");
+    let skill = root.join("skills/artifact-pause");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: artifact-pause\ndescription: Keep captured bytes through a pause.\n---\n# Artifact pause\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        r#"skill: artifact-pause
+runners:
+  read:
+    default: true
+    result_from: [read]
+    steps:
+      - id: capture
+        tool: artifact.admit
+        scopes: [fs.read]
+        inputs: {path: source.txt, media_type: text/plain}
+      - id: pause
+        agent: {role: reader, task: continue-after-capture}
+        outputs: {continue: boolean}
+      - id: read
+        tool: artifact.read
+        scopes: [fs.read]
+        inputs:
+          artifact_uri: $steps.capture.local_artifact.artifact_uri
+          encoding: utf8
+          max_bytes: 1024
+"#,
+    )?;
+    fs::write(root.join("source.txt"), "original captured bytes")?;
+    let started = assert_json(
+        &command(&root)
+            .arg("skill")
+            .arg(&skill)
+            .arg("--json")
+            .output()?,
+        2,
+    )?;
+    let run = json_string(&started, "run_id")?;
+    fs::write(
+        root.join("source.txt"),
+        "different bytes after the first process exited",
+    )?;
+    let completed = turn_tool(
+        &root,
+        run,
+        "turn_complete",
+        serde_json::json!({"turn": "pause", "output": {"continue": true}}),
+    )?;
+    assert_eq!(completed["runx"]["outcome"], "completed");
+    assert_eq!(
+        completed["output"]["artifact_page"]["data"]["data"],
+        "original captured bytes"
+    );
+    assert_receipt_verifies(
+        &root,
+        &root.join(".runx/receipts"),
+        json_string(&completed["runx"], "receipt_id")?,
+    )?;
+    Ok(())
+}
+
+#[test]
+fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestResult {
+    let root = crate::support::temp_root("runx-operator-receipt-claim");
+    let skill = root.join("skills/claim-reader");
+    let receipts = root.join(".runx/receipts");
+    fs::create_dir_all(&skill)?;
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: claim-reader\ndescription: Read exact signed declared outputs.\n---\n# Claim reader\n\nUse the native reader and distinguish a retained claim from receipt metadata.\n",
+    )?;
+    fs::write(
+        skill.join("run.yaml"),
+        "skill: claim-reader\ntools: [data.digest, receipt.read]\nrunners:\n  answer:\n    default: true\n    outputs: {answer: string}\n",
+    )?;
+    let started = assert_json(
+        &command(&root)
+            .arg("skill")
+            .arg(&skill)
+            .arg("--json")
+            .output()?,
+        2,
+    )?;
+    let run = json_string(&started, "run_id")?;
+    let call = |run: &str, tool: &str, input: &str| -> TestResult<Value> {
+        turn_tool(
+            &root,
+            run,
+            "turn_call",
+            serde_json::json!({
+                "turn": "answer",
+                "tool": tool,
+                "call_id": tool,
+                "input": serde_json::from_str::<Value>(input)?,
+            }),
+        )
+    };
+    let complete = |run: &str, answer: &str| {
+        turn_tool(
+            &root,
+            run,
+            "turn_complete",
+            serde_json::json!({"turn": "answer", "output": {"answer": answer}}),
+        )
+    };
+    let original = call(
+        run,
+        "data_digest",
+        r#"{"value":"東京","encoding":"utf8_text"}"#,
+    )?;
+    let original_receipt = json_string(&original["outcome"], "receipt_id")?;
+    let read_input =
+        serde_json::json!({"receipt_id": original_receipt, "json_pointer": ""}).to_string();
+    let completed = complete(
+        run,
+        "The native digest call is recorded for later inspection.",
+    )?;
+    let completed_receipt = json_string(&completed["runx"], "receipt_id")?;
+    assert_receipt_verifies(&root, &receipts, completed_receipt)?;
+
+    // A graph receipt binds its child receipts, never an invented merged claim.
+    let next = assert_json(
+        &command(&root)
+            .arg("skill")
+            .arg(&skill)
+            .arg("--json")
+            .output()?,
+        2,
+    )?;
+    let next_run = json_string(&next, "run_id")?;
+    // The existing run lifecycle publishes child receipts when the turn
+    // completes. Read the sealed call from a later run, not an unpublished
+    // receipt of a still-open turn.
+    let read = call(next_run, "receipt_read", &read_input)?;
+    let claim = &read["outcome"]["output"]["receipt_read"]["data"];
+    assert_eq!(claim["status"], "available", "{read}");
+    assert_eq!(claim["value"], original["outcome"]["output"]);
+    let root_read = turn_tool(
+        &root,
+        next_run,
+        "turn_call",
+        serde_json::json!({
+            "turn": "answer",
+            "tool": "receipt_read",
+            "call_id": "read-graph",
+            "input": {"receipt_id": completed_receipt},
+        }),
+    )?;
+    let graph = &root_read["outcome"]["output"]["receipt_read"]["data"];
+    assert_eq!(graph["status"], "not_a_step", "{root_read}");
+    assert!(graph["value"].is_null());
+    assert!(
+        graph["children"]
+            .as_array()
+            .is_some_and(|children| !children.is_empty())
+    );
+    let next_done = complete(
+        next_run,
+        "Read the signed children for a graph's declared step claims.",
+    )?;
+    assert_receipt_verifies(
+        &root,
+        &receipts,
+        json_string(&next_done["runx"], "receipt_id")?,
+    )?;
+
+    // Listing the tool cannot let a bounded host agent read protected state.
+    let bounded = assert_json(
+        &command(&root)
+            .arg("skill")
+            .arg(&skill)
+            .args(["--run-authority", r#"{"agent_bounds":true}"#, "--json"])
+            .output()?,
+        2,
+    )?;
+    let bounded_run = json_string(&bounded, "run_id")?;
+    let denied = call(bounded_run, "receipt_read", &read_input)?;
+    assert!(
+        denied.to_string().contains("protected operator state"),
+        "{denied}"
+    );
+    assert!(denied["outcome"]["output"]["receipt_read"].is_null());
+    let bounded_done = complete(
+        bounded_run,
+        "The protected read was refused by the host policy.",
+    )?;
+    assert_receipt_verifies(
+        &root,
+        &receipts,
+        json_string(&bounded_done["runx"], "receipt_id")?,
+    )?;
+    Ok(())
+}
 
 #[test]
 fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() -> TestResult {
@@ -827,6 +1126,58 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
     );
 
     Ok(())
+}
+
+/// One turn tool call on its own `runx mcp --run` process, so a test proves
+/// what survives between processes. Returns the call's structured result.
+fn turn_tool(root: &Path, run: &str, tool: &str, arguments: Value) -> TestResult<Value> {
+    let mut server = command(root)
+        .args(["mcp", "--run", run])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let mut stdin = server.stdin.take().ok_or("mcp stdin")?;
+    let mut stdout = BufReader::new(server.stdout.take().ok_or("mcp stdout")?).lines();
+    let mut respond = |id: u64| -> TestResult<Value> {
+        loop {
+            let line = stdout.next().ok_or("mcp server closed")??;
+            let message: Value = serde_json::from_str(&line)?;
+            if message["id"] == id {
+                return Ok(message);
+            }
+        }
+    };
+    writeln!(
+        stdin,
+        "{}",
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "operator-journey", "version": "1"},
+            },
+        })
+    )?;
+    respond(1)?;
+    writeln!(
+        stdin,
+        "{}\n{}",
+        serde_json::json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": tool, "arguments": arguments},
+        })
+    )?;
+    let response = respond(2)?;
+    drop(stdin);
+    server.wait()?;
+    Ok(response["result"]["structuredContent"].clone())
 }
 
 fn command(root: &Path) -> Command {

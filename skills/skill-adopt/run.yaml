@@ -1,6 +1,5 @@
 skill: skill-adopt
-version: "0.4.8"
-
+version: "0.4.9"
 catalog:
   publisher: runx
   kind: graph
@@ -8,285 +7,275 @@ catalog:
   visibility: public
   category: authoring
   role: canonical
-  execution: plan
-  completion: plan
+  execution: execute
+  completion: runtime_receipt
   approval: none
-
 runners:
-  generate:
+  adopt:
     default: true
+    description: Capture local third-party source and apply a complete validated Runx package through the
+      canonical authoring engine.
     inputs:
-      skill_path:
-        type: string
-        required: false
-        description: Workspace-relative or skill-relative path to the pinned upstream SKILL.md.
-      upstream:
-        type: json
-        required: true
-        description: Pinned upstream host, owner, repo, path, commit, blob SHA, URLs, and source-of-truth evidence.
-      registry:
-        type: json
-        required: true
-        description: Registry publisher, trust tier, and immutable version for the materialized package.
       objective:
-        type: string
-        required: false
-        description: Operator goal for the bounded upstream skill profile.
-      scope_intent:
-        type: string
-        required: false
-        description: Intended authority boundary for the profile.
-      bounds:
-        type: object
-        required: false
-        description: Deterministic caller-supplied attenuation recorded in the registry binding; the profile draft must apply these bounds exactly or the bundle is rejected.
+        definition: objective
+      repo_root:
+        definition: repo_root
+      target_dir:
+        definition: target_dir
+      package_name:
+        definition: package_name
+      project_context:
+        definition: project_context
+      provenance:
+        definition: provenance
+      source_paths:
+        type: array
+        required: true
+        description: Repository-relative source files, including SKILL.md and known supporting resources; use
+          from-source to reuse an existing capture.
         schema:
-          additionalProperties: false
-          properties:
-            allowed_output_prefix:
-              type: string
-              minLength: 1
-              maxLength: 4000
-              description: Directory prefix the bound skill's writes must stay under.
-            max_acts:
-              type: integer
-              minimum: 1
-              maximum: 10000
-              description: Cap on governed acts the bound skill may take per run.
-      tags:
-        type: json
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+      source_byte_budget:
+        type: integer
         required: false
-        description: Catalog tags to preserve in binding metadata.
-      publication:
-        type: json
-        required: false
-        description: Current publication state; this skill never advances it.
-    result_from: [reject-input, reject-source, reject-profile, reject-validation, finalize]
+        default: 524288
+        description: Fresh native read budget; missing or truncated sources stop before authoring.
+        schema:
+          minimum: 1
+      validation_byte_budget:
+        definition: validation_byte_budget
+    result_from:
+      - adopt
+    examples:
+      - objective: Summarize a pull request for its reviewers.
+        source_paths:
+        - vendor/pr-summary/SKILL.md
+        target_dir: skills/pr-summary
     steps:
-      - id: plan-source
-        label: normalize the pinned source request
-        inputs:
-          skill_path: $input.skill_path
-          upstream: $input.upstream
-          registry: $input.registry
-          bounds: $input.bounds
-          tags: $input.tags
-          publication: $input.publication
-        tool: { module: overlay-source.mjs, export: planSource }
-        outputs:
-          source_request: object
-        artifacts:
-          named_emits:
-            source_request: source_request
-
-      - id: reject-input
-        label: stop on an invalid source request
-        when:
-          value: $steps.plan-source.source_request.decision
-          equals: reject
-        tool: { module: overlay-binding.mjs, export: finalizeBinding }
-        outputs:
-          binding_bundle:
-            type: object
-        inputs:
-          source_request: $steps.plan-source.source_request
-        artifacts:
-          named_emits:
-            binding_bundle: binding_bundle
-          packets:
-            binding_bundle: runx/skill-adopt.overlay.v1
-
-      - id: read-source
-        label: read the bounded upstream skill
-        when:
-          value: $steps.plan-source.source_request.decision
-          equals: read
-        tool: fs.read
+      - id: read
+        tool: fs.read_bundle
         scopes:
           - fs.read
         inputs:
-          max_bytes: 524288
-          path_scope: $steps.plan-source.source_request.base
-          path: $steps.plan-source.source_request.path
-
-      - id: digest-source
-        label: bind source bytes to the canonical Git blob identity
-        when:
-          value: $steps.plan-source.source_request.decision
-          equals: read
-        tool: git.blob_digest
-        inputs:
-          contents: $steps.read-source.file_read.contents
-
-      - id: inspect-source
-        label: verify source identity and immutable pins
-        when:
-          value: $steps.plan-source.source_request.decision
-          equals: read
-        tool: { module: overlay-source.mjs, export: inspectSource }
-        outputs:
-          source_evidence: object
-        inputs:
-          source_request: $steps.plan-source.source_request
-          file_read: $steps.read-source.file_read
-          git_blob_digest: $steps.digest-source.git_blob_digest
-        artifacts:
-          named_emits:
-            source_evidence: source_evidence
-
-      - id: reject-source
-        label: stop on source or pin drift
-        when:
-          value: $steps.inspect-source.source_evidence.decision
-          equals: reject
-        tool: { module: overlay-binding.mjs, export: finalizeBinding }
-        outputs:
-          binding_bundle: object
-        inputs:
-          source_evidence: $steps.inspect-source.source_evidence
-        artifacts:
-          named_emits:
-            binding_bundle: binding_bundle
-          packets:
-            binding_bundle: runx/skill-adopt.overlay.v1
-
-      - id: profile
-        label: design the least-authority binding profile
-        when:
-          value: $steps.inspect-source.source_evidence.decision
-          equals: ready
-        agent: { role: builder, task: overlay-binding-profile }
-        outputs:
-          profile_draft: object
+          repo_root: $input.repo_root
+          paths: $input.source_paths
+          max_bytes: $input.source_byte_budget
+          on_missing: report
+      - id: adopt
+        skill: .
+        runner: from-source
         inputs:
           objective: $input.objective
-          scope_intent: $input.scope_intent
-          bounds: $input.bounds
-          source_evidence: $steps.inspect-source.source_evidence
-          upstream_skill: $steps.read-source.file_read.contents
-          skill_path: $input.skill_path
-          upstream: $input.upstream
-          registry: $input.registry
-          tags: $input.tags
-          publication: $input.publication
-        artifacts:
-          named_emits:
-            profile_draft: profile_draft
-
-      - id: prepare-binding
-        label: build the exact standalone candidate
-        when:
-          value: $steps.inspect-source.source_evidence.decision
-          equals: ready
-        tool: { module: overlay-binding.mjs, export: prepareBinding }
-        outputs:
-          binding_candidate: object
-        inputs:
-          source_evidence: $steps.inspect-source.source_evidence
-          profile_draft: $steps.profile.profile_draft
-          skill_markdown: $steps.read-source.file_read.contents
-        artifacts:
-          named_emits:
-            binding_candidate: binding_candidate
-
-      - id: reject-profile
-        label: stop on an invalid binding profile
-        when:
-          value: $steps.prepare-binding.binding_candidate.decision
-          equals: reject
-        tool: { module: overlay-binding.mjs, export: finalizeBinding }
-        outputs:
-          binding_bundle: object
-        inputs:
-          binding_candidate: $steps.prepare-binding.binding_candidate
-        artifacts:
-          named_emits:
-            binding_bundle: binding_bundle
-          packets:
-            binding_bundle: runx/skill-adopt.overlay.v1
-
-      - id: validate
-        label: inspect and harness the exact candidate natively
-        when:
-          value: $steps.prepare-binding.binding_candidate.decision
-          equals: ready
-        tool: runx.skill.validate
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
+          package_name: $input.package_name
+          project_context: $input.project_context
+          provenance: $input.provenance
+          source_snapshot: $steps.read.file_read_bundle
+          validation_byte_budget: $input.validation_byte_budget
+  from-source:
+    description: Adopt already captured upstream source without another acquisition; canonical skill-build owns
+      validation and atomic application.
+    inputs:
+      objective:
+        definition: objective
+      repo_root:
+        definition: repo_root
+      target_dir:
+        definition: target_dir
+      package_name:
+        definition: package_name
+      project_context:
+        definition: project_context
+      provenance:
+        definition: provenance
+      source_snapshot:
+        type: json
+        packet: runx.fs.file_read_bundle.v1
+        required: true
+        description: Previously captured source bundle to reuse instead of rereading source_paths; provenance remains
+          caller evidence.
+      validation_byte_budget:
+        definition: validation_byte_budget
+    result_from:
+      - stop
+      - build
+    steps:
+      - id: source-store
+        tool: artifact.store
         scopes:
-          - fs.read
+          - artifact.write
         inputs:
-          allow_execute_harness: false
-          candidate_files: $steps.prepare-binding.binding_candidate.candidate_files
-
-      - id: assemble
-        label: bind native validation evidence into exact documents
-        when:
-          value: $steps.prepare-binding.binding_candidate.decision
-          equals: ready
-        tool: { module: overlay-binding.mjs, export: assembleBinding }
+          value: $input.source_snapshot
+      - id: source-check
+        tool: data.validate
+        inputs:
+          schema:
+            type: object
+            properties:
+              files:
+                type: array
+                minItems: 1
+                items:
+                  properties:
+                    truncated:
+                      const: false
+                contains:
+                  properties:
+                    path:
+                      pattern: (^|[/\\])SKILL\.md$
+                  required:
+                    - path
+              missing:
+                type: array
+                maxItems: 0
+            required:
+              - files
+              - missing
+          values:
+            - $input.source_snapshot
+          max_value_bytes: $input.validation_byte_budget
+      - id: context
+        tool:
+          module: adoption-context.mjs
+          export: prepareAdoption
+        inputs:
+          project_context: $input.project_context
+          provenance: $input.provenance
+          source_artifact: $steps.source-store.project_artifact
+          source_validation: $steps.source-check.validation
+          source_file_count: $input.source_snapshot.file_count
+          source_bytes: $input.source_snapshot.total_bytes
         outputs:
-          binding_documents: object
-        inputs:
-          binding_candidate: $steps.prepare-binding.binding_candidate
-          skill_validation: $steps.validate.skill_validation
+          adoption_context:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - decision
+                - blockers
+                - source_mode
+              properties:
+                decision:
+                  enum:
+                    - build
+                    - hold
+                blockers:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                source_mode:
+                  const: snapshot
+                project_context:
+                  type: string
         artifacts:
           named_emits:
-            binding_documents: binding_documents
-
-      - id: reject-validation
-        label: stop when native candidate proof fails
+            adoption_context: adoption_context
+      - id: stop
         when:
-          value: $steps.assemble.binding_documents.decision
-          equals: reject
-        tool: { module: overlay-binding.mjs, export: finalizeBinding }
+          value: $steps.context.adoption_context.decision
+          equals: hold
+        tool:
+          module: adoption-context.mjs
+          export: stopAdoption
+        inputs:
+          adoption_context: $steps.context.adoption_context
         outputs:
-          binding_bundle: object
-        inputs:
-          binding_candidate: $steps.prepare-binding.binding_candidate
-          binding_documents: $steps.assemble.binding_documents
-        artifacts:
-          named_emits:
-            binding_bundle: binding_bundle
-          packets:
-            binding_bundle: runx/skill-adopt.overlay.v1
-
-      - id: digest-profile
-        label: digest the exact native profile
+          adoption_result:
+            type: object
+            schema:
+              additionalProperties: false
+              required:
+                - decision
+                - blockers
+                - source_mode
+                - applied
+                - published
+              properties:
+                decision:
+                  const: blocked
+                blockers:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                source_mode:
+                  const: snapshot
+                applied:
+                  const: false
+                published:
+                  const: false
+      - id: build
         when:
-          value: $steps.assemble.binding_documents.decision
-          equals: ready
-        tool: data.digest
+          value: $steps.context.adoption_context.decision
+          equals: build
+        skill: skill-build
+        runner: build
         inputs:
-          encoding: utf8_text
-          value: $steps.assemble.binding_documents.profile_document
-
-      - id: digest-binding
-        label: digest the exact registry binding
-        when:
-          value: $steps.assemble.binding_documents.decision
-          equals: ready
-        tool: data.digest
-        inputs:
-          encoding: utf8_text
-          value: $steps.assemble.binding_documents.binding_document
-
-      - id: finalize
-        label: release the proven binding bundle
-        when:
-          value: $steps.assemble.binding_documents.decision
-          equals: ready
-        tool: { module: overlay-binding.mjs, export: finalizeBinding }
-        outputs:
-          binding_bundle: object
-        inputs:
-          binding_documents: $steps.assemble.binding_documents
-          profile_digest: $steps.digest-profile.digest_result
-          binding_digest: $steps.digest-binding.digest_result
-        artifacts:
-          named_emits:
-            binding_bundle: binding_bundle
-          packets:
-            binding_bundle: runx/skill-adopt.overlay.v1
-
+          objective: $input.objective
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
+          package_name: $input.package_name
+          project_context: $steps.context.adoption_context.project_context
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/upstream/decision-note/SKILL.md
+    - fixtures/support/composed.graph
   cases: []
+input_definitions:
+  objective:
+    type: string
+    required: true
+    description: The useful operator job the adopted package must perform.
+    schema:
+      minLength: 1
+  repo_root:
+    type: string
+    required: false
+    default: .
+    description: Local repository containing source_paths and target_dir.
+  target_dir:
+    type: string
+    required: true
+    description: Exact repository-relative package destination.
+    schema:
+      minLength: 1
+  package_name:
+    type: string
+    required: false
+    description: Explicit adopted package name, when selected by the operator.
+  project_context:
+    type: string
+    required: false
+    description: Product constraints, intended use and source limitations.
+  provenance:
+    type: object
+    required: false
+    description: Optional upstream attribution claims; these do not confer identity or trust.
+    schema:
+      additionalProperties: false
+      properties:
+        source_url:
+          type: string
+          format: uri
+        revision:
+          type: string
+          minLength: 1
+        license:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+          minLength: 1
+  validation_byte_budget:
+    type: integer
+    required: false
+    default: 33554432
+    description: Serialized snapshot budget for native metadata validation; data.validate owns the upper bound.
+    schema:
+      minimum: 1

@@ -6,6 +6,40 @@ use runx_receipts::receipt_edge_references;
 use crate::receipts::RuntimeReceiptSignaturePolicy;
 use crate::receipts::store::{LocalReceiptStore, ReceiptStoreError};
 
+pub(crate) struct LoadedReceiptTree {
+    pub(crate) root: Receipt,
+    pub(crate) children: Vec<Receipt>,
+    pub(crate) receipt_count: usize,
+    pub(crate) verification: runx_receipts::ReceiptVerification,
+    pub(crate) findings: Vec<JsonValue>,
+}
+
+/// The shared native proof owner: load only this root's signed descendants,
+/// then apply the normal tree and signature policy once.
+pub(crate) fn load_verified_tree(
+    store: &LocalReceiptStore,
+    receipt_id: &str,
+    policy: RuntimeReceiptSignaturePolicy<'_>,
+) -> Result<LoadedReceiptTree, ReceiptStoreError> {
+    let root = store.read_exact(receipt_id, policy)?;
+    let (children, mut findings) = load_children(store, &root, policy);
+    let receipt_count = children.len() + 1;
+    let verification = crate::receipts::tree::verify_runtime_receipt_tree_refs(
+        &root,
+        &children,
+        crate::ReceiptTreeConfig::default(),
+        policy,
+    );
+    findings.extend(super::projection::tree_findings(&verification.findings));
+    Ok(LoadedReceiptTree {
+        root,
+        children,
+        receipt_count,
+        verification,
+        findings,
+    })
+}
+
 pub(super) fn load_children(
     store: &LocalReceiptStore,
     root: &Receipt,

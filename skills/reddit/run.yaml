@@ -1,5 +1,5 @@
 skill: reddit
-version: "0.1.9"
+version: "0.1.10"
 catalog:
   kind: graph
   audience: operator
@@ -38,6 +38,14 @@ input_definitions:
       pattern: ^[a-z0-9_-]{3,20}$
 runners:
   reddit:
+    operations:
+      - reddit/account.inspect
+      - reddit/page.navigate
+      - reddit/feed.read
+      - reddit/rules.read
+      - reddit/thread.read
+      - reddit/composer.read
+      - reddit/comment.readback
     description: Research, draft, reply to or diagnose posts for one configured account, read-only. Submits nothing.
     inputs:
       account_id:
@@ -406,244 +414,7 @@ runners:
         module: reddit.mjs
         export: validateResearch
       outputs:
-        research:
-          type: object
-          schema:
-            required:
-            - status
-            - account_id
-            - observations
-            - target_candidates
-            - drafts
-            - unknowns
-            - next_step
-            - effect_status
-            additionalProperties: false
-            properties:
-              status:
-                type: string
-                enum:
-                - drafted
-                - provisional
-                - analyzed
-                - needs_browser
-                - held
-                - needs_input
-              account_id:
-                type: string
-                minLength: 3
-                maxLength: 20
-                pattern: ^[a-z0-9_-]{3,20}$
-              observations:
-                type: array
-                maxItems: 20
-                items:
-                  type: object
-                  required:
-                  - source_url
-                  - observed_at
-                  - summary
-                  additionalProperties: false
-                  properties:
-                    source_url:
-                      type: string
-                      minLength: 1
-                      maxLength: 2048
-                    observed_at:
-                      type: string
-                      minLength: 1
-                      maxLength: 40
-                    summary:
-                      type: string
-                      minLength: 1
-                      maxLength: 3000
-              target_candidates:
-                type: array
-                maxItems: 12
-                description: Compared community destinations for original posts and live thread destinations for
-                  comments; may be empty for diagnosis or when no suitable target is observable.
-                items:
-                  type: object
-                  required:
-                  - intent
-                  - decision
-                  - subreddit
-                  - target_url
-                  - observed_at
-                  - rule_status
-                  - account_eligibility
-                  - activity_samples
-                  - contribution_gap
-                  - rationale
-                  - risk
-                  - source_urls
-                  additionalProperties: false
-                  properties:
-                    intent:
-                      type: string
-                      enum:
-                      - post
-                      - comment
-                    decision:
-                      type: string
-                      enum:
-                      - selected
-                      - alternate
-                      - rejected
-                    subreddit:
-                      type: string
-                      minLength: 2
-                      maxLength: 21
-                      pattern: ^[A-Za-z0-9_]+$
-                    target_url:
-                      type: string
-                      minLength: 1
-                      maxLength: 2048
-                    observed_at:
-                      type: string
-                      minLength: 1
-                      maxLength: 40
-                    rule_status:
-                      type: string
-                      enum:
-                      - allowed
-                      - unknown
-                      - disallowed
-                    account_eligibility:
-                      type: string
-                      enum:
-                      - eligible
-                      - unknown
-                      - ineligible
-                    activity_samples:
-                      type: array
-                      maxItems: 5
-                      items:
-                        type: object
-                        required:
-                        - source_url
-                        - observed_at
-                        - age_label
-                        - score_label
-                        - reply_count_label
-                        additionalProperties: false
-                        properties:
-                          source_url:
-                            type: string
-                            minLength: 1
-                            maxLength: 2048
-                          observed_at:
-                            type: string
-                            minLength: 1
-                            maxLength: 40
-                          age_label:
-                            type: string
-                            minLength: 1
-                            maxLength: 100
-                          score_label:
-                            type: string
-                            minLength: 1
-                            maxLength: 100
-                          reply_count_label:
-                            type: string
-                            minLength: 1
-                            maxLength: 100
-                    contribution_gap:
-                      type: string
-                      minLength: 1
-                      maxLength: 1200
-                    rationale:
-                      type: string
-                      minLength: 1
-                      maxLength: 1200
-                    risk:
-                      type: string
-                      minLength: 1
-                      maxLength: 1200
-                    source_urls:
-                      type: array
-                      maxItems: 10
-                      items:
-                        type: string
-                        minLength: 1
-                        maxLength: 2048
-              drafts:
-                type: array
-                maxItems: 5
-                items:
-                  type: object
-                  required:
-                  - action
-                  - why_useful
-                  - source_urls
-                  additionalProperties: false
-                  properties:
-                    action:
-                      type: object
-                      required:
-                      - kind
-                      - subreddit
-                      - target_url
-                      - title
-                      - body
-                      - allow_bare_urls
-                      - target_author
-                      additionalProperties: false
-                      properties:
-                        kind:
-                          type: string
-                          enum:
-                          - post
-                          - comment
-                        subreddit:
-                          type: string
-                          minLength: 2
-                          maxLength: 21
-                          pattern: ^[A-Za-z0-9_]+$
-                        target_url:
-                          type: string
-                          minLength: 1
-                          maxLength: 2048
-                        title:
-                          type: string
-                          minLength: 0
-                          maxLength: 300
-                        body:
-                          type: string
-                          minLength: 1
-                          maxLength: 10000
-                        allow_bare_urls:
-                          type: boolean
-                        target_author:
-                          type: string
-                          minLength: 0
-                          maxLength: 20
-                          pattern: ^[a-z0-9_-]*$
-                    why_useful:
-                      type: string
-                      minLength: 1
-                      maxLength: 1200
-                    source_urls:
-                      type: array
-                      maxItems: 10
-                      items:
-                        type: string
-                        minLength: 1
-                        maxLength: 2048
-              unknowns:
-                type: array
-                maxItems: 12
-                items:
-                  type: string
-                  minLength: 1
-                  maxLength: 1000
-              next_step:
-                type: string
-                minLength: 1
-                maxLength: 2000
-              effect_status:
-                type: string
-                const: not_submitted
+        research: object
         target_review:
           type: object
           schema:

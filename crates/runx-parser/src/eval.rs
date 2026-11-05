@@ -107,6 +107,7 @@ fn is_supported_parser_kind(kind: &str) -> bool {
         kind,
         "parser.validateSkillMarkdown"
             | "parser.validateRunnerManifestYaml"
+            | "parser.validateConnectorManifestYaml"
             | "parser.validateGraphYaml"
             | "parser.validateToolManifestYaml"
             | "parser.validateToolManifestJson"
@@ -139,6 +140,8 @@ enum ParserInput {
     },
     #[serde(rename = "parser.validateRunnerManifestYaml")]
     ValidateRunnerManifestYaml { yaml: String },
+    #[serde(rename = "parser.validateConnectorManifestYaml")]
+    ValidateConnectorManifestYaml { yaml: String },
     #[serde(rename = "parser.validateGraphYaml")]
     ValidateGraphYaml { yaml: String },
     #[serde(rename = "parser.validateToolManifestYaml")]
@@ -250,6 +253,19 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
             let raw = parse_runner_manifest_yaml(&yaml)?;
             to_json_value(validate_runner_manifest(raw)?)
         }
+        ParserInput::ValidateConnectorManifestYaml { yaml } => {
+            let raw = crate::parse_connector_manifest(&yaml)?;
+            let validated = crate::validate_connector_manifest(raw).map_err(|errors| {
+                ParserEvalError::Validation(
+                    errors
+                        .into_iter()
+                        .map(|error| error.to_string())
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                )
+            })?;
+            to_json_value(validated.manifest)
+        }
         ParserInput::ValidateGraphYaml { yaml } => {
             let raw = parse_graph_yaml(&yaml)?;
             to_json_value(validate_graph(raw)?)
@@ -293,6 +309,27 @@ fn default_artifact_field() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capability_generation_validates_source_without_an_embedded_runtime() -> Result<(), String> {
+        let source = include_str!("../../../connectors/web/connector.yaml");
+        let evaluate = |yaml: &str| {
+            evaluate_parser_document_str(
+                &serde_json::json!({"kind": "parser.validateConnectorManifestYaml", "yaml": yaml})
+                    .to_string(),
+            )
+        };
+        let ParserEvalOutput::Output { value } =
+            evaluate(source).map_err(|error| error.to_string())?;
+        assert_eq!(
+            value
+                .as_object()
+                .and_then(|manifest| manifest.get("runtime_capability")),
+            Some(&JsonValue::Bool(true))
+        );
+        assert!(evaluate(&source.replace("usd_micro: 0", "usd_micro: -1")).is_err());
+        Ok(())
+    }
 
     #[test]
     fn evaluates_skill_markdown_validation() -> Result<(), String> {

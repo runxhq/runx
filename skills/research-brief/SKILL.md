@@ -1,6 +1,6 @@
 ---
 name: research-brief
-description: Produce a decision-ready research-brief brief from bounded governed evidence and preserve every material source binding.
+description: Produce a decision-ready memo from a question, bounded sources or completed research while preserving every material source binding.
 ---
 
 # Research Brief
@@ -20,6 +20,7 @@ that posture.
 <!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
 
 - `ghostwrite#draft`
+- `research#investigate`
 - `research#local-files`
 - `research#research`
 
@@ -32,15 +33,19 @@ the desired artifact. Use `content-package` when the primary outcome is public
 content for a known channel.
 
 Do not use this skill for an unbounded literature review, a daily trend recap,
-or research whose sources have not been fetched through a governed reader.
+or a claim that needs no investigation. Missing sources are acquired through the canonical governed research lane.
 
 ## How the chain works
 
-1. The caller supplies the exact question and audience plus either governed
-   source packets or bounded local paths. The `local-files` runner reads those
-   paths through Runx's native filesystem boundary; it does not tunnel local
-   evidence through HTTP.
-2. The canonical `research` skill admits and indexes those sources, separates
+1. The default `brief` runner starts from the question and audience, with optional
+   `paths`, `urls` or already collected `source_packets`. `research#investigate`
+   reads explicit sources directly and searches only when discovery is needed.
+   It reuses a nonempty supplied source set without acquisition. The explicit
+   `research-brief`, `local-files` and freshness-gated `ecosystem` runners retain
+   their existing bounded-source contracts.
+2. For a completed `research_packet`, select `from-research` to skip collection
+   and research synthesis entirely. Otherwise the canonical `research` skill
+   admits and indexes the sources, separates
    evidence from inference, and verifies every citation and recommendation.
 3. Only a ready research packet proceeds to `ghostwrite`. The writing stage
    turns decision support into a clear brief without introducing unsupported
@@ -56,9 +61,10 @@ readback.
 ## Inputs and result
 
 - `objective` is the exact decision question.
-- `source_packets` are bounded governed evidence. The `local-files` runner
-  accepts bounded paths below a selected local root instead. Operator context,
-  URLs, bare paths, and model memory do not substitute for admitted evidence.
+- `paths` and `urls` select sources for the default runner to read; they do not
+  themselves count as evidence. `source_packets` reuse already admitted reads.
+  `from-research` accepts the canonical `research_packet` and retains its source
+  bindings. `local-files` also supports an explicit contained root and byte bound.
 - `audience` and `channel` shape the memo's presentation.
 - `domain`, `operator_context`, and `target_entities` keep the analysis scoped
   but do not count as evidence.

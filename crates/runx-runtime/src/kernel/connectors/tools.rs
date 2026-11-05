@@ -191,6 +191,24 @@ mod tests {
         assert_eq!(tool.installed(&paths, "acme.sync")?, manifest);
 
         let copy = manifest.parent().ok_or("the manifest has a directory")?;
+        let source_cache = connector.join("tools/acme/sync/__pycache__");
+        let installed_cache = copy.join("__pycache__");
+        for cache in [&source_cache, &installed_cache] {
+            std::fs::create_dir_all(cache).map_err(|error| error.to_string())?;
+            std::fs::write(cache.join("helper.cpython-314.pyc"), [0, 255, 128])
+                .map_err(|error| error.to_string())?;
+        }
+        assert_eq!(
+            ConnectorTool::in_plugin(&connector, "acme.sync")?.digest,
+            tool.digest
+        );
+        assert!(
+            tool.files("acme.sync")?
+                .keys()
+                .all(|path| !path.contains("__pycache__"))
+        );
+        assert_eq!(tool.installed(&paths, "acme.sync")?, manifest);
+
         std::fs::write(copy.join("sync.mjs"), "process.stdout.write('leaked');\n")
             .map_err(|error| error.to_string())?;
         let refused = tool

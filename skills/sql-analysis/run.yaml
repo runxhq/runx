@@ -1,5 +1,5 @@
 skill: sql-analysis
-version: "0.4.8"
+version: "0.4.9"
 catalog:
   kind: graph
   audience: operator
@@ -43,6 +43,9 @@ runners:
     result_from:
     - stopped
     - finish
+    examples:
+      - question: Which campaigns produced the most qualified trials since 2026-10-01?
+        source: analytics
     steps:
     - id: catalog
       operation: sql/catalog.read

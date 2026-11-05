@@ -118,6 +118,104 @@ fn rejects_host_randomness() {
 }
 
 #[test]
+fn decodes_structured_data_through_the_frozen_native_api() -> Result<(), EngineError> {
+    let output = evaluate(
+        "main.mjs",
+        "default",
+        &modules(
+            r#"export default () => ({
+            frozen: Object.isFrozen(Runx) && Object.isFrozen(Runx.parseData),
+            json: Runx.parseData('{"name":"東京","versions":[1,2]}', 'json'),
+            yaml: Runx.parseData('name: 東京\nversions: [1, 2]\n', 'yaml'),
+            toml: Runx.parseData('name = "東京"\nversions = [1, 2]\n', 'toml'),
+            ambient: typeof process + ':' + typeof fetch + ':' + Date.now()
+        });"#,
+        ),
+        serde_json::json!({}),
+        BTreeMap::new(),
+        InvocationLimits::default(),
+    )?;
+    assert_eq!(output["frozen"], true);
+    assert_eq!(output["json"], output["yaml"]);
+    assert_eq!(output["json"], output["toml"]);
+    assert_eq!(output["ambient"], "undefined:undefined:0");
+    Ok(())
+}
+
+#[test]
+fn decoding_refuses_unsafe_integers_and_hides_parser_source() {
+    for (source, reason) in [
+        (
+            r#"export default () => Runx.parseData('{"id":9007199254740993}', 'json');"#,
+            "safe range",
+        ),
+        (
+            r#"export default () => Runx.parseData('{"id":18446744073709551617}', 'json');"#,
+            "invalid or unsupported",
+        ),
+        (
+            r#"export default () => Runx.parseData('secret: do-not-expose\nsecret: duplicate', 'yaml');"#,
+            "invalid or unsupported",
+        ),
+        (
+            r#"export default () => Runx.parseData('secret = "do-not-expose"\nsecret = 1', 'toml');"#,
+            "invalid or unsupported",
+        ),
+        (
+            r#"export default () => Runx.parseData('"\\ud800"', 'json');"#,
+            "invalid or unsupported",
+        ),
+        (
+            r#"export default () => Runx.parseData('\ud800', 'json');"#,
+            "valid Unicode",
+        ),
+    ] {
+        let error = evaluate(
+            "main.mjs",
+            "default",
+            &modules(source),
+            serde_json::json!({}),
+            BTreeMap::new(),
+            InvocationLimits::default(),
+        )
+        .err();
+        assert!(
+            matches!(error, Some(ref error) if error.message.contains(reason) && !error.message.contains("do-not-expose")),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
+fn decoding_honors_tightened_byte_limits_before_returning_to_javascript() {
+    let error = evaluate(
+        "main.mjs", "default",
+        &modules("export default () => { Runx.parseData('a: &a [abcdefgh, abcdefgh]\\nb: [*a, *a, *a, *a]', 'yaml'); return {}; };"),
+        serde_json::json!({}), BTreeMap::new(),
+        InvocationLimits { output_bytes: 64, ..InvocationLimits::default() },
+    ).err();
+    assert!(
+        matches!(error, Some(ref error) if error.message.contains("budget")),
+        "{error:?}"
+    );
+    let error = evaluate(
+        "main.mjs",
+        "default",
+        &modules(
+            "export default () => { Runx.parseData(' '.repeat(100) + '{}', 'json'); return {}; };",
+        ),
+        serde_json::json!({}),
+        BTreeMap::new(),
+        InvocationLimits {
+            input_bytes: 64,
+            ..InvocationLimits::default()
+        },
+    )
+    .err();
+    assert!(matches!(error, Some(error) if error.message.contains("source exceeds")));
+}
+
+#[test]
 fn exposes_one_frozen_deterministic_url_parser() -> Result<(), EngineError> {
     let output = evaluate(
         "main.mjs",

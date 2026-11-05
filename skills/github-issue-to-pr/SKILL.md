@@ -1,117 +1,111 @@
 ---
 name: github-issue-to-pr
-description: Implement one scafld-governed repository issue with normal host tools, prove the tested change through its finalize wall, and optionally publish the exact pull request through scoped provider authority with readback.
+description: Implement one GitHub issue under the repository's actual development process, verify the exact local candidate, and optionally publish or recover its pull request with provider readback.
 ---
 
 # GitHub Issue to PR
 
-Turn one issue into a tested change and, when authorized, a verified pull
-request. Use the repository's normal development workflow. Runx owns evidence
-continuity and the consequential publication boundary; it does not replace the
-host agent's editor, shell, Git, tests, or repository judgment.
+Turn one issue into a checked repository change and, when authorized, a pull
+request carrying that exact commit. The host agent investigates, edits and runs
+the appropriate checks with its normal tools. Runx binds the selected issue,
+observes the actual candidate checkout, applies any repository-required
+finalization, and governs publication and readback.
 
-## Scope
+Use this for implementation. Use `github-issue-triage` for an unsent maintainer
+response, `github-pr-review` for a review of an existing PR, and normal host
+editing for work that does not need this issue-to-publication workflow.
 
-Use this runner for work the repository actually governs with scafld: essential
-architecture, execution, security, persistence or cross-package contract changes,
-or work explicitly placed under that lifecycle by the operator. Read the
-repository's current instructions before choosing it. The receipt-verification
-wall is part of this skill's executable contract.
+## Start with the actual repository
 
-For ordinary UI, copy, documentation and routine fixes, use normal host editing
-and focused checks, then the selected GitHub operation for publication. Do not
-create a scafld lifecycle merely to satisfy this package, and do not invent a
-finalization receipt. Task size or file count alone does not make work governed.
+Invoke the skill from the target checkout, selecting an exact `owner/name` and
+issue number. Resolve a supplied issue URL into those fields; an available grant
+does not choose the repository. Select a compatible GitHub binding, such as the
+existing `gh` session, before the live issue read. An operator-supplied objective
+can narrow the requested outcome but does not replace the issue evidence.
 
-## Direct operator flow
+Read current repository instructions and inspect the relevant call paths before
+editing. Check existing changes, branch state, required tools, commit permission
+and the intended publication boundary. Preserve other work. Follow the actual
+repository's branch, commit, review and test conventions, including an external
+project's own conventions. Do not create a branch, commit or PR where the
+operator or repository requires an instruction you do not have.
 
-1. Name the repository as an exact `owner/name`. Never infer the target from
-   an available grant.
-2. Read through the GitHub instance selected here: the signed-in `gh`
-   session (`runx connector use github --session`) or a stored token.
-3. Run one preflight before work: issue identity, repository permission, branch
-   state, required tools, requested outcome, and publication authority.
-4. Investigate, edit, and test with the host agent's ordinary tools. Do not
-   manufacture Runx answer files between normal coding steps.
-5. Complete the repository-required independent review and call `scafld finalize` exactly once after the change and tests are ready.
-   Preserve its workspace-scoped receipt path, exact target commit, and
-   contract digest in `host_result`. Runx verifies that receipt with the scafld
-   CLI on this host (`scafld/receipt.verify`) and checks its verdict, commit,
-   contract and open blockers; host-authored status strings are not proof.
-6. If PR publication is not authorized, return the tested/finalized result and
-   stop. Do not silently downgrade the work to a plan.
-7. If publication is authorized, pass the exact `host_result` to `publish`.
-   Runx pushes the exact commit to the requested branch (`github/branch.push`,
-   never forced, read back from GitHub), reuses the one open pull request for
-   that branch or opens one (`github/pullrequest.open`, read back), and
-   completes only when the pull request's head is the tested commit.
-   Notifications, feeds, issue comments, and documentation sync are optional
-   downstream skills.
+Ordinary fixes use ordinary editing and focused checks. Use scafld only when
+the repository requires it for this work or the operator explicitly chooses it.
+The existence of a `.scafld` directory, task size, or a wish to use this skill is
+not that requirement. When applicable, complete the required independent review
+and finalize once; retain its receipt path and exact contract digest.
 
-## Reuse in chains
+## The implementation turn
 
-- `from-evidence` accepts `runx/github-issue-to-pr.issue_evidence.v1` and skips GitHub
-  discovery and issue read.
-- `resume` accepts both prior issue evidence and a completed
-  `runx/github-issue-to-pr.host_result.v1`; it does not repeat host work or finalize.
-- `verify` verifies the signed scafld receipt against the exact commit and
-  contract without publishing anything.
-- `finalize-local` verifies the completed host result and returns it without a
-  remote mutation.
-- `publish` verifies the completed host result, publishes its exact Git ref,
-  and creates or recovers the authorized PR with readback.
-- Preserve the same idempotency key across pause, retry, and resume. An
-  uncertain PR creation never gets a new key.
+The `github-issue-to-pr-host-work` act performs the real work. It returns the
+owned `runx/github-issue-to-pr.host_result.v1` packet: issue identity, summary, checkout,
+branch, exact candidate commit, changed files, actual check commands and their
+evidence, the established repository governance, and a publication proposal or
+hold. A blocked attempt can report the missing commit, failed checks and errors;
+it must not invent completion evidence to satisfy the packet.
 
-## Host work contract
+Record `governance.kind: repository` with the concrete reason ordinary repository
+checks apply, or `scafld` with the repository-required finalize receipt and
+contract digest. This is a host report of the applicable procedure. It cannot
+override repository instructions or waive required review. A test report is also
+host-reported evidence: Runx does not retroactively attest that an external host
+command ran just because its name appears in the report.
 
-The `github-issue-to-pr-host-work` act performs normal repository work and returns:
+After host work, the shared verification path reads native Git status, current
+branch and HEAD in the invocation checkout. The reported root must identify this
+same checkout. Dirty state, a detached or different branch, or a changed HEAD
+holds the candidate before any push. These checks bind the current source
+candidate; they do not establish workspace isolation, prove a test environment,
+or authorize unrelated edits. For scafld work, the native connector additionally
+verifies a passing signed receipt for the exact commit and contract, with no
+open blockers. A supplied status string is insufficient.
 
-```yaml
-host_result:
-  schema: runx/github-issue-to-pr.host_result.v1
-  status: completed | blocked | failed
-  repository: owner/name
-  issue_number: string
-  repo_root: workspace-relative-or-absolute-path
-  branch: string
-  commit: full-git-object-id
-  files: [relative/path]
-  tests:
-    - command: string
-      status: passed | failed
-      evidence: string
-  finalization:
-    receipt_path: workspace-relative-path
-    contract_digest: sha256:...
-  publication:
-    decision: hold | ready
-    title: string
-    body: string
-    head: string
-    base: string
-    draft: boolean
-    idempotency_key: string
-  errors: [string]
-```
+## Publication and finality
 
-Do not claim `completed` without a real edit/test outcome and one successful
-finalize result. Do not claim `published` from a branch push, API
-acknowledgement, or draft packet; only independent PR readback closes that
-state.
+When publication is held, return the verified local candidate and the remaining
+work. A local result is not a PR, a merge approval or a deployment.
 
-## Stop conditions
+A ready proposal supplies title, body, head, base, draft status and stable retry
+identity. Publication still requires the selected native provider authority.
+The GitHub connector pushes only the exact verified commit, never forces a ref,
+and independently reads it back. The skill lists open PRs for that head and base,
+reuses the unique matching PR, or opens one. More than one match, a different
+head commit, wrong base/repository, malformed provider evidence or failed
+readback cannot become `published`.
 
-- Wrong or ambiguous repository: stop with one target-resolution blocker.
-- No GitHub instance selected: return the exact `runx connector use github
-  --session` or `runx connector use github --credential token` handoff; do
-  not cycle through unrelated skills.
-- Dirty or conflicting branch state: stop before mutation and preserve the
-  evidence already gathered.
-- Failed tests or failed/stale finalize: return blocked or failed, never
-  succeeded.
-- Missing publication authority: retain the tested finalized change locally and
-  stop before PR creation.
-- Provider failure after admission: preserve the grant reference, idempotency key,
-  finalization evidence, and mutation recovery state. Resume at publication;
-  do not repeat issue discovery, coding, tests, or finalize.
+The terminal `runx/github-issue-to-pr.result.v1` packet preserves the useful
+summary, files and host check report. It separately states native candidate
+verification, governance assurance and PR publication/readback. Host-reported
+tests stay labelled as such even after successful publication.
+
+## Reuse and recovery
+
+- The default reads the selected issue once, then runs the implementation turn.
+- `from-evidence` accepts the existing issue evidence packet and skips the read.
+- `resume` consumes that evidence and a completed work packet, rechecks the
+  candidate and continues delivery. It does not repeat coding, tests or finalize.
+- `verify` checks the candidate and required governance without publication.
+- `finalize-local` forces a local-only result, even if the proposal is ready.
+- `publish` requires a ready proposal and uses the same verification path.
+
+For example, an ordinary documentation correction can run its meaningful
+documentation checks, obtain any required commit permission, and return a local
+candidate without creating a scafld task. A later authorized publication reuses
+that work packet. An essential engine change follows its required lifecycle and
+passes the same native candidate check plus signed finalization verification.
+
+After an uncertain provider result, retain the work packet, its issue evidence,
+the original retry identity and operation receipts. Reconcile or resume that
+exact proposal; do not create a new key, repeat host work or finalize again.
+If the checkout has changed, recover the exact candidate or produce a newly
+checked work packet. Notifications, comments, feeds and release work remain
+separate downstream capabilities.
+
+### `github-issue-to-pr-host-work`
+
+Do the requested repository work, following its actual instructions and authority.
+Inspect before editing; select appropriate checks; report their real outcome and
+evidence. Return a useful summary and concrete blockers. Never invent a commit,
+test, receipt, approval or published PR. Keep the work packet for continuation if
+publication is not authorized or a provider step fails.

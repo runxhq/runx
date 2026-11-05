@@ -6,6 +6,48 @@ use crate::tool_catalogs::native::fixture_input;
 const SOURCE_DIGEST: &str =
     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
+#[test]
+fn nested_authoritative_bindings_preserve_unowned_siblings() {
+    let inputs = fixture_input::<EvidenceVerifyInput>(
+        serde_json::from_value(serde_json::json!({
+            "candidate": {
+                "decision": "ready",
+                "context_binding": {"required": ["untrusted"], "applied": [{"rule": "one ask"}]},
+                "distribution_notes": {"primary_channel": "email"},
+                "fixed": {"value": "candidate", "extra": true}
+            },
+            "require_claim_bindings": false,
+            "authoritative_fields": {"fixed": {"value": "native"}},
+            "authoritative_source": {"requirements": [], "assurance": "operator_supplied_facts"},
+            "authoritative_bindings": [
+                {"target_path": "context_binding.required", "source_path": "requirements"},
+                {"target_path": "distribution_notes.source_assurance", "source_path": "assurance"}
+            ]
+        }))
+        .expect("binding input"),
+    )
+    .expect("typed verification input");
+    let output = serde_json::to_value(verify::build(&inputs).expect("verified artifact"))
+        .expect("JSON output");
+    assert_eq!(
+        output["verified_artifact"]["context_binding"],
+        serde_json::json!({
+            "required": [], "applied": [{"rule": "one ask"}]
+        })
+    );
+    assert_eq!(
+        output["verified_artifact"]["distribution_notes"],
+        serde_json::json!({
+            "primary_channel": "email", "source_assurance": "operator_supplied_facts"
+        })
+    );
+    // An explicit authoritative whole field still replaces that whole field.
+    assert_eq!(
+        output["verified_artifact"]["fixed"],
+        serde_json::json!({"value": "native"})
+    );
+}
+
 /// A `web/page.read` step output carrying these source fields.
 fn web_read(result: JsonObject) -> JsonValue {
     JsonValue::Object(JsonObject::from([(

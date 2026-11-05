@@ -5,25 +5,32 @@ steps:
     runner: check
     inputs:
       current_schema:
-        type: object
-        required: [id]
-        properties:
-          id: { type: string }
-          status: { type: string, enum: [open, closed] }
+        $defs:
+          id:
+            type: integer
+            minimum: 1
+        type: array
+        items:
+          $ref: "#/$defs/id"
+        minItems: 2
+        maxItems: 5
       proposed_schema:
-        type: object
-        required: [id]
-        properties:
-          id: { type: string }
-          status: { type: string, enum: [open, closed] }
-          note: { type: string }
+        $defs:
+          id:
+            type: number
+            minimum: 0
+        type: array
+        items:
+          $ref: "#/$defs/id"
+        minItems: 1
+        maxItems: 10
       sample_payloads:
-        - { id: case-1, status: open }
-        - { id: case-2, status: closed, note: resolved by provider }
+        - - 1
+          - 2
+        - - 3
+          - 4
       compatibility_policy:
         breaking_allowed: false
-        required_fields: [id]
-        versioning_rule: minor_on_additive
   - id: digest
     tool: data.digest
     inputs:

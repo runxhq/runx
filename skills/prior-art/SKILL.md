@@ -50,7 +50,12 @@ packet is missing, stale, or outside the current objective.
    `fs.read_bundle` reads and hashes at most sixteen requested files under the
    workspace boundary. Missing files are recorded; escaping, duplicate, or
    oversized paths fail closed.
-3. Read only the indexed sources needed for the objective. State each finding as `claim`, `source`, `relevance`, and `confidence` (`verified`, `likely`, or `unverified`).
+3. Read the exact `inspected_bundle.files[].contents` delivered with the task.
+   It is the same native read whose whole-file digests appear in the evidence
+   index; do not read those files again. Catalog descriptions help identify an
+   owner, but do not establish uninspected implementation details. A truncated
+   or missing requested source holds the result.
+   Read only the indexed sources needed for the objective. State each finding as `claim`, `source`, `relevance`, and `confidence` (`verified`, `likely`, or `unverified`).
 4. Name adjacent catalog skills and the boundary each already owns. Recommend `reuse`, `amend`, `new_work`, or `stop`; do not create a duplicate primitive because an existing package is imperfect.
 5. The domain validator checks every verified citation and adjacent skill
    against those native projections. Unsupported verified claims or missing
@@ -85,8 +90,9 @@ Inputs are `objective`, optional `decomposition`, `graph_purpose`, `audience`, `
 
 ### `prior-art-research`
 
-Use the deterministic evidence index to select and read only the bounded local sources needed
-for the objective. Return prior_art_draft with decision, findings, catalog_fit, quality_bar,
+Use the retained native source text in `inspected_bundle` and the catalog descriptions in
+`evidence_index`. No direct filesystem tools are needed in this judgment phase.
+Do not reopen a path and substitute changed bytes for its admitted snapshot. Return prior_art_draft with decision, findings, catalog_fit, quality_bar,
 recommended_flow, sources, and risks. Cite repo-relative paths exactly. Mark a finding verified
 only when its source appears in inspected_sources or the catalog index. Prefer reuse or
 amendment over duplicate primitives. Return needs_more_evidence when requested sources are

@@ -3,7 +3,8 @@ kind: skill
 target: ..
 runner: author
 inputs:
-  governance_brief: Tighten the current policy after an audit found auto-merge enabled and source confidence too low.
+  governance_brief: Raise the source confidence floor and restrict work to issue intake, preserving
+    existing human review.
   existing_policy:
     schema: runx.operational_policy.v1
     schema_version: runx.operational_policy.v1
@@ -59,10 +60,10 @@ inputs:
       close_source_issue: when_verified
       publish_final_source_thread_update: true
     permissions:
-      auto_merge: true
+      auto_merge: false
       mutate_target_repo: true
-      require_human_merge_gate: false
-  objective: Narrow the policy to close the audit findings; do not widen anything.
+      require_human_merge_gate: true
+  objective: Narrow the current valid policy without changing owners/providers or adding authority.
 caller:
   answers:
     draft:
@@ -79,7 +80,6 @@ caller:
                 - github://acme/acme/issues
               allowed_actions:
                 - issue-intake
-                - issue-to-pr
               source_thread:
                 required: true
                 publish_mode: comment
@@ -91,7 +91,6 @@ caller:
               state: available
               allowed_actions:
                 - issue-intake
-                - issue-to-pr
               target_repos:
                 - acme/acme
               scafld_required: true
@@ -107,7 +106,6 @@ caller:
                 - local-review
               allowed_actions:
                 - issue-intake
-                - issue-to-pr
               default_owner_route: maintainers
               scafld_required: true
           dedupe:
@@ -126,7 +124,8 @@ caller:
             auto_merge: false
             mutate_target_repo: true
             require_human_merge_gate: true
-        rationale: The confidence floor rises, auto-merge is disabled, and human review becomes mandatory without adding any scope.
+        rationale: Raise confidence and narrow action sets, retaining the existing human review and
+          owner/provider settings.
         blockers: []
         needs_input: []
         success_checkpoint:
@@ -137,6 +136,7 @@ expect:
   steps:
     - draft
     - prepare
+    - compare-fixed-settings
     - lint
     - finalize-lint
   step_outputs:
@@ -151,6 +151,7 @@ expect:
               validation:
                 status: pass
                 engine: runx policy
+                reason: Native policy lint and fixed-setting comparison passed.
   receipt:
     schema: runx.receipt.v1
     state: sealed

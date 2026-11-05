@@ -151,7 +151,7 @@ fn session(
             let run_id = text(arguments, "run")?;
             if !run_id.starts_with(served) {
                 return Err(format!(
-                    "run {run_id} was not opened by this server; it works only the turns its own skill calls opened"
+                    "run {run_id} was not opened by this server, which works only the turns its own skill calls opened. To continue a run from an earlier session, attach `runx mcp --run {run_id}`"
                 ));
             }
             // One session drives a run, whichever calls work it at once.

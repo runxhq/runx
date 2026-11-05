@@ -249,10 +249,25 @@ impl BoundRun {
             // run stays open, unsealed, so the call seals once, when its
             // outcome is known: retried while readback may yet arrive, then
             // returned to the operator to reconcile before resuming.
-            Err(RuntimeError::ProviderReadbackPending { step_id, reason }) => {
+            Err(RuntimeError::ProviderReadbackPending {
+                step_id,
+                reason,
+                resend,
+            }) => {
+                if resend == runx_contracts::RetryResend::Unsafe {
+                    // Keep the existing claimed-step hold. Its operator
+                    // acknowledgement cannot bypass the kernel's unresolved
+                    // charge custody or authorize an automatic resend.
+                    return self.paused(&log);
+                }
                 let retries = existing.as_ref().map_or(0, |record| record.retries) + 1;
                 if retries > MAX_READBACK_RETRIES {
-                    return Err(RuntimeError::ProviderReadbackPending { step_id, reason }.into());
+                    return Err(RuntimeError::ProviderReadbackPending {
+                        step_id,
+                        reason,
+                        resend,
+                    }
+                    .into());
                 }
                 log.record_retry(
                     &step_id,
@@ -260,12 +275,15 @@ impl BoundRun {
                         id: format!("provider-readback-{step_id}-{retries}").into(),
                         reason: "Independent provider readback is pending".into(),
                         retry_after_seconds: 300,
-                        resend: runx_contracts::RetryResend::Safe,
+                        resend,
                     },
                     std::time::SystemTime::now(),
                 )?;
                 self.paused(&log)
             }
+            // The runner recorded the exact claimed step before dispatch.
+            // Return that pending workflow, not an anonymous CLI failure.
+            Err(RuntimeError::ProviderEffectUnknown { .. }) => self.paused(&log),
             Err(error) => run.seal_stopped(error),
         }
     }
@@ -335,12 +353,16 @@ impl BoundRun {
             effect_gate,
             packages: Some(self.packages.clone()),
         };
+        let local_artifacts = crate::services::LocalArtifactService::for_run(
+            &options.run.store().project_dir(),
+            crate::execution::run_record::root_run_id(options.run.run_id()),
+        );
         Ok(match &self.overrides.javascript {
             Some(javascript) => Runtime::with_native_services(
                 ExecutableAdapter,
                 options,
                 javascript.clone(),
-                crate::services::LocalArtifactService::default(),
+                local_artifacts,
             ),
             None => Runtime::new(ExecutableAdapter, options),
         })
@@ -968,6 +990,7 @@ mod tests {
     #[test]
     fn the_executable_adapter_refuses_an_agent_act() {
         let invocation = SkillInvocation {
+            workspace_bounds: crate::WorkspaceBounds::Operator,
             historical_context: Vec::new(),
             skill_name: "fixture".to_owned(),
             step_id: None,
@@ -1188,6 +1211,7 @@ steps:
             ),
         ])))?;
         let invocation = SkillInvocation {
+            workspace_bounds: crate::WorkspaceBounds::Operator,
             historical_context: Vec::new(),
             skill_name: "credential-observation".to_owned(),
             step_id: None,

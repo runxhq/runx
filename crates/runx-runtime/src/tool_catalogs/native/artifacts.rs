@@ -32,12 +32,7 @@ fn admit(
             invocation.bounds,
         )
         .map_err(|error| invalid_input(ADMIT_TOOL, error.to_string()))?;
-    Ok(ArtifactAdmitOutput {
-        artifact_uri: artifact.reference,
-        media_type: artifact.media_type,
-        bytes: artifact.bytes,
-        whole_digest: artifact.whole_digest,
-    })
+    Ok(artifact.into())
 }
 
 fn read(

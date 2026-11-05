@@ -1,11 +1,16 @@
 use boa_engine::object::{FunctionObjectBuilder, IntegrityLevel, JsObject, ObjectInitializer};
 use boa_engine::property::{Attribute, PropertyDescriptor};
 use boa_engine::{Context, JsArgs, JsNativeError, JsResult, JsValue, NativeFunction, js_string};
+use runx_contracts::javascript_worker::WorkerApi;
 use url::Url;
 
-pub(super) fn install(context: &mut Context) -> JsResult<()> {
+pub(super) fn install(
+    context: &mut Context,
+    input_bytes: usize,
+    output_bytes: usize,
+) -> JsResult<()> {
     disable_randomness(context)?;
-    install_runx_api(context)
+    install_runx_api(context, input_bytes, output_bytes)
 }
 
 fn disable_randomness(context: &mut Context) -> JsResult<()> {
@@ -31,19 +36,77 @@ fn disable_randomness(context: &mut Context) -> JsResult<()> {
     Ok(())
 }
 
-fn install_runx_api(context: &mut Context) -> JsResult<()> {
+fn install_runx_api(
+    context: &mut Context,
+    input_bytes: usize,
+    output_bytes: usize,
+) -> JsResult<()> {
     let parse_url =
         FunctionObjectBuilder::new(context.realm(), NativeFunction::from_fn_ptr(parse_url))
-            .name(js_string!("parseUrl"))
+            .name(js_string!(WorkerApi::ParseUrl.name()))
             .length(1)
             .build();
     freeze(&parse_url, context)?;
+    let parse_data = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_copy_closure_with_captures(parse_data, (input_bytes, output_bytes)),
+    )
+    .name(js_string!(WorkerApi::ParseData.name()))
+    .length(2)
+    .build();
+    freeze(&parse_data, context)?;
 
     let runx = ObjectInitializer::new(context)
-        .property(js_string!("parseUrl"), parse_url, Attribute::default())
+        .property(
+            js_string!(WorkerApi::ParseUrl.name()),
+            parse_url,
+            Attribute::default(),
+        )
+        .property(
+            js_string!(WorkerApi::ParseData.name()),
+            parse_data,
+            Attribute::default(),
+        )
         .build();
     freeze(&runx, context)?;
     context.register_global_property(js_string!("Runx"), runx, Attribute::default())
+}
+
+fn parse_data(
+    _this: &JsValue,
+    arguments: &[JsValue],
+    limits: &(usize, usize),
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let source = arguments
+        .get_or_undefined(0)
+        .as_string()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("Runx.parseData requires a source string")
+        })?
+        .to_std_string()
+        .map_err(|_| JsNativeError::typ().with_message("Runx.parseData requires valid Unicode"))?;
+    let format = arguments
+        .get_or_undefined(1)
+        .as_string()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("Runx.parseData requires json, yaml or toml")
+        })?
+        .to_std_string()
+        .map_err(|_| {
+            JsNativeError::typ().with_message("Runx.parseData requires a valid format string")
+        })?;
+    // Source may be constructed by the module rather than supplied as input.
+    if source.len() > limits.0 {
+        return Err(JsNativeError::range()
+            .with_message("Runx.parseData source exceeds its byte budget")
+            .into());
+    }
+    let value = runx_parser::data::decode_data(&source, &format, limits.1)
+        .map_err(|error| JsNativeError::typ().with_message(error.to_string()))?;
+    super::validation::validate_input(&value, limits.1)
+        .map_err(|error| JsNativeError::typ().with_message(error.to_string()))?;
+    JsValue::from_json(&value, context)
 }
 
 fn random_unavailable(

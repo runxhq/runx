@@ -30,6 +30,11 @@ exact publish plan, execute it without a shell, then run a separate verification
 command. The publish command is refused if its normalized argv plan drifts after
 approval. Publication is never inferred from an agent answer or a zero exit code.
 
+For composed work already paused at publish approval, resume that same run ID.
+Its preparation, notes and command plans are reused. Starting another default run
+starts a fresh preparation. The separate `prepare` runner is an inspection/brief
+workflow, not detached publication authority.
+
 ## Project profile
 
 `project_root` is resolved inside the current Runx workspace and must be a
@@ -49,6 +54,9 @@ relative directory (normally `.` when Runx is invoked from the project root).
 }
 ```
 
+Commands support only `argv`, `cwd` and `timeout_ms`; unsupported command fields
+are refused rather than ignored. Arguments are preserved byte for byte and the
+native command owner enforces their count and size. Empty arguments and empty non-secret environment values stay exact.
 Commands are argv arrays, never shell strings. Paths cannot escape the project.
 These commands are trusted host processes: Runx fixes and digests their argv,
 working directory, admitted environment, and timeout, but does not claim to
@@ -66,6 +74,9 @@ and at least one stable locator. Optional fields are `release_id`,
 `commit`, `checks`, and `locators`. Raw stdout and stderr are not copied
 into release artifacts; only parsed bounded fields and runtime evidence digests
 are sealed.
+
+The context packet is `runx/release.context.v1`. It carries exact argument
+strings, including empty values; native command planning owns their validation.
 
 ## Authority and closure
 
@@ -85,6 +96,8 @@ success claim.
   requested version and channel differ from the profile evidence.
 - Approval binds the exact publish argv plan. Any normalized plan drift requires
   a new preparation and approval rather than opportunistic execution.
+- Release identities and evidence are never shortened or whitespace-normalized
+  into a match. Oversized domain output is refused explicitly.
 - A zero exit code or `submitted` provider response is not verification. The
   independent verify command must return the exact version, channel, and stable
   locator.

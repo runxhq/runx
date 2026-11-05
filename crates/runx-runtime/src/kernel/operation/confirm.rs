@@ -52,6 +52,9 @@ pub(crate) enum Unperformed {
         code: &'static str,
         reason: String,
         retry_at: Option<String>,
+        /// Earlier requests in this operation completed before the halt.
+        /// A refusal of this request cannot settle their possible charges.
+        partial: bool,
     },
     /// The request may have reached the provider, and nothing shows that it
     /// did not act.
@@ -94,6 +97,8 @@ pub(crate) struct Recovery {
     pub acknowledged: Option<Acknowledgement>,
     /// Whether a request that may have landed can be sent again.
     pub resend_safe: bool,
+    /// A missing response may leave a provider charge even for a read.
+    pub may_charge: bool,
 }
 
 /// One local implementation, as the kernel drives it.
@@ -179,10 +184,12 @@ impl Driver for Custody<'_> {
                     code,
                     reason,
                     retry_at,
+                    partial,
                 } => Unperformed::Halted {
                     code,
                     reason: self.text(reason),
                     retry_at,
+                    partial,
                 },
                 Unperformed::MaybeSent { code, reason } => Unperformed::MaybeSent {
                     code,
@@ -227,16 +234,18 @@ pub(super) fn run(
             .map_err(|reason| rejected("invalid_request", reason))?,
         false => None,
     };
+    let may_charge = recovery.may_charge;
     let (write, confirmed, evidence) = match items {
         None => once(driver, call, checks, recovery, record)?,
         Some(items) => repeated(driver, call, checks, &items, recovery, record)?,
     };
-    let (result, operation_id) = driver
-        .result(&write, &confirmed)
-        .map_err(|reason| match call.mutation() {
-            true => Failure::ReadbackPending(reason),
-            false => rejected("invalid_response", reason),
-        })?;
+    let (result, operation_id) = driver.result(&write, &confirmed).map_err(|reason| {
+        match (call.mutation(), may_charge) {
+            (true, _) => Failure::ReadbackPending(reason),
+            (false, true) => Failure::Unknown(reason),
+            (false, false) => rejected("invalid_response", reason),
+        }
+    })?;
     let readback_uri = if call.mutation() && checks.readbacks.is_empty() {
         // This write's acknowledgement: the act it answers and what it said.
         let acknowledgement = canonical_stable_json(&serde_json::json!({
@@ -285,12 +294,40 @@ fn once(
     let write = match recovery.acknowledged {
         Some(acknowledgement) => acknowledgement.write_result,
         None => {
-            preconditions(driver, call, checks)?;
+            preconditions(driver, call, checks, recovery.may_charge)?;
             let performed = driver.perform(None).map_err(|failure| match failure {
-                Unperformed::NotSent { code, reason }
-                | Unperformed::Refused { code, reason, .. }
-                | Unperformed::Halted { code, reason, .. } => rejected(code, reason),
-                Unperformed::MaybeSent { reason, .. } if mutation => Failure::Unknown(reason),
+                // Nothing of this call left, but a priced check before it may have been charged.
+                Unperformed::NotSent { code, reason } => Failure::Rejected {
+                    status: 0,
+                    code: code.to_owned(),
+                    reason,
+                    release: !recovery.may_charge || checks.preconditions.is_empty(),
+                },
+                Unperformed::Halted {
+                    reason,
+                    partial: true,
+                    ..
+                } if recovery.may_charge => Failure::Unknown(reason),
+                Unperformed::Halted {
+                    code,
+                    reason,
+                    partial,
+                    ..
+                } => Failure::Rejected {
+                    status: 0,
+                    code: code.to_owned(),
+                    reason,
+                    release: !partial && !recovery.may_charge,
+                },
+                Unperformed::Refused { code, reason, .. } => Failure::Rejected {
+                    status: 0,
+                    code: code.to_owned(),
+                    reason,
+                    release: !recovery.may_charge,
+                },
+                Unperformed::MaybeSent { reason, .. } if mutation || recovery.may_charge => {
+                    Failure::Unknown(reason)
+                }
                 Unperformed::MaybeSent { code, reason } => Failure::Rejected {
                     status: 0,
                     code: code.to_owned(),
@@ -344,7 +381,7 @@ fn repeated(
                 Failure::Unknown("the recorded batch is not a list of outcomes".to_owned())
             })?,
         None => {
-            preconditions(driver, call, checks)?;
+            preconditions(driver, call, checks, recovery.may_charge)?;
             Vec::new()
         }
     };
@@ -375,6 +412,7 @@ fn repeated(
                 code,
                 reason,
                 retry_at,
+                ..
             }) => {
                 halted = Some(code);
                 refused(
@@ -462,6 +500,7 @@ fn preconditions(
     driver: &dyn Driver,
     call: &AdmittedCall<'_>,
     checks: &Checks,
+    may_charge: bool,
 ) -> Result<(), Failure> {
     for (index, matches) in checks.preconditions.iter().enumerate() {
         driver
@@ -475,7 +514,14 @@ fn preconditions(
                     &observed.value,
                 )
             })
-            .map_err(|reason| rejected("precondition_failed", reason))?;
+            .map_err(|reason| Failure::Rejected {
+                status: 0,
+                code: "precondition_failed".to_owned(),
+                reason,
+                // A timed-out read may still have been charged, and a failed
+                // check does not say otherwise, so a priced call keeps its spend.
+                release: !may_charge,
+            })?;
     }
     Ok(())
 }
@@ -823,6 +869,7 @@ mod tests {
             Recovery {
                 acknowledged: None,
                 resend_safe: false,
+                may_charge: false,
             },
             &mut |_| Ok(()),
         );
@@ -855,6 +902,7 @@ mod tests {
                 Recovery {
                     acknowledged: Some(recorded),
                     resend_safe: false,
+                    may_charge: false,
                 },
                 &mut |_| Ok(()),
             )
@@ -883,6 +931,7 @@ mod tests {
                 Recovery {
                     acknowledged: None,
                     resend_safe: false,
+                    may_charge: false,
                 },
                 &mut |_| Ok(()),
             )
@@ -896,11 +945,65 @@ mod tests {
                 Recovery {
                     acknowledged: None,
                     resend_safe: false,
+                    may_charge: false,
                 },
                 &mut |_| Ok(()),
             )
         });
         assert!(matches!(read, Err(Failure::Rejected { code, .. }) if code == "transport_failed"));
+        let charged_read = admitted(OperationAccess::Read, |call| {
+            run(
+                &driver,
+                call,
+                &Checks::default(),
+                Recovery {
+                    acknowledged: None,
+                    resend_safe: false,
+                    may_charge: true,
+                },
+                &mut |_| Ok(()),
+            )
+        });
+        assert!(matches!(charged_read, Err(Failure::Unknown(_))));
+    }
+
+    #[test]
+    fn a_halt_after_partial_read_keeps_prior_uses_and_uncertain_charges() {
+        let driver = Fake {
+            performed: Cell::new(0),
+            answer: || {
+                Err(Unperformed::Halted {
+                    code: "rate_limited",
+                    reason: "one request completed before the rate limit".to_owned(),
+                    retry_at: Some("2027-01-15T08:00:00Z".to_owned()),
+                    partial: true,
+                })
+            },
+            observed: id("m-1"),
+        };
+        for may_charge in [false, true] {
+            let outcome = admitted(OperationAccess::Read, |call| {
+                run(
+                    &driver,
+                    call,
+                    &Checks::default(),
+                    Recovery {
+                        acknowledged: None,
+                        resend_safe: false,
+                        may_charge,
+                    },
+                    &mut |_| Ok(()),
+                )
+            });
+            if may_charge {
+                assert!(matches!(outcome, Err(Failure::Unknown(_))));
+            } else {
+                assert!(matches!(
+                    outcome,
+                    Err(Failure::Rejected { release: false, .. })
+                ));
+            }
+        }
     }
 
     #[test]
@@ -1022,6 +1125,7 @@ mod tests {
                 Recovery {
                     acknowledged: None,
                     resend_safe: false,
+                    may_charge: false,
                 },
                 &mut |acknowledgement| {
                     recorded
@@ -1059,6 +1163,7 @@ mod tests {
                     code: "rate_limited",
                     reason: "rate limited".to_owned(),
                     retry_at: Some("2027-01-15T08:00:00Z".to_owned()),
+                    partial: false,
                 }),
                 1 => Err(Unperformed::Refused {
                     code: "not_found",
@@ -1118,6 +1223,7 @@ mod tests {
                 Recovery {
                     acknowledged: None,
                     resend_safe: false,
+                    may_charge: false,
                 },
                 &mut |acknowledgement| {
                     recorded
@@ -1158,6 +1264,7 @@ mod tests {
                         write_result: first.clone(),
                     }),
                     resend_safe: false,
+                    may_charge: false,
                 },
                 &mut |_| Ok(()),
             )
@@ -1179,6 +1286,7 @@ mod tests {
                         write_result: first,
                     }),
                     resend_safe: true,
+                    may_charge: false,
                 },
                 &mut |_| Ok(()),
             )
@@ -1206,6 +1314,7 @@ mod tests {
                 Recovery {
                     acknowledged: None,
                     resend_safe: false,
+                    may_charge: false,
                 },
                 &mut |acknowledgement| {
                     *recorded.borrow_mut() = Some(acknowledgement.write_result.clone());
@@ -1248,6 +1357,7 @@ mod tests {
                         write_result: outcomes,
                     }),
                     resend_safe: false,
+                    may_charge: false,
                 },
                 &mut |_| Ok(()),
             )

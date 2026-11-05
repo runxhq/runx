@@ -47,9 +47,11 @@ use crate::kernel::store::{
     Append, Blob, Expected, Head, KernelStore, KernelStoreError, Recorded, StreamEvent,
 };
 
+mod claim;
 mod driver;
 mod read;
 
+pub(crate) use claim::retained_claim;
 pub use driver::{DriverLock, driven};
 pub use read::read_run;
 
@@ -1627,6 +1629,11 @@ pub(crate) fn request_address(run_id: &str, request_id: &str) -> String {
         Some((_, path)) => format!("{path}#{request_id}"),
         None => request_id.to_owned(),
     }
+}
+
+/// The logical root shared by a run and all its child runs.
+pub(crate) fn root_run_id(run_id: &str) -> &str {
+    run_id.split_once('/').map_or(run_id, |(root, _)| root)
 }
 
 /// The id `address` has in its own run: what follows its `#`, or the whole

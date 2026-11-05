@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::JsonObject;
 use crate::schema::{BoundedVec, NonEmptyString, RunxSchema};
+use crate::{Digest, JsonObject, JsonValue, ReceiptIssuerType, Reference, RunOutcome, SubjectKind};
 
 /// The most receipts one query details, or one proof is asked for.
 pub const RECEIPT_TOOL_MAX_RECEIPTS: usize = 100;
@@ -102,4 +102,49 @@ pub struct ReceiptProofVerification {
 #[serde(deny_unknown_fields)]
 pub struct ReceiptProofStore {
     pub label: NonEmptyString,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+pub enum ReceiptReadSchema {
+    #[serde(rename = "runx.receipt.read.v1")]
+    V1,
+}
+
+/// Availability of the retained claim. Every returned receipt has verified
+/// first; these states do not claim that an unavailable payload was read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ReceiptReadStatus {
+    Available,
+    NotAStep,
+    NotRetained,
+}
+
+/// A selected value from the exact declared claim a receipt seals. The
+/// outcome digest binds the complete claim, outcome and child references;
+/// selecting a pointer is a native verified read, not a Merkle proof.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.receipt.read.v1")]
+pub struct ReceiptRead {
+    pub schema: ReceiptReadSchema,
+    pub status: ReceiptReadStatus,
+    pub receipt_id: NonEmptyString,
+    /// When supplied to the reader, this original root was verified and the
+    /// selected receipt is its root or one of its signed descendants.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_receipt_id: Option<NonEmptyString>,
+    pub subject_kind: SubjectKind,
+    pub subject_uri: NonEmptyString,
+    pub issuer_type: ReceiptIssuerType,
+    pub outcome: RunOutcome,
+    pub outcome_digest: Digest,
+    pub children: Vec<Reference>,
+    pub json_pointer: String,
+    /// The selected declared output, including any sensitive source data it
+    /// contains. Invocation inputs, credential stores and transport diagnostics
+    /// are not loaded. Null is valid when status is available.
+    pub value: Option<JsonValue>,
+    /// Serialized UTF-8 bytes of the selected value; zero when unavailable.
+    pub bytes: u64,
 }

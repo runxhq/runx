@@ -130,6 +130,11 @@ Public contract changes require a clean cutover through Rust-owned schemas and
 fixtures. Do not add compatibility aliases, `.v2` ids, or dual-read runtime
 shims for governed wire shapes.
 
+For a greenfield cutover, correct the existing contract in place: update its
+schema, lock entry, consumers and generated copies together. An immutability
+check is not permission to introduce another contract version. Contract version
+bumps require Kam's explicit instruction.
+
 ### Generic Stateful Effects
 
 Runx-maintained skills that drive stateful apps emit generic effect transition packets.

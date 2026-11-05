@@ -1,17 +1,17 @@
-use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use base64::Engine as _;
-use ring::rand::{SecureRandom, SystemRandom};
-use sha2::{Digest as _, Sha256};
 
 use super::{WorkspaceFile, WorkspaceFileError};
 
 mod framing;
+mod reader;
+mod storage;
 
 use framing::frame_json_array_page;
+use storage::{SnapshotStore, StoredArtifact};
 
 pub(crate) const MAX_ARTIFACT_BYTES: u64 = 512 * 1024 * 1024;
 pub(crate) const DEFAULT_ARTIFACT_PAGE_BYTES: usize = 1024 * 1024;
@@ -56,25 +56,30 @@ pub(crate) struct ArtifactRecordPage {
 
 #[derive(Clone)]
 pub(crate) struct LocalArtifactService {
-    inner: Arc<Mutex<BTreeMap<String, Arc<StoredArtifact>>>>,
-    namespace: Arc<[u8; 32]>,
-}
-
-struct StoredArtifact {
-    descriptor: LocalArtifact,
-    snapshot: tempfile::NamedTempFile,
+    store: Arc<SnapshotStore>,
 }
 
 impl Default for LocalArtifactService {
     fn default() -> Self {
         Self {
-            inner: Arc::new(Mutex::new(BTreeMap::new())),
-            namespace: Arc::new(artifact_namespace()),
+            store: Arc::new(SnapshotStore::default()),
         }
     }
 }
 
 impl LocalArtifactService {
+    pub(crate) fn for_run(project: &Path, root_run_id: &str) -> Self {
+        Self {
+            store: Arc::new(SnapshotStore::for_run(project, root_run_id)),
+        }
+    }
+
+    /// Describe a snapshot already admitted in this logical run. This never
+    /// reopens or readmits the original source file.
+    pub(crate) fn descriptor(&self, reference: &str) -> Result<LocalArtifact, WorkspaceFileError> {
+        Ok(self.store.resolve(reference)?.descriptor.clone())
+    }
+
     pub(crate) fn admit(
         &self,
         root: &Path,
@@ -83,49 +88,18 @@ impl LocalArtifactService {
         bounds: super::WorkspaceBounds,
     ) -> Result<LocalArtifact, WorkspaceFileError> {
         let source = WorkspaceFile::resolve(root, requested, bounds)?;
-        let media_type = media_type.trim();
-        if media_type.is_empty() {
-            return Err(WorkspaceFileError::InvalidMediaType);
-        }
-        if source.bytes() > MAX_ARTIFACT_BYTES {
-            return Err(WorkspaceFileError::ArtifactTooLarge {
-                path: requested.to_path_buf(),
-                max_bytes: MAX_ARTIFACT_BYTES,
-            });
-        }
+        self.store.capture(source, media_type, None)
+    }
 
-        let mut snapshot =
-            tempfile::NamedTempFile::new().map_err(WorkspaceFileError::SnapshotUnavailable)?;
-        let (bytes, whole_digest) = source
-            .copy_and_digest(snapshot.as_file_mut(), MAX_ARTIFACT_BYTES)
-            .map_err(|error| match error {
-                WorkspaceFileError::TooLarge { path, max_bytes } => {
-                    WorkspaceFileError::ArtifactTooLarge { path, max_bytes }
-                }
-                error => error,
-            })?;
-        snapshot
-            .as_file_mut()
-            .sync_all()
-            .map_err(WorkspaceFileError::SnapshotUnavailable)?;
-        let reference =
-            artifact_reference(&self.namespace, media_type, bytes, whole_digest.as_str());
-        let descriptor = LocalArtifact {
-            reference: reference.clone(),
-            media_type: media_type.to_owned(),
-            bytes,
-            whole_digest: whole_digest.into_string(),
-        };
-        let stored = Arc::new(StoredArtifact {
-            descriptor: descriptor.clone(),
-            snapshot,
-        });
-        let mut artifacts = self
-            .inner
-            .lock()
-            .map_err(|_| WorkspaceFileError::ArtifactStoreUnavailable)?;
-        artifacts.entry(reference).or_insert(stored);
-        Ok(descriptor)
+    pub(crate) fn open_project_artifact(
+        &self,
+        root: &Path,
+        artifact: &runx_contracts::ProjectArtifact,
+    ) -> Result<LocalArtifact, String> {
+        let source = super::project_artifacts::project_artifact_source(root, artifact)?;
+        self.store
+            .capture(source, &artifact.media_type, Some(artifact))
+            .map_err(|error| error.to_string())
     }
 
     pub(crate) fn read_page(
@@ -140,17 +114,14 @@ impl LocalArtifactService {
                 maximum: MAX_ARTIFACT_PAGE_BYTES,
             });
         }
-        let artifact = self.resolve(reference)?;
+        let artifact = self.store.resolve(reference)?;
         if offset > artifact.descriptor.bytes {
             return Err(WorkspaceFileError::InvalidArtifactOffset {
                 offset,
                 bytes: artifact.descriptor.bytes,
             });
         }
-        let mut file = artifact
-            .snapshot
-            .reopen()
-            .map_err(WorkspaceFileError::SnapshotUnavailable)?;
+        let mut file = artifact.reader()?;
         file.seek(SeekFrom::Start(offset))
             .map_err(WorkspaceFileError::SnapshotUnavailable)?;
         let remaining = artifact.descriptor.bytes.saturating_sub(offset);
@@ -209,20 +180,17 @@ impl LocalArtifactService {
                 maximum: MAX_ARTIFACT_PAGE_BYTES,
             });
         }
-        let artifact = self.resolve(reference)?;
+        let artifact = self.store.resolve(reference)?;
         if offset > artifact.descriptor.bytes {
             return Err(WorkspaceFileError::InvalidArtifactOffset {
                 offset,
                 bytes: artifact.descriptor.bytes,
             });
         }
-        let file = artifact
-            .snapshot
-            .reopen()
-            .map_err(WorkspaceFileError::SnapshotUnavailable)?;
+        let file = artifact.reader()?;
         let frame = frame_json_array_page(file, offset, maximum, maximum_encoded_records)?;
 
-        let range = read_exact_range(&artifact.snapshot, offset, frame.next_offset)?;
+        let range = read_exact_range(&artifact, offset, frame.next_offset)?;
         Ok(ArtifactRecordPage {
             artifact: artifact.descriptor.clone(),
             offset,
@@ -233,28 +201,14 @@ impl LocalArtifactService {
             records: frame.records,
         })
     }
-
-    fn resolve(&self, reference: &str) -> Result<Arc<StoredArtifact>, WorkspaceFileError> {
-        if !reference.starts_with("runx:local-artifact:sha256:") {
-            return Err(WorkspaceFileError::InvalidArtifactReference);
-        }
-        self.inner
-            .lock()
-            .map_err(|_| WorkspaceFileError::ArtifactStoreUnavailable)?
-            .get(reference)
-            .cloned()
-            .ok_or(WorkspaceFileError::UnknownArtifactReference)
-    }
 }
 
 fn read_exact_range(
-    snapshot: &tempfile::NamedTempFile,
+    artifact: &StoredArtifact,
     offset: u64,
     end: u64,
 ) -> Result<Vec<u8>, WorkspaceFileError> {
-    let mut file = snapshot
-        .reopen()
-        .map_err(WorkspaceFileError::SnapshotUnavailable)?;
+    let mut file = artifact.reader()?;
     file.seek(SeekFrom::Start(offset))
         .map_err(WorkspaceFileError::SnapshotUnavailable)?;
     let length = usize::try_from(end.saturating_sub(offset)).map_err(|_| {
@@ -269,36 +223,16 @@ fn read_exact_range(
     Ok(bytes)
 }
 
-fn artifact_reference(
-    namespace: &[u8; 32],
-    media_type: &str,
-    bytes: u64,
-    whole_digest: &str,
-) -> String {
-    let mut identity = namespace.to_vec();
-    identity.extend_from_slice(format!("\0{media_type}\0{bytes}\0{whole_digest}").as_bytes());
-    format!(
-        "runx:local-artifact:{}",
-        runx_contracts::sha256_prefixed(&identity)
-    )
-}
-
-fn artifact_namespace() -> [u8; 32] {
-    let mut namespace = [0_u8; 32];
-    if SystemRandom::new().fill(&mut namespace).is_ok() {
-        return namespace;
-    }
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static FALLBACK_SEQUENCE: AtomicU64 = AtomicU64::new(1);
-    let fallback = format!(
-        "{}:{}:{:?}",
-        std::process::id(),
-        FALLBACK_SEQUENCE.fetch_add(1, Ordering::Relaxed),
-        std::time::SystemTime::now()
-    );
-    namespace.copy_from_slice(&Sha256::digest(fallback.as_bytes()));
-    namespace
-}
-
 #[cfg(test)]
 mod tests;
+
+impl From<LocalArtifact> for runx_contracts::LocalArtifact {
+    fn from(value: LocalArtifact) -> Self {
+        Self {
+            artifact_uri: value.reference,
+            media_type: value.media_type,
+            bytes: value.bytes,
+            whole_digest: value.whole_digest,
+        }
+    }
+}

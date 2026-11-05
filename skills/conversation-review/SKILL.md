@@ -35,7 +35,10 @@ The result binds the exact source reference, digest, and thread locator. It
 reports `reply`, `follow_up`, `coding`, `no_action`, or `needs_context`. For a
 reply it includes the exact draft text; for coding it includes the quoted
 request; for a follow-up it includes a concrete, unscheduled task proposal.
-A held result explains the missing evidence. A sealed review proves only the
+Inspection exposes the exact review input and agent result shapes. Empty or null
+message/quote fields are unused for that decision kind; a reply still needs
+real draft text, coding needs a verbatim request, and a follow-up needs its
+concrete task. A held result explains the missing evidence. A sealed review proves only the
 decision, not a downstream action.
 
 ## Procedure

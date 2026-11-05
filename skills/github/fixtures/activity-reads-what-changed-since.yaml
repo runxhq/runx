@@ -21,7 +21,7 @@ caller:
         status: 200
         headers: { content-type: application/json }
         body: '{"id": 7, "login": "operator"}'
-    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/issues?page=1&per_page=100&since=2026-10-19T21%3A00%3A00Z&state=all", body: none }
+    - request: { method: GET, url: "https://api.github.com/repos/runxhq/runx/issues?direction=desc&page=1&per_page=100&since=2026-10-19T21%3A00%3A00Z&sort=updated&state=all", body: none }
       response:
         status: 200
         headers: { content-type: application/json }

@@ -95,7 +95,7 @@ pub struct ConnectorBinding {
     pub manifest_digest: Digest,
     pub connector_digest: Digest,
 }
-pub use template::{Template, TemplateError, TemplateInputs};
+pub use template::{Template, TemplateError, TemplateInputs, decimal_units};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum ConnectorSchema {
@@ -610,6 +610,27 @@ pub struct ConnectorOperation {
 }
 
 impl ConnectorOperation {
+    /// The connector declares metered usage without a monetary quote.
+    #[must_use]
+    pub fn is_unpriced_metered(&self) -> bool {
+        self.cost
+            .as_ref()
+            .is_some_and(|cost| cost.usd_micro.is_none())
+    }
+
+    /// The connector declares a provider charge, with or without a USD quote.
+    /// A charge can land when its answer never arrives, so neither read access
+    /// nor state idempotency makes a metered call safe to send again. A zero
+    /// quote declares no charge. An operation with no declaration has no known
+    /// charge: it recovers as its verb and guarantees say, and only a money
+    /// limit refuses it, for want of a quote.
+    #[must_use]
+    pub fn is_metered(&self) -> bool {
+        self.cost
+            .as_ref()
+            .is_some_and(|cost| cost.usd_micro != Some(0))
+    }
+
     #[must_use]
     pub fn access(&self) -> OperationAccess {
         self.verb.access()
@@ -783,7 +804,8 @@ pub enum ProviderIdempotency {
     /// Only runx's own records prevent repeats.
     #[default]
     None,
-    /// The provider deduplicates by the idempotency key.
+    /// The provider deduplicates the whole call, including billed usage,
+    /// by the idempotency key that its implementation sends.
     Enforced,
     /// The operation sets a state, so sending it again changes nothing.
     Inherent,
@@ -1128,12 +1150,22 @@ impl HttpRequest {
 /// page names until a page names none, a page holds no items, or the items
 /// gathered reach `limit`. The pages decode to `{items, next}`: every page's
 /// items in order, and the cursor a further read would start from, or null
-/// once the read reached the end.
+/// once the read reached the end. Repeated requests additionally return
+/// `started` and `complete` for each item: an exhausted shared budget can leave
+/// later items unstarted, which must never be interpreted as no matches.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HttpPages {
-    /// The query parameter that carries the cursor.
+    /// Query parameter name, or an object-member JSON pointer when `in` is body.
     pub param: NonEmptyString,
+    /// Cursor placement; omitted query placement preserves existing manifest
+    /// bytes and operation digests. Body placement retains the cursor's JSON type.
+    #[serde(
+        rename = "in",
+        default,
+        skip_serializing_if = "crate::schema::is_default"
+    )]
+    pub location: HttpPageCursorLocation,
     /// Where a decoded page names the next cursor.
     pub cursor: NonEmptyString,
     /// Where a decoded page holds its items.
@@ -1142,6 +1174,16 @@ pub struct HttpPages {
     /// argument the call does not carry, every page is read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<Template>,
+}
+
+/// The request location of a provider's page cursor. Body cursors retain the
+/// provider's scalar JSON type; query cursors are serialized as URL parameters.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpPageCursorLocation {
+    #[default]
+    Query,
+    Body,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]

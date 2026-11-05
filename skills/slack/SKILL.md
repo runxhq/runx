@@ -21,9 +21,14 @@ operator skill.
 ## Runners
 
 `search` reads one bounded Slack search page. Supply a `query` object with at
-least one of `author_external_id`, `mentions_connected_subject`, or `keywords`.
+least one of `channel_id`, `author_external_id`, `mentions_external_id`,
+`mentions_connected_subject`, or `keywords`. For Slack search syntax, use the
+explicit `expression` field instead of those structured selectors.
 The exact fields are:
 
+- `channel_id`: one exact channel ID from a locator or provider result, such as
+  `C123ABC`; a display name is not an identity
+- `mentions_external_id`: one exact member ID whose mentions you want to find
 - `author_external_id`: one Slack member id string, such as `U123ABC`
 - `mentions_connected_subject`: a boolean selecting messages that mention the
   member bound to the selected provider account
@@ -33,18 +38,27 @@ The exact fields are:
   `before`
 - `channel_types`: a non-empty array drawn from `public_channel`,
   `private_channel`, `mpim`, and `im`
+- `expression`: an advanced Slack search expression; it cannot be mixed with
+  channel, author, mention or keyword selectors. Time, channel types, page limit
+  and cursor remain explicit outer controls
+- `include_bots`: include app and bot signals (true by default for direct search);
+  actor type is carried into the result rather than misrepresented as a human
 - `limit`: an integer from 1 through 20
 - `cursor`: the opaque `next_cursor` from the preceding page
 
 The provider rejects embedded Slack modifiers in `keywords`, enforces the
 maximum page, and returns normalized locators and bounded previews rather than
 a raw Slack response. Continue only from `next_cursor`; one page is never proof
-that a workspace scan is complete.
+that a workspace scan is complete. Preserve all selectors, time bounds and bot
+policy while continuing a cursor. Search syntax is available deliberately through
+`expression`; it never grants more authority than the selected read binding.
+Resolve display names from existing source or a separate directory capability;
+never invent a member/channel ID or silently choose between namesakes. A channel
+selector alone can read recent matching messages, so unrelated keywords are not
+required just to select a channel.
 
 `read_thread` reads one bounded thread page from an exact
-`slack://workspace/channel/timestamp` locator. The limit is capped at 15 because
-Slack applies a low limit and, for some non-Marketplace installations, a very
-low request cadence to `conversations.replies`. Hydrate only threads that are
+`slack://workspace/channel/timestamp` locator. The default page budget is 15. Select up to 1,000 when the installation supports it; Slack can return fewer messages and impose installation-specific page and rate limits. Hydrate only threads that are
 actually needed, preserve `next_cursor`, and do not fan out speculative reads.
 Thread messages include bounded attachment metadata and opaque
 `slack-file://workspace/file` locators; private Slack download URLs never cross
@@ -91,7 +105,7 @@ timestamps, and a content digest; they do not echo the delivered message.
 - Refuse a missing, ambiguous, revoked, wrong-provider, or insufficient-scope
   Slack binding. Never fall back to a token, webhook, browser, or
   provider-specific script.
-- Stop when a search has no structural selector, uses an unsupported modifier,
+- Stop when a search has no selector, mixes advanced and structured modes,
   or asks for more than one bounded page per turn.
 - Stop when an attachment is not an image, exceeds 5 MiB, belongs to another
   workspace, or resolves outside Slack's governed private-file origin.
@@ -112,7 +126,10 @@ message locator before Runx seals the effect.
 
 ## Operator conversation handoff
 
-`assistant_scan` returns one bounded search page and its continuation cursor;
+`assistant_scan` returns one bounded search page and its continuation cursor.
+Its source policy excludes bots by default to avoid feedback from app messages;
+set `config.query.include_bots` explicitly when that source should include them.
+This is independent of the direct search default.
 `assistant_observe` binds each message to its source identity. Hydration checks
 that identity against the canonical open action before reading the thread.
 The resulting `runx.source_packet.v1` supplies `workflow_inputs.thread` with

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { activityWindow, digestActivity } from "./github.mjs";
+import { activityWindow, digestActivity, planRead } from "./github.mjs";
 
 const SINCE = "2026-10-19T21:00:00Z";
 
@@ -10,7 +10,11 @@ function issue(number, fields = {}) {
     number,
     title: `Item ${number}`,
     state: "open",
-    user: { login: "ada", type: "User", avatar_url: "https://avatars.example/ada" },
+    user: {
+      login: "ada",
+      type: "User",
+      avatar_url: "https://avatars.example/ada",
+    },
     created_at: "2026-10-19T22:00:00Z",
     updated_at: "2026-10-19T22:00:00Z",
     closed_at: null,
@@ -26,24 +30,38 @@ function issue(number, fields = {}) {
 
 const digest = (issues, page) =>
   digestActivity({
-    read_input: activityWindow({ repo: "runxhq/runx", since: SINCE, page }).read_input,
+    read_input: activityWindow({ repo: "runxhq/runx", since: SINCE, page })
+      .read_input,
     provider_operation: { result: { issues } },
   }).activity;
 
 test("reads one full page of everything updated since, open or closed", () => {
-  assert.deepEqual(activityWindow({ repo: "runxhq/runx", since: SINCE }).read_input, {
-    repository: "runxhq/runx",
-    since: SINCE,
-    state: "all",
-    per_page: 100,
-    page: 1,
-  });
-  assert.equal(activityWindow({ repo: "runxhq/runx", since: SINCE, page: 3 }).read_input.page, 3);
+  assert.deepEqual(
+    activityWindow({ repo: "runxhq/runx", since: SINCE }).read_input,
+    {
+      repository: "runxhq/runx",
+      since: SINCE,
+      state: "all",
+      per_page: 100,
+      page: 1,
+      sort: "updated",
+      direction: "desc",
+    },
+  );
+  assert.equal(
+    activityWindow({ repo: "runxhq/runx", since: SINCE, page: 3 }).read_input
+      .page,
+    3,
+  );
 });
 
 test("keeps what a reader needs, newest change first, and leaves GitHub's whole record behind", () => {
   const activity = digest([
-    issue(7, { created_at: "2026-10-18T09:00:00Z", updated_at: "2026-10-19T23:00:00Z", comments: 2 }),
+    issue(7, {
+      created_at: "2026-10-18T09:00:00Z",
+      updated_at: "2026-10-19T23:00:00Z",
+      comments: 2,
+    }),
     issue(9, {
       pull_request: { merged_at: "2026-10-20T01:00:00Z" },
       state: "closed",
@@ -55,20 +73,47 @@ test("keeps what a reader needs, newest change first, and leaves GitHub's whole 
   assert.equal(activity.repository, "runxhq/runx");
   assert.equal(activity.next_page, undefined);
   assert.deepEqual(
-    activity.items.map(({ number, kind, state, new: opened, author, bot }) => ({ number, kind, state, opened, author, bot })),
+    activity.items.map(({ number, kind, state, new: opened, author, bot }) => ({
+      number,
+      kind,
+      state,
+      opened,
+      author,
+      bot,
+    })),
     [
-      { number: 9, kind: "pull_request", state: "merged", opened: true, author: "dependabot[bot]", bot: true },
-      { number: 7, kind: "issue", state: "open", opened: false, author: "ada", bot: false },
+      {
+        number: 9,
+        kind: "pull_request",
+        state: "merged",
+        opened: true,
+        author: "dependabot[bot]",
+        bot: true,
+      },
+      {
+        number: 7,
+        kind: "issue",
+        state: "open",
+        opened: false,
+        author: "ada",
+        bot: false,
+      },
     ],
   );
   assert.deepEqual(activity.items[1].labels, ["bug"]);
   assert.equal(activity.items[1].comments, 2);
-  assert.equal(activity.items[1].url, "https://github.com/runxhq/runx/issues/7");
+  assert.equal(
+    activity.items[1].url,
+    "https://github.com/runxhq/runx/issues/7",
+  );
   assert.equal("repository_url" in activity.items[1], false);
 });
 
 test("keeps a body's first 600 characters and says how many it left out", () => {
-  const [long, short] = digest([issue(1, { body: "x".repeat(650) }), issue(2, { body: null })]).items;
+  const [long, short] = digest([
+    issue(1, { body: "x".repeat(650) }),
+    issue(2, { body: null }),
+  ]).items;
   assert.equal(long.body.length, 600);
   assert.equal(long.body_left_out, 50);
   assert.equal(short.body, "");
@@ -80,4 +125,42 @@ test("names the next page only when GitHub filled this one", () => {
   assert.equal(digest(full, 2).next_page, 3);
   assert.equal(digest(full.slice(1), 2).next_page, undefined);
   assert.deepEqual(digest([]).items, []);
+});
+
+test("the common reader selects the same exact typed operations without direction or scope", () => {
+  assert.deepEqual(
+    planRead({ repo: "runxhq/runx", number: 241 }).sync_plan.provider_input,
+    { repository: "runxhq/runx", numbers: [241] },
+  );
+  assert.equal(
+    planRead({ repo: "runxhq/runx", kind: "pull_requests", number: 554 })
+      .sync_plan.provider_operation,
+    "pullrequests.read",
+  );
+  assert.deepEqual(
+    planRead({
+      repo: "runxhq/runx",
+      kind: "comments",
+      number: 241,
+      page: 2,
+      limit: 100,
+    }).sync_plan.provider_input,
+    { repository: "runxhq/runx", number: 241, per_page: 100, page: 2 },
+  );
+});
+
+test("comments need a target, filters stay honest, and page cursors never round", () => {
+  assert.equal(
+    planRead({ repo: "runxhq/runx", kind: "comments" }).sync_plan.decision,
+    "blocked",
+  );
+  assert.equal(
+    planRead({ repo: "runxhq/runx", kind: "pull_requests", labels: ["bug"] })
+      .sync_plan.decision,
+    "blocked",
+  );
+  assert.throws(
+    () => planRead({ repo: "runxhq/runx", page: 9007199254740992 }),
+    /portable integer/,
+  );
 });

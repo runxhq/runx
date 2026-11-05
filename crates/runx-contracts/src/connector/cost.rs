@@ -6,14 +6,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::{NonEmptyString, RunxSchema};
 
-/// A provider's charge for one call. Absent, no per-call charge is known and
-/// the call counts nothing against a money limit; `usd_micro: 0` is an
-/// explicit free. It is part of the operation digest: a price or basis change
-/// is a changed operation, confirmed again before it runs.
+/// A provider's charge for one call. A missing USD quote is metered usage
+/// whose monetary price is unknown; `usd_micro: 0` explicitly declares free.
+/// No declaration at all means no charge is known, which is not a quote of
+/// zero: a money limit admits only a known quote. The quote and basis are
+/// authority-bound.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OperationCost {
-    pub usd_micro: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usd_micro: Option<u64>,
     pub per: CostBasis,
     /// Where the price was read.
     pub source: CostSource,
@@ -67,7 +69,8 @@ pub enum CostPayer {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CallCost {
-    pub quoted_usd_micro: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quoted_usd_micro: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub settled_usd_micro: Option<u64>,
     pub payer: CostPayer,

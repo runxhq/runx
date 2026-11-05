@@ -1,5 +1,5 @@
 skill: team-delegate
-version: "0.1.16"
+version: "0.1.17"
 catalog:
   kind: graph
   audience: operator
@@ -23,19 +23,19 @@ runners:
       roster:
         type: array
         required: true
-        description: Operator-selected members and exact skill/runner targets. Scope ceilings are planning
-          limits, never grants.
+        description: Operator-selected members and exact skill/runner targets. Scope
+          ceilings are planning limits, never grants.
         schema:
           minItems: 1
           maxItems: 20
           items:
             type: object
             required:
-            - member
-            - skill
-            - runner
-            - scope_ceiling
-            - capabilities
+              - member
+              - skill
+              - runner
+              - scope_ceiling
+              - capabilities
             additionalProperties: false
             properties:
               member:
@@ -64,14 +64,15 @@ runners:
       evidence:
         type: array
         required: true
-        description: Already-collected source context to carry into each relevant assignment.
+        description: Already-collected source context to carry into each relevant
+          assignment.
         schema:
           maxItems: 100
           items:
             type: object
             required:
-            - source_id
-            - text
+              - source_id
+              - text
             additionalProperties: false
             properties:
               source_id:
@@ -85,329 +86,411 @@ runners:
       constraints:
         type: string
         required: false
-        default: ''
+        default: ""
         description: Time, cost, sequencing and handoff constraints; no implicit approval.
     result_from:
-    - finalize
+      - finalize
+    examples:
+      - objective: Triage this week's export failures and prepare a customer reply.
+        roster:
+        - member: support-agent
+          skill: support-triage
+          runner: triage
+          scope_ceiling:
+          - read customer tickets
+          capabilities: Reads support tickets and drafts unsent replies.
+        evidence:
+        - source_id: helpdesk:ticket-5512
+          text: Our nightly export has timed out three times this week.
     steps:
-    - id: input-digest
-      tool: data.digest
-      inputs:
-        value:
+      - id: input-digest
+        tool: data.digest
+        inputs:
+          value:
+            objective: $input.objective
+            roster: $input.roster
+            evidence: $input.evidence
+            constraints: $input.constraints
+      - id: plan
+        agent:
+          role: coordinator
+          task: team-delegate
+        inputs:
           objective: $input.objective
           roster: $input.roster
           evidence: $input.evidence
           constraints: $input.constraints
-    - id: plan
-      agent:
-        role: coordinator
-        task: team-delegate
-      inputs:
-        objective: $input.objective
-        roster: $input.roster
-        evidence: $input.evidence
-        constraints: $input.constraints
-      outputs:
-        draft:
-          type: object
-          schema:
-            required:
-            - decision
-            - rationale
-            - assignments
-            - missing_context
-            additionalProperties: false
-            properties:
-              decision:
-                enum:
-                - propose
-                - needs_input
-              rationale:
-                type: string
-                minLength: 1
-                maxLength: 5000
-              assignments:
-                type: array
-                maxItems: 20
-                items:
-                  type: object
-                  required:
-                  - member
-                  - task
-                  - input_context
-                  - source_ids
-                  - needed_scope
-                  - acceptance
-                  - verification
-                  additionalProperties: false
-                  properties:
-                    member:
-                      type: string
-                      minLength: 1
-                      maxLength: 200
-                    task:
-                      type: string
-                      minLength: 1
-                      maxLength: 10000
-                    input_context:
-                      type: object
-                      additionalProperties: true
-                    source_ids:
-                      type: array
-                      maxItems: 50
-                      items:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
-                    needed_scope:
-                      type: array
-                      maxItems: 100
-                      items:
-                        type: string
-                        minLength: 1
-                        maxLength: 500
-                    acceptance:
-                      type: array
-                      maxItems: 30
-                      items:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
-                    verification:
-                      type: string
-                      minLength: 1
-                      maxLength: 5000
-              missing_context:
-                type: array
-                maxItems: 30
-                items:
+        outputs:
+          draft:
+            type: object
+            schema:
+              required:
+                - decision
+                - rationale
+                - assignments
+                - missing_context
+              additionalProperties: false
+              properties:
+                decision:
+                  enum:
+                    - propose
+                    - needs_input
+                rationale:
                   type: string
                   minLength: 1
-                  maxLength: 2000
-    - id: finalize
-      tool:
-        module: team-delegate.mjs
-      inputs:
-        objective: $input.objective
-        roster: $input.roster
-        evidence: $input.evidence
-        constraints: $input.constraints
-        draft: $steps.plan.draft
-        input_digest: $steps.input-digest.digest_result.digest
-      outputs:
-        delegation_packet:
-          type: object
-      artifacts:
-        named_emits:
-          delegation_packet: delegation_packet
-        packets:
-          delegation_packet: runx/team-delegate.delegation.v1
+                  maxLength: 5000
+                assignments:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required:
+                      - member
+                      - task
+                      - input_context
+                      - source_ids
+                      - needed_scope
+                      - acceptance
+                      - verification
+                    additionalProperties: false
+                    properties:
+                      member:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      task:
+                        type: string
+                        minLength: 1
+                        maxLength: 10000
+                      input_context:
+                        type: object
+                        additionalProperties: true
+                      source_ids:
+                        type: array
+                        maxItems: 50
+                        items:
+                          type: string
+                          minLength: 1
+                          maxLength: 2000
+                      needed_scope:
+                        type: array
+                        maxItems: 100
+                        items:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                      acceptance:
+                        type: array
+                        maxItems: 30
+                        items:
+                          type: string
+                          minLength: 1
+                          maxLength: 2000
+                        minItems: 1
+                      verification:
+                        type: string
+                        minLength: 1
+                        maxLength: 5000
+                missing_context:
+                  type: array
+                  maxItems: 30
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 2000
+      - id: finalize
+        tool:
+          module: team-delegate.mjs
+        inputs:
+          objective: $input.objective
+          roster: $input.roster
+          evidence: $input.evidence
+          constraints: $input.constraints
+          draft: $steps.plan.draft
+          input_digest: $steps.input-digest.digest_result.digest
+        outputs:
+          delegation_packet:
+            type: object
+        artifacts:
+          named_emits:
+            delegation_packet: delegation_packet
+          packets:
+            delegation_packet: runx/team-delegate.delegation.v1
 harness:
   files:
-  - fixtures/support/composed.graph
+    - fixtures/support/composed.graph
   cases:
-  - name: proposes-bounded-member-with-source-context
-    inputs:
-      objective: Prepare a grounded documentation update.
-      roster:
-      - member: researcher
-        skill: runx/research
-        runner: analyze
-        scope_ceiling: []
-        capabilities: Review already collected sources and find contradictions.
-      - member: writer
-        skill: runx/ghostwrite
-        runner: draft
-        scope_ceiling: []
-        capabilities: Draft grounded copy from admitted evidence.
-      evidence:
-      - source_id: issue:docs-drift
-        text: The setup guide omits the new explicit connection selection.
-    operator_journeys:
-    - mode: standalone
-      confusors:
-      - operations-review
-      - code-plan
-      request: Divide this bounded documentation task between the supplied researcher and writer.
-      expected_outcome: Return roster-bound assignments with exact targets, input context and acceptance
-        checks; do not start a standing case or claim execution.
-    - mode: composed
-      request: Prepare assignments from this existing documentation-drift evidence and selected roster.
-      expected_outcome: Reuse the supplied evidence and member selection without rereading the source
-        or creating a second work queue.
-      prior_evidence:
-      - The supplied documentation drift and fixed researcher/writer roster.
-      must_not_repeat:
-      - Do not rediscover the drift or execute a member already completed by the caller.
-    caller:
-      answers:
-        plan:
-          draft:
-            decision: propose
-            rationale: Research the documented change before drafting.
-            assignments:
-            - member: researcher
-              task: Identify the setup instructions affected by connection selection.
-              input_context:
-                question: Which instructions require updating?
-                source_material:
-                - source_id: issue:docs-drift
-                  text: The setup guide omits the new explicit connection selection.
-              source_ids:
-              - issue:docs-drift
-              needed_scope: []
-              acceptance:
-              - Name affected instructions and unresolved questions.
-              verification: Review the source references in the child receipt and returned analysis.
-            missing_context: []
-    expect:
-      status: sealed
-      step_outputs:
-        finalize:
-          subset:
-            delegation_packet:
-              data:
-                decision: proposed
-                execution_status: not_started
-  - name: rejects-invented-member
-    inputs:
-      objective: Prepare a grounded documentation update.
-      roster:
-      - member: researcher
-        skill: runx/research
-        runner: analyze
-        scope_ceiling: []
-        capabilities: Review already collected sources and find contradictions.
-      - member: writer
-        skill: runx/ghostwrite
-        runner: draft
-        scope_ceiling: []
-        capabilities: Draft grounded copy from admitted evidence.
-      evidence:
-      - source_id: issue:docs-drift
-        text: The setup guide omits the new explicit connection selection.
-    caller:
-      answers:
-        plan:
-          draft:
-            decision: propose
-            rationale: Research the documented change before drafting.
-            assignments:
-            - member: invented
-              task: Identify the setup instructions affected by connection selection.
-              input_context:
-                question: Which instructions require updating?
-                source_material:
-                - source_id: issue:docs-drift
-                  text: The setup guide omits the new explicit connection selection.
-              source_ids:
-              - issue:docs-drift
-              needed_scope: []
-              acceptance:
-              - Name affected instructions and unresolved questions.
-              verification: Review the source references in the child receipt and returned analysis.
-            missing_context: []
-    expect:
-      status: sealed
-      step_outputs:
-        finalize:
-          subset:
-            delegation_packet:
-              data:
-                decision: held
-                execution_status: not_started
-  - name: rejects-scope-widening
-    inputs:
-      objective: Prepare a grounded documentation update.
-      roster:
-      - member: researcher
-        skill: runx/research
-        runner: analyze
-        scope_ceiling: []
-        capabilities: Review already collected sources and find contradictions.
-      - member: writer
-        skill: runx/ghostwrite
-        runner: draft
-        scope_ceiling: []
-        capabilities: Draft grounded copy from admitted evidence.
-      evidence:
-      - source_id: issue:docs-drift
-        text: The setup guide omits the new explicit connection selection.
-    caller:
-      answers:
-        plan:
-          draft:
-            decision: propose
-            rationale: Research the documented change before drafting.
-            assignments:
-            - member: researcher
-              task: Identify the setup instructions affected by connection selection.
-              input_context:
-                question: Which instructions require updating?
-                source_material:
-                - source_id: issue:docs-drift
-                  text: The setup guide omits the new explicit connection selection.
-              source_ids:
-              - issue:docs-drift
-              needed_scope:
-              - provider:write
-              acceptance:
-              - Name affected instructions and unresolved questions.
-              verification: Review the source references in the child receipt and returned analysis.
-            missing_context: []
-    expect:
-      status: sealed
-      step_outputs:
-        finalize:
-          subset:
-            delegation_packet:
-              data:
-                decision: held
-                execution_status: not_started
-  - name: rejects-invented-context-source
-    inputs:
-      objective: Prepare a grounded documentation update.
-      roster:
-      - member: researcher
-        skill: runx/research
-        runner: analyze
-        scope_ceiling: []
-        capabilities: Review already collected sources and find contradictions.
-      - member: writer
-        skill: runx/ghostwrite
-        runner: draft
-        scope_ceiling: []
-        capabilities: Draft grounded copy from admitted evidence.
-      evidence:
-      - source_id: issue:docs-drift
-        text: The setup guide omits the new explicit connection selection.
-    caller:
-      answers:
-        plan:
-          draft:
-            decision: propose
-            rationale: Research the documented change before drafting.
-            assignments:
-            - member: researcher
-              task: Identify the setup instructions affected by connection selection.
-              input_context:
-                question: Which instructions require updating?
-                source_material:
-                - source_id: issue:docs-drift
-                  text: The setup guide omits the new explicit connection selection.
-              source_ids:
-              - not-supplied
-              needed_scope: []
-              acceptance:
-              - Name affected instructions and unresolved questions.
-              verification: Review the source references in the child receipt and returned analysis.
-            missing_context: []
-    expect:
-      status: sealed
-      step_outputs:
-        finalize:
-          subset:
-            delegation_packet:
-              data:
-                decision: held
-                execution_status: not_started
+    - name: proposes-bounded-member-with-source-context
+      inputs:
+        objective: Review the reported setup-guide drift before preparing a
+          documentation draft.
+        roster:
+          - member: researcher
+            skill: runx/prior-art
+            runner: prior-art-agent
+            scope_ceiling:
+              - fs.read
+            capabilities: Inspect the operator-selected local source paths and return cited
+              findings or missing evidence. No code edits or provider calls.
+          - member: writer
+            skill: runx/ghostwrite
+            runner: draft
+            scope_ceiling: []
+            capabilities: Draft only from actual review findings when those are available.
+        evidence:
+          - source_id: issue:docs-drift
+            text: The operator reports possible setup-guide drift and selects README.md for
+              inspection. Treat the report as a claim; verify the document
+              before asserting an omission.
+      operator_journeys:
+        - mode: standalone
+          confusors:
+            - operations-review
+            - code-plan
+          request: Divide this bounded documentation task between the supplied researcher
+            and writer.
+          expected_outcome: Return roster-bound assignments with exact targets, input
+            context and acceptance checks; do not start a standing case or claim
+            execution.
+        - mode: composed
+          request: Prepare assignments from this existing documentation-drift evidence and
+            selected roster.
+          expected_outcome: Reuse the supplied evidence and member selection without
+            rereading the source or creating a second work queue.
+          prior_evidence:
+            - The supplied documentation drift and fixed researcher/writer
+              roster.
+          must_not_repeat:
+            - Do not rediscover the drift or execute a member already completed
+              by the caller.
+      caller:
+        answers:
+          plan:
+            draft:
+              decision: propose
+              rationale: The source review is ready; documentation writing waits for its
+                actual findings.
+              assignments:
+                - member: researcher
+                  task: Inspect README.md against the supplied report about explicit connection
+                    selection. Return source-bound findings or identify missing
+                    evidence; do not edit documentation.
+                  input_context:
+                    objective: Inspect README.md against the supplied report about explicit
+                      connection selection. Return source-bound findings or
+                      identify missing evidence; do not edit documentation.
+                    repo_root: .
+                    source_paths:
+                      - README.md
+                    graph_purpose: Documentation source review
+                    audience: Local operator
+                  source_ids:
+                    - issue:docs-drift
+                  needed_scope: []
+                  acceptance:
+                    - Return findings cited to the selected document, or
+                      identify missing source evidence.
+                    - Do not edit the document or claim the writer has run.
+                  verification: Check the receiver receipt and source-bound review; keep
+                    unavailable evidence explicit.
+              missing_context:
+                - The writer needs the source-review findings before drafting.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              delegation_packet:
+                data:
+                  decision: proposed
+                  execution_status: not_started
+    - name: rejects-invented-member
+      inputs:
+        objective: Review the reported setup-guide drift before preparing a
+          documentation draft.
+        roster:
+          - member: researcher
+            skill: runx/prior-art
+            runner: prior-art-agent
+            scope_ceiling:
+              - fs.read
+            capabilities: Inspect the operator-selected local source paths and return cited
+              findings or missing evidence. No code edits or provider calls.
+          - member: writer
+            skill: runx/ghostwrite
+            runner: draft
+            scope_ceiling: []
+            capabilities: Draft only from actual review findings when those are available.
+        evidence:
+          - source_id: issue:docs-drift
+            text: The operator reports possible setup-guide drift and selects README.md for
+              inspection. Treat the report as a claim; verify the document
+              before asserting an omission.
+      caller:
+        answers:
+          plan:
+            draft:
+              decision: propose
+              rationale: The source review is ready; documentation writing waits for its
+                actual findings.
+              assignments:
+                - member: invented
+                  task: Inspect README.md against the supplied report about explicit connection
+                    selection. Return source-bound findings or identify missing
+                    evidence; do not edit documentation.
+                  input_context:
+                    objective: Inspect README.md against the supplied report about explicit
+                      connection selection. Return source-bound findings or
+                      identify missing evidence; do not edit documentation.
+                    repo_root: .
+                    source_paths:
+                      - README.md
+                    graph_purpose: Documentation source review
+                    audience: Local operator
+                  source_ids:
+                    - issue:docs-drift
+                  needed_scope: []
+                  acceptance:
+                    - Return findings cited to the selected document, or
+                      identify missing source evidence.
+                    - Do not edit the document or claim the writer has run.
+                  verification: Check the receiver receipt and source-bound review; keep
+                    unavailable evidence explicit.
+              missing_context:
+                - The writer needs the source-review findings before drafting.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              delegation_packet:
+                data:
+                  decision: held
+                  execution_status: not_started
+    - name: rejects-scope-widening
+      inputs:
+        objective: Review the reported setup-guide drift before preparing a
+          documentation draft.
+        roster:
+          - member: researcher
+            skill: runx/prior-art
+            runner: prior-art-agent
+            scope_ceiling:
+              - fs.read
+            capabilities: Inspect the operator-selected local source paths and return cited
+              findings or missing evidence. No code edits or provider calls.
+          - member: writer
+            skill: runx/ghostwrite
+            runner: draft
+            scope_ceiling: []
+            capabilities: Draft only from actual review findings when those are available.
+        evidence:
+          - source_id: issue:docs-drift
+            text: The operator reports possible setup-guide drift and selects README.md for
+              inspection. Treat the report as a claim; verify the document
+              before asserting an omission.
+      caller:
+        answers:
+          plan:
+            draft:
+              decision: propose
+              rationale: The source review is ready; documentation writing waits for its
+                actual findings.
+              assignments:
+                - member: researcher
+                  task: Inspect README.md against the supplied report about explicit connection
+                    selection. Return source-bound findings or identify missing
+                    evidence; do not edit documentation.
+                  input_context:
+                    objective: Inspect README.md against the supplied report about explicit
+                      connection selection. Return source-bound findings or
+                      identify missing evidence; do not edit documentation.
+                    repo_root: .
+                    source_paths:
+                      - README.md
+                    graph_purpose: Documentation source review
+                    audience: Local operator
+                  source_ids:
+                    - issue:docs-drift
+                  needed_scope:
+                    - provider:write
+                  acceptance:
+                    - Return findings cited to the selected document, or
+                      identify missing source evidence.
+                    - Do not edit the document or claim the writer has run.
+                  verification: Check the receiver receipt and source-bound review; keep
+                    unavailable evidence explicit.
+              missing_context:
+                - The writer needs the source-review findings before drafting.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              delegation_packet:
+                data:
+                  decision: held
+                  execution_status: not_started
+    - name: rejects-invented-context-source
+      inputs:
+        objective: Review the reported setup-guide drift before preparing a
+          documentation draft.
+        roster:
+          - member: researcher
+            skill: runx/prior-art
+            runner: prior-art-agent
+            scope_ceiling:
+              - fs.read
+            capabilities: Inspect the operator-selected local source paths and return cited
+              findings or missing evidence. No code edits or provider calls.
+          - member: writer
+            skill: runx/ghostwrite
+            runner: draft
+            scope_ceiling: []
+            capabilities: Draft only from actual review findings when those are available.
+        evidence:
+          - source_id: issue:docs-drift
+            text: The operator reports possible setup-guide drift and selects README.md for
+              inspection. Treat the report as a claim; verify the document
+              before asserting an omission.
+      caller:
+        answers:
+          plan:
+            draft:
+              decision: propose
+              rationale: The source review is ready; documentation writing waits for its
+                actual findings.
+              assignments:
+                - member: researcher
+                  task: Inspect README.md against the supplied report about explicit connection
+                    selection. Return source-bound findings or identify missing
+                    evidence; do not edit documentation.
+                  input_context:
+                    objective: Inspect README.md against the supplied report about explicit
+                      connection selection. Return source-bound findings or
+                      identify missing evidence; do not edit documentation.
+                    repo_root: .
+                    source_paths:
+                      - README.md
+                    graph_purpose: Documentation source review
+                    audience: Local operator
+                  source_ids:
+                    - not-supplied
+                  needed_scope: []
+                  acceptance:
+                    - Return findings cited to the selected document, or
+                      identify missing source evidence.
+                    - Do not edit the document or claim the writer has run.
+                  verification: Check the receiver receipt and source-bound review; keep
+                    unavailable evidence explicit.
+              missing_context:
+                - The writer needs the source-review findings before drafting.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              delegation_packet:
+                data:
+                  decision: held
+                  execution_status: not_started

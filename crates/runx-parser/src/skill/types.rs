@@ -36,12 +36,23 @@ pub enum ArtifactPageFraming {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ArtifactPageSource {
-    pub path_from: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub path_scope_from: Option<String>,
-    pub media_type: String,
+    pub source: ArtifactPageInput,
     pub framing: ArtifactPageFraming,
     pub page_bytes: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ArtifactPageInput {
+    Path {
+        path_from: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        path_scope_from: Option<String>,
+        media_type: String,
+    },
+    Artifact {
+        artifact_from: String,
+    },
 }
 
 impl InputMode {

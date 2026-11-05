@@ -1,23 +1,64 @@
 name: google-calendar-composed
 steps:
-  - id: google-calendar
+  - id: first
     skill: ../..
     runner: normalize-supplied
     inputs:
-      kind: events
       calendar_id: primary
-      time_min: "2026-10-04T00:00:00Z"
-      time_max: "2026-10-05T00:00:00Z"
+      time_min: 2026-10-01T00:00:00Z
+      time_max: 2027-01-01T00:00:00Z
+      kind: events
       provider_result:
         calendar_id: primary
-        time_min: "2026-10-04T00:00:00Z"
-        time_max: "2026-10-05T00:00:00Z"
-        fetched_at: "2026-10-04T01:00:00Z"
+        time_min: 2026-10-01T00:00:00Z
+        time_max: 2027-01-01T00:00:00Z
+        fetched_at: 2026-11-04T00:00:00Z
+        page_token: ""
+        next_page_token: next
+        complete: false
+        events:
+          - event_id: e1
+            status: confirmed
+            visibility: default
+            revision: r1
+            summary: Planning
+            all_day: false
+            start: 2026-11-04T01:00:00Z
+            end: 2026-11-04T02:00:00Z
+  - id: tail
+    skill: ../..
+    runner: normalize-supplied
+    inputs:
+      calendar_id: primary
+      time_min: 2026-10-01T00:00:00Z
+      time_max: 2027-01-01T00:00:00Z
+      kind: events
+      page_token: next
+      provider_result:
+        calendar_id: primary
+        time_min: 2026-10-01T00:00:00Z
+        time_max: 2027-01-01T00:00:00Z
+        fetched_at: 2026-11-04T00:00:00Z
+        page_token: next
+        next_page_token: ""
         complete: true
         events:
-          - { event_id: private-1, revision: v1, status: confirmed, visibility: private, summary: hidden, all_day: true, start: "2026-10-04", end: "2026-10-05" }
-          - { event_id: cancelled-1, status: cancelled, recurring_event_id: series-1 }
+          - event_id: e2
+            status: confirmed
+            visibility: default
+            revision: r1
+            summary: Planning
+            all_day: false
+            start: 2026-11-04T01:00:00Z
+            end: 2026-11-04T02:00:00Z
+  - id: combined
+    skill: ../..
+    runner: combine-pages
+    inputs:
+      pages:
+        - $steps.first.calendar_context
+        - $steps.tail.calendar_context
   - id: digest
     tool: data.digest
     inputs:
-      value: $steps.google-calendar
+      value: $steps.combined

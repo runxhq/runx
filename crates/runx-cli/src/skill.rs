@@ -735,8 +735,16 @@ pub(crate) fn readiness_line(readiness: &Readiness) -> String {
         .iter()
         .find(|reason| reason.outcome == CheckOutcome::Fail)
         .map(|reason| reason.detail.as_str());
-    let price = readiness.cost.as_ref().map_or_else(String::new, |cost| {
-        format!(", {} per {}", usd(cost.usd_micro), cost.per.as_str())
+    let price = readiness
+        .cost
+        .as_ref()
+        .map_or_else(String::new, |cost| match cost.usd_micro {
+            Some(quote) => format!(", {} per {}", usd(quote), cost.per.as_str()),
+            None => format!(", metered per {}; USD quote unknown", cost.per.as_str()),
+        });
+    let approval = readiness.reasons.iter().find(|reason| {
+        reason.check == runx_contracts::AdmissionCheck::Approval
+            && reason.outcome == CheckOutcome::Required
     });
     format!(
         "connector: {}/{} ({}{price}{})\n",
@@ -751,7 +759,10 @@ pub(crate) fn readiness_line(readiness: &Readiness) -> String {
             .as_ref()
             .map_or("no instance", |instance| instance.as_str()),
         match (readiness.ready, blocker) {
-            (true, _) => ", ready".to_owned(),
+            (true, _) => approval.map_or_else(
+                || ", ready".to_owned(),
+                |reason| format!(", ready; {}", reason.detail)
+            ),
             (false, Some(detail)) => format!(", {detail}"),
             (false, None) => ", not ready".to_owned(),
         }

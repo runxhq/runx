@@ -1,0 +1,93 @@
+name: optional-check-failure-keeps-review
+kind: skill
+target: ..
+inputs:
+  repository: example/project
+  number: 42
+setup:
+  credentials:
+    - github
+env:
+  GITHUB_TOKEN: harness-github-token
+caller:
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.github.com/repos/example/project/pulls/42
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"number":42,"head":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"base":{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","repo":{"full_name":"example/project"}},"title":"Use
+          account token","body":"Authenticate the request with its account token.","changed_files":1}'
+    - request:
+        method: GET
+        url: https://api.github.com/repos/example/project/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?page=1&per_page=1
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"base_commit":{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"merge_base_commit":{"sha":"dddddddddddddddddddddddddddddddddddddddd"},"files":[{"filename":"src/client.rs","status":"modified","additions":1,"deletions":1,"patch":"@@
+          -12 +12
+          @@\n-request.auth(account.token);\n+request.auth(default_token);","sha":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}],"url":"https://api.github.com/repos/example/project/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    - request:
+        method: GET
+        url: https://api.github.com/repos/example/project/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-runs?filter=latest&page=1&per_page=100
+        body: none
+      response:
+        status: 403
+        headers:
+          content-type: application/json
+        body: '{"message":"Resource not accessible by integration"}'
+  turns:
+    assess#review:
+      calls:
+        - tool: github__checks_list
+          input:
+            input:
+              repository: example/project
+              commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              per_page: 100
+              page: 1
+          expect:
+            subset:
+              outcome:
+                status: failed
+      output:
+        review_draft:
+          summary: Review the account-specific authentication change.
+          findings:
+            - path: src/client.rs
+              side: RIGHT
+              line: 12
+              severity: high
+              title: Use the selected account token
+              trigger: A request is made for a non-default account.
+              impact: The changed line authenticates with default_token rather than the selected account token.
+              suggested_change: Preserve the selected account token at this call.
+          limitations:
+            - The review covers the available patch; surrounding initialization is not supplied.
+            - The exact-head check-run request was refused by GitHub; code review is retained without a
+              complete CI claim.
+expect:
+  status: sealed
+  steps:
+    - capture
+    - select
+    - assess
+  step_outputs:
+    assess:
+      subset:
+        pr_review:
+          data:
+            decision: draft_ready
+            head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            publication_status: not_posted
+            execution_status: not_tested
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: github-pr-review
+  source: skills-fixture

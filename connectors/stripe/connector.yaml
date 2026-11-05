@@ -740,3 +740,513 @@ operations:
           amount_refunded: acknowledgement.amount_refunded
           currency: acknowledgement.currency
           status: acknowledgement.status
+  dispute.read:
+    description: Read one exact dispute on the selected Stripe merchant account, including bank response state,
+      deadline, evidence and submission count. Reading does not file evidence or concede liability.
+    verb: read
+    scopes:
+      - dispute.read
+    credentials:
+      - key
+    target:
+      template:
+        $concat:
+          - stripe://
+          - $argument: /account_id
+          - /disputes/
+          - $argument: /dispute_id
+    input_schema:
+      type: object
+      required:
+        - account_id
+        - dispute_id
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+        dispute_id:
+          type: string
+          pattern: ^du_[A-Za-z0-9]{1,128}$
+    result_fields:
+      - dispute_id
+      - charge_id
+      - payment_id
+      - amount_minor
+      - currency
+      - reason
+      - status
+      - due_by
+      - past_due
+      - has_evidence
+      - submission_count
+      - evidence
+      - livemode
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+          - id: dispute
+            method: GET
+            url:
+              $concat:
+                - https://api.stripe.com/v1/disputes/
+                - $argument: /dispute_id
+            headers:
+              stripe-version: 2026-09-30.endive
+              stripe-account:
+                $argument: /account_id
+        decode:
+          - op: auto_json
+          - op: project
+            fields:
+              dispute_id: id
+              charge_id: charge
+              payment_id: payment_intent
+              amount_minor: amount
+              currency: currency
+              reason: reason
+              status: status
+              due_by: evidence_details.due_by
+              past_due: evidence_details.past_due
+              has_evidence: evidence_details.has_evidence
+              submission_count: evidence_details.submission_count
+              evidence: evidence
+              livemode: livemode
+        preconditions:
+          - request:
+              id: account
+              method: GET
+              url: https://api.stripe.com/v1/account
+              headers:
+                stripe-version: 2026-09-30.endive
+                stripe-account:
+                  $argument: /account_id
+            decode:
+              - op: auto_json
+              - op: project
+                fields:
+                  account_id: id
+            matches:
+              - expected:
+                  source: argument
+                  path: account_id
+                observed: account_id
+        result_paths:
+          dispute_id: acknowledgement.dispute_id
+          charge_id: acknowledgement.charge_id
+          payment_id: acknowledgement.payment_id
+          amount_minor: acknowledgement.amount_minor
+          currency: acknowledgement.currency
+          reason: acknowledgement.reason
+          status: acknowledgement.status
+          due_by: acknowledgement.due_by
+          past_due: acknowledgement.past_due
+          has_evidence: acknowledgement.has_evidence
+          submission_count: acknowledgement.submission_count
+          evidence: acknowledgement.evidence
+          livemode: acknowledgement.livemode
+  dispute.file:
+    description: Submit the exact approved evidence to the bank, then read the same dispute and require the
+      expected submission count. This is formal submission, not draft staging, acceptance, closing or
+      refunding. Read current case first; submission_count must equal prior_submission_count plus one.
+      Reconcile an uncertain attempt before another submission.
+    verb: write
+    approval: required
+    scopes:
+      - dispute.file
+    credentials:
+      - key
+    target:
+      template:
+        $concat:
+          - stripe://
+          - $argument: /account_id
+          - /disputes/
+          - $argument: /dispute_id
+    input_schema:
+      type: object
+      required:
+        - account_id
+        - dispute_id
+        - charge_id
+        - amount_minor
+        - currency
+        - expected_status
+        - prior_submission_count
+        - submission_count
+        - evidence_form
+        - amount_refunded
+        - expected_evidence
+      additionalProperties: false
+      properties:
+        account_id:
+          type: string
+          pattern: ^acct_[A-Za-z0-9]{1,64}$
+        dispute_id:
+          type: string
+          pattern: ^du_[A-Za-z0-9]{1,128}$
+        charge_id:
+          type: string
+          pattern: ^ch_[A-Za-z0-9]{1,128}$
+        amount_minor:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        currency:
+          type: string
+          pattern: ^[a-z]{3}$
+        expected_status:
+          enum:
+            - needs_response
+            - warning_needs_response
+        prior_submission_count:
+          type: integer
+          minimum: 0
+        submission_count:
+          type: integer
+          minimum: 1
+        evidence_form:
+          type: object
+          required:
+            - submit
+          minProperties: 2
+          additionalProperties: false
+          properties:
+            submit:
+              const: true
+            evidence[access_activity_log]:
+              type: string
+              maxLength: 150000
+            evidence[billing_address]:
+              type: string
+              maxLength: 150000
+            evidence[cancellation_policy_disclosure]:
+              type: string
+              maxLength: 150000
+            evidence[cancellation_rebuttal]:
+              type: string
+              maxLength: 150000
+            evidence[customer_email_address]:
+              type: string
+              maxLength: 150000
+            evidence[customer_name]:
+              type: string
+              maxLength: 150000
+            evidence[customer_purchase_ip]:
+              type: string
+              maxLength: 150000
+            evidence[duplicate_charge_explanation]:
+              type: string
+              maxLength: 150000
+            evidence[duplicate_charge_id]:
+              type: string
+              maxLength: 150000
+            evidence[product_description]:
+              type: string
+              maxLength: 150000
+            evidence[refund_policy_disclosure]:
+              type: string
+              maxLength: 150000
+            evidence[refund_refusal_explanation]:
+              type: string
+              maxLength: 150000
+            evidence[service_date]:
+              type: string
+              maxLength: 150000
+            evidence[shipping_address]:
+              type: string
+              maxLength: 150000
+            evidence[shipping_carrier]:
+              type: string
+              maxLength: 150000
+            evidence[shipping_date]:
+              type: string
+              maxLength: 150000
+            evidence[shipping_tracking_number]:
+              type: string
+              maxLength: 150000
+            evidence[uncategorized_text]:
+              type: string
+              maxLength: 150000
+            evidence[cancellation_policy]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+            evidence[customer_communication]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+            evidence[customer_signature]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+            evidence[duplicate_charge_documentation]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+            evidence[receipt]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+            evidence[refund_policy]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+            evidence[service_documentation]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+            evidence[shipping_documentation]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+            evidence[uncategorized_file]:
+              type: string
+              pattern: ^(?:file_[A-Za-z0-9]{1,128})?$
+        amount_refunded:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        expected_evidence:
+          type: object
+          additionalProperties: true
+          description: Exact staged evidence object from the current dispute read. Native preconditions require it
+            unchanged before submitting the complete approved evidence form.
+    result_fields:
+      - dispute_id
+      - charge_id
+      - payment_id
+      - amount_minor
+      - currency
+      - reason
+      - status
+      - due_by
+      - past_due
+      - has_evidence
+      - submission_count
+      - evidence
+      - livemode
+    hosted: {}
+    implementation:
+      http:
+        allowed_hosts:
+          - api.stripe.com
+        auth:
+          key:
+            type: bearer
+            field: api_key
+        requests:
+          - id: file
+            method: POST
+            url:
+              $concat:
+                - https://api.stripe.com/v1/disputes/
+                - $argument: /dispute_id
+            headers:
+              stripe-version: 2026-09-30.endive
+              stripe-account:
+                $argument: /account_id
+              idempotency-key:
+                $runx: idempotency_key
+            body_encoding: form
+            body:
+              $argument: /evidence_form
+        decode:
+          - op: auto_json
+          - op: project
+            fields:
+              dispute_id: id
+              charge_id: charge
+              payment_id: payment_intent
+              amount_minor: amount
+              currency: currency
+              reason: reason
+              status: status
+              due_by: evidence_details.due_by
+              past_due: evidence_details.past_due
+              has_evidence: evidence_details.has_evidence
+              submission_count: evidence_details.submission_count
+              evidence: evidence
+              livemode: livemode
+        preconditions:
+          - request:
+              id: account
+              method: GET
+              url: https://api.stripe.com/v1/account
+              headers:
+                stripe-version: 2026-09-30.endive
+                stripe-account:
+                  $argument: /account_id
+            decode:
+              - op: auto_json
+              - op: project
+                fields:
+                  account_id: id
+            matches:
+              - expected:
+                  source: argument
+                  path: account_id
+                observed: account_id
+          - request:
+              id: before
+              method: GET
+              url:
+                $concat:
+                  - https://api.stripe.com/v1/disputes/
+                  - $argument: /dispute_id
+              headers:
+                stripe-version: 2026-09-30.endive
+                stripe-account:
+                  $argument: /account_id
+            decode:
+              - op: auto_json
+              - op: project
+                fields:
+                  dispute_id: id
+                  charge_id: charge
+                  payment_id: payment_intent
+                  amount_minor: amount
+                  currency: currency
+                  reason: reason
+                  status: status
+                  due_by: evidence_details.due_by
+                  past_due: evidence_details.past_due
+                  has_evidence: evidence_details.has_evidence
+                  submission_count: evidence_details.submission_count
+                  evidence: evidence
+                  livemode: livemode
+            matches:
+              - expected:
+                  source: argument
+                  path: dispute_id
+                observed: dispute_id
+              - expected:
+                  source: argument
+                  path: charge_id
+                observed: charge_id
+              - expected:
+                  source: argument
+                  path: amount_minor
+                observed: amount_minor
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+              - expected:
+                  source: argument
+                  path: expected_status
+                observed: status
+              - expected:
+                  source: argument
+                  path: prior_submission_count
+                observed: submission_count
+              - expected:
+                  source: literal
+                  value: false
+                observed: past_due
+              - expected:
+                  source: argument
+                  path: expected_evidence
+                observed: evidence
+          - request:
+              id: charge_before
+              method: GET
+              url:
+                $concat:
+                  - https://api.stripe.com/v1/charges/
+                  - $argument: /charge_id
+              headers:
+                stripe-version: 2026-09-30.endive
+                stripe-account:
+                  $argument: /account_id
+            decode:
+              - op: auto_json
+              - op: project
+                fields:
+                  charge_id: id
+                  payment_id: payment_intent
+                  amount_minor: amount
+                  amount_refunded: amount_refunded
+                  currency: currency
+                  status: status
+            matches:
+              - expected:
+                  source: argument
+                  path: charge_id
+                observed: charge_id
+              - expected:
+                  source: argument
+                  path: amount_refunded
+                observed: amount_refunded
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+        operation_id_path: dispute_id
+        readbacks:
+          - request:
+              id: after
+              method: GET
+              url:
+                $concat:
+                  - https://api.stripe.com/v1/disputes/
+                  - $argument: /dispute_id
+              headers:
+                stripe-version: 2026-09-30.endive
+                stripe-account:
+                  $argument: /account_id
+            decode:
+              - op: auto_json
+              - op: project
+                fields:
+                  dispute_id: id
+                  charge_id: charge
+                  payment_id: payment_intent
+                  amount_minor: amount
+                  currency: currency
+                  reason: reason
+                  status: status
+                  due_by: evidence_details.due_by
+                  past_due: evidence_details.past_due
+                  has_evidence: evidence_details.has_evidence
+                  submission_count: evidence_details.submission_count
+                  evidence: evidence
+                  livemode: livemode
+            matches:
+              - expected:
+                  source: argument
+                  path: dispute_id
+                observed: dispute_id
+              - expected:
+                  source: argument
+                  path: charge_id
+                observed: charge_id
+              - expected:
+                  source: argument
+                  path: amount_minor
+                observed: amount_minor
+              - expected:
+                  source: argument
+                  path: currency
+                observed: currency
+              - expected:
+                  source: argument
+                  path: submission_count
+                observed: submission_count
+              - expected:
+                  source: literal
+                  value: true
+                observed: has_evidence
+        result_paths:
+          dispute_id: readbacks.0.dispute_id
+          charge_id: readbacks.0.charge_id
+          payment_id: readbacks.0.payment_id
+          amount_minor: readbacks.0.amount_minor
+          currency: readbacks.0.currency
+          reason: readbacks.0.reason
+          status: readbacks.0.status
+          due_by: readbacks.0.due_by
+          past_due: readbacks.0.past_due
+          has_evidence: readbacks.0.has_evidence
+          submission_count: readbacks.0.submission_count
+          evidence: readbacks.0.evidence
+          livemode: readbacks.0.livemode

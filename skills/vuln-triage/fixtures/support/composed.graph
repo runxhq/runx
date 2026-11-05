@@ -1,49 +1,34 @@
-name: vuln-triage-composed
+name: triage-and-advisory
 steps:
-  - id: vuln-triage
+  - id: triage
+    skill: ../..
+    runner: scan
+    inputs:
+      target: example/service
+      evidence:
+        findings:
+          - ecosystem: npm
+            dependency: example-lib
+            exact_version: 1.2.3
+            advisory_id: GHSA-example-1234
+            summary: Synthetic exact-version fixture advisory.
+            dependency_paths:
+              - node_modules/example-lib
+            affected:
+              - package:
+                  ecosystem: npm
+                  name: example-lib
+                ranges:
+                  - events:
+                      - introduced: "0"
+                      - fixed: 1.2.4
+  - id: advisory
     skill: ../..
     runner: advisory
     inputs:
+      triage_packet: $steps.triage.vulnerability_review
       audience: affected_users
-      triage_packet:
-        schema: runx/vuln-triage.scan.v1
-        decision: remediate
-        target: example/service
-        dependency_inventory:
-          - name: example-lib
-            version: 1.2.3
-            path: node_modules/example-lib
-            direct: true
-            development: false
-        advisories:
-          - dependency: example-lib
-            exact_version: 1.2.3
-            advisory_id: GHSA-example-1234
-            advisory_url: https://osv.dev/vulnerability/GHSA-example-1234
-            assessment:
-              priority: high
-              exposure: confirmed
-              confidence: high
-              evidence_status: verified_exact_cve
-              rationale: verified direct dependency
-        escalation_criteria:
-          - advisory_id: GHSA-example-1234
-            trigger: priority_high_or_urgent
-            action: human_remediation_review
-        remediation_plan:
-          immediate:
-            - upgrade example-lib
-        operator_summary:
-          verdict: remediate
-          summary: Prioritize the verified direct dependency finding.
-        evidence_binding:
-          receipt_id: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          evidence_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        validation:
-          status: pass
-          findings: []
-        publication_status: not_published
   - id: digest
     tool: data.digest
     inputs:
-      value: $steps.vuln-triage
+      value: $steps.advisory.vulnerability_advisory_packet

@@ -20,7 +20,10 @@ exact in-memory result is a valid Runx policy.
    runners; do not lower confidence or weaken human gates.
 4. Pass the draft to the deterministic validation step. Never author or trust an
    agent-supplied lint verdict.
-5. Return `ready` only when native lint passes. A native failure or attempted
+5. Native `data.compare` checks retained identity, provider/kind, owner routing,
+   branch, dedupe and opaque adapter settings. Those settings must remain equal:
+   this generic lane cannot infer whether changing them narrows authority.
+6. Return `ready` only when native lint and that comparison pass. A native failure or attempted
    widening returns `reject` with structured findings.
 
 ## Native policy contract
@@ -102,6 +105,13 @@ blockers: [string]
 needs_input: [string]
 success_checkpoint: object
 ```
+
+The host supplies the actual current native-valid baseline; this is not authority
+to replace a different installed policy. Existing sources, targets and runners
+may be removed or their declared action/target sets narrowed. Confidence, required
+review and verification cannot weaken; an unavailable runner cannot be enabled.
+Owner-route roster reordering is immaterial, but changing its membership or
+unknown provider settings needs a separate explicit policy decision.
 
 The runtime receipt proves which draft was validated. It does not approve or
 install the policy.

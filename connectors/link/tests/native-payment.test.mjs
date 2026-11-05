@@ -9,7 +9,7 @@ import {test} from 'node:test';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
 const binary=process.env.RUNX_BIN??path.join(root,'crates/target/debug/runx');
 const skill=process.env.RUNX_PAY_SKILL??path.join(root,'skills/pay');
-test('native Link payment binds session, approval, derived budget and SQLite recovery without exposing credentials',()=>{
+test('native Link payment binds session, exact payment terms, approval and SQLite recovery without exposing credentials',()=>{
  const sandbox=mkdtempSync(path.join(tmpdir(),'runx-link-native-'));
  try{
   const bin=path.join(sandbox,'bin');mkdirSync(bin);
@@ -36,13 +36,18 @@ console.log(JSON.stringify([out]));
   const input={connector:'link',request,parent_payment_authority:{term_id:'invoice-42',currency:'USD',max_amount_minor:150,resource_url:request.resource_url},idempotency_seed:'native-link-payment-42'};
   const args=['skill',skill,'--run-id','link-native-proof','--inputs','-','--json'];
   const limited=run([...args,'--max-cost','0.01'],input);assert.equal(limited.status,'sealed');assert.equal(limited.outcome,'blocked');assert.equal(JSON.parse(readFileSync(stateFile)).payments,0);
-  const pending=run(['skill',skill,'--run-id','link-native-allowed','--inputs','-','--max-cost','2','--json'],input);
+  // No provider API-fee quote is declared. A strict USD cap must refuse even
+  // when it covers the purchase amount; the exact purchase approval remains
+  // usable without claiming that the unknown additional fee is zero.
+  const unquoted=run(['skill',skill,'--run-id','link-native-unquoted','--inputs','-','--max-cost','2','--json'],input);
+  assert.equal(unquoted.outcome,'blocked');assert.match(JSON.stringify(unquoted),/no USD quote/);assert.equal(JSON.parse(readFileSync(stateFile)).payments,0);
+  const pending=run(['skill',skill,'--run-id','link-native-allowed','--inputs','-','--json'],input);
   assert.equal(pending.status,'needs_approval',JSON.stringify(pending));assert.equal(JSON.parse(readFileSync(stateFile)).payments,0);
   const decision={approvals:Object.fromEntries(pending.requests.map(r=>[r.id,{request_digest:r.request_digest,approved:true}]))};
   const done=run(['resume',pending.run_id,'-','--json'],decision);assert.equal(done.status,'sealed',JSON.stringify(done));assert.equal(done.outcome,'completed',JSON.stringify(done));
   assert.equal(JSON.parse(readFileSync(stateFile)).payments,1);
   const output=JSON.stringify(done);assert.ok(output.includes('lt_fixture'));assert.ok(!output.includes('private-resource-body'));assert.ok(!output.includes('private-provider-token'));assert.ok(!output.includes('private-identity@example.test'));
-  const replay=run(['skill',skill,'--run-id',pending.run_id,'--inputs','-','--max-cost','2','--json'],input);assert.equal(replay.receipt_id,done.receipt_id);assert.equal(JSON.parse(readFileSync(stateFile)).payments,1);
+  const replay=run(['skill',skill,'--run-id',pending.run_id,'--inputs','-','--json'],input);assert.equal(replay.receipt_id,done.receipt_id);assert.equal(JSON.parse(readFileSync(stateFile)).payments,1);
   const relabeled=run(['skill',skill,'--run-id','link-native-relabeled-resource','--inputs','-','--json'],{...input,request:{...request,resource_url:'https://merchant.example/invoice/43'},parent_payment_authority:{...input.parent_payment_authority,resource_url:'https://merchant.example/invoice/43'},idempotency_seed:'native-link-relabeled-resource'});
   assert.equal(relabeled.status,'needs_approval');
   const rejected=run(['resume',relabeled.run_id,'-','--json'],{approvals:Object.fromEntries(relabeled.requests.map(r=>[r.id,{request_digest:r.request_digest,approved:true}]))});

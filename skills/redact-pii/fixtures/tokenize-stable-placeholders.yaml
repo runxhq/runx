@@ -3,7 +3,7 @@ kind: skill
 target: ..
 runner: redact-pii
 inputs:
-  content: "Primary a@example.com backup b@example.com."
+  content: Primary a@example.com backup b@example.com.
   classes:
     - email
   mode: tokenize
@@ -14,10 +14,12 @@ caller:
         decision: ready
         detected:
           - class: email
-            span: [8, 21]
+            selector:
+              quote: a@example.com
             confidence: 0.99
           - class: email
-            span: [29, 42]
+            selector:
+              quote: b@example.com
             confidence: 0.99
         residual_risk:
           level: low
@@ -25,13 +27,11 @@ caller:
 expect:
   status: sealed
   steps:
-    - digest-source
+    - block-policy
     - detect
-    - scrub
-    - digest-redacted
-    - finalize
+    - apply
   step_outputs:
-    finalize:
+    apply:
       subset:
         redaction_report:
           data:
@@ -44,7 +44,7 @@ expect:
               classes:
                 - email
               mode: tokenize
-        redacted_content: "Primary [TOKEN:EMAIL:1] backup [TOKEN:EMAIL:2]."
+        redacted_content: Primary [TOKEN:EMAIL:1] backup [TOKEN:EMAIL:2].
   receipt:
     schema: runx.receipt.v1
 metadata:

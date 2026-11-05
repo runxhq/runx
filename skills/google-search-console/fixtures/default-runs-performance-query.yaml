@@ -50,7 +50,7 @@ expect:
       subset:
         performance_evidence:
           data:
-            decision: ready
+            decision: usable_with_caveats
             provider_status: readback_verified
             source_status: provider_readback
             property: sc-domain:example.com

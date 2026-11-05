@@ -1,5 +1,5 @@
 skill: nws-weather
-version: "0.1.9"
+version: "0.1.10"
 catalog:
   kind: graph
   audience: public
@@ -16,7 +16,6 @@ connectors:
 runners:
   forecast:
     description: Read the National Weather Service forecast for a gridpoint, by its office and grid x and y.
-    default: true
     inputs:
       office:
         type: string
@@ -56,6 +55,62 @@ runners:
         input:
           lat: $input.lat
           lon: $input.lon
+
+  at-point:
+    default: true
+    description: Resolve a US geographic point and fetch its actual NWS grid forecast.
+    inputs:
+      latitude: {type: number, required: true, description: Decimal geographic latitude., schema: {minimum: -90, maximum: 90}}
+      longitude: {type: number, required: true, description: Decimal geographic longitude., schema: {minimum: -180, maximum: 180}}
+    examples:
+      - {latitude: 38.8894, longitude: -77.0352}
+    result_from: [bind-grid, forecast]
+    steps:
+      - id: prepare-point
+        tool: {module: point.mjs, export: preparePoint}
+        inputs: {latitude: $input.latitude, longitude: $input.longitude}
+        outputs:
+          point:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [lat, lon]
+              properties: {lat: {type: string}, lon: {type: string}}
+      - id: points
+        operation: national-weather-service/points.read
+        input: {lat: $steps.prepare-point.point.lat, lon: $steps.prepare-point.point.lon}
+      - id: bind-grid
+        tool: {module: point.mjs, export: bindGrid}
+        inputs: {points: $steps.points.provider_operation, point: $steps.prepare-point.point}
+        outputs:
+          location:
+            type: object
+            schema:
+              additionalProperties: false
+              required: [decision, point, grid, timezone, forecast_url, readback_uri, result_digest, reason]
+              properties:
+                decision: {enum: [ready, needs_more_evidence]}
+                point:
+                  type: object
+                  additionalProperties: false
+                  required: [lat, lon]
+                  properties: {lat: {type: string}, lon: {type: string}}
+                grid:
+                  type: [object, 'null']
+                  additionalProperties: false
+                  required: [office, grid_x, grid_y]
+                  properties: {office: {type: string}, grid_x: {type: string}, grid_y: {type: string}}
+                timezone: {type: [string, 'null']}
+                forecast_url: {type: [string, 'null']}
+                readback_uri: {type: string}
+                result_digest: {type: string}
+                reason: {type: string}
+        artifacts:
+          named_emits: {location: location}
+      - id: forecast
+        when: {value: $steps.bind-grid.location.decision, equals: ready}
+        operation: national-weather-service/forecast.read
+        input: {office: $steps.bind-grid.location.grid.office, grid_x: $steps.bind-grid.location.grid.grid_x, grid_y: $steps.bind-grid.location.grid.grid_y}
 
 harness:
   files: [fixtures/support/composed.graph]

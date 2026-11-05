@@ -187,38 +187,27 @@ function commandIntent(value) {
   const command = object(value);
   return {
     command_digest: text(command.command_digest, 80),
-    command: text(command.command, 2_000),
-    args: list(command.args, 64, 2_000),
-    cwd: text(command.cwd, 512),
+    command: command.command,
+    args: command.args,
+    cwd: command.cwd,
     timeout_ms: Number(command.timeout_ms),
-    env_names: Object.keys(object(command.env)).sort().slice(0, 64),
+    env_names: Object.keys(object(command.env)).sort(),
   };
 }
 
 function normalizeCommand(value, phase, identity) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`commands.${phase} must be an object`);
+  if (!Array.isArray(value?.argv) || value.argv.length === 0) {
+    throw new Error(`commands.${phase}.argv must name an executable`);
   }
-  if (!Array.isArray(value.argv) || value.argv.length === 0 || value.argv.length > 64) {
-    throw new Error(`commands.${phase}.argv must contain 1-64 entries`);
+  if (Object.keys(value).some(key => !["argv", "cwd", "timeout_ms"].includes(key))) {
+    throw new Error(`commands.${phase} supports only argv, cwd and timeout_ms; use the native credential boundary for secrets`);
   }
-  const argv = value.argv.map((entry, index) => requiredText(entry, `commands.${phase}.argv[${index}]`, 2_000));
-  if (argv.some(secretShaped)) {
+  if (value.argv.some(secretShaped)) {
     throw new Error(`commands.${phase}.argv must not contain credentials; use Runx credential delivery`);
   }
-  const cwd = value.cwd == null ? "." : requiredText(value.cwd, `commands.${phase}.cwd`, 512);
-  if (cwd.startsWith("/") || cwd.split(/[\\/]+/u).includes("..")) {
-    throw new Error(`commands.${phase}.cwd must stay inside project_root`);
-  }
-  const timeoutMs = Number(value.timeout_ms ?? 120_000);
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 3_600_000) {
-    throw new Error(`commands.${phase}.timeout_ms must be 1000-3600000`);
-  }
   return {
-    command: argv[0],
-    args: argv.slice(1),
-    cwd,
-    timeout_ms: timeoutMs,
+    command: value.argv[0], args: value.argv.slice(1),
+    cwd: value.cwd ?? ".", timeout_ms: value.timeout_ms ?? 120_000,
     env: {
       RUNX_RELEASE_PHASE: phase,
       RUNX_RELEASE_VERSION: identity.version,
@@ -250,7 +239,7 @@ function normalizeObserved(value) {
     release_id: text(source.release_id, 512),
     commit: text(source.commit, 512),
     locators: Array.isArray(source.locators)
-      ? source.locators.slice(0, 50).map((item) => text(item, 2_000)).filter(Boolean)
+      ? list(source.locators, 50, 2_000)
       : [],
     checks: normalizeChecks(source.checks),
   };
@@ -258,10 +247,10 @@ function normalizeObserved(value) {
 
 function normalizeChecks(value) {
   const source = object(value);
+  if (Object.keys(source).length > 100) throw new Error("release checks exceed 100 entries; none were silently omitted");
   return Object.fromEntries(
     Object.keys(source)
       .sort()
-      .slice(0, 100)
       .map((key) => [text(key, 128), typeof source[key] === "boolean" ? source[key] : text(source[key], 500)])
       .filter(([key]) => key),
   );
@@ -291,7 +280,9 @@ function normalizeChangelog(value) {
 }
 
 function list(value, maxItems, maxText) {
-  return Array.isArray(value) ? value.slice(0, maxItems).map((item) => text(item, maxText)).filter(Boolean) : [];
+  if (!Array.isArray(value)) return [];
+  if (value.length > maxItems) throw new Error(`release list exceeds ${maxItems} items; it was not truncated`);
+  return value.map((item) => text(item, maxText)).filter(Boolean);
 }
 
 function secretShaped(value) {
@@ -318,10 +309,12 @@ function object(value) {
 
 function requiredText(value, label, max) {
   const result = text(value, max);
-  if (!result) throw new Error(`${label} is required`);
+  if (!result.trim()) throw new Error(`${label} is required`);
   return result;
 }
 
 function text(value, max) {
-  return typeof value === "string" ? value.trim().slice(0, max) : "";
+  if (typeof value !== "string") return "";
+  if (max !== undefined && value.length > max) throw new Error(`release field exceeds its ${max}-character bound; it was not truncated`);
+  return value;
 }

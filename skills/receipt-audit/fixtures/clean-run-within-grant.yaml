@@ -1,4 +1,4 @@
-name: clean-run-within-grant
+name: replay-labels-do-not-prove-a-clean-run
 kind: skill
 target: ..
 runner: audit
@@ -85,8 +85,9 @@ caller:
 expect:
   status: sealed
   steps:
+    - select-evidence
     - evidence
-    - audit
+    - review-queried
   step_outputs:
     evidence:
       subset:
@@ -103,6 +104,13 @@ expect:
                 authority:
                   exercised_scopes:
                     - scope: repo:read
+    review-queried:
+      subset:
+        receipt_audit_packet:
+          data:
+            receipt_audit:
+              decision: needs_more_evidence
+              verdict: needs_more_evidence
   receipt:
     schema: runx.receipt.v1
     state: sealed

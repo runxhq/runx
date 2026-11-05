@@ -703,6 +703,30 @@ fn mcp_server_uses_typed_outcome_even_when_json_claims_success()
         assert!(mcp_tool_result_from_run_result(result, None).is_error);
     }
 
+    // A host reads why a run failed from the result; the receipt does not say.
+    let mut failed = runx_status("failed");
+    failed.insert(
+        "error".to_owned(),
+        serde_json::from_value(serde_json::json!({"message": "step draft: claim not cited"}))?,
+    );
+    let answer = mcp_tool_result_from_run_result(
+        runx_runtime::execution::orchestrator::RunResult {
+            status: runx_runtime::execution::orchestrator::RunStatus::Sealed,
+            outcome: Some(RunOutcome::Failed),
+            output: JsonValue::Object(failed),
+            receipt_ids: vec!["receipt-1".to_owned()],
+            child_receipt_uris: Vec::new(),
+            pending_requests: Vec::new(),
+            diagnostics: Vec::new(),
+        },
+        None,
+    );
+    assert!(
+        answer.content[0]
+            .text
+            .contains("step draft: claim not cited")
+    );
+
     // Readback-pending graphs are sealed Deferred without an agent request.
     // They need reconciliation, not a fresh mutation or an invented resume file.
     let deferred = mcp_tool_result_from_run_result(

@@ -17,7 +17,7 @@ export function indexSources(inputs) {
       blockers.push(`source_material[${index}].kind is invalid`);
       continue;
     }
-    if (!content || content.length > 20_000) {
+    if (!content || [...content].length > 20_000) {
       blockers.push(`source_material[${index}].content is missing or too large`);
       continue;
     }

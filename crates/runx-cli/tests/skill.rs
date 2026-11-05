@@ -504,13 +504,17 @@ runners:
 fn native_skill_exported_shim_resolves_to_source_skill() -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-exported-shim");
     let source_dir = crate::support::write_agent_task_skill(&root.join("source with spaces"))?;
+    let package_digest = runx_runtime::load_validated_skill_package(&source_dir)?
+        .package
+        .package_digest;
     let shim_dir = root.join("claude").join("code-intake");
     fs::create_dir_all(&shim_dir)?;
     fs::write(
         shim_dir.join("SKILL.md"),
         format!(
-            "---\nname: code-intake\ndescription: code-intake fixture.\n---\n# code-intake\n<!-- runx-export:claude source={} - generated, do not edit -->\n",
-            source_dir.display()
+            "---\nname: code-intake\ndescription: code-intake fixture.\n---\n# code-intake\n<!-- runx-export:claude source={} package-digest={} - generated, do not edit -->\n",
+            source_dir.display(),
+            package_digest
         ),
     )?;
 

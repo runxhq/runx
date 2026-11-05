@@ -34,6 +34,7 @@ operations:
   issue.read:
     description: Read one issue or pull request as an issue.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -59,6 +60,7 @@ operations:
   issues.list:
     description: List one page of a repository's issues; GitHub includes pull requests, which carry a pull_request field.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -73,7 +75,9 @@ operations:
         labels: {type: string, maxLength: 1000}
         since: {type: string, format: date-time, maxLength: 64}
         per_page: {type: integer, minimum: 1, maximum: 100}
-        page: {type: integer, minimum: 1, maximum: 100000}
+        page: {type: integer, minimum: 1}
+        sort: {enum: [created, updated, comments]}
+        direction: {enum: [asc, desc]}
     result_fields: [issues]
     hosted: {provider_scopes: [repo]}
     implementation:
@@ -90,10 +94,13 @@ operations:
               since: {"$argument": "/since"}
               per_page: {"$argument": "/per_page"}
               page: {"$argument": "/page"}
+              sort: {"$argument": "/sort"}
+              direction: {"$argument": "/direction"}
             headers: {accept: application/vnd.github+json}
   issues.read:
     description: Read issues by number.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -120,6 +127,7 @@ operations:
   issues.update:
     description: Update issues, each with its own patch of title, body, state, labels, assignees or milestone.
     verb: write
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.write]
     credentials: [token]
     target:
@@ -189,6 +197,7 @@ operations:
   issues.create:
     description: Open issues in a repository, one issue per item.
     verb: create
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.write]
     credentials: [token]
     target:
@@ -246,6 +255,7 @@ operations:
   pullrequests.list:
     description: List one page of a repository's pull requests.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -262,7 +272,7 @@ operations:
         sort: {enum: [created, updated, popularity, long-running]}
         direction: {enum: [asc, desc]}
         per_page: {type: integer, minimum: 1, maximum: 100}
-        page: {type: integer, minimum: 1, maximum: 100000}
+        page: {type: integer, minimum: 1}
     result_fields: [pulls]
     hosted: {provider_scopes: [repo]}
     implementation:
@@ -285,6 +295,7 @@ operations:
   pullrequests.read:
     description: Read pull requests by number.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -311,6 +322,7 @@ operations:
   pullrequest.read:
     description: Read one pull request.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -336,6 +348,7 @@ operations:
   pullrequests.update:
     description: Update pull requests, each with its own patch of title, body, state, base or maintainer_can_modify.
     verb: write
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.write]
     credentials: [token]
     target:
@@ -401,6 +414,7 @@ operations:
   pullrequest.open:
     description: Open a pull request from a pushed branch.
     verb: write
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [pr.write]
     credentials: [token]
     target:
@@ -455,6 +469,7 @@ operations:
   comments.list:
     description: List one page of the comments on an issue or pull request.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -467,6 +482,7 @@ operations:
         repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
         number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
         per_page: {type: integer, minimum: 1, maximum: 100}
+        page: {type: integer, minimum: 1}
     result_fields: [comments]
     hosted: {provider_scopes: [repo]}
     implementation:
@@ -479,10 +495,12 @@ operations:
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}, "/comments"]}
             query:
               per_page: {"$argument": "/per_page"}
+              page: {"$argument": "/page"}
             headers: {accept: application/vnd.github+json}
   comment.read:
     description: Read one issue or pull request comment.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -508,6 +526,7 @@ operations:
   comments.create:
     description: Comment on issues or pull requests, one comment per item.
     verb: comment
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [issue.comment]
     credentials: [token]
     target:
@@ -559,6 +578,7 @@ operations:
   comments.update:
     description: Edit comments, one new body per item.
     verb: write
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [issue.comment]
     credentials: [token]
     target:
@@ -612,6 +632,7 @@ operations:
   branch.push:
     description: Push an exact local commit to a branch of the repository, never forcing it.
     verb: write
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.write]
     credentials: [token]
     target:
@@ -637,6 +658,7 @@ operations:
   pullrequest.merge:
     description: Merge a pull request.
     verb: merge
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [pr.merge]
     target:
       template: {"$argument": "/repository"}
@@ -644,6 +666,7 @@ operations:
   commits.compare:
     description: Read the three-dot comparison of exact base and head commits; files are returned only on the first page and capped by GitHub at 300.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -654,9 +677,10 @@ operations:
       required: [repository, base, head]
       properties:
         repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
-        base: {type: string, pattern: '^[0-9a-f]{40}$'}
-        head: {type: string, pattern: '^[0-9a-f]{40}$'}
+        base: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
+        head: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
     result_fields: [comparison]
+    hosted: {provider_scopes: [repo]}
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -669,6 +693,7 @@ operations:
   checks.list:
     description: Read one bounded page of latest check runs for an exact commit SHA; check runs do not include legacy commit statuses.
     verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.read]
     credentials: [token]
     target:
@@ -679,10 +704,11 @@ operations:
       required: [repository, commit, per_page, page]
       properties:
         repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
-        commit: {type: string, pattern: '^[0-9a-f]{40}$'}
+        commit: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
         per_page: {type: integer, minimum: 1, maximum: 100}
-        page: {type: integer, minimum: 1, maximum: 10000}
+        page: {type: integer, minimum: 1}
     result_fields: [checks]
+    hosted: {provider_scopes: [repo]}
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -692,3 +718,79 @@ operations:
             url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/commits/', {$argument: /commit}, '/check-runs']}
             query: {filter: latest, per_page: {$argument: /per_page}, page: {$argument: /page}}
             headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
+  git.commit.read:
+    description: Read one exact Git commit object, including its root tree SHA. Does not resolve a mutable branch.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {$argument: /repository}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [repository, commit]
+      properties:
+        repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        commit: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
+    result_fields: [commit]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/git/commits/', {$argument: /commit}]}
+            headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
+  git.tree.read:
+    description: Read one exact Git tree level. Retain its truncated flag; traverse selected child tree SHAs rather than requesting a recursive repository archive.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {$argument: /repository}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [repository, tree]
+      properties:
+        repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        tree: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
+    result_fields: [tree]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/git/trees/', {$argument: /tree}]}
+            headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
+  git.blob.read:
+    description: Read one exact Git blob as provider-decoded text, under native HTTP byte bounds. The caller obtains its SHA from the selected commit tree or changed-file metadata; this does not prove its path membership or run it.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes: [repo.read]
+    credentials: [token]
+    target:
+      template: {$argument: /repository}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [repository, blob]
+      properties:
+        repository: {type: string, maxLength: 201, pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'}
+        blob: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
+    result_fields: [content]
+    hosted: {provider_scopes: [repo]}
+    implementation:
+      http:
+        allowed_hosts: [api.github.com]
+        auth: {token: {type: bearer}}
+        decode: [{op: text}]
+        requests:
+          - method: GET
+            url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/git/blobs/', {$argument: /blob}]}
+            headers: {accept: application/vnd.github.raw+json, X-GitHub-Api-Version: '2026-03-10'}

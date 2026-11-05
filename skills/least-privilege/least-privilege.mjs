@@ -5,9 +5,11 @@ export default function auditLeastPrivilege(inputs) {
   const evidence = record(inputs.ledger_evidence);
   const chain = record(evidence.chain_verification);
   const requested = new Set(receiptIds);
-  const matchedIds = new Set(records(evidence.matched_receipts)
-    .map((row) => stringValue(row.receipt_id))
-    .filter((id) => requested.has(id)));
+  const matchedIds = new Set(
+    records(evidence.matched_receipts)
+      .map((row) => stringValue(row.receipt_id))
+      .filter((id) => requested.has(id)),
+  );
   const missingIds = receiptIds.filter((id) => !matchedIds.has(id));
   const details = new Map();
   const invalidIds = new Set();
@@ -15,34 +17,77 @@ export default function auditLeastPrivilege(inputs) {
   for (const detail of records(evidence.receipt_details)) {
     const id = stringValue(detail.id);
     if (!requested.has(id) || !matchedIds.has(id)) continue;
-    if (details.has(id) || detail.verification?.status !== "verified" || !belongsToSubject(detail, subject)) {
+    if (
+      details.has(id) ||
+      detail.verification?.status !== "verified" ||
+      !belongsToSubject(detail, subject)
+    ) {
       invalidIds.add(id);
     }
     details.set(id, detail);
   }
   const missingDetailIds = receiptIds.filter((id) => !details.has(id));
-  const chainVerified = chain.checked === true && chain.intact === true
-    && Array.isArray(chain.breaks) && chain.breaks.length === 0;
-  const evidenceReady = Boolean(subject) && receiptIds.length > 0
-    && missingIds.length === 0 && missingDetailIds.length === 0
-    && invalidIds.size === 0 && chainVerified;
+  const chainVerified =
+    chain.checked === true &&
+    chain.intact === true &&
+    Array.isArray(chain.breaks) &&
+    chain.breaks.length === 0;
+  const evidenceReady =
+    Boolean(subject) &&
+    receiptIds.length > 0 &&
+    missingIds.length === 0 &&
+    missingDetailIds.length === 0 &&
+    invalidIds.size === 0 &&
+    chainVerified;
+  const supplied = inputs.evidence_source === "supplied";
   const limitations = [];
-  if (!subject) limitations.push("Supply the exact skill, actor or grant reference being reviewed.");
-  if (receiptIds.length === 0) limitations.push("No exact receipt ids were supplied.");
-  if (missingIds.length > 0) limitations.push("Some requested receipts were not resolved.");
-  if (missingDetailIds.length > 0) limitations.push("Some requested receipts have no native redacted detail.");
-  if (invalidIds.size > 0) limitations.push("Some receipt details are duplicated, unverified or belong to a different subject.");
-  if (!chainVerified) limitations.push("Native chain verification is missing, unknown or failed; supplied replay labels are not proof.");
-  limitations.push("Native scope projections describe recorded authority references and terms, not a per-operation successful-usage trace.");
-  limitations.push("A bounded receipt window cannot prove that unrecorded authority is unnecessary, including reserved or infrequent work.");
-  limitations.push("Scope strings are opaque. Native authority semantics must establish any proposed replacement; this skill does not infer wildcard or verb relationships.");
+  if (supplied)
+    limitations.push(
+      "Reused supplied ledger evidence. Its signature and chain labels are prior reported evidence, not independently rechecked by this phase.",
+    );
+  limitations.push(
+    "A graph root scope projection does not describe all descendant operations; select attributable child receipts when that coverage is needed.",
+  );
+  if (!subject)
+    limitations.push(
+      "Supply the exact skill, actor or grant reference being reviewed.",
+    );
+  if (receiptIds.length === 0)
+    limitations.push("No exact receipt ids were supplied.");
+  if (missingIds.length > 0)
+    limitations.push("Some requested receipts were not resolved.");
+  if (missingDetailIds.length > 0)
+    limitations.push("Some requested receipts have no native redacted detail.");
+  if (invalidIds.size > 0)
+    limitations.push(
+      "Some receipt details are duplicated, unverified or belong to a different subject.",
+    );
+  if (!chainVerified)
+    limitations.push(
+      "Native chain verification is missing, unknown or failed; supplied replay labels are not proof.",
+    );
+  limitations.push(
+    "Native scope projections describe recorded authority references and terms, not a per-operation successful-usage trace.",
+  );
+  limitations.push(
+    "A bounded receipt window cannot prove that unrecorded authority is unnecessary, including reserved or infrequent work.",
+  );
+  limitations.push(
+    "Scope strings are opaque. Native authority semantics must establish any proposed replacement; this skill does not infer wildcard or verb relationships.",
+  );
 
-  const recorded = evidenceReady ? collectRecordedAuthority(details.values()) : new Map();
+  const recorded = evidenceReady
+    ? collectRecordedAuthority(details.values())
+    : new Map();
   const scopeDiff = grantedScopes.map((scope) => {
     const authority = recorded.get(scope);
     return {
       granted_scope: scope,
-      classification: !evidenceReady ? "defer" : authority ? "recorded" : "not_recorded",
+      classification: !evidenceReady
+        ? "defer"
+        : authority
+          ? "recorded"
+          : "not_recorded",
       recorded_authority: {
         receipt_count: authority?.receiptIds.size || 0,
         receipt_ids: [...(authority?.receiptIds || [])],
@@ -51,7 +96,9 @@ export default function auditLeastPrivilege(inputs) {
       rationale: !evidenceReady
         ? "Evidence is incomplete; retain this scope."
         : authority
-          ? "Verified receipts record this exact scope; this does not prove its successful use or necessity."
+          ? supplied
+            ? "The supplied ledger reports this exact scope in prior receipt evidence; this phase does not independently reverify it or prove successful use or necessity."
+            : "Verified receipts record this exact scope; this does not prove its successful use or necessity."
           : "This exact scope is not recorded in the selected receipts; retain it until policy and coverage review supports a change.",
     };
   });
@@ -72,8 +119,12 @@ export default function auditLeastPrivilege(inputs) {
       },
       scope_diff: scopeDiff,
       retained_grant: grantedScopes,
-      not_recorded_scopes: scopeDiff.filter((row) => row.classification === "not_recorded").map((row) => row.granted_scope),
-      reviewer_action: evidenceReady ? "review_policy_and_coverage" : "gather_verified_evidence",
+      not_recorded_scopes: scopeDiff
+        .filter((row) => row.classification === "not_recorded")
+        .map((row) => row.granted_scope),
+      reviewer_action: evidenceReady
+        ? "review_policy_and_coverage"
+        : "gather_verified_evidence",
     },
     attenuation_proposals: [],
     verdict: evidenceReady
@@ -83,8 +134,16 @@ export default function auditLeastPrivilege(inputs) {
 }
 
 function belongsToSubject(detail, subject) {
-  return subject !== null && [detail.subject_uri, detail.authority?.actor_uri,
-    ...(Array.isArray(detail.authority?.grant_uris) ? detail.authority.grant_uris : [])].includes(subject);
+  return (
+    subject !== null &&
+    [
+      detail.subject_uri,
+      detail.authority?.actor_uri,
+      ...(Array.isArray(detail.authority?.grant_uris)
+        ? detail.authority.grant_uris
+        : []),
+    ].includes(subject)
+  );
 }
 
 function collectRecordedAuthority(details) {
@@ -93,7 +152,10 @@ function collectRecordedAuthority(details) {
     for (const entry of records(detail.authority?.exercised_scopes)) {
       const scope = stringValue(entry.scope);
       if (!scope) continue;
-      const authority = recorded.get(scope) || { receiptIds: new Set(), sources: new Set() };
+      const authority = recorded.get(scope) || {
+        receiptIds: new Set(),
+        sources: new Set(),
+      };
       authority.receiptIds.add(detail.id);
       const source = stringValue(entry.source);
       if (source) authority.sources.add(source);
@@ -105,11 +167,16 @@ function collectRecordedAuthority(details) {
 
 function stringArray(value, field) {
   if (!Array.isArray(value)) throw new Error(`${field} must be an array`);
-  return [...new Set(value.map((entry) => {
-    const parsed = stringValue(entry);
-    if (!parsed) throw new Error(`${field} entries must be non-empty strings`);
-    return parsed;
-  }))];
+  return [
+    ...new Set(
+      value.map((entry) => {
+        const parsed = stringValue(entry);
+        if (!parsed)
+          throw new Error(`${field} entries must be non-empty strings`);
+        return parsed;
+      }),
+    ),
+  ];
 }
 
 function stringValue(value) {
@@ -117,7 +184,9 @@ function stringValue(value) {
 }
 
 function record(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
 }
 
 function records(value) {

@@ -3,10 +3,12 @@ kind: skill
 target: ..
 runner: research
 operator_journeys:
-  - mode: standalone
+  - mode: composed
     confusors: [research-brief, prior-art]
     request: Research this bounded question from the supplied governed source packets.
-    expected_outcome: Return a citation-bound research packet from the default runner without rediscovering or reacquiring the sources.
+    expected_outcome: Return a citation-bound packet through the explicit reuse phase.
+    prior_evidence: [The two supplied source packets and their original provenance.]
+    must_not_repeat: [Do not search or fetch those sources again.]
 inputs:
   objective: Identify the strongest architectural signal in the supplied Runx evidence.
   domain: agent infrastructure

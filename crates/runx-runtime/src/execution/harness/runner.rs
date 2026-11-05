@@ -837,6 +837,7 @@ where
     let credentials = super::credential_variables(skill_dir, &options.env)?;
     super::isolate_harness_environment(&mut options.env, &credentials);
     overlay_harness_env(&mut options, &fixture.env);
+    resolve_fixture_path(&mut options.env, skill_dir)?;
     // Harness graph replays need a deterministic run_id so per-run governance
     // can resolve one, mirroring the production graph runner. Derived from the
     // graph so receipts stay reproducible; an explicit fixture env value still

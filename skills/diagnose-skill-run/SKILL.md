@@ -8,13 +8,20 @@ description: Diagnose a failed or suspicious Runx skill execution from receipts 
 Diagnose what went wrong in a skill or graph execution and propose the
 smallest change that fixes it.
 
-Resolve `receipt_id` through the native `receipt-query read` runner, then combine its
+The default resolves an exact `receipt_id` through native `receipt-query#read`, then combines its
 redacted receipt detail with the supplied failure summary or harness output.
 The native detail is authoritative for status, verification, authority, acts,
 decisions, criterion status, references, and seal posture. It deliberately
-excludes hydrated step output, stdout, stderr, credential values, context
-bodies, and local paths; those details must come from supplied bounded failure
-evidence when they are necessary.
+excludes raw execution bodies, stdout, stderr, credential values and context
+bodies. When a retained declared output matters, use the offered native
+`receipt.prove`/`receipt.read` tools to follow verified child references and read
+only the exact relevant claim or JSON pointer. Read permitted source and
+explicitly supplied ordinary logs with bounded `fs.read_bundle`/`fs.search`.
+Those tools retain the existing workspace and private-path guards. A denied,
+unretained or omitted diagnostic is an evidence gap, not permission to inspect
+private runtime files or reconstruct the failed operation. Raw transport logs
+are not exposed by the claim reader; request the specific bounded sanitized
+material if it is needed.
 
 Distinguish root cause from symptoms. A graph may report failure at step 4,
 but the root cause may be bad output from step 2 that propagated through
@@ -26,13 +33,15 @@ Classify the failure:
 - **Input error** — required input missing or malformed. Fix: input
   validation or input resolution.
 - **Scope denial** — step requested scopes outside the graph grant.
-  Fix: scope declarations or grant configuration.
+  Fix: correct an overbroad request or the intended binding under operator
+  authority; never silently widen the grant.
 - **Tool failure** — CLI tool or adapter returned an error. Fix: tool
   invocation (args, env, cwd) or the tool itself.
 - **Schema mismatch** — step output did not match expected shape for
   downstream context. Fix: output parsing or artifact contract.
 - **Timeout** — step exceeded time budget. Fix: increase timeout,
-  reduce work, or split the step.
+  reduce unnecessary work or preserve progress across bounded pages. Inspect
+  the owning operation before increasing a timeout or imposing a product cap.
 - **Policy denial** — transition gate blocked the step. Fix: gate
   conditions or upstream output.
 - **Review rejection** — adversarial review found blocking issues.
@@ -58,6 +67,13 @@ failure signal, return `verdict: pass` with an empty
 `improvement_proposals` array and note that the graph is paused as
 designed.
 
+A ledger answer of `needs_agent` because no audit question was supplied is not
+proof that a different run is paused. Check the actual run/receipt state; do not
+classify from a matching word in a summary. Separate observed failure facts,
+causal interpretation and hypotheses. If the required body or diagnostic is
+unavailable, return `blocked` with the exact next evidence instead of a plausible
+root cause. Do not equate valid receipt signatures with provider or test truth.
+
 One failure, one fix. Propose the smallest change that addresses the root
 cause. Do not bundle unrelated improvements.
 
@@ -81,9 +97,16 @@ receipt.
 
 ## Inputs
 
-Supply whichever evidence is available:
+Supply whichever evidence is available. Without a receipt ID, the default does
+not scan the ledger: it diagnoses only the bounded supplemental material. A
+completed `receipt_evidence` packet skips lookup; `from-evidence` accepts it
+explicitly for a graph. Preserve the source receipt and its verification
+posture; reuse is not independent verification in this phase. Neither path
+replays the failed work.
 
-- `receipt_id`: receipt id to inspect.
+
+- `receipt_id`: exact receipt id to inspect.
+- `receipt_evidence`: completed `runx/receipt-query.answer.v1` to reuse.
 - `receipt_summary`: sanitized receipt or harness summary.
 - `receipt_details`: native redacted receipt projections for deterministic
   replay only; live runs resolve them from `receipt_id`.
@@ -96,6 +119,11 @@ Supply whichever evidence is available:
 
 ### `diagnose-skill-run`
 
+Return a `diagnosis` object with verdict, failure_summary, improvement_proposals
+and next_harness_checks. Optional `evidence` entries are exact source references;
+they are reviewer references, not self-authenticating proof. The deterministic
+finish preserves the existing diagnosis packet and its evidence posture.
+
 Diagnose one failure from native redacted receipt detail plus the supplied summary or harness
 output. Treat needs_agent or a deferred receipt as a healthy suspension unless another concrete
 failure signal exists. Ground authority, acts, decisions, criteria, and seal posture in
@@ -106,3 +134,9 @@ blocked unless the supplied harness output alone proves the defect. Return verdi
 failure_summary, at most three bounded improvement_proposals, and replayable
 next_harness_checks. Each proposal must name target, change, rationale, and risk. Do not write
 files or weaken a refusal.
+
+Read only what the question requires. Do not echo secret values from a retained
+claim or supplied log. Report a sensitive field/locator and the required handling
+without claiming the entire omitted log is secret-free. If the fault is in caller
+inputs, a stale fixture or an owning native boundary, name that owner; do not add
+a compatibility alias or weaken the skill to make the bad invocation pass.

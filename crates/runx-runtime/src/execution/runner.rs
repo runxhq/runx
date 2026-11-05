@@ -590,10 +590,14 @@ where
     A: SkillAdapter,
 {
     pub fn new(adapter: A, options: RuntimeOptions) -> Self {
+        let local_artifacts = crate::services::LocalArtifactService::for_run(
+            &options.run.store().project_dir(),
+            crate::execution::run_record::root_run_id(options.run.run_id()),
+        );
         Self {
             configured_adapter: adapter,
             javascript: crate::adapters::javascript::JavaScriptAdapter::new_session(),
-            local_artifacts: crate::services::LocalArtifactService::default(),
+            local_artifacts,
             options: Arc::new(options),
             inherited_provenance: BTreeMap::new(),
         }

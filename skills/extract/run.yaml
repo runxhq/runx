@@ -1,5 +1,5 @@
 skill: extract
-version: "0.1.13"
+version: "0.1.14"
 catalog:
   kind: skill
   audience: public
@@ -267,6 +267,30 @@ runners:
           maxLength: 5000
     result_from:
     - finalize
+    examples:
+      - source_id: invoice-1042.txt
+        content: 'Invoice 1042, issued to Northwind Pty Ltd. Total due: AUD 1,250.00 by 30 November 2026.'
+        objective: Extract the invoice number, buyer and total due. Leave a field null if the document does not state it.
+        schema:
+          type: object
+          additionalProperties: false
+          required:
+          - invoice_number
+          - buyer
+          - total_due
+          properties:
+            invoice_number:
+              type:
+              - string
+              - 'null'
+            buyer:
+              type:
+              - string
+              - 'null'
+            total_due:
+              type:
+              - string
+              - 'null'
     steps:
     - id: schema
       tool: data.validate

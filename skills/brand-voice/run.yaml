@@ -1,6 +1,5 @@
 skill: brand-voice
-version: "0.2.8"
-
+version: "0.2.9"
 catalog:
   kind: graph
   audience: public
@@ -20,9 +19,32 @@ runners:
         required: false
         description: Brand, product, campaign, or surface being modeled; omission returns a bounded needs-more-evidence packet.
       source_material:
-        type: json
+        type: array
         required: true
-        description: Bounded typed source objects; at least one approved source is required.
+        description: Selected source records with exact kind, content and optional label. At least one approved
+          example is needed; this run accepts up to 50 selected examples.
+        schema:
+          maxItems: 50
+          items:
+            type: object
+            required:
+              - kind
+              - content
+            additionalProperties: false
+            properties:
+              kind:
+                enum:
+                  - approved
+                  - rejected
+                  - draft
+                  - operator_note
+              content:
+                type: string
+                minLength: 1
+                maxLength: 20000
+              label:
+                type: string
+                maxLength: 1000
       channel:
         type: string
         required: false
@@ -36,6 +58,17 @@ runners:
         required: false
         description: Legal, accessibility, product, or editorial boundaries.
     result_from: [reject, finalize]
+    examples:
+      - brand: Acme Cloud
+        channel: homepage
+        audience: platform engineers
+        source_material:
+        - kind: approved
+          label: launch post
+          content: Acme Cloud deploys your service in one command and shows you exactly what changed.
+        - kind: rejected
+          label: old tagline
+          content: The world's most revolutionary cloud platform.
     steps:
       - id: index
         inputs:
@@ -79,7 +112,99 @@ runners:
           equals: ready
         agent: { role: editor, task: brand-voice-synthesize }
         outputs:
-          brand_voice_draft: object
+          brand_voice_draft:
+            type: object
+            schema:
+              properties:
+                decision:
+                  type: string
+                brand:
+                  type: string
+                applicability:
+                  type: object
+                  properties:
+                    channels:
+                      type: array
+                      items:
+                        type: string
+                    audience:
+                      type: string
+                    boundaries:
+                      type: array
+                      items:
+                        type: string
+                brand_voice:
+                  type: object
+                  properties:
+                    voice_principles:
+                      type: array
+                      items:
+                        type: string
+                    vocabulary:
+                      type: object
+                      properties:
+                        use:
+                          type: array
+                          items:
+                            type: string
+                        avoid:
+                          type: array
+                          items:
+                            type: string
+                    cadence:
+                      type: array
+                      items:
+                        type: string
+                    claim_rules:
+                      type: object
+                      properties:
+                        safe:
+                          type: array
+                          items:
+                            type: string
+                        requires_proof:
+                          type: array
+                          items:
+                            type: string
+                        forbidden:
+                          type: array
+                          items:
+                            type: string
+                    channel_adjustments:
+                      type: array
+                      items:
+                        type: string
+                evidence_bindings:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      rule:
+                        type: string
+                      source_ids:
+                        type: array
+                        items:
+                          type: string
+                redactions:
+                  type: array
+                stop_conditions:
+                  type: array
+                  items:
+                    type: string
+              required:
+              - decision
+              if:
+                properties:
+                  decision:
+                    pattern: ^ready
+              then:
+                required:
+                - brand
+                - applicability
+                - brand_voice
+                - evidence_bindings
+                - redactions
+                - stop_conditions
         inputs:
           brand: $input.brand
           channel: $input.channel

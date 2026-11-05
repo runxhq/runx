@@ -1,0 +1,80 @@
+name: stripe-dispute-denies-formal-submission
+kind: skill
+target: ..
+setup:
+  credentials:
+    - stripe
+env:
+  STRIPE_API_KEY: fixture-stripe-key
+inputs:
+  dispute_id: du_case42
+  evidence:
+    - id: delivery-42
+      kind: delivery
+      content: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
+      source: merchant://orders/42/access-log
+caller:
+  answers:
+    prepare-auto#draft:
+      response_draft:
+        posture: contest
+        summary: The order access log records buyer access to the disputed report. Submit that exact fulfillment
+          evidence.
+        fields:
+          access_activity_log: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
+        citations:
+          - field: access_activity_log
+            evidence_id: delivery-42
+            quote: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
+        open_questions: []
+  approvals:
+    file-auto#submit: false
+  http_exchanges:
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/disputes/du_case42
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"du_case42","charge":"ch_original42","payment_intent":"pi_original42","amount":150,"currency":"usd","reason":"product_not_received","status":"needs_response","evidence_details":{"due_by":1893456000,"past_due":false,"has_evidence":false,"submission_count":0},"evidence":{},"livemode":false}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/charges/ch_original42
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"ch_original42","payment_intent":"pi_original42","amount":200,"amount_refunded":0,"currency":"usd","status":"succeeded"}'
+expect:
+  status: policy_denied
+operator_journeys: []

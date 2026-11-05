@@ -284,6 +284,7 @@ fn unperformed(error: HostedApiOperationError) -> Unperformed {
             code: "rate_limited",
             reason,
             retry_at: None,
+            partial: false,
         },
         400..=499 => Unperformed::Refused {
             code: "artifact_refused",

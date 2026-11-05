@@ -10,10 +10,10 @@ export default function finalize(inputs) {
     if (!member) { findings.push(`Unknown team member: ${assignment.member}`); continue; }
     if (assignment.needed_scope.some((scope) => !member.scope_ceiling.includes(scope))) findings.push(`Scope exceeds member ceiling: ${assignment.member}`);
     if (assignment.source_ids.some((ref) => !sources.has(ref))) findings.push(`Unknown source for member: ${assignment.member}`);
-    if (!assignment.acceptance.length) findings.push(`Missing acceptance checks: ${assignment.member}`);
     assignments.push({ ...assignment, skill: member.skill, runner: member.runner, evidence: assignment.source_ids.map((ref) => sources.get(ref)).filter(Boolean), authority_status: "not_granted" });
   }
-  if (draft.decision === "propose" && (!assignments.length || draft.missing_context.length)) findings.push("Resolve missing inputs before proposing delegation.");
+  if (draft.decision === "propose" && !assignments.length) findings.push("A proposed plan needs at least one ready assignment.");
+  if (draft.decision === "needs_input" && assignments.length) findings.push("needs_input must not contain runnable assignments; propose the ready work separately.");
   return { delegation_packet: {
     schema: "runx/team-delegate.delegation.v1",
     decision: findings.length ? "held" : draft.decision === "needs_input" ? "needs_input" : "proposed",

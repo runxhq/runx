@@ -160,15 +160,57 @@ paths in the validated bundle. Bare specifiers, `node:` modules, URLs, absolute
 paths, traversal, symlinks, native modules, and imports outside the bundle are
 rejected.
 
-The worker exposes ECMAScript plus one frozen Runx helper:
-`Runx.parseUrl(value)`. It performs deterministic absolute-URL parsing and
-returns `href`, `origin`, `protocol`, `hostname`, `username`, and `password`. Browser and Node globals
-are not implied; adding another helper requires a reusable domain-independent
-need and one runtime-owned implementation.
+The worker exposes ECMAScript and a frozen `Runx` object. `Runx.parseUrl(value)`
+performs deterministic absolute-URL parsing and returns `href`, `origin`,
+`protocol`, `hostname`, `username`, and `password`. `Runx.parseData(source, format)`
+decodes one JSON, YAML or TOML document from supplied Unicode text. It uses the
+pure parser owner, charges decoded JSON bytes during construction (including
+YAML aliases), and respects the invocation's input/output budgets. Duplicate or
+non-string keys, YAML tags, non-finite numbers, excessive nesting and integers
+outside JavaScript's exact range fail. TOML date/time values become strings.
+JSON integer spellings are checked before any floating-point fallback. YAML
+events expose tags and plain merge keys before projection; those constructs are
+refused while quoted literal strings retain their meaning. Cached YAML anchors
+are independently bounded by the same byte budget. Parser errors contain no
+source fragments. This is syntax decoding, not lockfile
+interpretation or evidence of installed software. Browser and Node globals are
+not implied; new helpers require a reusable domain-independent need and one
+runtime-owned implementation.
+
+Authors declare helpers introduced after the baseline `parseUrl` API in
+`requires`, currently `requires: [parseData]`. This is an admission guard, not
+a permission or inferred source analysis. Graph admission rejects unsupported
+declared names before any step runs; an old parser rejects the new field.
+The worker exposes its fixed helper surface regardless of this declaration.
+Omitting a requirement loses the old-runtime guard and can fail at the helper
+call, so package authors must declare newly required APIs explicitly.
 
 The fixed global surface is installed with native engine builders. Runx does
 not parse a bootstrap script for every invocation; package source is the only
 JavaScript parsed on the execution hot path.
+
+
+Retained derived values use the existing `runx.project_artifact.v1` descriptor.
+`artifact.store` writes one explicitly selected canonical JSON value through
+the project artifact writer, using the native run identity and the existing
+blob byte ceiling. It is immutable result custody, not application state or a
+user-selected filesystem mutation. Repeating the same call and value reuses
+the exact stored bytes. `artifact.open` verifies a selected descriptor against
+the current project artifact root and admits its exact bytes into the existing
+local snapshot service. `artifact.read` then supplies the same bounded UTF-8
+or JSON-array pages used for source files. There is no second store or reader.
+
+Store and open require `artifact.write` or `artifact.read` respectively and
+operator bounds. The existing `artifact.read` page tool requires `fs.read` and
+reads invocation-scoped snapshots from either admission path. Agent-bounded runs
+cannot read or write retained operator
+state through them; that refusal occurs before filesystem access. The
+existing ProjectArtifact descriptor is a locator and digest, not authority or
+proof of who produced its contents. Custom project roots follow RunxPaths;
+foreign roots, stale sizes, file symlinks and digest mismatches are refused.
+Large workflows retain bounded immutable parts and a compact cursor, rather
+than pass a growing completed-history array to the next turn. The host owns
+continuation and scheduling.
 
 Runtime-owned ceilings are 4 MiB source, 4 MiB input, 4 MiB output, 64 MiB
 JavaScript heap, 4 MiB JavaScript stack, 30 seconds wall time, and 4,096 queued

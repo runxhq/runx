@@ -6,8 +6,9 @@ operator_journeys:
   - mode: standalone
     confusors:
       - pay
-    request: Pay this invoice for more than I authorized.
-    expected_outcome: Refuse before any approval or payment because the amount exceeds the authority.
+      - procurement-policy-check
+    request: Pay this invoice.
+    expected_outcome: Check the invoice against the authority and pay it through pay with resource readback.
 inputs:
   invoice_id: INV-2026-0042
   amount_minor: 4200

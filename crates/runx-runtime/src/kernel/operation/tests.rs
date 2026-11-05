@@ -89,6 +89,7 @@ enum Answer {
     Succeed,
     TimeOut,
     Reject,
+    RejectAfterOne,
     WrongProvider,
     /// Succeeds with a locator the connector's references do not declare.
     OffPattern,
@@ -282,7 +283,13 @@ impl crate::http::RuntimeHttpTransport for Provider {
             .url
             .strip_prefix("https://advisories.fixture.invalid/v1/vulns/")
         {
-            if *self.answer.lock().unwrap() == Answer::Reject {
+            let answer = *self.answer.lock().unwrap();
+            if answer == Answer::TimeOut {
+                return Err(RuntimeHttpError::Transport {
+                    message: "advisory request timed out after sending".to_owned(),
+                });
+            }
+            if answer == Answer::Reject || (answer == Answer::RejectAfterOne && self.calls() > 1) {
                 return Ok(RuntimeHttpResponse::new(
                     404,
                     r#"{"code":5,"message":"Bug not found"}"#,
@@ -641,6 +648,9 @@ fn a_financial_call_cannot_understate_its_provider_inputs_to_bypass_the_runs_lim
     )
     .unwrap();
     let operation = &mut manifest["operations"]["issues.update"];
+    // This synthetic provider charges no call fee; its bound transfer amount
+    // must be the reason the money limit rejects the operation.
+    operation["cost"] = serde_json::json!({"usd_micro":0,"per":"request","source":"docs"});
     operation["approval"] = serde_json::json!("required");
     operation["amount"] = serde_json::json!({"units":{"$argument":"/amount_minor"},"currency":{"$argument":"/currency"}});
     operation["input_schema"]["properties"]["amount_minor"] =
@@ -680,6 +690,7 @@ fn a_financial_call_cannot_understate_its_provider_inputs_to_bypass_the_runs_lim
         matches!(error, RuntimeEffectError::CostLimitExceeded { .. }),
         "{error}"
     );
+    assert!(error.to_string().contains("1000000"), "{error}");
     let admission = fixture
         .admit("update", &inputs)
         .expect("matching terms admit for exact approval");
@@ -703,12 +714,13 @@ fn a_financial_call_cannot_understate_its_provider_inputs_to_bypass_the_runs_lim
         &explicit_intent,
         "an optional caller assertion cannot change the approved financial intent"
     );
+    let error = fixture
+        .admit_as("update", &inputs, Some(&limited(10_000)))
+        .unwrap_err();
     assert!(
-        matches!(
-            fixture.admit_as("update", &inputs, Some(&limited(10_000))),
-            Err(RuntimeEffectError::CostLimitExceeded { .. })
-        ),
-        "omitting a redundant amount must not omit its budget charge"
+        matches!(error, RuntimeEffectError::CostLimitExceeded { .. })
+            && error.to_string().contains("1000000"),
+        "omitting a redundant amount must not omit its budget charge: {error}"
     );
     assert_eq!(
         context.admitted.intent().amount.as_ref().unwrap().units,
@@ -1198,15 +1210,20 @@ fn price_advisories(fixture: &Fixture, usd_micro: u64) {
 }
 
 fn price_advisories_per(fixture: &Fixture, usd_micro: u64, per: &str) {
+    advisory_cost(
+        fixture,
+        &format!("usd_micro: {usd_micro}, per: {per}, source: docs"),
+    );
+}
+
+fn advisory_cost(fixture: &Fixture, declaration: &str) {
     let path = fixture
         .root
         .path()
         .join("connectors/fixture/advisories/connector.yaml");
     let yaml = std::fs::read_to_string(&path).unwrap().replace(
         "    result_fields: [advisories]\n",
-        &format!(
-            "    result_fields: [advisories]\n    cost: {{usd_micro: {usd_micro}, per: {per}, source: docs}}\n"
-        ),
+        &format!("    result_fields: [advisories]\n    cost: {{{declaration}}}\n"),
     );
     std::fs::write(path, yaml).unwrap();
 }
@@ -1317,6 +1334,357 @@ fn a_run_without_a_limit_spends_as_it_always_has() {
     assert_eq!(
         packet(&outcome)["cost"].as_object().unwrap()["quoted_usd_micro"],
         JsonValue::Number(runx_contracts::JsonNumber::U64(5000))
+    );
+}
+
+#[test]
+fn readback_pending_preserves_both_finality_and_charge_retry_safety() {
+    for declaration in [
+        None,
+        Some("usd_micro: 0, per: request, source: docs"),
+        Some("usd_micro: 5000, per: request, source: docs"),
+    ] {
+        let metered = declaration.is_some_and(|cost| cost.starts_with("usd_micro: 5000"));
+        for answer in [Answer::Reject, Answer::TimeOut] {
+            let fixture = Fixture::new(&["channel.post"]);
+            if let Some(cost) = declaration {
+                advisory_cost(&fixture, cost);
+            }
+            fixture.provider.answer(answer);
+            let mut inputs = advisories("ADV-1");
+            inputs.insert(
+                "readback_of".to_owned(),
+                JsonValue::Object(JsonObject::new()),
+            );
+            let admission = fixture.admit("advisories", &inputs).unwrap();
+            let mut host = Approver::new(None);
+            let admission = match fixture.prepare("advisories", admission, &mut host).unwrap() {
+                EffectPreparationOutcome::Ready(admission) => Some(admission),
+                _ => None,
+            }
+            .expect("read admits");
+            let context = admission.context::<OperationAdmission>().unwrap();
+            let error = execute(
+                context,
+                "advisories",
+                &fixture.env,
+                fixture.root.path(),
+                &NoTools,
+                &mut None,
+            )
+            .unwrap_err();
+            let expected = if metered {
+                runx_contracts::RetryResend::Unsafe
+            } else {
+                runx_contracts::RetryResend::Safe
+            };
+            assert!(
+                matches!(&error, RuntimeError::ProviderReadbackPending { resend, .. } if *resend == expected),
+                "{error}"
+            );
+            assert_eq!(fixture.provider.calls(), 1);
+            if metered && answer == Answer::TimeOut {
+                fixture.provider.answer(Answer::Succeed);
+                assert!(fixture.run("advisories", &inputs, None).is_err());
+                assert_eq!(
+                    fixture.provider.calls(),
+                    1,
+                    "readback finality cannot authorize another uncertain charge"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn readiness_reports_the_same_unpriced_usage_gate_and_money_refusal_as_admission() {
+    let fixture = Fixture::new(&["channel.post"]);
+    advisory_cost(&fixture, "per: request, source: docs");
+    let scope = crate::ConnectorScope::at(fixture.root.path()).unwrap();
+    let connector = scope.connector("fixture/advisories").unwrap();
+    let readiness =
+        admission::connector_readiness(&connector, &fixture.env, fixture.root.path()).unwrap();
+    assert!(readiness.iter().any(|item| {
+        item.reasons.iter().any(|reason| {
+            reason.check == AdmissionCheck::Approval
+                && reason.outcome == runx_contracts::CheckOutcome::Required
+                && reason.detail.as_str().contains("provider-account credits")
+        })
+    }));
+    let manifest = runx_parser::validate_runner_manifest(
+        runx_parser::parse_runner_manifest_yaml(SKILL).unwrap(),
+    )
+    .unwrap();
+    let readiness = admission::skill_readiness(
+        fixture.root.path(),
+        &manifest.connectors,
+        &[],
+        Some(&limited(10000)),
+        &fixture.env,
+        fixture.root.path(),
+    )
+    .unwrap();
+    assert!(
+        readiness
+            .iter()
+            .filter(|item| item.requirement.as_str() == "fixture/advisories")
+            .any(|item| item
+                .reasons
+                .iter()
+                .any(|reason| reason.check == AdmissionCheck::Cost
+                    && reason.outcome == runx_contracts::CheckOutcome::Fail))
+    );
+    assert_eq!(fixture.provider.calls(), 0);
+}
+
+#[test]
+fn an_unpriced_metered_read_asks_once_and_never_invents_a_dollar_price() {
+    let fixture = Fixture::new(&["channel.post"]);
+    advisory_cost(&fixture, "per: request, source: docs");
+    assert_eq!(
+        fixture
+            .run("advisories", &advisories("ADV-1"), None)
+            .unwrap_err(),
+        "pending"
+    );
+    assert_eq!(fixture.provider.calls(), 0);
+    assert!(
+        fixture
+            .run(
+                "advisories",
+                &advisories("ADV-1"),
+                Some(ResolutionResponseActor::Agent)
+            )
+            .is_err()
+    );
+    assert_eq!(fixture.provider.calls(), 0);
+    let (_, outcome) = fixture
+        .run(
+            "advisories",
+            &advisories("ADV-1"),
+            Some(ResolutionResponseActor::Human),
+        )
+        .unwrap();
+    assert_eq!(
+        packet(&outcome)["cost"],
+        JsonValue::from_serialize(&serde_json::json!({"payer":"provider_account"})).unwrap()
+    );
+    assert_eq!(fixture.provider.calls(), 1);
+}
+
+#[test]
+fn bounded_provider_usage_authorizes_an_unpriced_read_without_an_extra_approval() {
+    let fixture = Fixture::new(&["channel.post"]);
+    advisory_cost(&fixture, "per: request, source: docs");
+    let inspection = fixture.admit("advisories", &advisories("ADV-1")).unwrap();
+    let context = inspection.context::<OperationAdmission>().unwrap();
+    let mut authority = limited(u64::MAX);
+    authority.max_cost_micro = None;
+    authority.actor_ref = Some(context.admitted.actor_ref.clone());
+    authority.mandate_ref = Some(Reference::runx(
+        ReferenceType::Mandate,
+        "one-provider-lookup",
+    ));
+    authority.delegations.push(AttenuationRequest {
+        principal_ref: context.admitted.actor_ref.clone(),
+        resource_ref: context.admitted.capability.term.resource_ref.clone(),
+        resource_family: AuthorityResourceFamily::Connector,
+        verbs: vec![AuthorityVerb::Read],
+        bounds: AuthorityBounds {
+            operations: vec!["fixture/advisories/vulnerabilities.read".into()],
+            scopes: vec!["vulnerabilities.read".into()],
+            targets: vec![context.admitted.target.clone().into()],
+            uses: Some(runx_contracts::AuthorityUseLimit {
+                total: Some(1),
+                per_day: None,
+            }),
+        },
+        expires_at: None,
+    });
+    authority.delegations[0].bounds.uses = Some(runx_contracts::AuthorityUseLimit::default());
+    assert_eq!(
+        fixture
+            .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+            .unwrap_err(),
+        "pending"
+    );
+    assert_eq!(fixture.provider.calls(), 0);
+    authority.delegations[0].bounds.uses = Some(runx_contracts::AuthorityUseLimit {
+        total: Some(1),
+        per_day: None,
+    });
+    fixture
+        .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+        .unwrap();
+    assert!(
+        fixture
+            .admit_as("advisories", &advisories("ADV-2"), Some(&authority))
+            .is_err()
+    );
+    assert_eq!(fixture.provider.calls(), 1);
+}
+
+#[test]
+fn a_money_limit_refuses_unknown_and_unpriced_quotes_before_dispatch() {
+    for declared in [false, true] {
+        let fixture = Fixture::new(&["channel.post"]);
+        if declared {
+            advisory_cost(&fixture, "per: request, source: docs");
+        }
+        let error = fixture
+            .admit_as("advisories", &advisories("ADV-1"), Some(&limited(5_000)))
+            .unwrap_err();
+        assert!(
+            matches!(error, RuntimeEffectError::CostLimitExceeded { .. }),
+            "{error}"
+        );
+        assert!(error.to_string().contains("no USD quote"), "{error}");
+        assert_eq!(fixture.provider.calls(), 0);
+    }
+}
+
+#[test]
+fn a_metered_read_timeout_keeps_its_spend_and_refuses_a_blind_resend() {
+    let mut fixture = Fixture::new(&["channel.post"]);
+    price_advisories_per(&fixture, 5_000, "success");
+    let authority = limited(5_000);
+    fixture.provider.answer(Answer::TimeOut);
+    let error = fixture
+        .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+        .unwrap_err();
+    assert!(error.contains("unknown"), "{error}");
+    // A fresh effect reopens the same kernel store instead of relying on
+    // a transport's memory of the first dispatch.
+    fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
+    fixture.provider.answer(Answer::Succeed);
+    let error = fixture
+        .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+        .unwrap_err();
+    assert!(error.contains("cannot be resent safely"), "{error}");
+    assert!(
+        fixture
+            .admit_as("advisories", &advisories("ADV-2"), Some(&authority))
+            .is_err()
+    );
+    assert_eq!(fixture.provider.calls(), 1);
+}
+
+/// Prices the advisory read at 5,000 and gives it a checking read first.
+fn price_advisories_with_a_precondition(fixture: &Fixture) -> std::path::PathBuf {
+    price_advisories(fixture, 5_000);
+    let path = fixture
+        .root
+        .path()
+        .join("connectors/fixture/advisories/connector.yaml");
+    let yaml = std::fs::read_to_string(&path).unwrap().replace(
+        "        allowed_hosts: [advisories.fixture.invalid]\n",
+        "        allowed_hosts: [advisories.fixture.invalid]\n        preconditions:\n          - request: {id: exists, method: GET, url: \"https://advisories.fixture.invalid/v1/vulns/exists\"}\n            expected_status: 200\n",
+    );
+    std::fs::write(&path, yaml).unwrap();
+    path
+}
+
+#[test]
+fn a_priced_call_keeps_its_spend_when_its_precondition_times_out() {
+    let mut fixture = Fixture::new(&["channel.post"]);
+    price_advisories_with_a_precondition(&fixture);
+    let authority = limited(5_000);
+    fixture.provider.answer(Answer::TimeOut);
+    assert!(
+        fixture
+            .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+            .is_err()
+    );
+    // The read may have been charged, so the limit is spent and nothing else goes.
+    fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
+    fixture.provider.answer(Answer::Succeed);
+    assert!(
+        fixture
+            .run_under("advisories", &advisories("ADV-2"), None, Some(&authority))
+            .is_err()
+    );
+    assert_eq!(fixture.provider.calls(), 1);
+}
+
+#[test]
+fn a_priced_call_keeps_its_spend_when_its_request_cannot_be_built_after_its_precondition() {
+    let fixture = Fixture::new(&["channel.post"]);
+    let path = price_advisories_with_a_precondition(&fixture);
+    // A header takes a string, so this request cannot be rendered from a list of ids.
+    let yaml = std::fs::read_to_string(&path).unwrap().replace(
+        "          - each: {\"$argument\": \"/ids\"}\n            method: GET\n",
+        "          - each: {\"$argument\": \"/ids\"}\n            method: GET\n            headers: {x-test: {\"$argument\": \"/ids\"}}\n",
+    );
+    std::fs::write(path, yaml).unwrap();
+    let authority = limited(5_000);
+    assert!(
+        fixture
+            .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+            .is_err()
+    );
+    // The precondition went out, so the second call is refused before sending anything.
+    assert_eq!(fixture.provider.calls(), 1);
+    assert!(
+        fixture
+            .run_under("advisories", &advisories("ADV-2"), None, Some(&authority))
+            .is_err()
+    );
+    assert_eq!(fixture.provider.calls(), 1);
+}
+
+#[test]
+fn a_read_with_no_declared_charge_can_be_read_again_after_a_timeout() {
+    let mut fixture = Fixture::new(&["channel.post"]);
+    fixture.provider.answer(Answer::TimeOut);
+    let error = fixture
+        .run("advisories", &advisories("ADV-1"), None)
+        .unwrap_err();
+    assert!(error.contains("transport"), "{error}");
+    fixture.effect = OperationEffect::with_http_transport(fixture.provider.clone());
+    fixture.provider.answer(Answer::Succeed);
+    fixture
+        .run("advisories", &advisories("ADV-1"), None)
+        .unwrap();
+    assert_eq!(fixture.provider.calls(), 2);
+}
+
+#[test]
+fn a_request_billed_read_does_not_refund_a_sent_refusal() {
+    let fixture = Fixture::new(&["channel.post"]);
+    price_advisories(&fixture, 5_000);
+    let authority = limited(5_000);
+    fixture.provider.answer(Answer::Reject);
+    assert!(
+        fixture
+            .run_under("advisories", &advisories("ADV-1"), None, Some(&authority))
+            .is_err()
+    );
+    fixture.provider.answer(Answer::Succeed);
+    assert!(
+        fixture
+            .admit_as("advisories", &advisories("ADV-2"), Some(&authority))
+            .is_err()
+    );
+    assert_eq!(fixture.provider.calls(), 1);
+}
+
+#[test]
+fn a_partial_read_keeps_its_possible_charge_even_when_the_later_request_is_refused() {
+    let fixture = Fixture::new(&["channel.post"]);
+    price_advisories_per(&fixture, 5_000, "success");
+    fixture.provider.answer(Answer::RejectAfterOne);
+    let input: JsonObject =
+        serde_json::from_value(serde_json::json!({"input":{"ids":["ADV-1","ADV-2"]}})).unwrap();
+    let authority = limited(5_000);
+    let error = fixture
+        .run_under("advisories", &input, None, Some(&authority))
+        .unwrap_err();
+    assert!(error.contains("unknown"), "{error}");
+    assert_eq!(fixture.provider.calls(), 2);
+    assert!(
+        fixture
+            .admit_as("advisories", &advisories("ADV-3"), Some(&authority))
+            .is_err()
     );
 }
 
@@ -2292,13 +2660,49 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
             .map(|(_, operation)| operation.clone())
             .expect("the operation")
     };
+    let priced = |usd_micro: u64| {
+        Some(
+            serde_json::from_value(serde_json::json!({
+                "usd_micro": usd_micro, "per": "request", "source": "docs",
+            }))
+            .unwrap(),
+        )
+    };
+    let with_cost = |name: &str, usd_micro: u64| {
+        let mut declared = operation(name);
+        declared.cost = priced(usd_micro);
+        declared
+    };
+
+    // With no declared charge, the verb and its guarantees decide, and a
+    // zero quote changes nothing.
     assert!(resends_safely(&operation("note.read"), None));
+    assert!(resends_safely(&with_cost("note.read", 0), None));
+    let mut state_idempotent = operation("note.put");
+    state_idempotent.guarantees.provider_idempotency = ProviderIdempotency::Inherent;
+    assert!(resends_safely(&state_idempotent, None));
     assert!(resends_safely(&operation("note.put"), None));
     assert!(!resends_safely(&operation("note.post"), None));
     assert!(resends_safely(
         &operation("note.post"),
         Some(DuplicatePolicy::Visible)
     ));
+    assert!(resends_safely(
+        &with_cost("note.post", 0),
+        Some(DuplicatePolicy::Visible)
+    ));
+
+    // A declared charge can land unseen, so only provider deduplication of
+    // the whole call covers a resend. Read access, state idempotency and
+    // tolerated duplicates all fail to.
+    assert!(!resends_safely(&with_cost("note.read", 5_000), None));
+    state_idempotent.cost = priced(5_000);
+    assert!(!resends_safely(&state_idempotent, None));
+    assert!(!resends_safely(
+        &with_cost("note.post", 5_000),
+        Some(DuplicatePolicy::Visible)
+    ));
+    assert!(resends_safely(&with_cost("note.put", 5_000), None));
 }
 
 #[cfg(unix)]
@@ -2390,7 +2794,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
             inputs: JsonObject,
             _: &[String],
             _: &crate::credentials::CredentialDelivery,
-        ) -> Result<JsonValue, String> {
+        ) -> Result<JsonValue, super::confirm::Unperformed> {
             self.0.borrow_mut().push(inputs.clone());
             Ok(JsonValue::Object(JsonObject::from([(
                 "account_id".to_owned(),

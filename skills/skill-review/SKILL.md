@@ -5,15 +5,18 @@ description: Inspect, safely test, and assess one Runx skill package for capabil
 
 # Skill Review
 
-Evaluate one skill from bounded evidence. The default runner passes a local
-package to native `runx.skill.validate`, which parses and inspects the exact
-package, runs read-only or planning harnesses with isolated receipts and no
-operator credentials, and forwards that evidence to the focused assessment
-runner. Execute-capable targets are inspected but never run automatically.
+Evaluate whether one skill actually helps an operator. The default runner passes
+a local package to native `runx.skill.validate`, which parses and inspects the
+exact package and safely replays eligible planning/read harnesses without operator
+credentials. Its single assessment turn can read relevant implementation through
+`fs.read_bundle`; execute-capable targets are inspected, never run automatically.
+A passing authored harness is mechanical evidence, not a usefulness verdict.
 
 This skill does not mutate the package, publish a report, install a package, or
 manufacture missing evidence. Use `assess` directly when a caller already has a
-bounded evidence pack.
+bounded evidence pack. That phase offers no filesystem or provider tools and does
+not replay the harness. Source references without their contents or meaningful
+execution evidence may require more evidence; they are not permission to fetch.
 
 ## Procedure
 
@@ -22,12 +25,23 @@ bounded evidence pack.
    must first be installed or supplied as a bounded evidence pack; this skill
    does not fetch it implicitly.
 2. Run the native harness only when catalog execution is `read` or `plan`.
-3. Compare the documented capability with the inspected runner and catalog
-   metadata in the evidence pack.
+3. Compare the advertised job with the actual default inputs, implementation,
+   deliverable and recovery path. In the direct runner, read the relevant manual,
+   manifest, domain modules and contracts named by the native source closure
+   through `fs.read_bundle`. Use the native resolved package path and normal
+   workspace/owning-skill containment. Preserve each read digest and partial flag;
+   do not read unrelated data or credentials. Reuse source already present in the
+   evidence pack instead of reading it again. Catalog descriptions alone do not
+   establish implementation behavior.
 4. Separate native harness results, provider readback, supplied assertions, and
    unverified claims.
-5. Check the happy path, refusal or stop path, authority boundary, artifact or
-   effect, provenance, and recovery posture appropriate to the skill type.
+5. Start from an ordinary request. State what the caller must still supply or do,
+   what useful work the skill actually finishes, and whether a downstream graph
+   can reuse its output without duplicate reads, judgment, effects or authority.
+   Identify a thin wrapper, missing advertised operation, unused result or invented
+   prerequisite explicitly. Assess stop behavior, authority, provenance and recovery.
+   Separate declared operator journeys and supplied fixture answers from actual
+   completed jobs. Native receipts establish recorded execution, not semantic truth.
 6. Return `needs_more_evidence` when the evidence cannot support a trust
    decision. Never upgrade a parse result or prose claim into execution proof.
 7. Recommend `adopt`, `adopt_with_caveats`, `improve`, or `reject`,
@@ -73,3 +87,17 @@ recovery posture appropriate to the capability. Return needs_more_evidence when 
 cannot support a decision. Never infer provider readiness from a parse result, local supplied
 answer, or prose claim. Recommend adopt, adopt_with_caveats, improve, or reject with
 concrete blockers.
+
+
+The assessment output makes product value explicit. `capability_profile` includes
+`skill`, `summary`, `operator_job`, `default_result`, `caller_work`,
+`value_judgment` (`useful`, `thin_wrapper`, `incomplete`, or `unknown`),
+`value_reason` and `composition`. `trust_assessment` separates `tier`, `caveats`,
+`implementation_evidence` and `product_evidence`. Each `test_matrix` entry names
+a check, its `passed`, `failed`, `skipped` or `required` status, and actual evidence.
+`recommendation_report` includes `recommendation`, `rationale`, `blockers` and
+`next_action`; use `needs_more_evidence` when source or useful-result evidence is
+missing. Copy native evidence identifiers rather than inventing them. Do not use
+`adopt_with_caveats` to hide a missing advertised core capability. A useful local
+draft or analysis may be a complete job without a provider write, but its value
+must be visible in the artifact and caller journey.

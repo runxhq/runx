@@ -5,10 +5,10 @@ description: Bind one invoice to exact buyer payment terms, then use pay with na
 
 # Invoice Pay
 
-Use this for an invoice whose reference, payee, amount and currency are already
-known. Choose a held buyer connector: `wallet/evm` for its supported x402 method,
-or `link` for a Stripe MPP charge with an approved one-time spend request.
-There is no universal EVM address requirement, USD conversion or implicit
+The default runner pays an invoice whose reference, payee, amount and currency
+are already known; `from-document` reads them from the invoice itself. Choose a
+held buyer connector: `wallet/evm` for its supported x402 method, or `link` for a
+Stripe MPP charge with an approved one-time spend request. There is no universal EVM address requirement, USD conversion or implicit
 provider selection. Each method must actually support the invoice currency.
 
 Supply `invoice_id`, positive whole `amount_minor`, explicit `currency`,
@@ -26,10 +26,34 @@ run budget, human approval, effect custody and provider confirmation. A supplied
 invoice or mandate never creates permission to spend. Invoice authenticity and
 procurement approval must come from the caller's evidence or procurement lane.
 
+## Pay from the invoice document
+
+Use `from-document` when you hold the invoice as text. Supply its workspace
+`path`, `connector`, parent mandate, `idempotency_seed` and the method's `request`
+without the terms the document states: for `wallet/evm` leave out `amount_minor`
+and `resource.url`, and for `link` leave out `resource_url`, `amount_minor` and
+`currency`. Restating them is refused, so the amount paid cannot drift from the
+amount read. Convert a PDF or image to text first.
+
+`extract` reads the balance due, currency, reference and HTTPS payment URL, each
+bound to a quotation. A native conversion then turns the decimal into the unit
+the selected method counts in, with no rounding. That unit comes from the method,
+never from the caller or the document: both held methods bind USD to cents here,
+so another currency stops and points back to the default runner with exact minor
+units. It also stops when the document omits a term or states two, or when the
+amount has the wrong number of fractional digits.
+
+The extracted amount is a model's reading of the document, not independent
+financial proof. Your parent mandate still bounds the exact URL and maximum, and
+native approval shows the exact amount before anything moves. The result returns
+the terms and their quotations beside `pay`'s evidence. An invoice that offers
+only bank or card details has no payable HTTPS resource, so it stops here.
+
 ## Composes
 
 <!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
 
+- `extract#from-file`
 - `pay#pay`
 
 ## Completion and recovery

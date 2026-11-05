@@ -8605,7 +8605,6 @@ export const runxSchemaArtifacts = {
                 }
               },
               "required": [
-                "usd_micro",
                 "per",
                 "source"
               ],
@@ -9353,6 +9352,13 @@ export const runxSchemaArtifacts = {
                                         "minLength": 1,
                                         "type": "string"
                                       },
+                                      "in": {
+                                        "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
+                                        "enum": [
+                                          "body"
+                                        ],
+                                        "type": "string"
+                                      },
                                       "items": {
                                         "description": "Where a decoded page holds its items.",
                                         "minLength": 1,
@@ -9362,7 +9368,7 @@ export const runxSchemaArtifacts = {
                                         "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                       },
                                       "param": {
-                                        "description": "The query parameter that carries the cursor.",
+                                        "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
                                         "minLength": 1,
                                         "type": "string"
                                       }
@@ -9718,6 +9724,13 @@ export const runxSchemaArtifacts = {
                                         "minLength": 1,
                                         "type": "string"
                                       },
+                                      "in": {
+                                        "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
+                                        "enum": [
+                                          "body"
+                                        ],
+                                        "type": "string"
+                                      },
                                       "items": {
                                         "description": "Where a decoded page holds its items.",
                                         "minLength": 1,
@@ -9727,7 +9740,7 @@ export const runxSchemaArtifacts = {
                                         "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                       },
                                       "param": {
-                                        "description": "The query parameter that carries the cursor.",
+                                        "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
                                         "minLength": 1,
                                         "type": "string"
                                       }
@@ -9811,6 +9824,13 @@ export const runxSchemaArtifacts = {
                                     "minLength": 1,
                                     "type": "string"
                                   },
+                                  "in": {
+                                    "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
+                                    "enum": [
+                                      "body"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "items": {
                                     "description": "Where a decoded page holds its items.",
                                     "minLength": 1,
@@ -9820,7 +9840,7 @@ export const runxSchemaArtifacts = {
                                     "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                   },
                                   "param": {
-                                    "description": "The query parameter that carries the cursor.",
+                                    "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
                                     "minLength": 1,
                                     "type": "string"
                                   }
@@ -20746,6 +20766,7 @@ export const runxSchemaArtifacts = {
     ],
     "title": "ProjectArtifact",
     "type": "object",
+    "x-runx-packet": true,
     "x-runx-schema": "runx.project_artifact.v1"
   } as JsonSchema,
   "provider-operation.schema.json": {
@@ -20782,7 +20803,6 @@ export const runxSchemaArtifacts = {
           }
         },
         "required": [
-          "quoted_usd_micro",
           "payer"
         ],
         "title": "CallCost",
@@ -23469,7 +23489,6 @@ export const runxSchemaArtifacts = {
           }
         },
         "required": [
-          "usd_micro",
           "per",
           "source"
         ],
@@ -23893,6 +23912,198 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-packet": true,
     "x-runx-schema": "runx.receipt.query.v1"
+  } as JsonSchema,
+  "receipt-read.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/receipt/read/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "A selected value from the exact declared claim a receipt seals. The outcome digest binds the complete claim, outcome and child references; selecting a pointer is a native verified read, not a Merkle proof.",
+    "properties": {
+      "bytes": {
+        "description": "Serialized UTF-8 bytes of the selected value; zero when unavailable.",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "children": {
+        "items": {
+          "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "locator": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "observed_at": {
+              "minLength": 1,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+              "type": "string"
+            },
+            "proof_kind": {
+              "enum": [
+                "effect_evidence",
+                "effect_finality",
+                "credential_resolution"
+              ],
+              "title": "ProofKind",
+              "type": "string"
+            },
+            "provider": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": {
+              "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+              "enum": [
+                "thread",
+                "comment",
+                "event",
+                "tracking_item",
+                "change_request",
+                "repository",
+                "signal",
+                "run",
+                "act",
+                "receipt",
+                "artifact",
+                "verification",
+                "harness",
+                "host",
+                "surface",
+                "target",
+                "skill_binding",
+                "principal",
+                "scope_admission",
+                "grant",
+                "mandate",
+                "credential",
+                "webhook_delivery",
+                "redaction_policy",
+                "external_url",
+                "connector_instance",
+                "connector_operation"
+              ],
+              "title": "ReferenceType",
+              "type": "string"
+            },
+            "uri": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "uri"
+          ],
+          "title": "Reference",
+          "type": "object",
+          "x-runx-schema": "runx.reference.v1"
+        },
+        "type": "array"
+      },
+      "issuer_type": {
+        "enum": [
+          "local",
+          "hosted",
+          "ci"
+        ],
+        "title": "ReceiptIssuerType",
+        "type": "string"
+      },
+      "json_pointer": {
+        "type": "string"
+      },
+      "outcome": {
+        "description": "How a run, or a receipt's subject, ended.",
+        "enum": [
+          "completed",
+          "deferred",
+          "superseded",
+          "declined",
+          "blocked",
+          "failed",
+          "killed",
+          "timed_out"
+        ],
+        "title": "RunOutcome",
+        "type": "string"
+      },
+      "outcome_digest": {
+        "maxLength": 71,
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "receipt_id": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "root_receipt_id": {
+        "description": "When supplied to the reader, this original root was verified and the selected receipt is its root or one of its signed descendants.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "schema": {
+        "enum": [
+          "runx.receipt.read.v1"
+        ],
+        "title": "ReceiptReadSchema",
+        "type": "string"
+      },
+      "status": {
+        "description": "Availability of the retained claim. Every returned receipt has verified first; these states do not claim that an unavailable payload was read.",
+        "enum": [
+          "available",
+          "not_a_step",
+          "not_retained"
+        ],
+        "title": "ReceiptReadStatus",
+        "type": "string"
+      },
+      "subject_kind": {
+        "description": "What a receipt seals: one step's attempt, or the whole graph a run ran.",
+        "enum": [
+          "step",
+          "graph"
+        ],
+        "title": "SubjectKind",
+        "type": "string"
+      },
+      "subject_uri": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "value": {
+        "anyOf": [
+          {},
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The selected declared output, including any sensitive source data it contains. Invocation inputs, credential stores and transport diagnostics are not loaded. Null is valid when status is available."
+      }
+    },
+    "required": [
+      "schema",
+      "status",
+      "receipt_id",
+      "subject_kind",
+      "subject_uri",
+      "issuer_type",
+      "outcome",
+      "outcome_digest",
+      "children",
+      "json_pointer",
+      "value",
+      "bytes"
+    ],
+    "title": "ReceiptRead",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.receipt.read.v1"
   } as JsonSchema,
   "receipt.schema.json": {
     "$id": "https://schemas.runx.ai/runx/receipt/v1.json",
@@ -27547,7 +27758,6 @@ export const runxSchemaArtifacts = {
                     }
                   },
                   "required": [
-                    "usd_micro",
                     "per",
                     "source"
                   ],
@@ -28328,7 +28538,6 @@ export const runxSchemaArtifacts = {
                     }
                   },
                   "required": [
-                    "usd_micro",
                     "per",
                     "source"
                   ],
@@ -38007,7 +38216,6 @@ export const runxSchemaArtifacts = {
                 }
               },
               "required": [
-                "usd_micro",
                 "per",
                 "source"
               ],

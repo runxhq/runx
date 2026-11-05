@@ -17,9 +17,9 @@ function tail(packet, resource, aggregate) {
   return { version: packet.after_version, event: packet.events[0].event };
 }
 function accountState(packet, accountId) {
-  ensure(username(accountId), 'Select an explicit lowercase Reddit username.');
+  ensure(username(accountId), 'Select an explicit lowercase Reddit username. The accounts runner lists those configured here.');
   const state = tail(packet, 'reddit_accounts', accountId);
-  ensure(state.event?.type === 'reddit.account', 'Account is not configured.');
+  ensure(state.event?.type === 'reddit.account', `Reddit account ${accountId} is not configured. The accounts runner lists those that are; the configure runner adds one.`);
   ensure(state.event.account_id === accountId, 'Account configuration identity mismatch.');
   validateConfig(accountId, state.event.config);
   return { account_id: accountId, version: state.version, config: state.event.config };

@@ -1,7 +1,8 @@
-//! Packet lock contract (`runx.packet.lock.v1`): the digest each published
-//! package packet id was frozen at. Bundles carry pinned copies of the package
-//! packets they read, so a published id never changes bytes; a changed packet
-//! is a new version beside the old one, and the lock only grows.
+//! Packet lock contract (`runx.packet.lock.v1`): the digest each package packet
+//! id was frozen at. Bundles carry pinned copies of the package packets they
+//! read, so a packet's bytes never change unnoticed. A correction keeps its id
+//! and version and refreshes its entry; only an explicit contract change adds a
+//! new version beside the old one.
 use serde::{Deserialize, Serialize};
 
 use crate::PacketId;

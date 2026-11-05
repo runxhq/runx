@@ -13,6 +13,36 @@ mod resolve;
 use discovery::{canonicalize, discover_skill_paths, display_path};
 use resolve::resolve_skill_ref;
 
+/// The current generated shim's source binding. Its digest identifies the
+/// complete package, independently of the source path's spelling.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RunxExportBinding<'a> {
+    pub target: &'a str,
+    pub source: &'a str,
+    pub package_digest: &'a str,
+}
+
+#[must_use]
+pub fn parse_export_binding(contents: &str) -> Option<RunxExportBinding<'_>> {
+    contents.lines().find_map(|line| {
+        let value = line.strip_prefix("<!-- runx-export:")?;
+        let (target, value) = value.split_once(" source=")?;
+        if !matches!(target, "claude" | "codex") {
+            return None;
+        }
+        let value = value.strip_suffix(" - generated, do not edit -->")?;
+        let (source, package_digest) = value.rsplit_once(" package-digest=")?;
+        if source.is_empty() || runx_contracts::Digest::new(package_digest).is_none() {
+            return None;
+        }
+        Some(RunxExportBinding {
+            target,
+            source,
+            package_digest,
+        })
+    })
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RunxExportSkill {
     pub name: String,
@@ -39,7 +69,19 @@ pub struct RunxExportRunner {
     pub default: bool,
     pub execution_closure_digest: Option<String>,
     pub inputs: BTreeMap<String, SkillInput>,
-    pub examples: Vec<runx_contracts::JsonObject>,
+    /// A run of this runner reaches an agent turn that makes calls, so a host
+    /// works it through the MCP tool `skill_tool_name` names.
+    pub makes_calls: bool,
+}
+
+/// The MCP tool a skill server offers for a runner: the skill's name for its
+/// default runner, and `<skill>__<runner>` for another.
+#[must_use]
+pub fn skill_tool_name(skill: &str, runner: Option<&str>) -> String {
+    match runner {
+        Some(runner) => format!("{skill}__{runner}"),
+        None => skill.to_owned(),
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -147,18 +189,10 @@ fn has_agent_export_contract(
         manifest,
         &package.harness_fixtures,
     );
-    let has_copy_valid_example = report
-        .default_runner
-        .as_deref()
-        .and_then(|name| manifest.runners.get(name))
-        .is_some_and(|runner| {
-            !crate::skill_package::effective_runner_examples(package, manifest, runner).is_empty()
-        });
     report.diagnostics.is_empty()
         && report.readiness.evaluated
         && report.readiness.cold_selection
         && report.readiness.standalone_default
-        && has_copy_valid_example
 }
 
 fn validate_unique_export_names(skills: &mut [RunxExportSkill]) -> Result<(), RunxExportLoadError> {
@@ -205,10 +239,13 @@ fn export_skill(
                 )));
             }
             runner.execution_closure_digest = Some(binding.digest);
+            runner.makes_calls = crate::skill_package::runner_makes_calls(
+                loaded.clone().into(),
+                name,
+                execution_env,
+            )
+            .map_err(|error| RunxExportLoadError::Parse(error.to_string()))?;
         }
-    }
-    for runner in &runners {
-        validate_export_skill_inputs(&runner.inputs)?;
     }
     Ok(RunxExportSkill {
         // The strict manual rule makes every name one safe path segment.
@@ -271,7 +308,7 @@ fn export_runners(
             default: true,
             execution_closure_digest: None,
             inputs: std::collections::BTreeMap::new(),
-            examples: Vec::new(),
+            makes_calls: false,
         }];
     };
     let mut runners = manifest
@@ -289,7 +326,7 @@ fn export_runners(
             default: runner.default || manifest.runners.len() == 1,
             execution_closure_digest: None,
             inputs: runner.inputs.clone(),
-            examples: crate::skill_package::effective_runner_examples(package, manifest, runner),
+            makes_calls: false,
         })
         .collect::<Vec<_>>();
     runners.sort_by(|left, right| {
@@ -299,37 +336,6 @@ fn export_runners(
             .then_with(|| left.name.cmp(&right.name))
     });
     runners
-}
-
-fn validate_export_skill_inputs(
-    inputs: &BTreeMap<String, runx_parser::SkillInput>,
-) -> Result<(), RunxExportLoadError> {
-    for name in inputs.keys() {
-        if !is_export_input_name(name) || is_reserved_skill_flag(name) {
-            return Err(RunxExportLoadError::InvalidArgs(format!(
-                "skill input {name:?} cannot be exported because it is not a safe runx skill flag"
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn is_export_input_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    if !(first.is_ascii_alphabetic() || first == '_') {
-        return false;
-    }
-    chars.all(|character| character.is_ascii_alphanumeric() || character == '_')
-}
-
-fn is_reserved_skill_flag(name: &str) -> bool {
-    matches!(
-        name,
-        "answers" | "credential" | "json" | "receipt_dir" | "run_id" | "secret_env"
-    )
 }
 
 fn manifest_visibility(

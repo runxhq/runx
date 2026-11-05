@@ -1,8 +1,8 @@
 export function preparePolicy(inputs) {
-  const draft = record(inputs.policy_proposal);
-  const decision = enumValue(draft.decision, ["ready", "needs_input", "reject"], "decision");
-  const existingPolicy = optionalRecord(inputs.existing_policy, "existing_policy");
-  const policy = decision === "ready" ? requiredRecord(draft.policy, "policy") : record(draft.policy);
+  const draft = inputs.policy_proposal;
+  const decision = draft.decision;
+  const existingPolicy = inputs.existing_policy ?? null;
+  const policy = draft.policy ?? {};
   const attenuationFindings = decision === "ready" && existingPolicy
     ? wideningFindings(existingPolicy, policy)
     : [];
@@ -16,15 +16,18 @@ export function preparePolicy(inputs) {
       needs_input: stringArray(draft.needs_input),
       success_checkpoint: record(draft.success_checkpoint),
       attenuation_findings: attenuationFindings,
+      fixed_existing: existingPolicy ? fixedSettings(existingPolicy, policy) : {},
+      fixed_proposed: existingPolicy ? fixedSettings(policy, policy) : {},
     },
   };
 }
 
 export function finalizePolicy(inputs) {
-  const context = requiredRecord(inputs.policy_context, "policy_context");
+  const context = inputs.policy_context;
   const lint = record(inputs.policy_lint);
   if (context.path === "lint") {
-    const passed = lint.status === "pass";
+    const fixed = inputs.fixed_comparison.equal;
+    const passed = lint.status === "pass" && fixed;
     return {
       policy_proposal: {
         ...baseProposal(context, passed ? "ready" : "reject"),
@@ -32,9 +35,9 @@ export function finalizePolicy(inputs) {
         validation: {
           status: passed ? "pass" : "fail",
           engine: "runx policy",
-          findings: records(lint.findings).map(projectFinding),
+          findings: [...records(lint.findings).map(projectFinding), ...(!fixed ? [{code:"policy.attenuation.fixed_settings_changed",path:"$",message:"Policy identity, provider/kind, owner routing, branch, adapter or dedupe settings changed; this generic tightening lane cannot establish that change is safe."}] : [])],
           readback: Object.keys(record(lint.readback)).length > 0 ? lint.readback : null,
-          reason: passed ? "Native policy lint passed." : "Native policy lint rejected the proposal.",
+          reason: passed ? "Native policy lint and fixed-setting comparison passed." : "Native policy lint or fixed-setting comparison rejected the proposal.",
         },
       },
     };
@@ -59,6 +62,8 @@ export function finalizePolicy(inputs) {
 
 function wideningFindings(existing, proposed) {
   const findings = [];
+  requireSubset(findings, "owner_routes", ids(existing.owner_routes, "route_id"), ids(proposed.owner_routes, "route_id"));
+  compareControls(findings, existing, proposed);
   requireSubset(findings, "targets", ids(existing.targets, "repo"), ids(proposed.targets, "repo"));
   requireSubset(findings, "sources", ids(existing.sources, "source_id"), ids(proposed.sources, "source_id"));
   requireSubset(findings, "runners", ids(existing.runners, "runner_id"), ids(proposed.runners, "runner_id"));
@@ -152,18 +157,55 @@ function record(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
-function requiredRecord(value, field) {
-  const parsed = record(value);
-  if (Object.keys(parsed).length === 0) throw new Error(`${field} must be a non-empty object`);
-  return parsed;
+
+
+// Only these known fields have monotone policy semantics. Everything else,
+// including opaque provider settings, is compared by native data.compare.
+function compareControls(findings, existing, proposed) {
+  const check = (bad, path) => { if (bad) addWidening(findings, path); };
+  const sourceBefore = indexBy(existing.sources, "source_id");
+  for (const source of records(proposed.sources)) {
+    const before = sourceBefore.get(source.source_id);
+    if (!before) continue;
+    const oldThread = record(before.source_thread), nextThread = record(source.source_thread);
+    check(oldThread.required === true && nextThread.required !== true, "source."+source.source_id+".source_thread.required");
+    check(oldThread.publish_mode !== nextThread.publish_mode && nextThread.publish_mode !== "none", "source."+source.source_id+".source_thread.publish_mode");
+  }
+  for (const [name,key] of [["runners","runner_id"],["targets","repo"]]) {
+    const prior = indexBy(existing[name],key);
+    for (const item of records(proposed[name])) {
+      const before = prior.get(item[key]); if (!before) continue;
+      check(before.scafld_required === true && item.scafld_required !== true, name+"."+item[key]+".scafld_required");
+      if (name === "runners") check(before.state === "unavailable" && item.state === "available", "runner."+item[key]+".state");
+    }
+  }
+  const before = record(existing.outcomes), next = record(proposed.outcomes);
+  for (const field of ["observe_provider","verification_required"]) check(before[field] === true && next[field] !== true, "outcomes."+field);
+  check(before.publish_final_source_thread_update !== true && next.publish_final_source_thread_update === true, "outcomes.publish_final_source_thread_update");
+  const closeRank={never:0,when_verified:1,always:2};
+  check(closeRank[next.close_source_issue] > closeRank[before.close_source_issue], "outcomes.close_source_issue");
 }
 
-function optionalRecord(value, field) {
-  if (value === undefined || value === null) return null;
-  return requiredRecord(value, field);
-}
-
-function enumValue(value, allowed, field) {
-  if (!allowed.includes(value)) throw new Error(`${field} must be one of ${allowed.join(", ")}`);
-  return value;
+function fixedSettings(policy, selected) {
+  const omit = (value, fields) => Object.fromEntries(Object.entries(record(value)).filter(([key]) => !fields.includes(key)));
+  const group = (name,key,allowedChanges) => {
+    const index = indexBy(policy[name],key);
+    return Object.fromEntries(records(selected[name]).map(item => {
+      const row = {...record(index.get(item[key]))};
+      if (name === "sources") { row.adapter_policy ??= {}; row.source_thread = omit(row.source_thread,["required","publish_mode"]); }
+      if (name === "owner_routes") { row.labels ??= []; row.project ??= null; }
+      if (name === "targets") row.base_branch ??= null;
+      for (const field of ["owners","target_repos","labels"]) if (Array.isArray(row[field])) row[field]=Object.fromEntries(row[field].map(value=>[value,true]));
+      return [item[key],omit(row,allowedChanges)];
+    }));
+  };
+  return {
+    ...omit(policy,["created_at","sources","runners","targets","owner_routes","outcomes","permissions"]),
+    sources:group("sources","source_id",["allowed_locators","allowed_actions","minimum_confidence"]),
+    runners:group("runners","runner_id",["allowed_actions","target_repos","scafld_required","state"]),
+    targets:group("targets","repo",["runner_ids","allowed_actions","scafld_required"]),
+    owner_routes:group("owner_routes","route_id",[]),
+    outcomes:omit(policy.outcomes,["observe_provider","verification_required","close_source_issue","publish_final_source_thread_update"]),
+    permissions:omit(policy.permissions,["auto_merge","mutate_target_repo","require_human_merge_gate"]),
+  };
 }

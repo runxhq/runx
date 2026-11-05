@@ -1,10 +1,13 @@
 name: github-pr-review-composed
 steps:
-  - id: github-pr-review
+  - id: acquire
     skill: ../..
-    runner: review
-    inputs: { repository: example/project, number: 42, expected_head: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa }
-  - id: digest
-    tool: data.digest
+    runner: capture
     inputs:
-      value: $steps.github-pr-review
+      repository: example/project
+      number: 42
+  - id: offline
+    skill: ../..
+    runner: from-snapshot
+    inputs:
+      snapshot: $steps.acquire.project_artifact

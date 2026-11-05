@@ -32,7 +32,6 @@
         }
       },
       "required": [
-        "quoted_usd_micro",
         "payer"
       ],
       "title": "CallCost",

@@ -5,16 +5,12 @@ description: Send one digest-bound message on behalf of a principal, posting to 
 
 # Message Send
 
-Govern a message sent on behalf of a principal: a channel post or a reply in a
-bound conversation. The skill never receives a provider token, never lets
+Execute one Slack channel post or source-bound reply on behalf of a principal.
+The explicit `plan` runner can prepare provider-neutral authorization; delivery
+requires the declared Slack operations. Email delivery belongs to the owning
+mail capability, such as Nitrosend; social posting belongs to its account skill. The skill never receives a provider token, never lets
 approved content drift before delivery, and calls a message delivered only
 after the provider reads it back.
-
-## Composes
-
-<!-- Generated from the native execution closure; run pnpm core-skills:composes:generate. -->
-
-- `slack#read_thread`
 
 ## Runners
 
@@ -38,8 +34,10 @@ after the provider reads it back.
   standing notification authority is present, runs `channel.post` through the
   configured binding, then reads the returned message locator back with
   `channel.post.read` and seals only the bounded evidence fields.
-- `reconcile_post`: reads back a post whose delivery outcome was ambiguous,
-  without posting again.
+- `reconcile_post`: reads the exact selected message through `channel.post.read`,
+  with full content validation owned by the connector. It returns an independent
+  observation and explicitly leaves the original native effect status unchanged.
+  It never sends again or treats a timestamp/preview match as settled custody.
 - `reply`: delivers one admitted reply to a bound conversation. The operator
   supplies the exact source packet, thread, draft, provider and native turn
   identity. The skill holds unless the source proves complete coverage, then
@@ -104,7 +102,8 @@ connector credentials in its inputs or receipts.
   stricter preflight block.
 - **Mutable content:** return `needs_input` until content is digest-bound.
 - **Missing consent or unsubscribe path:** block live delivery.
-- **Plan, destination, content-digest, principal or audience drift:** stop.
+- **Plan, destination or content-digest drift:** return an explicit held outcome
+  with no completion evidence; prepare and approve the changed content.
 - **Approval denied or absent:** do not deliver.
 - **Missing, ambiguous, wrong-provider or insufficient-scope binding:** refuse
   rather than fall back to a raw token.
@@ -122,13 +121,20 @@ connector credentials in its inputs or receipts.
   needs, blockers, provider actions, evidence locators and the success
   checkpoint.
 - `notify_plan` is the `runx/message-send.notification_plan.v1` packet, the
-  exact post `post` and `reconcile_post` deliver.
+  exact post `post` delivers and `reconcile_post` can independently observe.
 - A reply ends in a `runx.work_outcome.v1` packet for its host.
 
 A post is delivered only when the sealed `runx.provider.operation.v1` packet
 identifies the operation and carries the provider-returned message locator,
 conversation locator, content digest and occurrence time, and the follow-up
 readback resolves that exact locator.
+
+Exact text includes leading spaces and final line breaks. The native input and
+provider boundary accept up to Slack's 40,000-character text limit; keep ordinary
+messages short. Truncated or split content is not successful exact readback. After an ambiguous send, retain the original pending run and native effect.
+`reconcile_post` can observe a selected message, but its result is not authority
+to resend or claim that the original native effect has settled. Known provider
+acknowledgements resume through the original native readback path.
 
 ## Worked example
 

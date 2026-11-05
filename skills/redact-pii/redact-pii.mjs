@@ -11,34 +11,42 @@ const DEFAULT_CLASSES = [
   "precise_geolocation",
   "date_of_birth",
 ];
-const REASON_CODES = ["none", "ambiguous_semantics", "scrubbing_destroys_meaning", "policy_block", "insufficient_context"];
 
 export function scrubRedaction(inputs) {
-  const content = typeof inputs.content === "string" ? inputs.content : "";
-  const mode = enumValue(optionalString(inputs.mode) || "redact", ["redact", "tokenize", "block"], "mode");
-  const locale = optionalString(inputs.locale) || "und";
+  const content = inputs.content;
+  const mode = inputs.mode;
+  const locale = inputs.locale;
   const classes = policyClasses(inputs.classes);
-  const draft = record(inputs.redaction_draft);
+  const draft = inputs.redaction_draft;
 
-  let decision = enumValue(draft.decision, ["ready", "needs_review", "blocked"], "decision");
+  let decision = draft.decision;
   let detections = [];
-  let residual = residualRisk(draft.residual_risk);
+  let residual = risk(
+    draft.residual_risk.level,
+    draft.residual_risk.reason_code,
+  );
   let redactedContent = "";
   let findings = [];
 
   try {
     detections = parseDetections(draft.detected, content, classes);
-    if (!content) throw new Error("content is required before a boundary decision can be ready");
 
     if (mode === "block") {
       decision = "blocked";
       residual = risk("high", "policy_block");
     } else if (decision === "ready") {
       const candidate = applyDetections(content, detections, mode);
-      findings = scanResidual(candidate);
-      if (findings.length > 0) {
+      findings = scanResidual(candidate).filter((finding) =>
+        classes.includes(finding.class),
+      );
+      if (
+        findings.length > 0 ||
+        residual.level !== "low" ||
+        residual.reason_code !== "none"
+      ) {
         decision = "needs_review";
-        residual = risk("medium", "deterministic_residual_detected");
+        if (residual.level === "low" && residual.reason_code === "none")
+          residual = risk("medium", "deterministic_residual_detected");
       } else {
         redactedContent = candidate;
         residual = risk("low", "none");
@@ -47,11 +55,16 @@ export function scrubRedaction(inputs) {
   } catch (error) {
     decision = "blocked";
     detections = [];
-    findings = [{ class: "validation", span: [0, 0], rule: "invalid_redaction_draft" }];
+    findings = [
+      { class: "validation", span: [0, 0], rule: "invalid_redaction_draft" },
+    ];
     residual = {
       level: "high",
       reason_code: "invalid_redaction_draft",
-      reason: "The redaction draft failed deterministic validation.",
+      reason:
+        error instanceof Error
+          ? error.message
+          : "The redaction draft failed deterministic validation.",
     };
   }
 
@@ -66,7 +79,12 @@ export function scrubRedaction(inputs) {
       redacted_content: redactedContent,
       residual_risk: residual,
       scanner: {
-        status: decision === "ready" ? "pass" : decision === "blocked" ? "block" : "hold",
+        status:
+          decision === "ready"
+            ? "pass"
+            : decision === "blocked"
+              ? "block"
+              : "hold",
         findings,
       },
       policy: { classes, mode, locale },
@@ -75,13 +93,14 @@ export function scrubRedaction(inputs) {
 }
 
 export function finalizeRedaction(inputs) {
-  const candidate = requiredRecord(inputs.redaction_candidate, "redaction_candidate");
-  const sourceDigest = requiredDigest(inputs.source_digest, "source_digest");
-  const nativeRedactedDigest = requiredDigest(inputs.redacted_digest, "redacted_digest");
+  const candidate = inputs.redaction_candidate;
+  const sourceDigest = inputs.source_digest;
+  const nativeRedactedDigest = inputs.redacted_digest;
   const ready = candidate.decision === "ready";
-  const redactedContent = ready && typeof candidate.redacted_content === "string"
-    ? candidate.redacted_content
-    : "";
+  const redactedContent =
+    ready && typeof candidate.redacted_content === "string"
+      ? candidate.redacted_content
+      : "";
   return {
     redaction_report: {
       decision: candidate.decision,
@@ -96,66 +115,156 @@ export function finalizeRedaction(inputs) {
   };
 }
 
+// Select exact source text; the agent chooses semantics, never character arithmetic.
 function parseDetections(value, source, allowedClasses) {
-  const allowed = new Set(allowedClasses);
-  const parsed = Array.isArray(value) ? value.map((entry, index) => {
-    const detection = requiredRecord(entry, `detected[${index}]`);
-    const piiClass = requiredString(detection.class, `detected[${index}].class`);
-    if (!allowed.has(piiClass)) throw new Error(`detected class is outside policy: ${piiClass}`);
-    const span = detection.span;
-    if (!Array.isArray(span) || span.length !== 2 || !span.every(Number.isInteger)) {
-      throw new Error(`detected[${index}].span must contain two integers`);
+  const allowed = new Set(allowedClasses),
+    parsed = [];
+  for (const detection of value) {
+    if (!allowed.has(detection.class))
+      throw new Error("Detected class is outside the selected policy.");
+    const selector = detection.selector;
+    if (selector.all === true && selector.occurrence !== undefined)
+      throw new Error("Choose all occurrences or one occurrence, not both.");
+    const matches = [];
+    let at = 0;
+    while (at <= source.length - selector.quote.length) {
+      const start = source.indexOf(selector.quote, at);
+      if (start < 0) break;
+      const end = start + selector.quote.length;
+      if (
+        (selector.prefix === undefined ||
+          source.endsWith(selector.prefix, start)) &&
+        (selector.suffix === undefined ||
+          source.startsWith(selector.suffix, end))
+      )
+        matches.push([start, end]);
+      at = start + 1;
     }
-    const [start, end] = span;
-    if (start < 0 || end <= start || end > source.length) throw new Error(`detected[${index}].span is outside content`);
-    const confidence = detection.confidence;
-    if (typeof confidence !== "number" || confidence < 0 || confidence > 1) {
-      throw new Error(`detected[${index}].confidence must be between 0 and 1`);
-    }
-    return { class: piiClass, span: [start, end], confidence };
-  }) : [];
-
-  parsed.sort((left, right) => left.span[0] - right.span[0] || left.span[1] - right.span[1]);
-  for (let index = 1; index < parsed.length; index += 1) {
-    if (parsed[index].span[0] < parsed[index - 1].span[1]) throw new Error("detected spans must not overlap");
+    const selected =
+      selector.all === true
+        ? matches
+        : selector.occurrence === undefined
+          ? matches.length === 1
+            ? matches
+            : []
+          : matches[selector.occurrence - 1]
+            ? [matches[selector.occurrence - 1]]
+            : [];
+    if (!selected.length)
+      throw new Error(
+        "The source quote is absent, ambiguous, or its selected occurrence does not exist.",
+      );
+    for (const span of selected)
+      parsed.push({
+        class: detection.class,
+        span,
+        confidence: detection.confidence,
+      });
   }
+  parsed.sort(
+    (left, right) =>
+      left.span[0] - right.span[0] || left.span[1] - right.span[1],
+  );
+  for (let i = 1; i < parsed.length; i++)
+    if (parsed[i].span[0] < parsed[i - 1].span[1])
+      throw new Error("Selected personal-data spans overlap.");
   return parsed;
 }
 
 function applyDetections(source, detections, treatment) {
-  const counts = new Map();
+  const counts = new Map(),
+    tokens = new Map();
   const replacements = detections.map((detection) => {
     const label = detection.class.toUpperCase();
-    const count = (counts.get(label) || 0) + 1;
-    counts.set(label, count);
-    return treatment === "tokenize" ? `[TOKEN:${label}:${count}]` : `[REDACTED:${label}]`;
+    if (treatment !== "tokenize") return "[REDACTED:" + label + "]";
+    const key = JSON.stringify([
+      detection.class,
+      source.slice(...detection.span),
+    ]);
+    if (!tokens.has(key)) {
+      const count = (counts.get(label) || 0) + 1;
+      counts.set(label, count);
+      tokens.set(key, "[TOKEN:" + label + ":" + count + "]");
+    }
+    return tokens.get(key);
   });
-  let output = source;
-  for (let index = detections.length - 1; index >= 0; index -= 1) {
-    const [start, end] = detections[index].span;
-    output = `${output.slice(0, start)}${replacements[index]}${output.slice(end)}`;
+  const chunks = [];
+  let offset = 0;
+  for (let i = 0; i < detections.length; i++) {
+    chunks.push(source.slice(offset, detections[i].span[0]), replacements[i]);
+    offset = detections[i].span[1];
   }
-  return output;
+  chunks.push(source.slice(offset));
+  return chunks.join("");
 }
 
 function scanResidual(value) {
   const findings = [];
-  collect(findings, value, /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu, "email", "direct_email");
-  collect(findings, value, /\b\d{3}-\d{2}-\d{4}\b/gu, "government_id", "us_ssn");
-  collect(findings, value, /\b(?:\d[ -]*?){13,19}\b/gu, "payment_card", "payment_card_digits", (match) => luhn(match));
-  collect(findings, value, /(?<!\w)(?:\+?\d[\d().\s-]{6,}\d)(?!\w)/gu, "phone", "phone_digits", (match) => {
-    const digits = match.replace(/\D/gu, "");
-    return digits.length >= 10 && digits.length <= 15;
-  });
-  collect(findings, value, /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/gu, "precise_geolocation", "ipv4_address");
-  collect(findings, value, /\b[A-Z0-9._%+-]+\s*(?:\[at\]|\(at\)|\sat\s)\s*[A-Z0-9.-]+\s*(?:\[dot\]|\(dot\)|\sdot\s)\s*[A-Z]{2,}\b/giu, "email", "obfuscated_email");
+  collect(
+    findings,
+    value,
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu,
+    "email",
+    "direct_email",
+  );
+  collect(
+    findings,
+    value,
+    /\b\d{3}-\d{2}-\d{4}\b/gu,
+    "government_id",
+    "us_ssn",
+  );
+  collect(
+    findings,
+    value,
+    /\b(?:\d[ -]*?){13,19}\b/gu,
+    "payment_card",
+    "payment_card_digits",
+    (match) => luhn(match),
+  );
+  collect(
+    findings,
+    value,
+    /(?<!\w)(?:\+?\d[\d().\s-]{6,}\d)(?!\w)/gu,
+    "phone",
+    "phone_digits",
+    (match) => {
+      const digits = match.replace(/\D/gu, "");
+      return digits.length >= 10 && digits.length <= 15;
+    },
+  );
+  collect(
+    findings,
+    value,
+    /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/gu,
+    "precise_geolocation",
+    "ipv4_address",
+  );
+  collect(
+    findings,
+    value,
+    /\b[A-Z0-9._%+-]+\s*(?:\[at\]|\(at\)|\sat\s)\s*[A-Z0-9.-]+\s*(?:\[dot\]|\(dot\)|\sdot\s)\s*[A-Z]{2,}\b/giu,
+    "email",
+    "obfuscated_email",
+  );
   return dedupeFindings(findings);
 }
 
-function collect(findings, value, pattern, piiClass, rule, predicate = () => true) {
+function collect(
+  findings,
+  value,
+  pattern,
+  piiClass,
+  rule,
+  predicate = () => true,
+) {
   for (const match of value.matchAll(pattern)) {
     if (!predicate(match[0])) continue;
-    findings.push({ class: piiClass, span: [match.index, match.index + match[0].length], rule });
+    findings.push({
+      class: piiClass,
+      span: [match.index, match.index + match[0].length],
+      rule,
+    });
   }
 }
 
@@ -187,59 +296,28 @@ function luhn(value) {
 }
 
 function policyClasses(value) {
-  if (value === undefined || value === null) return [...DEFAULT_CLASSES];
-  if (!Array.isArray(value) || value.length === 0) throw new Error("classes must be a non-empty array when supplied");
-  return [...new Set(value.map((entry) => requiredString(entry, "classes entry")))].sort();
-}
-
-function residualRisk(value) {
-  const parsed = record(value);
-  const level = enumValue(parsed.level, ["low", "medium", "high"], "residual_risk.level");
-  const reasonCode = enumValue(parsed.reason_code, REASON_CODES, "residual_risk.reason_code");
-  return risk(level, reasonCode);
+  return value === undefined ? [...DEFAULT_CLASSES] : [...value].sort();
 }
 
 function risk(level, reasonCode) {
   const reasons = {
-    none: "No deterministic residual scanner findings remain after treatment.",
-    ambiguous_semantics: "Semantic identifiers remain ambiguous and require review.",
-    scrubbing_destroys_meaning: "Removing the identified material would destroy the content's purpose.",
+    none: "No selected-class pattern matches remain after treatment; this is not proof of complete semantic anonymity.",
+    ambiguous_semantics:
+      "Semantic identifiers remain ambiguous and require review.",
+    scrubbing_destroys_meaning:
+      "Removing the identified material would destroy the content's purpose.",
     policy_block: "The selected policy blocks boundary crossing.",
-    insufficient_context: "The supplied context is insufficient for a safe boundary decision.",
-    deterministic_residual_detected: "The deterministic residual scanner found identifier-shaped content.",
+    insufficient_context:
+      "The supplied context is insufficient for a safe boundary decision.",
+    deterministic_residual_detected:
+      "The deterministic residual scanner found identifier-shaped content.",
   };
-  return { level, reason_code: reasonCode, reason: reasons[reasonCode] };
-}
-
-function enumValue(value, allowed, field) {
-  if (!allowed.includes(value)) throw new Error(`${field} must be one of ${allowed.join(", ")}`);
-  return value;
-}
-
-function requiredString(value, field) {
-  const parsed = optionalString(value);
-  if (!parsed) throw new Error(`${field} must be a non-empty string`);
-  return parsed;
-}
-
-function optionalString(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function record(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
-function requiredRecord(value, field) {
-  const parsed = record(value);
-  if (Object.keys(parsed).length === 0) throw new Error(`${field} must be a non-empty object`);
-  return parsed;
-}
-
-function requiredDigest(value, field) {
-  const parsed = optionalString(value);
-  if (!parsed || !/^sha256:[0-9a-f]{64}$/u.test(parsed)) {
-    throw new Error(`${field} must be a native sha256 digest`);
-  }
-  return parsed;
+  return {
+    level,
+    reason_code: reasonCode,
+    reason:
+      reasonCode === "none" && level !== "low"
+        ? "Semantic review reports elevated residual risk; a clean pattern scan cannot clear it."
+        : reasons[reasonCode],
+  };
 }

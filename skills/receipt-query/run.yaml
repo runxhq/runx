@@ -1,6 +1,5 @@
 skill: receipt-query
-version: "0.6.5"
-
+version: "0.6.6"
 catalog:
   publisher: runx
   kind: graph
@@ -41,6 +40,10 @@ runners:
         required: false
         description: Explicit native redacted receipt-detail projections for deterministic replay only.
     result_from: [finalize-live, finalize-replay, finalize-empty]
+    examples:
+      - receipt_ids:
+        - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        question: Which operations did this run perform?
     steps:
       - id: prepare
         label: normalize the bounded ledger query

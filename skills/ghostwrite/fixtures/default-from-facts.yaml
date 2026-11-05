@@ -1,0 +1,16 @@
+name: ghostwrite-default-accepts-actual-facts
+kind: skill
+target: ..
+inputs:
+  objective: Write a short fixture-project status update.
+  audience: maintainers
+  channel: brief
+  facts: [The fixture project updated its setup guidance.]
+expect:
+  status: needs_agent
+metadata: {public_skill: ghostwrite, source: skills-fixture}
+operator_journeys:
+- mode: standalone
+  confusors: [research, content-package]
+  request: Write a short update using the facts I already supplied.
+  expected_outcome: Admit the exact supplied facts and open one writing turn, without requesting a research packet or external verification.

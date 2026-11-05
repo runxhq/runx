@@ -72,7 +72,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
     vec![
         schema_artifact::<Output>("output.schema.json"),
         schema_artifact::<crate::SkillOutput>("skill-output.schema.json"),
-        schema_artifact::<crate::ProjectArtifact>("project-artifact.schema.json"),
+        public_packet_artifact::<crate::ProjectArtifact>("project-artifact.schema.json"),
         public_packet_artifact::<WorkOutcome>("work-outcome.schema.json"),
         public_packet_artifact::<DecisionObservation>("decision-observation.schema.json"),
         schema_artifact::<ConnectorManifest>("connector.schema.json"),
@@ -138,6 +138,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<CliHelp>("cli-help.schema.json"),
         public_packet_artifact::<ReceiptQuery>("receipt-query.schema.json"),
         public_packet_artifact::<ReceiptProof>("receipt-proof.schema.json"),
+        public_packet_artifact::<crate::ReceiptRead>("receipt-read.schema.json"),
         public_packet_artifact::<Attestation>("attestation.schema.json"),
         public_packet_artifact::<RunList>("run-list.schema.json"),
         public_packet_artifact::<PolicyLint>("policy-lint.schema.json"),

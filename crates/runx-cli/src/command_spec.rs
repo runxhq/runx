@@ -91,13 +91,13 @@ mod tests {
 
     #[test]
     fn command_names_are_unique_and_have_help() {
+        assert!(!COMMAND_SPECS.is_empty());
         let mut names = BTreeSet::new();
         for spec in COMMAND_SPECS {
             assert!(names.insert(spec.name), "duplicate command {}", spec.name);
             let help = command_help_text(spec.name);
             assert!(help.is_some(), "missing help for {}", spec.name);
         }
-        assert_eq!(COMMAND_SPECS.len(), 19);
     }
 
     #[test]

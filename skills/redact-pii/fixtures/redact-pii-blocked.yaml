@@ -3,28 +3,16 @@ kind: skill
 target: ..
 runner: redact-pii
 inputs:
-  content: "Patient Avery Chen, born 1987-04-12, lives at 14 King Street."
+  content: Patient Avery Chen, born 1987-04-12, lives at 14 King Street.
   mode: block
   locale: en-US
-caller:
-  answers:
-    detect:
-      redaction_draft:
-        decision: blocked
-        detected: []
-        residual_risk:
-          level: high
-          reason_code: policy_block
 expect:
   status: sealed
   steps:
-    - digest-source
-    - detect
-    - scrub
-    - digest-redacted
-    - finalize
+    - block-policy
+    - block
   step_outputs:
-    finalize:
+    block:
       subset:
         redaction_report:
           data:

@@ -8,6 +8,7 @@
 import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
 
 import { generatedSchema, validateContractSchema } from "./internal.js";
+import type { HttpPagesContract } from "./generated/contract-types.js";
 
 /** Exact revision identity, validated by the Rust-owned binding schema. */
 export interface ConnectorBinding {
@@ -120,10 +121,7 @@ export interface HttpRequest {
   readonly body?: Template;
   readonly body_encoding?: "json" | "form";
   /** A local read answered in pages; runx Connect never pages. */
-  readonly pages?: {
-    readonly param: string;
-    readonly cursor: string;
-    readonly items: string;
+  readonly pages?: Omit<HttpPagesContract, "limit"> & {
     readonly limit?: Template;
   };
 }

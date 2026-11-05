@@ -40,9 +40,23 @@ decision. Keep it narrow. Wide reports are more likely to combine incompatible
 fields, hit quotas, hide detail in an `(other)` row, or give an agent an
 attractive but irrelevant aggregate.
 
+For pagination, `row_count` is the total for the exact query when supplied.
+A short page does not override a larger total. `pagination.complete` means this
+packet contains the whole query from offset zero; the final page of a later
+offset is still partial evidence and has no next offset. Continue through the
+same runner with the returned `next_offset`, preserving every other query
+field, and combine pages deliberately before making whole-query claims. A
+missing total is an explicit caveat: the packet row count is an observed lower
+bound. Inconsistent row counts, skipped continuation or a stalled page block
+interpretation rather than silently dropping data.
+
 The normalized packet maps each ordered value to its header name, retains row
 count and pagination, and carries timezone, currency, quota, and response
-metadata. Header drift is a hard failure because a row cannot be interpreted
+metadata. When a connector or import echoes the original query, native comparison binds
+its dates, ordered fields, filters, currency and pagination to the expected query.
+A different query is blocked rather than relabeled. Without an echoed query,
+the packet explicitly relies on the caller or native invocation for that binding.
+Header drift is a hard failure because a row cannot be interpreted
 safely when the requested and returned fields differ.
 
 ## Measurement caveats

@@ -248,7 +248,9 @@ fn verify_required_fields(
         ) {
             findings.push(Finding::new(
                 "artifact.identity.changed",
-                "candidate changed an authoritative source value",
+                format!(
+                    "candidate changed the authoritative value at {candidate_path}; copy it exactly"
+                ),
                 Some(format!("required_value_bindings[{index}]")),
             ));
         }
@@ -262,14 +264,16 @@ fn verified_artifact(
     findings: &[Finding],
 ) -> Result<Option<JsonObject>, RuntimeError> {
     if passed {
-        let authoritative = apply_bindings(
-            inputs.authoritative_fields.clone().unwrap_or_default(),
+        let mut verified = candidate;
+        verified.extend(inputs.authoritative_fields.clone().unwrap_or_default());
+        // A path binding owns that path, not its parent. Applying it to an
+        // empty projection and extending the candidate drops sibling fields.
+        let mut verified = apply_bindings(
+            verified,
             inputs.authoritative_source.as_ref(),
             &inputs.authoritative_bindings,
             "authoritative_bindings",
         )?;
-        let mut verified = candidate;
-        verified.extend(authoritative);
         verified.insert("validation".to_owned(), validation("pass", &[]));
         return Ok(Some(verified));
     }

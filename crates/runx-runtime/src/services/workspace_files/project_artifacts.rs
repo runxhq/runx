@@ -1,6 +1,7 @@
 //! Durable, digest-bound project artifacts shared by CLI and operator applications.
 
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 
 use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
@@ -29,7 +30,7 @@ pub(crate) fn persist_canonical_json_artifact(
     persist_json_bytes(artifacts, run_id, kind, label, bytes)
 }
 
-fn persist_json_bytes(
+pub(crate) fn persist_json_bytes(
     artifacts: &Path,
     run_id: &str,
     kind: &str,
@@ -60,8 +61,10 @@ fn persist_json_bytes(
                 path.display()
             ));
         }
-        Ok(_) => {
-            if read_artifact_bytes(&path)? != bytes {
+        Ok(metadata) => {
+            if metadata.len() != bytes.len() as u64
+                || read_artifact_bytes(&path, bytes.len() as u64)? != bytes
+            {
                 return Err("existing project artifact differs from its content address".to_owned());
             }
         }
@@ -104,42 +107,79 @@ fn persist_json_bytes(
     ])))
 }
 
-pub fn read_json_artifact(artifacts: &Path, artifact: &JsonValue) -> Result<JsonValue, String> {
-    let field = |name| artifact.as_object().and_then(|object| object.get(name));
-    if field("schema").and_then(JsonValue::as_str) != Some("runx.project_artifact.v1") {
-        return Err("project artifact has an unsupported schema".to_owned());
+/// Validate the selected descriptor and resolve its contained regular source.
+/// Both JSON reads and snapshot opening use this owner before reading content.
+pub(super) fn project_artifact_source(
+    artifacts: &Path,
+    artifact: &runx_contracts::ProjectArtifact,
+) -> Result<super::WorkspaceFile, String> {
+    if runx_contracts::Digest::new(artifact.digest.clone()).is_none()
+        || artifact.uri != format!("runx:project-artifact:{}", artifact.digest)
+        || artifact.media_type != "application/json"
+        || artifact.bytes == 0
+    {
+        return Err("project artifact has an invalid content address or byte count".to_owned());
     }
-    let raw_path = field("path")
-        .and_then(JsonValue::as_str)
-        .ok_or("project artifact lacks a path")?;
-    let path = Path::new(raw_path)
-        .canonicalize()
-        .map_err(|error| format!("resolving project artifact: {error}"))?;
     let root = artifacts
         .canonicalize()
         .map_err(|error| format!("resolving project artifact root: {error}"))?;
-    if !path.starts_with(&root) || !path.is_file() {
+    let candidate = Path::new(&artifact.path);
+    if !candidate.is_absolute()
+        || candidate
+            .components()
+            .any(|component| component == std::path::Component::ParentDir)
+        || !(candidate.starts_with(artifacts) || candidate.starts_with(&root))
+    {
         return Err("project artifact escapes the project artifact root".to_owned());
     }
-    let bytes = read_artifact_bytes(&path)?;
-    let digest = sha256_prefixed(&bytes);
-    if field("digest").and_then(JsonValue::as_str) != Some(digest.as_str())
-        || field("uri").and_then(JsonValue::as_str)
-            != Some(format!("runx:project-artifact:{digest}").as_str())
-        || field("media_type").and_then(JsonValue::as_str) != Some("application/json")
-        || field("bytes")
-            .and_then(|value| serde_json::to_value(value).ok())
-            .and_then(|value| value.as_u64())
-            != Some(bytes.len() as u64)
+    let path = candidate
+        .canonicalize()
+        .map_err(|error| format!("resolving project artifact: {error}"))?;
+    let relative = path
+        .strip_prefix(&root)
+        .map_err(|_| "project artifact escapes the project artifact root".to_owned())?;
+    if fs::symlink_metadata(&artifact.path)
+        .map_err(|error| format!("checking project artifact: {error}"))?
+        .file_type()
+        .is_symlink()
     {
-        return Err("project artifact digest differs from the stored artifact".to_owned());
+        return Err("project artifact source is a symlink".to_owned());
     }
-    serde_json::from_slice(&bytes)
-        .map_err(|error| format!("project artifact is invalid JSON: {error}"))
+    let source = super::WorkspaceFile::resolve(&root, relative, super::WorkspaceBounds::Operator)
+        .map_err(|error| error.to_string())?;
+    if source.bytes() != artifact.bytes {
+        return Err("project artifact byte count differs from its descriptor".to_owned());
+    }
+    Ok(source)
 }
 
-fn read_artifact_bytes(path: &Path) -> Result<Vec<u8>, String> {
-    fs::read(path).map_err(|error| format!("reading project artifact: {error}"))
+pub fn read_json_artifact(artifacts: &Path, artifact: &JsonValue) -> Result<JsonValue, String> {
+    let artifact = artifact
+        .clone()
+        .deserialize_into::<runx_contracts::ProjectArtifact>()
+        .map_err(|_| "project artifact has an invalid descriptor".to_owned())?;
+    let source = project_artifact_source(artifacts, &artifact)?;
+    let mut bytes = Vec::new();
+    let (length, digest) = source
+        .copy_and_digest(&mut bytes, artifact.bytes)
+        .map_err(|error| error.to_string())?;
+    if length != artifact.bytes || digest.as_str() != artifact.digest {
+        return Err("project artifact digest differs from the stored artifact".to_owned());
+    }
+    serde_json::from_slice(&bytes).map_err(|_| "project artifact is invalid JSON".to_owned())
+}
+
+fn read_artifact_bytes(path: &Path, maximum: u64) -> Result<Vec<u8>, String> {
+    let file =
+        fs::File::open(path).map_err(|error| format!("opening project artifact: {error}"))?;
+    let mut bytes = Vec::new();
+    file.take(maximum.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("reading project artifact: {error}"))?;
+    if bytes.len() as u64 > maximum {
+        return Err("project artifact grew beyond its selected byte count".to_owned());
+    }
+    Ok(bytes)
 }
 
 #[cfg(unix)]

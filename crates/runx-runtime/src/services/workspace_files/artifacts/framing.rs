@@ -1,4 +1,3 @@
-use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
 
 use super::super::WorkspaceFileError;
@@ -12,7 +11,7 @@ pub(super) struct JsonArrayFramePage {
 }
 
 pub(super) fn frame_json_array_page(
-    mut file: File,
+    mut file: impl Read + Seek,
     offset: u64,
     maximum: usize,
     maximum_encoded_records: usize,
@@ -79,7 +78,7 @@ pub(super) fn frame_json_array_page(
 }
 
 fn consume_json_array_prefix(
-    reader: &mut BufReader<File>,
+    reader: &mut BufReader<impl Read>,
     position: &mut u64,
     page_maximum: usize,
 ) -> Result<(), WorkspaceFileError> {
@@ -129,7 +128,7 @@ enum NextJsonArrayRecord {
 }
 
 fn next_json_array_record(
-    reader: &mut BufReader<File>,
+    reader: &mut BufReader<impl Read>,
     position: &mut u64,
     page_end: u64,
 ) -> Result<NextJsonArrayRecord, WorkspaceFileError> {
@@ -158,7 +157,7 @@ fn next_json_array_record(
 }
 
 fn read_json_array_record(
-    reader: &mut BufReader<File>,
+    reader: &mut BufReader<impl Read>,
     position: &mut u64,
     first: u8,
     record_start: u64,
@@ -236,7 +235,7 @@ fn framed_record(
 }
 
 fn read_byte(
-    reader: &mut BufReader<File>,
+    reader: &mut BufReader<impl Read>,
     position: &mut u64,
 ) -> Result<Option<u8>, WorkspaceFileError> {
     let mut byte = [0_u8; 1];

@@ -101,8 +101,9 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx resume <run-id> <answers.json|-> [-R dir] [--package-digest sha256] [--execution-closure-digest sha256] [--managed-agent [--managed-agent-rounds n]] [--diagnostics] [-j|--json]",
         ],
         notes: &[
-            "Put agent/task responses under {\"answers\": {...}}.",
-            "Put explicit human decisions under {\"approvals\": {\"<request-id>\": {\"approved\": true, \"reason\": \"...\"}}}; this is a host attestation that a human approved the exact pending gate. Agents must never author it.",
+            crate::resume::ANSWER_DOCUMENT_EXAMPLE,
+            crate::resume::ANSWER_DOCUMENT_GUIDANCE,
+            crate::resume::APPROVAL_DOCUMENT_GUIDANCE,
         ],
         options: &[
             "-R, --receipt-dir dir",
@@ -285,7 +286,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with -i",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
             "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations, child-run bounds and money limit",
-            "--max-cost usd           The most the run, child runs included, may spend: each priced call's quote and each USD or USDC amount a call moves; a call over what is left is refused before it is sent (cost_limit_exceeded)",
+            "--max-cost usd           Bound the root run's operation quotes and moved USD/USDC amounts. Calls without a USD quote, or over what remains, are refused before dispatch (cost_limit_exceeded); an absent quote never means free",
             "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",
             "--managed-agent          Explicitly allow an in-process model loop for this run",

@@ -1,18 +1,27 @@
-name: dispute-respond-composed
+name: dispute-response-prepared-evidence-composition
 steps:
-  - id: dispute-respond
+  - id: capture
     skill: ../..
-    runner: respond
+    runner: capture
     inputs:
-      dispute_event:
-        dispute_id: dp_demo_001
-        provider: stripe
-        provider_charge_id: ch_demo_001
-        amount_minor: 1250
-        currency: USD
-        reason_code: product_not_received
-      original_receipt_id: sha256:fc1bb8c2027c1b0a76d8095a1d6c112e37a4f4d144991be4d505ec21314ccd39
-  - id: digest
-    tool: data.digest
+      account_id: acct_northstar
+      dispute_id: du_case42
+      evidence: []
+  - id: prepare
+    skill: ../..
+    runner: from-evidence
     inputs:
-      value: $steps.dispute-respond
+      account_id: acct_northstar
+      dispute_id: du_case42
+      case_evidence: $steps.capture.case_context.case_evidence
+      charge_evidence: $steps.capture.case_context.charge_evidence
+      evidence:
+        - id: delivery-42
+          kind: delivery
+          content: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
+          source: merchant://orders/42/access-log
+  - id: file
+    skill: ../..
+    runner: file
+    inputs:
+      prepared_response: $steps.prepare.prepared_response

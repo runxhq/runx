@@ -1,0 +1,42 @@
+name: unicode-source-is-selected-without-model-offsets
+kind: skill
+target: ..
+inputs:
+  content: 😀 José and José replied.
+  classes:
+    - name
+caller:
+  answers:
+    detect:
+      redaction_draft:
+        decision: ready
+        detected:
+          - class: name
+            selector:
+              quote: José
+            confidence: 0.98
+          - class: name
+            selector:
+              quote: José
+            confidence: 0.98
+        residual_risk:
+          level: low
+          reason_code: none
+expect:
+  status: sealed
+  steps:
+    - block-policy
+    - detect
+    - apply
+  step_outputs:
+    apply:
+      subset:
+        redaction_report:
+          data:
+            decision: ready
+        redacted_content: 😀 [REDACTED:NAME] and [REDACTED:NAME] replied.
+  receipt:
+    schema: runx.receipt.v1
+metadata:
+  public_skill: redact-pii
+  source: skills-fixture

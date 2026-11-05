@@ -63,6 +63,9 @@ impl Executable {
 
 #[derive(Clone, Debug)]
 pub struct SkillInvocation {
+    /// Trusted caller bounds for native filesystem admission. This metadata
+    /// is separate from module inputs and the delivered environment.
+    pub workspace_bounds: crate::WorkspaceBounds,
     pub historical_context: Vec<ContextEntry>,
     pub skill_name: String,
     /// Graph step identity when the invocation is owned by a graph act.

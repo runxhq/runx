@@ -5,12 +5,22 @@ description: Read or synchronize bounded GitHub issues, threads, and pull reques
 
 # GitHub
 
-Define one bounded synchronization between local Runx state and a GitHub
-repository. The skill makes direction, resource set, filters, content identity,
-scope, cursor, and authority posture explicit before the selected GitHub
-instance is allowed to read or mutate GitHub.
+Read actual GitHub issues, pull requests and comments with the selected account,
+or apply exact already-decided changes and confirm them independently. For a
+normal read, give `repo` and optionally `kind`, `number`, `page` and `limit`.
+The read authority is selected by the existing native operation; callers do not
+need to construct synchronization direction or scope just to inspect an issue.
 
-The default `github` runner performs the requested pull or push. `plan`
+The default `github` runner reads one bounded page or exact numbered record.
+`kind` is `issues` (the shared GitHub issue feed, including PRs), `pull_requests`
+or `comments`. Comments are issue/PR conversation comments; review diff comments
+are a different capability. `comments` requires the issue or PR number. Exact
+numbered reads return the actual current record; state/label filters are for
+list queries. Raw provider records and the original native operation evidence
+are preserved. A bounded page never establishes complete conversation/history
+coverage, including when filtering PRs out of an issue-feed page.
+
+The explicit `sync` runner performs the requested advanced pull or push. `plan`
 is the explicit no-effect runner; `pull` and `push` remain explicit execution
 lanes for compatible callers. Pulls are bounded reads. A push carries one to
 twenty typed mutations per call that one GitHub operation applies, and returns each
@@ -22,7 +32,12 @@ enters this package.
 
 ## When to use it
 
-Use `github` when an operator needs a reproducible pull or push contract for
+Use the default for actual bounded records. Resolve an omitted repository in
+the host with ordinary git remote/context tools, verify the exact owner/name,
+and pass it explicitly. Do not guess a repository, treat a folder name as one,
+or introduce a separate repository/cursor state store.
+
+Use `sync` when an operator needs a reproducible pull or push contract for
 issues, pull requests, or threads, especially when cursor state must survive
 across runs. Use `plan` only when the requested outcome is a plan. Use `pull`
 for an explicitly selected read lane. Use `activity` to learn what changed in
@@ -53,7 +68,7 @@ evidence. Do not silently turn a denied push into a pull.
    `projection.read` to append the bounded plan and read the projection back. That proves local
    cursor persistence, not GitHub synchronization; this package does not own a
    second cursor database or storage adapter.
-5. The default runner selects the same bounded read or write path from the
+5. The explicit `sync` runner selects the same bounded read or write path from the
    validated direction. `pull` calls the planned read (`issues.list`,
    `issues.read`, `pullrequests.list`, `pullrequests.read`, or
    `comments.list`) with `repo.read`. `push` calls the planned write once under
@@ -67,13 +82,14 @@ evidence. Do not silently turn a denied push into a pull.
    item's number, kind, title, state (`merged` for a merged pull request),
    whether it was opened at or after `since`, its author and whether that is a
    bot, its times, labels, assignees, comment count and link, and the first
-   600 characters of its body with the count left out. Items come newest
-   change first; a full page names its `next_page`.
+   600 characters of its body with the count left out. The provider is queried in updated/descending order, then the
+   page is projected in that order; a full page names a possible `next_page`.
 
 ## Inputs and result
 
 - `repo` is exactly `owner/name`.
-- `direction` is `pull` or `push`.
+- The default needs only `repo`: e.g. `{repo: "runxhq/runx", kind: "pull_requests", number: 554}` reads that exact PR. To continue comments use `kind: comments`, its `number`, and the next `page`, retaining the same query and original provider receipt.
+- `direction` is `pull` or `push` for the explicit `sync` and planning phases.
 - `resources` contains the issue, PR, thread, or `batch` selector and a
   limit no greater than 100. A push has one to twenty `mutations` entries with `path`, `op`, and an
   exact typed `payload`. Issue and PR changes use `op: update`; a new issue
@@ -116,3 +132,10 @@ carries `path: issues/241`, `op: update`, and
 issue update through `issues.update` under `repo.write`, and reads issue 241
 back. A morning summary calls `activity` with `since` set to its last check
 and reports the items that are new, or changed by someone else.
+
+For composition, consume the returned native provider-operation packet directly.
+Pass already read issue fields to `github-issue-triage` `respond`, preserving
+repository, exact number, title, state, full relevant body and original source
+link/receipt. This path does not fetch or post again. `pull` and `push` retain
+their complete typed selectors for power users; the common reader does not
+replace them. Local cursor persistence remains the explicit store-owned phase.

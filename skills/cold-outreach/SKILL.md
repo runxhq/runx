@@ -49,8 +49,11 @@ angle, return `needs_more_evidence` instead of producing generic sales copy.
 Use `lead-enrichment` for missing facts and `lead-qualify` for fit;
 neither is mandatory when adequate evidence is supplied. If `qualification` is
 supplied, bind `prospect.id` to its exact subject; a hold or mismatched subject
-stops drafting even when other contact inputs are eligible. `research` supplies the
-validated evidence packet. `audience` names the reader segment the prospect
+stops drafting even when other contact inputs are eligible. `research` supplies a validated evidence packet when research was needed.
+For known prospect/offer facts, supply `facts` instead; `ghostwrite#admit` binds
+that source directly without a research run. Never supply both source forms.
+These facts remain caller-supplied assertions, not independently verified
+research or contact-policy evidence. `audience` names the reader segment the prospect
 belongs to. Brand and taste packets apply only when their declared scope names
 that audience and the email channel, and they keep their structured profiles,
 evidence bindings and stop conditions through ghostwrite's admission.

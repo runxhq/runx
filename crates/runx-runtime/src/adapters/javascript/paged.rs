@@ -2,6 +2,7 @@ use std::path::Path;
 
 use runx_contracts::javascript_worker::MAX_INPUT_BYTES;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_parser::ArtifactPageInput;
 
 use super::JavaScriptAdapter;
 use crate::RuntimeError;
@@ -22,31 +23,49 @@ pub(super) fn invoke(
         .pages
         .clone()
         .ok_or_else(|| page_error("missing page source"))?;
-    let requested_path = take_string_input(&mut request, &page_source.path_from)?;
-    let path_scope = page_source
-        .path_scope_from
-        .as_deref()
-        .map(|field| take_string_input(&mut request, field))
-        .transpose()?
-        .unwrap_or_else(|| "workspace".to_owned());
-    reject_reserved_input(&request.inputs)?;
-
-    let root = resolve_scoped_root(
-        ".",
-        &path_scope,
-        &request.env,
-        &request.skill_directory,
-        crate::services::WorkspaceBounds::Operator,
+    crate::capability::enforce_required_scopes(
+        "javascript.pages",
+        ["fs.read"],
+        &request.requirements.scopes,
     )
     .map_err(|error| page_error(error.to_string()))?;
-    let artifact = artifacts
-        .admit(
-            &root,
-            Path::new(&requested_path),
-            &page_source.media_type,
-            crate::services::WorkspaceBounds::Operator,
-        )
-        .map_err(|error| page_error(error.to_string()))?;
+    reject_reserved_input(&request.inputs)?;
+    let artifact = match &page_source.source {
+        ArtifactPageInput::Path {
+            path_from,
+            path_scope_from,
+            media_type,
+        } => {
+            let requested_path = take_string_input(&mut request, path_from)?;
+            let path_scope = path_scope_from
+                .as_deref()
+                .map(|field| take_string_input(&mut request, field))
+                .transpose()?
+                .unwrap_or_else(|| "workspace".to_owned());
+            let root = resolve_scoped_root(
+                ".",
+                &path_scope,
+                &request.env,
+                &request.skill_directory,
+                request.workspace_bounds,
+            )
+            .map_err(|error| page_error(error.to_string()))?;
+            artifacts
+                .admit(
+                    &root,
+                    Path::new(&requested_path),
+                    media_type,
+                    request.workspace_bounds,
+                )
+                .map_err(|error| page_error(error.to_string()))?
+        }
+        ArtifactPageInput::Artifact { artifact_from } => {
+            let reference = take_string_input(&mut request, artifact_from)?;
+            artifacts
+                .descriptor(&reference)
+                .map_err(|error| page_error(error.to_string()))?
+        }
+    };
     let prepared = adapter.prepare_invocation(&request, package)?;
 
     let mut state = JsonValue::Null;

@@ -398,7 +398,7 @@ export type CallActContract = {
 /** What a sealed call cost, as its packet carries it. The quote is the operation's declared charge; the settled amount is what the call was charged, or `None` while that is unresolved. */
 export type CallCostContract = {
   readonly payer: CostPayerContract;
-  readonly quoted_usd_micro: number;
+  readonly quoted_usd_micro?: number;
   readonly settled_usd_micro?: number;
 };
 
@@ -1548,15 +1548,20 @@ export type HttpImplementationContract = {
 
 export type HttpMethodContract = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-/** A read answered in pages. The request is sent again with the cursor each page names until a page names none, a page holds no items, or the items gathered reach `limit`. The pages decode to `{items, next}`: every page's items in order, and the cursor a further read would start from, or null once the read reached the end. */
+/** The request location of a provider's page cursor. Body cursors retain the provider's scalar JSON type; query cursors are serialized as URL parameters. */
+export type HttpPageCursorLocationContract = "query" | "body";
+
+/** A read answered in pages. The request is sent again with the cursor each page names until a page names none, a page holds no items, or the items gathered reach `limit`. The pages decode to `{items, next}`: every page's items in order, and the cursor a further read would start from, or null once the read reached the end. Repeated requests additionally return `started` and `complete` for each item: an exhausted shared budget can leave later items unstarted, which must never be interpreted as no matches. */
 export type HttpPagesContract = {
   /** Where a decoded page names the next cursor. */
   readonly cursor: string;
+  /** Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type. */
+  readonly in?: "body";
   /** Where a decoded page holds its items. */
   readonly items: string;
   /** How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read. */
   readonly limit?: unknown;
-  /** The query parameter that carries the cursor. */
+  /** Query parameter name, or an object-member JSON pointer when `in` is body. */
   readonly param: string;
 };
 
@@ -2105,14 +2110,14 @@ export type OperationAmountContract = {
   readonly units: number;
 };
 
-/** A provider's charge for one call. Absent, no per-call charge is known and the call counts nothing against a money limit; `usd_micro: 0` is an explicit free. It is part of the operation digest: a price or basis change is a changed operation, confirmed again before it runs. */
+/** A provider's charge for one call. A missing USD quote is metered usage whose monetary price is unknown; `usd_micro: 0` explicitly declares free. No declaration at all means no charge is known, which is not a quote of zero: a money limit admits only a known quote. The quote and basis are authority-bound. */
 export type OperationCostContract = {
   readonly per: CostBasisContract;
   /** Where the price was read. */
   readonly source: CostSourceContract;
   /** The page that states it, `https` only. */
   readonly source_url?: string;
-  readonly usd_micro: number;
+  readonly usd_micro?: number;
 };
 
 /** What a write produced: one reference, or one per element of a result array. The locator is rendered from the call's arguments, the instance's parameters and the call's result (`$result`); under `each` it reads the element as `$item`. A repeated write's result array is its items' outcomes: an effect is rendered for each applied item, whose `$item` is the provider's answer, and an item not applied produced nothing. Where the connector declares `references`, the kind is one of them and every locator matches its pattern. */
@@ -2953,6 +2958,31 @@ export type ReceiptQueryVerificationContract = {
     readonly [key: string]: unknown;
   }[];
 };
+
+/** A selected value from the exact declared claim a receipt seals. The outcome digest binds the complete claim, outcome and child references; selecting a pointer is a native verified read, not a Merkle proof. */
+export type ReceiptReadContract = {
+  /** Serialized UTF-8 bytes of the selected value; zero when unavailable. */
+  readonly bytes: number;
+  readonly children: readonly ReferenceContract[];
+  readonly issuer_type: ReceiptIssuerTypeContract;
+  readonly json_pointer: string;
+  readonly outcome: RunOutcomeContract;
+  readonly outcome_digest: string;
+  readonly receipt_id: string;
+  /** When supplied to the reader, this original root was verified and the selected receipt is its root or one of its signed descendants. */
+  readonly root_receipt_id?: string;
+  readonly schema: ReceiptReadSchemaContract;
+  readonly status: ReceiptReadStatusContract;
+  readonly subject_kind: SubjectKindContract;
+  readonly subject_uri: string;
+  /** The selected declared output, including any sensitive source data it contains. Invocation inputs, credential stores and transport diagnostics are not loaded. Null is valid when status is available. */
+  readonly value: unknown;
+};
+
+export type ReceiptReadSchemaContract = "runx.receipt.read.v1";
+
+/** Availability of the retained claim. Every returned receipt has verified first; these states do not claim that an unavailable payload was read. */
+export type ReceiptReadStatusContract = "available" | "not_a_step" | "not_retained";
 
 export type ReceiptSchemaContract = "runx.receipt.v1";
 

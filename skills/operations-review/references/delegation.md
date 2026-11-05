@@ -54,32 +54,13 @@ execution:
 `command` is descriptive, not a shell transcript. The deterministic graph
 step or human operator runs the command with real inputs after approval.
 
-## Release Example
+## Release handoff
 
-Good:
-
-```yaml
-lane: release
-execution:
-  interface: workflow
-  lane: release
-  profile: project.release.yaml
-  workflow: .github/workflows/release-cli.yml
-  approval_gate: release.publish.approval
-  verifier: release.verify
-verification:
-  expected_receipt: project.release.report.v1
-  readback: registry package, GitHub release, Docker image, website version, service health
-```
-
-Bad:
-
-```yaml
-reason: Build every platform, publish npm packages, update the website, deploy
-  the service, and check health by following these hand-written shell steps...
-```
-
-That duplicates the release lane and will drift.
+Inspect `release` and the project's existing release profile. Reuse its
+preparation, exact approval, built artifact and independent channel readbacks.
+Keep the actual profile path and workflow identity from that project; this
+review supplies neither a guessed path nor an adjacent release script.
+A submitted workflow is not a completed publication.
 
 ## Stop Conditions
 

@@ -308,7 +308,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         Ok(shape) => shape,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
     };
-    let approval = approval_text(call, operation_spec);
+    let mut approval = approval_text(call, operation_spec);
     // What the call spends, counted only under a money limit.
     let limit = evaluation
         .run_authority
@@ -336,51 +336,26 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         .run_authority
         .and_then(|authority| authority.actor_ref.clone())
         .unwrap_or_else(|| capability.term.principal_ref.clone());
-    let instance_ref = capability::instance_reference(&instance);
-    let mut delegations = Vec::new();
-    if let Some(authority) = evaluation.run_authority {
-        if authority.actor_ref.is_none() && !authority.delegations.is_empty() {
-            return Err(reasons.refuse(
-                AdmissionCheck::Delegation,
-                "the run's delegations name no actor to delegate to",
-            ));
-        }
-        let mut preceding = capability.term.clone();
-        for request in authority.delegations.iter().filter(|request| {
-            request.resource_ref.reference_type == instance_ref.reference_type
-                && request.resource_ref.uri == instance_ref.uri
-        }) {
-            let minted = mint_attenuated(
-                &preceding,
-                request,
-                &ConnectorBoundsComparator,
-                IsoDateTime::from(crate::time::now_iso8601()),
-            );
-            let (term, _) = match minted {
-                Ok(minted) => minted,
-                Err(error) => return Err(reasons.refuse(
-                    AdmissionCheck::Delegation,
-                    format!(
-                        "the run's delegation does not narrow this instance's capability: {error}"
-                    ),
-                )),
-            };
-            preceding = term.clone();
-            delegations.push(term);
-        }
-    }
+    let delegations = match delegated_terms(&capability.term, &instance, evaluation.run_authority) {
+        Ok(terms) => terms,
+        Err(detail) => return Err(reasons.refuse(AdmissionCheck::Delegation, detail)),
+    };
     let mandate_ref = evaluation
         .run_authority
         .and_then(|authority| authority.mandate_ref.clone());
-    if !delegations.is_empty()
-        && !mandate_ref
-            .as_ref()
-            .is_some_and(|reference| reference.reference_type == ReferenceType::Mandate)
-    {
-        return Err(reasons.refuse(
-            AdmissionCheck::Delegation,
-            "the actor's delegation has no bound operator mandate",
-        ));
+    let parent_limits = std::iter::once(&capability.term)
+        .chain(delegations.iter())
+        .filter_map(|term| term.bounds.uses.as_ref())
+        .filter(|limit| limit.total.is_some() || limit.per_day.is_some())
+        .collect::<Vec<_>>();
+    if usage_approval_required(operation_spec, limit, &parent_limits) {
+        // A scoped use bound is standing authority for provider usage. Without
+        // one, one exact native approval authorizes this unpriced call; no
+        // caller boolean or invented USD conversion can substitute for it.
+        approval.get_or_insert_with(|| ApprovalText {
+            reason: "This call may consume provider-account credits; no USD quote or bounded-use authority is available. Approve this exact call.".to_owned(),
+            gate_type: Some("provider_usage".to_owned()),
+        });
     }
     let digests = digest(&call.input).and_then(|payload_digest| {
         let approval_digest = approval.as_ref().map(digest).transpose()?;
@@ -408,10 +383,6 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         Ok(digests) => digests,
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
     };
-    let parent_limits = std::iter::once(&capability.term)
-        .chain(delegations.iter())
-        .filter_map(|term| term.bounds.uses.as_ref())
-        .collect::<Vec<_>>();
     let intent_uses = (!parent_limits.is_empty()).then(|| AuthorityUseLimit {
         total: Some(1),
         per_day: parent_limits
@@ -453,8 +424,11 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // unsettled attempt of its own intent and is held by any other; a
     // bounded call takes the use of the attempt sequence it joins.
     let spends = matches!(charge, Ok(Some(_)));
-    let custody =
-        (access == OperationAccess::Mutate || !parent_limits.is_empty() || spends).then(|| {
+    let custody = (access == OperationAccess::Mutate
+        || operation_spec.is_metered()
+        || !parent_limits.is_empty()
+        || spends)
+        .then(|| {
             EffectCustody::for_act(
                 Arc::clone(evaluation.store),
                 &intent,
@@ -868,6 +842,22 @@ fn readiness(
         AdmissionCheck::Instance,
         format!("instance {}", instance.instance_id),
     );
+    let money_limit = authority.and_then(|authority| authority.max_cost_micro);
+    let mut usage_approval = usage_approval_required(spec, money_limit, &[]);
+    if let Some(limit) = money_limit {
+        match spend::charge(spec, None) {
+            Ok(charge) if charge.usd_micro <= limit => reasons.pass(
+                AdmissionCheck::Cost,
+                "the quote fits; the exact amount is checked at admission",
+            ),
+            Ok(_) => reasons.push(
+                AdmissionCheck::Cost,
+                CheckOutcome::Fail,
+                "the operation's quote exceeds the run's money limit",
+            ),
+            Err(detail) => reasons.push(AdmissionCheck::Cost, CheckOutcome::Fail, detail),
+        }
+    }
     match capability::evidence(&CapabilityRequest {
         connector: &connector,
         instance: &instance,
@@ -877,6 +867,22 @@ fn readiness(
         actor_ref: authority.and_then(|authority| authority.actor_ref.as_ref()),
     }) {
         Ok(capability) => {
+            match delegated_terms(&capability.term, &instance, authority) {
+                Ok(terms) => {
+                    let limits = std::iter::once(&capability.term)
+                        .chain(terms.iter())
+                        .filter_map(|term| term.bounds.uses.as_ref())
+                        .filter(|limit| limit.total.is_some() || limit.per_day.is_some())
+                        .collect::<Vec<_>>();
+                    usage_approval = usage_approval_required(spec, money_limit, &limits);
+                    reasons.pass(
+                        AdmissionCheck::Delegation,
+                        "applicable delegation terms are valid",
+                    );
+                }
+                Err(detail) => reasons.push(AdmissionCheck::Delegation, CheckOutcome::Fail, detail),
+            }
+
             // Render only what inspection knows. Dynamic values from a later
             // provider response remain required and are checked at execution.
             // All concrete targets use the same subset comparator as admission.
@@ -968,12 +974,11 @@ fn readiness(
         }
         Err(detail) => reasons.push(AdmissionCheck::Capability, CheckOutcome::Fail, detail),
     }
-    reasons.pass(AdmissionCheck::Delegation, "the principal acts directly");
-    if spec.approval == ApprovalFloor::Required {
+    if spec.approval == ApprovalFloor::Required || usage_approval {
         reasons.push(
             AdmissionCheck::Approval,
             CheckOutcome::Required,
-            "each call needs approval of its exact intent",
+            if usage_approval { "provider-account credits have no USD quote or bounded-use authority; exact usage approval is required" } else { "each call needs approval of its exact intent" },
         );
     } else {
         reasons.pass(AdmissionCheck::Approval, "no approval floor applies");
@@ -986,6 +991,56 @@ fn readiness(
         Err(detail) => reasons.push(AdmissionCheck::Implementation, CheckOutcome::Fail, detail),
     }
     finish(readiness, reasons)
+}
+
+fn usage_approval_required(
+    operation: &ConnectorOperation,
+    money_limit: Option<u64>,
+    limits: &[&AuthorityUseLimit],
+) -> bool {
+    operation.is_unpriced_metered() && money_limit.is_none() && limits.is_empty()
+}
+
+/// The same applicable delegation chain serves admission and inspection.
+fn delegated_terms(
+    base: &AuthorityTerm,
+    instance: &ConnectorInstance,
+    authority: Option<&RunAuthority>,
+) -> Result<Vec<AuthorityTerm>, String> {
+    let Some(authority) = authority else {
+        return Ok(Vec::new());
+    };
+    if authority.actor_ref.is_none() && !authority.delegations.is_empty() {
+        return Err("the run's delegations name no actor to delegate to".to_owned());
+    }
+    let instance_ref = capability::instance_reference(instance);
+    let mut terms = Vec::new();
+    let mut preceding = base.clone();
+    for request in authority.delegations.iter().filter(|request| {
+        request.resource_ref.reference_type == instance_ref.reference_type
+            && request.resource_ref.uri == instance_ref.uri
+    }) {
+        let (term, _) = mint_attenuated(
+            &preceding,
+            request,
+            &ConnectorBoundsComparator,
+            IsoDateTime::from(crate::time::now_iso8601()),
+        )
+        .map_err(|error| {
+            format!("the run's delegation does not narrow this instance's capability: {error}")
+        })?;
+        preceding = term.clone();
+        terms.push(term);
+    }
+    if !terms.is_empty()
+        && !authority
+            .mandate_ref
+            .as_ref()
+            .is_some_and(|reference| reference.reference_type == ReferenceType::Mandate)
+    {
+        return Err("the actor's delegation has no bound operator mandate".to_owned());
+    }
+    Ok(terms)
 }
 
 fn requirement(
@@ -1199,10 +1254,16 @@ fn call_shape(
                 .to_owned(),
         ),
         OperationAccess::Read => {
-            if call.approval.is_some() {
-                return Err("a read never takes an approval".to_owned());
+            if call.approval.is_some() && !operation.is_metered() {
+                return Err("a read takes approval only for a declared provider charge".to_owned());
             }
-            None
+            if operation.guarantees.provider_idempotency
+                == runx_contracts::connector::ProviderIdempotency::Enforced
+                && request_key.is_none()
+            {
+                return Err("a provider-deduplicated read needs an idempotency_key".to_owned());
+            }
+            request_key.map(str::to_owned)
         }
     };
     let expected_amount = operation.amount.resolve(&arguments)?;
@@ -1267,11 +1328,13 @@ fn executable(operation: &ConnectorOperation, placement: Placement) -> Result<()
 }
 
 fn tolerance(evaluation: &Evaluation<'_>, operation: &ConnectorOperation) -> Result<(), String> {
-    if operation.access() == OperationAccess::Read {
-        if evaluation.duplicates.is_some() {
-            return Err("a read has no uncertain outcome to tolerate".to_owned());
-        }
-        return Ok(());
+    if operation.access() == OperationAccess::Read
+        && !operation.is_metered()
+        && evaluation.duplicates.is_some()
+    {
+        return Err(
+            "a read with no declared charge has no uncertain outcome to tolerate".to_owned(),
+        );
     }
     Ok(())
 }

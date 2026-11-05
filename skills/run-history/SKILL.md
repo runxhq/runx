@@ -21,10 +21,15 @@ evidence is available for grant review; actual usage and policy semantics are st
 - Live execution reads only the native run list and catalog projections. These
   services read the same run records and catalog parser as the Runx CLI
   without routing back through the CLI as a subprocess.
-- Run reads are bounded to 1,000 runs.
+- Run reads are bounded to 1,000 matching runs. Reaching that bound is explicit;
+  the reported rates never claim whole-ledger coverage. An explicit `as_of` is
+  also passed as the native upper bound, excluding later runs.
 - `runs` and `catalog_items` are replay inputs for harnesses and controlled
   analysis, and must be supplied together; replay never silently mixes caller
-  data with live native state.
+  data with live native state. Supply already-windowed projections and omit
+  `period`/`as_of` for replay; time filtering belongs to `run.list`, not a second
+  JavaScript history engine. Skill scope is applied before the replay limit,
+  preserving the original supplied order.
 - Empty history returns `needs_more_evidence` rather than a healthy verdict.
 - `completed_rate` is the share of sealed runs whose outcome is `completed`.
 - `refusal_rate` counts sealed runs that were `blocked` or `declined`. It is

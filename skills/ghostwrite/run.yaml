@@ -1,6 +1,5 @@
 skill: ghostwrite
-version: "0.4.7"
-
+version: "0.4.8"
 catalog:
   kind: skill
   audience: public
@@ -10,7 +9,6 @@ catalog:
   completion: runtime_receipt
   approval: none
   category: content
-
 input_definitions:
   objective:
     type: string
@@ -26,9 +24,21 @@ input_definitions:
     description: Intended content channel.
   evidence_pack:
     type: json
-    required: true
+    required: false
     packet: runx/research.packet.v1
     description: Validated runx/research.packet.v1 evidence.
+  facts:
+    type: array
+    required: false
+    description: Factual statements supplied for this writing task, instead of a research packet. They remain
+      operator-supplied and not independently verified; never supply both source forms.
+    schema:
+      minItems: 1
+      maxItems: 100
+      items:
+        type: string
+        minLength: 1
+        maxLength: 4000
   brand_context:
     type: json
     required: false
@@ -39,23 +49,39 @@ input_definitions:
     required: false
     packet: runx/taste-profile.context.v1
     description: Validated runx/taste-profile.context.v1 packet.
-
 runners:
   draft:
-    description: Write one evidence-bound draft from a ready research or evidence packet, admitting the evidence, writing, then verifying every claim against its source.
+    description: Write one evidence-bound draft from a ready research or evidence packet, admitting the evidence,
+      writing, then verifying every claim against its source.
     default: true
     inputs:
-      objective: { definition: objective }
-      audience: { definition: audience }
-      channel: { definition: channel }
-      evidence_pack: { definition: evidence_pack }
+      objective:
+        definition: objective
+      audience:
+        definition: audience
+      channel:
+        definition: channel
+      evidence_pack:
+        definition: evidence_pack
+      facts:
+        definition: facts
       voice_guide:
         type: string
         required: false
         description: Additional project-specific voice constraints.
-      brand_context: { definition: brand_context }
-      taste_context: { definition: taste_context }
-    result_from: [reject, finalize]
+      brand_context:
+        definition: brand_context
+      taste_context:
+        definition: taste_context
+    result_from:
+      - reject
+      - finalize
+    examples:
+      - objective: Announce that exports now run in the background.
+        audience: existing customers
+        channel: changelog
+        facts:
+        - Exports of any size now run in the background and email a link when finished.
     steps:
       - id: admit
         label: admit validated evidence
@@ -66,9 +92,9 @@ runners:
           audience: $input.audience
           channel: $input.channel
           evidence_pack: $input.evidence_pack
+          facts: $input.facts
           brand_context: $input.brand_context
           taste_context: $input.taste_context
-
       - id: reject
         label: withhold unsupported draft
         when:
@@ -78,15 +104,111 @@ runners:
         runner: verify
         inputs:
           evidence_context: $steps.admit.evidence_context
-
       - id: author
         label: author from bounded evidence
         when:
           value: $steps.admit.evidence_context.decision
           equals: ready
-        agent: { role: writer, task: ghostwrite-draft }
+        agent:
+          role: writer
+          task: ghostwrite-draft
         outputs:
-          content_draft: object
+          content_draft:
+            type: object
+            schema:
+              properties:
+                decision:
+                  type: string
+                content_brief:
+                  type: object
+                  properties:
+                    objective:
+                      type: string
+                    audience:
+                      type: string
+                    channel:
+                      type: string
+                  required:
+                  - objective
+                  - audience
+                  - channel
+                draft:
+                  type: object
+                  properties:
+                    title:
+                      type: string
+                    body:
+                      type: string
+                    claims:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          claim:
+                            type: string
+                          source_digests:
+                            type: array
+                            items:
+                              type: string
+                        required:
+                        - claim
+                        - source_digests
+                  required:
+                  - title
+                  - body
+                  - claims
+                context_binding:
+                  type: object
+                  properties:
+                    applied:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          packet_digest:
+                            type: string
+                          applied_rules:
+                            type: array
+                            items:
+                              type: string
+                          scope_review:
+                            type: object
+                            properties:
+                              decision:
+                                type: string
+                              reason:
+                                type: string
+                            required:
+                            - decision
+                            - reason
+                        required:
+                        - packet_digest
+                        - applied_rules
+                        - scope_review
+                  required:
+                  - applied
+                review_checklist:
+                  type: array
+                  items:
+                    type: string
+                distribution_notes:
+                  type: object
+                  properties:
+                    primary_channel:
+                      type: string
+              required:
+              - decision
+              if:
+                properties:
+                  decision:
+                    pattern: ^ready
+              then:
+                required:
+                - content_brief
+                - draft
+                - context_binding
+                - review_checklist
+                - distribution_notes
         inputs:
           objective: $input.objective
           audience: $input.audience
@@ -99,7 +221,6 @@ runners:
         artifacts:
           named_emits:
             content_draft: content_draft
-
       - id: finalize
         label: verify draft evidence and context bindings
         when:
@@ -110,58 +231,76 @@ runners:
         inputs:
           evidence_context: $steps.admit.evidence_context
           content_draft: $steps.author.content_draft
-
   admit:
-    description: Admit the evidence packet, and any voice or taste context, that a draft may use, by digest. For a skill that composes its own writing turn.
+    description: Admit the evidence packet, and any voice or taste context, that a draft may use, by digest. For a
+      skill that composes its own writing turn.
     inputs:
-      objective: { definition: objective }
-      audience: { definition: audience }
-      channel: { definition: channel }
-      evidence_pack: { definition: evidence_pack }
-      brand_context: { definition: brand_context }
-      taste_context: { definition: taste_context }
-    result_from: [prepare]
+      objective:
+        definition: objective
+      audience:
+        definition: audience
+      channel:
+        definition: channel
+      evidence_pack:
+        definition: evidence_pack
+      facts:
+        definition: facts
+      brand_context:
+        definition: brand_context
+      taste_context:
+        definition: taste_context
+    result_from:
+      - prepare
     steps:
+      - id: select-source
+        inputs:
+          evidence_pack: $input.evidence_pack
+          facts: $input.facts
+        tool:
+          module: ghostwrite.mjs
+          export: selectEvidence
+        outputs:
+          selected_source: object
       - id: digest-evidence
         tool: data.digest
         inputs:
-          value: $input.evidence_pack
-
+          value: $steps.select-source.selected_source.evidence
       - id: digest-brand-context
         tool: data.digest
         inputs:
           value:
             type: brand_voice
             packet: $input.brand_context
-
       - id: digest-taste-context
         tool: data.digest
         inputs:
           value:
             type: taste_profile
             packet: $input.taste_context
-
       - id: prepare
         label: admit validated evidence
         inputs:
           objective: $input.objective
           audience: $input.audience
           channel: $input.channel
-          evidence_pack: $input.evidence_pack
+          evidence_pack: $steps.select-source.selected_source.evidence
+          evidence_kind: $steps.select-source.selected_source.kind
           brand_context: $input.brand_context
           taste_context: $input.taste_context
           evidence_packet_digest: $steps.digest-evidence.digest_result.digest
           brand_context_digest: $steps.digest-brand-context.digest_result.digest
           taste_context_digest: $steps.digest-taste-context.digest_result.digest
-        tool: { module: ghostwrite.mjs, export: prepareEvidence }
+        tool:
+          module: ghostwrite.mjs
+          export: prepareEvidence
         outputs:
           evidence_context: object
         artifacts:
           named_emits:
             evidence_context: evidence_context
-
   verify:
-    description: Check every material claim and context binding of a draft against what was admitted, withholding what it cannot bind.
+    description: Check every material claim and context binding of a draft against what was admitted, withholding
+      what it cannot bind.
     inputs:
       evidence_context:
         type: json
@@ -171,7 +310,9 @@ runners:
         type: json
         required: false
         description: Candidate draft written from that evidence context; absent when admission withheld the draft.
-    result_from: [reject, finalize]
+    result_from:
+      - reject
+      - finalize
     steps:
       - id: reject
         label: withhold unsupported draft
@@ -217,6 +358,8 @@ runners:
               source_path: source_digests
             - target_path: context_binding.required
               source_path: context_requirements
+            - target_path: review_checklist
+              source_path: blockers
           source_digests: $input.evidence_context.source_digests
           context_requirements: $input.evidence_context.context_requirements
           fallback_source: $input.evidence_context
@@ -225,7 +368,20 @@ runners:
             content_draft_packet: content_draft_packet
           packets:
             content_draft_packet: runx/ghostwrite.draft.v1
-
+      - id: review-context
+        label: check recorded editorial applicability
+        when:
+          value: $input.evidence_context.decision
+          equals: ready
+        tool:
+          module: ghostwrite.mjs
+          export: reviewContextUse
+        inputs:
+          evidence_context: $input.evidence_context
+          content_draft: $input.content_draft
+        outputs:
+          reviewed_draft: object
+          review_context: object
       - id: finalize
         label: verify draft evidence and context bindings
         when:
@@ -251,6 +407,8 @@ runners:
             - candidate_path: content_brief.channel
               source_path: channel
           authoritative_bindings:
+            - target_path: distribution_notes.source_assurance
+              source_path: evidence_assurance
             - target_path: evidence_binding.evidence_packet_digest
               source_path: evidence_packet_digest
             - target_path: evidence_binding.source_digests
@@ -288,20 +446,21 @@ runners:
               source_path: source_digests
             - target_path: context_binding.required
               source_path: context_requirements
-          candidate: $input.content_draft
+            - target_path: review_checklist
+              source_path: blockers
+          candidate: $steps.review-context.reviewed_draft
           identity_source: $input.evidence_context
           authoritative_source: $input.evidence_context
-          fallback_source: $input.evidence_context
+          fallback_source: $steps.review-context.review_context
           source_digests: $input.evidence_context.source_digests
-          claim_bindings: $input.content_draft.draft.claims
+          claim_bindings: $steps.review-context.reviewed_draft.draft.claims
           context_requirements: $input.evidence_context.context_requirements
-          context_bindings: $input.content_draft.context_binding.applied
+          context_bindings: $steps.review-context.reviewed_draft.context_binding.applied
         artifacts:
           named_emits:
             content_draft_packet: content_draft_packet
           packets:
             content_draft_packet: runx/ghostwrite.draft.v1
-
   package:
     description: Turn a verified draft into a channel payload bound to its digest, not yet sent.
     inputs:
@@ -314,13 +473,16 @@ runners:
         required: true
         packet: runx/ghostwrite.draft.v1
         description: Validated, evidence-bound runx/ghostwrite.draft.v1 packet.
-    result_from: [bind]
+    result_from:
+      - bind
     steps:
       - id: prepare
         inputs:
           channel: $input.channel
           draft: $input.draft
-        tool: { module: ghostwrite.mjs, export: prepareContent }
+        tool:
+          module: ghostwrite.mjs
+          export: prepareContent
         outputs:
           publish_draft: object
           digest_input: string
@@ -333,7 +495,9 @@ runners:
         inputs:
           publish_draft: $steps.prepare.publish_draft
           digest_result: $steps.digest.digest_result
-        tool: { module: ghostwrite.mjs, export: bindContent }
+        tool:
+          module: ghostwrite.mjs
+          export: bindContent
         outputs:
           content_publish_packet:
             type: object
@@ -342,9 +506,9 @@ runners:
             content_publish_packet: content_publish_packet
           packets:
             content_publish_packet: runx/ghostwrite.publish.v1
-
   handoff:
-    description: Bind a packaged payload to its exact target, and say who delivers it next and whether that needs approval. Sends nothing.
+    description: Bind a packaged payload to its exact target, and say who delivers it next and whether that needs
+      approval. Sends nothing.
     inputs:
       channel:
         type: string
@@ -353,8 +517,12 @@ runners:
       boundary_kind:
         type: string
         required: true
-        schema: { enum: [internal, external] }
-        description: Whether delivery crosses outside the team; an external delivery needs the delivering lane's own approval.
+        schema:
+          enum:
+            - internal
+            - external
+        description: Whether delivery crosses outside the team; an external delivery needs the delivering lane's own
+          approval.
       packet:
         type: json
         required: true
@@ -366,7 +534,9 @@ runners:
         description: Exact downstream target locator.
     steps:
       - id: handoff
-        tool: { module: ghostwrite.mjs, export: prepareHandoff }
+        tool:
+          module: ghostwrite.mjs
+          export: prepareHandoff
         inputs:
           channel: $input.channel
           boundary_kind: $input.boundary_kind
@@ -380,7 +550,7 @@ runners:
         artifacts:
           wrap_as: content_handoff_packet
           packet: runx/ghostwrite.handoff.v1
-
 harness:
-  files: [fixtures/support/composed.graph]
+  files:
+    - fixtures/support/composed.graph
   cases: []

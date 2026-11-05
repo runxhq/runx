@@ -3,7 +3,7 @@ export function admitFeed(inputs) {
   const supplied = Array.isArray(inputs.feed_snapshot)
     ? inputs.feed_snapshot
     : feedFromPosts(inputs.posts);
-  const asOfText = text(inputs.as_of);
+  const asOfText = text(inputs.as_of) || text(inputs.observed_at);
   const asOf = Date.parse(asOfText);
   const maxAgeHours = Number(inputs.max_age_hours ?? 168);
   const blockers = [];
@@ -44,6 +44,7 @@ export function admitFeed(inputs) {
   }
 
   return {
+    as_of: asOfText,
     feed_index: {
       decision: blockers.length === 0 ? "ready" : "needs_more_evidence",
       objective,

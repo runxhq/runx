@@ -96,3 +96,14 @@ ids, provider state, promises, or completed work.
 Draft one helpful maintainer response grounded only in the admitted issue
 evidence. Preserve repository, issue number, title, and state exactly. Do not
 claim work is complete unless the snapshot proves it. The draft is not sent.
+
+Prepared-evidence drafting (`respond`) and queue judgment (`discover`) offer no
+provider operations or other tool calls. The default’s graph owns its one issue
+read; `post` owns the separate deliberate provider mutation and independent
+readback. No drafting turn may use connector declarations as ambient posting
+authority.
+
+Issue source bodies preserve their exact whitespace and support GitHub’s
+65,536-character body contract. A null provider body means empty text. Keep the
+original provider packet/receipt with a reused snapshot; source digest binding
+does not make a caller-supplied snapshot a newly executed provider read.

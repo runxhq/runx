@@ -1,6 +1,5 @@
 skill: sign-receipt
-version: "0.3.4"
-
+version: "0.3.5"
 catalog:
   publisher: runx
   kind: skill
@@ -39,6 +38,14 @@ runners:
         schema:
           additionalProperties: true
     result_from: [attest]
+    examples:
+      - action: Issued a goodwill refund in the provider console for order 7741.
+        principal: ops:jordan
+        claim: A refund for order 7741 was completed in the provider console.
+        evidence:
+        - locator: provider:refund:re_3PqL2x
+          digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          proves: The provider shows the refund settled for order 7741.
     steps:
       - id: attest
         tool: receipt.attest

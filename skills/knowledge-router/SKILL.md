@@ -31,8 +31,17 @@ Supply:
 ```
 
 Every selected reference must exist in the corresponding catalog collection.
+The owning host selects its maintained index and passes the relevant bounded
+neighborhood here once. Optional source `locator` fields may name local paths,
+URLs or provider references; they are data, never new read authority. Keep the
+exact input catalog with the result so its selected IDs can be resolved without
+rediscovering the index. This skill neither creates a shadow index nor reads the
+selected sources.
+
 The route may return no follow-up skill when more context or manual review is
-the honest outcome.
+the honest outcome. An owner recommendation must match an exact domain that
+owner declares in the catalog. If ownership is unknown, leave it null rather
+than assigning the closest team.
 
 ## Procedure
 
@@ -42,8 +51,35 @@ the honest outcome.
 4. Select a follow-up skill only when its declared purpose matches the next job.
 5. Use `manual_review` for consequential legal, billing, security, privacy, or
    destructive decisions—not merely because the topic belongs to those teams.
-6. Validate every source, owner, and skill reference deterministically.
+6. Validate every source, owner, and skill reference, source-match consistency,
+   declared owner domain and supplied selection limits deterministically.
 7. Return `needs_more_context` when no supported route exists.
+
+## Selection limits
+
+`constraints` is a closed optional object. `allowed_sources`, `allowed_owners`
+and `allowed_skills` narrow selection to exact catalog IDs. An omitted list adds
+no restriction; an empty list allows none of that kind. `excluded_sources`
+removes exact sources even when an allowlist also includes them. Every policy
+reference must exist in this catalog. `notes` supplies advisory context; it is
+not an executable policy or authority grant. Unsupported constraint keys are
+rejected by input admission rather than echoed as enforced.
+
+A valid source outside a declared limit still refuses. The result never
+converts a failed constraint or unverified ownership into a successful route.
+For `needs_more_context`, there are no selected sources, matches, owner or next
+skill. Each selected source must otherwise have exactly one matching entry.
+
+## Continue the route
+
+Resolve selected IDs against the exact input catalog bound by
+`validation.catalog_digest`. Pass the original question, selected rows and their
+locators, relevant constraints and route rationale to the selected reader or
+research lane. For local repository evidence, `prior-art` can inspect the exact
+paths without broad rediscovery. For captured external evidence, use the normal
+source acquisition and research owners. Keep their actual evidence and answer
+separate from this route. No source was fetched, question answered, worker
+dispatched or message sent by a routed result.
 
 ## Output
 
@@ -61,8 +97,8 @@ the honest outcome.
 - `question` (required): question, event, or thread summary to route.
 - `available_sources` (required): explicit `sources`, `owners`, and `skills`
   collections.
-- `constraints` (optional): allowed sources, sensitivity, excluded systems, or
-  preferred owners. Constraints are not authority.
+- `constraints` (optional): exact source/owner/skill selection limits and
+  advisory notes. Constraints are not authority.
 
 ## Agent task contracts
 

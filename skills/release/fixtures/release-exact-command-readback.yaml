@@ -4,17 +4,21 @@ target: support/release-fixture.graph
 operator_journeys:
   - mode: standalone
     exercises_runner: release
-    confusors: [github-issue-to-pr, github]
+    confusors:
+      - github-issue-to-pr
+      - github
     request: Release version 1.2.3 through this project-owned exact command profile and verify it.
     expected_outcome: Prepare notes, obtain exact approval, execute once, and return independent release readback.
   - mode: composed
-    request: Publish the already prepared 1.2.3 release and verify finality.
-    expected_outcome: Reuse the supplied release notes and project command profile without rebuilding or retesting the release payload.
+    request: Continue the original release invocation at its exact publish approval.
+    expected_outcome: Reuse the preparation, notes and native command plans already produced in that
+      invocation, then independently verify the publication.
     prior_evidence:
-      - The prepared release-note packet and exact project command profile used by the fixture graph.
+      - The original invocation has prepared its project-owned profile, release notes and exact
+        native publish plan.
     must_not_repeat:
-      - Do not regenerate approved release notes.
-      - Do not execute the publish command after readback proves the version exists.
+      - Resume the same paused run; do not start a second default release or repeat its preparation.
+      - Do not rerun an uncertain publish under another request identity.
 caller:
   answers:
     draft-notes:
@@ -23,18 +27,22 @@ caller:
         summary: Publishes the fixture through the project-owned command profile.
         changelog:
           added: []
-          fixed: [Prove independent release readback.]
+          fixed:
+            - Prove independent release readback.
           changed: []
           removed: []
           breaking: []
         upgrade_guidance: No migration is required.
         risks: []
   approvals:
-    "release#release.publish.approval": true
+    release#release.publish.approval: true
 expect:
   status: sealed
-  receipt: { schema: runx.receipt.v1 }
-  steps: [setup, release]
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - setup
+    - release
   step_outputs:
     release:
       subset:

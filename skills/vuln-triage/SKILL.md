@@ -1,92 +1,106 @@
 ---
 name: vuln-triage
-description: Turn verified exact-version vulnerability evidence into bounded remediation and advisory packets without inventing exposure or claiming publication.
+description: Prioritize actual exact-coordinate vulnerability findings, preserve unknown exposure and partial coverage, and return practical remediation or an unsent advisory draft.
 ---
 
-# Vulnerability Triage
+# Vulnerability triage
 
-Translate verified vulnerability identities into an operator decision: what is
-affected, what exposure is established or unknown, how urgent the response is,
-what remediation is justified, and whether an advisory should be prepared. This
-is the judgment layer of the security chain, not another scanner.
+Turn dependency findings into an operational decision: what deserves attention,
+what exposure is established, what remains unknown, and which remediation is
+justified. This is the judgment step after evidence acquisition. It does not
+scan a repository, install packages, modify code or publish an advisory.
 
-Use `cve-audit` first to prove the exact dependency versions and OSV advisory
-identities. `vuln-triage` then reasons about operational exposure and priority
-without changing those facts. Its advisory packet is the end of the chain:
-publishing an advisory is the operator's step, outside runx.
+Use the default `scan` with `target`, actual `evidence` and any relevant
+`scan_context`. Evidence can be a current `runx/cve-audit.audit.v1` packet or a
+findings object from another source. Each finding needs `dependency`,
+`exact_version` and `advisory_id`; retain ecosystem, source URL, affected ranges,
+severity, paths and original provenance when available. A CVE finding's `dependency_locations` may be
+a bounded preview; preserve its count, completeness flag and component artifact.
+Use the producer's paged `locations` phase before treating that preview as the
+complete affected-location set. An audit delivery digest
+or `verified: true` is not a finding. Use `cve-audit` when the missing work is
+actually reading a lockfile and querying OSV; use `sbom-generate` for inventory
+and CycloneDX output.
 
-## Runners
+## Keep facts, exposure and judgment separate
 
-`scan` accepts the exact CVE audit result, its independent verification packet,
-and the sealed receipt id. Every assessment remains bound to dependency,
-installed version, and advisory id. Judgment may classify priority, distinguish
-established from unknown exposure, and propose remediation, but confidence must
-describe only that judgment—the CVE identity is already verified.
+An exact-coordinate match says that the source associates an advisory with a
+package version. It does not establish that the vulnerable function is reachable
+in this deployment, that the package is installed at runtime, or that an exploit
+has occurred. The review preserves the supplied source and binds its exact bytes
+with a native digest. That binds the input; it does not independently verify a
+provider, a caller's receipt id or the truth of a supplied deployment claim.
 
-`advisory` accepts only a validated triage packet. It prepares precise wording
-for the admitted advisory ids and returns a review packet with
-`publication_status: not_published`. It does not call a repository, advisory,
-email, or social provider.
+Describe relevant deployment observations in `scan_context.evidence`, with an
+`id`, a `source` and an `excerpt` for each. A confirmed-exposure assessment must
+reference those ids in `exposure_evidence`. Internet-facing status alone is not
+proof that a vulnerable code path is used. If the necessary trace, call site,
+configuration or runtime evidence is missing, retain `not_established` and name
+what would settle it. Confidence describes the judgment, not cryptographic proof.
 
-## Operating standard
+Prioritize from impact, reachability, deployment role, available mitigations and
+the cost of delaying a fix. Do not repeat a severity label as the entire
+rationale. Give each finding a concrete next action: validate an upgrade, inspect
+a named call site, apply an evidenced mitigation, or obtain the missing trace.
+An exact `fixed_version` must occur in the affected package's supplied advisory
+events; otherwise describe version verification as pending. Do not invent a
+release or assume that the highest suggested version is compatible.
 
-- Keep verified identity, exposure judgment, and remediation confidence
-  separate.
-- State affected versions, preconditions, impact, and mitigations precisely.
-- Treat unknown exposure as a reason to investigate or escalate, not as proof of
-  exploitation or safety.
-- Avoid alarmism and vague severity labels. Explain the operational reason for
-  priority and the evidence still missing.
-- Preserve every verified finding. Adding a new CVE or silently omitting one
-  invalidates the packet.
+## Use it directly or inside a graph
 
-The finalized triage packet adds deterministic escalation criteria for high
-priority, unknown exposure, and low-confidence judgments. A clean audit returns
-`no_verified_findings`; it does not certify the target secure.
+The default returns `vulnerability_review` (`runx/vuln-triage.scan.v1`), with
+the original findings, one assessment and recommendation per coordinate/advisory
+identity, escalation criteria, useful operator summary and source coverage.
+Repeated identities keep their locations together. No arbitrary finding count
+is silently discarded. Runtime byte and model-turn budgets still apply; for a
+large audit, consume its bounded result parts and retain the overall scope.
 
-## Inputs and result
+A parent can pass a current CVE result directly while its graph is still open.
+There is no requirement to fabricate a sealed parent receipt first. The final
+parent receipt records the actual provider and triage steps. If an independent
+consumer needs sealed evidence, verify the original receipt tree through native
+receipt tools and retrieve the declared claim; a receipt proves recorded claim
+integrity, not external truth.
 
-The scan runner consumes the target-bound audit result, verification result, and
-receipt id plus any bounded operational context needed to assess
-exposure. It returns one assessment per verified finding, a remediation plan,
-operator summary, evidence binding, confidence, and escalation criteria.
+Partial scans are useful: triage the known findings now and keep the scan's
+continuation and previous result-part references. Inline findings may cover only
+one part. An empty part is not a clean overall review. `no_matches_in_scope` is
+available only for a complete selected scan with full inventory coverage, no
+omissions and all observations present. Unknown exposure remains unknown even
+when scan coverage is complete. The review never certifies a project secure.
 
-The advisory runner consumes that validated triage packet and returns a title,
-summary, body, exact affected advisory ids, and disclosure checklist. That
-artifact is a draft for review, not external publication.
+## Advisory drafting and recovery
 
-## Stop conditions
+`advisory` takes the exact validated review and an audience, then prepares a
+title, summary, body, affected advisory ids and disclosure checklist. It reuses
+the findings and remediation rather than rescanning or reclassifying the source.
+The result is `ready_for_review`, `not_published` and `not_called`; no repository,
+email or other provider is invoked. Publication is a separate authorized action.
 
-- Return `needs_verified_evidence` when the audit, independent verification, or
-  receipt id is missing or invalid.
-- Return `needs_more_evidence` when an assessment adds or omits a finding,
-  changes a version or advisory identity, or lacks bounded confidence.
-- Reject advisory wording that cites an unknown id or states exposure the
-  triage packet did not establish.
-- Never mutate the target, query another provider, repair dependencies, or
-  claim disclosure.
-
-## Example
-
-An audit proves that exact version `x.y.z` matches one OSV advisory. Triage may
-find that the vulnerable code path is reachable, assign high priority, and
-recommend a tested upgrade; or it may record exposure as unknown and request a
-named runtime trace. It cannot add a related CVE from memory. The advisory draft
-may describe only the admitted finding and the remediation evidence present in
-the packet.
+Missing identities, omitted assessments, unbound exposure references and invented
+fix versions produce `needs_more_evidence` while retaining the known findings.
+Correct the precise missing input or assessment. Continue the original audit or
+read its earlier result parts when coverage is incomplete. Never replace missing
+evidence with a receipt-shaped string, silently shorten the findings list, or
+report an incomplete scan as a negative result.
 
 ## Agent task contracts
 
 ### `vuln-triage-assess`
 
-Assess only the verified finding identities. Return one assessment per exact
-dependency, version, and advisory id plus the remediation plan and operator
-summary. State high, medium, or low confidence for exposure and priority
-judgment. Do not add CVEs, versions, provider claims, or publication claims.
+Use `triage_context.findings` and the supplied deployment context. Return
+`risk_assessment_draft` with `decision` (`remediate`, `monitor` or `needs_human`),
+`operator_summary.summary`, and `advisory_assessments`. Each assessment contains
+the unchanged `finding_key`, `priority` (`urgent`, `high`, `normal`, `low` or
+`unknown`), `confidence` (`high`, `medium`, `low`), `exposure` (`confirmed` or
+`not_established`), `exposure_evidence` ids, a substantive `rationale` and a
+concrete `recommendation`. Add `fixed_version` only from the matching supplied
+advisory's fixed events. Cover every finding once; do not invent findings,
+deployment evidence, independent verification or completed remediation.
 
 ### `vuln-triage-advisory`
 
-Draft a precise advisory using only the admitted advisory ids, target,
-remediation, and evidence binding. Return the affected ids and disclosure
-checklist with the draft. Do not claim publication, provider execution, or
-exposure that the triage packet does not establish.
+Return `advisory_draft` with title, summary, body, affected_advisory_ids and
+disclosure_checklist. Cite only admitted ids. Preserve partial coverage and
+unknown exposure; do not turn a suggested upgrade into a completed deployment.
+Do not claim publication or provider execution.

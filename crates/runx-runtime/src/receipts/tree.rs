@@ -159,7 +159,7 @@ pub fn verify_runtime_receipt_tree(
     verify_receipt_tree_proof_with_resolver(root, &resolver, config, &proof_contexts)
 }
 
-fn verify_runtime_receipt_tree_refs<'a>(
+pub(crate) fn verify_runtime_receipt_tree_refs<'a>(
     root: &Receipt,
     receipts: impl IntoIterator<Item = &'a Receipt>,
     config: ReceiptTreeConfig,

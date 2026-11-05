@@ -1,5 +1,5 @@
 skill: policy-draft
-version: "0.2.7"
+version: "0.2.8"
 catalog:
   publisher: runx
   kind: graph
@@ -18,46 +18,95 @@ runners:
         type: string
         required: true
         description: The governance intent in prose.
+        schema:
+          minLength: 1
+          maxLength: 50000
+          pattern: \S
       existing_policy:
         type: json
         required: false
-        description: A current runx.operational_policy.v1 to tighten without widening authority.
+        packet: runx.operational_policy.v1
+        description: The actual current native-valid policy selected by the host. This proposal lane can
+          narrow known controls; identity/routing/opaque settings must stay unchanged.
       target_repos:
-        type: json
+        type: array
         required: false
-        description: Explicit repository list when not stated in the brief.
+        description: Explicit target repository slugs from the real project context.
+        schema:
+          maxItems: 1000
+          uniqueItems: true
+          items:
+            type: string
+            pattern: ^[^/\s]+/[^/\s]+$
       objective:
         type: string
         required: false
         description: Operator intent that focuses the pass.
-    result_from: [finalize-lint, finalize-stop]
+    result_from:
+      - finalize-lint
+      - finalize-stop
     steps:
       - id: draft
         label: draft the narrowest operational policy
-        agent: { role: builder, task: policy-draft-draft }
+        agent:
+          role: builder
+          task: policy-draft-draft
         outputs:
           policy_proposal:
             type: object
             schema:
-              required: [decision, policy, rationale, blockers, needs_input, success_checkpoint]
+              required:
+                - decision
+                - policy
+                - rationale
+                - blockers
+                - needs_input
+                - success_checkpoint
               additionalProperties: false
               properties:
-                decision: { type: string, enum: [ready, needs_input, reject] }
+                decision:
+                  type: string
+                  enum:
+                    - ready
+                    - needs_input
+                    - reject
                 policy:
-                  type: [object, "null"]
-                  required: [schema]
+                  type:
+                    - object
+                    - "null"
+                  required:
+                    - schema
                   properties:
-                    schema: { const: runx.operational_policy.v1 }
+                    schema:
+                      const: runx.operational_policy.v1
                   additionalProperties: true
-                rationale: { type: string }
-                blockers: { type: array, items: { type: string } }
-                needs_input: { type: array, items: { type: string } }
+                rationale:
+                  type: string
+                blockers:
+                  type: array
+                  items:
+                    type: string
+                needs_input:
+                  type: array
+                  items:
+                    type: string
                 success_checkpoint:
                   type: object
                   properties:
-                    milestone: { type: string }
-                    description: { type: string }
+                    milestone:
+                      type: string
+                    description:
+                      type: string
                   additionalProperties: true
+              allOf:
+                - if:
+                    properties:
+                      decision:
+                        const: ready
+                  then:
+                    properties:
+                      policy:
+                        type: object
         inputs:
           governance_brief: $input.governance_brief
           existing_policy: $input.existing_policy
@@ -71,12 +120,22 @@ runners:
         inputs:
           existing_policy: $input.existing_policy
           policy_proposal: $steps.draft.policy_proposal
-        tool: { module: policy-draft.mjs, export: preparePolicy }
+        tool:
+          module: policy-draft.mjs
+          export: preparePolicy
         outputs:
           policy_context: object
         artifacts:
           named_emits:
             policy_context: policy_context
+      - id: compare-fixed-settings
+        when:
+          value: $steps.prepare.policy_context.path
+          equals: lint
+        tool: data.compare
+        inputs:
+          actual: $steps.prepare.policy_context.fixed_proposed
+          expected: $steps.prepare.policy_context.fixed_existing
       - id: lint
         label: lint the exact policy with the native contract engine
         when:
@@ -90,13 +149,16 @@ runners:
         when:
           value: $steps.prepare.policy_context.path
           equals: lint
-        tool: { module: policy-draft.mjs, export: finalizePolicy }
+        tool:
+          module: policy-draft.mjs
+          export: finalizePolicy
         outputs:
           policy_proposal:
             type: object
         inputs:
           policy_context: $steps.prepare.policy_context
           policy_lint: $steps.lint.policy_lint
+          fixed_comparison: $steps.compare-fixed-settings.comparison
         artifacts:
           wrap_as: policy_proposal_packet
           packet: runx/policy-draft.proposal.v1
@@ -105,7 +167,9 @@ runners:
         when:
           value: $steps.prepare.policy_context.path
           equals: stop
-        tool: { module: policy-draft.mjs, export: finalizePolicy }
+        tool:
+          module: policy-draft.mjs
+          export: finalizePolicy
         outputs:
           policy_proposal:
             type: object
@@ -114,7 +178,157 @@ runners:
         artifacts:
           wrap_as: policy_proposal_packet
           packet: runx/policy-draft.proposal.v1
-
+    examples:
+      - governance_brief: Govern issue intake across acme/acme, acme/api, and acme/app. Trust GitHub issues
+          and Sentry alerts. Kam owns platform; Chong owns product. Never auto-merge, require a
+          human merge, and close source issues only after verification.
+        objective: Stand up a fail-closed issue-flow policy for the three repos.
 harness:
-  files: [fixtures/support/composed.graph]
-  cases: []
+  files:
+    - fixtures/support/composed.graph
+  cases:
+    - name: refuses-owner-expansion-in-tightening-lane
+      inputs:
+        governance_brief: Raise the source confidence floor and restrict work to issue intake, preserving
+          existing human review.
+        existing_policy:
+          schema: runx.operational_policy.v1
+          schema_version: runx.operational_policy.v1
+          policy_id: acme-review-flow
+          sources:
+            - source_id: github-issues
+              provider: github
+              allowed_locators:
+                - github://acme/acme/issues
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+              source_thread:
+                required: true
+                publish_mode: comment
+                missing_behavior: fail_closed
+              minimum_confidence: 0.6
+          runners:
+            - runner_id: local-review
+              kind: local
+              state: available
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+              target_repos:
+                - acme/acme
+              scafld_required: true
+          owner_routes:
+            - route_id: maintainers
+              owners:
+                - kam
+              target_repos:
+                - acme/acme
+          targets:
+            - repo: acme/acme
+              runner_ids:
+                - local-review
+              allowed_actions:
+                - issue-intake
+                - issue-to-pr
+              default_owner_route: maintainers
+              scafld_required: true
+          dedupe:
+            strategy: source_digest
+            key_fields:
+              - source.provider
+              - source.locator
+              - signal.digest
+            on_duplicate: reuse
+          outcomes:
+            observe_provider: true
+            verification_required: true
+            close_source_issue: when_verified
+            publish_final_source_thread_update: true
+          permissions:
+            auto_merge: false
+            mutate_target_repo: true
+            require_human_merge_gate: true
+        objective: Narrow the current valid policy without changing owners/providers or adding authority.
+      caller:
+        answers:
+          draft:
+            policy_proposal:
+              decision: ready
+              policy:
+                schema: runx.operational_policy.v1
+                schema_version: runx.operational_policy.v1
+                policy_id: acme-review-flow
+                sources:
+                  - source_id: github-issues
+                    provider: github
+                    allowed_locators:
+                      - github://acme/acme/issues
+                    allowed_actions:
+                      - issue-intake
+                      - issue-to-pr
+                    source_thread:
+                      required: true
+                      publish_mode: comment
+                      missing_behavior: fail_closed
+                    minimum_confidence: 0.72
+                runners:
+                  - runner_id: local-review
+                    kind: local
+                    state: available
+                    allowed_actions:
+                      - issue-intake
+                      - issue-to-pr
+                    target_repos:
+                      - acme/acme
+                    scafld_required: true
+                owner_routes:
+                  - route_id: maintainers
+                    owners:
+                      - kam
+                      - unselected-owner
+                    target_repos:
+                      - acme/acme
+                targets:
+                  - repo: acme/acme
+                    runner_ids:
+                      - local-review
+                    allowed_actions:
+                      - issue-intake
+                      - issue-to-pr
+                    default_owner_route: maintainers
+                    scafld_required: true
+                dedupe:
+                  strategy: source_digest
+                  key_fields:
+                    - source.provider
+                    - source.locator
+                    - signal.digest
+                  on_duplicate: reuse
+                outcomes:
+                  observe_provider: true
+                  verification_required: true
+                  close_source_issue: when_verified
+                  publish_final_source_thread_update: true
+                permissions:
+                  auto_merge: false
+                  mutate_target_repo: true
+                  require_human_merge_gate: true
+              rationale: The confidence floor rises, auto-merge is disabled, and human review becomes mandatory
+                without adding any scope.
+              blockers: []
+              needs_input: []
+              success_checkpoint:
+                milestone: policy_tightened
+                description: The draft narrows the audited policy.
+      expect:
+        status: sealed
+        step_outputs:
+          finalize-lint:
+            subset:
+              policy_proposal_packet:
+                data:
+                  policy_proposal:
+                    decision: reject
+                    validation:
+                      status: fail

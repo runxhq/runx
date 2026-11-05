@@ -1,0 +1,89 @@
+{
+  "name": "place-air-quality",
+  "kind": "skill",
+  "target": "..",
+  "inputs": {
+    "name": "Shanghai",
+    "location_context": "China",
+    "kind": "air_quality"
+  },
+  "caller": {
+    "answers": {
+      "select-location": {
+        "selection": {
+          "decision": "selected",
+          "selected_id": 1796236,
+          "reason": "Shanghai, China matches the supplied region."
+        }
+      }
+    },
+    "http_exchanges": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://geocoding-api.open-meteo.com/v1/search?count=5&format=json&language=en&name=Shanghai",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"results\":[{\"id\":1796236,\"name\":\"Shanghai\",\"latitude\":31.2222,\"longitude\":121.4581,\"country\":\"China\",\"country_code\":\"CN\",\"admin1\":\"Shanghai\",\"timezone\":\"Asia/Shanghai\"}]}"
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://air-quality-api.open-meteo.com/v1/air-quality?current=pm10%2Cpm2_5%2Ccarbon_monoxide%2Cnitrogen_dioxide%2Csulphur_dioxide%2Cozone%2Ceuropean_aqi%2Cus_aqi&latitude=31.222200&longitude=121.458100&timezone=auto",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"latitude\":31.2222,\"longitude\":121.4581,\"timezone\":\"Asia/Shanghai\",\"current\":{\"time\":\"2026-08-10T14:00\",\"pm10\":28.1,\"pm2_5\":17.2,\"carbon_monoxide\":211,\"nitrogen_dioxide\":19.4,\"sulphur_dioxide\":5.2,\"ozone\":72.8,\"european_aqi\":42,\"us_aqi\":51}}"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "status": "sealed",
+    "steps": [
+      "locate",
+      "select-location",
+      "bind-location",
+      "air_quality"
+    ],
+    "step_outputs": {
+      "bind-location": {
+        "subset": {
+          "location": {
+            "data": {
+              "decision": "selected"
+            }
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "public_skill": "open-meteo-weather",
+    "source": "skills-fixture"
+  },
+  "operator_journeys": [
+    {
+      "mode": "composed",
+      "request": "Resolve this intended place and acquire only its air quality evidence.",
+      "expected_outcome": "Use the returned candidate and native readback; do not call forecast or geocode twice.",
+      "prior_evidence": [
+        "Supplied place/region intent."
+      ],
+      "must_not_repeat": [
+        "Do not call an unrelated weather endpoint.",
+        "Do not repeat geocoding."
+      ]
+    }
+  ]
+}

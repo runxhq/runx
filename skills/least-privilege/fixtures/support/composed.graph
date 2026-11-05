@@ -1,16 +1,44 @@
 name: least-privilege-composed
 steps:
+  - id: evidence
+    skill: ../../../receipt-query
+    runner: read
+    inputs:
+      question: Review the already selected scope evidence.
+      receipt_ids:
+        - rcpt_repo_read
+      proof:
+        verify_chain: true
+      receipts:
+        - receipt_id: rcpt_repo_read
+          skill: code/governed-issue-to-pr
+          outcome: completed
+          created_at: 2026-07-01T00:00:00Z
+          verification_status: verified
+      receipt_details:
+        - id: rcpt_repo_read
+          subject_kind: skill
+          subject_uri: code/governed-issue-to-pr
+          created_at: 2026-07-01T00:00:00Z
+          outcome: completed
+          verification:
+            status: verified
+          authority:
+            exercised_scopes:
+              - scope: repo:read
+                source: scope_ref
+          acts: []
+          decisions: []
   - id: least-privilege
     skill: ../..
-    runner: audit
+    runner: from-evidence
     inputs:
-      subject: research/research-brief
+      subject: code/governed-issue-to-pr
       granted_scopes:
-        - web:read
         - repo:read
-      receipt_ids: []
-      receipt_rows: []
-      objective: Audit a newly published skill with no runs.
+      receipt_ids:
+        - rcpt_repo_read
+      receipt_evidence: $steps.evidence.ledger_answer_packet
   - id: digest
     tool: data.digest
     inputs:

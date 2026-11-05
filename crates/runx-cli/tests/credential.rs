@@ -256,6 +256,19 @@ runners:
     Ok(())
 }
 
+/// A separate explicitly free fixture: these local tools have no provider
+/// call or fee. The default fixture deliberately leaves charging unknown.
+fn write_free_notes_plugin(root: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    write_notes_plugin(root)?;
+    let path = root.join("connectors/notes/connector.yaml");
+    let text = fs::read_to_string(&path)?.replace(
+        "    verb: read\n",
+        "    verb: read\n    cost: {usd_micro: 0, per: request, source: docs}\n",
+    );
+    fs::write(path, text)?;
+    Ok(())
+}
+
 fn step_receipt(
     receipts: &std::path::Path,
     step: &str,
@@ -344,11 +357,85 @@ fn a_process_operation_receives_its_credential_and_its_receipt_records_the_deliv
 }
 
 #[test]
-fn a_failed_process_operation_still_records_the_credential_it_received()
+fn a_metered_process_failure_stays_open_and_cannot_be_repeated_by_empty_resume()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-process-operation-unknown");
+    let home = root.join("home");
+    write_notes_plugin(&root)?;
+    let manifest = root.join("connectors/notes/connector.yaml");
+    fs::write(
+        &manifest,
+        fs::read_to_string(&manifest)?.replace(
+            "    description: Read a note the service has lost.\n",
+            "    description: Read a note the service has lost.\n    cost: {usd_micro: 1000, per: request, source: docs}\n",
+        ),
+    )?;
+    let count = root.join("attempts");
+    fs::write(
+        root.join("connectors/notes/tools/notes/lost/lost.mjs"),
+        format!(
+            "import {{ appendFileSync }} from 'node:fs';\nappendFileSync({}, '1');\nprocess.stderr.write('response lost');\nprocess.exit(3);\n",
+            serde_json::to_string(&count)?
+        ),
+    )?;
+    let mut set = command(&root, &home)?;
+    set.args([
+        "connector",
+        "use",
+        "notes",
+        "--credential",
+        "token",
+        "--json",
+    ]);
+    assert_success_without_secret(&run_with_stdin(set, SECRET)?)?;
+    let started = command(&root, &home)?
+        .arg("skill")
+        .arg(root.join("skills/notes"))
+        .args(["lost", "--inputs", "inputs.json", "--json"])
+        .output()?;
+    assert_eq!(started.status.code(), Some(2));
+    let pending: serde_json::Value = serde_json::from_slice(&started.stdout)?;
+    assert_eq!(pending["status"], "needs_agent", "{pending}");
+    let request = &pending["requests"][0];
+    let request_bytes = fs::read(
+        request["artifact"]["path"]
+            .as_str()
+            .ok_or("request artifact path")?,
+    )?;
+    assert_eq!(request["request_digest"], request["artifact"]["digest"]);
+    assert_eq!(
+        request["artifact"]["digest"],
+        runx_contracts::sha256_prefixed(&request_bytes)
+    );
+    let request: serde_json::Value = serde_json::from_slice(&request_bytes)?;
+    assert_eq!(request["resend"], "unsafe", "{request}");
+    let run = pending["run_id"].as_str().ok_or("run id")?;
+    let mut resume = command(&root, &home)?;
+    resume.args(["resume", run, "-", "--json"]);
+    let resumed = run_with_stdin(resume, "{}")?;
+    assert_eq!(resumed.status.code(), Some(2));
+    assert_eq!(fs::read_to_string(&count)?, "1");
+    // Closing the workflow never reports this uncertain operation completed,
+    // erases its custody, or claims a confirmed step receipt.
+    let mut close = command(&root, &home)?;
+    close.args(["resume", run, "-", "--json"]);
+    let closed = run_with_stdin(close, r#"{"close":{"outcome":"declined"}}"#)?;
+    let closed: serde_json::Value = serde_json::from_slice(&closed.stdout)?;
+    assert_eq!(closed["outcome"], "declined", "{closed}");
+    assert_eq!(fs::read_to_string(&count)?, "1");
+    for output in [&started, &resumed] {
+        assert!(!String::from_utf8_lossy(&output.stdout).contains(SECRET));
+        assert!(!String::from_utf8_lossy(&output.stderr).contains(SECRET));
+    }
+    Ok(())
+}
+
+#[test]
+fn a_failed_free_process_operation_still_records_the_credential_it_received()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-process-operation-failed");
     let home = root.join("home");
-    write_notes_plugin(&root)?;
+    write_free_notes_plugin(&root)?;
     let mut set = command(&root, &home)?;
     set.args([
         "connector",
