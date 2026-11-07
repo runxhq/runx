@@ -15,14 +15,14 @@ test("publishable package check refuses an incompatible workspace range", () => 
     mkdirSync(path.join(root, "packages/contracts"), { recursive: true });
     mkdirSync(path.join(root, "packages/client"), { recursive: true });
     copyFileSync(checker, path.join(root, "scripts/check-publishable-package-manifests.mjs"));
-    writeFileSync(path.join(root, "packages/contracts/package.json"), JSON.stringify({ name: "@runxhq/contracts", version: "0.4.1" }));
+    writeFileSync(path.join(root, "packages/contracts/package.json"), JSON.stringify({ name: "@runxhq/contracts", version: "0.4.1", homepage: "https://runx.ai" }));
     const clientManifest = path.join(root, "packages/client/package.json");
     const run = () => execFileSync(process.execPath, [path.join(root, "scripts/check-publishable-package-manifests.mjs")], { stdio: "pipe" });
 
-    writeFileSync(clientManifest, JSON.stringify({ name: "@runxhq/client", version: "0.1.0", dependencies: { "@runxhq/contracts": "workspace:^0.3.0" } }));
+    writeFileSync(clientManifest, JSON.stringify({ name: "@runxhq/client", version: "0.1.0", homepage: "https://runx.ai", dependencies: { "@runxhq/contracts": "workspace:^0.3.0" } }));
     assert.throws(run, /does not allow workspace version 0\.4\.1/u);
 
-    writeFileSync(clientManifest, JSON.stringify({ name: "@runxhq/client", version: "0.1.0", dependencies: { "@runxhq/contracts": "workspace:^0.4.0" } }));
+    writeFileSync(clientManifest, JSON.stringify({ name: "@runxhq/client", version: "0.1.0", homepage: "https://runx.ai", dependencies: { "@runxhq/contracts": "workspace:^0.4.0" } }));
     assert.doesNotThrow(run);
   } finally {
     rmSync(root, { recursive: true, force: true });
