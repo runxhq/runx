@@ -1481,3 +1481,7 @@ oss	tree_runtime_graph	1	graph	tree_runtime_workflow		crates/runx-runtime/tests/
 oss	typed_graph_ir_preserves_step_output_contracts	1	graph	typed_workflow_ir_preserves_step_output_contracts		crates/runx-parser/src/graph/validate.rs
 oss	version_listings_page_by_cursor_and_hold_to_their_contract	1	hold	version_listings_page_by_cursor_and_hold_to_their_contract	English, or a skill's own word: stays	crates/runx-runtime/tests/registry_client.rs
 oss	wrong-closure	1	closure	wrong-closure	a package's closure, or English: stays	crates/runx-cli/tests/operator_journeys.rs
+oss	TurnInvocation		moved	TurnView	the plan's name (§4.2): host_protocol.rs:618	
+oss	TurnEnvelope		moved	TurnViewEnvelope	the plan's name (§4.2): host_protocol.rs:651	
+oss	Turn		moved	OpenTurn	Kam, 8 November: the trait a host works an open turn through (turn.rs:45), so AgentAct can be Turn	
+oss	RunContext		moved	CallerContext	Kam, 8 November: the caller's context (run_record.rs:351), so HarnessContext can be RunContext	
