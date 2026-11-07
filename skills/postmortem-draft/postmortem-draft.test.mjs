@@ -10,6 +10,13 @@ const fragments = [
 ];
 const draft = {
   summary: "A pool setting caused timeouts until rollback.",
+  impact: {
+    status: "known",
+    statement: "Requests failed until rollback.",
+    scope: "checkout",
+    fragment_id: "log-1",
+    quote: "10:05 rollback restored service.",
+  },
   timeline: [{ entry: "Errors rose at 10:00.", fragment_id: "log-1", quote: "10:00 errors rose." }],
   root_cause: {
     status: "known",
@@ -37,11 +44,16 @@ test("only known complete cause can propose publication; a hypothesis stays expl
   assert.equal(result.postmortem.publish_proposal, null);
   assert.equal(result.postmortem.publish_performed, false);
   assert.ok(result.document.includes("## Root cause (suspected)"));
+  const noImpact = run({ postmortem_draft: { ...draft, impact: { status: "unknown" } } });
+  assert.equal(noImpact.postmortem.decision, "needs_more_evidence");
+  assert.equal(noImpact.postmortem.publish_proposal, null);
+  assert.ok(noImpact.document.includes("## Impact\n\nNot established."));
 });
 test("wrong quotes and ambiguous source ids withhold the draft", () => {
   for (const change of [
     { incident_fragments: [...fragments, { ...fragments[0], text: "different source" }] },
     { postmortem_draft: { ...draft, timeline: [{ ...draft.timeline[0], quote: "invented" }] } },
+    { postmortem_draft: { ...draft, impact: { ...draft.impact, quote: "invented" } } },
   ]) {
     const result = run(change);
     assert.equal(result.postmortem.decision, "refused");
@@ -52,7 +64,9 @@ test("wrong quotes and ambiguous source ids withhold the draft", () => {
 test("the document preserves exact findings, source attribution and useful owned actions", () => {
   const result = run();
   assert.ok(result.document.includes("\n\n## Summary\n\n"));
+  assert.ok(result.document.includes("Requests failed until rollback. Scope: checkout. [log-1]"));
   assert.ok(result.document.includes("> 10:00 errors rose."));
+  assert.ok(result.document.includes("> 10:05 rollback restored service."));
   assert.ok(result.document.includes("platform: Test the pool setting under load."));
   assert.ok(result.document.includes("Publication: not performed."));
   const unknown = run({

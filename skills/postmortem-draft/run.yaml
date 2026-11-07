@@ -1,5 +1,5 @@
 skill: postmortem-draft
-version: "0.1.11"
+version: "0.1.12"
 catalog:
   kind: graph
   audience: operator
@@ -54,6 +54,12 @@ harness:
           draft:
             postmortem_draft:
               summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
+              impact:
+                status: known
+                statement: Checkout requests failed above the alert threshold until rollback.
+                scope: checkout-api
+                fragment_id: frag-1
+                quote: checkout 5xx rate crossed 8 percent
               timeline:
                 - entry: Deploy 2026.08.09.3 shipped a connection pool change.
                   fragment_id: frag-2
@@ -110,6 +116,12 @@ harness:
           draft:
             postmortem_draft:
               summary: The nightly batch failed at the export step; cause not yet established.
+              impact:
+                status: known
+                statement: The nightly export did not complete.
+                scope: batch-pipeline
+                fragment_id: frag-1
+                quote: Nightly batch failed at step export
               timeline:
                 - entry: The nightly batch failed at the export step.
                   fragment_id: frag-1
@@ -152,6 +164,8 @@ harness:
           draft:
             postmortem_draft:
               summary: Total outage caused by database corruption.
+              impact:
+                status: unknown
               timeline:
                 - entry: The database corrupted.
                   fragment_id: frag-1
@@ -205,6 +219,12 @@ harness:
             postmortem_draft:
               summary: Checkout errors rose after a connection-pool change and returned to baseline after
                 rollback; the exact mechanism is not established.
+              impact:
+                status: known
+                statement: Checkout requests failed above the alert threshold until rollback.
+                scope: checkout-api
+                fragment_id: frag-1
+                quote: checkout 5xx rate crossed 8 percent
               timeline:
                 - entry: Deploy 2026.08.09.3 shipped a connection pool change.
                   fragment_id: frag-2
@@ -303,6 +323,7 @@ runners:
               type: object
               required:
                 - summary
+                - impact
                 - timeline
                 - root_cause
                 - unknowns
@@ -314,6 +335,46 @@ runners:
                   minLength: 1
                   maxLength: 8000
                   pattern: \S
+                impact:
+                  oneOf:
+                    - type: object
+                      required:
+                        - status
+                      additionalProperties: false
+                      properties:
+                        status:
+                          const: unknown
+                    - type: object
+                      required:
+                        - status
+                        - statement
+                        - scope
+                        - fragment_id
+                        - quote
+                      additionalProperties: false
+                      properties:
+                        status:
+                          const: known
+                        statement:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                          pattern: \S
+                        scope:
+                          type: string
+                          minLength: 1
+                          maxLength: 500
+                          pattern: \S
+                        fragment_id:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                          pattern: \S
+                        quote:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                          pattern: \S
                 timeline:
                   type: array
                   maxItems: 500

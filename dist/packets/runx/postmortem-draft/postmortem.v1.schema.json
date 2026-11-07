@@ -8,6 +8,7 @@
     "decision",
     "reason",
     "summary",
+    "impact",
     "timeline",
     "root_cause",
     "unknowns",
@@ -41,6 +42,49 @@
         "null"
       ],
       "maxLength": 8000
+    },
+    "impact": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "status",
+        "statement",
+        "scope",
+        "fragment_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        },
+        "statement": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        },
+        "scope": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "fragment_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        }
+      }
     },
     "timeline": {
       "type": "array",
