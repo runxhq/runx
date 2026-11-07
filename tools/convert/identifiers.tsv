@@ -455,11 +455,11 @@ oss	runner_names	85	runner	method_names		crates/runx-cli/src/registry.rs crates/
 oss	SkillRunnerManifest	84	runner	SkillMethodManifest		crates/runx-parser/src/lib.rs crates/runx-parser/src/package.rs
 oss	HarnessReplayError	82	harness	TestReplayError	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/assertions.rs
 oss	HarnessFixtureError	81	harness	TestFixtureError	the test sense	crates/runx-parser/src/eval.rs crates/runx-parser/src/harness_fixture.rs
-oss	ExecutionGraph	80	graph	Workflow	the plan's name	crates/runx-parser/src/graph.rs crates/runx-parser/src/graph/types.rs
+oss	ExecutionGraph	80	graph	Workflow	the plan's name: the parser's workflow definition	crates/runx-parser/src/graph.rs crates/runx-parser/src/graph/types.rs
 oss	runner_ids	74	runner	method_ids		crates/runx-cli/src/policy.rs crates/runx-contracts/src/operational_policy.rs
 oss	Graph	69	graph	?	a bare word: code or prose, read in place	crates/runx-cli/src/list.rs crates/runx-cli/tests/local_credential.rs
 oss	holding	68	hold	?	a bare word: code or prose, read in place	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/doctor.rs
-oss	SequentialGraph	64	graph	Workflow	the plan's name	crates/runx-core/src/kernel_eval/input.rs crates/runx-core/src/state_machine.rs
+oss	SequentialGraph	64	graph	SequentialWorkflow	the core state machine's run of a workflow, a different type from the parser's definition (ExecutionGraph, which becomes Workflow), so they can't share a name	crates/runx-core/src/kernel_eval/input.rs crates/runx-core/src/state_machine.rs
 oss	closure_digest	63	closure	closure_digest	a package's closure, or English: stays	crates/runx-cli/src/export/shim.rs crates/runx-cli/tests/export.rs
 oss	SkillRunnerDefinition	62	runner	SkillMethodDefinition		crates/runx-parser/src/lib.rs crates/runx-parser/src/package.rs
 oss	GraphStepState	61	graph	WorkflowStepState		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph/planning.rs
