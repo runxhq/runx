@@ -411,6 +411,9 @@ function convertCase(doc, testCase, where, packageOf, evals, notes) {
       (into === "host" ? host : providers).items.push(new Pair(new Scalar(key), pair.value));
     }
   }
+  // What Connect already holds for the case's principal: its leases.
+  const hosted = node(providers, "hosted");
+  if (hosted !== undefined && isMap(hosted)) rename(hosted, "holds", "leases");
   if (host.items.length) testCase.items.push(new Pair(new Scalar("host"), host));
   if (providers.items.length) testCase.items.push(new Pair(new Scalar("providers"), providers));
 
@@ -609,6 +612,39 @@ const OPERATION_KEYS = ["description", "verb", "scopes", "credentials", "target"
 const VERBS = { read: "read", write: "write", execute: "execute", revoke: "revoke", create: "write", comment: "write", delete: "write", merge: "write", update: "write", review: "write" };
 const PAGE_KEYS = ["param", "in", "cursor", "items", "limit"];
 
+// A lease is a provider-issued credential for one resource, which Connect holds
+// for its owner. Each action carries only what it needs: a take names the new
+// resource, and a renew or a release acts on the operation's own target.
+const LEASE_ACTIONS = { take: "take", refresh: "renew", release: "release" };
+
+function convertLease(operation, where) {
+  const holds = pairOf(operation, "holds");
+  if (!holds) return;
+  only(holds.value, ["action", "credential", "target", "expires_at", "fields"], `${where}.holds`);
+  const action = LEASE_ACTIONS[read(holds.value, "action")];
+  if (action === undefined) refuse(`${where}.holds.action is ${read(holds.value, "action")}, which the converter doesn't know`);
+  const lease = new YAMLMap();
+  lease.items.push(new Pair(new Scalar(action), node(holds.value, "credential")));
+  if (action === "take") {
+    for (const key of ["target", "expires_at", "fields"]) {
+      if (!has(holds.value, key)) refuse(`${where}.holds is a take with no ${key}`);
+      lease.items.push(pairOf(holds.value, key));
+    }
+  } else {
+    const target = read(holds.value, "target");
+    const own = read(node(operation, "target") ?? new YAMLMap(), "template");
+    if (JSON.stringify(target) !== JSON.stringify(own)) refuse(`${where}.holds names a target other than the operation's own, which a ${action} can't say`);
+    if (has(holds.value, "fields")) refuse(`${where}.holds is a ${action} with fields, which only a take fills`);
+    if (action === "renew") {
+      if (!has(holds.value, "expires_at")) refuse(`${where}.holds is a renew with no expires_at`);
+      lease.items.push(pairOf(holds.value, "expires_at"));
+    } else if (has(holds.value, "expires_at")) refuse(`${where}.holds is a release with an expires_at`);
+  }
+  lease.flow = holds.value.flow;
+  holds.key.value = "lease";
+  holds.value = lease;
+}
+
 function renameProcessScopes(process) {
   if (process === undefined || !isMap(process)) return;
   rename(process, "runtime_scopes", "requires");
@@ -628,6 +664,10 @@ function convertConnector(dir) {
   take(root, "runtime_capability");
   rename(root, "pays", "payment");
 
+  for (const pair of node(node(root, "auth") ?? new YAMLMap(), "credentials")?.items ?? []) {
+    const kind = pairOf(pair.value, "kind");
+    if (kind && plain(kind.value) === "purchase") kind.value = new Scalar("lease");
+  }
   const session = node(node(root, "auth") ?? new YAMLMap(), "session");
   if (session !== undefined) renameProcessScopes(node(session, "process"));
 
@@ -649,7 +689,7 @@ function convertConnector(dir) {
       take(operation, "hosted");
       if (scopes !== undefined) insertAt(operation, at, "provider_scopes", scopes);
     }
-    rename(operation, "holds", "hold");
+    convertLease(operation, where);
     const implementation = node(operation, "implementation");
     renameProcessScopes(implementation && node(implementation, "process"));
     const http = implementation && node(implementation, "http");
