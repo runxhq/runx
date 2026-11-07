@@ -368,8 +368,6 @@ function convertMethod(doc, name, method, context, notes) {
       }
     }
   }
-  convertFields(doc, node(method, "outputs"), "output", `${where}.outputs`);
-
   const allowance = {
     tools: has(method, "tools") ? plain(take(method, "tools")) : context.root.tools,
     skills: has(method, "skills") ? plain(take(method, "skills")) : context.root.skills,
@@ -385,10 +383,20 @@ function convertMethod(doc, name, method, context, notes) {
 
   let steps = node(method, "steps");
   if (steps === undefined) {
-    steps = doc.createNode([{ id: "turn", agent: name }]);
+    // Today's parser makes this method one agent turn named for the method,
+    // given the method's input and answering in its outputs
+    // (runner_definition.rs), and a test's answers are keyed by that name.
+    // So the step keeps the name, binds $input and takes the outputs, which
+    // the method then returns as its result step's.
+    const turn = doc.createNode({ id: name, agent: name, inputs: "$input" });
+    const outputs = take(method, "outputs");
+    if (outputs !== undefined) turn.items.push(new Pair(new Scalar("outputs"), outputs));
+    steps = new YAMLSeq();
+    steps.items.push(turn);
     insertAt(method, method.items.length, "steps", steps);
     notes.push(`${where} had no steps: it's now one agent step, and SKILL.md needs a "## Agent task: ${name}" section`);
   }
+  convertFields(doc, node(method, "outputs"), "output", `${where}.outputs`);
   if (!isSeq(steps)) refuse(`${where}.steps is not a list`);
   const scope = { where, calls: allowanceCalls(allowance), requirementOperations: context.requirementOperations };
   let agents = 0;
@@ -486,7 +494,7 @@ function writeEvals(skillName, journeys, files, dir, notes) {
 
 // ---- Support graphs, which become fixture packages
 
-function convertGraph(file, skillName, notes) {
+function convertGraph(file, into, skillName, notes) {
   const graphText = readFileSync(file, "utf8");
   const doc = YAML.parseDocument(graphText);
   const root = doc.contents;
@@ -500,6 +508,28 @@ function convertGraph(file, skillName, notes) {
   method.items.push(new Pair(new Scalar("steps"), steps));
   const scope = { where: `${path.basename(file)}`, calls: () => undefined, requirementOperations: new Map() };
   for (const step of steps.items) convertStep(out, step, scope, notes);
+  // A process runs in its package's directory, which is now `into`, so a
+  // relative path naming a file beside the graph is rewritten to name the
+  // same file from there.
+  const relocate = (scalar, where) => {
+    if (!(scalar instanceof Scalar) || typeof scalar.value !== "string" || !/^\.\.?\//.test(scalar.value)) return;
+    const target = path.resolve(path.dirname(file), scalar.value);
+    if (!existsSync(target)) return;
+    const moved = path.relative(into, target);
+    const next = moved.startsWith(".") ? moved : `./${moved}`;
+    if (next === scalar.value) return;
+    notes.push(`${path.basename(file)} ${where}: ${scalar.value} is ${next} from the fixture package`);
+    scalar.value = next;
+  };
+  for (const step of steps.items) {
+    const tool = isMap(step) ? node(step, "tool") : undefined;
+    if (!isMap(tool)) continue;
+    const where = `step ${read(step, "id")}`;
+    relocate(node(tool, "command"), where);
+    relocate(node(tool, "cwd"), where);
+    const args = node(tool, "args");
+    if (isSeq(args)) for (const arg of args.items) relocate(arg, where);
+  }
   const skill = `---\nname: ${graphName}\ndescription: A test fixture that composes ${skillName} with the packages it calls.\n---\n\nUsed only by ${skillName}'s tests.\n`;
   return { runYaml: out.toString(styleOf(graphText)), skill, graphName };
 }
@@ -601,7 +631,7 @@ function convertPackage(dir) {
     if (!graphPackages.has(file)) {
       const into = path.join(fixtures, stem);
       if (existsSync(into)) refuse(`fixtures/${stem} already exists, so ${target} can't become a fixture package there`);
-      graphPackages.set(file, { into, ...convertGraph(file, name, notes) });
+      graphPackages.set(file, { into, ...convertGraph(file, into, name, notes) });
     }
     return `fixtures/${stem}`;
   };
