@@ -1,0 +1,12 @@
+{
+  "name": "@runxhq/convert",
+  "private": true,
+  "type": "module",
+  "description": "Converts a runx package to the 0.12 format: run.yaml, its tests and its support graphs.",
+  "bin": {
+    "runx-convert": "./convert.mjs"
+  },
+  "dependencies": {
+    "yaml": "2.9.1"
+  }
+}
