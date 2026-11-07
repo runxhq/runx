@@ -4,7 +4,8 @@
 // words; identifiers.tsv beside this file is the authority for every name.
 //
 //   node tools/convert/rename.mjs scan  <repo> <root>             add rows for names not in the table yet
-//   node tools/convert/rename.mjs apply <repo> <root> [--write]   rename, refusing while a name is missing
+//   node tools/convert/rename.mjs apply <repo> <root> [--write] [--list]   rename, refusing while a name is missing;
+//                                                               --list prints each file and its count
 //
 // `scan` keeps every row already in the table, so a decision made by hand
 // stays made. `apply` replaces whole identifiers only, all at once, so a chain
@@ -185,7 +186,7 @@ function scan(repo, root) {
   return 0;
 }
 
-function apply(repo, root, write) {
+function apply(repo, root, write, list) {
   const rows = readTable().filter((row) => row.repo === repo);
   const known = new Set(rows.map((row) => row.identifier));
   const renames = new Map(rows.filter((row) => row.to !== "?" && row.to !== row.identifier).map((row) => [row.identifier, row.to]));
@@ -230,6 +231,7 @@ function apply(repo, root, write) {
     if (count === 0) continue;
     files += 1;
     replaced += count;
+    if (list) process.stdout.write(`${count}\t${file}\n`);
     if (write) writeFileSync(full, next);
   }
   process.stdout.write(`${repo}: ${replaced} names in ${files} files${write ? "" : " (dry run)"}; ${signed} signed files left as signed\n`);
@@ -238,10 +240,10 @@ function apply(repo, root, write) {
 
 function main([command, repo, root, ...rest]) {
   if (!["scan", "apply"].includes(command) || !repo || !root) {
-    process.stderr.write("usage: rename.mjs scan <repo> <root> | apply <repo> <root> [--write]\n");
+    process.stderr.write("usage: rename.mjs scan <repo> <root> | apply <repo> <root> [--write] [--list]\n");
     return 2;
   }
-  return command === "scan" ? scan(repo, root) : apply(repo, root, rest.includes("--write"));
+  return command === "scan" ? scan(repo, root) : apply(repo, root, rest.includes("--write"), rest.includes("--list"));
 }
 
 process.exitCode = main(process.argv.slice(2));
