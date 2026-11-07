@@ -40,7 +40,7 @@ cloud	publishHarnessValidator	34	harness	publishTestValidator	the test sense	pac
 cloud	PublishHarnessSummary	28	harness	PublishTestSummary	the test sense	packages/api/src/registry/native-harness.ts packages/api/src/registry/publication.ts
 cloud	HoldPurchase	27	hold	LeasePurchase	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
 cloud	PASSING_HARNESS	26	harness	PASSING_TEST	the test sense	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.test.ts
-cloud	purchase_holdings	26	hold	purchase_leases	the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/payments/holdings-postgres.ts
+cloud	purchase_holdings	26	hold	leases	stored: Cloud's lease migration, a new one in Stage 6, renames the table and keeps its rows; the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/payments/holdings-postgres.ts
 cloud	holds_namespace	24	hold	holds_namespace	English, or a skill's own word: stays	packages/api/src/connect/hosted-connectors.ts packages/api/src/connectors/catalog.ts
 cloud	withHarness	24	harness	withTest	the test sense	packages/registry/src/store-contract.test-support.ts
 cloud	execution_closure	23	closure	execution_closure	a package's closure, or English: stays	apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
@@ -49,11 +49,11 @@ cloud	mppSettlementHarness	22	harness	mppSettlementTest	the test sense	packages/
 cloud	PurchaseHoldingStore	22	hold	PurchaseLeaseStore	the lease family	packages/api/src/app/route-options.ts packages/api/src/options/billing.ts
 cloud	awsHarness	21	harness	awsTest	the test sense	packages/provider-connectors/src/aws-sdk-adapter.test.ts
 cloud	closure_digest	21	closure	closure_digest	a package's closure, or English: stays	apps/web/src/content/release/schemas/schemas/run-event.schema.json apps/web/src/content/release/schemas/schemas/run-read.schema.json
-cloud	PurchaseHoldings	21	hold	PurchaseLeases	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
+cloud	PurchaseHoldings	21	hold	Leases	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
 cloud	agent_act	20	agent_act	turn		apps/web/src/content/release/schemas/schemas/act-result.schema.json apps/web/src/content/release/schemas/schemas/resolution-request.schema.json
 cloud	graph_case_count	20	graph	workflow_case_count		packages/api/src/admin/publication-integration.test.ts packages/api/src/admin/service.test.ts
 cloud	paidHarness	20	harness	paidTest	the test sense	packages/api/src/payments/purchases/outcomes.test.ts
-cloud	harness_run	17	harness	test_run	the test sense	packages/api/src/admin/publication-integration.test.ts packages/api/src/admin/service.test.ts
+cloud	harness_run	17	harness	test_run	stored: Cloud's test migration, a new one in Stage 6, rewrites public_evidence_events.kind; the test sense	packages/api/src/admin/publication-integration.test.ts packages/api/src/admin/service.test.ts
 cloud	HeldResource	17	hold	LeasedResource	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
 cloud	HoldingOwner	16	hold	LeaseOwner	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.ts
 cloud	agent-act-invocation	15	agent_act	agent-act-invocation		apps/web/src/content/release/release.json apps/web/src/content/release/schemas/schemas/act-result.schema.json
@@ -62,7 +62,7 @@ cloud	listHarnessResults	15	harness	listTestResults	the test sense	packages/api/
 cloud	PublicHarnessSummary	15	harness	PublicTestSummary	the test sense	apps/web/src/lib/api/skills.ts packages/api/src/generated/public-protocol-schemas.ts
 cloud	requestedRunner	15	runner	requestedMethod		packages/api/src/hosted-runtime-admission.ts packages/api/src/runs/submission.ts
 cloud	executionClosureFromInspection	14	closure	executionClosureFromInspection	a package's closure, or English: stays	packages/api/src/execution-package-composition.test.ts packages/api/src/execution-package-composition.ts
-cloud	purchaseHoldings	14	hold	purchaseLeases	the lease family	packages/api/src/app.ts packages/api/src/app/route-options.ts
+cloud	purchaseHoldings	14	hold	leases	the lease family	packages/api/src/app.ts packages/api/src/app/route-options.ts
 cloud	CLOSURE_DIGEST	12	closure	CLOSURE_DIGEST	a package's closure, or English: stays	packages/api/src/execution-package-store.test.ts packages/api/src/external-job-runtime-executor.test.ts
 cloud	readPublicHarnessSummary	12	harness	readPublicTestSummary	the test sense	packages/api/src/public/site-data.ts packages/api/src/public/site-harness.test.ts
 cloud	RegistryClosureError	12	closure	RegistryClosureError	a package's closure, or English: stays	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.ts
@@ -141,7 +141,7 @@ cloud	holdRun	4	hold	holdRun	English, or a skill's own word: stays	apps/web/src/
 cloud	MAX_HARNESS_RESULTS	4	harness	MAX_TEST_RESULTS	the test sense	packages/api/src/public/evidence.ts packages/api/src/public/site-harness.ts
 cloud	OperationHold	4	hold	OperationLease	the lease family	apps/web/src/content/release/schemas/schemas/connector.schema.json packages/auth/src/provider-credential/declared-requests.private.ts
 cloud	PublishHarnessProducer	4	harness	PublishTestProducer	the test sense	packages/api/src/registry/publication.ts
-cloud	purchase-holdings	4	hold	purchase-leases	the lease family	packages/api/src/payments/holdings-postgres.ts packages/auth/src/index.ts
+cloud	purchase-holdings	4	hold	leases	the lease family: the module. The cipher label with the same bytes is pinned in rename.mjs	packages/api/src/payments/holdings-postgres.ts packages/auth/src/index.ts
 cloud	RegistryClosureOptions	4	closure	RegistryClosureOptions	a package's closure, or English: stays	packages/registry/src/closure.ts packages/registry/src/index.ts
 cloud	runner_id	4	runner	method_id		apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
 cloud	runner_ids	4	runner	method_ids		apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
@@ -228,10 +228,10 @@ cloud	NOT_DECLARED_HARNESS	2	harness	NOT_DECLARED_TEST	the test sense	packages/a
 cloud	OperationalPolicyRunnerState	2	runner	OperationalPolicyMethodState		apps/web/src/content/release/schemas/schemas/operational-policy.schema.json apps/web/src/content/release/schemas/schemas/policy-lint.schema.json
 cloud	optionalRunner	2	runner	optionalMethod		packages/api/src/runs/service.ts
 cloud	OTHER_CLOSURE_DIGEST	2	closure	OTHER_CLOSURE_DIGEST	a package's closure, or English: stays	packages/api/src/execution-package-store.test.ts
-cloud	private_execution_package_ref_principal_id_skill_runner_pa_fkey	2	runner	private_execution_package_ref_principal_id_skill_method_pa_fkey		packages/db/migrations/0033_private_execution_packages.sql packages/db/migrations/0047_private_execution_closure_identity.sql
+cloud	private_execution_package_ref_principal_id_skill_runner_pa_fkey	2	runner	private_execution_package_ref_principal_id_skill_runner_pa_fkey	only in applied migrations: 0047 dropped it, so nothing holds it: stays	packages/db/migrations/0033_private_execution_packages.sql packages/db/migrations/0047_private_execution_closure_identity.sql
 cloud	PUBLISH_HARNESS_SUITE	2	harness	PUBLISH_TEST_SUITE	the test sense	packages/api/src/registry/publication.ts
 cloud	publishHarnessAdmissionCheck	2	harness	publishTestAdmissionCheck	the test sense	scripts/registry-live-readiness.ts
-cloud	purchase_holdings_owner_kind_check	2	hold	purchase_leases_owner_kind_check	the lease family	packages/db/migrations/0084_purchases.sql
+cloud	purchase_holdings_owner_kind_check	2	hold	leases_owner_kind_check	stored: Cloud's lease migration, a new one in Stage 6, renames the constraint; the lease family	packages/db/migrations/0084_purchases.sql
 cloud	recordedHoldings	2	hold	recordedHoldings	English, or a skill's own word: stays	packages/auth/src/provider-credential/declared-requests.private.test.ts
 cloud	RegistryConnectorContractHarness	2	harness	RegistryConnectorContractTest	the test sense	packages/registry/src/connector-store-contract.test-support.ts
 cloud	RegistryHarnessCaseMetadata	2	harness	RegistryTestCaseMetadata	the test sense	packages/registry/src/ingest.ts
@@ -293,11 +293,11 @@ cloud	OperationalPolicyRunnerReadback	1	runner	OperationalPolicyMethodReadback		
 cloud	OperationalPolicyRunnerRule	1	runner	OperationalPolicyMethodRule		apps/web/src/content/release/schemas/schemas/operational-policy.schema.json
 cloud	PaidSkillRunnerOffer	1	runner	PaidSkillMethodOffer		apps/web/src/content/release/schemas/schemas/paid-skill-listing.schema.json
 cloud	planSequentialGraphTransition	1	graph	planSequentialWorkflowTransition		apps/web/src/content/release/schemas/fixtures/kernel/schema/state-machine.schema.json
-cloud	public_evidence_events_harness_subject_idx	1	harness	public_evidence_events_test_subject_idx	the test sense	packages/db/migrations/0065_public_evidence_harness_identity.sql
+cloud	public_evidence_events_harness_subject_idx	1	harness	public_evidence_events_test_subject_idx	stored: Cloud's test migration recreates the index on kind = 'test_run'; the test sense	packages/db/migrations/0065_public_evidence_harness_identity.sql
 cloud	publish-harness	1	harness	publish-test	the test sense	packages/api/src/registry/native-harness.ts
 cloud	purchase_holding	1	hold	purchase_holding	English, or a skill's own word: stays	packages/api/src/payments/holdings-postgres.ts
-cloud	purchase_holdings_expiry_idx	1	hold	purchase_leases_expiry_idx	the lease family	packages/db/migrations/0071_purchase_holdings.sql
-cloud	purchase_holdings_owner_idx	1	hold	purchase_leases_owner_idx	the lease family	packages/db/migrations/0071_purchase_holdings.sql
+cloud	purchase_holdings_expiry_idx	1	hold	leases_expiry_idx	stored: Cloud's lease migration, a new one in Stage 6, renames the index; the lease family	packages/db/migrations/0071_purchase_holdings.sql
+cloud	purchase_holdings_owner_idx	1	hold	leases_owner_idx	stored: Cloud's lease migration, a new one in Stage 6, renames the index; the lease family	packages/db/migrations/0071_purchase_holdings.sql
 cloud	PurchaseHold	1	hold	PurchaseLease	the lease family	apps/web/src/content/release/schemas/schemas/purchase-read.schema.json
 cloud	RegistryBindingHarness	1	harness	RegistryBindingTest	the test sense	apps/web/src/content/release/schemas/schemas/registry-binding.schema.json
 cloud	RegistryHarnessState	1	harness	RegistryTestState	the test sense	apps/web/src/content/release/schemas/schemas/registry-binding.schema.json
