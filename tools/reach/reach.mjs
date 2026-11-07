@@ -3,20 +3,23 @@
 // SCIP index, which is the removal list's Rust half (plans/0.12, Stage 2 step 5).
 //
 //   rust-analyzer scip crates --output /tmp/oss.scip
-//   node tools/reach/reach.mjs /tmp/oss.scip report.json [--cut <symbol text>]...
+//   node tools/reach/reach.mjs /tmp/oss.scip report.json [--cut <symbol text>]... [--why <symbol text>]...
 //
-// Entry points come in three tiers, and each item is filed under the first
+// Entry points come in four tiers, and each item is filed under the first
 // that reaches it: the product (the runx and runx-js-worker binaries), what
-// publishing runs (the schema artifacts and the capability snapshot), and test
-// tooling (every other example program). A --cut stops the walk at any symbol
-// holding that text, the way a removed command's handler is cut.
+// publishing runs (the schema artifacts and the capability snapshot), the
+// benches the performance contract measures with (plans/0.12/contracts/
+// performance.md), which prove kept behaviour, and test tooling (every other
+// example program). A --cut stops the walk at any symbol holding that text,
+// the way a removed command's handler is cut.
 //
 // A reference belongs to the innermost definition whose extent holds it. A
 // trait method reaches each implementation whose type is reachable, and an
 // implementation of a trait from outside the workspace is reachable with its
 // type. Fields and variants count with their type both ways, since serde reads
-// them without a reference. What the derive macro generates calls to counts with it.
-// Tests, benches and build scripts are never callers.
+// them without a reference. What the derive macro generates calls to counts
+// with it, and so does the `extern crate self as <crate>` alias its generated
+// paths name. Tests and build scripts are never callers.
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -32,12 +35,17 @@ if (!indexFile || !outFile) {
   process.exit(2);
 }
 const cuts = [];
-for (let i = 0; i < rest.length; i += 1) if (rest[i] === "--cut") cuts.push(rest[++i]);
+const whys = [];
+for (let i = 0; i < rest.length; i += 1) {
+  if (rest[i] === "--cut") cuts.push(rest[++i]);
+  else if (rest[i] === "--why") whys.push(rest[++i]);
+}
 
 const crateOf = (symbol) => symbol.slice(PREFIX.length).split(" ")[0];
 const descriptor = (symbol) => symbol.split(" ").slice(4).join(" ");
 const isOurs = (symbol) => symbol.startsWith(PREFIX) && crateOf(symbol).startsWith("runx-");
-const isTestDoc = (file) => /(^|\/)(tests|benches)\//.test(file) || /(^|\/)build\.rs$/.test(file) || /_tests?\.rs$/.test(file);
+const isTestDoc = (file) => /(^|\/)tests\//.test(file) || /(^|\/)build\.rs$/.test(file) || /_tests?\.rs$/.test(file);
+const isBenchDoc = (file) => /(^|\/)benches\//.test(file);
 const isTestSymbol = (symbol) => descriptor(symbol).split("/").some((segment) => segment === "tests" || segment === "test" || segment.endsWith("_tests"));
 const exampleOf = (file) => /(^|\/)examples\/([^/]+)\.rs$/.exec(file)?.[2];
 
@@ -65,21 +73,36 @@ const addEdge = (from, to) => {
   if (!set) edges.set(from, (set = new Set()));
   set.add(to);
 };
+// A bench or an example is its own crate, but the index gives its root module
+// and its `main` the same symbols as its package's library and its other
+// examples. So a library definition wins over theirs, and what a bench's or an
+// example's file references through a symbol defined elsewhere belongs to a
+// node of that file's own, reached only from that file's tier.
+const isSrcDoc = (file) => !isTestDoc(file) && !isBenchDoc(file) && !exampleOf(file);
+const fileRoots = new Map(); // a bench's or example's file -> its roots
 for (const doc of docs) {
   const test = isTestDoc(doc.path);
   const defs = doc.occurrences.filter((o) => o.roles & 1 && !o.symbol.startsWith("local") && o.enclosing);
   for (const d of defs) {
-    if (defined.has(d.symbol)) continue;
-    defined.set(d.symbol, { path: doc.path, test: test || isTestSymbol(d.symbol), line: d.range[0] + 1, example: exampleOf(doc.path) });
+    if (defined.has(d.symbol) && (isSrcDoc(defined.get(d.symbol).path) || !isSrcDoc(doc.path))) continue;
+    defined.set(d.symbol, { path: doc.path, test: test || isTestSymbol(d.symbol), bench: isBenchDoc(doc.path), line: d.range[0] + 1, example: exampleOf(doc.path) });
   }
   if (test) continue;
+  const own = isSrcDoc(doc.path) ? undefined : `file ${doc.path}`;
+  if (own) fileRoots.set(doc.path, new Set([own]));
   for (const o of doc.occurrences) {
     if (o.roles & 1 || o.symbol.startsWith("local") || !isOurs(o.symbol)) continue;
     let owner;
     for (const d of defs) if (within(d.enclosing, o.range) && (!owner || smaller(d.enclosing, owner.enclosing))) owner = d;
-    if (owner && !isTestSymbol(owner.symbol)) addEdge(owner.symbol, o.symbol);
+    if (!owner || isTestSymbol(owner.symbol)) continue;
+    const shared = defined.get(owner.symbol).path !== doc.path || /^(crate\/|main\(\)\.)$/.test(descriptor(owner.symbol));
+    addEdge(own && shared ? own : owner.symbol, o.symbol);
   }
 }
+for (const [symbol, info] of defined) {
+  if (fileRoots.has(info.path) && !info.test && !/^(crate\/|main\(\)\.)$/.test(descriptor(symbol))) fileRoots.get(info.path).add(symbol);
+}
+const rootsOf = (test) => [...fileRoots].filter(([file]) => test(file)).flatMap(([, roots]) => [...roots]);
 
 // What the derive macro generates calls to: `schema::<name>` in its source.
 const deriveCalls = new Set();
@@ -88,7 +111,11 @@ for (const file of readdirSync(DERIVE_SOURCE)) {
   for (const m of readFileSync(new URL(file, DERIVE_SOURCE), "utf8").matchAll(/schema::([a-z_]+)/g)) deriveCalls.add(m[1]);
 }
 const deriveTargets = [...defined.keys()].filter(
-  (s) => crateOf(s) === "runx-contracts" && (deriveCalls.has(/^schema\/([a-z_]+)\(\)\.$/.exec(descriptor(s))?.[1]) || /^schema\/RunxSchema#[a-z_]+\(\)\.$/.test(descriptor(s))),
+  (s) =>
+    crateOf(s) === "runx-contracts" &&
+    (deriveCalls.has(/^schema\/([a-z_]+)\(\)\.$/.exec(descriptor(s))?.[1]) ||
+      /^schema\/RunxSchema#[a-z_]+\(\)\.$/.test(descriptor(s)) ||
+      descriptor(s) === "runx_contracts/"),
 );
 
 // Functions serde names in a string: `default = "..."`, `skip_serializing_if`, `with` and the like.
@@ -135,17 +162,19 @@ for (const symbol of defined.keys()) {
 
 const cut = (symbol) => cuts.some((text) => symbol.includes(text));
 const reachedBy = new Map(); // symbol -> tier
+const via = new Map(); // symbol -> [the symbol that reached it, how]
 function walk(starts, tier) {
-  const stack = [...starts];
+  const stack = starts.map((s) => [s, undefined, "root"]);
   const reach = () => {
     while (stack.length) {
-      const s = stack.pop();
+      const [s, from, how] = stack.pop();
       if (reachedBy.has(s) || cut(s)) continue;
       reachedBy.set(s, tier);
+      via.set(s, [from, how]);
       const parent = parentOf(s);
-      if (parent && defined.has(parent)) stack.push(parent);
-      for (const member of membersOf.get(s) ?? []) stack.push(member);
-      for (const next of edges.get(s) ?? []) stack.push(next);
+      if (parent && defined.has(parent)) stack.push([parent, s, "member of"]);
+      for (const member of membersOf.get(s) ?? []) stack.push([member, s, "member"]);
+      for (const next of edges.get(s) ?? []) stack.push([next, s, "references"]);
     }
   };
   reach();
@@ -153,11 +182,13 @@ function walk(starts, tier) {
     changed = false;
     for (const rule of implRules) {
       if (reachedBy.has(rule.symbol)) continue;
+      // A bench's own implementations belong to the bench, never the product.
+      if (defined.get(rule.symbol)?.bench && tier !== "proof") continue;
       // A type from outside the workspace is always there; one of ours must be reached.
       const typeLive = rule.types.length === 0 || rule.types.some((t) => reachedBy.has(t));
       const traitLive = rule.traits.length === 0 || rule.traits.some((t) => reachedBy.has(t));
       if (typeLive && traitLive) {
-        stack.push(rule.symbol);
+        stack.push([rule.symbol, undefined, "implementation of a reached trait for a reached type"]);
         reach();
         changed = true;
       }
@@ -165,31 +196,47 @@ function walk(starts, tier) {
   }
 }
 const mains = (test) => [...defined.entries()].filter(([s, info]) => /(^|\/)main\(\)\.$/.test(descriptor(s)) && test(s, info)).map(([s]) => s);
-const productRoots = mains((s, info) => !info.example && /^runx-(cli|js-worker)$/.test(crateOf(s)));
+const productRoots = mains((s, info) => isSrcDoc(info.path) && /^runx-(cli|js-worker)$/.test(crateOf(s)));
 walk([...productRoots, ...deriveTargets, ...serdeTargets], "product");
-walk(mains((s, info) => PUBLISHING.includes(info.example)), "publishing");
-walk(mains((s, info) => info.example && !PUBLISHING.includes(info.example)), "tooling");
+walk(rootsOf((file) => PUBLISHING.includes(exampleOf(file))), "publishing");
+walk(rootsOf(isBenchDoc), "proof");
+walk(rootsOf((file) => exampleOf(file) && !PUBLISHING.includes(exampleOf(file))), "tooling");
 
 // Items, not members: functions, methods, types, traits, consts, statics, macros, modules.
 const ITEM = /(\(\)\.|#|!)$|\/$/;
 const report = {};
 for (const [symbol, info] of defined) {
-  if (!isOurs(symbol) || info.test || info.example) continue;
+  if (!isOurs(symbol) || info.test || info.bench || info.example) continue;
   const d = descriptor(symbol);
   if (!ITEM.test(d) || (parentOf(symbol) && !/\(\)\.$/.test(d))) continue;
   const file = path.join(crateOf(symbol), info.path.replace(/^[^/]+\//, ""));
-  const entry = (report[file] ??= { items: 0, product: 0, publishing: [], tooling: [], unreached: [] });
+  const entry = (report[file] ??= { items: 0, product: 0, publishing: [], proof: [], tooling: [], unreached: [] });
   entry.items += 1;
   const tier = reachedBy.get(symbol);
   if (tier === "product") entry.product += 1;
   else (tier ? entry[tier] : entry.unreached).push(`${info.line} ${d}`);
 }
+// --why <text>: the chain that reached the first symbol holding the text.
+for (const text of whys) {
+  const target = [...reachedBy.keys()].find((s) => s.includes(text));
+  if (!target) {
+    process.stdout.write(`why ${text}: nothing reaches it\n`);
+    continue;
+  }
+  process.stdout.write(`why ${text} (${reachedBy.get(target)}):\n`);
+  for (let s = target, guard = 0; s && guard < 200; guard += 1) {
+    const [from, how] = via.get(s);
+    process.stdout.write(`  ${descriptor(s) || s}  <- ${how}\n`);
+    s = from;
+  }
+}
 writeFileSync(outFile, `${JSON.stringify({ roots: productRoots, cuts, report }, null, 1)}\n`);
-const totals = { items: 0, product: 0, publishing: 0, tooling: 0, unreached: 0 };
+const totals = { items: 0, product: 0, publishing: 0, proof: 0, tooling: 0, unreached: 0 };
 for (const e of Object.values(report)) {
   totals.items += e.items;
   totals.product += e.product;
   totals.publishing += e.publishing.length;
+  totals.proof += e.proof.length;
   totals.tooling += e.tooling.length;
   totals.unreached += e.unreached.length;
 }
