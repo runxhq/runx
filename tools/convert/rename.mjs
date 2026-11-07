@@ -195,6 +195,22 @@ function apply(repo, root, write) {
     for (const token of missing.slice(0, 40)) process.stdout.write(`  ${token}\n`);
     return 1;
   }
+  // A new name a file already holds needs a row for the name it lands on:
+  // moved aside, or kept with a note that the two are one thing. Clashes
+  // across files are the compiler's to catch.
+  const collisions = new Map();
+  for (const file of trackedSources(root)) {
+    const names = new Set(readSource(root, file)?.text?.match(TOKEN) ?? []);
+    for (const name of names) {
+      const to = renames.get(name);
+      if (to !== undefined && names.has(to) && !known.has(to)) collisions.set(`${name} -> ${to}`, file);
+    }
+  }
+  if (collisions.size > 0) {
+    process.stdout.write(`refused ${repo}: ${collisions.size} new names land on a name the same file already has, and the table doesn't say what happens to it\n`);
+    for (const [clash, file] of [...collisions].slice(0, 40)) process.stdout.write(`  ${clash}   (${file})\n`);
+    return 1;
+  }
   let files = 0;
   let replaced = 0;
   let signed = 0;

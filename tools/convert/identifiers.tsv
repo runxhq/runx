@@ -1483,5 +1483,16 @@ oss	version_listings_page_by_cursor_and_hold_to_their_contract	1	hold	version_li
 oss	wrong-closure	1	closure	wrong-closure	a package's closure, or English: stays	crates/runx-cli/tests/operator_journeys.rs
 oss	TurnInvocation		moved	TurnView	the plan's name (§4.2): host_protocol.rs:618	
 oss	TurnEnvelope		moved	TurnViewEnvelope	the plan's name (§4.2): host_protocol.rs:651	
-oss	Turn		moved	OpenTurn	Kam, 8 November: the trait a host works an open turn through (turn.rs:45), so AgentAct can be Turn	
-oss	RunContext		moved	CallerContext	Kam, 8 November: the caller's context (run_record.rs:351), so HarnessContext can be RunContext	
+oss	Turn		moved	Turn	Kam, 8 November: today's trait has one implementation, OpenTurn (turn.rs:1448), so it goes before the rename, repeating no method, and Turn is the name AgentAct takes	
+oss	RunContext		moved	CallerContext	Kam, 8 November: one thing with the CLI's CallerContext (parser.rs:167), the caller's current and historical context, so Stage 3 makes them one type under that name	
+oss	turn		decided	turn	one thing: an agent's turn, the name agent_act takes	
+oss	agent		decided	agent	one thing: the skill's name, which agent-session takes	
+oss	OpenTurn		decided	OpenTurn	the open turn (turn.rs:230). The MCP server's private listing line of the same name (server_turn.rs:271) becomes ListedTurn by hand	
+oss	test_input		decided	test_input	one thing: a test's input was invalid, the code harness_input takes	
+oss	TurnInvocationContract		decided	TurnViewContract	the plan's name (§4.2): today's TurnInvocation's contract type	
+oss	run_ref		decided	run_ref	one thing: a reference to the run, the name harness_ref takes	
+cloud	turn		decided	turn	one thing: an agent's turn, the name agent_act takes	
+cloud	TurnInvocation		decided	TurnView	the plan's name (§4.2), in Cloud's copy of the turn schema	
+cloud	TurnEnvelope		decided	TurnViewEnvelope	the plan's name (§4.2), in Cloud's copy of the turn schema	
+fieldwork	turn		decided	turn	one thing: an agent's turn, the name agent_act takes	
+fieldwork	agent		decided	agent	one thing: the skill's name, which agent-session takes	
