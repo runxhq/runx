@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Converts runx packages to the 0.12 format: run.yaml, its tests, its evals and
-// its support graphs. The format contract (plans/0.12/contracts/run-yaml.md)
-// owns every rule here. Every key the converter reads is named below, and a
+// Converts runx packages and connectors to the 0.12 format: run.yaml, its tests,
+// its evals and its support graphs, and connector.yaml. The format and connector
+// contracts (plans/0.12/contracts/run-yaml.md, connector-yaml.md) own every rule here. Every key the converter reads is named below, and a
 // package holding any other key is refused, never guessed at. Comments survive.
 //
-//   node tools/convert/convert.mjs [--write] <package-dir>...
+//   node tools/convert/convert.mjs [--write] <package-or-connector-dir>...
 //
 // Without --write it changes nothing and reports what it would do.
 
@@ -14,6 +14,13 @@ import YAML, { isMap, isScalar, isSeq, Pair, Scalar, YAMLMap, YAMLSeq } from "ya
 
 const MINIMUM_RUNX = "0.12.0";
 const OUTPUT = { lineWidth: 0, flowCollectionPadding: false };
+
+// A file keeps the list style most of its lists use, so a diff shows only what changed.
+function styleOf(text) {
+  const flush = (text.match(/^( *)[^\s#-][^\n]*:[ \t]*\n\1- /gm) ?? []).length;
+  const indented = (text.match(/^( *)[^\s#-][^\n]*:[ \t]*\n\1  - /gm) ?? []).length;
+  return { ...OUTPUT, indentSeq: indented >= flush };
+}
 
 const ROOT_KEYS = ["skill", "version", "catalog", "connectors", "tools", "skills", "asks", "input_definitions", "marketplace", "runners", "harness"];
 const CATALOG_KEPT = ["visibility", "category", "tags"];
@@ -441,7 +448,8 @@ function writeEvals(skillName, journeys, files, dir, notes) {
 // ---- Support graphs, which become fixture packages
 
 function convertGraph(file, skillName, notes) {
-  const doc = YAML.parseDocument(readFileSync(file, "utf8"));
+  const graphText = readFileSync(file, "utf8");
+  const doc = YAML.parseDocument(graphText);
   const root = doc.contents;
   only(root, GRAPH_KEYS, path.basename(file));
   if (has(root, "publisher")) notes.push(`${path.basename(file)}: publisher removed, as catalog.publisher is`);
@@ -454,7 +462,7 @@ function convertGraph(file, skillName, notes) {
   const scope = { where: `${path.basename(file)}`, calls: () => undefined, requirementOperations: new Map() };
   for (const step of steps.items) convertStep(out, step, scope, notes);
   const skill = `---\nname: ${graphName}\ndescription: A test fixture that composes ${skillName} with the packages it calls.\n---\n\nUsed only by ${skillName}'s tests.\n`;
-  return { runYaml: out.toString(OUTPUT), skill, graphName };
+  return { runYaml: out.toString(styleOf(graphText)), skill, graphName };
 }
 
 // ---- A package
@@ -471,7 +479,9 @@ function convertPackage(dir) {
   const notes = [];
   const files = new Map(); // path -> new content, or null to delete
   const runPath = path.join(dir, "run.yaml");
-  const doc = YAML.parseDocument(readFileSync(runPath, "utf8"));
+  const runText = readFileSync(runPath, "utf8");
+  const style = styleOf(runText);
+  const doc = YAML.parseDocument(runText);
   if (doc.errors.length) refuse(`run.yaml doesn't parse: ${doc.errors[0].message}`);
   const root = doc.contents;
   only(root, ROOT_KEYS, "run.yaml");
@@ -564,6 +574,7 @@ function convertPackage(dir) {
     for (const testCase of node(harness, "cases")?.items ?? []) {
       const testDoc = new YAML.Document();
       testDoc.contents = testCase;
+      testDoc.style = style;
       addTest(testDoc, `harness.cases.${read(testCase, "name")}`);
     }
   }
@@ -571,22 +582,91 @@ function convertPackage(dir) {
     for (const entry of readdirSync(fixtures).sort()) {
       if (!entry.endsWith(".yaml")) continue;
       const file = path.join(fixtures, entry);
-      const testDoc = YAML.parseDocument(readFileSync(file, "utf8"));
+      const caseText = readFileSync(file, "utf8");
+      const testDoc = YAML.parseDocument(caseText);
+      testDoc.style = styleOf(caseText);
       const contents = testDoc.contents;
       if (!isMap(contents) || !has(contents, "name") || !has(contents, "expect")) continue;
       addTest(testDoc, `fixtures/${entry}`, path.basename(entry, ".yaml"));
       files.set(file, null);
     }
   }
-  for (const [file, testDoc] of tests) files.set(file, testDoc.toString(OUTPUT));
+  for (const [file, testDoc] of tests) files.set(file, testDoc.toString(testDoc.style));
   for (const [file, graph] of graphPackages) {
     files.set(file, null);
     files.set(path.join(graph.into, "run.yaml"), graph.runYaml);
     files.set(path.join(graph.into, "SKILL.md"), graph.skill);
   }
   writeEvals(name, evals, files, dir, notes);
-  files.set(runPath, doc.toString(OUTPUT));
+  files.set(runPath, doc.toString(style));
   return { files, notes, tests: tests.size, graphs: graphPackages.size };
+}
+
+// ---- A connector (plans/0.12/contracts/connector-yaml.md)
+
+const CONNECTOR_ROOT_KEYS = ["schema", "id", "name", "description", "category", "auth", "parameters", "placements", "operations", "references", "pays", "runtime_capability"];
+const OPERATION_KEYS = ["description", "verb", "scopes", "credentials", "target", "approval", "idempotency_key_format", "guarantees", "amount", "cost", "input_schema", "result_fields", "effect", "implementation", "holds", "hosted"];
+const VERBS = { read: "read", write: "write", execute: "execute", revoke: "revoke", create: "write", comment: "write", delete: "write", merge: "write", update: "write", review: "write" };
+const PAGE_KEYS = ["param", "in", "cursor", "items", "limit"];
+
+function renameProcessScopes(process) {
+  if (process === undefined || !isMap(process)) return;
+  rename(process, "runtime_scopes", "requires");
+}
+
+function convertConnector(dir) {
+  const notes = [];
+  const file = path.join(dir, "connector.yaml");
+  const text = readFileSync(file, "utf8");
+  const doc = YAML.parseDocument(text);
+  if (doc.errors.length) refuse(`connector.yaml doesn't parse: ${doc.errors[0].message}`);
+  const root = doc.contents;
+  only(root, CONNECTOR_ROOT_KEYS, "connector.yaml");
+  if (read(root, "schema") !== "runx.connector.v1") refuse(`connector.yaml's schema is ${read(root, "schema")}`);
+  rename(root, "name", "title");
+  rename(root, "id", "name");
+  take(root, "runtime_capability");
+  rename(root, "pays", "payment");
+
+  const session = node(node(root, "auth") ?? new YAMLMap(), "session");
+  if (session !== undefined) renameProcessScopes(node(session, "process"));
+
+  for (const pair of node(root, "operations")?.items ?? []) {
+    const where = `operations.${keyOf(pair)}`;
+    const operation = pair.value;
+    only(operation, OPERATION_KEYS, where);
+    const verb = pairOf(operation, "verb");
+    if (verb) {
+      const to = VERBS[plain(verb.value)];
+      if (to === undefined) refuse(`${where}.verb is ${plain(verb.value)}, which the converter doesn't know`);
+      verb.value = new Scalar(to);
+    }
+    const hosted = pairOf(operation, "hosted");
+    if (hosted) {
+      only(hosted.value, ["provider_scopes"], `${where}.hosted`);
+      const scopes = node(hosted.value, "provider_scopes");
+      const at = indexOf(operation, "hosted");
+      take(operation, "hosted");
+      if (scopes !== undefined) insertAt(operation, at, "provider_scopes", scopes);
+    }
+    rename(operation, "holds", "hold");
+    const implementation = node(operation, "implementation");
+    renameProcessScopes(implementation && node(implementation, "process"));
+    const http = implementation && node(implementation, "http");
+    for (const request of (http && node(http, "requests")?.items) ?? []) {
+      const pages = node(request, "pages");
+      if (pages === undefined) continue;
+      only(pages, PAGE_KEYS, `${where}.implementation.http.requests.pages`);
+      const next = new YAMLMap();
+      next.flow = true;
+      for (const key of ["cursor", "param", "in"]) {
+        const value = take(pages, key);
+        if (value !== undefined) next.items.push(new Pair(new Scalar(key), value));
+      }
+      if (next.items.length) pages.items.push(new Pair(new Scalar("next"), next));
+    }
+  }
+  return { files: new Map([[file, doc.toString(styleOf(text))]]), notes };
 }
 
 // ---- Command line
@@ -595,12 +675,19 @@ function main(argv) {
   const write = argv.includes("--write");
   const dirs = argv.filter((arg) => arg !== "--write");
   if (dirs.length === 0) {
-    process.stderr.write("usage: convert.mjs [--write] <package-dir>...\n");
+    process.stderr.write("usage: convert.mjs [--write] <package-or-connector-dir>...\n");
     return 2;
   }
   let refused = 0;
   for (const dir of dirs) {
     try {
+      if (existsSync(path.join(dir, "connector.yaml"))) {
+        const { files, notes } = convertConnector(dir);
+        if (write) for (const [file, content] of files) writeFileSync(file, content);
+        process.stdout.write(`converted ${dir}: connector${write ? "" : " (dry run)"}\n`);
+        for (const note of notes) process.stdout.write(`  note: ${note}\n`);
+        continue;
+      }
       const { files, notes, tests, graphs } = convertPackage(dir);
       if (write) {
         for (const [file, content] of files) {
