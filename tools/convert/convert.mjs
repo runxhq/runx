@@ -107,7 +107,7 @@ function convertField(doc, value, role, where) {
     refuse(`${where} is empty`);
   }
   only(value, role === "input" ? INPUT_KEYS : OUTPUT_KEYS, where);
-  if (has(value, "artifact")) refuse(`${where}.artifact: no package declares it today, so step 5 judges it before anything converts it`);
+  if (has(value, "artifact")) refuse(`${where}.artifact is gone: an input that takes an artifact names its packet, written by hand`);
 
   const fieldType = read(value, "type");
   const required = read(value, "required");
@@ -286,6 +286,42 @@ function convertOutputs(doc, step, where) {
     insertAt(step, indexOf(step, "outputs") >= 0 ? indexOf(step, "outputs") + 1 : step.items.length, "result_as", new Scalar(wrapAs));
     if (wrapPacket !== undefined) setPacket(field(wrapAs).value, wrapPacket, wrapAs);
   }
+}
+
+// ---- Offers: what a paid method charges, on the method itself
+
+const OFFER_KEYS = ["price", "currency", "accepted_settlement_families", "input_schema_digest", "output_schema_digest", "acts_on"];
+const PRICE_KEYS = ["model", "amount_minor", "selectors", "cases", "artifact_input", "base_amount_minor", "unit_bytes", "unit_amount_minor", "max_bytes"];
+const PRICE_MODELS = { fixed: "fixed", input_choice: "by_input", artifact_bytes: "by_size" };
+
+function convertOffer(doc, offer, where) {
+  only(offer, OFFER_KEYS, where);
+  // The registry computes these from the method's own inputs and outputs at publish.
+  take(offer, "input_schema_digest");
+  take(offer, "output_schema_digest");
+  rename(offer, "accepted_settlement_families", "accepts");
+  rename(offer, "acts_on", "requires_lease");
+  const price = node(offer, "price");
+  only(price, PRICE_KEYS, `${where}.price`);
+  const modelPair = pairOf(price, "model");
+  const model = PRICE_MODELS[plain(modelPair?.value)];
+  if (model === undefined) refuse(`${where}.price.model is ${plain(modelPair?.value)}, which the converter doesn't know`);
+  modelPair.value = new Scalar(model);
+  rename(price, "artifact_input", "input");
+  if (model === "by_input") {
+    const selectors = plain(take(price, "selectors"));
+    if (!Array.isArray(selectors) || selectors.length === 0) refuse(`${where}.price has no selectors`);
+    for (const priced of node(price, "cases")?.items ?? []) {
+      only(priced, ["when", "amount_minor"], `${where}.price.cases`);
+      const values = read(priced, "when");
+      if (!Array.isArray(values) || values.length !== selectors.length) refuse(`${where}.price.cases has a when that doesn't match its selectors`);
+      const inputs = flow(doc, Object.fromEntries(selectors.map((name, index) => [name, values[index]])));
+      const when = pairOf(priced, "when");
+      when.key.value = "inputs";
+      when.value = inputs;
+    }
+  }
+  return offer;
 }
 
 // ---- Methods
@@ -522,12 +558,13 @@ function convertPackage(dir) {
     if (connectors.items.length === 0) take(root, "connectors");
   }
 
-  const marketplace = pairOf(root, "marketplace");
-  if (marketplace) {
-    only(marketplace.value, ["offers"], "marketplace");
-    marketplace.key.value = "offers";
-    marketplace.value = node(marketplace.value, "offers");
-    notes.push("offers moved out of marketplace: the keys inside an offer haven't been judged against the bar yet");
+  const marketplace = take(root, "marketplace");
+  const offers = new Map();
+  if (marketplace !== undefined) {
+    only(marketplace, ["offers"], "marketplace");
+    for (const pair of node(marketplace, "offers")?.items ?? []) {
+      offers.set(keyOf(pair), convertOffer(doc, pair.value, `marketplace.offers.${keyOf(pair)}`));
+    }
   }
 
   const shared = new Map();
@@ -544,6 +581,11 @@ function convertPackage(dir) {
   if (!rename(root, "runners", "methods")) refuse("run.yaml has no runners");
   for (const pair of node(root, "methods").items) {
     convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations }, notes);
+  }
+  for (const [method, offer] of offers) {
+    const target = node(node(root, "methods"), method);
+    if (!isMap(target)) refuse(`marketplace.offers.${method} names a method that isn't there`);
+    insertAt(target, indexOf(target, "steps") >= 0 ? indexOf(target, "steps") : target.items.length, "offer", offer);
   }
 
   // Tests: the cases in run.yaml and in fixtures/*.yaml, and support graphs.
