@@ -1411,7 +1411,6 @@ pub(super) fn resolution_response_corpus() -> Vec<(&'static str, Value)> {
 pub(super) fn turn_invocation_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "id": "inv_1",
-        "role": "assistant",
         "task": "draft",
         "envelope": agent_context_envelope(),
         "allowance": {},
@@ -1450,7 +1449,6 @@ pub(super) fn turn_invocation_corpus() -> Vec<(&'static str, Value)> {
         ),
         ("missing id", drop_field(valid.clone(), "id")),
         ("empty id", set_field(valid.clone(), "id", json!(""))),
-        ("missing role", drop_field(valid.clone(), "role")),
         ("empty task", set_field(valid.clone(), "task", json!(""))),
         ("missing envelope", drop_field(valid.clone(), "envelope")),
         (
@@ -1489,7 +1487,6 @@ fn agent_context_envelope() -> Value {
 fn turn_invocation() -> Value {
     json!({
         "id": "answer",
-        "role": "answer",
         "task": "answer",
         "envelope": agent_context_envelope(),
         "allowance": { "tools": ["data.digest"], "asks": true },
@@ -1666,7 +1663,6 @@ pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
         "id": "aa_1",
         "invocation": {
             "id": "inv_1",
-            "role": "assistant",
             "task": "draft",
             "envelope": agent_context_envelope(),
             "allowance": {},
