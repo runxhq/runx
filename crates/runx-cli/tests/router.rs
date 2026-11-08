@@ -157,10 +157,7 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
         &help("history"),
         "runx history <run-id> [--after cursor] [--json]",
     );
-    assert_help_line(
-        &help("history"),
-        "runx history <receipt-id> [--receipt-dir dir] [--json]",
-    );
+    assert!(!help("history").contains("<receipt-id>"));
     assert_help_line(
         &help("verify"),
         "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--trust home|configured] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",

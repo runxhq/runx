@@ -6,21 +6,7 @@ use runx_contracts::{
 use serde::{Deserialize, Serialize};
 
 use super::RuntimeReceiptSignaturePolicy;
-use super::archive::{ReceiptVerification, exact_receipt_id, receipt_uri, verification_status};
-use super::paths::safe_receipt_store_label;
-use super::store::{LocalReceiptStore, ReceiptStoreError};
-use crate::paths::RunxPaths;
-
-pub const RECEIPT_INSPECTION_SCHEMA: &str = "runx.receipt_inspection.v1";
-pub const RECEIPT_INSPECTION_PROJECTOR_ID: &str = "runx-runtime.receipt-inspection.v1";
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReceiptInspectionProjection {
-    pub schema: String,
-    pub projector_id: String,
-    pub store_label: String,
-    pub receipt: ReceiptInspection,
-}
+use super::archive::{ReceiptVerification, receipt_uri, verification_status};
 
 /// A receipt as a reader inspects it. Each `_uri` is the URI of the receipt
 /// `Reference` it projects; the receipt itself keeps its own field names.
@@ -95,23 +81,6 @@ pub struct ReceiptCriterionInspection {
     pub status: String,
     pub evidence_uris: Vec<String>,
     pub verification_uris: Vec<String>,
-}
-
-pub fn inspect_local_receipt(
-    store: &LocalReceiptStore,
-    paths: &RunxPaths,
-    receipt_reference: &str,
-    signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> Result<ReceiptInspectionProjection, ReceiptStoreError> {
-    let receipt_id = exact_receipt_id(receipt_reference);
-    let receipt = store.read_exact_without_proof_for_history(&receipt_id)?;
-    let store_label = safe_receipt_store_label(store.root(), paths);
-    Ok(ReceiptInspectionProjection {
-        schema: RECEIPT_INSPECTION_SCHEMA.to_owned(),
-        projector_id: RECEIPT_INSPECTION_PROJECTOR_ID.to_owned(),
-        store_label: store_label.as_str().to_owned(),
-        receipt: project_receipt_inspection(&receipt, signature_policy),
-    })
 }
 
 #[must_use]

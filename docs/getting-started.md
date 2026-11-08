@@ -49,16 +49,16 @@ hosted verification still require a hosted issuer.
 
 The quickstart writes the sealed receipt and its local index inside the
 directory stored in `$RUNX_RECEIPT_DIR` in Bash or
-`$env:RUNX_RECEIPT_DIR` in PowerShell. Use the id from the previous command as
-a detailed history query:
+`$env:RUNX_RECEIPT_DIR` in PowerShell. Verify the receipt the previous command
+printed:
 
 ```bash
-runx history <receipt-id> --json
+runx verify <receipt-id> --json
 ```
 
-The `runx.receipt_inspection.v1` projection should show the receipt status,
-authority, decisions, acts, the seal's criteria (and its reason, when the
-outcome alone does not say why), and local issuer verification. It does
+Its `receipt` shows what the receipt says: its status, authority, decisions,
+acts, the seal's criteria (and its reason, when the outcome alone does not say
+why), and local issuer verification, beside whether its tree verifies. It does
 not reproduce the execution input or output body.
 
 ## Verify The Receipt
@@ -95,8 +95,8 @@ export RUNX_RECEIPT_SIGN_ISSUER_TYPE="hosted"
 All three variables must be set together. `RUNX_RECEIPT_SIGN_ISSUER_TYPE` must
 be `hosted` or `ci`; a local identity is only ever the home's own key. When
 configured, the runtime signs each receipt body digest with Ed25519 and writes
-the matching public key digest in the issuer metadata. `runx history <receipt-id>`
-and `runx verify` trust this home's own key and the configured signer's public
+the matching public key digest in the issuer metadata. `runx verify` trusts
+this home's own key and the configured signer's public
 key, so the operator that created the receipts does not configure the same key
 twice.
 
@@ -107,7 +107,7 @@ key, named by issuer type and key id:
 export RUNX_RECEIPT_VERIFY_ISSUER_TYPE="hosted"
 export RUNX_RECEIPT_VERIFY_KID="hosted-prod-key"
 export RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64="<32-byte-ed25519-public-key-base64>"
-runx history <receipt-id> --json
+runx verify <receipt-id> --json
 ```
 
 ## Next

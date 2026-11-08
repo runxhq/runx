@@ -11,6 +11,7 @@ use runx_receipts::{
     NotaryVerifyVerdict, ReceiptProofContext, ReceiptVerifyVerdict,
     ed25519_public_key_from_spki_pem, verify_notary_document, verify_receipt_document_verdict,
 };
+use runx_runtime::receipts::inspection::{ReceiptInspection, project_receipt_inspection};
 use runx_runtime::{
     Ed25519CounterSealVerifier, Ed25519ReceiptVerifier, LocalReceiptStore,
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
@@ -79,6 +80,9 @@ enum ReceiptInput {
 #[derive(Clone, Debug, Serialize)]
 struct VerifyReport {
     receipt_dir: String,
+    /// What the receipt a receipt id names says, beside whether it verifies.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    receipt: Option<ReceiptInspection>,
     trees: Vec<TreeReport>,
     unreadable_files: Vec<FileIssue>,
     valid: bool,
@@ -106,10 +110,15 @@ struct FileIssue {
 }
 
 impl VerifyReport {
-    fn of(receipt_dir: &Path, verification: StoreTreeVerification) -> Self {
+    fn of(
+        receipt_dir: &Path,
+        receipt: Option<ReceiptInspection>,
+        verification: StoreTreeVerification,
+    ) -> Self {
         let valid = verification.valid();
         Self {
             receipt_dir: receipt_dir.display().to_string(),
+            receipt,
             trees: verification
                 .trees
                 .into_iter()
@@ -163,7 +172,8 @@ pub fn run_verify_command_with_stdin<R: Read>(
         paths: &paths,
     });
     let verifier = receipt_verifier(env, &paths, parsed.trust())?;
-    let verification = LocalReceiptStore::new(&resolved.path)
+    let store = LocalReceiptStore::new(&resolved.path);
+    let verification = store
         .verify_trees(
             parsed.receipt_id.as_deref(),
             RuntimeReceiptSignaturePolicy::verifying(&verifier),
@@ -177,7 +187,16 @@ pub fn run_verify_command_with_stdin<R: Read>(
                 resolved.path.display()
             )),
         })?;
-    let report = VerifyReport::of(&resolved.path, verification);
+    let receipt = match parsed.receipt_id.as_deref() {
+        Some(receipt_id) => Some(project_receipt_inspection(
+            &store
+                .read_exact_without_proof(receipt_id)
+                .map_err(|error| VerifyCliError::Store(error.to_string()))?,
+            RuntimeReceiptSignaturePolicy::verifying(&verifier),
+        )),
+        None => None,
+    };
+    let report = VerifyReport::of(&resolved.path, receipt, verification);
     let output = if parsed.json {
         format!(
             "{}\n",
@@ -494,9 +513,43 @@ fn receipt_verifier(
     Ok(verifier)
 }
 
+/// What a receipt says: its outcome, subject, actor, authority and acts.
+fn render_receipt_inspection(receipt: &ReceiptInspection) -> String {
+    let mut lines = vec![
+        format!(
+            "receipt {}: {} ({})",
+            receipt.id, receipt.outcome, receipt.verification.status
+        ),
+        format!("  subject  {}", receipt.subject_uri),
+        format!(
+            "  actor  {}",
+            receipt
+                .authority
+                .actor_uri
+                .as_deref()
+                .unwrap_or("none stated")
+        ),
+        format!(
+            "  authority  {} scope(s), {} grant(s), {} approval(s)",
+            receipt.authority.exercised_scopes.len(),
+            receipt.authority.grant_uris.len(),
+            receipt.authority.approval_uris.len()
+        ),
+        format!("  acts  {}", receipt.acts.len()),
+    ];
+    for act in &receipt.acts {
+        lines.push(format!("  {}  {}  {}", act.form, act.id, act.purpose));
+    }
+    lines.push(String::new());
+    lines.join("\n")
+}
+
 fn render_report(report: &VerifyReport) -> String {
     let mut output = String::new();
     output.push_str(&format!("receipt dir: {}\n", report.receipt_dir));
+    if let Some(receipt) = &report.receipt {
+        output.push_str(&render_receipt_inspection(receipt));
+    }
     if report.trees.is_empty() {
         output.push_str("no receipts found\n");
     }
@@ -686,6 +739,49 @@ mod tests {
                 serde_json::from_str(&result.output).map_err(io::Error::other)?;
             assert_eq!(report["valid"], JsonValue::Bool(true));
         }
+        Ok(())
+    }
+
+    #[test]
+    fn a_receipt_id_shows_what_that_receipt_says_without_execution_bodies()
+    -> Result<(), io::Error> {
+        let temp = tempfile_dir()?;
+        let receipt_dir = temp.join("receipts");
+        let signer = fixture_signer().map_err(io::Error::other)?;
+        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
+        let receipt = production_signed_receipt(&signer)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        LocalReceiptStore::new(&receipt_dir)
+            .write_receipt(
+                &receipt,
+                RuntimeReceiptSignaturePolicy::verifying(&verifier),
+            )
+            .map_err(|error| io::Error::other(error.to_string()))?;
+
+        let args = |receipt_id: Option<String>| {
+            let mut args: Vec<OsString> = vec!["verify".into()];
+            args.extend(receipt_id.map(OsString::from));
+            args.extend([
+                "--receipt-dir".into(),
+                receipt_dir.clone().into_os_string(),
+                "--json".into(),
+            ]);
+            args
+        };
+        let env = verifier_env(&signer);
+        let named = verify(&args(Some(receipt.id.to_string())), &env, &temp)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        let report: JsonValue = serde_json::from_str(&named.output).map_err(io::Error::other)?;
+        assert_eq!(report["valid"], JsonValue::Bool(true));
+        assert_eq!(report["receipt"]["id"], receipt.id.to_string());
+        assert_eq!(report["receipt"]["verification"]["status"], "verified");
+        assert!(!named.output.contains("structured_output"));
+        assert!(!named.output.contains("stderr"));
+
+        let whole = verify(&args(None), &env, &temp)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        let report: JsonValue = serde_json::from_str(&whole.output).map_err(io::Error::other)?;
+        assert!(report.get("receipt").is_none());
         Ok(())
     }
 

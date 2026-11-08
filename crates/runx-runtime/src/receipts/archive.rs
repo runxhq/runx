@@ -126,15 +126,6 @@ pub fn receipt_uri(receipt_id: &str) -> String {
     format!("{RECEIPT_REF_PREFIX}{receipt_id}")
 }
 
-/// A receipt id from an id or a `runx:receipt:` reference.
-#[must_use]
-pub fn exact_receipt_id(reference: &str) -> String {
-    reference
-        .strip_prefix(RECEIPT_REF_PREFIX)
-        .unwrap_or(reference)
-        .to_owned()
-}
-
 pub(crate) fn verification_status(
     receipt: &Receipt,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,

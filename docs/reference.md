@@ -100,7 +100,7 @@ runx resume <run-id> answers.json
 runx mcp --run <run-id>
 runx history
 runx history <run-id> --json
-runx history <receipt-id> --json
+runx verify <receipt-id> --json
 runx mcp ./fixtures/skills/echo
 runx skill ./skills/skill-build design -i objective="build github review skill"
 runx harness ./examples/hello-graph/harness.yaml
@@ -119,7 +119,7 @@ project artifacts of the run (one per packet output, named, and one for the
 rest, each with its digest and media type), and a refused or failed call's
 reason, so a host reads every call's outcome from the run alone. The read's
 `cursor`, passed back as `--after`, returns only what followed. A sealed run is
-terminal; inspect its receipt with `runx history <receipt-id>`. To execute
+terminal; inspect its receipt with `runx verify <receipt-id>`. To execute
 the work again, invoke the original `runx skill` command and retain both
 receipts if you need to compare the outcomes. The current CLI has no standalone
 `replay` or run `diff` command.
@@ -1036,7 +1036,7 @@ policy, approvals, and resolution requests still behave the same way.
 
 ## Receipts
 
-Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx history <receipt-id>` verifies a receipt's signature and surfaces `verified`, `unverified`, or `invalid` status. Once a skill package and runner resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
+Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx verify <receipt-id>` shows what a receipt says, with its signature's `verified`, `unverified`, or `invalid` status, and verifies the tree it belongs to. Once a skill package and runner resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
 
 Graph receipt lineage is an immutable one-way tree. The parent commits each
 child receipt ID and exact signed-body digest; a child never names its parent,

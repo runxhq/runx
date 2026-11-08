@@ -1203,7 +1203,7 @@ fn assert_receipt_verifies(root: &Path, receipt_dir: &Path, receipt_id: &str) ->
 }
 
 /// The run sealed with this receipt, and the receipt inspects as the signed
-/// record: history reads the run sealed, and its receipt id reads the receipt.
+/// record: history reads the run sealed, and verify reads the receipt.
 fn assert_run_sealed_with_local_receipt(
     root: &Path,
     receipt_dir: &Path,
@@ -1214,7 +1214,7 @@ fn assert_run_sealed_with_local_receipt(
     assert_eq!(read["run"]["state"], "sealed");
     assert_eq!(read["run"]["receipt_id"], receipt_id);
     let detail = command(root)
-        .arg("history")
+        .arg("verify")
         .arg(receipt_id)
         .arg("--receipt-dir")
         .arg(receipt_dir)

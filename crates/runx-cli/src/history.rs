@@ -5,13 +5,8 @@ use std::path::{Path, PathBuf};
 
 use crate::cli_args;
 use runx_contracts::RunRead;
-use runx_runtime::receipts::inspection::{ReceiptInspectionProjection, inspect_local_receipt};
 use runx_runtime::run_record::{
     RunFilter, RunListing, RunRecordError, RunState, list_runs, read_run,
-};
-use runx_runtime::{
-    LocalReceiptStore, ReceiptPathInputs, ReceiptStoreError, ReceiptTrust, RuntimeReceiptConfig,
-    RuntimeReceiptSignaturePolicy, receipt_verifier, resolve_receipt_path,
 };
 
 // Module rationale: the native history command keeps
@@ -19,20 +14,15 @@ use runx_runtime::{
 #[derive(Debug)]
 pub enum HistoryCliError {
     InvalidArgs(String),
-    InvalidReceiptVerifier(String),
     Runs(RunRecordError),
-    Receipt(ReceiptStoreError),
     Serialize(serde_json::Error),
 }
 
 impl fmt::Display for HistoryCliError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidArgs(message) | Self::InvalidReceiptVerifier(message) => {
-                formatter.write_str(message)
-            }
+            Self::InvalidArgs(message) => formatter.write_str(message),
             Self::Runs(error) => write!(formatter, "{error}"),
-            Self::Receipt(error) => write!(formatter, "{error}"),
             Self::Serialize(error) => write!(formatter, "failed to serialize history: {error}"),
         }
     }
@@ -48,10 +38,7 @@ impl HistoryCliError {
             Self::InvalidArgs(_) => "invalid_args",
             Self::Runs(RunRecordError::CursorRunMismatch { .. }) => "cursor_run_mismatch",
             Self::Runs(RunRecordError::InvalidCursor) => "invalid_cursor",
-            Self::Runs(_)
-            | Self::InvalidReceiptVerifier(_)
-            | Self::Receipt(_)
-            | Self::Serialize(_) => "history_error",
+            Self::Runs(_) | Self::Serialize(_) => "history_error",
         }
     }
 }
@@ -67,7 +54,6 @@ struct ParsedHistoryArgs {
     receipt_dir: Option<PathBuf>,
     query: Option<String>,
     filter: RunFilter,
-    detail: bool,
     /// The one positional, when there is exactly one: a run it names is read.
     run_id: Option<String>,
     after: Option<String>,
@@ -80,9 +66,6 @@ pub fn run_history_command(
     cwd: &Path,
 ) -> Result<HistoryCliResult, HistoryCliError> {
     let parsed = parse_history_args(args)?;
-    if parsed.detail {
-        return run_receipt_detail(&parsed, env, cwd);
-    }
     if let Some(read) = read_named_run(&parsed, env, cwd)? {
         let output = if parsed.json {
             format!(
@@ -133,48 +116,6 @@ fn read_named_run(
         Err(RunRecordError::UnknownRun { .. } | RunRecordError::InvalidId { .. }) => Ok(None),
         Err(error) => Err(HistoryCliError::Runs(error)),
     }
-}
-
-/// One receipt from the receipt directory, inspected and verified.
-fn run_receipt_detail(
-    parsed: &ParsedHistoryArgs,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<HistoryCliResult, HistoryCliError> {
-    let receipt_reference = parsed.query.as_deref().ok_or_else(|| {
-        HistoryCliError::InvalidArgs("history needs one receipt id to inspect".to_owned())
-    })?;
-    if parsed.filter.has_list_filters() || parsed.after.is_some() {
-        return Err(invalid_args(
-            "history <receipt-id> takes no list filters or cursor",
-        ));
-    }
-    let receipt_config = RuntimeReceiptConfig::default();
-    let paths = runx_runtime::RunxPaths::resolve(env, cwd);
-    let resolved = resolve_receipt_path(ReceiptPathInputs {
-        explicit_dir: parsed.receipt_dir.as_deref(),
-        runtime_config: Some(&receipt_config),
-        paths: &paths,
-    });
-    let store = LocalReceiptStore::new(&resolved.path);
-    let verifier = receipt_verifier(env, &paths, ReceiptTrust::HomeAndConfigured)
-        .map_err(|error| HistoryCliError::InvalidReceiptVerifier(error.to_string()))?;
-    let inspection = inspect_local_receipt(
-        &store,
-        &paths,
-        receipt_reference,
-        RuntimeReceiptSignaturePolicy::verifying(&verifier),
-    )
-    .map_err(HistoryCliError::Receipt)?;
-    let output = if parsed.json {
-        format!(
-            "{}\n",
-            serde_json::to_string_pretty(&inspection).map_err(HistoryCliError::Serialize)?
-        )
-    } else {
-        render_receipt_inspection(&inspection)
-    };
-    Ok(successful_result(output))
 }
 
 fn successful_result(output: String) -> HistoryCliResult {
@@ -239,25 +180,13 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
             }
         }
     }
-    // A receipt id names one receipt to inspect; anything else searches.
-    parsed.detail = matches!(positionals.as_slice(), [only] if is_receipt_id(only));
     parsed.run_id = match positionals.as_slice() {
-        [only] if !parsed.detail => Some(only.clone()),
+        [only] => Some(only.clone()),
         _ => None,
     };
     parsed.query = (!positionals.is_empty()).then(|| positionals.join(" "));
     parsed.filter.query = parsed.query.clone();
     Ok(parsed)
-}
-
-/// A receipt's id: `sha256:` and the 64 hex digits of its content address.
-fn is_receipt_id(value: &str) -> bool {
-    value.strip_prefix("sha256:").is_some_and(|hex| {
-        hex.len() == 64
-            && hex
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    })
 }
 
 fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option<&Path>) -> String {
@@ -306,7 +235,7 @@ fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option
     }
     lines.push(String::new());
     lines.push(if paused == 0 {
-        "  next  runx history <receipt-id> --json".to_owned()
+        "  next  runx verify <receipt-id> --json".to_owned()
     } else {
         "  next  pipe one answers object into one of the commands above".to_owned()
     });
@@ -341,38 +270,6 @@ fn render_run(read: &RunRead) -> String {
     lines.join("\n")
 }
 
-fn render_receipt_inspection(inspection: &ReceiptInspectionProjection) -> String {
-    let receipt = &inspection.receipt;
-    let mut lines = vec![
-        String::new(),
-        format!(
-            "  receipt  {}  {}  {}",
-            receipt.outcome, receipt.verification.status, receipt.id
-        ),
-        format!("  subject  {}", receipt.subject_uri),
-        format!(
-            "  actor  {}",
-            receipt
-                .authority
-                .actor_uri
-                .as_deref()
-                .unwrap_or("none stated")
-        ),
-        format!(
-            "  authority  {} scope(s), {} grant(s), {} approval(s)",
-            receipt.authority.exercised_scopes.len(),
-            receipt.authority.grant_uris.len(),
-            receipt.authority.approval_uris.len()
-        ),
-        format!("  acts  {}", receipt.acts.len()),
-    ];
-    for act in &receipt.acts {
-        lines.push(format!("  {}  {}  {}", act.form, act.id, act.purpose));
-    }
-    lines.push(String::new());
-    lines.join("\n")
-}
-
 fn invalid_args(message: impl Into<String>) -> HistoryCliError {
     HistoryCliError::InvalidArgs(message.into())
 }
@@ -383,13 +280,6 @@ mod tests {
     use std::io;
 
     use super::*;
-    use runx_contracts::ReceiptIssuerType;
-    use runx_runtime::receipts::step_receipt;
-    use runx_runtime::{
-        Ed25519ReceiptSigner, Ed25519ReceiptVerifier, InvocationOutput,
-        RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
-        RUNX_RECEIPT_VERIFY_KID_ENV, RuntimeError,
-    };
 
     #[test]
     fn parses_history_args_without_comparing_against_runtime_constants() -> Result<(), io::Error> {
@@ -423,32 +313,6 @@ mod tests {
     }
 
     #[test]
-    fn a_receipt_id_names_one_receipt_and_takes_no_list_filters() -> Result<(), io::Error> {
-        let receipt_id = format!("sha256:{}", "a".repeat(64));
-        let parsed =
-            parse_history_args(&["history".into(), receipt_id.clone().into(), "--json".into()])
-                .map_err(|error| io::Error::other(error.to_string()))?;
-        assert!(parsed.detail);
-        assert_eq!(parsed.query.as_deref(), Some(receipt_id.as_str()));
-        let searched = parse_history_args(&["history".into(), "sha256:receipt".into()])
-            .map_err(|error| io::Error::other(error.to_string()))?;
-        assert!(!searched.detail);
-
-        let invalid = run_history_command(
-            &[
-                "history".into(),
-                receipt_id.into(),
-                "--state".into(),
-                "completed".into(),
-            ],
-            &BTreeMap::new(),
-            Path::new("."),
-        );
-        assert!(matches!(invalid, Err(HistoryCliError::InvalidArgs(_))));
-        Ok(())
-    }
-
-    #[test]
     fn history_lists_no_runs_in_an_empty_workspace() -> Result<(), io::Error> {
         let temp = tempfile_dir()?;
         let mut env = BTreeMap::new();
@@ -461,59 +325,6 @@ mod tests {
         let human = run_history_command(&["history".into()], &env, &temp)
             .map_err(|error| io::Error::other(error.to_string()))?;
         assert!(human.output.contains("No runs yet"));
-        Ok(())
-    }
-
-    #[test]
-    fn history_detail_json_projects_one_verified_receipt_without_execution_bodies()
-    -> Result<(), io::Error> {
-        let temp = tempfile_dir()?;
-        let receipt_dir = temp.join("receipts");
-        let signer = fixture_signer().map_err(|error| io::Error::other(error.to_string()))?;
-        let receipt = production_signed_receipt(&signer)
-            .map_err(|error| io::Error::other(error.to_string()))?;
-        let store = LocalReceiptStore::new(&receipt_dir);
-        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
-        store
-            .write_receipt(
-                &receipt,
-                RuntimeReceiptSignaturePolicy::verifying(&verifier),
-            )
-            .map_err(|error| io::Error::other(error.to_string()))?;
-
-        let mut env = BTreeMap::new();
-        env.insert("RUNX_CWD".to_owned(), temp.to_string_lossy().to_string());
-        env.insert(
-            RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV.to_owned(),
-            "hosted".to_owned(),
-        );
-        env.insert(
-            RUNX_RECEIPT_VERIFY_KID_ENV.to_owned(),
-            FIXTURE_KID.to_owned(),
-        );
-        env.insert(
-            RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV.to_owned(),
-            base64_standard(signer.public_key()),
-        );
-        let result = run_history_command(
-            &[
-                "history".into(),
-                receipt.id.to_string().into(),
-                "--receipt-dir".into(),
-                receipt_dir.into_os_string(),
-                "--json".into(),
-            ],
-            &env,
-            &temp,
-        )
-        .map_err(|error| io::Error::other(error.to_string()))?;
-        let output: ReceiptInspectionProjection = serde_json::from_str(&result.output)
-            .map_err(|error| io::Error::other(error.to_string()))?;
-
-        assert_eq!(output.receipt.id, receipt.id.to_string());
-        assert_eq!(output.receipt.verification.status, "verified");
-        assert!(!result.output.contains("structured_output"));
-        assert!(!result.output.contains("stderr"));
         Ok(())
     }
 
@@ -575,70 +386,5 @@ mod tests {
         ));
         fs::create_dir_all(&path)?;
         Ok(path)
-    }
-
-    const FIXTURE_KID: &str = "runx-cli-prod-history-fixture-key";
-    const FIXTURE_SEED: [u8; 32] = [0x42; 32];
-
-    fn fixture_signer() -> Result<Ed25519ReceiptSigner, runx_runtime::RuntimeReceiptSigningError> {
-        Ed25519ReceiptSigner::from_seed(FIXTURE_KID, ReceiptIssuerType::Hosted, &FIXTURE_SEED)
-    }
-
-    fn production_signed_receipt(
-        signer: &Ed25519ReceiptSigner,
-    ) -> Result<runx_contracts::Receipt, RuntimeError> {
-        let verifier = Ed25519ReceiptVerifier::new([signer.trusted_key()]);
-        let output = InvocationOutput::runtime_success(
-            runx_contracts::JsonValue::Object(BTreeMap::from([(
-                "message".to_owned(),
-                runx_contracts::JsonValue::String("cli history".to_owned()),
-            )])),
-            10,
-        );
-        let claim =
-            output
-                .value
-                .as_object()
-                .cloned()
-                .ok_or_else(|| RuntimeError::ReceiptInvalid {
-                    message: "history fixture output must be an object".to_owned(),
-                })?;
-        step_receipt(
-            runx_runtime::receipts::RunScope {
-                run_id: "run_cli-history",
-                graph_name: "cli-history",
-            },
-            "production-verified",
-            1,
-            &output,
-            &claim,
-            "2026-05-25T00:00:00Z",
-            RuntimeReceiptSignaturePolicy::signing(signer, &verifier),
-        )
-    }
-
-    fn base64_standard(bytes: &[u8]) -> String {
-        const TABLE: &[u8; 64] =
-            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
-        for chunk in bytes.chunks(3) {
-            let first = chunk[0];
-            let second = chunk.get(1).copied().unwrap_or(0);
-            let third = chunk.get(2).copied().unwrap_or(0);
-            let combined = ((first as u32) << 16) | ((second as u32) << 8) | third as u32;
-            encoded.push(TABLE[((combined >> 18) & 0x3f) as usize] as char);
-            encoded.push(TABLE[((combined >> 12) & 0x3f) as usize] as char);
-            if chunk.len() > 1 {
-                encoded.push(TABLE[((combined >> 6) & 0x3f) as usize] as char);
-            } else {
-                encoded.push('=');
-            }
-            if chunk.len() > 2 {
-                encoded.push(TABLE[(combined & 0x3f) as usize] as char);
-            } else {
-                encoded.push('=');
-            }
-        }
-        encoded
     }
 }

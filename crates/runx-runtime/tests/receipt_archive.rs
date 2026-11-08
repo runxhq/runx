@@ -9,7 +9,7 @@ use runx_runtime::receipts::archive::{
     RECEIPT_LISTING_PROJECTOR_ID, RECEIPT_REF_PREFIX, ReceiptFilter, ReceiptListing,
     ReceiptListingError, list_receipts, receipt_uri,
 };
-use runx_runtime::receipts::inspection::inspect_local_receipt;
+use runx_runtime::receipts::inspection::project_receipt_inspection;
 use runx_runtime::receipts::{
     Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED, RunScope,
     RuntimeReceiptSignaturePolicy, RuntimeReceiptSigner, step_receipt,
@@ -127,25 +127,17 @@ fn receipt_inspection_projects_signed_governance_without_execution_bodies()
     reseal_receipt(&mut receipt)?;
     store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
 
-    let inspection = inspect_local_receipt(
-        &store,
-        &paths(&workspace),
-        receipt.id.as_str(),
+    let inspection = project_receipt_inspection(
+        &store.read_exact_without_proof(receipt.id.as_str())?,
         crate::support::fixture_policy()?,
-    )?;
-    assert_eq!(inspection.receipt.id, receipt.id.to_string());
-    assert_eq!(
-        inspection.receipt.authority.exercised_scopes[0].scope,
-        "repo:read"
     );
+    assert_eq!(inspection.id, receipt.id.to_string());
+    assert_eq!(inspection.authority.exercised_scopes[0].scope, "repo:read");
     // A step that made no governed call seals no act; how it ended is the
     // seal's, and inspection shows it.
-    assert!(inspection.receipt.acts.is_empty());
-    assert_eq!(
-        inspection.receipt.seal_criteria[0].criterion_id,
-        "step_outcome"
-    );
-    assert_eq!(inspection.receipt.seal_criteria[0].status, "verified");
+    assert!(inspection.acts.is_empty());
+    assert_eq!(inspection.seal_criteria[0].criterion_id, "step_outcome");
+    assert_eq!(inspection.seal_criteria[0].status, "verified");
     let serialized = serde_json::to_string(&inspection)?;
     assert!(!serialized.contains("structured_output"));
     assert!(!serialized.contains("stderr"));

@@ -20,6 +20,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--trust home|configured] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",
         ],
         notes: &[
+            "A receipt id names one receipt: the report shows what it says, and verifies the tree it belongs to.",
             "Receipts verify against this home's local key and any key RUNX_RECEIPT_VERIFY_ISSUER_TYPE, RUNX_RECEIPT_VERIFY_KID and RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64 configure.",
         ],
         options: &[
@@ -37,12 +38,10 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         usage: &[
             "runx history [query] [--skill s] [--state s] [--since iso] [--until iso] [--limit n] [--json]",
             "runx history <run-id> [--after cursor] [--json]",
-            "runx history <receipt-id> [--receipt-dir dir] [--json]",
         ],
         notes: &[
             "Lists the workspace's runs, most recent first: running, paused (with the request each waits on and its resume command) or sealed (with its receipt).",
             "A run id of this workspace reads that run: its state, every request it waits on, whether a process drives it, and its events after --after, the cursor a previous read returned.",
-            "A receipt id inspects and verifies that one receipt from the receipt directory.",
         ],
         options: &[
             "--skill s",
@@ -51,7 +50,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--until iso        Runs started at or before this instant",
             "--limit n",
             "--after cursor     Read a run's events after this cursor",
-            "--receipt-dir dir  Where a receipt id is read from",
+            "--receipt-dir dir  Named in the resume commands it prints",
             "-j, --json",
         ],
     },

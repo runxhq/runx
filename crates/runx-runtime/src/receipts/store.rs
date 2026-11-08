@@ -219,7 +219,7 @@ impl LocalReceiptStore {
         Ok(receipts)
     }
 
-    pub(crate) fn read_exact_without_proof_for_history(
+    pub fn read_exact_without_proof(
         &self,
         receipt_id: &str,
     ) -> Result<Receipt, ReceiptStoreError> {
