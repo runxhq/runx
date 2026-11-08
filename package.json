@@ -28,7 +28,6 @@
     "docs:api": "tsx scripts/gen-api-index.ts",
     "docs:api:check": "tsx scripts/gen-api-index.ts --check",
     "docs:exit-codes": "tsx scripts/check-cli-exit-codes.ts",
-    "bindings:check": "node scripts/check-upstream-skill-bindings.mjs",
     "runtime-capabilities:generate": "node scripts/generate-runtime-capabilities.mjs",
     "runtime-capabilities:check": "node scripts/generate-runtime-capabilities.mjs --check",
     "registry-taxonomy:generate": "node scripts/generate-registry-taxonomy.mjs",

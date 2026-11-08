@@ -981,9 +981,7 @@ lanes as the UI.
 
 Each ships as a portable `SKILL.md` plus a colocated execution profile at
 `skills/<skill>/run.yaml` when it exposes deterministic runners or inline harness
-coverage. Upstream skills that runx does not own keep their execution profiles
-under `bindings/<publisher>/<skill>/run.yaml` with adjacent `binding.json`
-governance metadata. Bare skill names resolve to the workspace's own skills or
+coverage. Bare skill names resolve to the workspace's own skills or
 to the core skills this release carries, which are added under
 `.runx/added-skills/runx/<name>/<version>/` when first used. Every other
 package runs by its `publisher/name[@version]` ref, optionally with `--registry`
