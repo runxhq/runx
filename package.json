@@ -79,7 +79,6 @@
     "perf:runtime:capture": "node scripts/runtime-throughput.mjs capture",
     "perf:runtime:check": "node scripts/runtime-throughput.mjs check",
     "perf:runtime:verify-quality": "node scripts/runtime-throughput.mjs verify-quality",
-    "perf:compare": "node scripts/perf-compare.mjs",
     "perf:harness-check": "node scripts/check-runtime-perf-harness.mjs",
     "stress:runtime:mcp": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --features mcp --test integration -- mcp_server",
     "stress:runtime:process-tool": "cargo test --manifest-path crates/Cargo.toml -p runx-runtime --test integration -- process_tool_contract",
