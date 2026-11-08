@@ -107,7 +107,7 @@ fn method_workflow(
     {
         document.insert("result_from".to_owned(), JsonValue::Array(vec![last]));
     }
-    validate_workflow_document(document)
+    validate_workflow_document(&document)
         .map_err(|error| FIELDS.validation_error(format!("methods.{name}: {error}")))
 }
 

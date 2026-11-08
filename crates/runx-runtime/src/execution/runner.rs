@@ -1230,7 +1230,7 @@ mod tests {
     };
     use runx_contracts::{JsonObject, JsonValue, ReceiptIssuerType};
     use runx_core::state_machine::{SequentialWorkflow, StepAdmissionWitness, WorkflowState};
-    use runx_parser::{RawWorkflowIr, Workflow};
+    use runx_parser::Workflow;
     use std::collections::BTreeMap;
 
     const TEST_CREATED_AT: &str = "2026-07-24T00:00:00Z";
@@ -1762,9 +1762,6 @@ mod tests {
                 effects: None,
                 reach: None,
                 steps: Vec::new(),
-                raw: RawWorkflowIr {
-                    document: JsonObject::new(),
-                },
             },
             progress: SequentialWorkflow {
                 workflow_id: name,

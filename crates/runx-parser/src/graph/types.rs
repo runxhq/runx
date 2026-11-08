@@ -9,12 +9,6 @@ use runx_contracts::EnvironmentRequirements;
 use super::binding::{Binding, Operand};
 use crate::skill::{ArtifactPageSource, InputMode, SkillArtifactContract};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RawWorkflowIr {
-    pub document: JsonObject,
-}
-
 /// A condition on a step: `value` equals, or does not equal, a literal. As a
 /// step's `when` it selects the step: when the condition does not hold (or
 /// the field is unresolved), the step is skipped and the workflow continues,
@@ -331,5 +325,4 @@ pub struct Workflow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reach: Option<runx_contracts::Reach>,
     pub steps: Vec<WorkflowStep>,
-    pub raw: RawWorkflowIr,
 }

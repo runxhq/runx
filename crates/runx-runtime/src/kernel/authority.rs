@@ -132,9 +132,6 @@ mod tests {
             effects,
             reach,
             steps: Vec::new(),
-            raw: runx_parser::RawWorkflowIr {
-                document: runx_contracts::JsonObject::new(),
-            },
         }
     }
 

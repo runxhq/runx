@@ -511,9 +511,6 @@ pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) 
             effects: None,
             reach: None,
         }],
-        raw: runx_parser::RawWorkflowIr {
-            document: JsonObject::new(),
-        },
     }
 }
 

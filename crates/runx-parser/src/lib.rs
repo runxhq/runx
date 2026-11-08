@@ -24,8 +24,8 @@ pub use error::{ParseError, ValidationError};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
     AgentTask, AskGate, Binding, LoadStep, LoadTarget, Operand, OperationStepTarget, ProcessTool,
-    RawWorkflowIr, SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, Workflow,
-    WorkflowStep, WorkflowWhen, validate_process_tool,
+    SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, Workflow, WorkflowStep,
+    WorkflowWhen, validate_process_tool,
 };
 pub use install::{
     SkillInstallError, SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install,

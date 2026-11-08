@@ -7,19 +7,19 @@ use super::helpers::{
     validation_error,
 };
 use super::step::validate_step;
-use super::types::{RawWorkflowIr, Workflow};
+use super::types::Workflow;
 use crate::ValidationError;
 
 /// The workflow a method's steps make: `document` holds the method's
 /// workflow keys and its skill's `name`, as the method parser gathers them.
 /// A method is the only place a workflow is written.
 pub(crate) fn validate_workflow_document(
-    document: JsonObject,
+    document: &JsonObject,
 ) -> Result<Workflow, ValidationError> {
     let name = required_string(document.get("name"), "name")?;
     let result_from =
         optional_string_array(document.get("result_from"), "result_from")?.unwrap_or_default();
-    let (effects, reach) = narrowing(&document, "")?;
+    let (effects, reach) = narrowing(document, "")?;
     let raw_steps = required_array(document.get("steps"), "steps")?;
     // Each earlier step, and whether it is an operation, which a read may
     // confirm.
@@ -50,7 +50,6 @@ pub(crate) fn validate_workflow_document(
         effects,
         reach,
         steps,
-        raw: RawWorkflowIr { document },
     })
 }
 
