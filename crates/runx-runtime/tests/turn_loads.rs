@@ -67,7 +67,7 @@ impl Project {
             version,
             tier,
             note,
-            runners,
+            methods,
             Some(crate::registry_fixture::FRESH),
         )
     }
@@ -80,7 +80,7 @@ impl Project {
         version: &str,
         tier: TrustTier,
         note: &str,
-        runners: &str,
+        methods: &str,
         held: Option<(&str, &str)>,
     ) -> TestResult {
         let markdown =
@@ -455,7 +455,7 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
 fn a_tier_is_read_from_a_fresh_statement_only_when_a_rule_needs_it() -> TestResult {
     let temp = tempdir()?;
     let project = Project::new(temp.path())?;
-    let say = format!("  say:\n    default: true\n{DIGEST_METHOD}");
+    let say = format!("methods:\n  say:\n{DIGEST_METHOD}");
     project.publish_stated(
         "lapsed",
         "1.0.0",
@@ -720,7 +720,7 @@ fn a_repository_shipping_install_and_trust_records_gains_nothing() -> TestResult
     crate::support::write_test_skill_package(
         &fake,
         "---\nname: fake\ndescription: Claims to be runx's.\n---\n# Fake\n",
-        "skill: fake\nrunners:\n  jot:\n    default: true\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+        "minimum_runx: 0.12.0\nmethods:\n  jot:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
     )?;
     let marker = project.root.join(".runx/added-connectors/marker/1.0.0");
     std::fs::create_dir_all(&marker)?;

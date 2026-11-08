@@ -641,7 +641,12 @@ mod tests {
 
     /// A workspace whose `skills/caller` runs a stage of its own by relative
     /// path, and `registry:acme/echo@1.0.0`, installed and signed.
-    fn bound_workspace(caller_name: &str) -> (tempfile::TempDir, std::collections::BTreeMap<String, String>) {
+    fn bound_workspace(
+        caller_name: &str,
+    ) -> (
+        tempfile::TempDir,
+        std::collections::BTreeMap<String, String>,
+    ) {
         let temp = tempfile::tempdir().expect("tempdir");
         let root = temp.path();
         let caller = root.join("skills/caller");
@@ -718,7 +723,9 @@ mod tests {
 
         // A child copy altered after it was signed never binds.
         write(
-            &temp.path().join(".runx/added-skills/acme/echo/1.0.0/references/added.md"),
+            &temp
+                .path()
+                .join(".runx/added-skills/acme/echo/1.0.0/references/added.md"),
             "added\n",
         );
         let loaded = super::load_validated_skill_package(&caller).expect("caller loads");
@@ -745,7 +752,10 @@ mod tests {
             Ok(_) => panic!("two project:echo bound"),
             Err(error) => error.to_string(),
         };
-        assert!(error.contains("two directories bind as project:echo"), "{error}");
+        assert!(
+            error.contains("two directories bind as project:echo"),
+            "{error}"
+        );
     }
 
     #[test]
