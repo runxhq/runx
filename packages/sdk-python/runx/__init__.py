@@ -68,6 +68,11 @@ class RunxCommandError(RuntimeError):
         self.stderr = stderr
 
 
+# A run that waits on a person or an agent exits 2 and still reports itself,
+# with the run id its resume names. Any other non-zero exit is a failure.
+RUN_WAITS = 2
+
+
 class RunxClient:
     def __init__(
         self,
@@ -95,7 +100,7 @@ class RunxClient:
             cwd=self.cwd,
             env={**os.environ, **self.env} if self.env is not None else None,
         )
-        if completed.returncode != 0:
+        if completed.returncode not in (0, RUN_WAITS):
             raise RunxCommandError(json_args, completed.returncode, completed.stderr)
         parsed = json.loads(completed.stdout)
         if not isinstance(parsed, dict):
@@ -115,29 +120,21 @@ class RunxClient:
         skill_path: str,
         inputs: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Run a skill and return its report. A run that waits returns its
+        report too, with the `run_id` that `resume` names."""
         args = ["skill", skill_path]
         for key, value in (inputs or {}).items():
             text = value if isinstance(value, str) else json.dumps(value)
             args.extend(["-i", f"{key}={text}"])
         return self.run_json(args)
 
-    def continue_run(
-        self,
-        skill_path: str,
-        run_id: str,
-        answers_file: str,
-        inputs: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Continue a paused run with the runx.resume.v1 document in answers_file.
+    def resume(self, run_id: str, answers_file: str) -> dict[str, Any]:
+        """Resume a waiting run with the runx.resume.v1 document in answers_file.
 
         Each entry under answers and approvals carries the request_digest the
         run reported for the request it answers; a close comes alone.
         """
-        del skill_path
-        if inputs:
-            raise ValueError("runx resume reads answers from the answers file; pass fresh inputs only on a new skill run.")
-        args = ["resume", run_id, answers_file]
-        return self.run_json(args)
+        return self.run_json(["resume", run_id, answers_file])
 
 def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)

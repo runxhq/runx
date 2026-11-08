@@ -35,8 +35,10 @@ for result in client.search_skills("web search"):
 report = client.run_skill("runx/web-search", inputs={"query": "receipt verification"})
 print(report["status"])
 
-continued = client.continue_run("runx/web-search", run_id="run_123", answers_file="answers.json")
-print(continued["status"])
+# A run that waits on a person or an agent returns its report too, and its
+# run_id resumes it with a runx.resume.v1 answers document.
+resumed = client.resume(report["run_id"], answers_file="answers.json")
+print(resumed["status"])
 ```
 
 ## Links

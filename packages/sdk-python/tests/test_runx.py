@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from runx import RunxClient, SkillSearchResult
+from runx import RunxClient, RunxCommandError, SkillSearchResult
 
 
 class RunxClientTests(unittest.TestCase):
@@ -115,7 +115,37 @@ class RunxClientTests(unittest.TestCase):
                 ],
             )
 
-    def test_continue_run_invokes_skill_with_run_id_and_answers_file(self) -> None:
+    def test_a_waiting_run_returns_its_report_and_a_failure_raises(self) -> None:
+        # runx exits 2 for a run that waits on a person or an agent, and still
+        # reports it, so its run id reaches the caller to resume. Any other
+        # non-zero exit is a failure.
+        with TemporaryDirectory() as tmp:
+            fake_runx = Path(tmp) / "fake_runx.py"
+            fake_runx.write_text(
+                textwrap.dedent(
+                    """
+                    import json
+                    import sys
+
+                    if sys.argv[2] == "skills/waits":
+                        print(json.dumps({"status": "needs_agent", "run_id": "run-123"}))
+                        sys.exit(2)
+                    print("runx: the skill failed", file=sys.stderr)
+                    sys.exit(1)
+                    """
+                ).strip()
+            )
+
+            client = RunxClient(command=(sys.executable, str(fake_runx)))
+            waiting = client.run_skill("skills/waits")
+            with self.assertRaises(RunxCommandError) as failed:
+                client.run_skill("skills/fails")
+
+            self.assertEqual(waiting, {"status": "needs_agent", "run_id": "run-123"})
+            self.assertEqual(failed.exception.returncode, 1)
+            self.assertIn("the skill failed", failed.exception.stderr)
+
+    def test_resume_invokes_resume_with_run_id_and_answers_file(self) -> None:
         with TemporaryDirectory() as tmp:
             fake_runx = Path(tmp) / "fake_runx.py"
             answers_path = Path(tmp) / "answers.json"
@@ -133,7 +163,7 @@ class RunxClientTests(unittest.TestCase):
             )
 
             client = RunxClient(command=(sys.executable, str(fake_runx)))
-            report = client.continue_run("skills/example", run_id="run-123", answers_file=str(answers_path))
+            report = client.resume("run-123", answers_file=str(answers_path))
 
             self.assertEqual(
                 report["args"],
