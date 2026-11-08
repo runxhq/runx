@@ -19,8 +19,8 @@ use crate::RuntimeError;
 use crate::kernel::connectors::{ConnectorOrigin, ConnectorScope};
 use crate::paths::RunxPaths;
 use crate::registry::resolve::{
-    AbsentPins, Holder, RegistryTarget, SkillResolverOptions, registry_client,
-    resolve_registry_target, resolve_skill_ref_details,
+    AbsentPins, Holder, SkillResolverOptions, registry_client, resolve_registry_target,
+    resolve_skill_ref_details,
 };
 use crate::{
     CapabilityApproval, CapabilityArtifacts, CapabilityDefinition, CapabilityEffect,
@@ -80,10 +80,11 @@ fn search(
     let paths = RunxPaths::resolve(invocation.env, invocation.skill_directory);
     let wants = |kind: CatalogPackageKind| inputs.kind.is_none_or(|wanted| wanted == kind);
     let mut hits = project_hits(&paths, &inputs.query, &wants)?;
-    let target = resolve_registry_target(None, invocation.env, paths.workspace());
-    let found =
-        crate::registry::resolve::search(&inputs.query, Some(limit), target, invocation.env)
-            .map_err(|error| super::invalid_input(SEARCH, error.into_message()))?;
+    let found = resolve_registry_target(None, invocation.env)
+        .and_then(|target| {
+            crate::registry::resolve::search(&inputs.query, Some(limit), &target, invocation.env)
+        })
+        .map_err(|error| super::invalid_input(SEARCH, error.into_message()))?;
     if wants(CatalogPackageKind::Skill) {
         hits.extend(found.results.into_iter().map(|result| {
             CatalogHit {
@@ -292,13 +293,11 @@ fn inspect_connector(
     let (name, version) = reference
         .split_once('@')
         .map_or((reference, None), |(name, version)| (name, Some(version)));
-    let (Some(name), RegistryTarget::Remote { registry_url }) = (
-        runx_contracts::connector::ConnectorName::new(name),
-        resolve_registry_target(None, env, workspace),
-    ) else {
+    let Some(name) = runx_contracts::connector::ConnectorName::new(name) else {
         return Ok(None);
     };
-    let Some(detail) = registry_client(&registry_url, env)
+    let Some(detail) = resolve_registry_target(None, env)
+        .and_then(|target| registry_client(&target.registry_url, env))
         .and_then(|client| client.read_connector(&name, version).map_err(Into::into))
         .map_err(|error| super::invalid_input(INSPECT, error.into_message()))?
     else {

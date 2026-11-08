@@ -18,9 +18,7 @@ use runx_runtime::{
 };
 
 use crate::router::{DoctorMode, DoctorPlan};
-use runx_runtime::registry::resolve::{
-    RegistryTarget, registry_source_description, resolve_registry_target,
-};
+use runx_runtime::registry::resolve::{RegistryTarget, resolve_registry_target};
 
 pub fn run_native_doctor(plan: DoctorPlan, workspace: &WorkspaceEnv) -> ExitCode {
     match run_doctor_command(&plan, workspace.env(), workspace.cwd()) {
@@ -317,10 +315,16 @@ fn provider_api_key_env(provider: &str) -> Option<&'static str> {
 }
 
 fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorReport {
-    let target = resolve_registry_target(None, env, cwd);
     let paths = RunxPaths::resolve(env, cwd);
-    let diagnostics = vec![
-        registry_target_diagnostic(&target),
+    let mut diagnostics = match resolve_registry_target(None, env) {
+        Ok(target) => vec![
+            registry_target_diagnostic(&target),
+            registry_trust_key_diagnostic(env, &target),
+            registry_remote_install_diagnostic(env),
+        ],
+        Err(error) => vec![registry_target_error_diagnostic(&error.into_message())],
+    };
+    diagnostics.extend([
         path_diagnostic(
             "runx.project.skills",
             "Skills directory",
@@ -333,9 +337,7 @@ fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRepo
             paths.added_skills(),
             &["RUNX_PROJECT_DIR", "RUNX_CWD"],
         ),
-        registry_trust_key_diagnostic(env, &target),
-        registry_remote_install_diagnostic(&target, env),
-    ];
+    ]);
     DoctorReport {
         schema: DoctorReportSchema::V1,
         status: DoctorStatus::Success,
@@ -346,10 +348,9 @@ fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRepo
 
 fn registry_target_diagnostic(target: &RegistryTarget) -> DoctorDiagnostic {
     let mut evidence = JsonObject::new();
-    evidence.insert("source".to_owned(), string_value(target.label()));
     evidence.insert(
         "description".to_owned(),
-        JsonValue::String(registry_source_description(target)),
+        JsonValue::String(target.description()),
     );
     evidence.insert(
         "source_uri".to_owned(),
@@ -360,10 +361,7 @@ fn registry_target_diagnostic(target: &RegistryTarget) -> DoctorDiagnostic {
         instance_id: "runx:doctor-registry:runx.registry.target".to_owned(),
         severity: DoctorDiagnosticSeverity::Info,
         title: "Registry target".to_owned(),
-        message: format!(
-            "Registry target selected: {}.",
-            registry_source_description(target)
-        ),
+        message: format!("Registry target selected: {}.", target.description()),
         target: object([
             ("kind", string_value("registry")),
             ("id", string_value("runx.registry.target")),
@@ -374,6 +372,32 @@ fn registry_target_diagnostic(target: &RegistryTarget) -> DoctorDiagnostic {
         },
         evidence: Some(evidence),
         repairs: Vec::new(),
+    }
+}
+
+/// The registry the environment names is not one: a registry is a URL.
+fn registry_target_error_diagnostic(message: &str) -> DoctorDiagnostic {
+    DoctorDiagnostic {
+        id: "runx.registry.target".to_owned(),
+        instance_id: "runx:doctor-registry:runx.registry.target".to_owned(),
+        severity: DoctorDiagnosticSeverity::Error,
+        title: "Registry target".to_owned(),
+        message: format!("{message}."),
+        target: object([
+            ("kind", string_value("registry")),
+            ("id", string_value("runx.registry.target")),
+        ]),
+        location: DoctorLocation {
+            path: "environment".to_owned(),
+            json_pointer: None,
+        },
+        evidence: None,
+        repairs: vec![manual_env_repair(
+            "runx.registry.target.configure_env",
+            &["RUNX_REGISTRY_URL"],
+            "Set RUNX_REGISTRY_URL to a hosted registry's http(s) URL, or unset it for the runx catalog.",
+            DoctorRepairRisk::Low,
+        )],
     }
 }
 
@@ -565,23 +589,15 @@ fn registry_trust_policy_evidence(
     ]))
 }
 
-fn registry_remote_install_diagnostic(
-    target: &RegistryTarget,
-    env: &BTreeMap<String, String>,
-) -> DoctorDiagnostic {
-    let remote = matches!(target, RegistryTarget::Remote { .. });
+fn registry_remote_install_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagnostic {
     let configured = env_contains_non_empty(env, "RUNX_INSTALLATION_ID");
     let severity = DoctorDiagnosticSeverity::Info;
-    let message = if remote && configured {
+    let message = if configured {
         "Remote registry install identity configured.".to_owned()
-    } else if remote {
-        "Remote registry installs will use the local runx install identity; set RUNX_INSTALLATION_ID only when an explicit shared identity is needed.".to_owned()
     } else {
-        "Remote registry install identity is not required for the selected local registry target."
-            .to_owned()
+        "Remote registry installs will use the local runx install identity; set RUNX_INSTALLATION_ID only when an explicit shared identity is needed.".to_owned()
     };
     let mut evidence = JsonObject::new();
-    evidence.insert("remote_target".to_owned(), JsonValue::Bool(remote));
     evidence.insert("configured".to_owned(), JsonValue::Bool(configured));
     evidence.insert(
         "env_vars".to_owned(),

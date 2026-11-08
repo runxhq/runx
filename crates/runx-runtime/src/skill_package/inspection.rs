@@ -314,8 +314,8 @@ pub(crate) fn inspect_loaded_skill_package(
     let mut output = base_inspection(&loaded)?;
     let manifest = loaded.manifest();
     let runner = inspected_runner(manifest, selected_runner)?;
-    // Inspection reports the registry refs its registry directory lacks, so a
-    // host can supply them and inspect again; binding below rejects them.
+    // Inspection reports the registry refs the project does not hold, so a
+    // host can install them and inspect again; binding below rejects them.
     let mut execution_closures =
         inspect_execution_closures(loaded.clone(), env, UnheldRegistryRefs::Report)?;
     let mut closure_of = |runner: &str| -> Result<JsonObject, SkillInspectionError> {
@@ -436,9 +436,8 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     })
 }
 
-/// The registry refs the package at `skill_path` names that neither the
-/// project nor a named local registry holds: what `runx skill` fetches before
-/// the run.
+/// The registry refs the package at `skill_path` names that the project
+/// does not hold: what `runx skill` fetches before the run.
 pub fn unheld_registry_refs_at(
     skill_path: &Path,
     env: &std::collections::BTreeMap<String, String>,
@@ -447,8 +446,8 @@ pub fn unheld_registry_refs_at(
     unheld_loaded_registry_refs(&loaded, env)
 }
 
-/// The registry refs a loaded package names that the project and `env`'s
-/// registry directory do not hold.
+/// The registry refs a loaded package names that `env`'s project does not
+/// hold.
 pub(crate) fn unheld_loaded_registry_refs(
     loaded: &LoadedSkillPackage,
     env: &std::collections::BTreeMap<String, String>,

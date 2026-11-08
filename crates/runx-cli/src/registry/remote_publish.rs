@@ -17,11 +17,6 @@ pub(super) fn publish_remote_skill_package(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<HostedSkillPublishResult, RegistryCliError> {
-    if plan.trust_tier.is_some() {
-        return Err(usage_error(
-            "remote registry publish derives trust from hosted verification; --trust-tier is local-only",
-        ));
-    }
     // An operator holding the registry's publish credential publishes into
     // the namespace it names; everyone else publishes as their login.
     if let Some(token) = admin_publish_token(env) {
@@ -42,7 +37,7 @@ pub(super) fn publish_remote_skill_package(
                 publisher: &publisher,
                 markdown: package.markdown(),
                 profile_document: package.profile_document(),
-                version: plan.version.as_deref(),
+                version: package.version(),
                 package_files: package.package_files(),
                 harness,
             },
@@ -66,7 +61,7 @@ pub(super) fn publish_remote_skill_package(
         &HostedSkillPublishRequest {
             markdown: package.markdown(),
             profile_document: package.profile_document(),
-            version: plan.version.as_deref(),
+            version: package.version(),
             publisher: plan.publisher.as_deref(),
             package_files: package.package_files(),
         },

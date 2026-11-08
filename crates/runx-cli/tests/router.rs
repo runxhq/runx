@@ -41,11 +41,11 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &help,
-        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
     );
     assert_help_line(
         &help,
@@ -139,11 +139,11 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &help("skill"),
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &help("skill"),
-        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
     );
     assert_help_line(
         &help("skill"),
@@ -266,7 +266,7 @@ fn documented_command_help_is_native() -> Result<(), Box<dyn std::error::Error>>
 
     assert_help_line(
         &help("registry"),
-        "runx registry install <publisher>/<name>[@version] [--registry url|path] [--digest sha256] [-j|--json]",
+        "runx registry install <publisher>/<name>[@version] [--registry url] [--digest sha256] [-j|--json]",
     );
     assert_help_line(
         &help("list"),
@@ -291,9 +291,18 @@ fn documented_command_help_is_native() -> Result<(), Box<dyn std::error::Error>>
     assert!(resume_help.contains("Agents must never author it"));
     assert_help_line(
         &help("registry"),
-        "runx registry search <query> [--registry url|path] [--limit n] [-j|--json]",
+        "runx registry search <query> [--registry url] [--limit n] [-j|--json]",
     );
     assert!(!help("registry").contains("--installation-id"));
+    for retired in [
+        "--trust-tier",
+        "--upsert",
+        "--profile",
+        "--version",
+        "url|path",
+    ] {
+        assert!(!help("registry").contains(retired), "{retired}");
+    }
     Ok(())
 }
 
@@ -591,7 +600,7 @@ fn a_host_gives_a_run_and_its_inspection_its_authority() -> Result<(), String> {
 fn skill_rejects_resolver_flags_for_management_actions() {
     for action in ["publish", "search", "validate"] {
         assert_eq!(
-            plan(&["skill", action, "--registry", "fixtures/registry"]),
+            plan(&["skill", action, "--registry", "https://registry.runx.test"]),
             RouterAction::Error(
                 "runx skill --registry, --digest, --package-digest, and --execution-closure-digest are only supported when running a skill ref"
                     .to_owned()
@@ -794,7 +803,7 @@ fn routes_registry_to_native_plan() {
             "search",
             "echo",
             "--registry",
-            "/tmp/runx-registry",
+            "https://registry.runx.test",
             "--limit",
             "10",
             "--json",
@@ -802,26 +811,16 @@ fn routes_registry_to_native_plan() {
         RouterAction::RunRegistry(RegistryPlan {
             action: RegistryAction::Search,
             subject: "echo".to_owned(),
-            registry: Some("/tmp/runx-registry".to_owned()),
+            registry: Some("https://registry.runx.test".to_owned()),
             version: None,
             expected_digest: None,
             publisher: None,
-            profile: None,
-            trust_tier: None,
             limit: Some(10),
-            upsert: false,
             json: true,
         })
     );
     assert_eq!(
-        plan(&[
-            "registry",
-            "package",
-            "skills/example",
-            "--profile",
-            "profiles/run.yaml",
-            "--json",
-        ]),
+        plan(&["registry", "package", "skills/example", "--json"]),
         RouterAction::RunRegistry(RegistryPlan {
             action: RegistryAction::Package,
             subject: "skills/example".to_owned(),
@@ -829,10 +828,7 @@ fn routes_registry_to_native_plan() {
             version: None,
             expected_digest: None,
             publisher: None,
-            profile: Some(PathBuf::from("profiles/run.yaml")),
-            trust_tier: None,
             limit: None,
-            upsert: false,
             json: true,
         })
     );
@@ -844,8 +840,29 @@ fn routes_registry_to_native_plan() {
             "--registry",
             "https://runx.example",
         ]),
-        RouterAction::Error("runx registry package accepts only --profile and --json".to_owned())
+        RouterAction::Error("runx registry package accepts only --json".to_owned())
     );
+}
+
+/// A package is its directory, its version is its run.yaml's and its tier
+/// is the registry's to grant: no flag names any of them.
+#[test]
+fn registry_refuses_the_flags_a_package_or_its_registry_owns() {
+    for (verb, flag) in [
+        ("publish", vec!["--version", "1.0.0"]),
+        ("publish", vec!["--trust-tier", "verified"]),
+        ("publish", vec!["--upsert"]),
+        ("publish", vec!["--profile", "run.yaml"]),
+        ("package", vec!["--profile", "run.yaml"]),
+    ] {
+        let mut args = vec!["registry", verb, "skills/example"];
+        args.extend(flag.iter().copied());
+        assert_eq!(
+            plan(&args),
+            RouterAction::Error(format!("unknown registry flag {}", flag[0])),
+            "{verb} {flag:?}"
+        );
+    }
 }
 
 #[test]
@@ -869,10 +886,7 @@ fn routes_registry_install_for_either_kind_and_refuses_retired_verbs() {
             version: Some("1.0.0".to_owned()),
             expected_digest: Some(digest.clone()),
             publisher: None,
-            profile: None,
-            trust_tier: None,
             limit: None,
-            upsert: false,
             json: true,
         })
     );
@@ -882,15 +896,18 @@ fn routes_registry_install_for_either_kind_and_refuses_retired_verbs() {
     );
     assert_eq!(
         plan(&["registry", "install", "acme/ops-api", "--version", "1.0.0"]),
-        RouterAction::Error(
-            "runx registry install accepts only --registry, --digest and --json".to_owned()
-        )
+        RouterAction::Error("unknown registry flag --version".to_owned())
     );
     assert_eq!(
-        plan(&["registry", "publish", "connectors/ops-api", "--digest", &digest]),
+        plan(&[
+            "registry",
+            "publish",
+            "connectors/ops-api",
+            "--digest",
+            &digest
+        ]),
         RouterAction::Error(
-            "runx registry publish accepts only --registry, --publisher, --version, --profile, --trust-tier, --upsert and --json"
-                .to_owned()
+            "runx registry publish accepts only --registry, --publisher and --json".to_owned()
         )
     );
     for retired in ["read", "resolve", "connector"] {

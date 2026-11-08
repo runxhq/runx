@@ -1,6 +1,5 @@
-// Module rationale: local registry installs keep digest
-// validation, binding checks, conflict planning, and atomic writes in one
-// transaction module.
+// Module rationale: registry installs keep digest validation, binding
+// checks, conflict planning, and atomic writes in one transaction module.
 use std::collections::BTreeSet;
 use std::fs;
 use std::io;
@@ -155,16 +154,13 @@ pub enum InstallError {
     Io { path: PathBuf, source: io::Error },
 }
 
+/// Install a registry's package: only what the registry signed, verified
+/// against its envelope before anything is written.
 pub fn install_local_skill(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
 ) -> Result<InstallLocalSkillResult, InstallError> {
-    install_skill(
-        candidate,
-        options,
-        allows_unsigned_local_registry_candidate(candidate),
-        candidate.trust_tier,
-    )
+    install_skill(candidate, options, false, candidate.trust_tier)
 }
 
 // Bundled bytes are authenticated by the installed runtime artifact. They use
@@ -178,14 +174,14 @@ pub(super) fn install_bundled_skill(
 }
 
 /// Install `candidate`, recording it as a registry's package of `trust_tier`
-/// when it has one.
+/// when it has one. Only bytes this runtime bundles install unsigned.
 fn install_skill(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
-    allow_unsigned: bool,
+    bundled: bool,
     trust_tier: Option<TrustTier>,
 ) -> Result<InstallLocalSkillResult, InstallError> {
-    let validated = validate_install_candidate(candidate, options, allow_unsigned)?;
+    let validated = validate_install_candidate(candidate, options, bundled)?;
     let paths = install_paths(candidate, options, &validated.install.skill.name);
     let status = place_package(
         &paths,
@@ -546,10 +542,10 @@ fn read_carried_connectors(ref_name: &str, root: &Path) -> Result<(), InstallErr
 fn validate_install_candidate(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
-    allow_unsigned_local: bool,
+    bundled: bool,
 ) -> Result<ValidatedLocalInstall, InstallError> {
-    let actual_digest = verify_signed_manifest_anchor(candidate, options, allow_unsigned_local)?;
-    let profile_digest = validate_candidate_profile_digest(candidate, allow_unsigned_local)?;
+    let actual_digest = verify_signed_manifest_anchor(candidate, options, bundled)?;
+    let profile_digest = validate_candidate_profile_digest(candidate, bundled)?;
     validate_candidate_bundle_digest(candidate)?;
     // The bytes are the ones published; what remains is whether this runx
     // reads them.
@@ -580,14 +576,14 @@ fn validate_install_candidate(
 }
 
 /// Checks the candidate's content against the registry's signed envelope (or,
-/// for an unsigned local registry, against nothing but an expected digest)
-/// and returns its manual digest for the install origin. The envelope signs
-/// one digest over every file, so the manual, profile and package files are
-/// all bound by it.
+/// for the bytes this runtime bundles, against nothing but an expected
+/// digest) and returns its manual digest for the install origin. The
+/// envelope signs one digest over every file, so the manual, profile and
+/// package files are all bound by it.
 fn verify_signed_manifest_anchor(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
-    allow_unsigned_local: bool,
+    bundled: bool,
 ) -> Result<String, InstallError> {
     let content_digest = skill_content_digest(
         &candidate.markdown,
@@ -611,7 +607,7 @@ fn verify_signed_manifest_anchor(
     }
     let actual_digest = sha256_prefixed(candidate.markdown.as_bytes());
     let Some(manifest) = candidate.signed_manifest.as_ref() else {
-        if allow_unsigned_local {
+        if bundled {
             return Ok(actual_digest);
         }
         return Err(InstallError::UnsignedManifest(candidate.package.clone()));
@@ -630,14 +626,6 @@ fn verify_signed_manifest_anchor(
         });
     }
     Ok(actual_digest)
-}
-
-fn allows_unsigned_local_registry_candidate(candidate: &InstallCandidate) -> bool {
-    matches!(
-        candidate.manifest_source_authority.as_ref(),
-        Some(RegistryManifestSourceAuthority::RegistrySource(source))
-            if source.starts_with("local:") || source.starts_with("file:")
-    )
 }
 
 fn validate_manifest_trust_scope(
@@ -712,22 +700,22 @@ fn check_digest_link(
 
 fn validate_candidate_profile_digest(
     candidate: &InstallCandidate,
-    allow_unsigned_local: bool,
+    bundled: bool,
 ) -> Result<Option<String>, InstallError> {
     let profile_digest = candidate
         .profile_document
         .as_ref()
         .map(|document| sha256_prefixed(document.as_bytes()));
     // A signed candidate's profile is bound by the envelope's content digest;
-    // an unsigned local record states its own profile digest.
-    if candidate.signed_manifest.is_some() || !allow_unsigned_local {
+    // bundled bytes state their own profile digest.
+    if candidate.signed_manifest.is_some() || !bundled {
         return Ok(profile_digest);
     }
     let expected_profile_digest = candidate.profile_digest.as_ref();
     check_digest_link(
         profile_digest.as_deref(),
         expected_profile_digest.map(String::as_str),
-        "local registry profile digest",
+        "bundled profile digest",
     )
     .map_err(|mismatch| InstallError::ProfileDigestMismatch {
         ref_name: candidate.package.clone(),

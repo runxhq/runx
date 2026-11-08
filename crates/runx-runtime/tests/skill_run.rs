@@ -3997,7 +3997,6 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
     let subject = skill_dir.to_string_lossy().into_owned();
     let request = runx_runtime::registry::RegistryPublishPackageRequest {
         subject: &subject,
-        profile: None,
         env: &env,
         cwd: temp.path(),
     };
@@ -4057,7 +4056,6 @@ fn a_publish_refuses_a_closure_record_its_registry_did_not_sign()
     let subject = skill_dir.to_string_lossy().into_owned();
     let request = runx_runtime::registry::RegistryPublishPackageRequest {
         subject: &subject,
-        profile: None,
         env: &env,
         cwd: temp.path(),
     };

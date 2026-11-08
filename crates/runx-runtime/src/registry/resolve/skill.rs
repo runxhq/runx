@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::PaidSkillListing;
 use runx_contracts::sha256_prefixed;
 
-use super::{RegistryTarget, ResolveError, registry_source_description, resolve_registry_target};
+use super::{RegistryTarget, ResolveError, resolve_registry_target};
 use crate::registry::{
     InstallCandidate, InstallError, InstallLocalSkillOptions, UnreadVersion, parse_registry_ref,
     split_skill_id,
@@ -261,7 +261,6 @@ fn resolve_bare_skill_ref(
         parsed.version.as_deref(),
         options.registry,
         options.env,
-        cwd,
     )
     .map_err(ResolveError::into_message)?
     {
@@ -356,12 +355,9 @@ fn resolve_registry_skill(
         || skill_id.to_owned(),
         |version| format!("{skill_id}@{version}"),
     );
-    let target = resolve_registry_target(options.registry, env, cwd);
-    let source_description = registry_source_description(&target);
-    let hosted_registry_url = match &target {
-        RegistryTarget::Remote { registry_url } => Some(registry_url.clone()),
-        RegistryTarget::Local { .. } => None,
-    };
+    let target = resolve_registry_target(options.registry, env)?;
+    let source_description = target.description();
+    let hosted_registry_url = Some(target.registry_url.clone());
     let source_digest = registry_source_digest(&target);
     let source_authority = target.manifest_source_authority();
     // A fetched skill is added to the project's added skills, once per

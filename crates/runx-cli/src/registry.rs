@@ -1,6 +1,6 @@
-// Module rationale: native registry CLI keeps local and hosted
-// search/install/package/publish command wiring together, for skills and
-// connectors alike, so the command matrix and output envelope stay auditable.
+// Module rationale: native registry CLI keeps search/install/package/publish
+// command wiring together, for skills and connectors alike, so the command
+// matrix and output envelope stay auditable.
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -13,9 +13,8 @@ use runx_runtime::registry::resolve::{
     resolve_registry_target, trusted_manifest_keys_for_source,
 };
 use runx_runtime::registry::{
-    FileRegistryStore, IngestSkillOptions, InstallLocalSkillOptions, InstallLocalSkillResult,
-    PublishSkillMarkdownOptions, RegistryPublishPackageRequest, TrustTier, install_local_skill,
-    materialize_publish_closure, prepare_registry_publish_package, publish_skill_markdown,
+    InstallLocalSkillOptions, InstallLocalSkillResult, RegistryPublishPackageRequest,
+    install_local_skill, materialize_publish_closure, prepare_registry_publish_package,
 };
 
 mod connector;
@@ -38,17 +37,14 @@ pub struct RegistryPlan {
     pub action: RegistryAction,
     /// The query, the `<publisher>/<name>` to install, or the package path.
     pub subject: String,
+    /// The hosted registry `--registry` names by its URL, if one does.
     pub registry: Option<String>,
-    /// The version to install (from `<ref>@<version>`), or the label to
-    /// publish.
+    /// The version to install, from `<ref>@<version>`.
     pub version: Option<String>,
     pub expected_digest: Option<String>,
     /// The namespace a publish goes into.
     pub publisher: Option<String>,
-    pub profile: Option<PathBuf>,
-    pub trust_tier: Option<TrustTier>,
     pub limit: Option<usize>,
-    pub upsert: bool,
     pub json: bool,
 }
 
@@ -62,8 +58,11 @@ impl RegistryPlan {
     }
 
     /// The registry the plan targets.
-    pub(crate) fn target(&self, env: &BTreeMap<String, String>, cwd: &Path) -> RegistryTarget {
-        resolve_registry_target(self.registry.as_deref(), env, cwd)
+    pub(crate) fn target(
+        &self,
+        env: &BTreeMap<String, String>,
+    ) -> Result<RegistryTarget, RegistryCliError> {
+        Ok(resolve_registry_target(self.registry.as_deref(), env)?)
     }
 }
 
@@ -97,15 +96,10 @@ fn run_registry(
     if let RegistryAction::Package | RegistryAction::Publish = plan.action
         && let PackageKind::Connector(directory) = package_kind(&plan.subject, env, cwd)?
     {
-        // A connector names itself and carries no harness profile; the skill
-        // flags name nothing here.
-        if plan.publisher.is_some()
-            || plan.profile.is_some()
-            || plan.trust_tier.is_some()
-            || plan.upsert
-        {
+        // A connector names itself; a skill's publisher names nothing here.
+        if plan.publisher.is_some() {
             return Err(usage_error(
-                "a connector names itself: package accepts only --json, publish only --registry, --version and --json",
+                "a connector names itself: package accepts only --json, publish only --registry and --json",
             ));
         }
         return match plan.action {
@@ -116,7 +110,7 @@ fn run_registry(
     if plan.action == RegistryAction::Package {
         return run_package(plan, env, cwd);
     }
-    let target = plan.target(env, cwd);
+    let target = plan.target(env)?;
     match plan.action {
         RegistryAction::Search => run_search(plan, target, env),
         RegistryAction::Install => run_install(plan, target, env, cwd),
@@ -174,7 +168,6 @@ fn run_package(
 ) -> Result<RegistryCliOutput, RegistryCliError> {
     let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
         subject: &plan.subject,
-        profile: plan.profile.as_deref(),
         env,
         cwd,
     })
@@ -209,8 +202,8 @@ fn run_search(
     env: &BTreeMap<String, String>,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
     let query = plan.subject;
-    let found = runx_runtime::registry::resolve::search(&query, plan.limit, target, env)?;
-    let human = output::render_search(&query, found.source, &found.results, &found.connectors);
+    let found = runx_runtime::registry::resolve::search(&query, plan.limit, &target, env)?;
+    let human = output::render_search(&query, &found.source, &found.results, &found.connectors);
     output::write_output(
         plan.json,
         &output::RegistryEnvelope {
@@ -236,9 +229,9 @@ fn run_install(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
-    let source = target.label();
+    let source = target.source_uri();
     let source_authority = target.manifest_source_authority();
-    let fallback = target.clone();
+    let registry_url = target.registry_url.clone();
     let paths = runx_runtime::RunxPaths::resolve(env, cwd);
     let options = InstallLocalSkillOptions {
         destination_root: paths.added_skills(),
@@ -260,17 +253,12 @@ fn run_install(
         |candidate| install_local_skill(candidate, &options),
     )?
     else {
-        return match (fallback, ConnectorName::new(&plan.subject)) {
-            // No skill is published under the name; a connector may be.
-            (RegistryTarget::Remote { registry_url }, Some(connector_ref)) => {
+        // No skill is published under the name; a connector may be.
+        return match ConnectorName::new(&plan.subject) {
+            Some(connector_ref) => {
                 connector::install(&plan, &connector_ref, &registry_url, env, cwd)
             }
-            (RegistryTarget::Remote { .. }, None) => {
-                Err(connector::not_found(&plan.requested_ref()))
-            }
-            (RegistryTarget::Local { registry_path, .. }, _) => {
-                Err(not_found_local(&plan.requested_ref(), &registry_path))
-            }
+            None => Err(connector::not_found(&plan.requested_ref())),
         };
     };
     let install = InstallLocalSkillResult {
@@ -279,7 +267,7 @@ fn run_install(
     };
     let requested = plan.requested_ref();
     let human = output::render_install(
-        source,
+        &source,
         &requested,
         &install,
         candidate.signed_manifest.as_ref(),
@@ -303,8 +291,8 @@ fn run_install(
     )
 }
 
-// Function rationale: local and hosted publish share the same
-// package-read and harness gate before diverging at the storage boundary.
+// Function rationale: a publish binds its closure, runs the package harness
+// and sends the package, in that order, to the one hosted registry it targets.
 fn run_publish(
     plan: RegistryPlan,
     target: RegistryTarget,
@@ -313,24 +301,18 @@ fn run_publish(
 ) -> Result<RegistryCliOutput, RegistryCliError> {
     let request = RegistryPublishPackageRequest {
         subject: &plan.subject,
-        profile: plan.profile.as_deref(),
         env,
         cwd,
     };
     // A package naming skills other publishers own binds them from the
     // registry it is published to, installed into the publish's own project.
-    let closure = match &target {
-        RegistryTarget::Remote { registry_url } => Some(
-            materialize_publish_closure(
-                &registry_client(registry_url, env)?,
-                registry_url,
-                request,
-            )
-            .map_err(|error| usage_error(error.to_string()))?,
-        ),
-        RegistryTarget::Local { .. } => None,
-    };
-    let env = closure.as_ref().map_or(env, |closure| &closure.env);
+    let closure = materialize_publish_closure(
+        &registry_client(&target.registry_url, env)?,
+        &target.registry_url,
+        request,
+    )
+    .map_err(|error| usage_error(error.to_string()))?;
+    let env = &closure.env;
     let package =
         prepare_registry_publish_package(RegistryPublishPackageRequest { env, ..request })
             .map_err(|error| internal_error(error.to_string()))?;
@@ -340,62 +322,24 @@ fn run_publish(
     let harness = package
         .run_harness(&orchestrator, env)
         .map_err(|error| internal_error(error.to_string()))?;
-    match target {
-        RegistryTarget::Remote { registry_url } => {
-            let result = remote_publish::publish_remote_skill_package(
-                &registry_url,
-                &plan,
-                &package,
-                &harness,
-                env,
-                cwd,
-            )?;
-            output::write_output(
-                plan.json,
-                &output::RegistryEnvelope {
-                    status: "success",
-                    registry: output::RegistryPayload::Publish {
-                        publish: output::PublishPayload::Hosted(Box::new(result)),
-                    },
-                },
-                || "\n  registry publish success\n\n".to_owned(),
-            )
-        }
-        RegistryTarget::Local {
-            registry_path,
-            registry_url,
-            ..
-        } => {
-            let package = package.into_parts();
-            let result = publish_skill_markdown(
-                &FileRegistryStore::new(registry_path),
-                &package.markdown,
-                PublishSkillMarkdownOptions {
-                    ingest: IngestSkillOptions {
-                        publisher_slug: plan.publisher,
-                        version: plan.version,
-                        profile_document: package.profile_document,
-                        package_files: package.package_files,
-                        trust_tier: plan.trust_tier,
-                        upsert: plan.upsert,
-                        ..IngestSkillOptions::default()
-                    },
-                    registry_url,
-                    harness,
-                },
-            )?;
-            output::write_output(
-                plan.json,
-                &output::RegistryEnvelope {
-                    status: "success",
-                    registry: output::RegistryPayload::Publish {
-                        publish: output::PublishPayload::Local(Box::new(result)),
-                    },
-                },
-                || "\n  registry publish success\n\n".to_owned(),
-            )
-        }
-    }
+    let result = remote_publish::publish_remote_skill_package(
+        &target.registry_url,
+        &plan,
+        &package,
+        &harness,
+        env,
+        cwd,
+    )?;
+    output::write_output(
+        plan.json,
+        &output::RegistryEnvelope {
+            status: "success",
+            registry: output::RegistryPayload::Publish {
+                publish: Box::new(result),
+            },
+        },
+        || "\n  registry publish success\n\n".to_owned(),
+    )
 }
 
 pub(crate) struct RegistryCliError {
@@ -445,24 +389,8 @@ fn internal_error(message: impl Into<String>) -> RegistryCliError {
     }
 }
 
-fn not_found_local(registry_ref: &str, registry_path: &Path) -> RegistryCliError {
-    RegistryCliError {
-        message: format!(
-            "registry skill not found: {registry_ref} in the local registry at {}; for the hosted catalog pass --registry https://api.runx.ai",
-            registry_path.display()
-        ),
-        exit_code: 1,
-    }
-}
-
 impl From<runx_runtime::registry::RegistryClientError> for RegistryCliError {
     fn from(error: runx_runtime::registry::RegistryClientError) -> Self {
-        internal_error(error.to_string())
-    }
-}
-
-impl From<runx_runtime::registry::LocalRegistryError> for RegistryCliError {
-    fn from(error: runx_runtime::registry::LocalRegistryError) -> Self {
         internal_error(error.to_string())
     }
 }
@@ -491,19 +419,19 @@ impl From<ConfigError> for RegistryCliError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use runx_runtime::registry::{InstallStatus, UnreadVersion};
+    use runx_runtime::registry::{InstallStatus, TrustTier, UnreadVersion};
 
     #[test]
     fn registry_install_render_shows_direct_skill_run_command() {
         let rendered = output::render_install(
-            "local",
+            "remote:https://api.runx.ai",
             "acme/echo@1.2.3",
             &InstallLocalSkillResult {
                 status: InstallStatus::Installed,
                 destination: PathBuf::from("/tmp/runx/skills/acme/echo/SKILL.md"),
                 skill_name: "echo".to_owned(),
-                source: "local".to_owned(),
-                source_label: "local registry".to_owned(),
+                source: "runx-registry".to_owned(),
+                source_label: "runx registry".to_owned(),
                 skill_id: Some("acme/echo".to_owned()),
                 version: Some("1.2.3".to_owned()),
                 digest: "sha256:abc".to_owned(),
@@ -522,7 +450,7 @@ mod tests {
     #[test]
     fn registry_install_render_names_the_newest_version_it_does_not_read() {
         let rendered = output::render_install(
-            "remote",
+            "remote:https://api.runx.ai",
             "acme/echo",
             &InstallLocalSkillResult {
                 status: InstallStatus::Installed,
@@ -553,7 +481,7 @@ mod tests {
     fn registry_search_render_installs_a_connector_by_its_ref() -> Result<(), String> {
         let rendered = output::render_search(
             "github",
-            "remote",
+            "remote:https://api.runx.ai",
             &[],
             &[runx_runtime::registry::RegistryConnectorSearchResult {
                 connector: runx_contracts::connector::ConnectorName::new("github")

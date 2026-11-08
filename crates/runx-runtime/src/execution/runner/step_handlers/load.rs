@@ -30,8 +30,8 @@ use crate::kernel::connectors::{ConnectorScope, LoadedConnector};
 use crate::paths::RunxPaths;
 use crate::receipts::StepSeal;
 use crate::registry::resolve::{
-    AbsentPins, Holder, RegistryTarget, ResolvedSkillRef, SkillRefKind, SkillResolverOptions,
-    install_connector, resolve_registry_target, resolve_skill_ref_details,
+    AbsentPins, Holder, ResolvedSkillRef, SkillRefKind, SkillResolverOptions, install_connector,
+    resolve_registry_target, resolve_skill_ref_details,
 };
 
 /// Where a package comes from, as a rule reads it.
@@ -350,16 +350,13 @@ fn bind_connector(
                 });
             let connector_name = runx_contracts::connector::ConnectorName::new(reference)
                 .ok_or_else(|| format!("{name} is not a connector name"))?;
-            let RegistryTarget::Remote { registry_url } =
-                resolve_registry_target(None, env, paths.workspace())
-            else {
-                return Err(local.to_string());
-            };
+            let target = resolve_registry_target(None, env)
+                .map_err(|error| format!("{local}; {}", error.into_message()))?;
             install_connector(
                 &connector_name,
                 version,
                 None,
-                &registry_url,
+                &target.registry_url,
                 env,
                 paths.workspace(),
             )

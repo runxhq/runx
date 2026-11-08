@@ -46,7 +46,7 @@ pub(super) fn publish(
 ) -> Result<RegistryCliOutput, RegistryCliError> {
     let package = prepare_registry_connector_package(directory)
         .map_err(|error| internal_error(error.to_string()))?;
-    let registry_url = hosted_registry(plan, env, cwd)?;
+    let registry_url = plan.target(env)?.registry_url;
     let environment =
         runx_runtime::HostedApiEnvironment::resolve_publish(Some(&registry_url), env, cwd)
             .map_err(|error| usage_error(error.to_string()))?;
@@ -62,7 +62,7 @@ pub(super) fn publish(
         authenticated.base_url(),
         authenticated.token(),
         &HostedConnectorPublishRequest {
-            version: plan.version.as_deref(),
+            version: None,
             files: &package.files,
         },
     )
@@ -115,26 +115,15 @@ pub(super) fn install(
         &RegistryEnvelope {
             status: "success",
             registry: RegistryPayload::ConnectorInstall {
-                source: "remote",
+                source: RegistryTarget {
+                    registry_url: registry_url.to_owned(),
+                }
+                .source_uri(),
                 install: Box::new(installed),
             },
         },
         || human,
     )
-}
-
-/// Connectors are published only to a hosted registry.
-fn hosted_registry(
-    plan: &RegistryPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<String, RegistryCliError> {
-    match plan.target(env, cwd) {
-        RegistryTarget::Remote { registry_url } => Ok(registry_url),
-        RegistryTarget::Local { .. } => Err(usage_error(
-            "a connector publishes only to a hosted registry: pass --registry https://api.runx.ai or set RUNX_REGISTRY_URL",
-        )),
-    }
 }
 
 /// Neither kind is published under the name and version.

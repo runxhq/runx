@@ -2,7 +2,7 @@
 //!
 //! Three roots:
 //! - the home (`RUNX_HOME`, else `~/.runx`) holds the operator's config,
-//!   keys, install state and registry caches;
+//!   keys, install state and the packages read for inspection;
 //! - the workspace (`RUNX_CWD`, else the nearest directory holding `.git`,
 //!   `skills/` or `pnpm-workspace.yaml`, else the nearest holding
 //!   `connectors/`, else the working directory) holds the project's files.
@@ -161,11 +161,6 @@ impl RunxPaths {
     #[must_use]
     pub fn inspection_cache(&self) -> PathBuf {
         self.home.join("inspected")
-    }
-
-    #[must_use]
-    pub fn registry_cache(&self) -> PathBuf {
-        self.home.join("registry")
     }
 
     /// The installed copy of a connector tool package, named by its digest.

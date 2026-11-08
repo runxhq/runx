@@ -17,9 +17,14 @@ fn registry_publish_search_install_json() -> Result<(), Box<dyn std::error::Erro
         skill_dir.join("SKILL.md"),
         include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
     )?;
+    // A publish records the version its run.yaml states.
     fs::write(
         skill_dir.join("run.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo-run.yaml").replacen(
+            "skill: echo\n",
+            "skill: echo\nversion: \"1.0.0\"\n",
+            1,
+        ),
     )?;
     let registry = LoopbackRegistry::serve()?;
 
@@ -30,8 +35,6 @@ fn registry_publish_search_install_json() -> Result<(), Box<dyn std::error::Erro
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--registry",
             &registry.url,
-            "--version",
-            "1.0.0",
             "--json",
         ])
         .output()?;
@@ -98,6 +101,7 @@ fn registry_publish_install_executes_bundled_sibling() -> Result<(), Box<dyn std
     fs::write(
         skill_dir.join("run.yaml"),
         r#"skill: bundled-root
+version: "1.0.0"
 harness:
   cases:
     - name: sibling
@@ -180,8 +184,6 @@ runners:
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--registry",
             &registry.url,
-            "--version",
-            "1.0.0",
             "--json",
         ])
         .output()?;
@@ -249,6 +251,7 @@ fn adding_a_skill_adds_the_connectors_it_carries() -> Result<(), Box<dyn std::er
     fs::write(
         skill_dir.join("run.yaml"),
         r#"skill: carrier
+version: "1.0.0"
 connectors:
   fixture/forge:
     operations: [issue.read]
@@ -277,8 +280,6 @@ runners:
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--registry",
             &registry.url,
-            "--version",
-            "1.0.0",
             "--json",
         ])
         .output()?;
@@ -764,59 +765,35 @@ fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn st
     Ok(())
 }
 
+/// A registry is a hosted service, named by its URL: a directory, named by
+/// --registry or RUNX_REGISTRY_URL, is a usage error before anything is
+/// read.
 #[test]
-fn registry_local_install_accepts_unsigned_manifest() -> Result<(), Box<dyn std::error::Error>> {
-    let root = temp_root("registry-local-unsigned");
-    let skill_dir = root.join("skill");
-    let registry_dir = root.join("registry");
-    fs::create_dir_all(&skill_dir)?;
-    fs::write(
-        skill_dir.join("SKILL.md"),
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
-    )?;
-    fs::write(
-        skill_dir.join("run.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
-    )?;
-    let publish = runx_command()?
+fn a_registry_that_is_not_a_url_is_a_usage_error() -> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-not-a-url");
+    fs::create_dir_all(root.join("registry"))?;
+    let named = runx_command()?
+        .current_dir(&root)
         .args([
             "registry",
-            "publish",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "search",
+            "echo",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--publisher",
-            "acme",
-            "--version",
-            "1.0.0",
+            "registry",
             "--json",
         ])
         .output()?;
-    assert_success_contains(&publish, &["\"action\": \"publish\""])?;
-    let install_dir = crate::support::added_skills();
+    assert_json_failure_contains(&named, "--registry names a registry by its URL")?;
+    assert_eq!(named.status.code(), Some(64));
 
-    let install = runx_command()?
-        .env("RUNX_CWD", &root)
-        .env("RUNX_REGISTRY_URL", "https://runx.ai")
-        .args([
-            "registry",
-            "install",
-            "acme/echo@1.0.0",
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--json",
-        ])
+    let configured = runx_command()?
+        .current_dir(&root)
+        .env("RUNX_REGISTRY_URL", root.join("registry"))
+        .args(["registry", "install", "acme/echo@1.0.0", "--json"])
         .output()?;
-
-    assert_success_contains(
-        &install,
-        &[
-            "\"action\": \"install\"",
-            "\"skill_id\": \"acme/echo\"",
-            "\"status\": \"installed\"",
-        ],
-    )?;
-    assert!(install_dir.join("acme/echo/1.0.0/SKILL.md").exists());
+    assert_json_failure_contains(&configured, "RUNX_REGISTRY_URL names a registry by its URL")?;
+    assert_eq!(configured.status.code(), Some(64));
+    fs::remove_dir_all(&root)?;
     Ok(())
 }
 
@@ -1044,11 +1021,11 @@ fn records_provider(indent: usize) -> String {
 }
 
 /// Publish the package at `skill_dir` to `registry` as its publisher, from
-/// the directory above it, under `publisher` at `version` when named.
+/// the directory above it, into `publisher`'s namespace when named.
 fn publish(
     skill_dir: &std::path::Path,
     registry: &LoopbackRegistry,
-    publisher: Option<(&str, &str)>,
+    publisher: Option<&str>,
 ) -> Result<std::process::Output, Box<dyn std::error::Error>> {
     let parent = skill_dir.parent().ok_or("skill has no parent")?;
     let mut command = registry_command(registry, &temp_root("registry-publisher"))?;
@@ -1059,8 +1036,8 @@ fn publish(
         "--registry",
         &registry.url,
     ]);
-    if let Some((publisher, version)) = publisher {
-        command.args(["--publisher", publisher, "--version", version]);
+    if let Some(publisher) = publisher {
+        command.args(["--publisher", publisher]);
     }
     Ok(command.arg("--json").output()?)
 }
@@ -1115,8 +1092,10 @@ fn publish_records_revisions(
 ) -> Result<LoopbackRegistry, Box<dyn std::error::Error>> {
     let skill_dir = hosted_records(&root.join("source"))?;
     let manifest = root.join("source/connectors/fixture/records/connector.yaml");
+    let profile = skill_dir.join("run.yaml");
     let registry = LoopbackRegistry::serve()?;
     let original = fs::read_to_string(&manifest)?;
+    let original_profile = fs::read_to_string(&profile)?;
     for version in versions {
         fs::write(
             &manifest,
@@ -1126,7 +1105,11 @@ fn publish_records_revisions(
                 1,
             ),
         )?;
-        let published = publish(&skill_dir, &registry, Some(("acme", version)))?;
+        fs::write(
+            &profile,
+            original_profile.replacen("version: \"0.1.0\"", &format!("version: \"{version}\""), 1),
+        )?;
+        let published = publish(&skill_dir, &registry, Some("acme"))?;
         assert_success_contains(&published, &["\"action\": \"publish\""])?;
     }
     Ok(registry)
@@ -1156,7 +1139,7 @@ fn records_consumer(
     fs::write(
         consumer.join("run.yaml"),
         format!(
-            "skill: ledger\nrunners:\n  default:\n    default: true\n    result_from: [records-0]\n    steps:\n{steps}"
+            "skill: ledger\nversion: \"1.0.0\"\nrunners:\n  default:\n    default: true\n    result_from: [records-0]\n    steps:\n{steps}"
         ),
     )?;
     fs::write(
@@ -1178,7 +1161,7 @@ fn a_case_grants_a_connector_its_registry_child_carries() -> Result<(), Box<dyn 
     let root = temp_root("registry-child-grant");
     let registry = publish_records_revisions(&root, &["1.0.0"])?;
     let consumer = records_consumer(&root, &["1.0.0"])?;
-    let published = publish(&consumer, &registry, Some(("consumer", "1.0.0")))?;
+    let published = publish(&consumer, &registry, Some("consumer"))?;
     assert_success_contains(&published, &["\"action\": \"publish\""])?;
     fs::remove_dir_all(&root)?;
     Ok(())
@@ -1193,7 +1176,7 @@ fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
     let root = temp_root("registry-child-grant-ambiguous");
     let registry = publish_records_revisions(&root, &["1.0.0", "2.0.0"])?;
     let consumer = records_consumer(&root, &["1.0.0", "2.0.0"])?;
-    let published = publish(&consumer, &registry, Some(("consumer", "1.0.0")))?;
+    let published = publish(&consumer, &registry, Some("consumer"))?;
     assert_ne!(published.status.code(), Some(0));
     let output = format!(
         "{}{}",

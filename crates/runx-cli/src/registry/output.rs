@@ -19,15 +19,16 @@ pub(super) struct InstallAcquisition {
 #[derive(serde::Serialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub(super) enum RegistryPayload {
+    /// The registry searched is named by its source URI, `remote:<url>`.
     Search {
-        source: &'static str,
+        source: String,
         query: String,
         results: Vec<runx_runtime::registry::RegistrySearchResult>,
-        /// The published connectors that match; a hosted registry only.
+        /// The published connectors that match.
         connectors: Vec<runx_runtime::registry::RegistryConnectorSearchResult>,
     },
     Install {
-        source: &'static str,
+        source: String,
         package: String,
         install: Box<runx_runtime::registry::InstallLocalSkillResult>,
         /// The installed package's digest, when the registry states one.
@@ -51,19 +52,12 @@ pub(super) enum RegistryPayload {
         publish: Box<runx_runtime::registry::HostedConnectorPublishResult>,
     },
     ConnectorInstall {
-        source: &'static str,
+        source: String,
         install: Box<runx_runtime::registry::InstalledRegistryConnector>,
     },
     Publish {
-        publish: PublishPayload,
+        publish: Box<HostedSkillPublishResult>,
     },
-}
-
-#[derive(serde::Serialize)]
-#[serde(tag = "target", rename_all = "snake_case")]
-pub(super) enum PublishPayload {
-    Hosted(Box<HostedSkillPublishResult>),
-    Local(Box<runx_runtime::registry::PublishSkillMarkdownResult>),
 }
 
 pub(super) fn write_output<T: serde::Serialize>(

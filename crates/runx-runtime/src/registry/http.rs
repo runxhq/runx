@@ -164,8 +164,8 @@ impl<T: Transport> RegistryClient<T> {
         parse_acquire(&route, &response.body)
     }
 
-    /// One executable published version as the registry signed it: the
-    /// record a registry directory holds, so a host can build a closure.
+    /// One executable published version as the registry signed it, read
+    /// without counting as an install, so a publish can bind its closure.
     pub fn version_record(
         &self,
         skill_id: &str,

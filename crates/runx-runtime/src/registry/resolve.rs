@@ -13,19 +13,15 @@ pub use skill::{
     AbsentPins, Holder, RegistryTrustState, ResolvedSkillRef, SkillRefKind, SkillResolverOptions,
     resolve_skill_ref_details,
 };
-pub use target::{
-    LocalRegistrySourceKind, RegistryTarget, registry_source_description, resolve_registry_target,
-};
+pub use target::{RegistryTarget, resolve_registry_target};
 
 use runx_contracts::connector::ConnectorName;
 
 use super::{
-    AcquireOptions, AcquiredRegistrySkill, FileRegistryStore, InstallCandidate,
-    InstallRegistryConnectorOptions, InstalledRegistryConnector, RegistryClient,
-    RegistryConnectorSearchResult, RegistryConnectorVersion, RegistryManifestSourceAuthority,
-    RegistryResolveOptions, RegistrySearchResult, RegistrySkillResolution,
+    AcquireOptions, AcquiredRegistrySkill, InstallCandidate, InstallRegistryConnectorOptions,
+    InstalledRegistryConnector, RegistryClient, RegistryConnectorSearchResult,
+    RegistryConnectorVersion, RegistryManifestSourceAuthority, RegistrySearchResult,
     TrustedRegistryManifestKey, UnreadVersion, VersionPage, install_registry_connector,
-    resolve_registry_skill,
 };
 
 /// Why a ref did not resolve.
@@ -50,12 +46,6 @@ impl ResolveError {
 
 impl From<super::RegistryClientError> for ResolveError {
     fn from(error: super::RegistryClientError) -> Self {
-        Self::Failed(error.to_string())
-    }
-}
-
-impl From<super::LocalRegistryError> for ResolveError {
-    fn from(error: super::LocalRegistryError) -> Self {
         Self::Failed(error.to_string())
     }
 }
@@ -108,7 +98,7 @@ pub struct Installed<P, T> {
 pub type FetchedSkill = (InstallCandidate, Option<AcquiredRegistrySkill>);
 
 /// Installs, with `install`, the newest version of the skill `subject` names
-/// in `target` that this runx reads: `version` when one is named; otherwise
+/// in the registry `target` that this runx reads: `version` when one is named; otherwise
 /// the current version, or when this runx does not read that, the newest
 /// older one it does. None when the registry publishes no skill under that
 /// name and version.
@@ -131,109 +121,53 @@ pub fn install_skill_ref<T>(
         super::InstallError::Unreadable { reason, .. } => Some(reason.clone()),
         _ => None,
     };
-    match target {
-        RegistryTarget::Remote { registry_url } => {
-            let client = registry_client(&registry_url, env)?;
-            // One segment reaches the registry only as a root name, which it
-            // resolves to the canonical `<publisher>/<name>` it installs.
-            let skill_id = if subject.contains('/') {
-                subject.to_owned()
-            } else {
-                match client.read_root(subject, version)? {
-                    Some(detail) => detail.skill_id,
-                    None => return Ok(None),
-                }
-            };
-            let installation_id = installation_id(env, cwd)?;
-            let acquire = |version: Option<&str>| -> Result<Option<FetchedSkill>, ResolveError> {
-                match client.acquire(
-                    &skill_id,
-                    AcquireOptions {
-                        installation_id: &installation_id,
-                        version,
-                        channel: Some("cli"),
-                    },
-                ) {
-                    Err(super::RegistryClientError::HttpStatus { status: 404, .. }) => Ok(None),
-                    acquired => {
-                        let acquired = acquired?;
-                        let candidate =
-                            candidate_from_acquired(&skill_id, &acquired, source_authority.clone());
-                        Ok(Some((candidate, Some(acquired))))
-                    }
-                }
-            };
-            let Some(first) = acquire(version)? else {
-                return Ok(None);
-            };
-            newest_readable(
-                &skill_id,
-                version.is_some(),
-                (skill_version(&first), first),
-                |cursor| {
-                    Ok(client
-                        .skill_versions(&skill_id, cursor)?
-                        .unwrap_or_default())
-                },
-                |older| acquire(Some(older)),
-                install,
-                unread,
-            )
-            .map(Some)
+    let client = registry_client(&target.registry_url, env)?;
+    // One segment reaches the registry only as a root name, which it
+    // resolves to the canonical `<publisher>/<name>` it installs.
+    let skill_id = if subject.contains('/') {
+        subject.to_owned()
+    } else {
+        match client.read_root(subject, version)? {
+            Some(detail) => detail.skill_id,
+            None => return Ok(None),
         }
-        RegistryTarget::Local {
-            registry_path,
-            registry_url,
-            ..
-        } => {
-            let store = FileRegistryStore::new(registry_path);
-            let resolve = |version: Option<&str>| -> Result<Option<FetchedSkill>, ResolveError> {
-                Ok(resolve_registry_skill(
-                    &store,
-                    subject,
-                    RegistryResolveOptions {
-                        version: version.map(ToOwned::to_owned),
-                        registry_url: registry_url.clone(),
-                    },
-                )?
-                .map(|resolution| {
-                    let candidate =
-                        candidate_from_resolution(subject, resolution, source_authority.clone());
-                    (candidate, None)
-                }))
-            };
-            let Some(first) = resolve(version)? else {
-                return Ok(None);
-            };
-            let skill_id = first
-                .0
-                .skill_id
-                .clone()
-                .unwrap_or_else(|| subject.to_owned());
-            newest_readable(
-                &skill_id,
-                version.is_some(),
-                (skill_version(&first), first),
-                // A registry directory lists every version at once, oldest first.
-                |_| {
-                    let mut versions = store
-                        .list_versions(&skill_id)?
-                        .into_iter()
-                        .map(|record| record.version)
-                        .collect::<Vec<_>>();
-                    versions.reverse();
-                    Ok(VersionPage {
-                        versions,
-                        next_cursor: None,
-                    })
-                },
-                |older| resolve(Some(older)),
-                install,
-                unread,
-            )
-            .map(Some)
+    };
+    let installation_id = installation_id(env, cwd)?;
+    let acquire = |version: Option<&str>| -> Result<Option<FetchedSkill>, ResolveError> {
+        match client.acquire(
+            &skill_id,
+            AcquireOptions {
+                installation_id: &installation_id,
+                version,
+                channel: Some("cli"),
+            },
+        ) {
+            Err(super::RegistryClientError::HttpStatus { status: 404, .. }) => Ok(None),
+            acquired => {
+                let acquired = acquired?;
+                let candidate =
+                    candidate_from_acquired(&skill_id, &acquired, source_authority.clone());
+                Ok(Some((candidate, Some(acquired))))
+            }
         }
-    }
+    };
+    let Some(first) = acquire(version)? else {
+        return Ok(None);
+    };
+    newest_readable(
+        &skill_id,
+        version.is_some(),
+        (skill_version(&first), first),
+        |cursor| {
+            Ok(client
+                .skill_versions(&skill_id, cursor)?
+                .unwrap_or_default())
+        },
+        |older| acquire(Some(older)),
+        install,
+        unread,
+    )
+    .map(Some)
 }
 
 fn skill_version((candidate, _): &FetchedSkill) -> String {
@@ -304,18 +238,17 @@ fn newest_readable<P, T, E: Into<ResolveError>>(
     )))
 }
 
-/// What a registry publishes matching a query: skills, and the connectors a
-/// hosted registry holds.
+/// What a registry publishes matching a query: its skills and connectors.
 #[derive(Clone, Debug)]
 pub struct RegistrySearch {
-    /// `remote`, `local` or `file`.
-    pub source: &'static str,
+    /// The registry searched, as its source URI.
+    pub source: String,
     pub results: Vec<RegistrySearchResult>,
     pub connectors: Vec<RegistryConnectorSearchResult>,
 }
 
 /// Search the registry `target` names for `query`, at most `limit` of each
-/// kind (20 from a hosted registry when unset).
+/// kind (20 when unset).
 ///
 /// # Errors
 ///
@@ -323,37 +256,15 @@ pub struct RegistrySearch {
 pub fn search(
     query: &str,
     limit: Option<usize>,
-    target: RegistryTarget,
+    target: &RegistryTarget,
     env: &BTreeMap<String, String>,
 ) -> Result<RegistrySearch, ResolveError> {
-    let source = target.label();
-    Ok(match target {
-        // Connectors are published only to a hosted registry.
-        RegistryTarget::Remote { registry_url } => {
-            let client = registry_client(&registry_url, env)?;
-            let limit = limit.unwrap_or(20);
-            RegistrySearch {
-                source,
-                connectors: client.search_connectors(query, limit)?,
-                results: client.search_with_limit(query, limit)?,
-            }
-        }
-        RegistryTarget::Local {
-            registry_path,
-            registry_url,
-            ..
-        } => RegistrySearch {
-            source,
-            results: super::search_registry_with_options(
-                &FileRegistryStore::new(registry_path),
-                query,
-                super::RegistrySearchOptions {
-                    limit,
-                    registry_url,
-                },
-            )?,
-            connectors: Vec::new(),
-        },
+    let client = registry_client(&target.registry_url, env)?;
+    let limit = limit.unwrap_or(20);
+    Ok(RegistrySearch {
+        source: target.source_uri(),
+        connectors: client.search_connectors(query, limit)?,
+        results: client.search_with_limit(query, limit)?,
     })
 }
 
@@ -377,7 +288,7 @@ pub fn install_connector(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Option<InstalledRegistryConnector>, ResolveError> {
-    let source_authority = RegistryTarget::Remote {
+    let source_authority = RegistryTarget {
         registry_url: registry_url.to_owned(),
     }
     .manifest_source_authority();
@@ -434,24 +345,20 @@ pub fn install_connector(
 }
 
 /// The canonical `<publisher>/<name>` root name `subject` addresses in the
-/// registry `registry` targets; none where no skill holds it, or the registry
-/// is a directory, which holds no root names.
+/// registry `registry` targets; none where no skill holds it.
 ///
 /// # Errors
 ///
-/// Returns an error when the registry cannot be reached or read.
+/// Returns an error when the registry named is not a URL, or cannot be
+/// reached or read.
 pub fn resolve_root_name(
     subject: &str,
     version: Option<&str>,
     registry: Option<&str>,
     env: &BTreeMap<String, String>,
-    cwd: &Path,
 ) -> Result<Option<String>, ResolveError> {
-    let RegistryTarget::Remote { registry_url } = resolve_registry_target(registry, env, cwd)
-    else {
-        return Ok(None);
-    };
-    Ok(registry_client(&registry_url, env)?
+    let target = resolve_registry_target(registry, env)?;
+    Ok(registry_client(&target.registry_url, env)?
         .read_root(subject, version)?
         .map(|detail| detail.skill_id))
 }
@@ -494,29 +401,6 @@ fn installation_id(env: &BTreeMap<String, String>, cwd: &Path) -> Result<String,
     }
     crate::installation_id(&crate::RunxPaths::resolve(env, cwd))
         .map_err(|error| ResolveError::Usage(error.to_string()))
-}
-
-fn candidate_from_resolution(
-    registry_ref: &str,
-    resolution: RegistrySkillResolution,
-    source_authority: RegistryManifestSourceAuthority,
-) -> InstallCandidate {
-    InstallCandidate {
-        markdown: resolution.markdown,
-        profile_document: resolution.profile_document,
-        package_files: resolution.package_files,
-        bundle_digest: resolution.bundle_digest,
-        source: resolution.source,
-        source_label: resolution.source_label,
-        package: registry_ref.to_owned(),
-        skill_id: Some(resolution.skill_id),
-        version: Some(resolution.version),
-        signed_manifest: resolution.signed_manifest,
-        profile_digest: resolution.profile_digest,
-        runner_names: resolution.runner_names,
-        trust_tier: Some(resolution.trust_tier),
-        manifest_source_authority: Some(source_authority),
-    }
 }
 
 fn candidate_from_acquired(

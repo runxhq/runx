@@ -9,7 +9,7 @@ pub(crate) use connectors::connector_package;
 pub use connectors::{RegistryConnectorPackage, prepare_registry_connector_package};
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use thiserror::Error;
 
@@ -38,12 +38,13 @@ impl RegistryPublishPackageError {
 #[derive(Clone, Copy, Debug)]
 pub struct RegistryPublishPackageRequest<'a> {
     pub subject: &'a str,
-    pub profile: Option<&'a Path>,
     pub env: &'a BTreeMap<String, String>,
     pub cwd: &'a Path,
 }
 
 pub struct RegistryPublishPackage {
+    /// The version its `run.yaml` states, which a publish records.
+    version: Option<String>,
     markdown: String,
     profile_document: Option<String>,
     package_files: Vec<RegistryPackageFile>,
@@ -52,6 +53,12 @@ pub struct RegistryPublishPackage {
 }
 
 impl RegistryPublishPackage {
+    /// The version the package's `run.yaml` states, when it states one.
+    #[must_use]
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
+    }
+
     #[must_use]
     pub fn markdown(&self) -> &str {
         &self.markdown
@@ -88,6 +95,7 @@ impl RegistryPublishPackage {
             package_files,
             metadata,
             harness,
+            ..
         } = self;
         drop(harness);
         RegistryPublishPackageParts {
@@ -130,8 +138,8 @@ pub fn prepare_registry_publish_package(
 }
 
 /// The registry refs the package to publish names that the request's
-/// registry directory does not hold: what a publisher supplies, from the
-/// registry the refs name, before the package can be bound.
+/// project does not hold: what a publish installs, from the registry it
+/// targets, before the package can be bound.
 pub fn unheld_publish_registry_refs(
     request: RegistryPublishPackageRequest<'_>,
 ) -> Result<Vec<String>, RegistryPublishPackageError> {
@@ -145,29 +153,19 @@ fn load_publish_package(
 ) -> Result<LoadedSkillPackage, RegistryPublishPackageError> {
     let subject_path =
         crate::RunxPaths::resolve(request.env, request.cwd).existing_input(request.subject);
-    let profile_path =
-        resolve_profile_path(&subject_path, request.profile, request.env, request.cwd);
-    let load_path = profile_path.as_deref().unwrap_or(&subject_path);
+    // A package is its directory: its own `run.yaml` is its profile.
+    let package_dir = if subject_path.is_dir() {
+        subject_path.as_path()
+    } else {
+        subject_path.parent().unwrap_or(&subject_path)
+    };
+    let profile = package_dir.join(runx_parser::PROFILE_FILE);
+    let load_path = if profile.exists() {
+        profile.as_path()
+    } else {
+        subject_path.as_path()
+    };
     Ok(crate::load_validated_skill_package(load_path)?)
-}
-
-fn resolve_profile_path(
-    subject_path: &Path,
-    profile: Option<&Path>,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Option<PathBuf> {
-    profile
-        .map(|path| crate::RunxPaths::resolve(env, cwd).existing_input(path))
-        .or_else(|| {
-            let package_dir = if subject_path.is_dir() {
-                subject_path
-            } else {
-                subject_path.parent()?
-            };
-            let candidate = package_dir.join(runx_parser::PROFILE_FILE);
-            candidate.exists().then_some(candidate)
-        })
 }
 
 fn prepare_loaded_package(
@@ -191,6 +189,9 @@ fn prepare_loaded_package(
     let harness =
         harness::stage_publish_harness(loaded, profile_document.as_deref(), &package_files)?;
     Ok(RegistryPublishPackage {
+        version: loaded
+            .manifest()
+            .and_then(|manifest| manifest.version.clone()),
         markdown: loaded.package.manual_markdown.clone(),
         profile_document,
         package_files,
@@ -227,7 +228,6 @@ mod tests {
 
         let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
             subject: temp.path().to_str().ok_or("temporary path is not UTF-8")?,
-            profile: None,
             env: &BTreeMap::new(),
             cwd: temp.path(),
         })?;
@@ -326,7 +326,6 @@ runners:
 
         let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
             subject: root.to_str().ok_or("temporary path is not UTF-8")?,
-            profile: None,
             env: &BTreeMap::new(),
             cwd: root,
         })?;
@@ -456,7 +455,6 @@ runners:
 
         let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
             subject: root.to_str().ok_or("temporary path is not UTF-8")?,
-            profile: None,
             env: &BTreeMap::new(),
             cwd: &root,
         })?;
@@ -533,7 +531,6 @@ runners:
             Ok::<_, Box<dyn std::error::Error>>(
                 prepare_registry_publish_package(RegistryPublishPackageRequest {
                     subject: root.to_str().ok_or("root path is not UTF-8")?,
-                    profile: None,
                     env: &env,
                     cwd: root,
                 })?
@@ -615,7 +612,6 @@ runners:
 
         let first = prepare_registry_publish_package(RegistryPublishPackageRequest {
             subject: root.to_str().ok_or("temporary path is not UTF-8")?,
-            profile: None,
             env: &BTreeMap::new(),
             cwd: &root,
         })?
@@ -640,7 +636,6 @@ runners:
 
         let second = prepare_registry_publish_package(RegistryPublishPackageRequest {
             subject: staged.to_str().ok_or("temporary path is not UTF-8")?,
-            profile: None,
             env: &BTreeMap::new(),
             cwd: &staged,
         })?
@@ -749,7 +744,6 @@ runners:
 
         let error = prepare_registry_publish_package(RegistryPublishPackageRequest {
             subject: root.to_str().ok_or("temporary path is not UTF-8")?,
-            profile: None,
             env: &BTreeMap::new(),
             cwd: root,
         })
@@ -835,7 +829,6 @@ operations:
         Ok(
             prepare_registry_publish_package(RegistryPublishPackageRequest {
                 subject: dir.to_str().ok_or("temporary path is not UTF-8")?,
-                profile: None,
                 env: &BTreeMap::new(),
                 cwd: dir,
             })?
@@ -974,7 +967,6 @@ operations:
         )?;
         let first = prepare_registry_publish_package(RegistryPublishPackageRequest {
             subject: work.to_str().ok_or("path is not UTF-8")?,
-            profile: None,
             env: &env,
             cwd: &work,
         })?

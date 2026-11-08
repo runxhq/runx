@@ -2,7 +2,7 @@
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
-use crate::cli_args::{flag_value, os_arg, os_flag_value, split_flag};
+use crate::cli_args::{flag_value, os_arg, split_flag};
 use crate::config::ConfigPlan;
 use crate::connector::ConnectorPlan;
 use crate::export::ExportPlan;
@@ -615,7 +615,7 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
     parse_registry_args(args, 2, &mut state)?;
     validate_registry_action_flags(action, subcommand, &state)?;
     let mut subject = registry_subject(action, subcommand, &mut state.positionals)?;
-    let mut version = state.version;
+    let mut version = None;
     if action == RegistryAction::Install {
         // `<publisher>/<name>@<version>` is the one way to name a version.
         let parsed = runx_runtime::registry::parse_registry_ref(&subject);
@@ -630,15 +630,14 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
         version,
         expected_digest: state.expected_digest,
         publisher: state.publisher,
-        profile: state.profile,
-        trust_tier: state.trust_tier,
         limit: state.limit,
-        upsert: state.upsert,
         json: state.json,
     })
 }
 
-/// The flags each registry command takes; any other is refused.
+/// The flags each registry command takes; any other is refused. A publish
+/// records the version its package's `run.yaml` states, and the registry
+/// grants its tier.
 fn validate_registry_action_flags(
     action: RegistryAction,
     subcommand: &str,
@@ -647,25 +646,21 @@ fn validate_registry_action_flags(
     let (accepted, allowed) = match action {
         RegistryAction::Search => (
             "--registry, --limit and --json",
-            state.version.is_none()
-                && state.expected_digest.is_none()
-                && state.publisher.is_none()
-                && state.profile.is_none()
-                && state.trust_tier.is_none()
-                && !state.upsert,
+            state.expected_digest.is_none() && state.publisher.is_none(),
         ),
         RegistryAction::Install => (
             "--registry, --digest and --json",
-            state.version.is_none()
-                && state.publisher.is_none()
-                && state.profile.is_none()
-                && state.trust_tier.is_none()
-                && state.limit.is_none()
-                && !state.upsert,
+            state.publisher.is_none() && state.limit.is_none(),
         ),
-        RegistryAction::Package => ("--profile and --json", !registry_target_flags(state)),
+        RegistryAction::Package => (
+            "--json",
+            state.registry.is_none()
+                && state.expected_digest.is_none()
+                && state.publisher.is_none()
+                && state.limit.is_none(),
+        ),
         RegistryAction::Publish => (
-            "--registry, --publisher, --version, --profile, --trust-tier, --upsert and --json",
+            "--registry, --publisher and --json",
             state.expected_digest.is_none() && state.limit.is_none(),
         ),
     };
@@ -678,27 +673,12 @@ fn validate_registry_action_flags(
     }
 }
 
-/// A flag naming a registry, a version or an install, which packaging never takes.
-fn registry_target_flags(state: &RegistryParseState) -> bool {
-    state.registry.is_some()
-        || state.version.is_some()
-        || state.expected_digest.is_some()
-        || state.publisher.is_some()
-        || state.trust_tier.is_some()
-        || state.limit.is_some()
-        || state.upsert
-}
-
 #[derive(Default)]
 struct RegistryParseState {
     json: bool,
-    upsert: bool,
     registry: Option<String>,
-    version: Option<String>,
     expected_digest: Option<String>,
     publisher: Option<String>,
-    profile: Option<PathBuf>,
-    trust_tier: Option<runx_runtime::registry::TrustTier>,
     limit: Option<usize>,
     positionals: Vec<String>,
 }
@@ -742,47 +722,17 @@ fn parse_registry_flag(
 ) -> Result<usize, String> {
     match flag {
         "--json" | "-j" => set_registry_bool_flag(flag, inline_value, &mut state.json, index),
-        "--upsert" => set_registry_bool_flag(flag, inline_value, &mut state.upsert, index),
         "--registry" => {
             set_registry_string_flag(args, index, flag, inline_value, &mut state.registry)
         }
-        "--version" => set_registry_version_flag(args, index, flag, inline_value, state),
         "--digest" => {
             set_registry_string_flag(args, index, flag, inline_value, &mut state.expected_digest)
         }
         "--publisher" => {
             set_registry_string_flag(args, index, flag, inline_value, &mut state.publisher)
         }
-        "--profile" => set_registry_path_flag(args, index, flag, inline_value, &mut state.profile),
-        "--trust-tier" => set_registry_trust_tier_flag(args, index, flag, inline_value, state),
         "--limit" => set_registry_limit_flag(args, index, flag, inline_value, state),
         _ => Err(format!("unknown registry flag {flag}")),
-    }
-}
-
-fn set_registry_trust_tier_flag(
-    args: &[OsString],
-    index: usize,
-    flag: &str,
-    inline_value: Option<&str>,
-    state: &mut RegistryParseState,
-) -> Result<usize, String> {
-    if state.trust_tier.is_some() {
-        return Err(format!("{flag} was provided more than once"));
-    }
-    let (value, next_index) = flag_value(args, index, flag, inline_value, "registry")?;
-    state.trust_tier = Some(parse_registry_trust_tier(&value)?);
-    Ok(next_index)
-}
-
-fn parse_registry_trust_tier(value: &str) -> Result<runx_runtime::registry::TrustTier, String> {
-    match value {
-        "first_party" | "first-party" => Ok(runx_runtime::registry::TrustTier::FirstParty),
-        "verified" => Ok(runx_runtime::registry::TrustTier::Verified),
-        "community" => Ok(runx_runtime::registry::TrustTier::Community),
-        _ => Err(format!(
-            "invalid registry trust tier {value}; expected first_party, verified, or community"
-        )),
     }
 }
 
@@ -811,18 +761,6 @@ fn set_registry_string_flag(
     Ok(next_index)
 }
 
-fn set_registry_path_flag(
-    args: &[OsString],
-    index: usize,
-    flag: &str,
-    inline_value: Option<&str>,
-    target: &mut Option<PathBuf>,
-) -> Result<usize, String> {
-    let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
-    *target = Some(PathBuf::from(value));
-    Ok(next_index)
-}
-
 fn set_registry_limit_flag(
     args: &[OsString],
     index: usize,
@@ -838,19 +776,6 @@ fn set_registry_limit_flag(
         return Err("--limit must be greater than zero".to_owned());
     }
     state.limit = Some(limit);
-    Ok(next_index)
-}
-
-fn set_registry_version_flag(
-    args: &[OsString],
-    index: usize,
-    flag: &str,
-    inline_value: Option<&str>,
-    state: &mut RegistryParseState,
-) -> Result<usize, String> {
-    let (value, next_index) = flag_value(args, index, flag, inline_value, "registry")?;
-    validate_registry_version(&value)?;
-    state.version = Some(value);
     Ok(next_index)
 }
 

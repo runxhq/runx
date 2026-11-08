@@ -1,209 +1,76 @@
 use std::collections::BTreeMap;
-use std::fs;
-use std::path::{Path, PathBuf};
 
-use url::Url;
-
+use super::ResolveError;
 use crate::registry::{RegistryManifestSourceAuthority, canonical_registry_url};
 
-/// The registry a ref resolves in: a hosted catalog, or a directory.
-#[derive(Clone, Debug)]
-pub enum RegistryTarget {
-    Remote {
-        registry_url: String,
-    },
-    Local {
-        registry_path: PathBuf,
-        registry_url: Option<String>,
-        source_kind: LocalRegistrySourceKind,
-    },
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum LocalRegistrySourceKind {
-    Local,
-    File,
+/// The registry a ref resolves in: a hosted registry, named by its URL.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RegistryTarget {
+    pub registry_url: String,
 }
 
 impl RegistryTarget {
-    #[must_use]
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Remote { .. } => "remote",
-            Self::Local { source_kind, .. } => match source_kind {
-                LocalRegistrySourceKind::Local => "local",
-                LocalRegistrySourceKind::File => "file",
-            },
-        }
-    }
-
-    /// The registry source as one URI, `remote:`, `local:` or `file:` and
-    /// where; a resolution names its source by this URI's digest.
+    /// The registry source as one URI, `remote:` and its credential-free
+    /// URL; a resolution names its source by this URI's digest.
     #[must_use]
     pub fn source_uri(&self) -> String {
-        match self {
-            Self::Remote { registry_url } => {
-                format!("remote:{}", canonical_registry_url(registry_url))
-            }
-            Self::Local {
-                registry_path,
-                source_kind,
-                ..
-            } => {
-                let absolute =
-                    fs::canonicalize(registry_path).unwrap_or_else(|_| registry_path.to_path_buf());
-                match source_kind {
-                    LocalRegistrySourceKind::Local => format!("local:{}", absolute.display()),
-                    LocalRegistrySourceKind::File => format!("file:{}", absolute.display()),
-                }
-            }
-        }
+        format!("remote:{}", canonical_registry_url(&self.registry_url))
+    }
+
+    /// The registry as an operator reads it: `remote <url>`.
+    #[must_use]
+    pub fn description(&self) -> String {
+        format!("remote {}", canonical_registry_url(&self.registry_url))
     }
 
     #[must_use]
     pub fn manifest_source_authority(&self) -> RegistryManifestSourceAuthority {
-        match self {
-            Self::Remote { registry_url } => {
-                crate::registry::registry_manifest_source_authority_from_registry_url(registry_url)
-            }
-            Self::Local {
-                registry_path,
-                source_kind,
-                ..
-            } => {
-                let absolute =
-                    fs::canonicalize(registry_path).unwrap_or_else(|_| registry_path.to_path_buf());
-                RegistryManifestSourceAuthority::RegistrySource(match source_kind {
-                    LocalRegistrySourceKind::Local => format!("local:{}", absolute.display()),
-                    LocalRegistrySourceKind::File => format!("file:{}", absolute.display()),
-                })
-            }
-        }
+        crate::registry::registry_manifest_source_authority_from_registry_url(&self.registry_url)
     }
 }
 
-/// The registry `registry` names (`--registry`), else the environment's,
-/// else the hosted catalog.
-#[must_use]
+/// The registry `registry` names (`--registry`), else `RUNX_REGISTRY_URL`,
+/// else the hosted catalog: the runx API this runtime talks to. A registry
+/// is a hosted service, named by its URL; a private registry is another
+/// hosted registry, with its own key.
+///
+/// # Errors
+///
+/// Returns a usage error when the registry named is not an `http(s)` URL.
 pub fn resolve_registry_target(
     registry: Option<&str>,
     env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> RegistryTarget {
-    let configured_registry = registry.or_else(|| env.get("RUNX_REGISTRY_URL").map(String::as_str));
-    if let Some(target) = explicit_registry_target(registry, env, cwd) {
-        return target;
+) -> Result<RegistryTarget, ResolveError> {
+    let (named, origin) = match (registry, env.get("RUNX_REGISTRY_URL")) {
+        (Some(registry), _) => (registry, "--registry"),
+        (None, Some(configured)) => (configured.as_str(), "RUNX_REGISTRY_URL"),
+        (None, None) => {
+            return Ok(RegistryTarget {
+                registry_url: hosted_registry_url(env),
+            });
+        }
+    };
+    let named = named.trim();
+    if !is_registry_url(named) {
+        return Err(ResolveError::Usage(format!(
+            "{origin} names a registry by its URL, http:// or https://; '{named}' is not one"
+        )));
     }
-    if let Some(registry) = configured_registry.filter(|value| is_remote_registry_url(value)) {
-        return RegistryTarget::Remote {
-            registry_url: registry.to_owned(),
-        };
-    }
-    // Nothing names a registry, so the hosted catalog serves it: a skill or
-    // connector arrives with no setup, and a publish goes where others fetch
-    // it, as the signed-in publisher. A local registry is always named, and an
-    // empty RUNX_REGISTRY_URL names none and keeps it.
-    if configured_registry.is_none() {
-        return RegistryTarget::Remote {
-            registry_url: hosted_registry_url(env),
-        };
-    }
-    default_local_registry_target(configured_registry, env, cwd)
+    Ok(RegistryTarget {
+        registry_url: named.to_owned(),
+    })
 }
 
 /// The hosted catalog: the runx API this runtime talks to.
 fn hosted_registry_url(env: &BTreeMap<String, String>) -> String {
     env.get(crate::HOSTED_API_BASE_URL_ENV)
         .map(|value| value.trim())
-        .filter(|value| is_remote_registry_url(value))
+        .filter(|value| is_registry_url(value))
         .unwrap_or(crate::DEFAULT_HOSTED_API_BASE_URL)
         .to_owned()
 }
 
-fn explicit_registry_target(
-    registry: Option<&str>,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Option<RegistryTarget> {
-    let registry = registry?;
-    if is_remote_registry_url(registry) {
-        return Some(RegistryTarget::Remote {
-            registry_url: registry.to_owned(),
-        });
-    }
-    Some(RegistryTarget::Local {
-        registry_path: registry_path_from_value(registry, env, cwd),
-        registry_url: env
-            .get("RUNX_REGISTRY_URL")
-            .filter(|value| is_remote_registry_url(value))
-            .cloned(),
-        source_kind: registry_source_kind(registry),
-    })
-}
-
-fn default_local_registry_target(
-    configured_registry: Option<&str>,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> RegistryTarget {
-    local_registry_target(
-        crate::RunxPaths::resolve(env, cwd).registry_cache(),
-        configured_registry,
-    )
-}
-
-fn local_registry_target(
-    registry_path: PathBuf,
-    configured_registry: Option<&str>,
-) -> RegistryTarget {
-    RegistryTarget::Local {
-        registry_path,
-        registry_url: configured_registry.map(ToOwned::to_owned),
-        source_kind: LocalRegistrySourceKind::Local,
-    }
-}
-
-#[must_use]
-pub fn registry_source_description(target: &RegistryTarget) -> String {
-    match target {
-        RegistryTarget::Remote { registry_url } => {
-            format!("remote {}", canonical_registry_url(registry_url))
-        }
-        RegistryTarget::Local {
-            registry_path,
-            source_kind,
-            ..
-        } => match source_kind {
-            LocalRegistrySourceKind::Local => format!("local {}", registry_path.display()),
-            LocalRegistrySourceKind::File => format!("file {}", registry_path.display()),
-        },
-    }
-}
-
-fn registry_path_from_value(value: &str, env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    if let Some(path) = file_url_path(value) {
-        return path;
-    }
-    crate::RunxPaths::resolve(env, cwd).in_workspace(value)
-}
-
-fn registry_source_kind(registry: &str) -> LocalRegistrySourceKind {
-    if file_url_path(registry).is_some() {
-        LocalRegistrySourceKind::File
-    } else {
-        LocalRegistrySourceKind::Local
-    }
-}
-
-fn file_url_path(value: &str) -> Option<PathBuf> {
-    let url = Url::parse(value).ok()?;
-    if url.scheme() != "file" {
-        return None;
-    }
-    url.to_file_path().ok()
-}
-
-fn is_remote_registry_url(value: &str) -> bool {
+fn is_registry_url(value: &str) -> bool {
     value.starts_with("https://") || value.starts_with("http://")
 }
 
@@ -211,46 +78,75 @@ fn is_remote_registry_url(value: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn target(registry: Option<&str>, env: &[(&str, &str)]) -> RegistryTarget {
+    fn target(registry: Option<&str>, env: &[(&str, &str)]) -> Result<RegistryTarget, String> {
         let env = env
             .iter()
             .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-            .chain([("RUNX_HOME".to_owned(), "/home/runx".to_owned())])
             .collect();
-        resolve_registry_target(registry, &env, Path::new("/work"))
-    }
-
-    fn remote_url(target: &RegistryTarget) -> Option<&str> {
-        match target {
-            RegistryTarget::Remote { registry_url } => Some(registry_url),
-            RegistryTarget::Local { .. } => None,
-        }
+        resolve_registry_target(registry, &env).map_err(ResolveError::into_message)
     }
 
     #[test]
-    fn the_hosted_catalog_serves_when_nothing_names_a_registry() {
-        assert_eq!(remote_url(&target(None, &[])), Some("https://api.runx.ai"));
+    fn the_hosted_catalog_serves_when_nothing_names_a_registry() -> Result<(), String> {
+        assert_eq!(target(None, &[])?.registry_url, "https://api.runx.ai");
+        Ok(())
     }
 
     #[test]
-    fn the_hosted_catalog_follows_the_runtime_api_base() {
+    fn the_hosted_catalog_follows_the_runtime_api_base() -> Result<(), String> {
         assert_eq!(
-            remote_url(&target(
+            target(
                 None,
                 &[("RUNX_PUBLIC_API_BASE_URL", "https://api.staging.runx.test")],
-            )),
-            Some("https://api.staging.runx.test")
+            )?
+            .registry_url,
+            "https://api.staging.runx.test"
         );
+        Ok(())
     }
 
     #[test]
-    fn a_named_local_registry_or_an_empty_registry_url_stays_local() {
-        let local = [
-            target(Some("./registry"), &[]),
-            target(None, &[("RUNX_REGISTRY_URL", "")]),
-        ];
-        for target in &local {
-            assert!(remote_url(target).is_none(), "{target:?}");
+    fn a_named_registry_wins_over_the_environment() -> Result<(), String> {
+        assert_eq!(
+            target(
+                Some("https://registry.acme.test"),
+                &[("RUNX_REGISTRY_URL", "https://registry.other.test")],
+            )?
+            .registry_url,
+            "https://registry.acme.test"
+        );
+        assert_eq!(
+            target(
+                None,
+                &[("RUNX_REGISTRY_URL", "https://registry.other.test")]
+            )?
+            .registry_url,
+            "https://registry.other.test"
+        );
+        Ok(())
+    }
+
+    /// A registry is a hosted service: a directory, a file URL or an empty
+    /// RUNX_REGISTRY_URL names none.
+    #[test]
+    fn a_registry_that_is_not_a_url_is_a_usage_error() {
+        for (registry, env) in [
+            (Some("./registry"), &[][..]),
+            (Some("file:///srv/registry"), &[][..]),
+            (None, &[("RUNX_REGISTRY_URL", "")][..]),
+            (None, &[("RUNX_REGISTRY_URL", "/srv/registry")][..]),
+        ] {
+            let named = env
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                .collect();
+            assert!(
+                matches!(
+                    resolve_registry_target(registry, &named),
+                    Err(ResolveError::Usage(message)) if message.contains("names a registry by its URL")
+                ),
+                "{registry:?} {env:?}"
+            );
         }
     }
 }

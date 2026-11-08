@@ -154,7 +154,7 @@ fn a_bare_name_installs_the_newest_version_this_runx_reads()
         files: unreadable_connector_files(),
         ..Publication::new("acme", "2.0.0", markdown, Some(profile))
     })?;
-    let target = RegistryTarget::Remote {
+    let target = RegistryTarget {
         registry_url: registry.url.clone(),
     };
     let env = registry_env(&registry, temp.path())?;
@@ -410,42 +410,6 @@ fn unsigned_candidate_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
 
     assert!(matches!(error, InstallError::UnsignedManifest(_)));
     assert!(!temp.path().join("skills").exists());
-    Ok(())
-}
-
-#[test]
-fn unsigned_local_registry_candidate_installs() -> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let mut candidate = install_candidate()?;
-    candidate.signed_manifest = None;
-    candidate.profile_digest = Some(profile_digest());
-    candidate.package_files = package_files_fixture();
-    candidate.bundle_digest = Some(bundle_digest(&candidate.package_files)?);
-    candidate.manifest_source_authority = Some(RegistryManifestSourceAuthority::RegistrySource(
-        format!("local:{}", temp.path().join("registry").display()),
-    ));
-
-    let install = install_local_skill(
-        &candidate,
-        &InstallLocalSkillOptions {
-            destination_root: temp.path().join("skills"),
-            connectors_root: temp.path().join("connectors"),
-            install_records: temp.path().join(".runx").join("installs"),
-            expected_digest: None,
-            trusted_manifest_keys: Vec::new(),
-        },
-    )?;
-
-    let package_root = install.destination.parent().ok_or("missing package root")?;
-    assert_eq!(
-        std::fs::read_to_string(package_root.join("graph/stage/run.mjs"))?,
-        "console.log('installed');\n"
-    );
-    assert_eq!(install.digest, skill_digest());
-    assert_eq!(
-        install.profile_digest.as_deref(),
-        Some(profile_digest().as_str())
-    );
     Ok(())
 }
 
