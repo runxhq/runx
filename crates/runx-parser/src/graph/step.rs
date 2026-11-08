@@ -594,13 +594,7 @@ fn validate_guard(
     let Some(value) = value else {
         return Ok(Vec::new());
     };
-    let conditions = required_array(Some(value), field)?;
-    if conditions.is_empty() {
-        return Err(validation_error(format!(
-            "{field} lists at least one condition."
-        )));
-    }
-    conditions
+    required_array(Some(value), field)?
         .iter()
         .enumerate()
         .map(|(index, condition_value)| {

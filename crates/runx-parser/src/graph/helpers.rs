@@ -130,9 +130,7 @@ pub fn required_array<'a>(
         return Err(validation_error(format!("{field} must be an array.")));
     };
     if value.is_empty() {
-        return Err(validation_error(format!(
-            "{field} must contain at least one step."
-        )));
+        return Err(validation_error(format!("{field} lists nothing.")));
     }
     Ok(value)
 }

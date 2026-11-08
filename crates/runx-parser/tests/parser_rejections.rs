@@ -437,3 +437,27 @@ fn validation_rejection<T>(result: Result<T, ValidationError>) -> Result<Validat
         .err()
         .ok_or_else(|| "expected validation rejection".to_owned())
 }
+
+#[test]
+fn an_empty_list_is_refused_as_listing_nothing() -> Result<(), String> {
+    for (step, field) in [
+        (
+            "tool: data.digest\n        guard: []",
+            "steps.0.guard lists nothing",
+        ),
+        (
+            "agent: review\n        calls: {tools: []}",
+            "steps.0.calls.tools lists nothing",
+        ),
+    ] {
+        let raw = parse_method_manifest_yaml(&format!(
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: first\n        {step}\n"
+        ))
+        .map_err(|error| error.to_string())?;
+        let error = runx_parser::validate_method_manifest("lists", raw)
+            .err()
+            .ok_or_else(|| format!("an empty list validated: {step}"))?;
+        assert!(error.to_string().contains(field), "{step}: {error}");
+    }
+    Ok(())
+}
