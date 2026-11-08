@@ -76,7 +76,8 @@ export function stayFor(file, line, index, token) {
 export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|harness\/runner\.rs$)|^fixtures\/kernel\/runner\//;
 
 // Files a generator writes, regenerated after a rename and never edited.
-export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json)$|\.gen\.go$|^contracts\/generated\//;
+// Cloud's two API schema modules are scripts/generate-public-schemas.ts's.
+export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json|packages\/api\/src\/generated\/(public-protocol-schemas|purchase-schemas)\.ts)$|\.gen\.go$|^contracts\/generated\//;
 
 // The sources a rename reads, and the guard with it: code, data and prose
 // by extension, Go among them, and Makefiles by name.

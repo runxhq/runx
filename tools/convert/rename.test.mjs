@@ -221,6 +221,21 @@ test("Ausca's own runners stay: a shell variable, a GPU job runner, its sandbox'
   assert.equal(read(root, "docs/methods.md"), "The default method reads the catalog.\n");
 });
 
+// Cloud's pinned cipher label, which every Cloud tree holds.
+const cloudPin = { "packages/api/src/payments/holdings-postgres.ts": 'export const label = "purchase-holdings";\n' };
+
+test("Cloud's generated API schema modules are their generator's", (t) => {
+  const generated = {
+    "packages/api/src/generated/public-protocol-schemas.ts": 'export const publicProtocolSchemas = { Summary: { description: "One harness run, by its runner." } };\n',
+    "packages/api/src/generated/purchase-schemas.ts": 'export const purchaseSchemas = { Offer: { description: "The runner a buyer pays for." } };\n',
+  };
+  const root = tree(t, { ...cloudPin, ...generated, "packages/api/src/generated/index.ts": "// Each harness schema.\n" });
+  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
+  assert.equal(status, 0, out);
+  for (const [file, text] of Object.entries(generated)) assert.equal(read(root, file), text, file);
+  assert.equal(read(root, "packages/api/src/generated/index.ts"), "// Each test schema.\n");
+});
+
 test("Ausca's catalog keys are pinned, so retained history decodes, while the code around them renames", (t) => {
   const root = tree(t, auscaPins);
   const { status, out } = run(RENAME, "apply", "ausca", root, "--write");
