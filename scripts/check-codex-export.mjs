@@ -8,17 +8,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const runx = path.resolve(process.env.RUNX_BIN ?? path.join(root, "crates", "target", "debug", "runx"));
-const installRoot = path.resolve(process.env.RUNX_CODEX_SKILLS_DIR ?? path.join(os.homedir(), ".agents", "skills"));
+const runx = path.resolve(process.env.RUNX_RUST_CLI_BIN ?? path.join(root, "crates", "target", "debug", "runx"));
 const maximumShimBytes = 64 * 1024;
 const failures = [];
 
 if (!existsSync(runx)) fail(`runx binary is missing: ${runx}`);
-if (!existsSync(installRoot)) fail(`Codex skill directory is missing: ${installRoot}`);
+
+// Every public skill is exported into a home of the check's own, so the check
+// reads what this source exports and never a person's installed skills.
+const home = mkdtempSync(path.join(os.tmpdir(), "runx-codex-export-"));
+process.on("exit", () => rmSync(home, { recursive: true, force: true }));
+const installRoot = path.join(home, ".agents", "skills");
+exportInto(home);
 
 // Export admission belongs to native Runx, including standalone readiness and
-// closure binding. A project export exercises that owner without touching the
-// user's installed skills or duplicating its selection rules here.
+// closure binding. A project export exercises that owner without duplicating
+// its selection rules here.
 const publicNames = exportableNames();
 const expectedManaged = [...publicNames, "runx"].sort();
 const installedManaged = readdirSync(installRoot, { withFileTypes: true })
@@ -97,6 +102,18 @@ function inspect(name) {
   } catch (error) {
     fail(`${name}: native inspection returned invalid JSON (${error instanceof Error ? error.message : String(error)})`);
     return undefined;
+  }
+}
+
+function exportInto(target) {
+  const result = spawnSync(runx, ["export", "codex", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, HOME: target, RUNX_HOME: path.join(target, ".runx"), RUNX_CWD: root, RUNX_EXPORT_BIN: runx },
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    fail(`native export failed: ${result.stderr.trim() || result.stdout.trim() || result.error?.message || result.status}`);
   }
 }
 

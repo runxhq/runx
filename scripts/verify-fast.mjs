@@ -72,6 +72,7 @@ if (rustBuild.status === 0) {
       step("release candidate smoke", "node", [
         "scripts/smoke-release-candidate.mjs", "--runx-bin", rustKernelBin,
       ]),
+      step("codex export", "pnpm", ["codex-export:check"]),
       step("test:fast", "pnpm", ["test:fast"]),
     ],
     evalBinEnv,
