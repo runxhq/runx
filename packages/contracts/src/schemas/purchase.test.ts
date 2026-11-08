@@ -143,9 +143,9 @@ describe("purchase V1 contract facade", () => {
           input_schema_digest: digest("d"),
           output_schema_digest: digest("e"),
         },
-        price: { model: "fixed", amount_minor: 125 },
+        price: { basis: "fixed", amount_minor: 125 },
         currency: "USD",
-        accepted_settlement_families: ["x402", "stripe-spt"],
+        accepts: ["x402", "stripe-spt"],
       } },
     } as const;
     expect(validatePaidSkillListingContract(listing)).toBe(listing);
@@ -158,19 +158,19 @@ describe("purchase V1 contract facade", () => {
       ...listing,
       offers: { transcribe: {
         ...listing.offers.transcribe,
-        price: { model: "input_choice", selectors: ["tier"], cases: [
-          { when: ["basic"], amount_minor: 1 },
-          { when: ["basic"], amount_minor: 2 },
+        price: { basis: "by_input", cases: [
+          { inputs: { tier: "basic" }, amount_minor: 1 },
+          { inputs: { tier: "basic" }, amount_minor: 2 },
         ] },
       } },
-    })).toThrow(/one price case/u);
+    })).toThrow(/has one case/u);
     expect(() => validatePaidSkillListingContract({
       ...listing,
       offers: { transcribe: {
         ...listing.offers.transcribe,
-        acts_on: { connector: "acme/inbox", credential: "lease", target: { $result: "/inbox_id" } },
+        requires_lease: { connector: "acme/inbox", credential: "lease", target: { $result: "/inbox_id" } },
       } },
-    })).toThrow(/runner's inputs alone/u);
+    })).toThrow(/method's inputs alone/u);
   });
 
   it("binds nested values through exact generated fragments without new ids", () => {

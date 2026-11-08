@@ -23,7 +23,7 @@ export interface InvocationOptions {
 }
 
 export interface ExecutionBinding {
-  readonly runner: string;
+  readonly method: string;
   readonly packageDigest: string;
   readonly executionClosureDigest: string;
 }
@@ -32,10 +32,11 @@ export interface ExecutionBinding {
 export type SkillInspection = SkillInspectionContract;
 
 export interface SkillInspectOptions extends InvocationOptions {
-  /** Known runner inputs for target readiness; no operations execute. */
+  /** Known method inputs for target readiness; no operations execute. */
   readonly inputs?: Readonly<Record<string, unknown>>;
   readonly skillPath: string;
-  readonly runner?: string;
+  /** The method to inspect or run; the package's default when absent. */
+  readonly method?: string;
   /** The authority a host would start the run with: inspect projects readiness under it. */
   readonly runAuthority?: RunAuthority;
 }
@@ -215,7 +216,7 @@ export interface NativeTestOutput {
   readonly assertion_errors: readonly string[];
   readonly case_names: readonly string[];
   readonly receipt_ids: readonly string[];
-  /** `kind: graph` fixtures that proved the skill composes into a graph. */
+  /** Tests whose run composed the package into a workflow. */
   readonly workflow_case_count: number;
 }
 
@@ -261,7 +262,8 @@ export interface RunxClient {
      */
     install(options: InvocationOptions & { readonly records: readonly unknown[]; readonly registry?: string }): Promise<NativeRecordInstallOutput>;
   };
-  readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeTestOutput> };
+  /** `runx test <path>`: runs a package's tests. */
+  readonly tests: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeTestOutput> };
   readonly artifacts: {
     /** A project artifact by its reference, confined to the project and checked against its digest. */
     read(reference: ProjectArtifactContract, options?: { readonly maxBytes?: number }): Promise<unknown>;

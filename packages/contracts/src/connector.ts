@@ -35,17 +35,8 @@ export type JsonObject = { readonly [key: string]: JsonValue };
 
 export type Template = JsonValue;
 
-export type OperationVerb =
-  | "read"
-  | "write"
-  | "comment"
-  | "review"
-  | "merge"
-  | "create"
-  | "update"
-  | "delete"
-  | "execute"
-  | "revoke";
+/** The authority's own verbs: `read` is a read, and the rest mutate. What kind of write it is lives in the operation's `scopes`. */
+export type OperationVerb = "read" | "write" | "execute" | "revoke";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

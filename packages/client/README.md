@@ -35,13 +35,13 @@ Directory separation is not an operating-system sandbox.
 
 | Operation | Native command |
 | --- | --- |
-| `skills.inspect({ skillPath, runner? })` | `skill inspect` |
-| `skills.run({ skillPath, inputs?, receiptDir, binding?, runner?, act?, context?, runId?, runAuthority? })` | `skill` |
+| `skills.inspect({ skillPath, method? })` | `skill inspect` |
+| `skills.run({ skillPath, inputs?, receiptDir, binding?, method?, act?, context?, runId?, runAuthority? })` | `skill` |
 | `runs.resume({ runId, resolutions, receiptDir, binding? })` | `resume` |
 | `turns.server({ runId, receiptDir })` | `mcp --run` (started by your MCP client) |
 | `packages.materialize({ skillPath })` | `registry package` |
 | `registry.install({ records, registry? })` | `registry install --records -` |
-| `harness.run({ skillPath, receiptDir })` | `harness` |
+| `tests.run({ skillPath, receiptDir })` | `test` |
 | `receipts.verify({ receipt, trust? })` | `verify --receipt - --trust home\|configured` |
 
 Each operation accepts `signal`. Configuration sets `timeoutMs`, combined
@@ -72,7 +72,7 @@ pending call lists what it waits on. The host answers an approval through
 with its output once none of its calls is pending, and the run continues.
 
 Inspection is uncached. An immutable deployment may cache at its owning host.
-An execution binding pins runner, package and execution closure, and native
+An execution binding pins method, package and execution closure, and native
 revalidates it at invocation. Mutable local paths must be inspected again.
 
 Skill output preserves the native status and semantic outcome, including

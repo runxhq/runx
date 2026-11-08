@@ -44,13 +44,13 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         try { return validateRunxListReportContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill listing.", { cause: error }); }
       },
       inspect: async (options) => {
-        const output = parseJson(await execute(["skill", "inspect", argument(options.skillPath), ...methodArgs(options.runner), ...authorityArgs(options.runAuthority), ...(options.inputs ? ["--inputs", "-"] : []), "--json"], options, options.inputs ? payload(options.inputs) : undefined), [0]);
+        const output = parseJson(await execute(["skill", "inspect", argument(options.skillPath), ...methodArgs(options.method), ...authorityArgs(options.runAuthority), ...(options.inputs ? ["--inputs", "-"] : []), "--json"], options, options.inputs ? payload(options.inputs) : undefined), [0]);
         try { return validateSkillInspectionContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill inspection.", { cause: error }); }
       },
       run: async (options) => {
         const receiptDir = absolute(options.receiptDir);
-        if (options.binding && options.runner && options.runner !== options.binding.runner) throw new TypeError("Selected runner differs from the execution binding.");
-        const result = await execute(["skill", argument(options.skillPath), ...methodArgs(options.binding?.runner ?? options.runner), ...bindingArgs(options.binding), ...authorityArgs(options.runAuthority), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
+        if (options.binding && options.method && options.method !== options.binding.method) throw new TypeError("Selected method differs from the execution binding.");
+        const result = await execute(["skill", argument(options.skillPath), ...methodArgs(options.binding?.method ?? options.method), ...bindingArgs(options.binding), ...authorityArgs(options.runAuthority), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
         return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
       },
     },
@@ -131,10 +131,10 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         return output as NativeRecordInstallOutput;
       },
     },
-    harness: {
+    tests: {
       run: async (options) => {
-        const output = parseJson(await execute(["harness", argument(options.skillPath), "--json", "--receipt-dir", absolute(options.receiptDir)], options), [0, 1]);
-        if (!["passed", "failed", "not_declared"].includes(String(output.status)) || ![output.case_count, output.assertion_error_count, output.workflow_case_count].every((value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0) || ![output.assertion_errors, output.case_names, output.receipt_ids].every((value) => Array.isArray(value) && value.every((item) => typeof item === "string"))) throw new RunxClientError("contract", "Invalid native harness summary.");
+        const output = parseJson(await execute(["test", argument(options.skillPath), "--json", "--receipt-dir", absolute(options.receiptDir)], options), [0, 1]);
+        if (!["passed", "failed", "not_declared"].includes(String(output.status)) || ![output.case_count, output.assertion_error_count, output.workflow_case_count].every((value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0) || ![output.assertion_errors, output.case_names, output.receipt_ids].every((value) => Array.isArray(value) && value.every((item) => typeof item === "string"))) throw new RunxClientError("contract", "Invalid native test summary.");
         return output as unknown as NativeTestOutput;
       },
     },
@@ -174,7 +174,7 @@ function methodArgs(value?: string): string[] { return value ? [argument(value)]
 function authorityArgs(authority?: RunAuthority): string[] { return authority ? ["--run-authority", JSON.stringify(authority)] : []; }
 function bindingArgs(binding?: ExecutionBinding): string[] {
   if (!binding) return [];
-  argument(binding.runner);
+  argument(binding.method);
   if (![binding.packageDigest, binding.executionClosureDigest].every((value) => /^sha256:[0-9a-f]{64}$/u.test(value))) throw new TypeError("Invalid native execution binding digests.");
   return ["--package-digest", binding.packageDigest, "--execution-closure-digest", binding.executionClosureDigest];
 }

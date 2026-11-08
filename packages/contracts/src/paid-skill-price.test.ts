@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   PaidSkillPriceError,
-  paidSkillActsOnProblem,
   paidSkillPriceAmount,
   paidSkillPricedArtifactRef,
   paidSkillPriceProblem,
+  paidSkillRequiredLeaseProblem,
 } from "./paid-skill-price.js";
 import type { PaidSkillPriceContract } from "./generated/contract-types.js";
 import { paidSkillListingV1Schema } from "./schemas/purchase.js";
@@ -45,7 +45,7 @@ function priceIsValid(price: PaidSkillPriceContract): boolean {
     },
     price,
     currency: "USD",
-    accepted_settlement_families: ["x402"],
+    accepts: ["x402"],
   };
   try {
     validateContractSchema(paidSkillListingV1Schema, {
@@ -85,10 +85,10 @@ describe("paid skill prices agree with the Rust contract", () => {
   }
 });
 
-describe("what a paid runner acts on", () => {
-  it("is named by the runner's inputs alone", () => {
-    const actsOn = (target: unknown) => ({ connector: "ausca/inbox", credential: "lease", target });
-    expect(paidSkillActsOnProblem(actsOn({ $concat: ["ausca:agent-inbox/", { $argument: "/inbox_id" }] })))
+describe("the lease a paid method's buyer holds", () => {
+  it("is named by the method's inputs alone", () => {
+    const lease = (target: unknown) => ({ connector: "ausca/inbox", credential: "lease", target });
+    expect(paidSkillRequiredLeaseProblem(lease({ $concat: ["ausca:agent-inbox/", { $argument: "/inbox_id" }] })))
       .toBeUndefined();
     for (const target of [
       "ausca:agent-inbox",
@@ -96,7 +96,7 @@ describe("what a paid runner acts on", () => {
       { $concat: ["ausca:agent-inbox/", { $parameter: "/inbox_id" }] },
       { $concat: [{ $argument: "/inbox_id" }, { $runx: "purchase" }] },
     ]) {
-      expect(paidSkillActsOnProblem(actsOn(target)), JSON.stringify(target)).toBeDefined();
+      expect(paidSkillRequiredLeaseProblem(lease(target)), JSON.stringify(target)).toBeDefined();
     }
   });
 });

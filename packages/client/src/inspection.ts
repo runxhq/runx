@@ -7,15 +7,15 @@ function textOrUndefined(value: unknown): string | undefined { return typeof val
 export function executionBindingFromInspection(
   inspection: SkillInspection,
 ): ExecutionBinding {
-  const runner = isRecord(inspection.runner)
-    ? textOrUndefined(inspection.runner.name)
+  const method = isRecord(inspection.method)
+    ? textOrUndefined(inspection.method.name)
     : undefined;
   const packageDigest = textOrUndefined(inspection.package_digest);
-  if (!runner || !packageDigest) {
-    throw new Error("Native skill inspection omitted its selected runner or package digest.");
+  if (!method || !packageDigest) {
+    throw new Error("Native skill inspection omitted its selected method or package digest.");
   }
   const executionClosureDigest = executionClosureFromInspection(inspection).closureDigest;
-  return { runner, packageDigest, executionClosureDigest };
+  return { method, packageDigest, executionClosureDigest };
 }
 
 export function assertInspectionMatchesBinding(
@@ -23,9 +23,9 @@ export function assertInspectionMatchesBinding(
   inspection: SkillInspection,
 ): void {
   const inspected = executionBindingFromInspection(inspection);
-  if (inspected.runner !== binding.runner) {
+  if (inspected.method !== binding.method) {
     throw new Error(
-      `Native inspection selected runner '${inspected.runner}' instead of bound runner '${binding.runner}'.`,
+      `Native inspection selected method '${inspected.method}' instead of bound method '${binding.method}'.`,
     );
   }
   if (inspected.packageDigest !== binding.packageDigest) {
@@ -42,7 +42,7 @@ export function assertInspectionMatchesBinding(
 
 export interface ExecutionPackageBinding {
   readonly skill: string;
-  readonly runner: string;
+  readonly method: string;
   readonly packageDigest: string;
   readonly sourceKind: "source_root" | "registry";
   readonly sourcePath: string;
@@ -78,7 +78,8 @@ export function executionClosureFromInspection(
       throw new Error(`Native execution-closure package ${index} is not an object.`);
     }
     const skill = textOrUndefined(value.skill);
-    const runner = textOrUndefined(value.runner);
+    // The closure's wire key still says `runner`.
+    const method = textOrUndefined(value.runner);
     const packageDigest = textOrUndefined(value.package_digest);
     const sourceKind = value.source_kind;
     const admittedSourceKind: ExecutionPackageBinding["sourceKind"] | undefined =
@@ -89,17 +90,17 @@ export function executionClosureFromInspection(
     const sourceFiles = stringList(value.source_files);
     if (
       !skill
-      || !runner
+      || !method
       || !packageDigest
       || !admittedSourceKind
       || !sourcePath
       || sourceFiles.length === 0
     ) {
       throw new Error(
-        `Native execution-closure package ${index} omitted skill, runner, package digest, source kind, source path, or admitted files.`,
+        `Native execution-closure package ${index} omitted skill, method, package digest, source kind, source path, or admitted files.`,
       );
     }
-    return { skill, runner, packageDigest, sourceKind: admittedSourceKind, sourcePath, sourceFiles };
+    return { skill, method, packageDigest, sourceKind: admittedSourceKind, sourcePath, sourceFiles };
   });
   const declared = closure.connector_bindings ?? [];
   if (!Array.isArray(declared)) throw new Error("Native execution closure's connector bindings are not a list.");

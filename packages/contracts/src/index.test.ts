@@ -195,15 +195,15 @@ describe("@runxhq/contracts", () => {
     expect(runxGeneratedSchemaArtifacts["act-result.schema.json"].$id).toBe(actResultEnvelopeSchema.$id);
 
     expect(validateOutputContract({
-      summary: "string",
-      verdict: {
-        type: "string",
-        enum: ["pass", "fail"],
-        required: true,
-      },
+      summary: { type: "string" },
+      verdict: { type: "string", enum: ["pass", "fail"] },
+      note: { type: "string", optional: true },
+      plan: { type: "object", packet: "runx/github.sync_plan.v1" },
     })).toMatchObject({
-      summary: "string",
+      summary: { type: "string" },
     });
+    // A field is its JSON Schema: a bare type name is not one.
+    expect(() => validateOutputContract({ summary: "string" })).toThrow();
 
     expect(validateAgentContextEnvelopeContract({
       run_id: "rx_contract",
@@ -219,13 +219,13 @@ describe("@runxhq/contracts", () => {
       historical_context: [],
       provenance: [],
       output: {
-        summary: "string",
+        summary: { type: "string" },
       },
       trust_boundary: "test",
     })).toMatchObject({
       run_id: "rx_contract",
       output: {
-        summary: "string",
+        summary: { type: "string" },
       },
     });
 

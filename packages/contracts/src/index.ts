@@ -103,10 +103,10 @@ export {
 export {
   PaidSkillPriceError,
   type PaidSkillPriceErrorCode,
-  paidSkillActsOnProblem,
   paidSkillPriceAmount,
   paidSkillPricedArtifactRef,
   paidSkillPriceProblem,
+  paidSkillRequiredLeaseProblem,
 } from "./paid-skill-price.js";
 export {
   PURCHASE_CLAIM_SCHEMA,

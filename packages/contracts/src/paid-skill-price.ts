@@ -1,12 +1,12 @@
 import { canonicalJsonStringify } from "./canonical-json.js";
 import type {
-  PaidSkillActsOnContract,
   PaidSkillPriceCaseContract,
   PaidSkillPriceContract,
+  RequiredLeaseContract,
 } from "./generated/contract-types.js";
 
-/** A selector value a price case matches: a string, a portable integer or a boolean. */
-type PaidSkillPriceChoiceContract = PaidSkillPriceCaseContract["when"][number];
+/** A value a price case matches: a string, a portable integer or a boolean. */
+type PaidSkillPriceChoiceContract = PaidSkillPriceCaseContract["inputs"][string];
 
 /**
  * Paid skill prices, as the Rust contract computes them:
@@ -14,12 +14,12 @@ type PaidSkillPriceChoiceContract = PaidSkillPriceCaseContract["when"][number];
  */
 
 const MAX_PORTABLE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER);
-const MAX_PRICE_SELECTORS = 4;
+const MAX_PRICED_INPUTS = 4;
 const MAX_PRICE_CASES = 256;
 
 export type PaidSkillPriceErrorCode =
   | "invalid"
-  | "missing_selector"
+  | "missing_input"
   | "no_case"
   | "artifact_size_unknown"
   | "artifact_empty"
@@ -32,40 +32,51 @@ export class PaidSkillPriceError extends Error {
   }
 }
 
+/** The inputs a price reads, in name order. */
+function pricedInputs(price: PaidSkillPriceContract): readonly string[] {
+  switch (price.basis) {
+    case "fixed":
+      return [];
+    case "by_input":
+      return Object.keys(price.cases[0]?.inputs ?? {}).sort();
+    case "by_size":
+      return [price.input];
+  }
+}
+
 /**
- * Why a price breaks its own invariants, or undefined: unique selectors, one
- * case per combination with one value per selector, and a byte price whose
- * largest amount is still a portable integer.
+ * Why a price breaks its own invariants, or undefined: every case names the
+ * same one to four priced inputs, each combination of their values has one
+ * case, and a size price's largest amount is still a portable integer.
  */
 export function paidSkillPriceProblem(price: PaidSkillPriceContract): string | undefined {
-  switch (price.model) {
+  switch (price.basis) {
     case "fixed":
       return undefined;
-    case "input_choice": {
-      const { selectors, cases } = price;
-      if (selectors.length === 0 || selectors.length > MAX_PRICE_SELECTORS) {
-        return "an input_choice price names one to four selectors";
-      }
-      if (new Set(selectors).size !== selectors.length) {
-        return "an input_choice price names each selector once";
-      }
+    case "by_input": {
+      const { cases } = price;
       if (cases.length === 0 || cases.length > MAX_PRICE_CASES) {
-        return "an input_choice price has one to 256 cases";
+        return "a by_input price has one to 256 cases";
+      }
+      const priced = pricedInputs(price);
+      if (priced.length === 0 || priced.length > MAX_PRICED_INPUTS) {
+        return "a by_input price reads one to four inputs";
       }
       const seen = new Set<string>();
       for (const priceCase of cases) {
-        if (priceCase.when.length !== selectors.length) {
-          return "each price case gives one value per selector";
+        const names = Object.keys(priceCase.inputs).sort();
+        if (names.length !== priced.length || names.some((name, index) => name !== priced[index])) {
+          return "each price case names the same priced inputs";
         }
-        const key = canonicalJsonStringify(priceCase.when);
-        if (seen.has(key)) return "each combination of selector values has one price case";
+        const key = canonicalJsonStringify(priceCase.inputs);
+        if (seen.has(key)) return "each combination of priced input values has one case";
         seen.add(key);
       }
       return undefined;
     }
-    case "artifact_bytes":
+    case "by_size":
       return artifactAmount(price, BigInt(price.max_bytes)) === undefined
-        ? "an artifact_bytes price must stay a portable amount up to max_bytes"
+        ? "a by_size price must stay a portable amount up to max_bytes"
         : undefined;
   }
 }
@@ -73,47 +84,45 @@ export function paidSkillPriceProblem(price: PaidSkillPriceContract): string | u
 const STORED_ARTIFACT_REF = /^runx:artifact:sha256:[0-9a-f]{64}$/u;
 
 /**
- * The stored artifact an `artifact_bytes` price reads: the `artifact_uri` its
- * input holds. Its committed size, looked up by the caller, is what the call
- * costs.
+ * The stored artifact a `by_size` price reads: the `artifact_uri` its input
+ * holds. Its committed size, looked up by the caller, is what the call costs.
  */
 export function paidSkillPricedArtifactRef(
   price: PaidSkillPriceContract,
   inputs: Readonly<Record<string, unknown>>,
 ): string | undefined {
-  if (price.model !== "artifact_bytes" || !Object.hasOwn(inputs, price.artifact_input)) return undefined;
-  const value = inputs[price.artifact_input];
+  if (price.basis !== "by_size" || !Object.hasOwn(inputs, price.input)) return undefined;
+  const value = inputs[price.input];
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
   const reference = (value as Record<string, unknown>).artifact_uri;
   return typeof reference === "string" && STORED_ARTIFACT_REF.test(reference) ? reference : undefined;
 }
 
 /**
- * What one call with `inputs` costs. An `artifact_bytes` price reads the
- * committed size of the artifact its input names, looked up before payment.
+ * What one call with `inputs` costs. A `by_size` price reads the committed
+ * size of the artifact its input names, looked up before payment.
  */
 export function paidSkillPriceAmount(
   price: PaidSkillPriceContract,
   inputs: Readonly<Record<string, unknown>>,
   artifactSizeBytes?: number,
 ): number {
-  switch (price.model) {
+  switch (price.basis) {
     case "fixed":
       return price.amount_minor;
-    case "input_choice": {
-      const values = price.selectors.map((selector) => {
-        if (!Object.hasOwn(inputs, selector)) {
-          throw new PaidSkillPriceError("missing_selector", `price selector input ${selector} is missing`);
+    case "by_input": {
+      for (const name of pricedInputs(price)) {
+        if (!Object.hasOwn(inputs, name)) {
+          throw new PaidSkillPriceError("missing_input", `priced input ${name} is missing`);
         }
-        return inputs[selector];
-      });
+      }
       const matched = price.cases.find((priceCase) =>
-        priceCase.when.every((choice, index) => sameChoice(choice, values[index]))
+        Object.entries(priceCase.inputs).every(([name, choice]) => sameChoice(choice, inputs[name]))
       );
       if (!matched) throw new PaidSkillPriceError("no_case", "no price case matches these inputs");
       return matched.amount_minor;
     }
-    case "artifact_bytes": {
+    case "by_size": {
       if (artifactSizeBytes === undefined) {
         throw new PaidSkillPriceError("artifact_size_unknown", "the priced artifact's committed size is unknown");
       }
@@ -141,7 +150,7 @@ function sameChoice(choice: PaidSkillPriceChoiceContract, value: unknown): boole
 }
 
 function artifactAmount(
-  price: Extract<PaidSkillPriceContract, { model: "artifact_bytes" }>,
+  price: Extract<PaidSkillPriceContract, { basis: "by_size" }>,
   sizeBytes: bigint,
 ): number | undefined {
   const unitBytes = BigInt(price.unit_bytes);
@@ -151,15 +160,15 @@ function artifactAmount(
 }
 
 /**
- * Why what a paid runner acts on breaks its contract, or undefined: its
- * target binds the runner's inputs, and nothing else, so it names the held
- * resource before the purchase.
+ * Why the lease a paid method's buyer must hold breaks its contract, or
+ * undefined: its target binds the method's inputs, and nothing else, so it
+ * names the leased resource before the purchase.
  */
-export function paidSkillActsOnProblem(actsOn: PaidSkillActsOnContract): string | undefined {
+export function paidSkillRequiredLeaseProblem(lease: RequiredLeaseContract): string | undefined {
   const bindings = new Set<string>();
-  collectBindings(actsOn.target, bindings);
+  collectBindings(lease.target, bindings);
   if (!bindings.has("$argument") || [...bindings].some((binding) => binding !== "$argument")) {
-    return "acts_on target is rendered from the runner's inputs alone";
+    return "requires_lease target is rendered from the method's inputs alone";
   }
   return undefined;
 }

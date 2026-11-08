@@ -23,7 +23,7 @@ import type {
   QuotePurchaseRequestContract,
   QuotePurchaseResultContract,
 } from "../generated/contract-types.js";
-import { paidSkillActsOnProblem, paidSkillPriceProblem } from "../paid-skill-price.js";
+import { paidSkillPriceProblem, paidSkillRequiredLeaseProblem } from "../paid-skill-price.js";
 
 declare const runxPrincipalIdBrand: unique symbol;
 
@@ -142,11 +142,11 @@ export function validatePaidSkillListingContract(value: unknown, label = "paid_s
     validatePaidSkillListing,
   );
   // The invariants a schema cannot state, checked as the Rust contract does.
-  for (const [runner, offer] of Object.entries(listing.offers)) {
+  for (const [method, offer] of Object.entries(listing.offers)) {
     const priceProblem = paidSkillPriceProblem(offer.price);
-    if (priceProblem) throw new Error(`${label}.offers.${runner}.price: ${priceProblem}.`);
-    const actsOnProblem = offer.acts_on ? paidSkillActsOnProblem(offer.acts_on) : undefined;
-    if (actsOnProblem) throw new Error(`${label}.offers.${runner}.acts_on: ${actsOnProblem}.`);
+    if (priceProblem) throw new Error(`${label}.offers.${method}.price: ${priceProblem}.`);
+    const leaseProblem = offer.requires_lease ? paidSkillRequiredLeaseProblem(offer.requires_lease) : undefined;
+    if (leaseProblem) throw new Error(`${label}.offers.${method}.requires_lease: ${leaseProblem}.`);
   }
   return listing;
 }
