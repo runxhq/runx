@@ -14,7 +14,7 @@
 // read in place, never replaced here.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
@@ -349,6 +349,16 @@ function apply(repo, root, write, list) {
     if (!write) continue;
     mkdirSync(path.dirname(path.join(root, to)), { recursive: true });
     renameSync(path.join(root, from), path.join(root, to));
+  }
+  // A folder the moves emptied goes too, and so does a parent it empties.
+  if (write) {
+    for (const from of moves.keys()) {
+      for (let dir = path.dirname(from); dir !== "."; dir = path.dirname(dir)) {
+        const full = path.join(root, dir);
+        if (!existsSync(full) || readdirSync(full).length > 0) break;
+        rmdirSync(full);
+      }
+    }
   }
   process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed\n`);
   return 0;
