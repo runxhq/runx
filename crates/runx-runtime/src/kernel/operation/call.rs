@@ -12,21 +12,23 @@ const MAX_PROJECTED: usize = 50;
 const MAX_EPHEMERAL: usize = 16;
 const MAX_TEXT: usize = 512;
 
-/// One operation call, decoded from the step's materialized inputs.
+/// One operation call, decoded from the step's materialized inputs: the call
+/// an operation step binds, in its own words. A turn's call reaches it the
+/// same way.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct OperationCall {
     /// The connector a run-time requirement chose. Bound by the parser from
-    /// the requirement's `connector_from`; never written by an author.
+    /// the requirement's `choose`; never written by an author.
     #[serde(default)]
     pub connector: Option<String>,
-    /// The operation chosen at run time, when the step names only its
-    /// requirement.
+    /// The operation chosen at run time, when the step's `operation` chooses
+    /// one from its `from`.
     #[serde(default)]
-    pub operation_name: Option<OperationName>,
+    pub operation: Option<OperationName>,
     /// The operation's arguments: the payload the intent digests.
     #[serde(default)]
-    pub input: JsonObject,
+    pub inputs: JsonObject,
     /// The caller's request key. Required for mutations.
     #[serde(default)]
     pub idempotency_key: Option<String>,
@@ -35,26 +37,37 @@ pub(crate) struct OperationCall {
     pub approval: Option<ApprovalText>,
     #[serde(default)]
     pub amount: Option<OperationAmount>,
-    /// Result fields that must hold these values before the result is trusted.
+    /// What the result must hold.
     #[serde(default)]
-    pub expected_result: Option<JsonObject>,
+    pub result: CallResult,
+    /// The confirmed mutation this read verifies: the provider operation of
+    /// the step it `confirms`. A failed readback holds the mutation for
+    /// reconciliation instead of failing it.
     #[serde(default)]
-    pub result_fields: Option<Vec<String>>,
-    #[serde(default)]
-    pub optional_result_fields: Option<Vec<String>>,
-    /// Nested result paths delivered only to the immediate caller: their
-    /// values stay out of graph state and receipts.
-    #[serde(default)]
-    pub ephemeral_result_paths: Option<Vec<String>>,
-    /// The confirmed mutation this read verifies. A failed readback holds the
-    /// mutation for reconciliation instead of failing it.
-    #[serde(default)]
-    pub readback_of: Option<JsonObject>,
+    pub confirms: Option<JsonObject>,
     /// The act the call performs, as its caller states it. Bound into the
     /// admitted intent and sealed in the call's receipt; never sent to the
     /// provider.
     #[serde(default)]
     pub act: Option<CallAct>,
+}
+
+/// An operation step's `result`: the fields it must and may hold, the values
+/// it must equal, and the paths never persisted.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CallResult {
+    #[serde(default)]
+    pub required: Option<Vec<String>>,
+    #[serde(default)]
+    pub optional: Option<Vec<String>>,
+    /// Result fields that must hold these values before the result is trusted.
+    #[serde(default)]
+    pub equals: Option<JsonObject>,
+    /// Nested result paths delivered only to the immediate caller: their
+    /// values stay out of graph state and receipts.
+    #[serde(default)]
+    pub ephemeral: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, Deserialize)]
@@ -93,24 +106,21 @@ impl OperationCall {
         if let Some(act) = &call.act {
             act.check()?;
         }
-        if call.input.contains_key("idempotency_key") {
+        if call.inputs.contains_key("idempotency_key") {
             return Err(
-                "input must not carry idempotency_key; runx derives the provider key".to_owned(),
+                "inputs must not carry idempotency_key; runx derives the provider key".to_owned(),
             );
         }
         Ok(call)
     }
 
     pub(crate) fn shape(&self) -> Result<ResultShape, String> {
-        let required = projected(self.result_fields.as_deref(), "result_fields")?;
-        let optional = projected(
-            self.optional_result_fields.as_deref(),
-            "optional_result_fields",
-        )?;
+        let required = projected(self.result.required.as_deref(), "result.required")?;
+        let optional = projected(self.result.optional.as_deref(), "result.optional")?;
         if let (Some(required), Some(optional)) = (&required, &optional)
             && optional.iter().any(|field| required.contains(field))
         {
-            return Err("result_fields and optional_result_fields must not overlap".to_owned());
+            return Err("result.required and result.optional must not overlap".to_owned());
         }
         let projected_fields = required
             .iter()
@@ -118,21 +128,21 @@ impl OperationCall {
             .flatten()
             .map(String::as_str)
             .collect::<BTreeSet<_>>();
-        let ephemeral = ephemeral_paths(self.ephemeral_result_paths.as_deref(), &projected_fields)?;
+        let ephemeral = ephemeral_paths(self.result.ephemeral.as_deref(), &projected_fields)?;
         let total = required.as_ref().map_or(0, Vec::len)
             + optional.as_ref().map_or(0, Vec::len)
             + ephemeral.len();
         if total > MAX_PROJECTED {
             return Err(format!(
-                "result fields and ephemeral result paths must contain at most {MAX_PROJECTED} entries in total"
+                "result.required, result.optional and result.ephemeral must contain at most {MAX_PROJECTED} entries in total"
             ));
         }
-        if let Some(expected) = &self.expected_result
+        if let Some(expected) = &self.result.equals
             && (expected.is_empty()
                 || expected.len() > MAX_PROJECTED
                 || expected.keys().any(|field| !valid_field(field)))
         {
-            return Err("expected_result must hold 1 to 50 safe top-level fields".to_owned());
+            return Err("result.equals must hold 1 to 50 safe top-level fields".to_owned());
         }
         Ok(ResultShape {
             required,
@@ -172,7 +182,7 @@ fn ephemeral_paths(
     };
     if paths.is_empty() || paths.len() > MAX_EPHEMERAL {
         return Err(format!(
-            "ephemeral_result_paths must contain 1 to {MAX_EPHEMERAL} entries"
+            "result.ephemeral must contain 1 to {MAX_EPHEMERAL} entries"
         ));
     }
     let mut parsed: Vec<Vec<String>> = Vec::with_capacity(paths.len());
@@ -186,7 +196,7 @@ fn ephemeral_paths(
                 (2..=8).contains(&segments.len())
                     && segments.iter().all(|segment| valid_field(segment))
             })
-            .ok_or("ephemeral_result_paths entries must name 2 to 8 safe object fields")?;
+            .ok_or("result.ephemeral entries must name 2 to 8 safe object fields")?;
         if !projected.contains(segments[0].as_str()) {
             return Err(
                 "each ephemeral result path must descend from a projected result field".to_owned(),
@@ -196,7 +206,7 @@ fn ephemeral_paths(
             .iter()
             .any(|existing| is_prefix(existing, &segments) || is_prefix(&segments, existing))
         {
-            return Err("ephemeral_result_paths must be unique and non-overlapping".to_owned());
+            return Err("result.ephemeral paths must be unique and non-overlapping".to_owned());
         }
         parsed.push(segments);
     }

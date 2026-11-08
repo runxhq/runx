@@ -862,7 +862,7 @@ pub(crate) fn execute(
     let intent_digest = admitted.intent_digest().as_str().to_owned();
     let provider_key = context.provider_key();
     let unknown = |reason: String| {
-        if context.call.readback_of.is_some() {
+        if context.call.confirms.is_some() {
             RuntimeError::ProviderReadbackPending {
                 step_id: step_id.to_owned(),
                 reason,
@@ -1050,7 +1050,7 @@ pub(crate) fn execute(
                     .map_err(|error| {
                         RuntimeError::effect_state("recording the rejection", error.to_string())
                     })?;
-                if context.call.readback_of.is_some() {
+                if context.call.confirms.is_some() {
                     return Err(read_failure(context, step_id, reason));
                 }
                 return Err(RuntimeError::ProviderEffectRejected {
@@ -1071,7 +1071,7 @@ pub(crate) fn execute(
                     RuntimeError::effect_state("recording the unknown outcome", error.to_string())
                 })?;
             }
-            Err(if context.call.readback_of.is_some() {
+            Err(if context.call.confirms.is_some() {
                 read_failure(context, step_id, reason)
             } else {
                 unknown(reason)
@@ -1260,7 +1260,7 @@ fn dispatch(
                 release: true,
             })?,
     };
-    let arguments = JsonValue::Object(context.call.input.clone());
+    let arguments = JsonValue::Object(context.call.inputs.clone());
     let call = AdmittedCall {
         connector: admitted.connector.manifest.name.as_str(),
         operation: admitted.operation.as_str(),
@@ -1326,7 +1326,7 @@ fn dispatch(
                         operation: admitted.operation.as_str(),
                         operation_digest: admitted.intent().operation_digest.as_str(),
                         implementation_digest: &implementation_digest,
-                        input: &context.call.input,
+                        input: &context.call.inputs,
                         idempotency_key: provider_key.as_deref(),
                     };
                     Egress::Connect(&gateway)
@@ -1502,7 +1502,7 @@ fn private_driver(
 ) -> Result<Readback, Failure> {
     let admitted = &context.admitted;
     let operation = admitted.operation();
-    let mut input = context.call.input.clone();
+    let mut input = context.call.inputs.clone();
     if let Some(key) = provider_key {
         input.insert("idempotency_key".to_owned(), JsonValue::String(key));
     }
@@ -1882,7 +1882,7 @@ fn effects(context: &OperationAdmission, result: &JsonValue) -> Result<Vec<Refer
         effect,
         context.admitted.operation().repeated_write(),
         &runx_contracts::connector::TemplateInputs {
-            arguments: Some(&JsonValue::Object(context.call.input.clone())),
+            arguments: Some(&JsonValue::Object(context.call.inputs.clone())),
             parameters: Some(&context.admitted.instance.parameters),
             result: Some(result),
             ..runx_contracts::connector::TemplateInputs::default()
@@ -2032,7 +2032,7 @@ fn finish(
     let mut packet = readback
         .into_packet(
             &context.shape,
-            context.call.expected_result.as_ref(),
+            context.call.result.equals.as_ref(),
             &Seal {
                 access: operation.access().as_str(),
                 finality: operation.finality(),
@@ -2260,7 +2260,7 @@ fn human(
     // already names.
     crate::approval::carry_payload(
         &mut gate,
-        JsonValue::Object(context.call.input.clone()),
+        JsonValue::Object(context.call.inputs.clone()),
         &context.lanes.artifacts,
         &context.lanes.run_id,
     )
@@ -2311,7 +2311,7 @@ fn idempotency_key(intent_digest: &str, format: IdempotencyKeyFormat) -> String 
 }
 
 fn read_failure(context: &OperationAdmission, step_id: &str, reason: String) -> RuntimeError {
-    if context.call.readback_of.is_some() {
+    if context.call.confirms.is_some() {
         return RuntimeError::ProviderReadbackPending {
             step_id: step_id.to_owned(),
             reason,

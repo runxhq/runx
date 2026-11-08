@@ -359,7 +359,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
             gate_type: Some("provider_usage".to_owned()),
         });
     }
-    let digests = digest(&call.input).and_then(|payload_digest| {
+    let digests = digest(&call.inputs).and_then(|payload_digest| {
         let approval_digest = approval.as_ref().map(digest).transpose()?;
         // The act is bound into the intent, so its approval and custody are
         // the act's: a changed act is another call.
@@ -900,12 +900,12 @@ fn readiness(
                     })
                 })
                 .filter_map(|step| {
-                    step.inputs.get("input").map(|input| {
+                    step.inputs.get("inputs").map(|inputs| {
                         (
-                            Some(input),
-                            step.bindings
-                                .iter()
-                                .any(|binding| binding.at.first().is_none_or(|key| key == "input")),
+                            Some(inputs),
+                            step.bindings.iter().any(|binding| {
+                                binding.at.first().is_none_or(|key| key == "inputs")
+                            }),
                         )
                     })
                 })
@@ -1077,13 +1077,13 @@ fn requirement(
             chosen.as_str()
         }
     };
-    let operation = match (&step.operation, &call.operation_name) {
+    let operation = match (&step.operation, &call.operation) {
         (Some(operation), None) => operation.clone(),
         (None, Some(operation)) => operation.clone(),
         (Some(_), Some(_)) => {
-            return Err("the step names its operation and also an operation_name".to_owned());
+            return Err("the step names its operation and also chooses one".to_owned());
         }
-        (None, None) => return Err("the step chooses no operation_name".to_owned()),
+        (None, None) => return Err("the step chooses no operation".to_owned()),
     };
     if !declared.lists(operation.as_str()) {
         return Err(format!(
@@ -1182,7 +1182,7 @@ fn leased_resource(
             .is_some_and(runx_contracts::connector::CredentialDeclaration::is_lease)
     })?;
     Some((|| {
-        let arguments = JsonValue::Object(evaluation.call.input.clone());
+        let arguments = JsonValue::Object(evaluation.call.inputs.clone());
         let target = operation
             .target
             .template
@@ -1224,8 +1224,8 @@ fn call_shape(
 ) -> Result<(String, Option<String>, Option<OperationAmount>), String> {
     let call = evaluation.call;
     let access = operation.access();
-    input_conforms(operation, &call.input)?;
-    let arguments = JsonValue::Object(call.input.clone());
+    input_conforms(operation, &call.inputs)?;
+    let arguments = JsonValue::Object(call.inputs.clone());
     let rendered = operation
         .target
         .template
@@ -1278,8 +1278,8 @@ fn call_shape(
         }
         _ => {}
     }
-    if call.readback_of.is_some() && access != OperationAccess::Read {
-        return Err("readback_of applies only to reads".to_owned());
+    if call.confirms.is_some() && access != OperationAccess::Read {
+        return Err("confirms applies only to reads".to_owned());
     }
     Ok((target, request_key, expected_amount))
 }

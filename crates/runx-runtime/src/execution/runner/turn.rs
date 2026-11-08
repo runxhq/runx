@@ -932,6 +932,10 @@ where
                         "an operation call takes connector, input, idempotency_key, amount and act, not {field}"
                     ));
                 }
+                // The call's arguments are its step's `inputs`.
+                if let Some(arguments) = inputs.remove("input") {
+                    inputs.insert("inputs".to_owned(), arguments);
+                }
                 let declared = self
                     .declared(requirement.as_str())
                     .map_err(|error| error.to_string())?;

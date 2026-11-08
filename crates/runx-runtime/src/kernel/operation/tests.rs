@@ -663,7 +663,7 @@ fn a_financial_call_cannot_understate_its_provider_inputs_to_bypass_the_runs_lim
     std::fs::write(path, serde_json::to_string(&manifest).unwrap()).unwrap();
     fixture.set_credential("fixture/forge", "token", "forge-local-token");
     let mut inputs: JsonObject = serde_json::from_value(serde_json::json!({
-        "input":{"repository":"acme/app","updates":[{"number":7,"patch":{"title":"ready"}}],"amount_minor":100,"currency":"usd"},
+        "inputs":{"repository":"acme/app","updates":[{"number":7,"patch":{"title":"ready"}}],"amount_minor":100,"currency":"usd"},
         "idempotency_key":"bound-payment-1", "amount":{"units":1,"unit":"USD"},
     })).unwrap();
     let error = fixture
@@ -796,7 +796,7 @@ fn assert_projected_acknowledgement_recovers(oauth: bool) {
         },
     );
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"repository": "acme/app", "updates": [{"number": 7, "patch": {"title": "ready"}}]},
+        "inputs": {"repository": "acme/app", "updates": [{"number": 7, "patch": {"title": "ready"}}]},
         "idempotency_key": "projection-recovery-1",
     })).unwrap();
     fixture.provider.answer(Answer::TimeOut);
@@ -874,7 +874,7 @@ fn assert_projected_acknowledgement_recovers(oauth: bool) {
 
 fn post(text: &str) -> JsonObject {
     serde_json::from_value(serde_json::json!({
-        "input": {"channel_locator": "chat://T123/C456", "text": text},
+        "inputs": {"channel_locator": "chat://T123/C456", "text": text},
         "idempotency_key": "post-1",
     }))
     .unwrap()
@@ -971,7 +971,7 @@ fn an_agent_cannot_stand_in_for_a_person() {
 fn a_read_never_asks_and_never_takes_an_approval() {
     let fixture = Fixture::new(&["channel.post.read"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"conversation_locator": "chat://T123/C456"},
+        "inputs": {"conversation_locator": "chat://T123/C456"},
     }))
     .unwrap();
     let (_, outcome) = fixture.run("read", &inputs, None).expect("reads");
@@ -991,7 +991,7 @@ fn a_read_never_asks_and_never_takes_an_approval() {
 fn acting_for_another_principal_requires_a_bounded_delegation() {
     let mut fixture = Fixture::new(&["channel.post", "channel.post.read"]);
     let read: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"conversation_locator": "chat://T123/C456"}
+        "inputs": {"conversation_locator": "chat://T123/C456"}
     }))
     .unwrap();
     let actor_ref = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
@@ -1167,7 +1167,7 @@ fn a_grant_that_lacks_the_scope_refuses_before_anything_is_sent() {
 fn a_target_outside_the_declared_pattern_is_refused_before_anything_is_sent() {
     let fixture = Fixture::new(&["channel.post"]);
     let call: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"channel_locator": "chat://T123/C456/extra", "text": "hi"},
+        "inputs": {"channel_locator": "chat://T123/C456/extra", "text": "hi"},
         "idempotency_key": "post-1",
     }))
     .unwrap();
@@ -1186,7 +1186,7 @@ fn input_outside_the_operation_schema_is_refused_before_anything_is_sent() {
         let ids = (0..count)
             .map(|index| format!("ADV-{index}"))
             .collect::<Vec<_>>();
-        serde_json::from_value::<JsonObject>(serde_json::json!({"input": {"ids": ids}})).unwrap()
+        serde_json::from_value::<JsonObject>(serde_json::json!({"inputs": {"ids": ids}})).unwrap()
     };
     fixture
         .admit("advisories", &ids(50))
@@ -1232,7 +1232,7 @@ fn advisory_cost(fixture: &Fixture, declaration: &str) {
 }
 
 fn advisories(id: &str) -> JsonObject {
-    serde_json::from_value(serde_json::json!({"input": {"ids": [id]}})).unwrap()
+    serde_json::from_value(serde_json::json!({"inputs": {"ids": [id]}})).unwrap()
 }
 
 /// A run bounded only by what it may spend.
@@ -1355,10 +1355,7 @@ fn readback_pending_preserves_both_finality_and_charge_retry_safety() {
             }
             fixture.provider.answer(answer);
             let mut inputs = advisories("ADV-1");
-            inputs.insert(
-                "readback_of".to_owned(),
-                JsonValue::Object(JsonObject::new()),
-            );
+            inputs.insert("confirms".to_owned(), JsonValue::Object(JsonObject::new()));
             let admission = fixture.admit("advisories", &inputs).unwrap();
             let mut host = Approver::new(None);
             let admission = match fixture.prepare("advisories", admission, &mut host).unwrap() {
@@ -1678,7 +1675,7 @@ fn a_partial_read_keeps_its_possible_charge_even_when_the_later_request_is_refus
     price_advisories_per(&fixture, 5_000, "success");
     fixture.provider.answer(Answer::RejectAfterOne);
     let input: JsonObject =
-        serde_json::from_value(serde_json::json!({"input":{"ids":["ADV-1","ADV-2"]}})).unwrap();
+        serde_json::from_value(serde_json::json!({"inputs":{"ids":["ADV-1","ADV-2"]}})).unwrap();
     let authority = limited(5_000);
     let error = fixture
         .run_under("advisories", &input, None, Some(&authority))
@@ -1752,7 +1749,7 @@ fn the_approval_carries_what_executes_bound_by_its_digest() {
         .expect("the operation asks for its approval");
     // A person sees exactly the input that executes, and a host recomputes
     // the digest the summary names before it offers Approve.
-    let input = call["input"].clone();
+    let input = call["inputs"].clone();
     assert_eq!(gate.payload.as_ref(), Some(&input));
     assert_eq!(
         gate.summary
@@ -1771,7 +1768,7 @@ fn a_provider_effect_key_survives_a_fresh_native_run_and_kernel_store() {
     let mut second = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     second.run_id = "external-stage-attempt-2";
     let start: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "objects://media/interview.mp3"},
+        "inputs": {"target": "objects://media/interview.mp3"},
         "idempotency_key": "one-durable-provider-effect",
     }))
     .unwrap();
@@ -1794,7 +1791,7 @@ fn a_provider_effect_key_survives_a_fresh_native_run_and_kernel_store() {
 fn an_enforced_operation_resends_after_an_unknown_outcome() {
     let fixture = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     let start: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "objects://media/interview.mp3"},
+        "inputs": {"target": "objects://media/interview.mp3"},
         "idempotency_key": "job-1",
     }))
     .unwrap();
@@ -1821,7 +1818,7 @@ fn an_enforced_operation_resends_after_an_unknown_outcome() {
 fn an_unknown_write_is_held_when_its_instance_was_rebound() {
     let mut fixture = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     let start: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "objects://media/interview.mp3"},
+        "inputs": {"target": "objects://media/interview.mp3"},
         "idempotency_key": "job-1",
     }))
     .unwrap();
@@ -1842,7 +1839,7 @@ fn an_unknown_write_is_held_when_its_instance_was_rebound() {
 fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
     let fixture = Fixture::for_connector("fixture/compute", &["jobs.execute"]);
     let call: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"target": "objects://media/interview.mp3"},
+        "inputs": {"target": "objects://media/interview.mp3"},
         "idempotency_key": "job-1",
     }))
     .unwrap();
@@ -1868,7 +1865,7 @@ fn a_later_refusal_does_not_settle_an_earlier_unknown_attempt() {
 fn a_hosted_declared_write_sends_each_request_through_connect_and_reads_it_back() {
     let fixture = Fixture::for_connector("fixture/forge", &["repo.write"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"repository": "acme/app", "updates": [{"number": 7, "patch": {"title": "ready"}}]},
+        "inputs": {"repository": "acme/app", "updates": [{"number": 7, "patch": {"title": "ready"}}]},
         "idempotency_key": "update-1",
     }))
     .unwrap();
@@ -1911,7 +1908,7 @@ fn a_hosted_declared_write_sends_each_request_through_connect_and_reads_it_back(
 fn a_hosted_declared_read_sends_one_request_per_item() {
     let fixture = Fixture::for_connector("fixture/forge", &["repo.read"]);
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {"repository": "acme/app", "numbers": [7, 8]},
+        "inputs": {"repository": "acme/app", "numbers": [7, 8]},
     }))
     .unwrap();
     fixture.run("issues", &inputs, None).expect("runs");
@@ -1973,7 +1970,7 @@ fn a_request_whose_path_changes_when_parsed_is_never_sent() {
         };
         let read = |repository: &str| -> JsonObject {
             serde_json::from_value(serde_json::json!({
-                "input": {"repository": repository, "numbers": [7]},
+                "inputs": {"repository": repository, "numbers": [7]},
             }))
             .unwrap()
         };
@@ -2008,7 +2005,7 @@ fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval
         "https://acme.hooks.fixture.invalid/webhook/runx-effect",
     );
     let inputs: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {
+        "inputs": {
             "webhook_host": "acme.hooks.fixture.invalid",
             "delivery": {
                 "event_id": "evt-1",
@@ -2064,7 +2061,7 @@ fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval
 
     // Another write the provider answers alike is still another operation.
     let other: JsonObject = serde_json::from_value(serde_json::json!({
-        "input": {
+        "inputs": {
             "webhook_host": "acme.hooks.fixture.invalid",
             "delivery": {
                 "event_id": "evt-2",
@@ -2237,7 +2234,7 @@ runners:
     let effect = OperationEffect::default();
     let read = |name: &str| {
         let inputs: JsonObject =
-            serde_json::from_value(serde_json::json!({"input": {"name": name}})).unwrap();
+            serde_json::from_value(serde_json::json!({"inputs": {"name": name}})).unwrap();
         let admission = effect
             .admit(EffectStepRequest {
                 step: &step,
@@ -2557,7 +2554,7 @@ operations:
 
 fn allocation(value: serde_json::Value) -> JsonObject {
     serde_json::from_value(serde_json::json!({
-        "input": {
+        "inputs": {
             "purpose": "runx.test.result.v1",
             "media_type": "application/json",
             "value": value,
@@ -2863,7 +2860,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
         }
     }
     let reader = Reader(RefCell::new(Vec::new()));
-    let inputs: JsonObject = serde_json::from_value(serde_json::json!({"input":{}})).unwrap();
+    let inputs: JsonObject = serde_json::from_value(serde_json::json!({"inputs":{}})).unwrap();
     let run = || {
         let admission = fixture.admit("issues", &inputs).unwrap();
         let mut host = Approver::new(None);
