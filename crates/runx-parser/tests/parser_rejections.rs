@@ -1,32 +1,30 @@
-use std::collections::BTreeSet;
-
 use runx_parser::{
-    ParseErrorKind, ValidationErrorKind, assert_yaml_scalar_subset, parse_graph_yaml,
+    ParseError, ValidationError, assert_yaml_scalar_subset, parse_graph_yaml,
     parse_runner_manifest_yaml, parse_skill_markdown, parse_tool_manifest_json,
     parse_tool_manifest_yaml, validate_graph, validate_skill, validate_tool_manifest,
 };
 
 #[test]
 fn parse_rejections_cover_every_error_kind() -> Result<(), String> {
-    let mut kinds = BTreeSet::new();
-
-    kinds.insert(parse_error_kind(parse_graph_yaml("name: [unterminated\n"))?);
-    kinds.insert(parse_error_kind(parse_tool_manifest_json("{"))?);
-    kinds.insert(parse_error_kind(parse_skill_markdown(
-        "# missing frontmatter\n",
-    ))?);
-    kinds.insert(parse_error_kind(assert_yaml_scalar_subset(
-        "fixture", "yes",
-    ))?);
-
-    assert_eq!(
-        kinds,
-        BTreeSet::from([
-            ParseErrorKind::InvalidYaml,
-            ParseErrorKind::InvalidJson,
-            ParseErrorKind::InvalidDocument,
-            ParseErrorKind::UnsupportedScalar,
-        ]),
+    let invalid_yaml = parse_rejection(parse_graph_yaml("name: [unterminated\n"))?;
+    assert!(
+        matches!(invalid_yaml, ParseError::InvalidYaml { .. }),
+        "{invalid_yaml:?}"
+    );
+    let invalid_json = parse_rejection(parse_tool_manifest_json("{"))?;
+    assert!(
+        matches!(invalid_json, ParseError::InvalidJson { .. }),
+        "{invalid_json:?}"
+    );
+    let invalid_document = parse_rejection(parse_skill_markdown("# missing frontmatter\n"))?;
+    assert!(
+        matches!(invalid_document, ParseError::InvalidDocument { .. }),
+        "{invalid_document:?}"
+    );
+    let unsupported_scalar = parse_rejection(assert_yaml_scalar_subset("fixture", "yes"))?;
+    assert!(
+        matches!(unsupported_scalar, ParseError::UnsupportedScalar { .. }),
+        "{unsupported_scalar:?}"
     );
     Ok(())
 }
@@ -125,8 +123,6 @@ fn tool_manifests_require_the_canonical_schema_marker() -> Result<(), String> {
 
 #[test]
 fn validation_rejections_cover_every_error_kind() -> Result<(), String> {
-    let mut kinds = BTreeSet::new();
-
     let missing_step_id = parse_graph_yaml(
         r#"
 name: bad
@@ -135,7 +131,11 @@ steps:
 "#,
     )
     .map_err(|error| error.to_string())?;
-    kinds.insert(validation_error_kind(validate_graph(missing_step_id))?);
+    let missing_field = validation_rejection(validate_graph(missing_step_id))?;
+    assert!(
+        matches!(missing_field, ValidationError::MissingField { .. }),
+        "{missing_field:?}"
+    );
 
     let unknown_field = parse_graph_yaml(
         r#"
@@ -147,14 +147,10 @@ steps:
 "#,
     )
     .map_err(|error| error.to_string())?;
-    kinds.insert(validation_error_kind(validate_graph(unknown_field))?);
-
-    assert_eq!(
-        kinds,
-        BTreeSet::from([
-            ValidationErrorKind::MissingField,
-            ValidationErrorKind::InvalidField,
-        ]),
+    let invalid_field = validation_rejection(validate_graph(unknown_field))?;
+    assert!(
+        matches!(invalid_field, ValidationError::InvalidField { .. }),
+        "{invalid_field:?}"
     );
     Ok(())
 }
@@ -385,7 +381,7 @@ runners:
     .err()
     .ok_or_else(|| "expected embedded-colon key rejection".to_owned())?;
 
-    assert_eq!(error.kind(), ParseErrorKind::InvalidYaml);
+    assert!(matches!(error, ParseError::InvalidYaml { .. }), "{error:?}");
     assert!(
         error.to_string().contains("ambiguous YAML construct"),
         "{error}"
@@ -406,7 +402,7 @@ source:
     .err()
     .ok_or_else(|| "expected colon-space scalar rejection".to_owned())?;
 
-    assert_eq!(error.kind(), ParseErrorKind::InvalidYaml);
+    assert!(matches!(error, ParseError::InvalidYaml { .. }), "{error:?}");
     assert!(
         error.to_string().contains("ambiguous YAML construct"),
         "{error}"
@@ -430,20 +426,14 @@ source:
     Ok(())
 }
 
-fn parse_error_kind<T>(
-    result: Result<T, runx_parser::ParseError>,
-) -> Result<ParseErrorKind, String> {
-    match result {
-        Ok(_) => Err("expected parse rejection".to_owned()),
-        Err(error) => Ok(error.kind()),
-    }
+fn parse_rejection<T>(result: Result<T, ParseError>) -> Result<ParseError, String> {
+    result
+        .err()
+        .ok_or_else(|| "expected parse rejection".to_owned())
 }
 
-fn validation_error_kind<T>(
-    result: Result<T, runx_parser::ValidationError>,
-) -> Result<ValidationErrorKind, String> {
-    match result {
-        Ok(_) => Err("expected validation rejection".to_owned()),
-        Err(error) => Ok(error.kind()),
-    }
+fn validation_rejection<T>(result: Result<T, ValidationError>) -> Result<ValidationError, String> {
+    result
+        .err()
+        .ok_or_else(|| "expected validation rejection".to_owned())
 }

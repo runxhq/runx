@@ -20,7 +20,7 @@ pub mod yaml;
 pub use connector::{
     ValidatedConnector, parse_connector_manifest, validate_connector_manifest, whole_match,
 };
-pub use error::{ParseError, ParseErrorKind, ValidationError, ValidationErrorKind};
+pub use error::{ParseError, ValidationError};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
     AgentTask, AskGate, Binding, DuplicatePolicy, ExecutionGraph, GraphGuard, GraphPolicy,
