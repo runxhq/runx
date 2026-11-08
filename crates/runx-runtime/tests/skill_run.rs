@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::JsonValue;
 use runx_receipts::ReceiptTreeConfig;
-use runx_runtime::registry::{FileRegistryStore, IngestSkillOptions, ingest_skill_markdown};
 use runx_runtime::{
     LocalOrchestrator, LocalReceiptStore, RUNX_RECEIPT_DIR_ENV, RunResult, SkillRunRequest,
 };
@@ -3984,85 +3983,17 @@ fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-/// A registry that serves its signed records, and the routes it was asked.
-struct RecordRegistry {
-    directory: PathBuf,
-    asked: std::sync::Mutex<Vec<String>>,
-}
-
-impl runx_runtime::RuntimeHttpTransport for RecordRegistry {
-    fn send(
-        &self,
-        request: runx_runtime::RuntimeHttpRequest,
-    ) -> Result<runx_runtime::RuntimeHttpResponse, runx_runtime::RuntimeHttpError> {
-        let route = request
-            .url
-            .strip_prefix("https://registry.test")
-            .unwrap_or(&request.url)
-            .to_owned();
-        self.asked
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .push(route.clone());
-        let record = route
-            .strip_prefix("/v1/skills/")
-            .and_then(|rest| rest.strip_suffix("/record"))
-            .and_then(|rest| {
-                let mut parts = rest.split('/');
-                let (publisher, name, _, version) =
-                    (parts.next()?, parts.next()?, parts.next()?, parts.next()?);
-                fs::read_to_string(
-                    self.directory
-                        .join(publisher)
-                        .join(name)
-                        .join(format!("{version}.json")),
-                )
-                .ok()
-            });
-        Ok(match record {
-            Some(record) => runx_runtime::RuntimeHttpResponse::new(
-                200,
-                format!(r#"{{"status":"success","record":{record}}}"#),
-            ),
-            None => runx_runtime::RuntimeHttpResponse::new(404, "{}"),
-        })
-    }
-}
-
+/// A publish binds a skill another publisher owns from the registry it is
+/// published to: read by its record, never acquired, and installed,
+/// verified, into the publish's own project, never the publisher's.
 #[test]
 fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     // The registry the package is published to holds acme's skill.
-    let hosted = temp.path().join("hosted");
-    let mut record = ingest_skill_markdown(
-        &FileRegistryStore::new(&hosted),
-        "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
-        IngestSkillOptions {
-            publisher_slug: Some("acme".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
-            profile_document: Some(registry_child_profile_document()),
-            ..IngestSkillOptions::default()
-        },
-    )?;
-    record.signed_manifest = Some(crate::registry_fixture::sign(
-        runx_contracts::RegistrySubjectKind::Skill,
-        &record.skill_id,
-        &record.version,
-        runx_runtime::registry::skill_content_digest(
-            &record.markdown,
-            record.profile_document.as_deref(),
-            &record.package_files,
-        )?,
-    )?);
-    fs::write(
-        hosted.join("acme/registry-child/1.0.0.json"),
-        serde_json::to_string_pretty(&record)?,
-    )?;
+    let registry = registry_child()?;
     let skill_dir = write_graph_nested_registry_skill(temp.path())?;
-    let mut env = LoopbackRegistry::serve()?.env()?;
-    env.remove("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK");
+    let env = registry_env(&registry, temp.path())?;
     let subject = skill_dir.to_string_lossy().into_owned();
     let request = runx_runtime::registry::RegistryPublishPackageRequest {
         subject: &subject,
@@ -4075,24 +4006,29 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
         ["registry:acme/registry-child@1.0.0"]
     );
 
-    let registry = RecordRegistry {
-        directory: hosted,
-        asked: std::sync::Mutex::default(),
-    };
-    let client =
-        runx_runtime::registry::RegistryClient::with_transport("https://registry.test", registry)?;
-    let closure = runx_runtime::registry::materialize_publish_closure(
-        &client,
-        "https://registry.test",
-        request,
-    )?
-    .ok_or("a publish without a registry directory binds its own")?;
+    let client = runx_runtime::registry::resolve::registry_client(&registry.url, &env)?;
+    let closure =
+        runx_runtime::registry::materialize_publish_closure(&client, &registry.url, request)?;
 
+    let project = closure.project();
     assert!(
-        closure
-            .directory()
-            .join("acme/registry-child/1.0.0.json")
+        project
+            .join("added-skills/acme/registry-child/1.0.0/SKILL.md")
             .is_file()
+    );
+    assert!(
+        project
+            .join("installs/added-skills/acme/registry-child/1.0.0.json")
+            .is_file()
+    );
+    assert!(!temp.path().join(".runx/added-skills").exists());
+    assert!(
+        registry
+            .asked()
+            .iter()
+            .all(|line| !line.contains("/acquire")),
+        "{:?}",
+        registry.asked()
     );
     let bound = runx_runtime::registry::RegistryPublishPackageRequest {
         env: &closure.env,
@@ -4100,6 +4036,45 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
     };
     assert!(runx_runtime::registry::unheld_publish_registry_refs(bound)?.is_empty());
     runx_runtime::registry::prepare_registry_publish_package(bound)?;
+    Ok(())
+}
+
+/// What a publish binds is what the registry signed: a record whose files
+/// do not match its envelope is refused before anything is installed.
+#[test]
+fn a_publish_refuses_a_closure_record_its_registry_did_not_sign()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let registry = registry_child()?;
+    registry.tamper("acme/registry-child", "1.0.0", |record| {
+        let tampered = record["markdown"]
+            .as_str()
+            .map(|markdown| markdown.replace("Registry", "Tampered"));
+        record["markdown"] = serde_json::json!(tampered);
+    })?;
+    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let env = registry_env(&registry, temp.path())?;
+    let subject = skill_dir.to_string_lossy().into_owned();
+    let request = runx_runtime::registry::RegistryPublishPackageRequest {
+        subject: &subject,
+        profile: None,
+        env: &env,
+        cwd: temp.path(),
+    };
+    let client = runx_runtime::registry::resolve::registry_client(&registry.url, &env)?;
+
+    let error = match runx_runtime::registry::materialize_publish_closure(
+        &client,
+        &registry.url,
+        request,
+    ) {
+        Ok(_) => return Err("a closure bound a record its registry did not sign".into()),
+        Err(error) => error,
+    };
+    assert!(
+        error.to_string().contains("digest mismatch"),
+        "unexpected error: {error}"
+    );
     Ok(())
 }
 

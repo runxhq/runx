@@ -278,6 +278,7 @@ where
     if fixture.kind == HarnessFixtureKind::Skill {
         stage_installed_connectors_for_case(&options.env, &fixture.env, &target_path)?;
     }
+    stage_installed_skills_for_case(&options.env, &fixture.env, &target_path)?;
     // The host's workspace policy is the host's: a case's environment never
     // sets it, so a publisher's harness cannot lift a refusal the host made.
     let policy = crate::execution_environment::RUNX_HOSTED_WORKSPACE_POLICY_JSON_ENV;
@@ -331,6 +332,31 @@ fn stage_installed_connectors_for_case(
             )
             .map_err(|error| RuntimeError::effect_state("staging harness connectors", error))?;
         }
+    }
+    Ok(())
+}
+
+/// A case runs in a project of its own, and execution reads registry skills
+/// only from the project a run is in: the case's project holds the installed
+/// registry skills of the project its harness runs in. A package's harness
+/// project holds exactly its package's closure.
+fn stage_installed_skills_for_case(
+    source_env: &BTreeMap<String, String>,
+    case_env: &BTreeMap<String, String>,
+    target: &Path,
+) -> Result<(), HarnessReplayError> {
+    // A graph case's target is its graph file; projects resolve from its
+    // directory.
+    let directory = if target.is_dir() {
+        target
+    } else {
+        target.parent().unwrap_or(target)
+    };
+    let source = crate::paths::RunxPaths::resolve(source_env, directory);
+    let case = crate::paths::RunxPaths::resolve(case_env, directory);
+    if source.project() != case.project() {
+        crate::registry::copy_installed_skills(&source, &case)
+            .map_err(|error| RuntimeError::effect_state("staging harness skills", error))?;
     }
     Ok(())
 }

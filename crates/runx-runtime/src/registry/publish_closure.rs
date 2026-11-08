@@ -1,17 +1,29 @@
 //! A publish binds the package's closure, including skills other publishers
-//! own. A registry ref the package names that no registry directory holds is
-//! read, as the registry signed it, from the registry the publish targets,
-//! into a directory of this publish's own; the package is inspected again, a
-//! level at a time, until every ref it names is held.
+//! own. Each registry ref the package names that its project does not hold
+//! is read, as the registry signed it, from the registry the publish
+//! targets, and installed, verified, into a project of this publish's own,
+//! as `runx skill` installs the refs a run names; the package is inspected
+//! again, a level at a time, until every ref it names is held. A version is
+//! read by its record, never acquired, so a publish counts as no install.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 use super::http::{RegistryClient, RegistryClientError};
-use super::local::{FileRegistryStore, LocalRegistryError, PutVersionOptions};
+use super::install::{
+    InstallCandidate, InstallError, InstallLocalSkillOptions, install_local_skill,
+};
 use super::publish_package::{
     RegistryPublishPackageError, RegistryPublishPackageRequest, unheld_publish_registry_refs,
 };
 use super::refs::parse_registry_ref;
+use super::source_authority::{
+    RegistryManifestSourceAuthority, registry_manifest_source_authority_from_registry_url,
+};
+use super::trust_anchor::{
+    RegistryManifestTrustEnvError, trusted_registry_manifest_keys_from_env_with_source,
+};
+use super::types::RegistrySkillVersion;
 use crate::http::RuntimeHttpTransport;
 
 /// A closure deeper than this is a cycle or a fault, not a real graph.
@@ -24,54 +36,70 @@ pub enum PublishClosureError {
     #[error(transparent)]
     Client(#[from] RegistryClientError),
     #[error(transparent)]
-    Store(#[from] LocalRegistryError),
+    Trust(#[from] RegistryManifestTrustEnvError),
+    #[error("installing {reference}: {source}")]
+    Install {
+        reference: String,
+        source: InstallError,
+    },
     #[error("{0}")]
     Unresolved(String),
-    #[error("creating the publish's registry directory: {0}")]
-    Directory(std::io::Error),
+    #[error("creating the publish's project: {0}")]
+    Project(std::io::Error),
 }
 
-/// The registry directory a publish binds its closure from, held for as long
-/// as the publish runs.
+/// The project a publish binds its closure in, held for as long as the
+/// publish runs.
 pub struct PublishClosure {
-    directory: tempfile::TempDir,
-    /// The environment the publish runs in: its own directory, and the
-    /// registry the records came from.
+    project: tempfile::TempDir,
+    /// The environment the publish runs in: the publisher's, with this
+    /// closure's project as its project.
     pub env: BTreeMap<String, String>,
 }
 
 impl PublishClosure {
+    /// The project directory the closure's skills are installed in.
     #[must_use]
-    pub fn directory(&self) -> &std::path::Path {
-        self.directory.path()
+    pub fn project(&self) -> &Path {
+        self.project.path()
     }
 }
 
-/// Supply every registry ref the package names from `client`'s registry.
-/// A publish whose environment already names a registry directory binds from
-/// that directory alone, so `None` is returned and nothing is read.
+/// Install, verified, every registry ref the package names from `client`'s
+/// registry, at `registry_url`, into a project of the publish's own.
+///
+/// # Errors
+///
+/// Returns an error when the package does not load, the registry cannot be
+/// read or does not publish a ref, a version it serves does not verify
+/// against its signed envelope, or the closure does not close.
 pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
     client: &RegistryClient<T>,
     registry_url: &str,
     request: RegistryPublishPackageRequest<'_>,
-) -> Result<Option<PublishClosure>, PublishClosureError> {
-    let paths = crate::RunxPaths::resolve(request.env, request.cwd);
-    if paths.registry_dir().is_some() {
-        return Ok(None);
-    }
-    let directory = tempfile::Builder::new()
+) -> Result<PublishClosure, PublishClosureError> {
+    let project = tempfile::Builder::new()
         .prefix("runx-publish-closure-")
         .tempdir()
-        .map_err(PublishClosureError::Directory)?;
+        .map_err(PublishClosureError::Project)?;
     let mut env = request.env.clone();
     env.insert(
-        crate::paths::RUNX_REGISTRY_DIR_ENV.to_owned(),
-        directory.path().to_string_lossy().into_owned(),
+        crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+        project.path().to_string_lossy().into_owned(),
     );
+    let paths = crate::RunxPaths::resolve(&env, request.cwd);
     // The records' source authority is the registry they came from.
-    env.entry("RUNX_REGISTRY_URL".to_owned())
-        .or_insert_with(|| registry_url.to_owned());
-    let store = FileRegistryStore::new(directory.path());
+    let source_authority = registry_manifest_source_authority_from_registry_url(registry_url);
+    let options = InstallLocalSkillOptions {
+        destination_root: paths.added_skills(),
+        connectors_root: paths.added_connectors(),
+        install_records: paths.install_records(),
+        expected_digest: None,
+        trusted_manifest_keys: trusted_registry_manifest_keys_from_env_with_source(
+            &env,
+            Some(source_authority.clone()),
+        )?,
+    };
     let mut supplied = BTreeSet::new();
     for _ in 0..=MAX_CLOSURE_DEPTH {
         let unheld = unheld_publish_registry_refs(RegistryPublishPackageRequest {
@@ -79,7 +107,7 @@ pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
             ..request
         })?;
         if unheld.is_empty() {
-            return Ok(Some(PublishClosure { directory, env }));
+            return Ok(PublishClosure { project, env });
         }
         for reference in unheld {
             // A package binds an exact closure, so its refs name the canonical
@@ -109,10 +137,37 @@ pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
                         "registry ref '{reference}' names no executable published version"
                     ))
                 })?;
-            store.put_version(record, PutVersionOptions::default())?;
+            install_local_skill(
+                &candidate_from_record(record, source_authority.clone()),
+                &options,
+            )
+            .map_err(|source| PublishClosureError::Install { reference, source })?;
         }
     }
     Err(PublishClosureError::Unresolved(format!(
         "the package's registry closure exceeds {MAX_CLOSURE_DEPTH} levels"
     )))
+}
+
+/// A version's record, as an install candidate from `source_authority`.
+fn candidate_from_record(
+    record: RegistrySkillVersion,
+    source_authority: RegistryManifestSourceAuthority,
+) -> InstallCandidate {
+    InstallCandidate {
+        package: format!("{}@{}", record.skill_id, record.version),
+        markdown: record.markdown,
+        profile_document: record.profile_document,
+        package_files: record.package_files,
+        bundle_digest: record.bundle_digest,
+        source: "runx-registry".to_owned(),
+        source_label: "runx registry".to_owned(),
+        skill_id: Some(record.skill_id),
+        version: Some(record.version),
+        signed_manifest: record.signed_manifest,
+        profile_digest: record.profile_digest,
+        runner_names: record.runner_names,
+        trust_tier: Some(record.trust_tier),
+        manifest_source_authority: Some(source_authority),
+    }
 }

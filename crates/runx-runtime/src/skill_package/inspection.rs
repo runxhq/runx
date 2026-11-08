@@ -456,6 +456,15 @@ pub(crate) fn unheld_loaded_registry_refs(
     unheld_registry_refs(Arc::new(loaded.clone()), env).map(|refs| refs.into_iter().collect())
 }
 
+/// Every registry ref a loaded package's closure names, through the
+/// children `env`'s project holds.
+pub(crate) fn closure_registry_refs(
+    loaded: &LoadedSkillPackage,
+    env: &std::collections::BTreeMap<String, String>,
+) -> Result<std::collections::BTreeSet<String>, SkillInspectionError> {
+    execution_closure::closure_registry_refs(Arc::new(loaded.clone()), env)
+}
+
 pub(crate) fn inspect_loaded_local_execution_closure(
     loaded: &LoadedSkillPackage,
     env: &std::collections::BTreeMap<String, String>,

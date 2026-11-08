@@ -75,6 +75,7 @@ pub(crate) fn run_package_harness_with_effects(
     )?;
     harness.stage_declared_files(&loaded)?;
     harness.stage_installed_connectors(&loaded, workspace.paths())?;
+    harness.stage_installed_skills(&loaded, workspace.env())?;
     let mut report = PackageHarnessReport::not_declared();
     let mut cases = inline_cases(&loaded)?;
     for path in conventional_fixture_paths(&loaded.directory)? {
@@ -321,6 +322,24 @@ impl PackageHarnessEnvironment {
         Ok(())
     }
 
+    /// Stage in the disposable project the installed registry skills the
+    /// package's closure names, read from the operator's project, each as its
+    /// install left it: its cases read the registry skills a run there reads,
+    /// and nothing else installed there.
+    fn stage_installed_skills(
+        &self,
+        loaded: &crate::LoadedSkillPackage,
+        operator_env: &BTreeMap<String, String>,
+    ) -> Result<(), SkillRunError> {
+        stage_installed_registry_skills(loaded, operator_env, &self.env).map_err(|message| {
+            RuntimeError::SkillFailed {
+                skill_name: "package-harness".to_owned(),
+                message: format!("staging an installed registry skill failed: {message}"),
+            }
+            .into()
+        })
+    }
+
     fn stage_file(
         &self,
         relative: &str,
@@ -368,6 +387,33 @@ impl PackageHarnessEnvironment {
             .join("fixture-receipts")
             .join(index.to_string())
     }
+}
+
+/// Copy into the project of `target_env` each registry skill the closure of
+/// `loaded` names that the project of `source_env` holds, with its install
+/// record and the connectors it carries: execution reads registry skills
+/// only from the project a run is in.
+pub(super) fn stage_installed_registry_skills(
+    loaded: &crate::LoadedSkillPackage,
+    source_env: &BTreeMap<String, String>,
+    target_env: &BTreeMap<String, String>,
+) -> Result<(), String> {
+    let source = RunxPaths::resolve(source_env, &loaded.directory);
+    let target = RunxPaths::resolve(target_env, &loaded.directory);
+    if source.project() == target.project() {
+        return Ok(());
+    }
+    for reference in crate::skill_package::closure_registry_refs(loaded, source_env)
+        .map_err(|error| error.to_string())?
+    {
+        if let Some(directory) =
+            crate::execution::graph::installed_registry_skill(&reference, &source)
+                .map_err(|error| error.to_string())?
+        {
+            crate::registry::copy_installed_skill(&source, &target, &directory)?;
+        }
+    }
+    Ok(())
 }
 
 /// Resolve only the pinned versions the package declares. An unrelated or

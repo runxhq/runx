@@ -30,6 +30,7 @@ pub use install::{
     InstallCandidate, InstallError, InstallLocalSkillOptions, InstallLocalSkillResult,
     InstallStatus, install_local_skill,
 };
+pub(crate) use install::{copy_installed_skill, copy_installed_skills};
 pub use install_record::{InstallRecord, read_install_record};
 pub(crate) use install_record::{
     InstalledOrigin, TrustRecord, installed_origin, record_trust, trusted,

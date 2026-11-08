@@ -233,6 +233,127 @@ fn install_skill(
     })
 }
 
+/// Copies the installed skill at `package_dir` in the project of `source`
+/// into the project of `target`, as installing it there leaves it: its
+/// files, its install record, and the connectors it carries. A version the
+/// target already holds is left as it is.
+///
+/// # Errors
+///
+/// Returns an error when the package is not one the source project added, or
+/// a file cannot be read or written.
+pub(crate) fn copy_installed_skill(
+    source: &crate::RunxPaths,
+    target: &crate::RunxPaths,
+    package_dir: &Path,
+) -> Result<(), String> {
+    let canonical = |path: &Path| {
+        fs::canonicalize(path).map_err(|error| format!("{}: {error}", path.display()))
+    };
+    let package_dir = canonical(package_dir)?;
+    let relative = package_dir
+        .strip_prefix(canonical(&source.added_skills())?)
+        .map_err(|_| format!("{} is not an added skill", package_dir.display()))?
+        .to_path_buf();
+    let destination = target.added_skills().join(&relative);
+    if destination.exists() {
+        return Ok(());
+    }
+    let versions = destination
+        .parent()
+        .ok_or_else(|| format!("{} has no directory", destination.display()))?;
+    fs::create_dir_all(versions).map_err(|error| format!("{}: {error}", versions.display()))?;
+    let staged = versions.join(format!(".staging-{}", unique_suffix()));
+    let copied =
+        copy_tree(&package_dir, &staged).and_then(|()| match fs::rename(&staged, &destination) {
+            Ok(()) => Ok(()),
+            Err(_) if destination.exists() => Ok(()),
+            Err(error) => Err(format!("{}: {error}", destination.display())),
+        });
+    if staged.exists() {
+        let _ignored = fs::remove_dir_all(&staged);
+    }
+    copied?;
+    let record = super::read_install_record(source, &package_dir)?;
+    if let Some(record) = &record {
+        write_install_record(
+            &target.install_records(),
+            &target.added_skills(),
+            &destination,
+            record,
+        )?;
+    }
+    let records = target.install_records();
+    add_carried_connectors(
+        &destination,
+        &target.added_connectors(),
+        record.as_ref().map(|record| (&records, record.trust_tier)),
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Copies every installed skill the project of `source` holds, each a
+/// `<publisher>/<name>/<version>/` of its added skills, into the project of
+/// `target`, as [`copy_installed_skill`] copies one.
+///
+/// # Errors
+///
+/// Returns an error when a directory cannot be read or a copy fails.
+pub(crate) fn copy_installed_skills(
+    source: &crate::RunxPaths,
+    target: &crate::RunxPaths,
+) -> Result<(), String> {
+    let children = |directory: &Path| -> Result<Vec<PathBuf>, String> {
+        match fs::read_dir(directory) {
+            Ok(entries) => entries
+                .map(|entry| {
+                    entry
+                        .map(|entry| entry.path())
+                        .map_err(|error| format!("{}: {error}", directory.display()))
+                })
+                .filter(|path| {
+                    path.as_ref().map_or(true, |path| {
+                        path.is_dir()
+                            && !path
+                                .file_name()
+                                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
+                    })
+                })
+                .collect(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(error) => Err(format!("{}: {error}", directory.display())),
+        }
+    };
+    for publisher in children(&source.added_skills())? {
+        for name in children(&publisher)? {
+            for version in children(&name)? {
+                if version.join("SKILL.md").is_file() {
+                    copy_installed_skill(source, target, &version)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Copies the tree at `from` to `to`, keeping each file's permissions.
+fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
+    fs::create_dir_all(to).map_err(|error| format!("{}: {error}", to.display()))?;
+    let entries = fs::read_dir(from).map_err(|error| format!("{}: {error}", from.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("{}: {error}", from.display()))?;
+        let path = entry.path();
+        let destination = to.join(entry.file_name());
+        if path.is_dir() {
+            copy_tree(&path, &destination)?;
+        } else {
+            fs::copy(&path, &destination)
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+        }
+    }
+    Ok(())
+}
+
 /// `<skill>@<version>` for a registry's package, the ref it came by otherwise.
 fn exact_package(candidate: &InstallCandidate) -> String {
     match (&candidate.skill_id, &candidate.version) {

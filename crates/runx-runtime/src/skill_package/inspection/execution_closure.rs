@@ -23,6 +23,9 @@ struct ClosureAccumulator {
     /// Registry context skills neither the project nor a named local
     /// registry holds; reported, never part of the closure.
     unheld_context_registry_refs: BTreeSet<String>,
+    /// Every registry ref a step or context skill of the closure names,
+    /// held or not.
+    registry_refs: BTreeSet<String>,
     package_bindings: BTreeSet<ExecutionPackageBinding>,
     /// Each connector the closure binds, as its package resolved it.
     connector_bindings: BTreeMap<ExecutionConnectorBinding, Arc<LoadedConnector>>,
@@ -281,6 +284,45 @@ pub(super) fn unheld_registry_refs(
     loaded: Arc<LoadedSkillPackage>,
     env: &BTreeMap<String, String>,
 ) -> Result<BTreeSet<String>, SkillInspectionError> {
+    // An unresolved edge reads `<ref>#<runner>`.
+    Ok(closure_accumulators(loaded, env)?
+        .into_iter()
+        .flat_map(|accumulator| {
+            let context = accumulator.unheld_context_registry_refs;
+            accumulator
+                .unresolved_skill_edges
+                .into_iter()
+                .filter_map(|edge| {
+                    let reference = edge
+                        .rsplit_once('#')
+                        .map_or(edge.as_str(), |(reference, _)| reference);
+                    runx_parser::registry_ref(reference).map(|_| reference.to_owned())
+                })
+                .chain(context)
+                .collect::<Vec<_>>()
+        })
+        .collect())
+}
+
+/// Every registry ref a package's runners and harness graphs name, through
+/// the children `env`'s project holds: the registry skills a run of it in
+/// that project reads.
+pub(super) fn closure_registry_refs(
+    loaded: Arc<LoadedSkillPackage>,
+    env: &BTreeMap<String, String>,
+) -> Result<BTreeSet<String>, SkillInspectionError> {
+    Ok(closure_accumulators(loaded, env)?
+        .into_iter()
+        .flat_map(|accumulator| accumulator.registry_refs)
+        .collect())
+}
+
+/// The closure of each of a package's runners and harness graphs, walked in
+/// `env`, with registry refs it does not hold reported.
+fn closure_accumulators(
+    loaded: Arc<LoadedSkillPackage>,
+    env: &BTreeMap<String, String>,
+) -> Result<Vec<ClosureAccumulator>, SkillInspectionError> {
     let runner_names = loaded
         .manifest()
         .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
@@ -303,24 +345,7 @@ pub(super) fn unheld_registry_refs(
     for (fixture_path, target) in harness_graphs {
         accumulators.push(inspector.inspect_harness_graph_accumulator(&fixture_path, &target)?);
     }
-    // An unresolved edge reads `<ref>#<runner>`.
-    Ok(accumulators
-        .into_iter()
-        .flat_map(|accumulator| {
-            let context = accumulator.unheld_context_registry_refs;
-            accumulator
-                .unresolved_skill_edges
-                .into_iter()
-                .filter_map(|edge| {
-                    let reference = edge
-                        .rsplit_once('#')
-                        .map_or(edge.as_str(), |(reference, _)| reference);
-                    runx_parser::registry_ref(reference).map(|_| reference.to_owned())
-                })
-                .chain(context)
-                .collect::<Vec<_>>()
-        })
-        .collect())
+    Ok(accumulators)
 }
 
 impl ClosureAccumulator {
@@ -655,6 +680,12 @@ impl<'a> ExecutionClosureInspector<'a> {
             }
         }
         for step in &graph.steps {
+            walk.closure.registry_refs.extend(
+                step.context_skills
+                    .iter()
+                    .filter(|reference| runx_parser::registry_ref(reference).is_some())
+                    .cloned(),
+            );
             if self.unheld_registry_refs == UnheldRegistryRefs::Report
                 && let Some(env) = self.env
             {
@@ -727,6 +758,9 @@ impl<'a> ExecutionClosureInspector<'a> {
                     nested,
                 } = resolved;
                 let reference = step_reference(step);
+                if runx_parser::registry_ref(reference).is_some() {
+                    walk.closure.registry_refs.insert(reference.to_owned());
+                }
                 if context.materialize_local
                     && runx_parser::registry_ref(reference).is_none()
                     && let Some(nested) = nested.as_ref()

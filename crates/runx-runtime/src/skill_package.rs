@@ -19,7 +19,7 @@ mod resolve;
 
 pub use inspection::inspect_connector_readiness;
 pub(crate) use inspection::{
-    CaseClosureTarget, LocalExecutionClosure, case_closure_connectors,
+    CaseClosureTarget, LocalExecutionClosure, case_closure_connectors, closure_registry_refs,
     inspect_loaded_local_execution_closure, unheld_loaded_registry_refs,
 };
 pub use inspection::{

@@ -1043,22 +1043,22 @@ fn records_provider(indent: usize) -> String {
     .collect()
 }
 
+/// Publish the package at `skill_dir` to `registry` as its publisher, from
+/// the directory above it, under `publisher` at `version` when named.
 fn publish(
     skill_dir: &std::path::Path,
-    registry_dir: &std::path::Path,
+    registry: &LoopbackRegistry,
     publisher: Option<(&str, &str)>,
 ) -> Result<std::process::Output, Box<dyn std::error::Error>> {
-    let mut command = runx_command()?;
-    command
-        .current_dir(skill_dir.parent().ok_or("skill has no parent")?)
-        .env("RUNX_REGISTRY_DIR", registry_dir)
-        .args([
-            "registry",
-            "publish",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-        ]);
+    let parent = skill_dir.parent().ok_or("skill has no parent")?;
+    let mut command = registry_command(registry, &temp_root("registry-publisher"))?;
+    command.current_dir(parent).args([
+        "registry",
+        "publish",
+        skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+        "--registry",
+        &registry.url,
+    ]);
     if let Some((publisher, version)) = publisher {
         command.args(["--publisher", publisher, "--version", version]);
     }
@@ -1073,7 +1073,7 @@ fn a_skill_whose_harness_grants_a_plugin_connector_publishes()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-publish-plugin-harness");
     let skill_dir = hosted_records(&root)?;
-    let published = publish(&skill_dir, &root.join("registry"), None)?;
+    let published = publish(&skill_dir, &LoopbackRegistry::serve()?, None)?;
     assert_success_contains(&published, &["\"action\": \"publish\""])?;
     fs::remove_dir_all(&root)?;
     Ok(())
@@ -1101,7 +1101,7 @@ fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn 
             provider = records_provider(8),
         ),
     )?;
-    let published = publish(&skill_dir, &root.join("registry"), None)?;
+    let published = publish(&skill_dir, &LoopbackRegistry::serve()?, None)?;
     assert_success_contains(&published, &["\"action\": \"publish\""])?;
     fs::remove_dir_all(&root)?;
     Ok(())
@@ -1112,10 +1112,10 @@ fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn 
 fn publish_records_revisions(
     root: &std::path::Path,
     versions: &[&str],
-) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+) -> Result<LoopbackRegistry, Box<dyn std::error::Error>> {
     let skill_dir = hosted_records(&root.join("source"))?;
     let manifest = root.join("source/connectors/fixture/records/connector.yaml");
-    let registry_dir = root.join("registry");
+    let registry = LoopbackRegistry::serve()?;
     let original = fs::read_to_string(&manifest)?;
     for version in versions {
         fs::write(
@@ -1126,10 +1126,10 @@ fn publish_records_revisions(
                 1,
             ),
         )?;
-        let published = publish(&skill_dir, &registry_dir, Some(("acme", version)))?;
+        let published = publish(&skill_dir, &registry, Some(("acme", version)))?;
         assert_success_contains(&published, &["\"action\": \"publish\""])?;
     }
-    Ok(registry_dir)
+    Ok(registry)
 }
 
 /// A package in no plugin whose one case lists records through each named
@@ -1176,9 +1176,9 @@ fn records_consumer(
 fn a_case_grants_a_connector_its_registry_child_carries() -> Result<(), Box<dyn std::error::Error>>
 {
     let root = temp_root("registry-child-grant");
-    let registry_dir = publish_records_revisions(&root, &["1.0.0"])?;
+    let registry = publish_records_revisions(&root, &["1.0.0"])?;
     let consumer = records_consumer(&root, &["1.0.0"])?;
-    let published = publish(&consumer, &registry_dir, Some(("consumer", "1.0.0")))?;
+    let published = publish(&consumer, &registry, Some(("consumer", "1.0.0")))?;
     assert_success_contains(&published, &["\"action\": \"publish\""])?;
     fs::remove_dir_all(&root)?;
     Ok(())
@@ -1191,9 +1191,9 @@ fn a_case_grants_a_connector_its_registry_child_carries() -> Result<(), Box<dyn 
 fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-child-grant-ambiguous");
-    let registry_dir = publish_records_revisions(&root, &["1.0.0", "2.0.0"])?;
+    let registry = publish_records_revisions(&root, &["1.0.0", "2.0.0"])?;
     let consumer = records_consumer(&root, &["1.0.0", "2.0.0"])?;
-    let published = publish(&consumer, &registry_dir, Some(("consumer", "1.0.0")))?;
+    let published = publish(&consumer, &registry, Some(("consumer", "1.0.0")))?;
     assert_ne!(published.status.code(), Some(0));
     let output = format!(
         "{}{}",
@@ -1204,6 +1204,63 @@ fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
         output.contains("the closure reaches two revisions of connector fixture/records"),
         "{output}"
     );
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// A package's tests run each case in a project of its own, which holds the
+/// registry children the package's project holds: a case reaches a child the
+/// project installed, as a run in that project does.
+#[test]
+fn a_packages_tests_read_the_registry_children_its_project_holds()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-harness-children");
+    let registry = LoopbackRegistry::serve()?;
+    publish_echo(&registry, "1.0.0", "Echo")?;
+    let parent = root.join("parent");
+    fs::create_dir_all(&parent)?;
+    fs::write(
+        parent.join("SKILL.md"),
+        "---\nname: parent\ndescription: Runs the echo registry skill as a step.\n---\n# Parent\n",
+    )?;
+    fs::write(
+        parent.join("run.yaml"),
+        "skill: parent\nharness:\n  cases:\n    - name: reaches-the-child\n      runner: default\n      expect:\n        status: needs_agent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
+    )?;
+    let test = || -> Result<std::process::Output, Box<dyn std::error::Error>> {
+        Ok(registry_command(&registry, &root)?
+            .env("RUNX_CWD", &root)
+            .args([
+                "harness",
+                parent.to_str().ok_or("non-utf8 parent dir")?,
+                "--json",
+            ])
+            .output()?)
+    };
+
+    let unheld = test()?;
+    assert!(
+        String::from_utf8_lossy(&unheld.stdout).contains("is not installed in this project"),
+        "stdout={}\nstderr={}",
+        String::from_utf8_lossy(&unheld.stdout),
+        String::from_utf8_lossy(&unheld.stderr)
+    );
+
+    let install = registry_command(&registry, &root)?
+        .env("RUNX_CWD", &root)
+        .args([
+            "registry",
+            "install",
+            "acme/echo@1.0.0",
+            "--registry",
+            &registry.url,
+            "--json",
+        ])
+        .output()?;
+    assert_success_contains(&install, &["\"status\": \"installed\""])?;
+
+    let held = test()?;
+    assert_success_contains(&held, &["\"status\": \"passed\""])?;
     fs::remove_dir_all(&root)?;
     Ok(())
 }

@@ -318,12 +318,16 @@ fn run_publish(
         cwd,
     };
     // A package naming skills other publishers own binds them from the
-    // registry it is published to.
+    // registry it is published to, installed into the publish's own project.
     let closure = match &target {
-        RegistryTarget::Remote { registry_url } => {
-            materialize_publish_closure(&registry_client(registry_url, env)?, registry_url, request)
-                .map_err(|error| usage_error(error.to_string()))?
-        }
+        RegistryTarget::Remote { registry_url } => Some(
+            materialize_publish_closure(
+                &registry_client(registry_url, env)?,
+                registry_url,
+                request,
+            )
+            .map_err(|error| usage_error(error.to_string()))?,
+        ),
         RegistryTarget::Local { .. } => None,
     };
     let env = closure.as_ref().map_or(env, |closure| &closure.env);
