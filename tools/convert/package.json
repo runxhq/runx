@@ -6,6 +6,9 @@
   "bin": {
     "runx-convert": "./convert.mjs"
   },
+  "scripts": {
+    "test": "node --test"
+  },
   "dependencies": {
     "yaml": "2.9.1"
   }

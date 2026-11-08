@@ -354,6 +354,60 @@ function allowanceCalls(allowance) {
   };
 }
 
+// ---- Shared inputs
+
+// What a field may take from a shared input without changing what it accepts:
+// JSON Schema's annotations. `default` is one there, but runx fills it in.
+const ANNOTATIONS = ["title", "description", "examples", "deprecated", "readOnly", "writeOnly", "$comment"];
+
+// Today a method's own input is its own, even under a shared input's name.
+// In 0.12 a method takes a shared input by naming it, and its keys override
+// the shared one's, so the conversion keeps the method's own definition only
+// where every key the shared one would add is one it already says. Otherwise
+// two inputs in one package share a name, and which one it is, or what each
+// is called, is its owner's call, never the converter's.
+const inherits = (field, shared) => shared.items.map(keyOf).filter((key) => !has(field, key));
+const changesWhatItAccepts = (field, shared) => inherits(field, shared).filter((key) => !ANNOTATIONS.includes(key));
+
+function ownBesideShared(where, input, field, shared, notes) {
+  if (shared === undefined) return;
+  const changes = changesWhatItAccepts(field, shared);
+  if (changes.length) {
+    refuse(`${where} is its own input, and shared input ${input} would give it ${changes.join(", ")}: two inputs share one name, which its owner decides. Shared: ${JSON.stringify(plain(shared))}. This method's: ${JSON.stringify(plain(field))}`);
+  }
+  const added = inherits(field, shared);
+  if (added.length) notes.push(`${where} takes shared input ${input}'s ${added.join(", ")}, which change nothing it accepts`);
+}
+
+// A method's input that names a shared input says only the keys it overrides.
+// Where it states every key that decides what it accepts, a key restating the
+// shared one's value says nothing, so it goes, and a field restating every
+// key is the shared input itself, `{}`. That changes nothing a method accepts
+// in either format, so it runs on both. A field that leaves such a key to the
+// shared input is an override, or two inputs sharing a name, which the
+// conversion refuses (ownBesideShared); either way it's left as it is.
+function settleSharedInputs(root, notes) {
+  const shared = node(root, "shared_inputs");
+  if (!isMap(shared)) return false;
+  let changed = false;
+  for (const method of node(root, "methods")?.items ?? []) {
+    const inputs = isMap(method.value) ? node(method.value, "inputs") : undefined;
+    if (!isMap(inputs)) continue;
+    for (const pair of inputs.items) {
+      const definition = node(shared, keyOf(pair));
+      if (!isMap(definition) || !isMap(pair.value) || pair.value.items.length === 0) continue;
+      if (changesWhatItAccepts(pair.value, definition).length) continue;
+      const kept = pair.value.items.filter((item) => !has(definition, keyOf(item)) || JSON.stringify(plain(item.value)) !== JSON.stringify(read(definition, keyOf(item))));
+      if (kept.length === pair.value.items.length) continue;
+      notes.push(`methods.${keyOf(method)}.inputs.${keyOf(pair)} takes shared input ${keyOf(pair)}${kept.length ? `, overriding ${kept.map(keyOf).join(", ")}` : " as it is"}`);
+      pair.value.items = kept;
+      if (kept.length === 0) pair.value.flow = true;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function convertMethod(doc, name, method, context, notes) {
   const where = `methods.${name}`;
   only(method, METHOD_KEYS, where);
@@ -365,18 +419,21 @@ function convertMethod(doc, name, method, context, notes) {
     for (const pair of inputs.items) {
       const input = keyOf(pair);
       const definition = isMap(pair.value) ? read(pair.value, "definition") : undefined;
-      if (definition === undefined) {
-        pair.value = convertField(doc, pair.value, "input", `${where}.inputs.${input}`);
+      if (definition === input) {
+        if (pair.value.items.length !== 1) refuse(`${where}.inputs.${input} sets keys beside its definition`);
+        if (!context.shared.has(definition)) refuse(`${where}.inputs.${input} names definition ${definition}, which isn't defined`);
+        pair.value = flow(doc, {});
         continue;
       }
-      if (pair.value.items.length !== 1) refuse(`${where}.inputs.${input} sets keys beside its definition`);
-      const shared = context.shared.get(definition);
-      if (!shared) refuse(`${where}.inputs.${input} names definition ${definition}, which isn't defined`);
-      if (definition === input) pair.value = flow(doc, {});
+      if (definition === undefined) pair.value = convertField(doc, pair.value, "input", `${where}.inputs.${input}`);
       else {
+        if (pair.value.items.length !== 1) refuse(`${where}.inputs.${input} sets keys beside its definition`);
+        const shared = context.shared.get(definition);
+        if (!shared) refuse(`${where}.inputs.${input} names definition ${definition}, which isn't defined`);
         pair.value = shared.clone();
         notes.push(`${where}.inputs.${input} copies shared input ${definition}: one name for both is its owner's call`);
       }
+      ownBesideShared(`${where}.inputs.${input}`, input, pair.value, context.shared.get(input), notes);
     }
   }
   const allowance = {
@@ -734,6 +791,7 @@ function convertPackage(dir) {
     if (!isMap(target)) refuse(`marketplace.offers.${method} names a method that isn't there`);
     insertAt(target, indexOf(target, "steps") >= 0 ? indexOf(target, "steps") : target.items.length, "offer", offer);
   }
+  settleSharedInputs(root, notes);
 
   // Tests: the cases in run.yaml and in fixtures/*.yaml, and support graphs.
   const evals = [];
