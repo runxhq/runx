@@ -1,14 +1,10 @@
 use std::cell::RefCell;
 
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use ring::signature::KeyPair;
 use runx_runtime::registry::{
     AcquireOptions, InstallCandidate, InstallError, InstallLocalSkillOptions, InstallStatus,
-    RegistryClient, RegistryClientError, RegistryManifestSignature, RegistryManifestSigner,
-    RegistryManifestSourceAuthority, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind,
-    TrustTier, TrustedRegistryManifestKey, install_local_skill, parse_registry_ref,
-    skill_content_digest,
+    RegistryClient, RegistryClientError, RegistryManifestSourceAuthority, RegistrySignedManifest,
+    RegistrySubjectKind, TrustTier, TrustedRegistryManifestKey, install_local_skill,
+    parse_registry_ref, skill_content_digest,
 };
 use runx_runtime::{
     HttpMethod, RuntimeHttpError, RuntimeHttpRequest as HttpRequest,
@@ -16,10 +12,6 @@ use runx_runtime::{
 };
 use serde_json::json;
 use tempfile::tempdir;
-
-const TEST_MANIFEST_KEY_ID: &str = "runx-registry-test-key";
-const TEST_MANIFEST_SIGNER_ID: &str = "runx-registry-test-signer";
-const TEST_MANIFEST_SEED: [u8; 32] = [7; 32];
 
 #[derive(Default)]
 struct MockTransport {
@@ -505,46 +497,28 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
 }
 
 fn trusted_manifest_keys() -> Result<Vec<TrustedRegistryManifestKey>, Box<dyn std::error::Error>> {
-    let public_key = manifest_public_key_base64()?;
+    let public_key = crate::registry_fixture::public_key_base64()?;
     Ok(vec![TrustedRegistryManifestKey::from_base64(
-        TEST_MANIFEST_KEY_ID.to_owned(),
+        crate::registry_fixture::KEY_ID.to_owned(),
         &public_key,
         "acme".to_owned(),
         "test-registry".to_owned(),
     )?])
 }
 
-fn manifest_public_key_base64() -> Result<String, Box<dyn std::error::Error>> {
-    Ok(base64::engine::general_purpose::STANDARD
-        .encode(test_manifest_key_pair()?.public_key().as_ref()))
-}
-
-/// The envelope the registry serves for a candidate's exact files, signed by the test key.
+/// The envelope the registry serves for a candidate's exact files, signed by
+/// the fixture key.
 fn signed_manifest(
     skill_id: &str,
     version: &str,
     content_digest: &str,
 ) -> Result<RegistrySignedManifest, Box<dyn std::error::Error>> {
-    let mut manifest = RegistrySignedManifest {
-        schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
-        subject: RegistrySubject {
-            kind: RegistrySubjectKind::Skill,
-            name: skill_id.to_owned(),
-        },
-        version: version.to_owned(),
-        content_digest: content_digest.to_owned(),
-        signer: RegistryManifestSigner {
-            id: TEST_MANIFEST_SIGNER_ID.to_owned(),
-            key_id: TEST_MANIFEST_KEY_ID.to_owned(),
-        },
-        signature: RegistryManifestSignature {
-            alg: "ed25519".to_owned(),
-            value: "base64:".to_owned(),
-        },
-    };
-    let signature = test_manifest_key_pair()?.sign(&manifest.signing_payload()?);
-    manifest.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
-    Ok(manifest)
+    crate::registry_fixture::sign(
+        RegistrySubjectKind::Skill,
+        skill_id,
+        version,
+        content_digest.to_owned(),
+    )
 }
 
 fn candidate_content_digest(
@@ -555,12 +529,6 @@ fn candidate_content_digest(
         candidate.profile_document.as_deref(),
         &candidate.package_files,
     )?)
-}
-
-fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {
-    ring::signature::Ed25519KeyPair::from_seed_unchecked(&TEST_MANIFEST_SEED).map_err(|error| {
-        std::io::Error::other(format!("static registry manifest seed rejected: {error:?}"))
-    })
 }
 
 fn search_success_fixture() -> Result<serde_json::Value, serde_json::Error> {

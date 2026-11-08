@@ -1,21 +1,15 @@
 use std::fs;
 use std::path::Path;
 
-use base64::Engine;
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
-use ring::signature::KeyPair;
 use runx_contracts::{RegistryContentFile, registry_content_digest};
 use runx_runtime::registry::{
     ConnectorInstallError, InstallRegistryConnectorOptions, InstallStatus,
-    RegistryConnectorVersion, RegistryManifestSignature, RegistryManifestSigner,
-    RegistryManifestSourceAuthority, RegistryPackageFile, RegistrySignedManifest, RegistrySubject,
-    RegistrySubjectKind, TrustTier, TrustedRegistryManifestKey, install_registry_connector,
-    prepare_registry_connector_package,
+    RegistryConnectorVersion, RegistryManifestSourceAuthority, RegistryPackageFile,
+    RegistrySignedManifest, RegistrySubjectKind, TrustTier, TrustedRegistryManifestKey,
+    install_registry_connector, prepare_registry_connector_package,
 };
 use tempfile::tempdir;
 
-const KEY_ID: &str = "connector-test-key";
-const SEED: [u8; 32] = [9; 32];
 const SOURCE: &str = "https://registry.example";
 const ACME_OPS: &str = r#"schema: runx.connector.v1
 id: acme/ops
@@ -287,8 +281,8 @@ fn a_newer_connector_version_installs_beside_its_source() -> Result<(), Box<dyn 
         install_records: temp.path().join(".runx").join("installs"),
         expected_content_digest: None,
         trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
-            KEY_ID.to_owned(),
-            &STANDARD.encode(key_pair()?.public_key().as_ref()),
+            crate::registry_fixture::KEY_ID.to_owned(),
+            &crate::registry_fixture::public_key_base64()?,
         )?],
         manifest_source_authority: RegistryManifestSourceAuthority::OfficialRunx,
     };
@@ -354,26 +348,7 @@ fn sign(
         path: &file.path,
         content: &file.content,
     }))?;
-    let mut manifest = RegistrySignedManifest {
-        schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
-        subject: RegistrySubject {
-            kind,
-            name: name.to_owned(),
-        },
-        version: version.to_owned(),
-        content_digest,
-        signer: RegistryManifestSigner {
-            id: "connector-test-signer".to_owned(),
-            key_id: KEY_ID.to_owned(),
-        },
-        signature: RegistryManifestSignature {
-            alg: "ed25519".to_owned(),
-            value: "base64:".to_owned(),
-        },
-    };
-    let signature = key_pair()?.sign(&manifest.signing_payload()?);
-    manifest.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
-    Ok(manifest)
+    crate::registry_fixture::sign(kind, name, version, content_digest)
 }
 
 fn options(
@@ -385,8 +360,8 @@ fn options(
         install_records: root.join(".runx").join("installs"),
         expected_content_digest: None,
         trusted_manifest_keys: vec![TrustedRegistryManifestKey::from_base64(
-            KEY_ID.to_owned(),
-            &STANDARD.encode(key_pair()?.public_key().as_ref()),
+            crate::registry_fixture::KEY_ID.to_owned(),
+            &crate::registry_fixture::public_key_base64()?,
             allowed_publisher.to_owned(),
             SOURCE.to_owned(),
         )?],
@@ -394,11 +369,6 @@ fn options(
             SOURCE.to_owned(),
         ),
     })
-}
-
-fn key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {
-    ring::signature::Ed25519KeyPair::from_seed_unchecked(&SEED)
-        .map_err(|error| std::io::Error::other(format!("test seed rejected: {error:?}")))
 }
 
 fn readme(files: &mut [RegistryPackageFile]) -> Result<&mut RegistryPackageFile, &'static str> {

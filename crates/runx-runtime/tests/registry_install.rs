@@ -1,23 +1,16 @@
 use std::collections::BTreeMap;
 
-use base64::Engine;
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
-use ring::signature::KeyPair;
 use runx_contracts::sha256_prefixed;
 use runx_runtime::registry::resolve::{LocalRegistrySourceKind, RegistryTarget, install_skill_ref};
 use runx_runtime::registry::{
     FileRegistryStore, IngestSkillOptions, InstallCandidate, InstallError,
-    InstallLocalSkillOptions, PutVersionOptions, RegistryManifestSignature, RegistryManifestSigner,
+    InstallLocalSkillOptions, PutVersionOptions, RegistryManifestSignature,
     RegistryManifestSourceAuthority, RegistryManifestTrustEnvError, RegistryPackageFile,
     RegistrySignedManifest, RegistrySkillVersion, RegistrySubject, RegistrySubjectKind, TrustTier,
     TrustedRegistryManifestKey, ingest_skill_markdown, install_local_skill, skill_content_digest,
     trusted_registry_manifest_keys_from_env,
 };
 use tempfile::tempdir;
-
-const TEST_MANIFEST_KEY_ID: &str = "runx-registry-test-key";
-const TEST_MANIFEST_SIGNER_ID: &str = "runx-registry-test-signer";
-const DYNAMIC_MANIFEST_SEED: [u8; 32] = [7; 32];
 
 #[cfg(unix)]
 #[test]
@@ -514,7 +507,7 @@ fn malformed_signed_manifest_payload_fails_closed() -> Result<(), Box<dyn std::e
 fn registry_install_rejects_out_of_scope_manifest_key() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let candidate = install_candidate()?;
-    let public_key = manifest_public_key_base64()?;
+    let public_key = crate::registry_fixture::public_key_base64()?;
     let error = match install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
@@ -523,7 +516,7 @@ fn registry_install_rejects_out_of_scope_manifest_key() -> Result<(), Box<dyn st
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
-                TEST_MANIFEST_KEY_ID.to_owned(),
+                crate::registry_fixture::KEY_ID.to_owned(),
                 &public_key,
             )?],
         },
@@ -549,7 +542,6 @@ fn registry_install_rejects_official_key_from_non_official_source()
     candidate.skill_id = Some("runx/echo".to_owned());
     candidate.trust_tier = Some(TrustTier::FirstParty);
     candidate.signed_manifest = Some(signed_for(&candidate, "runx/echo")?);
-    let key_pair = dynamic_manifest_key_pair()?;
     let error = match install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
@@ -558,8 +550,8 @@ fn registry_install_rejects_official_key_from_non_official_source()
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
-                TEST_MANIFEST_KEY_ID.to_owned(),
-                &STANDARD.encode(key_pair.public_key().as_ref()),
+                crate::registry_fixture::KEY_ID.to_owned(),
+                &crate::registry_fixture::public_key_base64()?,
             )?],
         },
     ) {
@@ -583,7 +575,6 @@ fn registry_install_accepts_official_source_signature_for_community_skill()
     let mut candidate = install_candidate()?;
     candidate.manifest_source_authority = Some(RegistryManifestSourceAuthority::OfficialRunx);
     candidate.signed_manifest = Some(signed_for(&candidate, "acme/echo")?);
-    let key_pair = dynamic_manifest_key_pair()?;
 
     let install = install_local_skill(
         &candidate,
@@ -593,8 +584,8 @@ fn registry_install_accepts_official_source_signature_for_community_skill()
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
-                TEST_MANIFEST_KEY_ID.to_owned(),
-                &STANDARD.encode(key_pair.public_key().as_ref()),
+                crate::registry_fixture::KEY_ID.to_owned(),
+                &crate::registry_fixture::public_key_base64()?,
             )?],
         },
     )?;
@@ -609,7 +600,7 @@ fn registry_install_rejects_third_party_key_outside_publisher_namespace()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let candidate = install_candidate()?;
-    let public_key = manifest_public_key_base64()?;
+    let public_key = crate::registry_fixture::public_key_base64()?;
     let error = match install_local_skill(
         &candidate,
         &InstallLocalSkillOptions {
@@ -618,7 +609,7 @@ fn registry_install_rejects_third_party_key_outside_publisher_namespace()
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             trusted_manifest_keys: vec![TrustedRegistryManifestKey::from_base64(
-                TEST_MANIFEST_KEY_ID.to_owned(),
+                crate::registry_fixture::KEY_ID.to_owned(),
                 &public_key,
                 "other".to_owned(),
                 "test-registry".to_owned(),
@@ -641,15 +632,14 @@ fn registry_install_rejects_third_party_key_outside_publisher_namespace()
 #[test]
 fn registry_manifest_env_key_cannot_self_promote_to_official()
 -> Result<(), Box<dyn std::error::Error>> {
-    let key_pair = dynamic_manifest_key_pair()?;
     let env = [
         (
             runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV.to_owned(),
-            TEST_MANIFEST_KEY_ID.to_owned(),
+            crate::registry_fixture::KEY_ID.to_owned(),
         ),
         (
             runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV.to_owned(),
-            STANDARD.encode(key_pair.public_key().as_ref()),
+            crate::registry_fixture::public_key_base64()?,
         ),
         (
             runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV.to_owned(),
@@ -774,36 +764,18 @@ fn stage_profile() -> &'static str {
     "skill: stage\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n  script:\n    steps:\n      - id: script\n        tool: { module: run.mjs }\n"
 }
 
-fn bundle_digest(files: &[RegistryPackageFile]) -> Result<String, serde_json::Error> {
-    let mut sorted = files.to_vec();
-    sorted.sort_by(|left, right| left.path.cmp(&right.path));
-    let mut canonical = String::from("{\"files\":[");
-    for (index, file) in sorted.iter().enumerate() {
-        if index > 0 {
-            canonical.push(',');
-        }
-        canonical.push_str("{\"content\":");
-        canonical.push_str(&serde_json::to_string(&file.content)?);
-        canonical.push_str(",\"path\":");
-        canonical.push_str(&serde_json::to_string(&file.path)?);
-        canonical.push('}');
-    }
-    canonical.push_str("]}");
-    Ok(sha256_prefixed(canonical.as_bytes()))
+fn bundle_digest(files: &[RegistryPackageFile]) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(crate::registry_fixture::bundle_digest(files)?.ok_or("a bundle holds files")?)
 }
 
 fn trusted_manifest_keys() -> Result<Vec<TrustedRegistryManifestKey>, Box<dyn std::error::Error>> {
-    let public_key = manifest_public_key_base64()?;
+    let public_key = crate::registry_fixture::public_key_base64()?;
     Ok(vec![TrustedRegistryManifestKey::from_base64(
-        TEST_MANIFEST_KEY_ID.to_owned(),
+        crate::registry_fixture::KEY_ID.to_owned(),
         &public_key,
         "acme".to_owned(),
         "test-registry".to_owned(),
     )?])
-}
-
-fn manifest_public_key_base64() -> Result<String, Box<dyn std::error::Error>> {
-    Ok(STANDARD.encode(dynamic_manifest_key_pair()?.public_key().as_ref()))
 }
 
 /// The envelope the registry serves for a candidate's exact files, under `skill_id`.
@@ -830,29 +802,5 @@ fn signed_as(
         candidate.profile_document.as_deref(),
         &candidate.package_files,
     )?;
-    let mut manifest = RegistrySignedManifest {
-        schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
-        subject,
-        version: "1.0.0".to_owned(),
-        content_digest,
-        signer: RegistryManifestSigner {
-            id: TEST_MANIFEST_SIGNER_ID.to_owned(),
-            key_id: TEST_MANIFEST_KEY_ID.to_owned(),
-        },
-        signature: RegistryManifestSignature {
-            alg: "ed25519".to_owned(),
-            value: "base64:".to_owned(),
-        },
-    };
-    let signature = dynamic_manifest_key_pair()?.sign(&manifest.signing_payload()?);
-    manifest.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
-    Ok(manifest)
-}
-
-fn dynamic_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {
-    ring::signature::Ed25519KeyPair::from_seed_unchecked(&DYNAMIC_MANIFEST_SEED).map_err(|error| {
-        std::io::Error::other(format!(
-            "dynamic registry manifest seed rejected: {error:?}"
-        ))
-    })
+    crate::registry_fixture::sign(subject.kind, &subject.name, "1.0.0", content_digest)
 }

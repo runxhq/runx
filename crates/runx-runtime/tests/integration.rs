@@ -38,6 +38,7 @@ mod receipt_tree;
 mod registry;
 mod registry_client;
 mod registry_connector_install;
+mod registry_fixture;
 mod registry_install;
 mod registry_paid_listing;
 mod skill_author_runtime_fixtures;

@@ -24,6 +24,8 @@ mod native_no_ts;
 mod operator_journeys;
 mod process;
 mod registry;
+#[path = "../../runx-runtime/tests/registry_fixture.rs"]
+mod registry_fixture;
 mod router;
 mod skill;
 mod skill_build_authoring;

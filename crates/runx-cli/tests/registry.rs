@@ -8,6 +8,8 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::signature::KeyPair;
 use serde_json::json;
 
+use crate::registry_fixture::{LoopbackRegistry, Publication};
+
 const TEST_MANIFEST_KEY_ID: &str = "runx-registry-test-key";
 const TEST_MANIFEST_SIGNER_ID: &str = "runx-registry-test-signer";
 const TEST_MANIFEST_SEED: [u8; 32] = [7; 32];
@@ -596,53 +598,14 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
         "schema: runx.connector.v1\nid: acme/ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
     )?;
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
-    let package = runx_runtime::registry::prepare_registry_connector_package(&connector)?;
-    let content_digest =
-        runx_contracts::registry_content_digest(package.files.iter().map(|file| {
-            runx_contracts::RegistryContentFile {
-                path: &file.path,
-                content: &file.content,
-            }
-        }))?;
-    let install_command = runx_contracts::CopyableCommand::posix(vec![
-        "runx".to_owned(),
-        "registry".to_owned(),
-        "install".to_owned(),
-        "acme/ops@1.0.0".to_owned(),
-    ])?;
-    let detail = json!({"status": "success", "connector": {
-        "connector": "acme/ops",
-        "version": "1.0.0",
-        "name": "Acme Ops",
-        "description": "Reads Acme items.",
-        "content_digest": content_digest,
-        "manifest_digest": package.manifest_digest,
-        "connector_digest": package.connector_digest,
-        "runtime_capability": false,
-        "trust_tier": "community",
-        "operations": [{"name": "item.read", "description": "Read an item."}],
-        "install_command": install_command,
-    }});
     // No skill holds the name, so `registry install` installs the connector.
-    let registry = crate::support::MockRegistry::serve(&[
-        ("/v1/connectors/acme/ops", detail.clone()),
-        ("/v1/connectors/acme/ops/versions/1.0.0", detail),
-        (
-            "/v1/connectors/acme/ops/versions/1.0.0/package",
-            json!({"status": "success", "package": {
-                "connector": "acme/ops",
-                "version": "1.0.0",
-                "trust_tier": "community",
-                "files": package.files,
-                "signed_manifest": sign_envelope(
-                    runx_contracts::RegistrySubjectKind::Connector,
-                    "acme/ops",
-                    "1.0.0",
-                    content_digest.clone(),
-                )?,
-            }}),
-        ),
-    ])?;
+    let registry = LoopbackRegistry::serve()?;
+    let published =
+        registry.publish_connector(&connector, "1.0.0", runx_contracts::TrustTier::Community)?;
+    let content_digest = published["content_digest"]
+        .as_str()
+        .ok_or("the registry states the content digest")?
+        .to_owned();
     let home = root.join("home");
     // An installed connector is added to the project's added connectors.
     let project = root.join("project");
@@ -650,9 +613,9 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
     let connector_command =
         |args: &[&str]| -> Result<std::process::Output, Box<dyn std::error::Error>> {
             Ok(runx_command()?
+                .envs(registry.env()?)
                 .env("RUNX_HOME", &home)
                 .env("RUNX_CWD", &project)
-                .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1")
                 .args(["registry"])
                 .args(args)
                 .output()?)
@@ -701,67 +664,24 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
 fn a_root_name_installs_the_canonical_skill_it_addresses() -> Result<(), Box<dyn std::error::Error>>
 {
     let root = temp_root("registry-root-name");
-    let markdown = include_str!("../../../fixtures/registry/install/echo-SKILL.md");
-    let profile = include_str!("../../../fixtures/registry/install/echo-run.yaml");
-    let content_digest =
-        runx_runtime::registry::skill_content_digest(markdown, Some(profile), &[])?;
-    let command = |argv: &[&str]| -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-        Ok(serde_json::to_value(
-            runx_contracts::CopyableCommand::posix(
-                argv.iter().map(|word| (*word).to_owned()).collect(),
-            )?,
-        )?)
-    };
-    let publisher = json!({"kind": "organization", "id": "pub_acme", "handle": "acme"});
-    let registry = crate::support::MockRegistry::serve(&[
-        // The registry resolves the root name `echo` to acme's skill.
-        (
-            "/v1/skills/echo",
-            json!({"status": "success", "skill": {
-                "skill_id": "acme/echo",
-                "name": "echo",
-                "version": "1.0.0",
-                "digest": "sha256:fixture",
-                "markdown": markdown,
-                "runner_names": ["default"],
-                "trust_tier": "verified",
-                "required_scopes": [],
-                "tags": [],
-                "publisher": publisher,
-                "attestations": [],
-                "install_command": command(&["runx", "registry", "install", "acme/echo@1.0.0"])?,
-                "run_command": command(&["runx", "skill", "acme/echo@1.0.0"])?,
-            }}),
-        ),
-        (
-            "POST /v1/skills/acme/echo/acquire",
-            json!({"status": "success", "install_count": 1, "acquisition": {
-                "skill_id": "acme/echo",
-                "name": "echo",
-                "version": "1.0.0",
-                "digest": "sha256:fixture",
-                "markdown": markdown,
-                "profile_document": profile,
-                "runner_names": ["default"],
-                "trust_tier": "verified",
-                "publisher": publisher,
-                "attestations": [],
-                "signed_manifest": sign_envelope(
-                    runx_contracts::RegistrySubjectKind::Skill,
-                    "acme/echo",
-                    "1.0.0",
-                    content_digest,
-                )?,
-            }}),
-        ),
-    ])?;
+    let registry = LoopbackRegistry::serve()?;
+    registry.publish(Publication::new(
+        "acme",
+        "1.0.0",
+        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        Some(include_str!(
+            "../../../fixtures/registry/install/echo-run.yaml"
+        )),
+    ))?;
+    // The registry resolves the root name `echo` to acme's skill.
+    registry.root("echo", "acme/echo");
     let project = root.join("project");
     fs::create_dir_all(&project)?;
     let install = |subject: &str| -> Result<std::process::Output, Box<dyn std::error::Error>> {
         Ok(runx_command()?
+            .envs(registry.env()?)
             .env("RUNX_HOME", root.join("home"))
             .env("RUNX_CWD", &project)
-            .env("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1")
             .args(["registry", "install", subject, "--registry", &registry.url])
             .arg("--json")
             .output()?)
