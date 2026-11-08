@@ -214,6 +214,57 @@ mod tests {
         );
     }
 
+    fn vectors() -> serde_json::Value {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/contracts/registry-tier-statement/registry-tier-statement-v1.vectors.json"
+        );
+        serde_json::from_str(&std::fs::read_to_string(path).expect("vectors"))
+            .expect("vectors json")
+    }
+
+    /// The shared vectors `@runxhq/contracts` runs too: each statement's
+    /// signing payload is these exact bytes, signed by the vectors' key, and
+    /// each refused statement is refused here as there.
+    #[test]
+    fn the_shared_vectors_sign_these_bytes_and_refuse_these_terms() {
+        use base64::Engine;
+        let vectors = vectors();
+        let public_key = base64::engine::general_purpose::STANDARD
+            .decode(vectors["public_key_base64"].as_str().expect("key"))
+            .expect("key bytes");
+        let key = ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key);
+        for case in vectors["statements"].as_array().expect("statements") {
+            let statement: RegistryTierStatement =
+                serde_json::from_value(case["statement"].clone()).expect("statement");
+            statement.validate().expect("valid");
+            let payload = statement.signing_payload().expect("payload");
+            assert_eq!(
+                std::str::from_utf8(&payload).expect("utf8"),
+                case["signing_payload"].as_str().expect("payload"),
+                "{}",
+                case["name"]
+            );
+            let signature = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .decode(
+                    statement
+                        .signature
+                        .value
+                        .strip_prefix("base64:")
+                        .expect("prefix"),
+                )
+                .expect("signature bytes");
+            key.verify(&payload, &signature)
+                .expect("signature verifies");
+        }
+        for case in vectors["invalid_statements"].as_array().expect("cases") {
+            let refused =
+                serde_json::from_value::<RegistryTierStatement>(case["statement"].clone())
+                    .map_or(true, |statement| statement.validate().is_err());
+            assert!(refused, "{}", case["name"]);
+        }
+    }
+
     #[test]
     fn a_statement_holds_from_its_issue_until_it_expires() {
         let statement = statement();

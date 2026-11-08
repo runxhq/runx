@@ -104,17 +104,17 @@ export function isConnectorName(value: string): boolean {
 
 /** Checks the envelope's shape and every term; refuses any field the contract does not name. */
 export function validateRegistrySignedManifest(value: unknown): RegistrySignedManifest {
-  const manifest = object(value, "signed_manifest", ["schema", "subject", "version", "content_digest", "signer", "signature"]);
-  const subject = object(manifest.subject, "signed_manifest.subject", ["kind", "name"]);
-  const signer = object(manifest.signer, "signed_manifest.signer", ["id", "key_id"]);
-  const signature = object(manifest.signature, "signed_manifest.signature", ["alg", "value"]);
+  const manifest = exactObject(value, "signed_manifest", ["schema", "subject", "version", "content_digest", "signer", "signature"]);
+  const subject = exactObject(manifest.subject, "signed_manifest.subject", ["kind", "name"]);
+  const signer = exactObject(manifest.signer, "signed_manifest.signer", ["id", "key_id"]);
+  const signature = exactObject(manifest.signature, "signed_manifest.signature", ["alg", "value"]);
   if (manifest.schema !== REGISTRY_SIGNED_MANIFEST_SCHEMA) throw new Error(`signed_manifest.schema must be ${REGISTRY_SIGNED_MANIFEST_SCHEMA}.`);
   if (subject.kind !== "skill" && subject.kind !== "connector") throw new Error("signed_manifest.subject.kind must be skill or connector.");
   if (typeof subject.name !== "string" || !isRegistrySubjectName(subject.kind, subject.name)) {
     throw new Error(`signed_manifest.subject.name is not a ${subject.kind} name.`);
   }
   if (typeof manifest.version !== "string" || !isRegistryVersion(manifest.version)) throw new Error("signed_manifest.version is not a registry version label.");
-  if (typeof manifest.content_digest !== "string" || !SHA256.test(manifest.content_digest)) throw new Error("signed_manifest.content_digest must be sha256: and 64 lowercase hex digits.");
+  if (!isSha256Digest(manifest.content_digest)) throw new Error("signed_manifest.content_digest must be sha256: and 64 lowercase hex digits.");
   if (!isSignerTerm(signer.id) || !isSignerTerm(signer.key_id)) throw new Error("signed_manifest.signer needs short printable id and key_id.");
   if (signature.alg !== REGISTRY_MANIFEST_SIGNATURE_ALG) throw new Error(`signed_manifest.signature.alg must be ${REGISTRY_MANIFEST_SIGNATURE_ALG}.`);
   if (typeof signature.value !== "string" || !signature.value.startsWith(REGISTRY_MANIFEST_SIGNATURE_PREFIX)) {
@@ -128,11 +128,18 @@ const SKILL_NAME = /^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const CONNECTOR_NAME = /^(?!versions(?:\/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:\/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$/u;
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 
-function isSignerTerm(value: unknown): value is string {
+/** A `sha256:` digest: 64 lowercase hex digits. */
+export function isSha256Digest(value: unknown): value is `sha256:${string}` {
+  return typeof value === "string" && SHA256.test(value);
+}
+
+/** A signer's id or key id: 1 to 128 printable ASCII characters. */
+export function isSignerTerm(value: unknown): value is string {
   return typeof value === "string" && value.length >= 1 && value.length <= 128 && /^[\x21-\x7e]+$/u.test(value);
 }
 
-function object(value: unknown, label: string, fields: readonly string[]): Readonly<Record<string, unknown>> {
+/** `value` as an object holding no field but `fields`. */
+export function exactObject(value: unknown, label: string, fields: readonly string[]): Readonly<Record<string, unknown>> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object.`);
   const unknown = Object.keys(value).find((key) => !fields.includes(key));
   if (unknown !== undefined) throw new Error(`${label} has no field ${unknown}.`);

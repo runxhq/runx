@@ -64,6 +64,13 @@ export {
   type UnsignedRegistryManifest,
 } from "./registry-signed-manifest.js";
 export {
+  REGISTRY_TIER_STATEMENT_SCHEMA,
+  registryTierStatementPayload,
+  validateRegistryTierStatement,
+  type RegistryTierStatement,
+  type UnsignedRegistryTierStatement,
+} from "./registry-tier-statement.js";
+export {
   RegistryCategoryError,
   UNCATEGORIZED,
   declaredRegistryCategory,

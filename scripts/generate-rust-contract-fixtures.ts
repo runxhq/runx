@@ -61,6 +61,7 @@ type ContractScope =
   | "paid-skill-price"
   | "principal-id"
   | "purchase-claim"
+  | "registry-tier-statement"
   | "x402-v2";
 
 const selectedScope = scopeArg();
@@ -74,6 +75,7 @@ if (
   && selectedScope !== "paid-skill-price"
   && selectedScope !== "principal-id"
   && selectedScope !== "purchase-claim"
+  && selectedScope !== "registry-tier-statement"
   && selectedScope !== "x402-v2"
 ) {
   throw new Error(`unsupported contract fixture scope: ${selectedScope}`);
@@ -98,6 +100,13 @@ if (selectedScope === undefined || selectedScope === "principal-id") {
 }
 if (selectedScope === undefined || selectedScope === "purchase-claim") {
   runExampleFixtures("purchase-claim", "runx-purchase-claim-fixtures", "RUNX_PURCHASE_CLAIM_FIXTURES_BIN");
+}
+if (selectedScope === undefined || selectedScope === "registry-tier-statement") {
+  runExampleFixtures(
+    "registry-tier-statement",
+    "runx-registry-tier-statement-fixtures",
+    "RUNX_REGISTRY_TIER_STATEMENT_FIXTURES_BIN",
+  );
 }
 if (selectedScope === undefined || selectedScope === "x402-v2") {
   runX402Fixtures();
