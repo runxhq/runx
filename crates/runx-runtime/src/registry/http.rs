@@ -25,12 +25,6 @@ pub struct RegistryClient<T = DefaultRuntimeHttpTransport> {
     transport: T,
 }
 
-impl RegistryClient<DefaultRuntimeHttpTransport> {
-    pub fn new(base_url: impl AsRef<str>) -> Result<Self, RegistryClientError> {
-        Self::with_transport(base_url, DefaultRuntimeHttpTransport::new()?)
-    }
-}
-
 impl<T: Transport> RegistryClient<T> {
     pub fn with_transport(
         base_url: impl AsRef<str>,
@@ -51,10 +45,6 @@ impl<T: Transport> RegistryClient<T> {
             base_url,
             transport,
         })
-    }
-
-    pub fn search(&self, query: &str) -> Result<Vec<RegistrySearchResult>, RegistryClientError> {
-        self.search_with_limit(query, 20)
     }
 
     pub fn search_with_limit(

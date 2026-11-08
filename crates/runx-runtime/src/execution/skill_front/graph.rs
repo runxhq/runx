@@ -1251,7 +1251,7 @@ steps:
         assert!(value.contains("[redacted-credential]"));
         assert!(!value.contains(MARKER));
         assert!(!format!("{output:?}").contains(MARKER));
-        let credentials = serde_json::to_string(output.observations().credentials())?;
+        let credentials = serde_json::to_string(output.observations.credentials())?;
         assert!(credentials.contains("runx:credential:local:"));
         assert!(!credentials.contains(MARKER));
 

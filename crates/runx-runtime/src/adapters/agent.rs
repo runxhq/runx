@@ -99,11 +99,6 @@ impl ManagedAgentError {
     }
 
     #[must_use]
-    pub fn sanitized_message(&self) -> &str {
-        &self.sanitized_message
-    }
-
-    #[must_use]
     pub fn telemetry(&self) -> Option<&AgentExecutionTelemetry> {
         self.telemetry.as_deref()
     }

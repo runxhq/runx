@@ -110,8 +110,7 @@ pub use hosted_api::{
     ReceiptNotarization, complete_hosted_login, exchange_hosted_provider_token,
     execute_hosted_connect, hosted_api_transport, hosted_private_network_allowed,
     hosted_provider_api_transport, load_local_public_api_token, notarize_hosted_receipt,
-    parse_hosted_api_error, read_hosted_purchase, start_hosted_login,
-    store_authenticated_hosted_environment,
+    parse_hosted_api_error, start_hosted_login, store_authenticated_hosted_environment,
 };
 pub use http::RuntimeHttpError;
 pub use http::{
@@ -199,7 +198,5 @@ pub const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
 pub const RUNX_VERSION: &str = "0.11.1";
 
 pub use services::{persist_json_artifact, read_json_artifact};
-
-pub use skill_package::validate_skill_runner_inputs;
 
 pub use execution::skill_context::load_context_skills;

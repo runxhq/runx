@@ -77,11 +77,6 @@ impl JavaScriptAdapter {
     }
 
     #[must_use]
-    pub fn max_concurrency(&self) -> usize {
-        self.max_concurrency
-    }
-
-    #[must_use]
     pub fn spawned_process_count(&self) -> u64 {
         self.supervisor.spawn_count()
     }

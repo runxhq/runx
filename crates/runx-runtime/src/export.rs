@@ -113,18 +113,6 @@ impl std::fmt::Display for RunxExportLoadError {
 
 impl std::error::Error for RunxExportLoadError {}
 
-pub fn load_export_skills(
-    root: &Path,
-    refs: &[String],
-) -> Result<Vec<RunxExportSkill>, RunxExportLoadError> {
-    load_export_skills_with_options(RunxExportLoadOptions {
-        root,
-        refs,
-        source_roots: Vec::new(),
-        execution_env: None,
-    })
-}
-
 pub fn load_export_skills_with_options(
     options: RunxExportLoadOptions<'_>,
 ) -> Result<Vec<RunxExportSkill>, RunxExportLoadError> {
@@ -352,7 +340,7 @@ mod tests {
 
     use std::fs;
 
-    use super::{RunxExportMode, load_export_skills};
+    use super::{RunxExportLoadOptions, RunxExportMode, load_export_skills_with_options};
 
     #[test]
     fn exports_workspace_manual_without_admitting_repository_as_its_package() {
@@ -374,7 +362,13 @@ mod tests {
         fs::write(root.join("unrelated/run.yaml"), "not: [valid")
             .expect("unrelated repository file");
 
-        let skills = load_export_skills(root, &[]).expect("export skills");
+        let skills = load_export_skills_with_options(RunxExportLoadOptions {
+            root,
+            refs: &[],
+            source_roots: Vec::new(),
+            execution_env: None,
+        })
+        .expect("export skills");
 
         assert_eq!(
             skills

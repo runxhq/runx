@@ -254,13 +254,6 @@ impl RunxPaths {
         self.project.join("harness")
     }
 
-    /// Each detached process's lock, control mailbox and output log, by its
-    /// id.
-    #[must_use]
-    pub fn processes(&self) -> PathBuf {
-        self.project.join(PROCESSES_DIR)
-    }
-
     #[must_use]
     pub fn tmp(&self) -> PathBuf {
         self.project.join("tmp")

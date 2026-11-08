@@ -62,10 +62,6 @@ impl SecretEnv {
         self.values.is_empty()
     }
 
-    pub fn get(&self, key: &str) -> Option<&str> {
-        self.values.get(key).map(SecretString::expose)
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
         self.values
             .iter()
@@ -439,28 +435,8 @@ impl CredentialDelivery {
     }
 
     #[must_use]
-    pub fn with_public_observation(
-        mut self,
-        observation: runx_contracts::CredentialDeliveryObservation,
-    ) -> Self {
-        Arc::make_mut(&mut self.inner).public_observation = Some(observation);
-        self
-    }
-
-    #[must_use]
     pub fn public_observation(&self) -> Option<&runx_contracts::CredentialDeliveryObservation> {
         self.inner.public_observation.as_ref()
-    }
-
-    #[must_use]
-    pub fn credential_refs(&self) -> Option<Vec<runx_contracts::Reference>> {
-        self.inner
-            .public_observation
-            .as_ref()
-            .and_then(|observation| {
-                (!observation.credential_refs.is_empty())
-                    .then(|| observation.credential_refs.clone())
-            })
     }
 
     #[must_use]
@@ -652,8 +628,8 @@ mod tests {
             "ghp_secret_value",
         )?;
         assert_eq!(
-            delivery.secret_env().get("GITHUB_TOKEN"),
-            Some("ghp_secret_value")
+            delivery.secret_env().iter().collect::<Vec<_>>(),
+            [("GITHUB_TOKEN", "ghp_secret_value")]
         );
         assert!(!format!("{delivery:?}").contains("ghp_secret_value"));
         Ok(())
@@ -673,8 +649,8 @@ mod tests {
 
         assert!(Arc::ptr_eq(&delivery.inner, &clone.inner));
         assert_eq!(
-            clone.secret_env().get("GITHUB_TOKEN"),
-            Some("ghp_secret_value")
+            clone.secret_env().iter().collect::<Vec<_>>(),
+            [("GITHUB_TOKEN", "ghp_secret_value")]
         );
         Ok(())
     }
@@ -756,17 +732,15 @@ mod tests {
             "ghp_secret_value",
         )
         .map_err(|error| error.to_string())?;
-        let refs = delivery
-            .credential_refs()
-            .ok_or_else(|| "expected credential refs".to_owned())?;
+        let observation = delivery
+            .public_observation()
+            .ok_or_else(|| "expected a public observation".to_owned())?;
+        let refs = &observation.credential_refs;
 
         assert_eq!(refs.len(), 1);
         assert_eq!(refs[0].reference_type.as_str(), "credential");
         assert_eq!(refs[0].provider.as_deref(), Some("github"));
         assert_eq!(refs[0].proof_kind, Some(ProofKind::CredentialResolution));
-        let observation = delivery
-            .public_observation()
-            .ok_or_else(|| "expected a public observation".to_owned())?;
         let serialized = serde_json::to_string(observation).map_err(|error| error.to_string())?;
         assert!(!serialized.contains("ghp_secret_value"));
         Ok(())

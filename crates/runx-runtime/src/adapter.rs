@@ -305,14 +305,6 @@ impl InvocationOutput {
     }
 
     #[must_use]
-    pub fn process_stderr(&self) -> Option<&str> {
-        match &self.diagnostics {
-            InvocationDiagnostics::Runtime { .. } => None,
-            InvocationDiagnostics::Process { stderr, .. } => Some(stderr),
-        }
-    }
-
-    #[must_use]
     pub fn failure_message(&self) -> Option<String> {
         if self.succeeded() {
             return None;
@@ -350,12 +342,6 @@ impl InvocationOutput {
 
     pub(crate) fn set_ephemeral(&mut self, value: JsonValue) {
         self.ephemeral = EphemeralValue::from_value(value);
-    }
-
-    /// What the runtime observed about the invocation.
-    #[must_use]
-    pub fn observations(&self) -> &Observations {
-        &self.observations
     }
 }
 

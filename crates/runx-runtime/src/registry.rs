@@ -19,7 +19,7 @@ mod trust_anchor;
 mod types;
 
 pub(crate) use bundled::bundled_skills;
-pub use bundled::{bundled_runx_manual, materialize_bundled_skill};
+pub use bundled::materialize_bundled_skill;
 pub(crate) use connector_install::write_connector_version;
 pub use connector_install::{
     ConnectorInstallError, InstallRegistryConnectorOptions, InstalledRegistryConnector,

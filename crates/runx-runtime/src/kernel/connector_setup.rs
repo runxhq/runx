@@ -281,25 +281,6 @@ impl<'a> ConnectorSetup<'a> {
         }
     }
 
-    /// A setup reaching the hosted account and local sessions through
-    /// `transport`: tests and embedders verify the production path without
-    /// live traffic.
-    #[must_use]
-    pub fn with_transport(
-        instances: &'a Instances,
-        workspace: &'a WorkspaceEnv,
-        transport: Transport,
-    ) -> Self {
-        Self {
-            instances,
-            workspace,
-            hosted: HostedClient::with_transport(Arc::clone(&transport)),
-            transport: Some(transport),
-            secrets: None,
-            links: None,
-        }
-    }
-
     /// Confirm and select the instance `request` names for `connector`.
     pub fn use_connector(
         &self,

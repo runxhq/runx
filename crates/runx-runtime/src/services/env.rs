@@ -131,11 +131,6 @@ impl WorkspaceEnv {
         })
     }
 
-    #[must_use]
-    pub const fn env_file_loaded(&self) -> bool {
-        self.env_file_loaded
-    }
-
     pub(crate) fn skill_env_for_skill(&self, skill_dir: &Path) -> BTreeMap<String, String> {
         let mut env = self.env.clone();
         let cwd = self.cwd.to_string_lossy().into_owned();
@@ -338,7 +333,7 @@ mod tests {
         let workspace = WorkspaceEnv::load(BTreeMap::new(), temp.path().to_path_buf())?;
 
         assert_eq!(workspace.env().get(&key), Some(&"from-file".to_owned()));
-        assert!(workspace.env_file_loaded());
+        assert!(workspace.env_file_loaded);
         assert!(std::env::var(&key).is_err());
         Ok(())
     }

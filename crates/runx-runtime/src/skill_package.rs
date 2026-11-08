@@ -553,32 +553,6 @@ pub(crate) fn ignored_package_entry(name: &str) -> bool {
     )
 }
 
-/// Validate and materialize a proposed invocation without dispatching it.
-/// Uses the same admitted package and input validator as native execution.
-pub fn validate_skill_runner_inputs(
-    path: &std::path::Path,
-    runner_name: &str,
-    inputs: &runx_contracts::JsonObject,
-) -> Result<runx_contracts::JsonObject, crate::RuntimeError> {
-    let loaded = load_validated_skill_package(path)?;
-    let manifest = loaded
-        .manifest()
-        .ok_or_else(|| crate::RuntimeError::ReceiptInvalid {
-            message: "skill has no runner manifest".to_owned(),
-        })?;
-    let runner =
-        manifest
-            .runners
-            .get(runner_name)
-            .ok_or_else(|| crate::RuntimeError::ReceiptInvalid {
-                message: format!("skill has no runner {runner_name}"),
-            })?;
-    let mut inputs = inputs.clone();
-    crate::input_contract::apply_defaults(&runner.inputs, &mut inputs);
-    crate::input_contract::materialize_complete_runner_inputs(&runner.inputs, &inputs)
-        .map_err(|error| error.into_runtime_error())
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]

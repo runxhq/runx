@@ -110,7 +110,7 @@ fn search_builds_url_and_parses_trust_tier() -> Result<(), Box<dyn std::error::E
     let transport = MockTransport::with(search_success_fixture()?);
     let client = RegistryClient::with_transport("https://registry.example/", &transport)?;
 
-    let results = client.search(" echo ")?;
+    let results = client.search_with_limit(" echo ", 20)?;
 
     assert_eq!(results[0].trust_tier, TrustTier::Verified);
     assert_eq!(
@@ -139,7 +139,7 @@ fn search_rejects_unknown_trust_tier_with_field_path() -> Result<(), Box<dyn std
     }));
     let client = RegistryClient::with_transport("https://registry.example", &transport)?;
 
-    let error = match client.search("echo") {
+    let error = match client.search_with_limit("echo", 20) {
         Ok(_) => return Err("unknown tier should fail".into()),
         Err(error) => error,
     };
@@ -153,7 +153,7 @@ fn search_reports_invalid_json_with_route() -> Result<(), Box<dyn std::error::Er
     let transport = MockTransport::with_body(200, "{not-json");
     let client = RegistryClient::with_transport("https://registry.example", &transport)?;
 
-    let error = match client.search("echo") {
+    let error = match client.search_with_limit("echo", 20) {
         Ok(_) => return Err("invalid JSON should fail".into()),
         Err(error) => error,
     };

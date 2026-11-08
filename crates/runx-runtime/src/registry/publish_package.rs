@@ -67,11 +67,6 @@ impl RegistryPublishPackage {
         &self.package_files
     }
 
-    #[must_use]
-    pub fn metadata(&self) -> &RegistryPackageMetadata {
-        &self.metadata
-    }
-
     pub fn run_harness(
         &self,
         orchestrator: &LocalOrchestrator,
@@ -246,7 +241,7 @@ mod tests {
             .map(|file| file.path.as_str())
             .collect::<Vec<_>>();
         assert_eq!(paths, ["runx.package.json"]);
-        assert_eq!(package.metadata().name, "manual-only");
+        assert_eq!(package.metadata.name, "manual-only");
         Ok(())
     }
 
@@ -946,7 +941,10 @@ operations:
             crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
             project.to_string_lossy().into_owned(),
         )]);
-        let native = crate::ConnectorScope::runtime_capabilities_only()?.connector("web")?;
+        let native = crate::ConnectorScope::runtime_capabilities()?
+            .into_iter()
+            .find(|connector| connector.name.as_str() == "web")
+            .ok_or("the web runtime capability is missing")?;
         let installed = crate::RunxPaths::resolve(&env, &work)
             .added_connectors()
             .join("web/revision");

@@ -6,7 +6,9 @@ use std::time::Instant;
 use runx_contracts::{JsonObject, JsonValue};
 use runx_parser::ProcessTool;
 use runx_runtime::RUNX_CWD_ENV;
-use runx_runtime::adapter::{Executable, InvocationStatus, SkillAdapter, SkillInvocation};
+use runx_runtime::adapter::{
+    Executable, InvocationDiagnostics, InvocationStatus, SkillAdapter, SkillInvocation,
+};
 use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::credentials::CredentialDelivery;
 use serde::Deserialize;
@@ -74,16 +76,18 @@ fn rust_matches_skill_author_runtime_fixtures() -> Result<(), Box<dyn std::error
             "{} status",
             fixture.id
         );
+        let stderr = match &output.diagnostics {
+            InvocationDiagnostics::Process { stderr, .. } => Some(stderr.as_str()),
+            InvocationDiagnostics::Runtime { .. } => None,
+        };
         if let Some(expected) = fixture.expected.stderr_contains.as_ref() {
             assert!(
-                output
-                    .process_stderr()
-                    .is_some_and(|stderr| stderr.contains(expected)),
+                stderr.is_some_and(|stderr| stderr.contains(expected)),
                 "{} stderr should contain {expected:?}",
                 fixture.id
             );
         } else {
-            assert_eq!(output.process_stderr(), Some(""), "{} stderr", fixture.id);
+            assert_eq!(stderr, Some(""), "{} stderr", fixture.id);
         }
         if let Some(expected) = fixture.expected.stdout_json {
             assert_eq!(output.value, expected, "{} stdout_json", fixture.id);

@@ -261,11 +261,6 @@ impl AuthenticatedHostedApiEnvironment {
     }
 
     #[must_use]
-    pub fn principal_id(&self) -> &str {
-        self.principal_id.as_str()
-    }
-
-    #[must_use]
     pub(crate) fn runx_principal_id(&self) -> &RunxPrincipalId {
         &self.principal_id
     }

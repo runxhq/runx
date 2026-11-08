@@ -143,8 +143,18 @@ impl Project {
         }
     }
 
+    /// A setup reaching the hosted account and local sessions through
+    /// `connect`, so the production path runs without live traffic.
     fn setup(&self, connect: &Connect) -> ConnectorSetup<'_> {
-        ConnectorSetup::with_transport(&self.instances, &self.workspace, Arc::new(connect.clone()))
+        let transport: super::Transport = Arc::new(connect.clone());
+        ConnectorSetup {
+            instances: &self.instances,
+            workspace: &self.workspace,
+            hosted: super::HostedClient::with_transport(Arc::clone(&transport)),
+            transport: Some(transport),
+            secrets: None,
+            links: None,
+        }
     }
 }
 

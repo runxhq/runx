@@ -135,7 +135,8 @@ mod tests {
             matches!(
                 &result,
                 Ok(Some(admission))
-                    if admission.family() == "deploy" && admission.verb() == AuthorityVerb::Write
+                    if admission.family() == "deploy"
+                        && admission.witness().verb == AuthorityVerb::Write
             ),
             "unexpected admission result: {result:?}"
         );

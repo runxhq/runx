@@ -105,8 +105,6 @@ pub enum ConnectorRegistryError {
     InvalidManifest { path: PathBuf, message: String },
     #[error("connector {id} at {path} conflicts with the runtime capability of the same name")]
     Shadowed { id: ConnectorName, path: PathBuf },
-    #[error("connector {id} is not a runtime capability")]
-    NotRuntimeCapability { id: String },
     #[error("connector {id} is not available in this scope")]
     Unavailable { id: String },
     #[error(
@@ -333,8 +331,7 @@ pub(crate) fn operation_digest_entries<'a>(
 pub struct ConnectorScope {
     plugin: Option<Arc<PluginConnectors>>,
     /// The directory the plugin was looked for from, so a miss says where.
-    /// None for the runtime capabilities alone.
-    searched: Option<PathBuf>,
+    searched: PathBuf,
     /// The connectors runx added to the project (`RunxPaths::added_connectors`),
     /// whose versions (`<name>/<version>/`) are read only for a connector named
     /// exactly: by a requirement's manifest pin, an operator's `name@version`,
@@ -505,7 +502,7 @@ impl ConnectorScope {
                     isolated: true,
                     connectors,
                 })),
-                searched: Some(dir),
+                searched: dir,
                 installed: None,
             });
         }
@@ -527,7 +524,7 @@ impl ConnectorScope {
         };
         Ok(Self {
             plugin,
-            searched: Some(dir),
+            searched: dir,
             installed: None,
         })
     }
@@ -615,8 +612,7 @@ impl ConnectorScope {
             }
             Err(
                 ConnectorRegistryError::NotInPlugin { .. }
-                | ConnectorRegistryError::NoPlugin { .. }
-                | ConnectorRegistryError::NotRuntimeCapability { .. },
+                | ConnectorRegistryError::NoPlugin { .. },
             ) if self.installed.is_some() => {
                 let name = ConnectorName::new(key)
                     .ok_or_else(|| ConnectorRegistryError::Unavailable { id: key.to_owned() })?;
@@ -802,16 +798,6 @@ impl ConnectorScope {
         Ok(names)
     }
 
-    /// Only the runtime capabilities.
-    pub fn runtime_capabilities_only() -> Result<Self, ConnectorRegistryError> {
-        runtime_capabilities()?;
-        Ok(Self {
-            plugin: None,
-            searched: None,
-            installed: None,
-        })
-    }
-
     /// The connector `name` names: one in reach ([`Self::connectors`]), or one
     /// no connector in reach answers, its one installed version. What an
     /// operator names; a skill's requirement resolves through
@@ -821,8 +807,7 @@ impl ConnectorScope {
             (
                 Err(
                     miss @ (ConnectorRegistryError::NotInPlugin { .. }
-                    | ConnectorRegistryError::NoPlugin { .. }
-                    | ConnectorRegistryError::NotRuntimeCapability { .. }),
+                    | ConnectorRegistryError::NoPlugin { .. }),
                 ),
                 Some(connector),
             ) if self.installed.is_some() => match self.installed(&connector, None) {
@@ -854,16 +839,15 @@ impl ConnectorScope {
             return Ok(connector);
         }
         let id = id.to_owned();
-        match (&self.plugin, &self.searched) {
-            (Some(plugin), _) => Err(ConnectorRegistryError::NotInPlugin {
+        match &self.plugin {
+            Some(plugin) => Err(ConnectorRegistryError::NotInPlugin {
                 id,
                 root: plugin.root.clone(),
             }),
-            (None, Some(dir)) => Err(ConnectorRegistryError::NoPlugin {
+            None => Err(ConnectorRegistryError::NoPlugin {
                 id,
-                dir: dir.clone(),
+                dir: self.searched.clone(),
             }),
-            (None, None) => Err(ConnectorRegistryError::NotRuntimeCapability { id }),
         }
     }
 
@@ -907,11 +891,6 @@ impl ConnectorScope {
             .flat_map(|field| &field.prefixes)
             .map(|prefix| prefix.as_str().to_owned())
             .collect())
-    }
-
-    #[must_use]
-    pub fn plugin_root(&self) -> Option<&Path> {
-        self.plugin.as_ref().map(|plugin| plugin.root.as_path())
     }
 
     /// Source bytes for a bound snapshot, when present on disk. Embedded

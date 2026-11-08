@@ -12,7 +12,10 @@ fn credential_delivery_keeps_material_in_memory_and_redacts_output() {
     )
     .expect("local credential delivery");
 
-    assert_eq!(delivery.secret_env().get("SLACK_TOKEN"), Some(SECRET));
+    assert_eq!(
+        delivery.secret_env().iter().collect::<Vec<_>>(),
+        [("SLACK_TOKEN", SECRET)]
+    );
     assert!(!format!("{delivery:?}").contains(SECRET));
     assert_eq!(
         delivery.redact_text(format!("authorization: Bearer {SECRET}")),

@@ -111,15 +111,6 @@ impl ModelDialect {
             _ => None,
         }
     }
-
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ChatCompletions => "chat_completions",
-            Self::AnthropicMessages => "anthropic_messages",
-            Self::OpenAiResponses => "openai_responses",
-        }
-    }
 }
 
 /// A provider runx knows: the dialect it speaks, where, and the variable that

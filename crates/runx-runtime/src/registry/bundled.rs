@@ -53,10 +53,6 @@ pub(crate) struct BundledSkill {
     version: String,
 }
 
-pub fn bundled_runx_manual() -> Result<&'static str, String> {
-    Ok(BUNDLE.as_ref().map_err(Clone::clone)?.orientation.as_str())
-}
-
 fn bundled_skill(name: &str) -> Result<Option<&'static BundledSkill>, String> {
     Ok(bundled_skills()?
         .iter()

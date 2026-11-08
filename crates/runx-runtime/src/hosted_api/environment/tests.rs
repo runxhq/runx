@@ -29,7 +29,6 @@ fn authenticated_principal_id_remains_typed_at_the_auth_boundary() {
         principal_id: RunxPrincipalId::new("operator:test").expect("valid principal id"),
     };
 
-    assert_eq!(authenticated.principal_id(), "operator:test");
     assert_eq!(authenticated.runx_principal_id().as_str(), "operator:test");
 }
 

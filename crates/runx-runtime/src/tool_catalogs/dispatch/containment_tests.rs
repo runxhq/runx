@@ -182,7 +182,7 @@ fn native_command_executes_exact_argv_under_process_supervision()
 
     assert_eq!(output.status, InvocationStatus::Success);
     assert_eq!(
-        output.observations().boundary(),
+        output.observations.boundary(),
         Some(runx_contracts::ExecutionBoundaryKind::TrustedHostProcess)
     );
     let payload = output.value;

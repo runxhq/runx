@@ -39,16 +39,6 @@ pub struct McpHttpServerSecurity {
     pub allow_non_loopback: bool,
 }
 
-impl McpHttpServerSecurity {
-    #[must_use]
-    pub fn loopback_only(bearer_token: String) -> Self {
-        Self {
-            bearer_token,
-            allow_non_loopback: false,
-        }
-    }
-}
-
 pub fn generate_mcp_http_bearer_token() -> Result<String, McpServerError> {
     let rng = SystemRandom::new();
     let mut token = [0_u8; 32];
@@ -264,7 +254,10 @@ mod tests {
     }
 
     fn test_security() -> McpHttpServerSecurity {
-        McpHttpServerSecurity::loopback_only("test-http-token".to_owned())
+        McpHttpServerSecurity {
+            bearer_token: "test-http-token".to_owned(),
+            allow_non_loopback: false,
+        }
     }
 
     #[test]

@@ -8,7 +8,6 @@ mod connect;
 mod environment;
 mod error;
 mod login;
-mod purchases;
 mod receipts;
 pub(crate) mod request;
 
@@ -27,7 +26,6 @@ pub use login::{
     HostedLoginCompleteResponse, HostedLoginStartResponse, HostedProviderTokenLoginResponse,
     complete_hosted_login, exchange_hosted_provider_token, start_hosted_login,
 };
-pub use purchases::read_hosted_purchase;
 pub use receipts::{ReceiptNotarization, notarize_hosted_receipt};
 
 pub const DEFAULT_HOSTED_API_BASE_URL: &str = "https://api.runx.ai";

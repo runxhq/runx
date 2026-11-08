@@ -77,11 +77,6 @@ impl TrustedRegistryManifestKey {
             scope,
         })
     }
-
-    #[must_use]
-    pub fn public_key_base64(&self) -> String {
-        STANDARD.encode(&self.public_key)
-    }
 }
 
 #[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]

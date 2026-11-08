@@ -38,11 +38,6 @@ impl EffectAdmission {
     }
 
     #[must_use]
-    pub fn verb(&self) -> AuthorityVerb {
-        self.verb.clone()
-    }
-
-    #[must_use]
     pub fn witness(&self) -> &AuthorityAdmissionWitness {
         &self.witness
     }

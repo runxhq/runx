@@ -449,14 +449,6 @@ impl RuntimeHttpTransport for ReqwestHttpTransport {
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         self.send_with_limit(request, RESPONSE_CEILING, true)
     }
-
-    fn send_idempotent_limited(
-        &self,
-        request: RuntimeHttpRequest,
-        response_limit: usize,
-    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        self.send_with_limit(request, response_limit, true)
-    }
 }
 
 impl RuntimeHttpTransport for ExactLoopbackHttpTransport {

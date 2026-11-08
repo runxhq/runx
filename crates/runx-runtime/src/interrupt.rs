@@ -26,13 +26,6 @@ thread_local! {
     static CALL_STOP: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
 }
 
-/// Ask the process to stop gracefully: a driver admits no further step or
-/// call, a command it supervises is terminated and recorded stopped, and an
-/// operation already reaching its provider returns and is recorded.
-pub fn stop() {
-    stop_asked().store(true, Ordering::Release);
-}
-
 /// Whether `SIGTERM` asked the process to stop.
 #[must_use]
 pub fn was_stopped() -> bool {
@@ -40,8 +33,8 @@ pub fn was_stopped() -> bool {
 }
 
 /// Do `work` as one call its host may cancel through `stop`: while it runs on
-/// this thread, a set `stop` stops it as [`stop`] stops the process, and the
-/// thread's next call starts clear.
+/// this thread, a set `stop` stops it as `SIGTERM` stops the process, and
+/// the thread's next call starts clear.
 pub fn while_working<T>(stop: &Arc<AtomicBool>, work: impl FnOnce() -> T) -> T {
     let previous = CALL_STOP.with(|call| call.replace(Some(Arc::clone(stop))));
     let result = work();

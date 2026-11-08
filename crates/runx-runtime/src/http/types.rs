@@ -170,14 +170,6 @@ pub trait RuntimeHttpTransport {
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         self.send(request)
     }
-
-    fn send_idempotent_limited(
-        &self,
-        request: RuntimeHttpRequest,
-        response_limit: usize,
-    ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        enforce_response_limit(self.send_idempotent(request)?, response_limit)
-    }
 }
 
 fn enforce_response_limit(

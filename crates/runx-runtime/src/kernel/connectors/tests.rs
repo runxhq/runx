@@ -19,15 +19,13 @@ fn only_the_runtime_capabilities_are_embedded() {
             && connector.origin == ConnectorOrigin::RuntimeCapability
             && connector.tools.is_empty()
     }));
-    let scope = ConnectorScope::runtime_capabilities_only().unwrap();
-    let store = scope.connector("store").expect("store");
+    let store = connectors
+        .iter()
+        .find(|connector| connector.name.as_str() == "store")
+        .expect("store");
     let (name, _, digest) = store.operation("events.append").expect("events.append");
     assert_eq!(name.as_str(), "events.append");
     assert!(digest.as_str().starts_with("sha256:"));
-    assert!(matches!(
-        scope.connector("slack"),
-        Err(ConnectorRegistryError::NotRuntimeCapability { .. })
-    ));
 }
 
 /// The paths of a project whose workspace is `work` and whose project
@@ -201,8 +199,9 @@ fn plugin_connectors_are_visible_to_their_plugin_only() {
     let scope = ConnectorScope::at(&skill).unwrap();
     let loaded = scope.connector("acme-weather").unwrap();
     assert!(matches!(loaded.origin, ConnectorOrigin::Plugin { .. }));
+    let elsewhere = tempfile::tempdir().unwrap();
     assert!(
-        ConnectorScope::runtime_capabilities_only()
+        ConnectorScope::at(elsewhere.path())
             .unwrap()
             .connector("acme-weather")
             .is_err()
@@ -336,10 +335,9 @@ fn a_skill_runx_added_has_the_projects_plugin() {
         let added = paths.added_skills().join("acme/records/1.0.0");
         std::fs::create_dir_all(&added).unwrap();
         let scope = ConnectorScope::in_project(&added, &paths).unwrap();
-        assert_eq!(scope.plugin_root(), Some(workspace.as_path()));
         assert!(matches!(
-            scope.connector("acme").unwrap().origin,
-            ConnectorOrigin::Plugin { .. }
+            &scope.connector("acme").unwrap().origin,
+            ConnectorOrigin::Plugin { root } if *root == workspace
         ));
     }
 }
@@ -393,10 +391,9 @@ fn seeding_a_runtime_capability_writes_into_the_project_directory() {
     assert!(!plugin.join("connectors/artifact").exists());
     assert!(!skill.join("connectors").exists());
     let again = ConnectorScope::at(&skill).unwrap();
-    assert_eq!(again.plugin_root(), Some(plugin.as_path()));
     assert!(matches!(
-        again.connector("acme").unwrap().origin,
-        ConnectorOrigin::Plugin { .. }
+        &again.connector("acme").unwrap().origin,
+        ConnectorOrigin::Plugin { root } if *root == plugin
     ));
 }
 
@@ -702,9 +699,10 @@ fn an_added_version_of_a_runtime_capability_is_its_own_revision() {
     let paths = project(&work, &root.path().join("project"));
     let installed =
         load_installed(&install(&paths.added_connectors(), "web", "9.0.0", "Next.")).unwrap();
-    let embedded = ConnectorScope::runtime_capabilities_only()
+    let embedded = ConnectorScope::runtime_capabilities()
         .unwrap()
-        .connector("web")
+        .into_iter()
+        .find(|connector| connector.name.as_str() == "web")
         .unwrap();
     assert_ne!(installed.manifest_digest, embedded.manifest_digest);
 
