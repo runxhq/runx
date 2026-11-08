@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 pub use runx_contracts::RunState;
 use runx_contracts::{
     CallAct, ContextEntry, JsonObject, JsonValue, Receipt, ResolutionRequest, RunCallOutput,
-    RunDriver, RunListEntry, RunOutcome, StandingApproval, TurnTarget,
+    RunDriver, RunListEntry, RunOutcome, StandingApproval, TurnTarget, UnreadableRun,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use serde::{Deserialize, Serialize};
@@ -1825,11 +1825,16 @@ const RUN_PAGE: usize = 200;
 pub struct RunListing {
     pub projector_id: String,
     pub runs: Vec<RunListEntry>,
+    /// The runs whose record this runx can't read, each by its id and why.
+    pub unreadable: Vec<UnreadableRun>,
 }
 
 /// The workspace's top-level runs, most recently advanced first. A page reads
 /// only each run's first and latest events, and stops at the first run that
-/// last moved before `since`.
+/// last moved before `since`. A run whose record can't be read, such as one
+/// another runx version recorded, is listed as unreadable, and the listing
+/// carries on: the skill, state and time filters can't judge it, so only a
+/// query on its id selects it, and it counts toward the limit.
 pub fn list_runs(
     env: &std::collections::BTreeMap<String, String>,
     cwd: &std::path::Path,
@@ -1862,8 +1867,9 @@ pub fn list_runs(
     let until = instant("until", &filter.until)?;
     let limit = filter.limit.unwrap_or(DEFAULT_RUN_LIMIT);
     let mut runs = Vec::new();
+    let mut unreadable = Vec::new();
     let mut cursor: Option<Head> = None;
-    while runs.len() < limit {
+    while runs.len() + unreadable.len() < limit {
         let heads = store.recent_heads::<RunEvent>(cursor.as_ref(), RUN_PAGE)?;
         let exhausted = heads.len() < RUN_PAGE;
         for head in heads {
@@ -1872,14 +1878,36 @@ pub fn list_runs(
                 crate::receipts::archive::Timestamp::parse(&head.updated_at)
                     .is_some_and(|updated| updated < since)
             }) {
-                return Ok(listing(runs));
+                return Ok(listing(runs, unreadable));
             }
             // Child runs share the kind; they are listed through their parent.
             if head.key.contains('/') {
                 continue;
             }
-            let Some(summary) = summarize(&store, &head)? else {
-                continue;
+            let summary = match summarize(&store, &head) {
+                Ok(Some(summary)) => summary,
+                Ok(None) => continue,
+                Err(error) if unreadable_record(&error) => {
+                    let selected = skill.is_none()
+                        && state.is_none()
+                        && since.is_none()
+                        && until.is_none()
+                        && query
+                            .as_ref()
+                            .is_none_or(|query| head.key.to_lowercase().contains(query));
+                    if selected {
+                        unreadable.push(UnreadableRun {
+                            run_id: head.key.as_str().into(),
+                            updated_at: head.updated_at.as_str().into(),
+                            reason: error.to_string().into(),
+                        });
+                        if runs.len() + unreadable.len() == limit {
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                Err(error) => return Err(error),
             };
             let started = crate::receipts::archive::Timestamp::parse(&summary.created_at);
             let matches = query.as_ref().is_none_or(|query| {
@@ -1899,7 +1927,7 @@ pub fn list_runs(
                 && until.is_none_or(|until| started.is_some_and(|started| started <= until));
             if matches {
                 runs.push(summary);
-                if runs.len() == limit {
+                if runs.len() + unreadable.len() == limit {
                     break;
                 }
             }
@@ -1908,14 +1936,30 @@ pub fn list_runs(
             break;
         }
     }
-    Ok(listing(runs))
+    Ok(listing(runs, unreadable))
 }
 
-fn listing(runs: Vec<RunListEntry>) -> RunListing {
+fn listing(runs: Vec<RunListEntry>, unreadable: Vec<UnreadableRun>) -> RunListing {
     RunListing {
         projector_id: RUN_LISTING_PROJECTOR_ID.to_owned(),
         runs,
+        unreadable,
     }
+}
+
+/// Whether `error` is this one run's record, which the listing reports and
+/// passes over: an event that doesn't decode, a broken chain or blob, or an
+/// invalid record. Anything else is the store's, and stops the listing.
+fn unreadable_record(error: &RunRecordError) -> bool {
+    matches!(
+        error,
+        RunRecordError::Invalid { .. }
+            | RunRecordError::Store(
+                KernelStoreError::Codec(_)
+                    | KernelStoreError::Integrity { .. }
+                    | KernelStoreError::BlobIntegrity { .. }
+            )
+    )
 }
 
 /// A paused run: what `runx resume` reloads, and what it waits on.

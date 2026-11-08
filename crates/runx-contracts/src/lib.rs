@@ -176,7 +176,7 @@ pub use native_packets::{
     ReceiptProofVerification, ReceiptQuery, ReceiptQuerySchema, ReceiptQuerySource,
     ReceiptQueryVerification, ReceiptRead, ReceiptReadSchema, ReceiptReadStatus,
     RegistryInspection, RegistrySearchPacket, RunContext, RunList, RunListEntry, RunListSchema,
-    RuntimeSealPending, RunxProcess, TerminalSize,
+    RuntimeSealPending, RunxProcess, TerminalSize, UnreadableRun,
 };
 pub use operational_policy::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAutomationPermissions,

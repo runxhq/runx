@@ -31285,7 +31285,7 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/run/list/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "What `run.list` returns: the workspace's top-level runs, most recently advanced first.",
+    "description": "What `run.list` returns: the workspace's top-level runs, most recently advanced first, and those whose record this runx can't read.",
     "properties": {
       "runs": {
         "items": {
@@ -31368,11 +31368,44 @@ export const runxSchemaArtifacts = {
         ],
         "title": "RunListSchema",
         "type": "string"
+      },
+      "unreadable": {
+        "items": {
+          "additionalProperties": false,
+          "description": "A run the listing found and couldn't read, such as one another runx version recorded: listed by its id, so one record never hides the rest.",
+          "properties": {
+            "reason": {
+              "description": "Why its record can't be read.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "run_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "updated_at": {
+              "description": "When the run last moved.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "run_id",
+            "updated_at",
+            "reason"
+          ],
+          "title": "UnreadableRun",
+          "type": "object"
+        },
+        "maxItems": 1000,
+        "minItems": 0,
+        "type": "array"
       }
     },
     "required": [
       "schema",
-      "runs"
+      "runs",
+      "unreadable"
     ],
     "title": "RunList",
     "type": "object",

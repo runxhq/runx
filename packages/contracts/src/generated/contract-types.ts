@@ -3269,10 +3269,11 @@ export type RunHoldContract = {
   readonly run_id: string;
 };
 
-/** What `run.list` returns: the workspace's top-level runs, most recently advanced first. */
+/** What `run.list` returns: the workspace's top-level runs, most recently advanced first, and those whose record this runx can't read. */
 export type RunListContract = {
   readonly runs: readonly RunListEntryContract[];
   readonly schema: RunListSchemaContract;
+  readonly unreadable: readonly UnreadableRunContract[];
 };
 
 /** One run of a listing, read from its first and latest events. */
@@ -4132,6 +4133,15 @@ export type TurnViewEnvelopeContract = {
   readonly step_id?: string;
   readonly trust_boundary: string;
   readonly voice_profile?: ProfileFileContract;
+};
+
+/** A run the listing found and couldn't read, such as one another runx version recorded: listed by its id, so one record never hides the rest. */
+export type UnreadableRunContract = {
+  /** Why its record can't be read. */
+  readonly reason: string;
+  readonly run_id: string;
+  /** When the run last moved. */
+  readonly updated_at: string;
 };
 
 /** A request the run waits on: its address, the digest an answer binds to, and the request itself. */

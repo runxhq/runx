@@ -133,10 +133,13 @@ fn list(invocation: &NativeInvocation<'_, RunListInput>) -> Result<RunListOutput
     )?;
     let runs = BoundedVec::new(listing.runs)
         .ok_or_else(|| failed(format!("listed more than {MAX_LIMIT} runs")))?;
+    let unreadable = BoundedVec::new(listing.unreadable)
+        .ok_or_else(|| failed(format!("listed more than {MAX_LIMIT} unreadable runs")))?;
     Ok(RunListOutput {
         run_list: RunList {
             schema: RunListSchema::V1,
             runs,
+            unreadable,
         },
     })
 }

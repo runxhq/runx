@@ -393,6 +393,114 @@ fn the_run_listing_shows_top_level_runs_newest_first() {
     ));
 }
 
+/// A run's first event as another runx version wrote it, which this one
+/// can't decode.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct RetiredStart {
+    harness: String,
+}
+
+impl StreamEvent for RetiredStart {
+    const KIND: &'static str = RunEvent::KIND;
+
+    fn event_type(&self) -> &'static str {
+        "started"
+    }
+}
+
+#[test]
+fn a_run_this_runx_cannot_read_is_listed_as_unreadable_and_the_listing_carries_on() {
+    let workspace = tempfile::tempdir().unwrap();
+    let env = BTreeMap::from([(
+        crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
+        workspace.path().join(".runx").display().to_string(),
+    )]);
+    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, workspace.path()))
+        .unwrap();
+    start(
+        &RunLog::open(Arc::clone(&store), "run_readable").unwrap(),
+        &JsonObject::new(),
+    );
+    store
+        .append(vec![
+            Append::kernel(
+                "run_retired",
+                Expected::Absent,
+                &RetiredStart {
+                    harness: "default".to_owned(),
+                },
+            )
+            .unwrap(),
+        ])
+        .unwrap();
+
+    let listing = list_runs(&env, workspace.path(), &RunFilter::default()).unwrap();
+    assert_eq!(
+        listing
+            .runs
+            .iter()
+            .map(|run| run.run_id.as_str())
+            .collect::<Vec<_>>(),
+        ["run_readable"]
+    );
+    assert_eq!(
+        listing
+            .unreadable
+            .iter()
+            .map(|run| run.run_id.as_str())
+            .collect::<Vec<_>>(),
+        ["run_retired"]
+    );
+    assert!(
+        listing.unreadable[0]
+            .reason
+            .contains("could not be encoded or decoded"),
+        "{}",
+        listing.unreadable[0].reason.as_str()
+    );
+
+    let by_id = |query: &str| {
+        list_runs(
+            &env,
+            workspace.path(),
+            &RunFilter {
+                query: Some(query.to_owned()),
+                ..RunFilter::default()
+            },
+        )
+        .unwrap()
+    };
+    assert_eq!(by_id("retired").unreadable.len(), 1);
+    assert!(by_id("readable").runs.len() == 1 && by_id("run_readable").unreadable.is_empty());
+    let by_skill = list_runs(
+        &env,
+        workspace.path(),
+        &RunFilter {
+            skill: Some("triage".to_owned()),
+            ..RunFilter::default()
+        },
+    )
+    .unwrap();
+    assert!(
+        by_skill.runs.len() == 1 && by_skill.unreadable.is_empty(),
+        "a filter that can't judge a run leaves it out"
+    );
+    let one = list_runs(
+        &env,
+        workspace.path(),
+        &RunFilter {
+            limit: Some(1),
+            ..RunFilter::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        one.runs.len() + one.unreadable.len(),
+        1,
+        "an unreadable run counts toward the limit"
+    );
+}
+
 #[test]
 fn a_call_leaves_the_run_paused_at_its_turn() {
     let workspace = tempfile::tempdir().unwrap();

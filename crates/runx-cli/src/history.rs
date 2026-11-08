@@ -190,7 +190,7 @@ fn parse_history_args(args: &[OsString]) -> Result<ParsedHistoryArgs, HistoryCli
 }
 
 fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option<&Path>) -> String {
-    if listing.runs.is_empty() {
+    if listing.runs.is_empty() && listing.unreadable.is_empty() {
         if let Some(query) = query {
             return format!(
                 "\n  No runs matched {query}.\n  Try runx history to see every local run.\n\n"
@@ -204,13 +204,16 @@ fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option
         .iter()
         .filter(|run| run.state == RunState::Paused)
         .count();
+    let mut counts = vec![format!("{} run(s)", listing.runs.len())];
+    if paused > 0 {
+        counts.push(format!("{paused} paused"));
+    }
+    if !listing.unreadable.is_empty() {
+        counts.push(format!("{} unreadable", listing.unreadable.len()));
+    }
     let mut lines = vec![
         String::new(),
-        if paused == 0 {
-            format!("  history  {} run(s)", listing.runs.len())
-        } else {
-            format!("  history  {} run(s), {paused} paused", listing.runs.len())
-        },
+        format!("  history  {}", counts.join(", ")),
         String::new(),
     ];
     for run in &listing.runs {
@@ -232,6 +235,10 @@ fn render_history(listing: &RunListing, query: Option<&str>, receipt_dir: Option
             lines.push(format!("     waits on  {request_id}"));
             lines.push(format!("     next  {resume}"));
         }
+    }
+    for run in &listing.unreadable {
+        lines.push(format!("  unreadable  {}", run.run_id));
+        lines.push(format!("     why  {}", run.reason));
     }
     lines.push(String::new());
     lines.push(if paused == 0 {
@@ -326,6 +333,27 @@ mod tests {
             .map_err(|error| io::Error::other(error.to_string()))?;
         assert!(human.output.contains("No runs yet"));
         Ok(())
+    }
+
+    #[test]
+    fn history_shows_each_run_it_cannot_read_and_why() {
+        let listing = RunListing {
+            projector_id: "runx-runtime.run-record.v1".to_owned(),
+            runs: Vec::new(),
+            unreadable: vec![runx_contracts::UnreadableRun {
+                run_id: "run_retired".into(),
+                updated_at: "2026-11-09T00:00:00.000Z".into(),
+                reason: "kernel store event could not be encoded or decoded: missing field `skill`"
+                    .into(),
+            }],
+        };
+        let human = render_history(&listing, None, None);
+        assert!(human.contains("history  0 run(s), 1 unreadable"), "{human}");
+        assert!(human.contains("unreadable  run_retired"), "{human}");
+        assert!(
+            human.contains("why  kernel store event could not be"),
+            "{human}"
+        );
     }
 
     #[test]

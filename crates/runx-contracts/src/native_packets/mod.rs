@@ -64,4 +64,4 @@ pub use registry::{
     CatalogHit, CatalogMethod, CatalogPackageKind, CatalogSource, ConnectorInspection,
     InspectedOperation, RegistryInspection, RegistrySearchPacket,
 };
-pub use runs::{RUN_LIST_MAX_RUNS, RunList, RunListEntry, RunListSchema};
+pub use runs::{RUN_LIST_MAX_RUNS, RunList, RunListEntry, RunListSchema, UnreadableRun};
