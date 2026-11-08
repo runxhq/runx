@@ -1052,8 +1052,15 @@ fn step_requirements(executable: &Executable) -> runx_contracts::ExecutionRequir
         Executable::Process(process) => process.environment.clone(),
         Executable::Agent(_) => runx_contracts::EnvironmentRequirements::default(),
     };
+    // A worker that reads its input in pages reads one file: the
+    // `paged_input` it declares is its `fs.read`, as a catalog tool runs with
+    // the scopes it declares.
+    let scopes = match executable {
+        Executable::Worker(worker) if worker.paged_input.is_some() => vec!["fs.read".to_owned()],
+        _ => Vec::new(),
+    };
     runx_contracts::ExecutionRequirements {
-        scopes: Vec::new(),
+        scopes,
         environment,
     }
 }
