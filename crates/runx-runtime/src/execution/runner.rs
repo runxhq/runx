@@ -10,7 +10,7 @@
 //! and the per-step execution helpers live in private submodules.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use runx_contracts::{JsonObject, JsonValue, Receipt, RunOutcome, SealReason};
@@ -18,14 +18,13 @@ use runx_core::state_machine::{SequentialWorkflow, StepAdmissionWitness, Workflo
 use runx_parser::Workflow;
 use serde::{Deserialize, Serialize};
 
-use super::graph::load_workflow;
 use super::run_record::{RunLog, RunRecord};
 use crate::RuntimeError;
 use crate::adapter::{
     EphemeralValue, InvocationDiagnostics, InvocationOutput, InvocationStatus, SkillAdapter,
 };
 use crate::effects::RuntimeEffectRegistry;
-use crate::host::{Host, NoopHost};
+use crate::host::Host;
 use crate::lifecycle::LifecycleEvent;
 use crate::receipts::signing::strip_receipt_signing_env;
 use crate::receipts::{
@@ -631,28 +630,6 @@ where
         self.javascript.session_stats()
     }
 
-    pub fn run_workflow_file(&self, workflow_path: &Path) -> Result<WorkflowRun, RuntimeError> {
-        let mut host = NoopHost;
-        self.run_workflow_file_with_host(workflow_path, &mut host)
-    }
-
-    /// Run, or continue, this runtime's run of the graph at `workflow_path`.
-    pub fn run_workflow_file_with_host(
-        &self,
-        workflow_path: &Path,
-        host: &mut dyn Host,
-    ) -> Result<WorkflowRun, RuntimeError> {
-        let workflow_path = self.resolved_workflow_path(workflow_path)?;
-        let graph = load_workflow(&workflow_path)?;
-        let workflow_dir = workflow_path.parent().unwrap_or_else(|| Path::new("/"));
-        self.run_workflow_with_host_outcome(
-            workflow_dir,
-            graph,
-            host,
-            WorkflowTerminalOutcome::Propagate,
-        )
-    }
-
     /// Run, or continue, this runtime's run of `graph`. A run with recorded
     /// steps continues from its record: completed steps are not run again, and
     /// a suspended step resumes its attempt.
@@ -682,34 +659,6 @@ where
             host,
             WorkflowTerminalOutcome::SealReceipt,
         )
-    }
-
-    fn resolved_workflow_path(&self, workflow_path: &Path) -> Result<PathBuf, RuntimeError> {
-        if workflow_path.is_absolute() {
-            return Ok(crate::path_util::lexical_normalize(workflow_path));
-        }
-        let workspace = self
-            .options
-            .env
-            .get(crate::paths::RUNX_CWD_ENV)
-            .map(PathBuf::from)
-            .ok_or_else(|| RuntimeError::InvalidProcessInvocation {
-                message: format!(
-                    "relative graph path '{}' requires RUNX_CWD",
-                    workflow_path.display()
-                ),
-            })?;
-        if !workspace.is_absolute() {
-            return Err(RuntimeError::InvalidProcessInvocation {
-                message: format!(
-                    "RUNX_CWD must be an absolute path, got '{}'",
-                    workspace.display()
-                ),
-            });
-        }
-        Ok(crate::path_util::lexical_normalize(
-            &workspace.join(workflow_path),
-        ))
     }
 
     // Function rationale: graph execution drives one ordered

@@ -1,7 +1,6 @@
 // Module rationale: graph loading keeps stage, registry, and local skill resolution together.
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -9,7 +8,7 @@ use runx_contracts::{CallAct, JsonObject, JsonValue};
 use runx_core::state_machine::SequentialWorkflowStepDefinition;
 use runx_parser::{
     Binding, Operand, SkillMethodDefinition, SkillMethodManifest, SkillTarget, Source, StepKind,
-    Workflow, WorkflowStep, parse_workflow_yaml, validate_workflow,
+    Workflow, WorkflowStep,
 };
 
 use crate::RuntimeError;
@@ -107,13 +106,6 @@ impl<'a> StepSkillLoadOptions<'a> {
             packages: None,
         }
     }
-}
-
-pub(crate) fn load_workflow(workflow_path: &Path) -> Result<Workflow, RuntimeError> {
-    let source = fs::read_to_string(workflow_path)
-        .map_err(|source| RuntimeError::io("reading graph file", source))?;
-    let raw = parse_workflow_yaml(&source)?;
-    validate_workflow(raw).map_err(RuntimeError::from)
 }
 
 /// The parent step's provenance, carried to the nested graph's steps that
