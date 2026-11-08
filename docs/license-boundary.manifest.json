@@ -41,11 +41,6 @@
       "class": "apache-oss",
       "phase1_state": "keep",
       "decision": "Keep Apache-2.0. Runtime owns local credential consumption, resolved delivery, process supervision, and redaction only."
-    },
-    "runx-x402": {
-      "class": "apache-oss",
-      "phase1_state": "keep",
-      "decision": "Effect-free x402 v2 presentation and Runx purchase binding stay Apache-2.0; provider verification, settlement, credentials, and rails remain outside this crate."
     }
   },
   "private_crate_names": [],

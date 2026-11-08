@@ -58,8 +58,6 @@ unsupported lanes must fail clearly; no hidden JavaScript executor may fill in.
   services rather than growing a second transport or supervision stack.
 - `runx-js-worker` is the isolated deterministic JavaScript engine, shipped as
   one versioned distribution with the CLI. It carries no provider authority.
-- `runx-x402` contains inert protocol presentation; provider network calls and
-  payment state do not enter it or the generic kernel.
 - `serde_norway` is the parser backend; `serde_yml` and `serde_yaml` are not
   approved alternatives.
 

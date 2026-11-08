@@ -2706,7 +2706,6 @@ dependencies = [
  "runx-parser",
  "runx-receipts",
  "runx-runtime",
- "runx-x402",
  "rusqlite",
  "rustix",
  "serde",
@@ -2856,17 +2855,6 @@ dependencies = [
  "webpki-root-certs",
  "win32job",
  "zeroize",
-]
-
-[[package]]
-name = "runx-x402"
-version = "0.2.0"
-dependencies = [
- "base64 0.23.1",
- "runx-contracts",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
 ]
 
 [[package]]

@@ -40,8 +40,7 @@ consume those owners; none is a parallel implementation.
 
 - `runx-contracts` owns domain-neutral portable Rust wire types and schema
   mechanics. Payment skills consume the same generic authority, provider
-  operation, approval, and receipt contracts. `runx-x402` is inert protocol
-  presentation; it owns no provider execution or payment orchestration.
+  operation, approval, and receipt contracts.
 - `runx-core` owns pure policy, authority, and state-transition algebra.
 - `runx-parser` owns all pure package parsing and validation. It returns one
   aggregate validated package representation; consumers do not reparse package

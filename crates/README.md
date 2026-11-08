@@ -51,12 +51,8 @@ before they may be added to `deny.toml`.
   following, bounded request and connect timeouts), process tools and the tool
   catalog. The opt-in features are `mcp`, `mcp-http-server`, `agent` and
   `store`.
-- `runx-x402`: pure x402 v2 presentation, bounded header codecs, and exact
-  Runx purchase-echo validation. Depends on `runx-contracts` only and owns
-  no provider verification, settlement, credentials, network, or runtime I/O.
 
-Pure crates (`runx-contracts`, `runx-core`, `runx-parser`, `runx-receipts`,
-and `runx-x402`) carry no async, HTTP, or process-spawn
+Pure crates (`runx-contracts`, `runx-core`, `runx-parser` and `runx-receipts`) carry no async, HTTP, or process-spawn
 dependencies. The runtime crate owns those.
 
 For kernel parity, run `pnpm rust:check` from `oss/` or
