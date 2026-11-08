@@ -1,4 +1,4 @@
-name: agent-session-develop-answers-with-a-summary
+name: agent-develop-answers-with-a-summary
 method: develop
 host:
   answers:

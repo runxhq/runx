@@ -14,7 +14,7 @@ methods:
       decomposition:
         description: Structured decomposition output from code-plan.
         optional: true
-      graph_purpose:
+      workflow_purpose:
         type: string
         description: Downstream purpose such as skill proposal, docs, content, issue, or release.
         optional: true
@@ -192,7 +192,7 @@ methods:
         inputs:
           objective: $input.objective
           decomposition: $input.decomposition
-          graph_purpose: $input.graph_purpose
+          workflow_purpose: $input.workflow_purpose
           audience: $input.audience
           artifact_contract: $input.artifact_contract
           evidence_index: $steps.index.evidence_index

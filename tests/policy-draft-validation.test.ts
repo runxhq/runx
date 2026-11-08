@@ -71,8 +71,8 @@ describe("policy-draft domain validation", () => {
 function policy(actions: string[]) {
   return {
     sources: [{ source_id: "github-issues", allowed_locators: ["github://acme/acme/issues"], allowed_actions: actions }],
-    runners: [{ method_id: "local-review", allowed_actions: actions, target_repos: ["acme/acme"] }],
-    targets: [{ repo: "acme/acme", allowed_actions: actions, method_ids: ["local-review"] }],
+    runners: [{ runner_id: "local-review", allowed_actions: actions, target_repos: ["acme/acme"] }],
+    targets: [{ repo: "acme/acme", allowed_actions: actions, runner_ids: ["local-review"] }],
     permissions: { auto_merge: false, mutate_target_repo: true, require_human_merge_gate: true },
   };
 }

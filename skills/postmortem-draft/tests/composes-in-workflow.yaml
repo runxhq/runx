@@ -1,4 +1,4 @@
-name: postmortem-draft-composes-in-graph
+name: postmortem-draft-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

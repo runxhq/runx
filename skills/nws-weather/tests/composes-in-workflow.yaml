@@ -1,4 +1,4 @@
-name: nws-weather-composes-in-graph
+name: nws-weather-composes-in-workflow
 package: fixtures/composed
 providers:
   http:

@@ -6,7 +6,7 @@ inputs:
   query: Example API changelog
   limit: 2
 env:
-  EXA_API_KEY: harness-exa-key
+  EXA_API_KEY: test-exa-key
 providers:
   http:
   - request:

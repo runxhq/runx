@@ -1,4 +1,4 @@
-name: twitter-composes-in-graph
+name: twitter-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

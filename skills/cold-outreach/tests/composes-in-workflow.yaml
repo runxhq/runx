@@ -1,4 +1,4 @@
-name: cold-outreach-composes-in-graph
+name: cold-outreach-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

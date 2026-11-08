@@ -1176,7 +1176,7 @@ export const runxSchemaArtifacts = {
                             "type": "string"
                           },
                           "instructions_digest": {
-                            "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
+                            "description": "Digest of the exact bytes carried in `instructions`.",
                             "minLength": 1,
                             "type": "string"
                           },
@@ -2660,7 +2660,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "instructions_digest": {
-            "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
+            "description": "Digest of the exact bytes carried in `instructions`.",
             "minLength": 1,
             "type": "string"
           },
@@ -3536,7 +3536,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "instructions_digest": {
-        "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
+        "description": "Digest of the exact bytes carried in `instructions`.",
         "minLength": 1,
         "type": "string"
       },
@@ -17716,7 +17716,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "method_id": {
+            "runner_id": {
               "minLength": 1,
               "pattern": "^[A-Za-z0-9_.:-]+$",
               "type": "string"
@@ -17730,7 +17730,7 @@ export const runxSchemaArtifacts = {
                 "disabled",
                 "maintenance"
               ],
-              "title": "OperationalPolicyMethodState",
+              "title": "OperationalPolicyRunnerState",
               "type": "string"
             },
             "target_repos": {
@@ -17744,14 +17744,14 @@ export const runxSchemaArtifacts = {
             }
           },
           "required": [
-            "method_id",
+            "runner_id",
             "kind",
             "state",
             "allowed_actions",
             "target_repos",
             "scafld_required"
           ],
-          "title": "OperationalPolicyMethodRule",
+          "title": "OperationalPolicyRunnerRule",
           "type": "object"
         },
         "minItems": 1,
@@ -17899,7 +17899,12 @@ export const runxSchemaArtifacts = {
               "pattern": "^[A-Za-z0-9_.:-]+$",
               "type": "string"
             },
-            "method_ids": {
+            "repo": {
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+              "type": "string"
+            },
+            "runner_ids": {
               "items": {
                 "minLength": 1,
                 "pattern": "^[A-Za-z0-9_.:-]+$",
@@ -17908,18 +17913,13 @@ export const runxSchemaArtifacts = {
               "minItems": 1,
               "type": "array"
             },
-            "repo": {
-              "minLength": 3,
-              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-              "type": "string"
-            },
             "scafld_required": {
               "type": "boolean"
             }
           },
           "required": [
             "repo",
-            "method_ids",
+            "runner_ids",
             "allowed_actions",
             "default_owner_route",
             "scafld_required"
@@ -19917,7 +19917,7 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "method_id": {
+                    "runner_id": {
                       "type": "string"
                     },
                     "scafld_required": {
@@ -19929,7 +19929,7 @@ export const runxSchemaArtifacts = {
                         "disabled",
                         "maintenance"
                       ],
-                      "title": "OperationalPolicyMethodState",
+                      "title": "OperationalPolicyRunnerState",
                       "type": "string"
                     },
                     "target_repos": {
@@ -19940,14 +19940,14 @@ export const runxSchemaArtifacts = {
                     }
                   },
                   "required": [
-                    "method_id",
+                    "runner_id",
                     "kind",
                     "state",
                     "target_repos",
                     "allowed_actions",
                     "scafld_required"
                   ],
-                  "title": "OperationalPolicyMethodReadback",
+                  "title": "OperationalPolicyRunnerReadback",
                   "type": "object"
                 },
                 "type": "array"
@@ -20038,18 +20038,12 @@ export const runxSchemaArtifacts = {
                       },
                       "type": "array"
                     },
-                    "available_method_count": {
+                    "available_runner_count": {
                       "minimum": 0,
                       "type": "integer"
                     },
                     "default_owner_route": {
                       "type": "string"
-                    },
-                    "method_ids": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
                     },
                     "owner_count": {
                       "minimum": 0,
@@ -20058,18 +20052,24 @@ export const runxSchemaArtifacts = {
                     "repo": {
                       "type": "string"
                     },
+                    "runner_ids": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
                     "scafld_required": {
                       "type": "boolean"
                     }
                   },
                   "required": [
                     "repo",
-                    "method_ids",
+                    "runner_ids",
                     "default_owner_route",
                     "owner_count",
                     "allowed_actions",
                     "scafld_required",
-                    "available_method_count"
+                    "available_runner_count"
                   ],
                   "title": "OperationalPolicyTargetReadback",
                   "type": "object"
@@ -29497,7 +29497,7 @@ export const runxSchemaArtifacts = {
                     "type": "string"
                   },
                   "instructions_digest": {
-                    "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
+                    "description": "Digest of the exact bytes carried in `instructions`.",
                     "minLength": 1,
                     "type": "string"
                   },
@@ -33185,7 +33185,7 @@ export const runxSchemaArtifacts = {
                               "type": "string"
                             },
                             "instructions_digest": {
-                              "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
+                              "description": "Digest of the exact bytes carried in `instructions`.",
                               "minLength": 1,
                               "type": "string"
                             },
@@ -39912,7 +39912,7 @@ export const runxSchemaArtifacts = {
             },
             "type": "object"
           },
-          "input_mode": {
+          "inputs_via": {
             "enum": [
               "args",
               "stdin",
@@ -41013,7 +41013,7 @@ export const runxSchemaArtifacts = {
                                   "type": "string"
                                 },
                                 "instructions_digest": {
-                                  "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
+                                  "description": "Digest of the exact bytes carried in `instructions`.",
                                   "minLength": 1,
                                   "type": "string"
                                 },
@@ -43319,7 +43319,7 @@ export const runxSchemaArtifacts = {
                                         "type": "string"
                                       },
                                       "instructions_digest": {
-                                        "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
+                                        "description": "Digest of the exact bytes carried in `instructions`.",
                                         "minLength": 1,
                                         "type": "string"
                                       },

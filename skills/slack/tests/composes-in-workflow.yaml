@@ -1,4 +1,4 @@
-name: slack-composes-in-graph
+name: slack-composes-in-workflow
 package: fixtures/composed
 expect:
   status: policy_denied

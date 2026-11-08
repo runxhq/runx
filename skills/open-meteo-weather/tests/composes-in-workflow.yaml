@@ -1,4 +1,4 @@
-name: open-meteo-weather-composes-in-graph
+name: open-meteo-weather-composes-in-workflow
 package: fixtures/composed
 providers:
   http:

@@ -4,20 +4,6 @@ default_method: read
 catalog:
   visibility: public
   category: growth
-
-shared_inputs:
-  execution_store:
-    type: string
-    default: local://twitter
-    description: Logical store for saved X plans and execution progress; bind its store connector in this workspace.
-    optional: true
-  batch_limit:
-    type: integer
-    default: 50
-    description: Maximum acts in a batch; the skill selects one published act, one thread segment, or up to this many same-kind account acts.
-    minimum: 1
-    maximum: 50
-    optional: true
 methods:
   read:
     description: Read account evidence from X, page by page, from a snapshot, posts, mentions, search, following or followers.

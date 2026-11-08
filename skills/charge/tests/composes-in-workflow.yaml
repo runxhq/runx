@@ -1,4 +1,4 @@
-name: charge-composes-in-graph
+name: charge-composes-in-workflow
 package: fixtures/composed
 host:
   approvals:

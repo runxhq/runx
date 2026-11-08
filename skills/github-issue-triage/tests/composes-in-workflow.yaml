@@ -1,4 +1,4 @@
-name: github-issue-triage-composes-in-graph
+name: github-issue-triage-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

@@ -1,5 +1,5 @@
 ---
-name: agent-session
+name: agent
 description: Work one turn of a host's agent through runx. Read, search and ask in the read runner; also edit the workspace and run commands in the develop runner. Every call is admitted, recorded and receipted, and the turn ends with a summary of what it did.
 ---
 

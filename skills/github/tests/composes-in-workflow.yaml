@@ -1,4 +1,4 @@
-name: github-composes-in-graph
+name: github-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

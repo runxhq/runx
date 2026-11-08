@@ -109,7 +109,7 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
         "source": {
             "command": "node",
             "args": ["tool.mjs"],
-            "input_mode": "stdin",
+            "inputs_via": "stdin",
             "environment": {
                 "optional": ["HOME"]
             }
@@ -141,7 +141,7 @@ pub(super) fn tool_manifest_corpus() -> Vec<(&'static str, Value)> {
             set_field(
                 valid.clone(),
                 "source",
-                set_field(valid["source"].clone(), "input_mode", json!("stream")),
+                set_field(valid["source"].clone(), "inputs_via", json!("stream")),
             ),
         ),
         (
@@ -780,7 +780,7 @@ pub(super) fn operational_policy_corpus() -> Vec<(&'static str, Value)> {
             },
         }],
         "runners": [{
-            "method_id": "local.default",
+            "runner_id": "local.default",
             "kind": "local",
             "state": "available",
             "allowed_actions": ["issue-intake"],
@@ -794,7 +794,7 @@ pub(super) fn operational_policy_corpus() -> Vec<(&'static str, Value)> {
         }],
         "targets": [{
             "repo": "acme/widgets",
-            "method_ids": ["local.default"],
+            "runner_ids": ["local.default"],
             "allowed_actions": ["issue-intake"],
             "default_owner_route": "default.route",
             "scafld_required": true,

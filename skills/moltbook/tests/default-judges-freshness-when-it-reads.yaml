@@ -7,7 +7,7 @@ inputs:
   max_age_hours: 48
   max_items: 50
 env:
-  MOLTBOOK_API_KEY: harness-moltbook-key
+  MOLTBOOK_API_KEY: test-moltbook-key
 providers:
   http:
     - request:

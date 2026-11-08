@@ -1861,7 +1861,7 @@
                             "type": "string"
                           },
                           "instructions_digest": {
-                            "description": "Digest of the exact owning `SKILL.md` bytes carried in `instructions`.",
+                            "description": "Digest of the exact bytes carried in `instructions`.",
                             "minLength": 1,
                             "type": "string"
                           },

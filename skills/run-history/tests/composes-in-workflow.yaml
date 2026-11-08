@@ -1,4 +1,4 @@
-name: run-history-composes-in-graph
+name: run-history-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

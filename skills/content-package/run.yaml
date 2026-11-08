@@ -92,14 +92,14 @@ methods:
   prepare:
     description: Prepare researched channel content from an objective and optional source selectors, reusing completed reads.
     inputs:
-      objective: {}
-      audience: {}
-      channel: {}
-      domain: {}
-      operator_context: {}
-      target_entities: {}
-      publication_target: {}
-      boundary_kind: {}
+      objective: {type: string, description: 'What the content must help its reader understand or do.', minLength: 1, maxLength: 4000}
+      audience: {type: string, default: operators, description: Intended reader., optional: true}
+      channel: {type: string, default: brief, description: Content channel; this does not deliver it., optional: true}
+      domain: {type: string, description: Domain context for research interpretation., optional: true}
+      operator_context: {type: string, description: Interpretation constraints that do not count as evidence., optional: true}
+      target_entities: {description: Bounded caller-owned entity selectors for research., optional: true}
+      publication_target: {default: {}, description: 'Optional provider-neutral destination selector; an empty object skips handoff.', optional: true}
+      boundary_kind: {type: string, default: external, description: Later delivery boundary; this prepares no delivery approval., enum: [internal, external], optional: true}
       brand_context: {}
       taste_context: {}
       source_packets:
@@ -156,14 +156,14 @@ methods:
   from-research:
     description: Prepare channel content from a completed research packet, with no acquisition or repeat synthesis.
     inputs:
-      objective: {}
-      audience: {}
-      channel: {}
-      domain: {}
-      operator_context: {}
-      target_entities: {}
-      publication_target: {}
-      boundary_kind: {}
+      objective: {type: string, description: 'What the content must help its reader understand or do.', minLength: 1, maxLength: 4000}
+      audience: {type: string, default: operators, description: Intended reader., optional: true}
+      channel: {type: string, default: brief, description: Content channel; this does not deliver it., optional: true}
+      domain: {type: string, description: Domain context for research interpretation., optional: true}
+      operator_context: {type: string, description: Interpretation constraints that do not count as evidence., optional: true}
+      target_entities: {description: Bounded caller-owned entity selectors for research., optional: true}
+      publication_target: {default: {}, description: 'Optional provider-neutral destination selector; an empty object skips handoff.', optional: true}
+      boundary_kind: {type: string, default: external, description: Later delivery boundary; this prepares no delivery approval., enum: [internal, external], optional: true}
       brand_context: {}
       taste_context: {}
       research_packet:
@@ -199,13 +199,5 @@ methods:
           packet: $steps.package-content.content_publish_packet
 
 shared_inputs:
-  objective: {type: string, description: 'What the content must help its reader understand or do.', minLength: 1, maxLength: 4000}
-  audience: {type: string, default: operators, description: Intended reader., optional: true}
-  channel: {type: string, default: brief, description: Content channel; this does not deliver it., optional: true}
-  domain: {type: string, description: Domain context for research interpretation., optional: true}
-  operator_context: {type: string, description: Interpretation constraints that do not count as evidence., optional: true}
-  target_entities: {description: Bounded caller-owned entity selectors for research., optional: true}
-  publication_target: {default: {}, description: 'Optional provider-neutral destination selector; an empty object skips handoff.', optional: true}
-  boundary_kind: {type: string, default: external, description: Later delivery boundary; this prepares no delivery approval., enum: [internal, external], optional: true}
   brand_context: {packet: runx/brand-voice.context.v1, description: Optional scoped brand voice admitted by the canonical writer., optional: true}
   taste_context: {packet: runx/taste-profile.context.v1, description: Optional scoped taste admitted by the canonical writer., optional: true}

@@ -22,7 +22,7 @@ inputs:
     validation: {status: pass, findings: []}
   idempotency_key: fixture-moltbook-publish-001
 env:
-  MOLTBOOK_API_KEY: harness-moltbook-key
+  MOLTBOOK_API_KEY: test-moltbook-key
 host:
   approvals:
     "publish": true

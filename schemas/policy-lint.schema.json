@@ -153,7 +153,7 @@
                     "minLength": 1,
                     "type": "string"
                   },
-                  "method_id": {
+                  "runner_id": {
                     "type": "string"
                   },
                   "scafld_required": {
@@ -165,7 +165,7 @@
                       "disabled",
                       "maintenance"
                     ],
-                    "title": "OperationalPolicyMethodState",
+                    "title": "OperationalPolicyRunnerState",
                     "type": "string"
                   },
                   "target_repos": {
@@ -176,14 +176,14 @@
                   }
                 },
                 "required": [
-                  "method_id",
+                  "runner_id",
                   "kind",
                   "state",
                   "target_repos",
                   "allowed_actions",
                   "scafld_required"
                 ],
-                "title": "OperationalPolicyMethodReadback",
+                "title": "OperationalPolicyRunnerReadback",
                 "type": "object"
               },
               "type": "array"
@@ -274,18 +274,12 @@
                     },
                     "type": "array"
                   },
-                  "available_method_count": {
+                  "available_runner_count": {
                     "minimum": 0,
                     "type": "integer"
                   },
                   "default_owner_route": {
                     "type": "string"
-                  },
-                  "method_ids": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
                   },
                   "owner_count": {
                     "minimum": 0,
@@ -294,18 +288,24 @@
                   "repo": {
                     "type": "string"
                   },
+                  "runner_ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "scafld_required": {
                     "type": "boolean"
                   }
                 },
                 "required": [
                   "repo",
-                  "method_ids",
+                  "runner_ids",
                   "default_owner_route",
                   "owner_count",
                   "allowed_actions",
                   "scafld_required",
-                  "available_method_count"
+                  "available_runner_count"
                 ],
                 "title": "OperationalPolicyTargetReadback",
                 "type": "object"

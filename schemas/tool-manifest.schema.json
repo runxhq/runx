@@ -145,7 +145,7 @@
           },
           "type": "object"
         },
-        "input_mode": {
+        "inputs_via": {
           "enum": [
             "args",
             "stdin",

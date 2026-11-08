@@ -1,4 +1,4 @@
-name: crm-update-plan-composes-in-graph
+name: crm-update-plan-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

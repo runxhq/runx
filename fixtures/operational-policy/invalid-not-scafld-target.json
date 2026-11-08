@@ -21,7 +21,7 @@
   ],
   "runners": [
     {
-      "method_id": "local-pr-runner",
+      "runner_id": "local-pr-runner",
       "kind": "local",
       "state": "available",
       "allowed_actions": [
@@ -47,7 +47,7 @@
   "targets": [
     {
       "repo": "example/project",
-      "method_ids": [
+      "runner_ids": [
         "local-pr-runner"
       ],
       "allowed_actions": [

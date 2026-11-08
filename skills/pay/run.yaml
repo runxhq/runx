@@ -4,32 +4,6 @@ default_method: pay
 catalog:
   visibility: public
   category: payments
-shared_inputs:
-  payment_authority:
-    type: object
-    description: Exact resource URL, currency and maximum approved by the parent; this never replaces native run authority.
-    additionalProperties: false
-    required:
-      - term_id
-      - currency
-      - max_amount_minor
-      - resource_url
-    properties:
-      term_id:
-        type: string
-        minLength: 1
-        maxLength: 256
-      currency:
-        type: string
-        pattern: ^[A-Z]{3}$
-      max_amount_minor:
-        type: integer
-        minimum: 0
-        maximum: 9007199254740991
-      resource_url:
-        type: string
-        format: uri
-        maxLength: 2048
 methods:
   pay:
     description: Pay one exact resource using the explicitly selected held method and require its confirmed payment evidence.

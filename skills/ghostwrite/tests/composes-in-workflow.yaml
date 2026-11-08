@@ -1,4 +1,4 @@
-name: ghostwrite-composes-in-graph
+name: ghostwrite-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

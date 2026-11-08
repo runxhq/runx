@@ -1,4 +1,4 @@
-name: redact-pii-composes-in-graph
+name: redact-pii-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

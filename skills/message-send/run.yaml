@@ -4,30 +4,6 @@ default_method: send
 catalog:
   visibility: public
   category: ops
-shared_inputs:
-  content:
-    type: object
-    description: Either one inline Slack message or one existing content reference with its SHA-256 digest.
-    additionalProperties: false
-    properties:
-      message:
-        type: string
-        minLength: 1
-        maxLength: 40000
-        pattern: \S
-      content_uri:
-        type: string
-        minLength: 1
-        maxLength: 2048
-      digest:
-        type: string
-        pattern: ^sha256:[0-9a-f]{64}$
-    oneOf:
-      - required:
-          - message
-      - required:
-          - content_uri
-          - digest
 connectors:
   reply:
     choose: $input.expected_provider
@@ -85,7 +61,29 @@ methods:
         description: Exact slack://workspace/channel destination for a message already selected by the caller.
         pattern: ^slack://[A-Z][A-Z0-9]+/[CGD][A-Z0-9]+$
         maxLength: 300
-      content: {}
+      content:
+        type: object
+        description: Either one inline Slack message or one existing content reference with its SHA-256 digest.
+        additionalProperties: false
+        properties:
+          message:
+            type: string
+            minLength: 1
+            maxLength: 40000
+            pattern: \S
+          content_uri:
+            type: string
+            minLength: 1
+            maxLength: 2048
+          digest:
+            type: string
+            pattern: ^sha256:[0-9a-f]{64}$
+        oneOf:
+          - required:
+              - message
+          - required:
+              - content_uri
+              - digest
       principal:
         type: string
         description: Exact principal bound to the later provider permission grant.
@@ -136,7 +134,29 @@ methods:
       channel:
         type: string
         description: "Slack #name, channel id, or exact slack://workspace/channel locator."
-      content: {}
+      content:
+        type: object
+        description: Either one inline Slack message or one existing content reference with its SHA-256 digest.
+        additionalProperties: false
+        properties:
+          message:
+            type: string
+            minLength: 1
+            maxLength: 40000
+            pattern: \S
+          content_uri:
+            type: string
+            minLength: 1
+            maxLength: 2048
+          digest:
+            type: string
+            pattern: ^sha256:[0-9a-f]{64}$
+        oneOf:
+          - required:
+              - message
+          - required:
+              - content_uri
+              - digest
       principal:
         type: string
         description: Principal the notification would be posted as.

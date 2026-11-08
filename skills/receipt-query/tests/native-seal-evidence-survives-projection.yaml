@@ -16,7 +16,7 @@ inputs:
       issuer_type: local
       outcome: failed
       verification: {status: verified}
-      seal_reason: graph_step_failed
+      seal_reason: workflow_step_failed
       seal_criteria:
         - criterion_id: output_contract_verified
           status: failed

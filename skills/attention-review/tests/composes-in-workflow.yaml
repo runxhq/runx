@@ -1,4 +1,4 @@
-name: attention-review-composes-in-graph
+name: attention-review-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

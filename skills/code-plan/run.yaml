@@ -65,7 +65,7 @@ methods:
               maxLength: 4000
         additionalProperties: true
         optional: true
-      harness_context:
+      run_context:
         type: object
         description: Optional captured control context to pass through unchanged.
         additionalProperties: true
@@ -260,7 +260,7 @@ methods:
           thread: $input.thread
           change_set: $input.change_set
           catalog_skills: $steps.inspect.authoring_context.catalog_skills
-          harness_context: $input.harness_context
+          run_context: $input.run_context
           repo_root: $input.repo_root
       - id: validate
         inputs:
@@ -269,7 +269,7 @@ methods:
           thread: $input.thread
           project_context: $input.project_context
           change_set: $input.change_set
-          harness_context: $input.harness_context
+          run_context: $input.run_context
           work_plan_draft: $steps.draft.work_plan_draft
           catalog_skills: $steps.inspect.authoring_context.catalog_skills
         tool:
@@ -278,7 +278,7 @@ methods:
           decision: {type: string}
           plan_kind: {type: string}
           change_set: {type: object}
-          harness_context: {type: object}
+          run_context: {type: object}
           objective_summary: {type: string}
           workspace_change_plan: {type: object}
           orchestration_steps: {type: array}

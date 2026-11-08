@@ -1,4 +1,4 @@
-name: product-analytics-composes-in-graph
+name: product-analytics-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

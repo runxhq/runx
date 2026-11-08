@@ -1,4 +1,4 @@
-name: refund-composes-in-graph
+name: refund-composes-in-workflow
 package: fixtures/composed
 host:
   approvals:

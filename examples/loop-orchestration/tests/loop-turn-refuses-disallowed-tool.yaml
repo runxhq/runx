@@ -1,7 +1,7 @@
 name: loop-turn-refuses-disallowed-tool
 method: turn
 inputs:
-  loop_id: loop-harness-refusal
+  loop_id: loop-test-refusal
   turn_index: 1
   max_turns: 3
   objective: Attempt a write outside policy.

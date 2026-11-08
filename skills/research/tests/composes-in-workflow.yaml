@@ -1,4 +1,4 @@
-name: research-composes-in-graph
+name: research-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

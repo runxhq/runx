@@ -1,4 +1,4 @@
-name: github-issue-to-pr-composes-in-graph
+name: github-issue-to-pr-composes-in-workflow
 package: fixtures/composed
 env:
   PATH: fixtures/bin:/usr/bin:/bin

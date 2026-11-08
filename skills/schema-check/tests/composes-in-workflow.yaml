@@ -1,4 +1,4 @@
-name: schema-check-composes-in-graph
+name: schema-check-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

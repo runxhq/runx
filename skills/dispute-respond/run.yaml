@@ -5,12 +5,6 @@ catalog:
   visibility: public
   category: payments
 shared_inputs:
-  account_id:
-    type: string
-    default: ""
-    description: Selected Stripe account ID. Omit to resolve the selected credential’s actual merchant account.
-    pattern: ^(?:acct_[A-Za-z0-9]{1,64})?$
-    optional: true
   dispute_id:
     type: string
     description: Exact Stripe dispute ID from the merchant case or webhook.
@@ -58,7 +52,12 @@ methods:
   file-response:
     description: Read one selected Stripe dispute and its original charge, prepare a relevant grounded response, then submit only a ready exact packet after native approval and independent readback.
     inputs:
-      account_id: {}
+      account_id:
+        type: string
+        default: ""
+        description: Selected Stripe account ID. Omit to resolve the selected credential’s actual merchant account.
+        pattern: ^(?:acct_[A-Za-z0-9]{1,64})?$
+        optional: true
       dispute_id: {}
       evidence: {}
     examples:

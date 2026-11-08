@@ -1,4 +1,4 @@
-name: google-search-console-composes-in-graph
+name: google-search-console-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

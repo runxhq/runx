@@ -66,10 +66,10 @@ function wideningFindings(existing, proposed) {
   compareControls(findings, existing, proposed);
   requireSubset(findings, "targets", ids(existing.targets, "repo"), ids(proposed.targets, "repo"));
   requireSubset(findings, "sources", ids(existing.sources, "source_id"), ids(proposed.sources, "source_id"));
-  requireSubset(findings, "runners", ids(existing.runners, "method_id"), ids(proposed.runners, "method_id"));
+  requireSubset(findings, "runners", ids(existing.runners, "runner_id"), ids(proposed.runners, "runner_id"));
   compareRules(findings, existing.sources, proposed.sources, "source_id", ["allowed_locators", "allowed_actions"]);
-  compareRules(findings, existing.runners, proposed.runners, "method_id", ["allowed_actions", "target_repos"]);
-  compareRules(findings, existing.targets, proposed.targets, "repo", ["allowed_actions", "method_ids"]);
+  compareRules(findings, existing.runners, proposed.runners, "runner_id", ["allowed_actions", "target_repos"]);
+  compareRules(findings, existing.targets, proposed.targets, "repo", ["allowed_actions", "runner_ids"]);
   compareConfidence(findings, existing.sources, proposed.sources);
   comparePermissions(findings, record(existing.permissions), record(proposed.permissions));
   return findings;
@@ -171,7 +171,7 @@ function compareControls(findings, existing, proposed) {
     check(oldThread.required === true && nextThread.required !== true, "source."+source.source_id+".source_thread.required");
     check(oldThread.publish_mode !== nextThread.publish_mode && nextThread.publish_mode !== "none", "source."+source.source_id+".source_thread.publish_mode");
   }
-  for (const [name,key] of [["runners","method_id"],["targets","repo"]]) {
+  for (const [name,key] of [["runners","runner_id"],["targets","repo"]]) {
     const prior = indexBy(existing[name],key);
     for (const item of records(proposed[name])) {
       const before = prior.get(item[key]); if (!before) continue;
@@ -202,8 +202,8 @@ function fixedSettings(policy, selected) {
   return {
     ...omit(policy,["created_at","sources","runners","targets","owner_routes","outcomes","permissions"]),
     sources:group("sources","source_id",["allowed_locators","allowed_actions","minimum_confidence"]),
-    runners:group("runners","method_id",["allowed_actions","target_repos","scafld_required","state"]),
-    targets:group("targets","repo",["method_ids","allowed_actions","scafld_required"]),
+    runners:group("runners","runner_id",["allowed_actions","target_repos","scafld_required","state"]),
+    targets:group("targets","repo",["runner_ids","allowed_actions","scafld_required"]),
     owner_routes:group("owner_routes","route_id",[]),
     outcomes:omit(policy.outcomes,["observe_provider","verification_required","close_source_issue","publish_final_source_thread_update"]),
     permissions:omit(policy.permissions,["auto_merge","mutate_target_repo","require_human_merge_gate"]),

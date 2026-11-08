@@ -11,9 +11,6 @@ shared_inputs:
   audience:
     type: string
     description: Intended reader.
-  channel:
-    type: string
-    description: Intended content channel.
   evidence_pack:
     packet: runx/research.packet.v1
     description: Validated runx/research.packet.v1 evidence.
@@ -42,7 +39,9 @@ methods:
     inputs:
       objective: {}
       audience: {}
-      channel: {}
+      channel:
+        type: string
+        description: Intended content channel.
       evidence_pack: {}
       facts: {}
       voice_guide:
@@ -201,7 +200,9 @@ methods:
     inputs:
       objective: {}
       audience: {}
-      channel: {}
+      channel:
+        type: string
+        description: Intended content channel.
       evidence_pack: {}
       facts: {}
       brand_context: {}

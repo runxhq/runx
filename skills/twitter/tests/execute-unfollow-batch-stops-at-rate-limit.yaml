@@ -17,7 +17,7 @@ inputs:
   plan_digest: sha256:d36a57ea6b2eb1687879699aca6a5c731f5b726e50821ba58d5233a8f2e76365
   data_source_uri: tenant://twitter/sqlite-unfollow
 env:
-  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+  TWITTER_USER_AUTH: '{"consumer_key":"test-consumer","consumer_secret":"test-secret","access_token":"test-access","access_secret":"test-access-secret"}'
 host:
   approvals:
     "request": true

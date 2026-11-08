@@ -1,10 +1,10 @@
-name: github-pr-review-composes-in-graph
+name: github-pr-review-composes-in-workflow
 package: fixtures/composed
 setup:
   credentials:
     - github
 env:
-  GITHUB_TOKEN: harness-github-token
+  GITHUB_TOKEN: test-github-token
 host:
   answers:
     offline/analyze#review:

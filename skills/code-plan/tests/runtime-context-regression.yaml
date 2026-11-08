@@ -3,8 +3,8 @@ method: code-plan-agent
 inputs:
   objective: Prove native catalog and agent output context reach validation intact.
   repo_root: .
-  harness_context:
-    regression: graph-context-materialization
+  run_context:
+    regression: workflow-context-materialization
     sentinel: preserved-through-validation
 host:
   answers:
@@ -55,8 +55,8 @@ expect:
     validate:
       subset:
         decision: ready
-        harness_context:
-          regression: graph-context-materialization
+        run_context:
+          regression: workflow-context-materialization
           sentinel: preserved-through-validation
         required_skills: []
         validation:

@@ -66,7 +66,7 @@ pub struct ToolSource {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_mode: Option<ToolCommandInputMode>,
+    pub inputs_via: Option<ToolCommandInputMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
@@ -170,7 +170,7 @@ mod tests {
             "command": "node",
             "args": ["./run.mjs"],
             "timeout_seconds": 30,
-            "input_mode": "stdin"
+            "inputs_via": "stdin"
           },
           "inputs": {
             "path": {
@@ -191,7 +191,7 @@ mod tests {
         assert_eq!(manifest.schema, ToolManifestSchema::V1);
         assert_eq!(manifest.source.command, "node");
         assert_eq!(
-            manifest.source.input_mode,
+            manifest.source.inputs_via,
             Some(ToolCommandInputMode::Stdin)
         );
         assert_eq!(
@@ -252,7 +252,7 @@ mod tests {
             args: Vec::new(),
             cwd: None,
             timeout_seconds: None,
-            input_mode: None,
+            inputs_via: None,
             environment: EnvironmentRequirements::default(),
         }
     }

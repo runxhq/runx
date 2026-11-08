@@ -1,4 +1,4 @@
-name: support-triage-composes-in-graph
+name: support-triage-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

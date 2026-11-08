@@ -6,7 +6,7 @@ inputs:
   query: Example API documentation
   limit: 3
 env:
-  EXA_API_KEY: harness-exa-key
+  EXA_API_KEY: test-exa-key
 providers:
   http:
   - request:

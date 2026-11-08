@@ -22,11 +22,11 @@ methods:
             - name: release
               status: ok
               fixtures: 2
-              harness_cases: 1
+              test_cases: 1
             - name: untested
               status: ok
               fixtures: 0
-              harness_cases: 0
+              test_cases: 0
       - id: digest
         tool: data.digest
         inputs:

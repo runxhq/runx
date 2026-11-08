@@ -5,10 +5,6 @@ catalog:
   visibility: public
   category: data
 shared_inputs:
-  property:
-    type: string
-    description: Exact GA4 property resource, such as properties/123456.
-    pattern: ^properties/[1-9][0-9]*$
   date_ranges:
     type: array
     description: One to four inclusive GA4 date ranges using YYYY-MM-DD or GA relative dates.
@@ -47,11 +43,6 @@ shared_inputs:
       type: string
       minLength: 1
       maxLength: 256
-  filter:
-    type: object
-    description: GA4 FilterExpression passed intact to the configured provider connector.
-    additionalProperties: true
-    optional: true
   order_bys:
     type: array
     description: Ordered GA4 OrderBy records passed intact to the provider connector.
@@ -83,73 +74,6 @@ shared_inputs:
           type: string
           maxLength: 64
     optional: true
-  report_request:
-    type: object
-    description: Expected GA4 report identity and ordered headers for supplied-result normalization.
-    required:
-      - property
-      - report_type
-      - dimensions
-      - metrics
-    additionalProperties: false
-    properties:
-      property:
-        type: string
-        pattern: ^properties/[1-9][0-9]*$
-      report_type:
-        type: string
-        enum:
-          - standard
-          - realtime
-      date_ranges:
-        type: array
-        maxItems: 4
-        items:
-          type: object
-          additionalProperties: true
-      dimensions:
-        type: array
-        maxItems: 9
-        items:
-          type: string
-          minLength: 1
-          maxLength: 256
-      metrics:
-        type: array
-        minItems: 1
-        maxItems: 10
-        items:
-          type: string
-          minLength: 1
-          maxLength: 256
-      dimension_filter:
-        type: object
-        additionalProperties: true
-      metric_filter:
-        type: object
-        additionalProperties: true
-      order_bys:
-        type: array
-        maxItems: 10
-        items:
-          type: object
-          additionalProperties: true
-      minute_ranges:
-        type: array
-        maxItems: 4
-        items:
-          type: object
-          additionalProperties: true
-      currency_code:
-        type: string
-        pattern: ^[A-Z]{3}$
-      limit:
-        type: integer
-        minimum: 1
-        maximum: 100000
-      offset:
-        type: integer
-        minimum: 0
   provider_result:
     type: object
     description: GA4 report readback with ordered headers and bounded rows; provider metadata is preserved.
@@ -202,7 +126,10 @@ methods:
   report:
     description: Run one date-bounded GA4 report on a property, with its measurement caveats. Check unfamiliar fields with metadata first.
     inputs:
-      property: {}
+      property:
+        type: string
+        description: Exact GA4 property resource, such as properties/123456.
+        pattern: ^properties/[1-9][0-9]*$
       date_ranges: {}
       dimensions: {}
       metrics: {}
@@ -462,7 +389,10 @@ methods:
   realtime:
     description: Read a short GA4 realtime window, a current pulse after a deployment or campaign, provisional rather than settled reporting.
     inputs:
-      property: {}
+      property:
+        type: string
+        description: Exact GA4 property resource, such as properties/123456.
+        pattern: ^properties/[1-9][0-9]*$
       dimensions: {}
       metrics: {}
       dimension_filter:

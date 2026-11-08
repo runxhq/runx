@@ -1,6 +1,6 @@
 name: diagnose-supplemental-input-failure-without-ledger-scan
 inputs:
-  harness_output: runner input 'captured_comparison' is not declared; from-snapshot accepts snapshot.
+  test_output: runner input 'captured_comparison' is not declared; from-snapshot accepts snapshot.
   skill_path: skills/github-pr-review
 host:
   answers:
@@ -13,7 +13,7 @@ host:
             change: Pass the existing retained descriptor as snapshot.
             rationale: The declared from-snapshot input is snapshot.
             risk: Reuse the exact descriptor and expected head; do not acquire the PR again.
-        next_harness_checks:
+        next_test_checks:
           - The documented snapshot input reaches offline review without another GitHub read.
 expect:
   status: sealed

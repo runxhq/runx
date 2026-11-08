@@ -31,7 +31,7 @@ methods:
         tool: runx.skill.validate
         inputs:
           skill_path: $input.skill
-          allow_execute_harness: false
+          allow_execute_test: false
       - id: assess
         agent: skill-review-assess
         calls:

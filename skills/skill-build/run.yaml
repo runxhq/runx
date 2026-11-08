@@ -162,7 +162,7 @@ methods:
         type: string
         description: Sanitized receipt or failure summary.
         optional: true
-      harness_output:
+      test_output:
         type: string
         description: Sanitized test output or assertion failure.
         optional: true
@@ -174,7 +174,7 @@ methods:
         repo_root: .
         target_dir: skills/github
         project_context: Preserve the existing contract version and provider boundary.
-        harness_output: The agent could not construct the nested resources selector from inspection.
+        test_output: The agent could not construct the nested resources selector from inspection.
     result_from:
       - apply
     steps:
@@ -194,7 +194,7 @@ methods:
           project_context: $input.project_context
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           failure_packet: $input.failure_packet
           authoring_mode: improve
           authoring_context: $steps.inspect.authoring_context
@@ -216,7 +216,7 @@ methods:
           project_context: $input.project_context
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           failure_packet: $input.failure_packet
           authoring_mode: improve
           authoring_context: $steps.inspect.authoring_context
@@ -253,7 +253,7 @@ methods:
         type: string
         description: Product, repository, and operator constraints.
         optional: true
-      harness_output:
+      test_output:
         type: string
         description: Existing test evidence to reproduce or strengthen.
         optional: true
@@ -279,7 +279,7 @@ methods:
         inputs:
           objective: $input.objective
           project_context: $input.project_context
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           authoring_mode: harness
           authoring_context: $steps.inspect.authoring_context
           repo_root: $input.repo_root
@@ -298,7 +298,7 @@ methods:
         inputs:
           objective: $input.objective
           project_context: $input.project_context
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           authoring_mode: harness
           authoring_context: $steps.inspect.authoring_context
           architecture_plan: $steps.plan.architecture_plan

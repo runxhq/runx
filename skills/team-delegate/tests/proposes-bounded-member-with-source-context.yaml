@@ -30,7 +30,7 @@ host:
               repo_root: .
               source_paths:
                 - README.md
-              graph_purpose: Documentation source review
+              workflow_purpose: Documentation source review
               audience: Local operator
             source_ids:
               - issue:docs-drift

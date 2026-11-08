@@ -8,7 +8,7 @@ inputs:
     verdict: blocked
     failure_summary: The report has no receipt or reproducible harness output.
     improvement_proposals: []
-    next_harness_checks:
+    next_test_checks:
       - Reproduce the report with a sealed receipt before changing the package.
 host:
   answers:

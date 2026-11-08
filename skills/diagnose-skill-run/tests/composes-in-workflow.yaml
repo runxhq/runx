@@ -1,4 +1,4 @@
-name: diagnose-skill-run-composes-in-graph
+name: diagnose-skill-run-composes-in-workflow
 package: fixtures/composed
 host:
   answers:
@@ -11,7 +11,7 @@ host:
             change: Emit a wrapped artifact from the upstream step and consume the named artifact data in downstream context.
             rationale: Preserves structured objects across governed graph steps.
             risk: Existing fixtures that parse stdout-shaped context will need updates.
-        next_harness_checks:
+        next_test_checks:
           - skill-build passes structured authoring context into the bounded author step
 expect:
   status: sealed

@@ -1,4 +1,4 @@
-name: plan-composes-in-graph
+name: plan-composes-in-workflow
 package: fixtures/plan
 host:
   answers:

@@ -1,4 +1,4 @@
-name: privacy-request-review-composes-in-graph
+name: privacy-request-review-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

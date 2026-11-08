@@ -15,8 +15,6 @@ inputs:
       body:
         invoice_id: INV-2026-0042
     pay_to: "0x00000000000000000000000000000000000000a1"
-env:
-  RUNX_CWD: .
 host:
   answers:
     read/extract#extract:

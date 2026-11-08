@@ -1,4 +1,4 @@
-name: skill-build-composes-in-graph
+name: skill-build-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

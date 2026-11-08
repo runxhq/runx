@@ -1,4 +1,4 @@
-name: invoice-pay-composes-in-graph
+name: invoice-pay-composes-in-workflow
 package: fixtures/composed
 host:
   approvals:

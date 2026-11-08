@@ -1,4 +1,4 @@
-name: message-send-composes-in-graph
+name: message-send-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

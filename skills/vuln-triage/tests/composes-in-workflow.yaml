@@ -1,4 +1,4 @@
-name: review-to-advisory-in-open-graph
+name: review-to-advisory-in-open-workflow
 package: fixtures/composed
 host:
   answers:

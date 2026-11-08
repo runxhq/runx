@@ -1,4 +1,4 @@
-name: adoption-reuses-native-source-graph
+name: adoption-reuses-native-source-workflow
 package: fixtures/composed
 host:
   answers:

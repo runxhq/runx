@@ -1,4 +1,4 @@
-name: procurement-policy-check-composes-in-graph
+name: procurement-policy-check-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

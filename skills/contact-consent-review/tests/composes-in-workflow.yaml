@@ -1,4 +1,4 @@
-name: contact-consent-review-composes-in-graph
+name: contact-consent-review-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

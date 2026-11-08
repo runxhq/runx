@@ -1,4 +1,4 @@
-name: conversation-review-composes-in-graph
+name: conversation-review-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

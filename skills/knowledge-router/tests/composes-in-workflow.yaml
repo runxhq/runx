@@ -1,4 +1,4 @@
-name: knowledge-router-composes-in-graph
+name: knowledge-router-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

@@ -1,4 +1,4 @@
-name: reply-composes-in-graph
+name: reply-composes-in-workflow
 package: fixtures/reply
 expect:
   status: sealed

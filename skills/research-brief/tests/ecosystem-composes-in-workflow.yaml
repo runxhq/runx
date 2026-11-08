@@ -1,4 +1,4 @@
-name: ecosystem-composes-in-graph
+name: ecosystem-composes-in-workflow
 package: fixtures/ecosystem
 host:
   answers:

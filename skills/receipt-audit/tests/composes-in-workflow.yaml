@@ -1,4 +1,4 @@
-name: receipt-audit-composes-in-graph
+name: receipt-audit-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

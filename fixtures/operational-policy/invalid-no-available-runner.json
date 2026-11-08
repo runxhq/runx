@@ -1,7 +1,7 @@
 {
   "schema": "runx.operational_policy.v1",
   "schema_version": "runx.operational_policy.v1",
-  "policy_id": "invalid-unknown-method",
+  "policy_id": "invalid-no-available-runner",
   "sources": [
     {
       "source_id": "github-issues",
@@ -21,9 +21,9 @@
   ],
   "runners": [
     {
-      "method_id": "local-review",
+      "runner_id": "local-review",
       "kind": "local",
-      "state": "available",
+      "state": "maintenance",
       "allowed_actions": [
         "issue-intake"
       ],
@@ -47,8 +47,8 @@
   "targets": [
     {
       "repo": "example/project",
-      "method_ids": [
-        "missing-method"
+      "runner_ids": [
+        "local-review"
       ],
       "allowed_actions": [
         "issue-intake"

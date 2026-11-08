@@ -1,4 +1,4 @@
-name: operations-review-composes-in-graph
+name: operations-review-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

@@ -1,5 +1,5 @@
 ---
-name: mcp-approval-graph
+name: mcp-approval-workflow
 description: Exercise a Rust-served MCP graph approval round trip.
 ---
 

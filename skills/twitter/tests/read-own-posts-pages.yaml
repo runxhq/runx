@@ -5,7 +5,7 @@ inputs:
   query: posts
   max_items: 3
 env:
-  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+  TWITTER_USER_AUTH: '{"consumer_key":"test-consumer","consumer_secret":"test-secret","access_token":"test-access","access_secret":"test-access-secret"}'
 providers:
   http:
     - request:

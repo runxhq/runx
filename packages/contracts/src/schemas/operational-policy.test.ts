@@ -46,7 +46,7 @@ const validPolicy: OperationalPolicyContract = {
   ],
   runners: [
     {
-      method_id: "local-review",
+      runner_id: "local-review",
       kind: "local",
       state: "available",
       allowed_actions: ["issue-to-pr", "pr-review", "pr-fix-up", "merge-assist"],
@@ -72,7 +72,7 @@ const validPolicy: OperationalPolicyContract = {
   targets: [
     {
       repo: "example/api",
-      method_ids: ["local-review"],
+      runner_ids: ["local-review"],
       allowed_actions: ["issue-to-pr", "pr-review", "pr-fix-up", "merge-assist"],
       default_owner_route: "api-kam",
       scafld_required: true,
@@ -80,7 +80,7 @@ const validPolicy: OperationalPolicyContract = {
     },
     {
       repo: "example/app",
-      method_ids: ["local-review"],
+      runner_ids: ["local-review"],
       allowed_actions: ["issue-to-pr", "pr-review", "pr-fix-up", "merge-assist"],
       default_owner_route: "app-chong",
       scafld_required: true,

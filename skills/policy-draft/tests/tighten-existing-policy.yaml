@@ -20,7 +20,7 @@ inputs:
           missing_behavior: fail_closed
         minimum_confidence: 0.6
     runners:
-      - method_id: local-review
+      - runner_id: local-review
         kind: local
         state: available
         allowed_actions:
@@ -37,7 +37,7 @@ inputs:
           - acme/acme
     targets:
       - repo: acme/acme
-        method_ids:
+        runner_ids:
           - local-review
         allowed_actions:
           - issue-intake
@@ -83,7 +83,7 @@ host:
                 missing_behavior: fail_closed
               minimum_confidence: 0.72
           runners:
-            - method_id: local-review
+            - runner_id: local-review
               kind: local
               state: available
               allowed_actions:
@@ -99,7 +99,7 @@ host:
                 - acme/acme
           targets:
             - repo: acme/acme
-              method_ids:
+              runner_ids:
                 - local-review
               allowed_actions:
                 - issue-intake

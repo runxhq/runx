@@ -47,12 +47,12 @@ methods:
                   context_ref_present: true
               artifact_uris: []
               lineage_uris: []
-              seal_reason: graph_step_failed
+              seal_reason: workflow_step_failed
       - id: diagnose-skill-run
         skill: ../..#from-evidence
         inputs:
           receipt_id: rcpt_context_flattening
-          harness_output: Context edge pointed at stdout and flattened the payload.
+          test_output: Context edge pointed at stdout and flattened the payload.
           skill_path: skills/skill-build
           receipt_evidence: $steps.evidence.ledger_answer_packet
       - id: digest

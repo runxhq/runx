@@ -1,4 +1,4 @@
-name: extract-composes-in-graph
+name: extract-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

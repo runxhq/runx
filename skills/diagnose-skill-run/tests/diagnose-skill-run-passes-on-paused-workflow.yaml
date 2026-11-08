@@ -1,4 +1,4 @@
-name: diagnose-skill-run-passes-on-paused-graph
+name: diagnose-skill-run-passes-on-paused-workflow
 inputs:
   receipt_id: rcpt_paused
   receipt_rows:
@@ -23,7 +23,7 @@ inputs:
       artifact_uris: []
       lineage_uris: []
       seal_reason: resolution_pending
-  harness_output: needs_agent
+  test_output: needs_agent
   skill_path: skills/research
 host:
   answers:
@@ -32,7 +32,7 @@ host:
         verdict: pass
         failure_summary: No failure. The graph paused as designed while awaiting caller cognitive work.
         improvement_proposals: []
-        next_harness_checks:
+        next_test_checks:
           - target skill completes when a valid agent response is supplied
 expect:
   status: sealed

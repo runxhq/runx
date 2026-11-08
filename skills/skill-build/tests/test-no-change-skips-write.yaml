@@ -1,4 +1,4 @@
-name: skill-build-harness-no-change-skips-write
+name: skill-build-test-no-change-skips-write
 method: harness
 inputs:
   objective: Decide whether a vague report justifies a new regression fixture
@@ -78,13 +78,13 @@ host:
           - Preserve every existing fixture and production file.
         deletions: []
         proof_plan:
-          - name: harness-selection
+          - name: test-selection
             kind: selection_trial
             expected: A reproducible harness request selects this lane and a speculative production change does not.
           - name: vague-report-no-change
             kind: standalone_operator_journey
             expected: The direct vague report returns unchanged without filesystem mutation.
-          - name: harness-evidence-reuse
+          - name: test-evidence-reuse
             kind: composed_operator_journey
             expected: Supplied failure evidence is reused without inventing or replaying unrelated work.
     author:

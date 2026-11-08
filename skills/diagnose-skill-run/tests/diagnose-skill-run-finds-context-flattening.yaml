@@ -36,8 +36,8 @@ inputs:
           context_ref_present: true
       artifact_uris: []
       lineage_uris: []
-      seal_reason: graph_step_failed
-  harness_output: Context edge pointed at stdout and flattened the payload.
+      seal_reason: workflow_step_failed
+  test_output: Context edge pointed at stdout and flattened the payload.
   skill_path: skills/skill-build
 host:
   answers:
@@ -50,7 +50,7 @@ host:
             change: Emit a wrapped artifact from the upstream step and consume the named artifact data in downstream context.
             rationale: Preserves structured objects across governed graph steps.
             risk: Existing fixtures that parse stdout-shaped context will need updates.
-        next_harness_checks:
+        next_test_checks:
           - skill-build passes structured authoring context into the bounded author step
 expect:
   status: sealed
@@ -72,6 +72,6 @@ expect:
             receipt_details:
               - id: rcpt_context_flattening
                 subject_uri: skills/skill-build
-                seal_reason: graph_step_failed
+                seal_reason: workflow_step_failed
   receipt:
     schema: runx.receipt.v1

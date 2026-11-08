@@ -1,4 +1,4 @@
-name: web-fetch-composes-in-graph
+name: web-fetch-composes-in-workflow
 package: fixtures/composed
 providers:
   http:

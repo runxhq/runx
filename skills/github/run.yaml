@@ -5,12 +5,6 @@ catalog:
   visibility: public
   category: ops
 shared_inputs:
-  repository:
-    type: string
-    description: Target GitHub repository as owner/name.
-    pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
-    examples:
-      - runxhq/runx
   direction:
     type: string
     description: Synchronization direction.

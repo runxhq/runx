@@ -1,4 +1,4 @@
-name: lead-qualify-composes-in-graph
+name: lead-qualify-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

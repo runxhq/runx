@@ -1,4 +1,4 @@
-name: receipt-query-composes-in-graph
+name: receipt-query-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

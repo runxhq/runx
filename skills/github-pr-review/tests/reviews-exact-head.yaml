@@ -6,7 +6,7 @@ inputs:
   repository: example/project
   number: 42
 env:
-  GITHUB_TOKEN: harness-github-token
+  GITHUB_TOKEN: test-github-token
 host:
   answers:
     assess#review:

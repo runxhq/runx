@@ -134,7 +134,7 @@ export async function validateKernelFixture(fixture: KernelFixture): Promise<Val
   const errors = [
     ...schemaErrors(envelopeSchema, fixture, "fixture.schema.json"),
     ...schemaErrors(concreteSchema, fixture, schemaFile),
-    ...methodFixtureErrors(fixture),
+    ...runnerFixtureErrors(fixture),
   ];
   return {
     valid: errors.length === 0,
@@ -142,7 +142,7 @@ export async function validateKernelFixture(fixture: KernelFixture): Promise<Val
   };
 }
 
-export function isMethodKernelFixture(fixture: KernelFixture): boolean {
+export function isRunnerKernelFixture(fixture: KernelFixture): boolean {
   return fixture.expected.kind === "error" && fixture.expected.code === "kernel.fixture.evaluation_failed";
 }
 
@@ -152,12 +152,12 @@ function kernelFixtureSchemaFile(schemaRef: unknown): string | undefined {
     : undefined;
 }
 
-function methodFixtureErrors(fixture: KernelFixture): readonly string[] {
-  const isMethodFixture = isMethodKernelFixture(fixture);
-  if (isMethodFixture && !fixture.name.startsWith("runner-")) {
+function runnerFixtureErrors(fixture: KernelFixture): readonly string[] {
+  const isRunnerFixture = isRunnerKernelFixture(fixture);
+  if (isRunnerFixture && !fixture.name.startsWith("runner-")) {
     return [`fixture.name: runner ingestion fixtures must use the 'runner-' prefix`];
   }
-  if (!isMethodFixture && fixture.name.startsWith("runner-")) {
+  if (!isRunnerFixture && fixture.name.startsWith("runner-")) {
     return [`fixture.name: only kernel.fixture.evaluation_failed error fixtures may use the 'runner-' prefix`];
   }
   return [];
@@ -387,9 +387,9 @@ function fixtureCases(): readonly KernelFixtureCase[] {
       },
     },
     {
-      name: "method-rejects-malformed-state",
+      name: "runner-rejects-malformed-state",
       description:
-        "Pins the fixture-method ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
+        "Pins the fixture-runner ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
       input: {
         kind: "state-machine.planSequentialWorkflowTransition",
         state: {},
@@ -405,7 +405,7 @@ function fixtureCases(): readonly KernelFixtureCase[] {
 }
 
 function fixtureDirectory(fixture: KernelFixture): string {
-  if (isMethodKernelFixture(fixture)) {
+  if (isRunnerKernelFixture(fixture)) {
     return path.join(fixtureRoot, "runner");
   }
   return path.join(fixtureRoot, fixture.input.kind.startsWith("state-machine.") ? "state-machine" : "policy");

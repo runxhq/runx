@@ -103,7 +103,7 @@ export type AgentContextEnvelopeContract = {
     readonly [key: string]: unknown;
   };
   readonly instructions: string;
-  /** Digest of the exact owning `SKILL.md` bytes carried in `instructions`. */
+  /** Digest of the exact bytes carried in `instructions`. */
   readonly instructions_digest: string;
   readonly output?: {
     readonly [key: string]: OutputFieldContract;
@@ -1935,7 +1935,7 @@ export type OperationalPolicyContract = {
   readonly owner_routes: readonly OperationalPolicyOwnerRouteContract[];
   readonly permissions: OperationalPolicyAutomationPermissionsContract;
   readonly policy_id: string;
-  readonly runners: readonly OperationalPolicyMethodRuleContract[];
+  readonly runners: readonly OperationalPolicyRunnerRuleContract[];
   readonly schema: OperationalPolicySchemaContract;
   readonly schema_version: OperationalPolicySchemaContract;
   readonly sources: readonly OperationalPolicySourceRuleContract[];
@@ -1959,26 +1959,6 @@ export type OperationalPolicyDedupePolicyContract = {
 export type OperationalPolicyDedupeStrategyContract = "source_digest" | "provider_search" | "branch";
 
 export type OperationalPolicyDuplicateBehaviorContract = "reuse" | "comment" | "block";
-
-export type OperationalPolicyMethodReadbackContract = {
-  readonly allowed_actions: readonly OperationalPolicyActionContract[];
-  readonly kind: string;
-  readonly method_id: string;
-  readonly scafld_required: boolean;
-  readonly state: OperationalPolicyMethodStateContract;
-  readonly target_repos: readonly string[];
-};
-
-export type OperationalPolicyMethodRuleContract = {
-  readonly allowed_actions: readonly OperationalPolicyActionContract[];
-  readonly kind: string;
-  readonly method_id: string;
-  readonly scafld_required: boolean;
-  readonly state: OperationalPolicyMethodStateContract;
-  readonly target_repos: readonly string[];
-};
-
-export type OperationalPolicyMethodStateContract = "available" | "disabled" | "maintenance";
 
 export type OperationalPolicyMissingBehaviorContract = "fail_closed";
 
@@ -2006,12 +1986,32 @@ export type OperationalPolicyReadbackContract = {
   readonly outcomes: OperationalPolicyOutcomePolicyContract;
   readonly permissions: OperationalPolicyAutomationPermissionsContract;
   readonly policy_id: string;
-  readonly runners: readonly OperationalPolicyMethodReadbackContract[];
+  readonly runners: readonly OperationalPolicyRunnerReadbackContract[];
   readonly schema_version: OperationalPolicySchemaContract;
   readonly sources: readonly OperationalPolicySourceReadbackContract[];
   readonly targets: readonly OperationalPolicyTargetReadbackContract[];
   readonly valid: boolean;
 };
+
+export type OperationalPolicyRunnerReadbackContract = {
+  readonly allowed_actions: readonly OperationalPolicyActionContract[];
+  readonly kind: string;
+  readonly runner_id: string;
+  readonly scafld_required: boolean;
+  readonly state: OperationalPolicyRunnerStateContract;
+  readonly target_repos: readonly string[];
+};
+
+export type OperationalPolicyRunnerRuleContract = {
+  readonly allowed_actions: readonly OperationalPolicyActionContract[];
+  readonly kind: string;
+  readonly runner_id: string;
+  readonly scafld_required: boolean;
+  readonly state: OperationalPolicyRunnerStateContract;
+  readonly target_repos: readonly string[];
+};
+
+export type OperationalPolicyRunnerStateContract = "available" | "disabled" | "maintenance";
 
 export type OperationalPolicySchemaContract = "runx.operational_policy.v1";
 
@@ -2044,11 +2044,11 @@ export type OperationalPolicySourceThreadPolicyContract = {
 
 export type OperationalPolicyTargetReadbackContract = {
   readonly allowed_actions: readonly OperationalPolicyActionContract[];
-  readonly available_method_count: number;
+  readonly available_runner_count: number;
   readonly default_owner_route: string;
-  readonly method_ids: readonly string[];
   readonly owner_count: number;
   readonly repo: string;
+  readonly runner_ids: readonly string[];
   readonly scafld_required: boolean;
 };
 
@@ -2056,8 +2056,8 @@ export type OperationalPolicyTargetRuleContract = {
   readonly allowed_actions: readonly OperationalPolicyActionContract[];
   readonly base_branch?: string;
   readonly default_owner_route: string;
-  readonly method_ids: readonly string[];
   readonly repo: string;
+  readonly runner_ids: readonly string[];
   readonly scafld_required: boolean;
 };
 
@@ -3963,7 +3963,7 @@ export type ToolSourceContract = {
     readonly optional?: readonly string[];
     readonly required?: readonly string[];
   };
-  readonly input_mode?: ToolCommandInputModeContract;
+  readonly inputs_via?: ToolCommandInputModeContract;
   readonly timeout_seconds?: number;
 };
 

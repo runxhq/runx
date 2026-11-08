@@ -327,7 +327,7 @@ describe("@runxhq/contracts", () => {
         },
       }],
       runners: [{
-        method_id: "local-review",
+        runner_id: "local-review",
         kind: "local",
         state: "available",
         allowed_actions: ["issue-to-pr", "merge-assist"],
@@ -341,7 +341,7 @@ describe("@runxhq/contracts", () => {
       }],
       targets: [{
         repo: "example/api",
-        method_ids: ["local-review"],
+        runner_ids: ["local-review"],
         allowed_actions: ["issue-to-pr", "merge-assist"],
         default_owner_route: "api-owner",
         scafld_required: true,

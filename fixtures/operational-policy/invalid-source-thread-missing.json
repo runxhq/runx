@@ -21,7 +21,7 @@
   ],
   "runners": [
     {
-      "method_id": "local-review",
+      "runner_id": "local-review",
       "kind": "local",
       "state": "available",
       "allowed_actions": [
@@ -47,7 +47,7 @@
   "targets": [
     {
       "repo": "example/project",
-      "method_ids": [
+      "runner_ids": [
         "local-review"
       ],
       "allowed_actions": [

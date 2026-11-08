@@ -1,4 +1,4 @@
-name: least-privilege-composes-in-graph
+name: least-privilege-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

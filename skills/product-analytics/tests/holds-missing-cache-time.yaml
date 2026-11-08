@@ -10,7 +10,7 @@ setup:
 inputs:
   insight_id: launch01
 env:
-  POSTHOG_PERSONAL_API_KEY: harness-posthog-key
+  POSTHOG_PERSONAL_API_KEY: test-posthog-key
 providers:
   http:
     - request:

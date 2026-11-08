@@ -7,24 +7,12 @@ catalog:
 methods:
   audit:
     inputs:
-      subject:
-        type: string
-        description: Exact skill, actor, or grant reference matching the receipt detail; labels alone cannot bind evidence.
-        optional: true
-      granted_scopes:
-        description: Current scopes granted to the subject.
-      receipt_ids:
-        description: Receipt ids whose native detail shows the exercised scopes.
-      objective:
-        type: string
-        description: Operator intent focusing the audit.
-        optional: true
-      receipt_rows:
-        description: Explicit native-projection rows for deterministic replay only.
-        optional: true
-      receipt_details:
-        description: Explicit native redacted receipt-detail projections for deterministic replay only.
-        optional: true
+      subject: {}
+      granted_scopes: {}
+      receipt_ids: {}
+      objective: {}
+      receipt_rows: {}
+      receipt_details: {}
       receipt_evidence:
         type: object
         default: {}

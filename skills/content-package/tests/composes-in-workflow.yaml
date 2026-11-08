@@ -1,4 +1,4 @@
-name: content-package-composes-in-graph
+name: content-package-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

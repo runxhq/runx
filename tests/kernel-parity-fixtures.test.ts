@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectKernelFixtureFiles,
   evaluateKernelFixtureInput,
-  isMethodKernelFixture,
+  isRunnerKernelFixture,
   normalizeForFixture,
   readKernelFixture,
   validateKernelFixture,
@@ -21,7 +21,7 @@ describe("kernel parity fixtures", () => {
       const fixture = await readKernelFixture(fixtureFile);
       expect(fixture.name, fixtureFile).toBe(path.basename(fixtureFile, ".json"));
       const relativeFixturePath = path.relative(path.join(process.cwd(), "fixtures", "kernel"), fixtureFile);
-      expect(relativeFixturePath.startsWith(`runner${path.sep}`), fixture.name).toBe(isMethodKernelFixture(fixture));
+      expect(relativeFixturePath.startsWith(`runner${path.sep}`), fixture.name).toBe(isRunnerKernelFixture(fixture));
 
       const validation = await validateKernelFixture(fixture);
       expect(validation.errors, fixture.name).toEqual([]);
@@ -121,7 +121,7 @@ describe("kernel parity fixtures", () => {
   it("requires runner ingestion fixtures to use the runner prefix", async () => {
     const validation = await validateKernelFixture({
       $schema: "../schema/policy.schema.json",
-      name: "malformed-state-method-error",
+      name: "malformed-state-runner-error",
       input: {
         kind: "policy.scopeGrantAllows",
         grantedScope: "repo:*",
@@ -138,10 +138,10 @@ describe("kernel parity fixtures", () => {
     expect(validation.errors).toContain("fixture.name: runner ingestion fixtures must use the 'runner-' prefix");
   });
 
-  it("reserves the runner prefix for fixture-method ingestion errors", async () => {
+  it("reserves the runner prefix for fixture-runner ingestion errors", async () => {
     const validation = await validateKernelFixture({
       $schema: "../schema/policy.schema.json",
-      name: "method-scope-grant-denies-widening",
+      name: "runner-scope-grant-denies-widening",
       input: {
         kind: "policy.scopeGrantAllows",
         grantedScope: "checks:read",

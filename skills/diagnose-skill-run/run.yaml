@@ -7,29 +7,12 @@ catalog:
 methods:
   review:
     inputs:
-      receipt_id:
-        type: string
-        description: Exact receipt id to resolve through the native ledger.
-        default: ""
-        optional: true
-      receipt_summary:
-        type: string
-        description: Sanitized failure summary when detailed execution evidence is already available.
-        optional: true
-      receipt_details:
-        description: Explicit native redacted receipt-detail projections for deterministic replay only.
-        optional: true
-      harness_output:
-        type: string
-        description: Sanitized native harness output or assertion failure.
-        optional: true
-      skill_path:
-        type: string
-        description: Skill path being reviewed.
-        optional: true
-      receipt_rows:
-        description: Explicit native-projection rows for deterministic replay only.
-        optional: true
+      receipt_id: {}
+      receipt_summary: {}
+      receipt_details: {}
+      test_output: {}
+      skill_path: {}
+      receipt_rows: {}
       receipt_evidence:
         type: object
         default: {}
@@ -67,7 +50,7 @@ methods:
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           skill_path: $input.skill_path
           receipt_evidence: $steps.evidence.ledger_answer_packet
       - id: review-supplied
@@ -78,7 +61,7 @@ methods:
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           skill_path: $input.skill_path
           receipt_evidence: $input.receipt_evidence
     description: Diagnose one exact receipt or supplied failure evidence, reusing a completed ledger packet when present and never scanning unrelated runs.
@@ -87,7 +70,7 @@ methods:
     inputs:
       receipt_id: {}
       receipt_summary: {}
-      harness_output: {}
+      test_output: {}
       skill_path: {}
       receipt_evidence:
         packet: runx/receipt-query.answer.v1
@@ -103,7 +86,7 @@ methods:
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           skill_path: $input.skill_path
           receipt_evidence: $input.receipt_evidence
         outputs:
@@ -115,7 +98,7 @@ methods:
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           skill_path: $input.skill_path
           receipt_evidence: $input.receipt_evidence
         outputs:
@@ -139,7 +122,7 @@ methods:
                       type: string
                     risk:
                       type: string
-              next_harness_checks:
+              next_test_checks:
                 type: array
                 items:
                   type: string
@@ -147,7 +130,7 @@ methods:
               - verdict
               - failure_summary
               - improvement_proposals
-              - next_harness_checks
+              - next_test_checks
         when:
           value: $steps.prepare.preparation.ready
           equals: true
@@ -157,7 +140,7 @@ methods:
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           skill_path: $input.skill_path
           receipt_evidence: $input.receipt_evidence
           candidate: $steps.diagnose.diagnosis
@@ -165,7 +148,7 @@ methods:
           verdict: {type: string}
           failure_summary: {type: string}
           improvement_proposals: {type: array}
-          next_harness_checks: {type: array}
+          next_test_checks: {type: array}
           evidence: {type: array}
           failure_packet: {packet: runx/diagnose-skill-run.diagnosis.v1}
         result_as: failure_packet
@@ -181,20 +164,20 @@ methods:
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
-          harness_output: $input.harness_output
+          test_output: $input.test_output
           skill_path: $input.skill_path
           receipt_evidence: $input.receipt_evidence
           candidate:
             verdict: blocked
             failure_summary: Exact failure evidence is missing.
             improvement_proposals: []
-            next_harness_checks:
+            next_test_checks:
               - Resolve the selected failed receipt or provide a bounded failure diagnostic.
         outputs:
           verdict: {type: string}
           failure_summary: {type: string}
           improvement_proposals: {type: array}
-          next_harness_checks: {type: array}
+          next_test_checks: {type: array}
           evidence: {type: array}
           failure_packet: {packet: runx/diagnose-skill-run.diagnosis.v1}
         result_as: failure_packet
@@ -211,7 +194,7 @@ shared_inputs:
   receipt_details:
     description: Explicit native redacted receipt-detail projections for deterministic replay only.
     optional: true
-  harness_output:
+  test_output:
     type: string
     description: Sanitized native harness output or assertion failure.
     optional: true

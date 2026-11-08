@@ -1,4 +1,4 @@
-name: contract-draft-composes-in-graph
+name: contract-draft-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

@@ -1,4 +1,4 @@
-name: moltbook-composes-in-graph
+name: moltbook-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

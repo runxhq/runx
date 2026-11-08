@@ -1,4 +1,4 @@
-name: code-plan-composes-in-graph
+name: code-plan-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

@@ -71,7 +71,7 @@ methods:
             fixtures:
               type: integer
               minimum: 0
-            harness_cases:
+            test_cases:
               type: integer
               minimum: 0
         optional: true

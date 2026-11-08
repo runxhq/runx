@@ -1,4 +1,4 @@
-name: prior-art-composes-in-graph
+name: prior-art-composes-in-workflow
 package: fixtures/composed
 host:
   answers:

@@ -1,4 +1,4 @@
-name: web-search-composes-in-graph
+name: web-search-composes-in-workflow
 package: fixtures/composed
 expect:
   status: policy_denied

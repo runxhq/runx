@@ -6,21 +6,6 @@ catalog:
   category: research
 
 shared_inputs:
-  objective:
-    type: string
-    description: Exact decision question the brief must answer.
-    minLength: 1
-    maxLength: 4000
-  audience:
-    type: string
-    default: operators
-    description: Primary reader for the decision brief.
-    optional: true
-  channel:
-    type: string
-    default: brief
-    description: Local package format; this runner does not deliver it.
-    optional: true
   domain:
     type: string
     description: Domain context for interpretation.
@@ -29,27 +14,38 @@ shared_inputs:
     type: string
     description: Local constraints that do not count as evidence.
     optional: true
-  target_entities:
-    description: Bounded entity names or caller-owned structured selectors to include or compare.
-    oneOf:
-      - {type: array, maxItems: 100}
-      - {type: object, maxProperties: 100}
-    optional: true
 
 methods:
   research-brief:
     description: Produce a decision-ready brief from governed source packets, researching the question and then drafting the brief with every source bound.
     inputs:
-      objective: {}
+      objective:
+        type: string
+        description: Exact decision question the brief must answer.
+        minLength: 1
+        maxLength: 4000
       source_packets:
         type: array
         description: Bounded governed source packets, normally web-fetch provider operation evidence.
         maxItems: 20
-      audience: {}
-      channel: {}
+      audience:
+        type: string
+        default: operators
+        description: Primary reader for the decision brief.
+        optional: true
+      channel:
+        type: string
+        default: brief
+        description: Local package format; this runner does not deliver it.
+        optional: true
       domain: {}
       operator_context: {}
-      target_entities: {}
+      target_entities:
+        description: Bounded entity names or caller-owned structured selectors to include or compare.
+        oneOf:
+          - {type: array, maxItems: 100}
+          - {type: object, maxProperties: 100}
+        optional: true
     examples:
       - objective: Decide whether the supplied architecture evidence supports native ownership.
         audience: operators
@@ -88,7 +84,11 @@ methods:
   local-files:
     description: Produce the brief from bounded local files, read through runx's filesystem.
     inputs:
-      objective: {}
+      objective:
+        type: string
+        description: Exact decision question the brief must answer.
+        minLength: 1
+        maxLength: 4000
       paths:
         type: array
         description: One to sixteen UTF-8 evidence paths below the selected root.
@@ -114,11 +114,24 @@ methods:
         minimum: 1
         maximum: 8388608
         optional: true
-      audience: {}
-      channel: {}
+      audience:
+        type: string
+        default: operators
+        description: Primary reader for the decision brief.
+        optional: true
+      channel:
+        type: string
+        default: brief
+        description: Local package format; this runner does not deliver it.
+        optional: true
       domain: {}
       operator_context: {}
-      target_entities: {}
+      target_entities:
+        description: Bounded entity names or caller-owned structured selectors to include or compare.
+        oneOf:
+          - {type: array, maxItems: 100}
+          - {type: object, maxProperties: 100}
+        optional: true
     examples:
       - objective: Identify the strongest architecture decision in the local design notes.
         paths: [docs/architecture.md, docs/constraints.md]
@@ -167,10 +180,7 @@ methods:
         default: brief
         description: Intended content channel; this runner does not deliver it.
         optional: true
-      domain:
-        type: string
-        description: Domain context for interpretation.
-        optional: true
+      domain: {}
       as_of:
         type: string
         description: Explicit ISO-8601 evaluation time used for reproducible freshness checks.
@@ -179,10 +189,7 @@ methods:
         default: 168
         description: Maximum accepted source age in hours.
         optional: true
-      operator_context:
-        type: string
-        description: Local constraints that do not count as evidence.
-        optional: true
+      operator_context: {}
       target_entities:
         description: Entities to include or compare.
         optional: true
@@ -222,12 +229,29 @@ methods:
   brief:
     description: Answer a bounded decision question and produce a source-bound memo, acquiring only missing evidence.
     inputs:
-      objective: {}
-      audience: {}
-      channel: {}
+      objective:
+        type: string
+        description: Exact decision question the brief must answer.
+        minLength: 1
+        maxLength: 4000
+      audience:
+        type: string
+        default: operators
+        description: Primary reader for the decision brief.
+        optional: true
+      channel:
+        type: string
+        default: brief
+        description: Local package format; this runner does not deliver it.
+        optional: true
       domain: {}
       operator_context: {}
-      target_entities: {}
+      target_entities:
+        description: Bounded entity names or caller-owned structured selectors to include or compare.
+        oneOf:
+          - {type: array, maxItems: 100}
+          - {type: object, maxProperties: 100}
+        optional: true
       source_packets:
         type: array
         default: []
@@ -278,9 +302,21 @@ methods:
   from-research:
     description: Write the decision memo from a completed research packet, without another acquisition or synthesis pass.
     inputs:
-      objective: {}
-      audience: {}
-      channel: {}
+      objective:
+        type: string
+        description: Exact decision question the brief must answer.
+        minLength: 1
+        maxLength: 4000
+      audience:
+        type: string
+        default: operators
+        description: Primary reader for the decision brief.
+        optional: true
+      channel:
+        type: string
+        default: brief
+        description: Local package format; this runner does not deliver it.
+        optional: true
       research_packet:
         packet: runx/research.packet.v1
         description: Existing source-bound research result, passed unchanged to writing admission.

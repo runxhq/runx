@@ -1,4 +1,4 @@
-name: agent-session-read-answers-with-a-summary
+name: agent-read-answers-with-a-summary
 method: read
 host:
   answers:

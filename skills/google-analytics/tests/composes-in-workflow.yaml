@@ -1,4 +1,4 @@
-name: google-analytics-composes-in-graph
+name: google-analytics-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

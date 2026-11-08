@@ -1,4 +1,4 @@
-name: webhook-handoff-composes-in-graph
+name: webhook-handoff-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed

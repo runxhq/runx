@@ -16,8 +16,6 @@ inputs:
         invoice_id: INV-2026-0042
     amount_minor: 42
     pay_to: "0x00000000000000000000000000000000000000a1"
-env:
-  RUNX_CWD: .
 host:
   answers:
     read/extract#extract:

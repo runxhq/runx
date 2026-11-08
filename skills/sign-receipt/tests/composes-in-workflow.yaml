@@ -1,4 +1,4 @@
-name: sign-receipt-composes-in-graph
+name: sign-receipt-composes-in-workflow
 package: fixtures/composed
 expect:
   status: sealed
