@@ -154,7 +154,6 @@ export {
 } from "./x402-presentation.js";
 
 export {
-  RUNX_SCHEMA_BASE_URL,
   type JsonSchema,
   type Static,
 } from "./internal.js";

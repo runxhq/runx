@@ -4,8 +4,6 @@ import {
   type RunxSchemaArtifactName,
 } from "./schema-artifacts.js";
 
-export const RUNX_SCHEMA_BASE_URL = "https://schemas.runx.ai" as const;
-
 export type UnknownRecord = Readonly<Record<string, unknown>>;
 export type DeepReadonly<T> =
   T extends (...args: never[]) => unknown ? T
