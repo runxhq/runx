@@ -20,14 +20,6 @@ pub fn apply_sequential_graph_event(graph: &mut SequentialGraph, event: &Sequent
     apply_sequential_graph_event_owned_with_index(graph, event.clone(), None);
 }
 
-pub fn apply_sequential_graph_event_indexed(
-    graph: &mut SequentialGraph,
-    event: &SequentialGraphEvent,
-    step_index: &SequentialGraphStepIndex,
-) {
-    apply_sequential_graph_event_owned_with_index(graph, event.clone(), Some(step_index));
-}
-
 /// Apply an owned event without cloning its payload.
 ///
 /// Runtime executors construct an event for immediate application. Consuming

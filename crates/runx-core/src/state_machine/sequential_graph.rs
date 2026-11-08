@@ -11,7 +11,7 @@ pub use planning::{
 };
 pub use state::create_sequential_graph;
 pub use transition::{
-    apply_sequential_graph_event, apply_sequential_graph_event_indexed,
-    apply_sequential_graph_event_owned_indexed, start_sequential_graph_step_indexed,
-    succeed_sequential_graph_step_indexed, transition_sequential_graph,
+    apply_sequential_graph_event, apply_sequential_graph_event_owned_indexed,
+    start_sequential_graph_step_indexed, succeed_sequential_graph_step_indexed,
+    transition_sequential_graph,
 };
