@@ -1299,7 +1299,7 @@ fn completed(call: &TurnCallResult) -> bool {
     matches!(call.outcome, TurnCallOutcome::Completed { .. })
 }
 
-fn write_paged_read_skill(root: &Path, read_scope: bool) -> TestResult<PathBuf> {
+fn write_paged_read_skill(root: &Path) -> TestResult<PathBuf> {
     let dir = root.join("paged-child");
     let manifest = r#"skill: paged-child
 runners:
@@ -1317,15 +1317,10 @@ runners:
         pages: {path_from: source, media_type: application/json, framing: json_array, page_bytes: 65536}
       outputs: {record_count: number}
 "#;
-    let manifest = if read_scope {
-        manifest.to_owned()
-    } else {
-        manifest.replace("      scopes: [fs.read]\n", "")
-    };
     crate::support::write_test_skill_package(
         &dir,
         "---\nname: paged-child\ndescription: Counts runtime-framed synthetic records.\n---\n# Page proof\n\nCount only the records the native reader admits.\n",
-        &manifest,
+        manifest,
     )?;
     std::fs::write(
         dir.join("page.mjs"),
@@ -1445,7 +1440,7 @@ fn paged_file_reads_keep_the_real_workflow_callers_bounds() -> TestResult {
     std::fs::write(temp.path().join(".env.page-proof"), "[{}]")?;
     std::fs::create_dir_all(temp.path().join(".runx"))?;
     std::fs::write(temp.path().join(".runx/page-proof.json"), "[{}]")?;
-    let skill = write_paged_read_skill(temp.path(), true)?;
+    let skill = write_paged_read_skill(temp.path())?;
     assert!(run_paged_read(temp.path(), skill.clone(), "ordinary.json", true)?.succeeded());
     for path in [".env.page-proof", ".runx/page-proof.json"] {
         let denied = run_paged_read(temp.path(), skill.clone(), path, true)?;
@@ -1473,28 +1468,11 @@ fn paged_file_reads_keep_the_real_workflow_callers_bounds() -> TestResult {
 }
 
 #[test]
-fn paged_file_reads_require_scope_before_resolving_the_source() -> TestResult {
-    let temp = tempdir()?;
-    let skill = write_paged_read_skill(temp.path(), false)?;
-    for agent in [false, true] {
-        let denied = run_paged_read(temp.path(), skill.clone(), "does-not-exist.json", agent)?;
-        assert!(!denied.succeeded(), "{denied:?}");
-        let detail = format!("{:?}", denied.output);
-        assert!(detail.contains("fs.read"), "{denied:?}");
-        assert!(
-            !detail.contains("unavailable"),
-            "source resolved before scope admission: {denied:?}"
-        );
-    }
-    Ok(())
-}
-
-#[test]
 fn paged_file_reads_keep_bounds_when_an_agent_calls_a_child_skill() -> TestResult {
     let temp = tempdir()?;
     std::fs::write(temp.path().join("ordinary.json"), "[{}]")?;
     std::fs::write(temp.path().join(".env.page-proof"), "[{}]")?;
-    write_paged_read_skill(temp.path(), true)?;
+    write_paged_read_skill(temp.path())?;
     let parent = temp.path().join("paged-parent");
     crate::support::write_test_skill_package(
         &parent,

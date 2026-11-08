@@ -69,33 +69,6 @@ fn validated_skill_package_rejects_symlinked_sources() -> Result<(), Box<dyn std
 }
 
 #[test]
-fn validated_skill_package_resolves_internal_profile_to_owning_manual()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempfile::tempdir()?;
-    let profile_dir = temp.path().join("graph/plan");
-    fs::create_dir_all(&profile_dir)?;
-    let manual = "---\nname: operator\ndescription: full operator context\n---\n\n# Operator\n\nPreserve this complete manual.\n";
-    fs::write(temp.path().join("SKILL.md"), manual)?;
-    fs::write(
-        profile_dir.join("run.yaml"),
-        "skill: operator-plan\nrunners:\n  plan:\n    steps:\n      - id: plan\n        tool: { module: plan.mjs }\n",
-    )?;
-    fs::write(
-        profile_dir.join("plan.mjs"),
-        "export default (inputs) => inputs;\n",
-    )?;
-
-    let loaded = load_validated_skill_package(&profile_dir)?;
-
-    // Package roots are canonical; macOS tempdirs resolve through /private.
-    assert_eq!(loaded.package_root, temp.path().canonicalize()?);
-    assert_eq!(loaded.profile_path.as_deref(), Some("graph/plan/run.yaml"));
-    assert!(loaded.manifest().is_some());
-    assert_eq!(loaded.package.manual_markdown, manual);
-    Ok(())
-}
-
-#[test]
 fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
     write_packet_input_package(

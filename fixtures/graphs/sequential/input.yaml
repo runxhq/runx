@@ -1,5 +1,0 @@
-name: sequential-input
-publisher: runx
-steps:
-  - id: first
-    skill: ../../skills/echo

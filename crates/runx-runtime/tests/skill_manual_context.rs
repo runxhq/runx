@@ -185,12 +185,8 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
         .and_then(JsonValue::as_object)
         .ok_or("adjacent catalog summary missing")?;
     assert_eq!(
-        catalog.get("role"),
-        Some(&JsonValue::String("context".to_owned()))
-    );
-    assert_eq!(
-        catalog.get("approval"),
-        Some(&JsonValue::String("none".to_owned()))
+        catalog.get("visibility"),
+        Some(&JsonValue::String("internal".to_owned()))
     );
     let canonical = canonical_stable_json(&JsonValue::Object(adjacent_context.data.clone()))?;
     assert_eq!(

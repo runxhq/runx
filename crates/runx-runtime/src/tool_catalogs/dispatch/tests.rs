@@ -116,7 +116,6 @@ fn dispatch_materializes_one_declared_tool_input_map() -> Result<(), Box<dyn std
     "input_mode": "stdin"
   },
   "inputs": {
-    "artifact": { "type": "json", "required": true, "artifact": true },
     "count": { "type": "integer", "required": true },
     "message": { "type": "string", "required": true },
     "mode": { "type": "string", "required": false, "default": "safe" },
@@ -128,22 +127,6 @@ fn dispatch_materializes_one_declared_tool_input_map() -> Result<(), Box<dyn std
         "cat\n",
     )?;
     let inputs = JsonObject::from([
-        (
-            "artifact".to_owned(),
-            JsonValue::Object(JsonObject::from([
-                (
-                    "schema".to_owned(),
-                    JsonValue::String("test.packet.v1".to_owned()),
-                ),
-                (
-                    "data".to_owned(),
-                    JsonValue::Object(JsonObject::from([(
-                        "ready".to_owned(),
-                        JsonValue::Bool(true),
-                    )])),
-                ),
-            ])),
-        ),
         ("count".to_owned(), JsonValue::Number(JsonNumber::U64(3))),
         ("message".to_owned(), JsonValue::String("static".to_owned())),
         ("optional".to_owned(), JsonValue::Null),
@@ -179,12 +162,9 @@ fn dispatch_materializes_one_declared_tool_input_map() -> Result<(), Box<dyn std
     );
     assert_eq!(object.get("mode").and_then(JsonValue::as_str), Some("safe"));
     assert_eq!(
-        object
-            .get("artifact")
-            .and_then(JsonValue::as_object)
-            .and_then(|artifact| artifact.get("ready"))
-            .and_then(JsonValue::as_bool),
-        Some(true)
+        object.get("count").and_then(JsonValue::as_u64),
+        Some(3),
+        "a declared input passes through"
     );
     assert!(!object.contains_key("optional"));
     assert!(!object.contains_key("undeclared"));

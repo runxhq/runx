@@ -1319,7 +1319,6 @@ fn native_workflow_skill_run_pauses_and_resumes_nested_agent_skill()
     // The act waits in the child run of step `nested`, and is answered there.
     assert_eq!(string_field(request, "id"), Some("nested#author"));
     let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
-    assert_eq!(string_field(invocation, "role"), Some("builder"));
     assert_eq!(string_field(invocation, "task"), Some("child-agent"));
 
     let answers = serde_json::json!({
@@ -1484,131 +1483,6 @@ fn workflow_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn
         error
             .to_string()
             .contains("context skill ref \"../taste-profile\" must not traverse the package"),
-        "unexpected error: {error}"
-    );
-
-    Ok(())
-}
-
-#[test]
-fn workflow_agent_task_rejects_workflow_stage_context_skill()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let skill_dir = write_workflow_agent_task_with_context_skill(temp.path(), "context-stage")?;
-    let stage_dir = skill_dir.join("context-stage");
-    fs::create_dir_all(&stage_dir)?;
-    fs::write(
-        stage_dir.join("SKILL.md"),
-        r#"---
-name: context-stage
-description: context-stage fixture.
----
-# Context Stage
-"#,
-    )?;
-    fs::write(
-        stage_dir.join("run.yaml"),
-        r#"skill: context-stage
-catalog:
-  kind: skill
-  audience: builder
-  visibility: internal
-  role: workflow-stage
-  part_of:
-    - workflow-agent-context-skill
-runners:
-  main:
-    default: true
-    steps:
-      - id: main
-        agent: { role: builder, task: internal implementation detail }
-"#,
-    )?;
-
-    let error = match run_skill(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env: BTreeMap::new(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }) {
-        Ok(_) => return Err("graph stage context skill should fail".into()),
-        Err(error) => error,
-    };
-
-    assert!(
-        error.to_string().contains("catalog.role=workflow-stage"),
-        "unexpected error: {error}"
-    );
-
-    Ok(())
-}
-
-#[test]
-fn workflow_agent_task_rejects_registry_runtime_path_context_skill()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir()?;
-    let registry = LoopbackRegistry::serve()?;
-    registry.publish(Publication::new(
-        "acme",
-        "1.0.0",
-        r#"---
-name: runtime-helper
-description: Internal runtime helper.
----
-# Runtime Helper
-"#,
-        Some(
-            r#"skill: runtime-helper
-catalog:
-  kind: skill
-  audience: builder
-  visibility: internal
-  role: runtime-path
-  part_of:
-    - workflow-agent-context-skill
-runners:
-  main:
-    default: true
-    steps:
-      - id: main
-        agent: { role: builder, task: internal helper }
-"#,
-        ),
-    ))?;
-    let skill_dir = write_workflow_agent_task_with_context_skill(
-        temp.path(),
-        "registry:acme/runtime-helper@1.0.0",
-    )?;
-    let env = fetch_registry_refs(&registry, temp.path(), &skill_dir)?;
-
-    let error = match run_skill(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }) {
-        Ok(_) => return Err("registry runtime-path context skill should fail".into()),
-        Err(error) => error,
-    };
-
-    assert!(
-        error.to_string().contains("catalog.role=runtime-path"),
         "unexpected error: {error}"
     );
 

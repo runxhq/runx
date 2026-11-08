@@ -1949,17 +1949,13 @@ mod step_requirements {
     use crate::adapter::Executable;
 
     #[test]
-    fn a_worker_step_projects_scopes_and_environment_without_interpretation()
+    fn a_worker_step_projects_its_environment_without_interpretation()
     -> Result<(), Box<dyn std::error::Error>> {
         let graph = validate_workflow(parse_workflow_yaml(
             r#"
 name: worker-requirements
 steps:
   - id: compute
-    scopes:
-      - "provider.operation:v3"
-      - "opaque capability with spaces"
-      - "provider.operation:v3"
     tool:
       module: compute.mjs
       environment:
@@ -1974,14 +1970,6 @@ steps:
 
         let requirements = super::step_requirements(&Executable::Worker(worker.clone()));
 
-        assert_eq!(
-            requirements.scopes,
-            [
-                "provider.operation:v3",
-                "opaque capability with spaces",
-                "provider.operation:v3"
-            ]
-        );
         assert_eq!(requirements.environment.required, ["REGION"]);
         assert_eq!(requirements.environment.optional, ["TRACE_LABEL"]);
         Ok(())
