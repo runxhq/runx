@@ -3043,7 +3043,7 @@ impl Fixture {
     ) -> (Vec<runx_contracts::ApprovalGate>, bool) {
         let inputs: JsonObject = serde_json::from_value(serde_json::json!({
             "idempotency_key": "job-1-call",
-            "input": {"job": "job-1"},
+            "inputs": {"job": "job-1"},
         }))
         .unwrap();
         let admission = self
