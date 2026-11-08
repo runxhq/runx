@@ -626,7 +626,10 @@ function convertPackage(dir) {
     else if (flag !== undefined && plain(flag) !== false) refuse(`methods.${keyOf(pair)}.default is ${JSON.stringify(plain(flag))}`);
   }
   if (defaults.length > 1) refuse(`methods ${defaults.join(", ")} are each marked default`);
-  if (defaults.length === 1) insertAt(root, indexOf(root, "minimum_runx") + 1, "default_method", new Scalar(defaults[0]));
+  // With one method a bare reference runs it, so the key has no job.
+  if (defaults.length === 1 && node(root, "methods").items.length > 1) {
+    insertAt(root, indexOf(root, "minimum_runx") + 1, "default_method", new Scalar(defaults[0]));
+  }
   for (const pair of node(root, "methods").items) {
     convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations }, notes);
   }
