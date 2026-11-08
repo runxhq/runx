@@ -47,21 +47,8 @@ const BASE_URL: &str = "https://provider-fixture.runx.invalid";
 const PRINCIPAL_ID: &str = "operator-1";
 const PRINCIPAL_REF: &str = "runx:principal:operator-1";
 const SKILL: &str = r#"
-skill: operation-test
-connectors:
-  fixture/chat:
-    operations: [channel.post, channel.post.read]
-  fixture/compute:
-    operations: [jobs.start]
-  fixture/advisories:
-    operations: [vulnerabilities.read]
-  fixture/forge:
-    operations: [issues.update, issues.read]
-  fixture/hooks:
-    operations: [handoff.deliver]
-  artifact:
-    operations: [artifact.allocate]
-runners:
+minimum_runx: 0.12.0
+methods:
   run:
     result_from: [post]
     steps:
@@ -774,7 +761,11 @@ fn assert_projected_acknowledgement_recovers(oauth: bool) {
             .unwrap()
             .remove("delegated");
         manifest["placements"] = serde_json::json!({"local":{"auth":["credentials"]},"hosted":{"auth":"credential","credential":"token"}});
-        manifest["operations"]["issues.update"]["hosted"] = serde_json::json!({});
+        // A credential placement carries no provider scopes.
+        manifest["operations"]["issues.update"]
+            .as_object_mut()
+            .unwrap()
+            .remove("provider_scopes");
         manifest["auth"]["credentials"]["token"]["kind"] = serde_json::json!("client_credentials");
         manifest["auth"]["credentials"]["token"]["fields"] =
             serde_json::json!([{"name":"client_id"},{"name":"client_secret"}]);
@@ -2180,11 +2171,8 @@ operations:
         "fixture",
         runx_parser::parse_method_manifest_yaml(
             r#"
-skill: probe
-connectors:
-  probe-mcp:
-    operations: [env.read]
-runners:
+minimum_runx: 0.12.0
+methods:
   run:
     result_from: [read]
     steps:
@@ -2785,7 +2773,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
     std::fs::write(&account, r#"{"id":"account-one"}"#).unwrap();
     let directory = root.join("connectors/fixture/forge");
     let manifest = serde_json::json!({
-        "schema":"runx.connector.v1", "id":"fixture/forge", "name":"Forge", "description":"A managed CLI account.", "runtime_capability":false,
+        "schema":"runx.connector.v1", "name":"fixture/forge", "title":"Forge", "description":"A managed CLI account.",
         "auth":{"session":{"kind":"managed_command","command":["account-cli",account.to_str().unwrap()],"id":"id","login":"id"}},
         "placements":{"local":{"auth":["session"]}},
         "operations":{"issues.read":{"description":"Read this account.","verb":"read","scopes":["repo.read"],"target":{"template":"forge://current"},
@@ -2798,7 +2786,7 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
     std::fs::write(tool.join("account.sh"), "#!/bin/sh\nexit 1\n").unwrap();
     std::fs::write(tool.join("manifest.json"), serde_json::json!({
         "schema":"runx.tool.manifest.v1","name":"fixture.account","version":"0.1.0","description":"Read a managed session account.",
-        "source":{"command":"sh","args":["./account.sh"],"input_mode":"stdin"},
+        "source":{"command":"sh","args":["./account.sh"],"inputs_via":"stdin"},
         "inputs":{"principal_uri":{"type":"string","required":true}}
     }).to_string()).unwrap();
     let connector = crate::kernel::connectors::ConnectorScope::at(root)

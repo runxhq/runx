@@ -57,7 +57,13 @@ fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInv
 }
 
 fn outputs() -> JsonObject {
-    BTreeMap::from([("plan".to_owned(), JsonValue::String("object".to_owned()))])
+    BTreeMap::from([(
+        "plan".to_owned(),
+        JsonValue::Object(JsonObject::from([(
+            "type".to_owned(),
+            JsonValue::String("object".to_owned()),
+        )])),
+    )])
 }
 
 #[test]

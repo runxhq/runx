@@ -1598,9 +1598,19 @@ mod tests {
     fn a_recorded_run_continues_without_running_its_recorded_steps_again()
     -> Result<(), Box<dyn std::error::Error>> {
         use crate::adapters::process_tool::ProcessToolAdapter;
-        let workflow_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/hello-workflow/graph.yaml")
+        let package = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/hello-workflow")
             .canonicalize()?;
+        let workflow = crate::load_validated_skill_package(&package)?
+            .package
+            .profiles
+            .get(runx_parser::PROFILE_FILE)
+            .ok_or("hello-workflow declares a run.yaml")?
+            .methods
+            .get("default")
+            .ok_or("hello-workflow declares its default method")?
+            .graph
+            .clone();
         let (_first_root, first_log) = scratch_log("run_hello_first");
         let first = super::Runtime::new(
             ProcessToolAdapter,
@@ -1610,7 +1620,7 @@ mod tests {
                 first_log,
             ),
         )
-        .run_workflow_file(&workflow_path)?;
+        .run_workflow_with_host(&package, workflow.clone(), &mut crate::host::NoopHost)?;
         assert_eq!(first.progress.state, WorkflowState::Succeeded);
 
         // A second run whose record already holds the first step, as a
@@ -1625,7 +1635,7 @@ mod tests {
                 log,
             ),
         )
-        .run_workflow_file(&workflow_path)?;
+        .run_workflow_with_host(&package, workflow, &mut crate::host::NoopHost)?;
         assert_eq!(continued.progress.state, WorkflowState::Succeeded);
         assert_eq!(
             continued

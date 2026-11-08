@@ -554,7 +554,7 @@ fn a_manifest_this_runtime_cannot_parse_fails_only_what_reaches_it() {
     std::fs::create_dir_all(&skill).unwrap();
     let connectors = root.path().join("connectors");
     write_plugin_connector(&connectors, "acme");
-    let unparsed = "schema: runx.connector.v1\nid: later\noperations:\n  read:\n    amount: !newer {units: 1}\n";
+    let unparsed = "schema: runx.connector.v1\nname: later\noperations:\n  read:\n    amount: !newer {units: 1}\n";
     for directory in ["later", "vendor/later"] {
         let dir = connectors.join(directory);
         std::fs::create_dir_all(&dir).unwrap();

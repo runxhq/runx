@@ -17,7 +17,7 @@ fn page_package(
     )?;
     fs::write(
         root.join("run.yaml"),
-        "skill: javascript-test\nrunners:\n  count:\n    default: true\n    steps:\n    - id: count\n      tool: {module: domain.mjs, requires: [parseData]}\n",
+        "minimum_runx: 0.12.0\nmethods:\n  count:\n    steps:\n    - id: count\n      tool: {module: domain.mjs, requires: [parseData]}\n",
     )?;
     fs::write(
         root.join("domain.mjs"),

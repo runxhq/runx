@@ -545,7 +545,7 @@ mod tests {
     use std::cell::Cell;
 
     use super::*;
-    use runx_contracts::{JsonObject, JsonValue, OutputField, OutputType};
+    use runx_contracts::{JsonObject, JsonValue, OutputField};
 
     #[test]
     fn exact_output_contract_error_identifies_nested_field() -> Result<(), String> {
@@ -853,7 +853,7 @@ mod tests {
             final_result_tool: FINAL.to_owned(),
             final_result_output: Some(BTreeMap::from([(
                 "architecture_decision".to_owned(),
-                OutputField::Type(OutputType::Object),
+                OutputField::of_type("object"),
             )])),
             final_result_schema: None,
         };

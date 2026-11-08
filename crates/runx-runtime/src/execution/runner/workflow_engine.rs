@@ -1175,16 +1175,16 @@ mod tests {
 name: conditional-propagation
 steps:
   - id: source
-    agent: { role: test, task: source }
-    outputs: { decision: string }
+    agent: source
+    outputs: {decision: {type: string}}
   - id: inspect
-    when: { value: $steps.source.decision, equals: ready }
-    agent: { role: test, task: inspect }
-    outputs: { decision: string }
+    when: {value: $steps.source.decision, equals: ready}
+    agent: inspect
+    outputs: {decision: {type: string}}
   - id: reject
-    when: { value: $steps.inspect.decision, equals: reject }
-    agent: { role: test, task: reject }
-    outputs: { decision: string }
+    when: {value: $steps.inspect.decision, equals: reject}
+    agent: reject
+    outputs: {decision: {type: string}}
 "#,
             )
             .expect("fixture graph should parse"),
@@ -1203,13 +1203,13 @@ steps:
 name: read-propagation
 steps:
   - id: inspect
-    when: { value: $input.inspect, equals: true }
-    agent: { role: test, task: inspect }
-    outputs: { report: object }
+    when: {value: $input.inspect, equals: true}
+    agent: inspect
+    outputs: {report: {type: object}}
   - id: publish
-    when: { value: $input.publish, equals: true }
-    agent: { role: test, task: publish }
-    inputs: { report: $steps.inspect.report }
+    when: {value: $input.publish, equals: true}
+    agent: publish
+    inputs: {report: $steps.inspect.report}
 "#,
             )
             .expect("fixture graph should parse"),
@@ -1228,11 +1228,11 @@ steps:
 name: misspelled-condition
 steps:
   - id: review
-    agent: { role: test, task: review }
-    outputs: { verdict: string }
+    agent: review
+    outputs: {verdict: {type: string}}
   - id: send
-    when: { value: $steps.review.verdcit, equals: approved }
-    agent: { role: test, task: send }
+    when: {value: $steps.review.verdcit, equals: approved}
+    agent: send
 "#,
             )
             .expect("fixture graph should parse"),
@@ -1251,11 +1251,11 @@ steps:
 name: input-branch
 steps:
   - id: apply
-    when: { value: $input.mode, equals: apply }
-    agent: { role: test, task: apply }
+    when: {value: $input.mode, equals: apply}
+    agent: apply
   - id: preview
-    when: { value: $input.mode, not_equals: apply }
-    agent: { role: test, task: preview }
+    when: {value: $input.mode, not_equals: apply}
+    agent: preview
 "#,
             )
             .expect("fixture graph should parse"),
@@ -1280,13 +1280,12 @@ steps:
 name: absent-input
 steps:
   - id: preview
-    when: { value: $input.mode, not_equals: apply }
-    agent: { role: test, task: preview }
+    when: {value: $input.mode, not_equals: apply}
+    agent: preview
   - id: send
-    agent: { role: test, task: send }
-policy:
-  guards:
-    - { step: send, value: $input.approved, not_equals: false }
+    guard:
+      - {value: $input.approved, not_equals: false}
+    agent: send
 "#,
             )
             .expect("fixture graph should parse"),

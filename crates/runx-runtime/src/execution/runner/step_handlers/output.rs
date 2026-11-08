@@ -132,11 +132,11 @@ mod tests {
 name: optional-output-contract
 steps:
   - id: produce
-    tool: { module: produce.mjs, export: run }
+    tool: {module: produce.mjs, export: run}
     outputs:
       result:
         type: object
-        required: false
+        optional: true
 "#,
         )?)?;
         let step = graph
@@ -158,9 +158,9 @@ steps:
 name: output-contract
 steps:
   - id: produce
-    tool: { module: produce.mjs, export: run }
+    tool: {module: produce.mjs, export: run}
     outputs:
-      result: object
+      result: {type: object}
 "#,
         )?)?;
         graph

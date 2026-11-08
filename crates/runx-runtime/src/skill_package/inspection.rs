@@ -539,11 +539,11 @@ mod tests {
     const CHILD_MANUAL: &str =
         "---\nname: child\ndescription: Child inspection fixture.\n---\n\n# Child\n";
     const ROOT_MANIFEST: &str = r#"
-skill: root
 version: "0.1.0"
-runners:
+minimum_runx: 0.12.0
+default_method: inspect
+methods:
   inspect:
-    default: true
     result_from: [child]
     steps:
       - id: child
@@ -555,11 +555,10 @@ runners:
         skill: child
 "#;
     const CHILD_MANIFEST: &str = r#"
-skill: child
 version: "0.1.0"
-runners:
+minimum_runx: 0.12.0
+methods:
   read:
-    default: true
     result_from: [digest]
     steps:
       - id: digest
@@ -633,12 +632,12 @@ runners:
         let method_names = inspected
             .get("method_inspections")
             .and_then(JsonValue::as_array)
-            .expect("runner inspections")
+            .expect("method inspections")
             .iter()
             .filter_map(JsonValue::as_object)
-            .filter_map(|entry| entry.get("runner"))
+            .filter_map(|entry| entry.get("method"))
             .filter_map(JsonValue::as_object)
-            .filter_map(|runner| runner.get("name"))
+            .filter_map(|method| method.get("name"))
             .filter_map(JsonValue::as_str)
             .collect::<Vec<_>>();
         assert_eq!(method_names, vec!["alternate", "inspect"]);
@@ -680,7 +679,6 @@ operations:
       properties:
         value: {{type: string}}
     result_fields: [note]
-    hosted: {{}}
     implementation:
       http:
         allowed_hosts: [notes.acme.test]
@@ -738,7 +736,7 @@ operations:
         fs::write(root.join("SKILL.md"), ROOT_MANUAL).expect("root manual");
         fs::write(
             root.join("run.yaml"),
-            "skill: root\nversion: \"0.1.0\"\nrunners:\n  compose:\n    default: true\n    result_from: [child]\n    steps:\n      - id: child\n        skill: child\n",
+            "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  compose:\n    result_from: [child]\n    steps:\n      - id: child\n        skill: child\n",
         )
         .expect("root manifest");
         fs::write(child.join("SKILL.md"), CHILD_MANUAL).expect("child manual");
@@ -749,7 +747,7 @@ operations:
         .expect("child connector");
         fs::write(
             child.join("run.yaml"),
-            "skill: child\nversion: \"0.1.0\"\nconnectors:\n  acme/notes:\n    operations: [notes.write]\nrunners:\n  write:\n    default: true\n    steps:\n      - id: write\n        operation: acme/notes/notes.write\n        result_fields: [note]\n        idempotency_key: $run.id\n        input:\n          value: written\n",
+            "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  write:\n    steps:\n      - id: write\n        operation: acme/notes/notes.write\n        result:\n          required: [note]\n        idempotency_key: $run.id\n        inputs:\n          value: written\n",
         )
         .expect("child manifest");
 
@@ -778,7 +776,7 @@ operations:
         .expect("manual");
         fs::write(
             root.join("run.yaml"),
-            "skill: chooser\nversion: \"0.1.0\"\nconnectors:\n  target:\n    operations: [notes.write]\n    connector_from: $input.target\n    allowed_connectors: [acme/notes, acme/drafts]\nrunners:\n  write:\n    default: true\n    inputs:\n      target:\n        type: string\n        required: true\n    steps:\n      - id: write\n        operation: target/notes.write\n        result_fields: [note]\n        idempotency_key: $run.id\n        input:\n          value: written\n",
+            "version: \"0.1.0\"\nminimum_runx: 0.12.0\nconnectors:\n  target:\n    choose: $input.target\n    from: [acme/notes, acme/drafts]\nmethods:\n  write:\n    inputs:\n      target:\n        type: string\n    steps:\n      - id: write\n        operation: target/notes.write\n        result:\n          required: [note]\n        idempotency_key: $run.id\n        inputs:\n          value: written\n",
         )
         .expect("manifest");
 
@@ -799,10 +797,14 @@ operations:
         let root = temp.path().join("root");
         let child = root.join("child");
         fs::create_dir_all(&child).expect("child skill directory");
-        fs::write(root.join("SKILL.md"), ROOT_MANUAL).expect("root manual");
+        fs::write(
+            root.join("SKILL.md"),
+            format!("{ROOT_MANUAL}\n## Agent task: answer\n\nAnswer.\n"),
+        )
+        .expect("root manual");
         fs::write(
             root.join("run.yaml"),
-            "skill: root\ntools: [data.digest]\nskills: [child]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [data.digest]\n          skills: [child]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
         )
         .expect("root manifest");
         fs::write(child.join("SKILL.md"), CHILD_MANUAL).expect("child manual");
@@ -860,15 +862,14 @@ operations:
         fs::write(
             root.join("run.yaml"),
             r#"
-skill: root
-runners:
+minimum_runx: 0.12.0
+methods:
   inspect:
-    default: true
     result_from: [inline]
     steps:
       - id: inline
-        tool: { module: inline.mjs, environment: { required: [ROOT_REQUIRED], optional: [ROOT_OPTIONAL, SHARED] } }
-        outputs: { value: string }
+        tool: {module: inline.mjs, environment: {required: [ROOT_REQUIRED], optional: [ROOT_OPTIONAL, SHARED]}}
+        outputs: {value: {type: string}}
       - id: child
         skill: child
 "#,
@@ -883,14 +884,13 @@ runners:
         fs::write(
             child.join("run.yaml"),
             r#"
-skill: child
-runners:
+minimum_runx: 0.12.0
+methods:
   read:
-    default: true
     steps:
       - id: read
-        tool: { module: child.mjs, environment: { required: [CHILD_REQUIRED, SHARED], optional: [CHILD_OPTIONAL] } }
-        outputs: { value: string }
+        tool: {module: child.mjs, environment: {required: [CHILD_REQUIRED, SHARED], optional: [CHILD_OPTIONAL]}}
+        outputs: {value: {type: string}}
 "#,
         )
         .expect("child manifest");
@@ -939,17 +939,15 @@ runners:
         fs::write(
             root.join("run.yaml"),
             r#"
-skill: root
-runners:
+minimum_runx: 0.12.0
+methods:
   inspect:
-    default: true
     result_from: [internal, research]
     steps:
       - id: internal
         skill: internal
       - id: research
-        skill: ../research
-        runner: brief
+        skill: ../research#brief
 "#,
         )
         .expect("root manifest");
@@ -965,7 +963,7 @@ runners:
             fs::write(
                 directory.join("run.yaml"),
                 format!(
-                    "skill: {name}\nrunners:\n  {runner}:\n    default: true\n    result_from: [digest]\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: inspected\n"
+                    "minimum_runx: 0.12.0\nmethods:\n  {runner}:\n    result_from: [digest]\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: inspected\n"
                 ),
             )
             .expect("child manifest");

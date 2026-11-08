@@ -216,9 +216,10 @@ impl RuntimePathFixtures {
         )?;
         let provider_runtime = Runtime::new(JavaScriptAdapter::default(), provider_options);
         let provider_workflow = runx_parser::validate_method_manifest(
+            "provider-effect",
             runx_parser::parse_method_manifest_yaml(PROVIDER_EFFECT_SKILL)?,
         )?
-        .runners
+        .methods
         .remove("run")
         .map(|runner| runner.graph)
         .ok_or("the provider benchmark skill has no graph")?;
@@ -404,7 +405,7 @@ impl ProviderBenchmarkTransport {
             "status": "success",
             "grants": [{
                 "grant_id": BENCHMARK_GRANT,
-                "provider": connector.manifest.id.as_str(),
+                "provider": connector.manifest.name.as_str(),
                 "connector_binding": connector.binding(),
                 "status": "active",
                 "credential_material_bound": true,
@@ -552,7 +553,7 @@ fn write_modules(root: &Path) -> Result<(), std::io::Error> {
     )?;
     fs::write(
         root.join(PROFILE_FILE),
-        "skill: runtime-throughput\nrunners:\n  main:\n    default: true\n    inputs:\n      payload:\n        type: string\n        required: true\n    steps:\n      - id: measure\n        tool: { module: domain.mjs }\n        inputs:\n          payload: $input.payload\n        outputs:\n          result: object\n",
+        "minimum_runx: 0.12.0\nmethods:\n  main:\n    inputs:\n      payload:\n        type: string\n    steps:\n      - id: measure\n        tool: {module: domain.mjs}\n        inputs:\n          payload: $input.payload\n        outputs:\n          result: {type: object}\n",
     )?;
     fs::write(
         root.join("domain.mjs"),
@@ -572,7 +573,7 @@ fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
             module: "domain.mjs".to_owned(),
             export: None,
             timeout_seconds: None,
-            pages: None,
+            paged_input: None,
             environment: Default::default(),
         }),
         outputs: None,
@@ -609,30 +610,28 @@ steps:
       value:
         subject: workflow-context
   - id: project
-    tool: { module: domain.mjs, export: project }
+    tool: {module: domain.mjs, export: project}
     inputs:
       marker: baseline
       digest_result: $steps.digest.digest_result
     outputs:
-      projection: object
+      projection: {type: object}
 "#;
 
 const PROVIDER_EFFECT_SKILL: &str = r#"
-skill: runtime-provider-effect-transition
-connectors:
-  fixture/chat:
-    operations: [thread.reply]
-runners:
+minimum_runx: 0.12.0
+methods:
   run:
     result_from: [provider-effect]
     steps:
       - id: provider-effect
         operation: fixture/chat/thread.reply
         idempotency_key: benchmark-request
-        expected_result:
-          state: delivered
-        result_fields: [state]
-        input:
+        result:
+          required: [state]
+          equals:
+            state: delivered
+        inputs:
           thread_locator: chat://T1/C1/1.0
           text: provider-effect-transition
 "#;

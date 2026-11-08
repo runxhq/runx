@@ -822,11 +822,15 @@ mod tests {
     }
 
     fn write_skill(directory: &Path, inputs: &str, body: &str) -> Result<(), Box<dyn Error>> {
-        write_manual(directory, "prepared", body)?;
+        write_manual(
+            directory,
+            "prepared",
+            &format!("{body}\n\n## Agent task: review\n\nReview."),
+        )?;
         fs::write(
             directory.join("run.yaml"),
             format!(
-                "skill: prepared\nrunners:\n  main:\n    default: true\n{inputs}    steps:\n      - id: review\n        agent: {{ role: reviewer, task: review }}\n        outputs:\n          result: object\n"
+                "minimum_runx: 0.12.0\nmethods:\n  main:\n{inputs}    steps:\n      - id: review\n        agent: review\n        outputs:\n          result: {{type: object}}\n"
             ),
         )?;
         Ok(())
@@ -935,7 +939,7 @@ mod tests {
         write_manual(&child, "ledger", "# Ledger")?;
         fs::write(
             child.join("run.yaml"),
-            "skill: ledger\nrunners:\n  read:\n    default: true\n    steps:\n      - id: read\n        tool: { module: run.mjs }\n        outputs:\n          version:\n            type: integer\n            required: true\n",
+            "minimum_runx: 0.12.0\nmethods:\n  read:\n    steps:\n      - id: read\n        tool: {module: run.mjs}\n        outputs:\n          version:\n            type: integer\n",
         )?;
         fs::write(
             child.join("run.mjs"),
@@ -943,7 +947,7 @@ mod tests {
         )?;
         fs::write(
             entry.join("run.yaml"),
-            "skill: twitter\nrunners:\n  inspect:\n    default: true\n    result_from: [store]\n    steps:\n      - id: store\n        skill: ../ledger\n        runner: read\n",
+            "minimum_runx: 0.12.0\nmethods:\n  inspect:\n    result_from: [store]\n    steps:\n      - id: store\n        skill: ../ledger#read\n",
         )?;
         let closure = crate::skill_package::inspect_loaded_execution_closure_binding(
             crate::load_validated_skill_package(&entry)?.into(),
@@ -1106,7 +1110,7 @@ mod tests {
         let temp = tempdir()?;
         write_skill(
             temp.path(),
-            "    inputs:\n      data_source_uri:\n        type: string\n        required: false\n        default: local://runx/default\n",
+            "    inputs:\n      data_source_uri:\n        type: string\n        default: local://runx/default\n        optional: true\n",
             "# Prepared",
         )?;
 
@@ -1128,7 +1132,7 @@ mod tests {
         let temp = tempdir()?;
         write_skill(
             temp.path(),
-            "    inputs:\n      prompt:\n        type: string\n        required: true\n",
+            "    inputs:\n      prompt:\n        type: string\n",
             "# Prepared",
         )?;
         let receipt_dir = temp.path().join("receipts");
@@ -1182,7 +1186,7 @@ mod tests {
         let temp = tempdir()?;
         write_skill(
             temp.path(),
-            "    inputs:\n      secret_ref:\n        type: string\n        required: true\n        schema: { pattern: '^secret://' }\n",
+            "    inputs:\n      secret_ref:\n        type: string\n        pattern: '^secret://'\n",
             "# Prepared",
         )?;
         let sentinel = "PLAINTEXT-SECRET-MUST-NOT-APPEAR";
@@ -1221,7 +1225,7 @@ mod tests {
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
             temp.path().join("run.yaml"),
-            "skill: prepared\nrunners:\n  main:\n    default: true\n    result_from: [call]\n    steps:\n      - id: call\n        tool: missing.tool\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    result_from: [call]\n    steps:\n      - id: call\n        tool: missing.tool\n",
         )?;
         let prepared = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
@@ -1255,14 +1259,14 @@ mod tests {
   "source": {
     "command": "sh",
     "args": ["-c", "touch \"$RUNX_CWD/tool-ran\""],
-    "input_mode": "none"
+    "inputs_via": "none"
   }
 }
 "#,
         )?;
         fs::write(
             temp.path().join("run.yaml"),
-            "skill: prepared\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
         )?;
 
         let prepared = LocalOrchestrator::default().prepare_skill(
@@ -1290,30 +1294,24 @@ mod tests {
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
             temp.path().join("run.yaml"),
-            r#"skill: prepared
-connectors:
-  fixture/forge:
-    operations: [branch.push]
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   main:
-    default: true
     result_from: [publish]
     steps:
       - id: approve-publish
-        ask: { gate: release.publish.approval, reason: Approve the exact release. }
+        ask: {gate: release.publish.approval, reason: Approve the exact release.}
         when:
           value: $input.ready
           equals: true
       - id: push
         operation: fixture/forge/branch.push
         idempotency_key: release-publish-1
-        input: {repository: acme/app, branch: main, commit: "0123456789abcdef0123456789abcdef01234567"}
+        inputs: {repository: acme/app, branch: main, commit: "0123456789abcdef0123456789abcdef01234567"}
       - id: publish
-        tool: { command: node }
-        scopes:
-          - release:publish
+        tool: {command: node}
         outputs:
-          result: object
+          result: {type: object}
 "#,
         )?;
 
@@ -1405,14 +1403,18 @@ runners:
         let entry = temp.path().join("entry");
         let child = entry.join("child");
         write_manual(&entry, "entry", "# Entry")?;
-        write_manual(&child, "child", "# Child")?;
+        write_manual(
+            &child,
+            "child",
+            "# Child\n\n## Agent task: before\n\nBefore.\n\n## Agent task: after\n\nAfter.",
+        )?;
         fs::write(
             child.join("run.yaml"),
-            "skill: child\nrunners:\n  child:\n    default: true\n    steps:\n      - id: child\n        agent: { role: reviewer, task: before }\n        outputs:\n          result: object\n",
+            "minimum_runx: 0.12.0\nmethods:\n  child:\n    steps:\n      - id: child\n        agent: before\n        outputs:\n          result: {type: object}\n",
         )?;
         fs::write(
             entry.join("run.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [child]\n    steps:\n      - id: child\n        skill: ./child\n        artifacts:\n          wrap_as: child_result\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    result_from: [child]\n    steps:\n      - id: child\n        skill: ./child\n        outputs:\n          child_result: {}\n        result_as: child_result\n",
         )?;
         let mut prepared = LocalOrchestrator::default().prepare_skill(
             request(&entry),
@@ -1422,7 +1424,7 @@ runners:
         prepared.bind_context()?;
         fs::write(
             child.join("run.yaml"),
-            "skill: child\nrunners:\n  child:\n    default: true\n    steps:\n      - id: child\n        agent: { role: reviewer, task: after }\n        outputs:\n          result: object\n",
+            "minimum_runx: 0.12.0\nmethods:\n  child:\n    steps:\n      - id: child\n        agent: after\n        outputs:\n          result: {type: object}\n",
         )?;
         let step = &prepared.runner.graph.steps[0];
         let error = match load_step_skill(
@@ -1533,7 +1535,7 @@ runners:
         write_manual(temp.path(), "unprepared", "# Unprepared")?;
         fs::write(
             temp.path().join("run.yaml"),
-            "skill: unprepared\nrunners:\n  main:\n    default: true\n    steps:\n      - id: main\n        tool: { command: \"true\", args: [] }\n        outputs:\n          result: object\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: main\n        tool: {command: \"true\", args: []}\n        outputs:\n          result: {type: object}\n",
         )?;
         let mut request = request(temp.path());
         request.env.insert(

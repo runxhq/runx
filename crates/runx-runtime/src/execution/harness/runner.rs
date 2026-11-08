@@ -1079,7 +1079,7 @@ operations:
         fs::write(
             skill_dir.join("run.yaml"),
             format!(
-                "skill: ledger-read\nversion: \"0.1.0\"\nconnectors:\n  ledger:\n    manifest_digest: {}\n    operations: [entry.read]\nrunners:\n  inspect:\n    default: true\n    steps:\n      - id: read\n        operation: ledger/entry.read\n        input: {{}}\n",
+                "version: \"0.1.0\"\nminimum_runx: 0.12.0\nconnectors:\n  ledger:\n    manifest_digest: {}\nmethods:\n  inspect:\n    steps:\n      - id: read\n        operation: ledger/entry.read\n        inputs: {{}}\n",
                 connector.manifest_digest
             ),
         )?;
@@ -1107,11 +1107,11 @@ operations:
             ),
         ]);
 
-        let fixtures = skill_dir.join("fixtures");
-        fs::create_dir_all(&fixtures)?;
+        let tests = skill_dir.join("tests");
+        fs::create_dir_all(&tests)?;
         fs::write(
-            fixtures.join("binds-installed.yaml"),
-            "name: binds-installed\nkind: skill\ntarget: ..\nrunner: inspect\nsetup:\n  credentials: [ledger]\nenv:\n  ACME_SERVICE_TOKEN: fixture-token\nexpect:\n  status: policy_denied\n",
+            tests.join("binds-installed.yaml"),
+            "name: binds-installed\nmethod: inspect\nsetup:\n  credentials: [ledger]\nenv:\n  ACME_SERVICE_TOKEN: fixture-token\nexpect:\n  status: policy_denied\n",
         )?;
         let report = super::super::package::run_package_test_with_effects(
             &skill_dir,

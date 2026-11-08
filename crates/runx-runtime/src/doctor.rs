@@ -368,17 +368,24 @@ fn skill_manual_too_long_diagnostic(
     })
 }
 
-/// Parse and validate a skill execution profile (run.yaml) the same way the
-/// publish path does, so doctor catches an invalid harness status, an unknown
-/// runner shape, or malformed YAML before publish rather than at publish time.
+/// Parse and validate a skill package, its run.yaml and its tests, the same
+/// way the publish path does, so doctor catches an invalid test status, an
+/// unknown method shape, or malformed YAML before publish rather than at
+/// publish time.
 #[cfg(test)]
-fn validate_skill_profile(contents: &str) -> Result<(), String> {
-    runx_parser::validate_skill_package(runx_parser::SkillPackageSource::from_documents(
-        "---\nname: doctor-profile\ndescription: doctor validation fixture\n---\n\n# Doctor profile\n",
-        Some(contents.to_owned()),
-    ))
-    .map(|_| ())
-    .map_err(|error| error.to_string())
+fn validate_skill_profile(profile: &str, tests: &[(&str, &str)]) -> Result<(), String> {
+    let mut source = runx_parser::SkillPackageSource::from_documents(
+        "---\nname: doctor-profile\ndescription: doctor validation fixture\n---\n\n# Doctor profile\n\n## Agent task: probe\n\nProbe.\n",
+        Some(profile.to_owned()),
+    );
+    for (name, test) in tests {
+        source
+            .files
+            .insert(format!("tests/{name}.yaml"), test.as_bytes().to_vec());
+    }
+    runx_parser::validate_skill_package(source)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn skill_fixture_missing_diagnostic(
@@ -654,85 +661,66 @@ fn number_value(value: u64) -> JsonValue {
 mod tests {
     use super::validate_skill_profile;
 
-    const VALID_PROFILE: &str = r#"
-skill: doctor-profile
-runners:
+    const PROFILE: &str = r#"minimum_runx: 0.12.0
+methods:
   main:
-    default: true
     inputs:
       objective:
         type: string
-        required: true
         description: "x"
     steps:
       - id: main
-        agent: { role: builder, task: probe }
+        agent: probe
         inputs:
           objective: $input.objective
         outputs:
-          result: string
-harness:
-  cases:
-    - name: ok
-      inputs:
-        objective: x
-      caller:
-        answers:
-          main:
-            result: ok
-      expect:
-        status: sealed
-        receipt:
-          schema: runx.receipt.v1
-          state: sealed
-          outcome: completed
+          result: {type: string}
 "#;
 
-    const INVALID_TEST_STATUS_PROFILE: &str = r#"
-skill: doctor-profile
-runners:
-  main:
-    default: true
-    inputs:
-      objective:
-        type: string
-        required: true
-        description: "x"
-    steps:
-      - id: main
-        agent: { role: builder, task: probe }
-        inputs:
-          objective: $input.objective
-        outputs:
-          result: string
-harness:
-  cases:
-    - name: bad
-      inputs:
-        objective: x
-      caller:
-        answers:
-          main:
-            result: ok
-      expect:
-        status: success
-        receipt:
-          schema: runx.receipt.v1
-          state: sealed
-          outcome: completed
+    const VALID_TEST: &str = r#"name: ok
+inputs:
+  objective: x
+host:
+  answers:
+    main:
+      result: ok
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed
+"#;
+
+    const INVALID_TEST_STATUS: &str = r#"name: bad
+inputs:
+  objective: x
+host:
+  answers:
+    main:
+      result: ok
+expect:
+  status: success
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed
 "#;
 
     #[test]
     fn valid_execution_profile_passes() {
-        assert!(validate_skill_profile(VALID_PROFILE).is_ok());
+        assert_eq!(
+            validate_skill_profile(PROFILE, &[("ok", VALID_TEST)]),
+            Ok(())
+        );
     }
 
     #[test]
     fn invalid_test_status_is_rejected() {
-        let result = validate_skill_profile(INVALID_TEST_STATUS_PROFILE);
+        let result = validate_skill_profile(PROFILE, &[("bad", INVALID_TEST_STATUS)]);
         assert!(
             result.is_err(),
-            "an invalid harness expect.status must be rejected by doctor"
+            "an invalid test expect.status must be rejected by doctor"
         );
         if let Err(message) = result {
             assert!(

@@ -11,12 +11,12 @@ fn skill() -> tempfile::TempDir {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(
         root.path().join("SKILL.md"),
-        "---\nname: typed\ndescription: Reads typed inputs.\n---\n\n# Typed\n\nRead the inputs.\n",
+        "---\nname: typed\ndescription: Reads typed inputs.\n---\n\n# Typed\n\n## Agent task: read\n\nRead the inputs.\n",
     )
     .unwrap();
     std::fs::write(
         root.path().join("run.yaml"),
-        "skill: typed\nversion: 1.0.0\nrunners:\n  run:\n    default: true\n    inputs:\n      code: {type: string, required: true}\n      count: {type: integer, required: true}\n    steps:\n      - id: read\n        agent: {role: reader, task: read}\n",
+        "version: 1.0.0\nminimum_runx: 0.12.0\nmethods:\n  run:\n    inputs:\n      code: {type: string}\n      count: {type: integer}\n    steps:\n      - id: read\n        agent: read\n",
     )
     .unwrap();
     root

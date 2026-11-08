@@ -87,7 +87,7 @@ mod tests {
             "current_context": [],
             "historical_context": [],
             "provenance": [],
-            "output": { "notify_plan": "object" },
+            "output": { "notify_plan": { "type": "object" } },
             "trust_boundary": "test"
         }))?;
         Ok(ResolutionRequest::Turn {

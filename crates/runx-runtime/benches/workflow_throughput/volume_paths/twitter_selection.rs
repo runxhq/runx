@@ -72,10 +72,10 @@ impl TwitterFixture {
                 module: "twitter-selection.mjs".to_owned(),
                 export: Some("selectArchivePage".to_owned()),
                 timeout_seconds: None,
-                pages: Some(ArtifactPageSource {
+                paged_input: Some(ArtifactPageSource {
                     source: ArtifactPageInput::Path {
-                        path_from: "archive_file".to_owned(),
-                        path_scope_from: Some("archive_base".to_owned()),
+                        path: "archive_file".to_owned(),
+                        path_scope: Some("archive_base".to_owned()),
                         media_type: "application/javascript".to_owned(),
                     },
                     framing: ArtifactPageFraming::JsonArray,

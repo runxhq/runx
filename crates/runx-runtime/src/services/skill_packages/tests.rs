@@ -18,51 +18,20 @@ use super::{
 use crate::RuntimeEffectRegistry;
 use crate::filesystem::TextBundle;
 
-const VALID_MANUAL: &str = "---\nname: demo\ndescription: Make one bounded, reviewable decision from supplied evidence.\n---\n\n# Demo\n\nUse this skill when an operator needs one bounded decision. Inspect the supplied evidence, stop when it is incomplete, and return the decision without mutating an external system.\n";
-const VALID_MANIFEST: &str = r#"skill: demo
-version: "0.1.0"
+const VALID_MANUAL: &str = "---\nname: demo\ndescription: Make one bounded, reviewable decision from supplied evidence.\n---\n\n# Demo\n\n## Agent task: demo-decide\n\nUse this skill when an operator needs one bounded decision. Inspect the supplied evidence, stop when it is incomplete, and return the decision without mutating an external system.\n";
+const VALID_MANIFEST: &str = r#"version: "0.1.0"
+minimum_runx: 0.12.0
 
 catalog:
-  kind: skill
-  audience: builder
   visibility: public
-  role: canonical
-  execution: plan
-  completion: plan
-  approval: none
 
-harness:
-  cases:
-    - name: demo-operator-journeys
-      runner: decide
-      operator_journeys:
-        - mode: standalone
-          confusors: [code-plan, code-intake]
-          request: Make one bounded demo decision from supplied evidence.
-          expected_outcome: Return the advertised reviewable decision.
-        - mode: composed
-          request: Continue a bounded decision from prior evidence.
-          expected_outcome: Reuse the supplied evidence without rediscovery.
-          prior_evidence:
-            - The objective evidence supplied by the prior step.
-          must_not_repeat:
-            - Do not rediscover supplied evidence.
-      caller:
-        answers:
-          decide:
-            decision:
-              status: ready
-      expect:
-        status: sealed
-
-runners:
+methods:
   decide:
-    default: true
     steps:
       - id: decide
-        agent: { role: builder, task: demo-decide }
+        agent: demo-decide
         outputs:
-          decision: object
+          decision: {type: object}
 "#;
 
 fn architecture(choice: SkillArchitectureChoice, deletes: &[&str]) -> SkillArchitectureDecision {
@@ -258,7 +227,10 @@ fn skill_authoring_workspace_keeps_invalid_target_repairable()
     let skill = temp.path().join("skills/team/demo");
     fs::create_dir_all(&skill)?;
     fs::write(skill.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(skill.join("run.yaml"), "skill: demo\nrunners: []\n")?;
+    fs::write(
+        skill.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods: []\n",
+    )?;
 
     let report = inspect_skill_workspace(
         temp.path(),
@@ -346,13 +318,8 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
 #[test]
 fn skill_authoring_rejects_candidate_identity_drift_before_writing()
 -> Result<(), Box<dyn std::error::Error>> {
-    let no_catalog = VALID_MANIFEST.replacen(
-        "catalog:\n  kind: skill\n  audience: builder\n  visibility: public\n  role: canonical\n  execution: plan\n  completion: plan\n  approval: none\n",
-        "",
-        1,
-    );
+    let no_catalog = VALID_MANIFEST.replacen("catalog:\n  visibility: public\n", "", 1);
     let wrong_visibility = VALID_MANIFEST.replace("visibility: public", "visibility: internal");
-    let other_manifest = VALID_MANIFEST.replacen("skill: demo", "skill: other", 1);
     let other_manual = VALID_MANUAL.replacen("name: demo", "name: other", 1);
     for (manual, manifest, expected) in [
         (VALID_MANUAL, no_catalog.as_str(), "catalog visibility"),
@@ -361,11 +328,7 @@ fn skill_authoring_rejects_candidate_identity_drift_before_writing()
             wrong_visibility.as_str(),
             "catalog visibility",
         ),
-        (
-            other_manual.as_str(),
-            other_manifest.as_str(),
-            "package name",
-        ),
+        (other_manual.as_str(), VALID_MANIFEST, "package name"),
     ] {
         let temp = tempfile::tempdir()?;
         let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;

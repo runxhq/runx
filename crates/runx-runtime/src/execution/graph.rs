@@ -960,10 +960,10 @@ mod tests {
 name: bindings
 steps:
   - id: produce
-    tool: { module: produce.mjs }
-    outputs: { value: string }
+    tool: {module: produce.mjs}
+    outputs: {value: {type: string}}
   - id: consume
-    tool: { module: consume.mjs }
+    tool: {module: consume.mjs}
     when: {value: $input.mode, equals: apply}
     inputs:
       value: $steps.produce.value
@@ -1012,7 +1012,7 @@ steps:
     fn a_whole_input_must_be_an_object_and_an_absent_item_leaves_itself_out() -> Result<(), String>
     {
         let whole = graph(
-            "name: whole\nsteps:\n  - id: take\n    tool: { module: take.mjs }\n    inputs: $input.payload\n",
+            "name: whole\nsteps:\n  - id: take\n    tool: {module: take.mjs}\n    inputs: $input.payload\n",
         )?;
         let error = bind_run_inputs(
             whole,
@@ -1025,7 +1025,7 @@ steps:
         assert!(error.to_string().contains("must be an object"), "{error}");
 
         let list = graph(
-            "name: list\nsteps:\n  - id: take\n    tool: { module: take.mjs }\n    inputs: {ids: [$input.first, $input.second, $input.third]}\n",
+            "name: list\nsteps:\n  - id: take\n    tool: {module: take.mjs}\n    inputs: {ids: [$input.first, $input.second, $input.third]}\n",
         )?;
         let bound = bind_run_inputs(
             list,
@@ -1044,7 +1044,7 @@ steps:
 
         // A step reference after an absent item still names its own item.
         let mixed = graph(
-            "name: mixed\nsteps:\n  - id: discover\n    tool: { module: discover.mjs }\n    outputs: { id: string }\n  - id: take\n    tool: { module: take.mjs }\n    inputs: {ids: [$input.optional, $steps.discover.id, {of: $steps.discover.id}]}\n",
+            "name: mixed\nsteps:\n  - id: discover\n    tool: {module: discover.mjs}\n    outputs: {id: {type: string}}\n  - id: take\n    tool: {module: take.mjs}\n    inputs: {ids: [$input.optional, $steps.discover.id, {of: $steps.discover.id}]}\n",
         )?;
         let bound = bind_run_inputs(mixed, &JsonObject::new(), None, "run")
             .map_err(|error| error.to_string())?;
@@ -1075,7 +1075,7 @@ name: provision
 steps:
   - id: provision
     operation: acme/inbox.provision
-    input: { seconds: $input.seconds }
+    inputs: {seconds: $input.seconds}
     idempotency_key: $run.id
 "#;
         let inputs = object(serde_json::json!({"seconds": 3600}));

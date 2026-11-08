@@ -652,7 +652,7 @@ mod tests {
         )?;
         std::fs::write(
             skill.join("run.yaml"),
-            "skill: echo\nrunners:\n  main:\n    default: true\n    inputs:\n      value: { type: integer, required: true }\n    steps:\n      - id: main\n        tool: { module: echo.mjs }\n        inputs:\n          value: $input.value\n        outputs: { value: integer, prior: integer }\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    inputs:\n      value: {type: integer}\n    steps:\n      - id: main\n        tool: {module: echo.mjs}\n        inputs:\n          value: $input.value\n        outputs: {value: {type: integer}, prior: {type: integer}}\n",
         )?;
         std::fs::write(
             skill.join("echo.mjs"),

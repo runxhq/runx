@@ -904,32 +904,35 @@ mod tests {
         let entry = temp.path().join("entry");
         let child = entry.join("child");
         write_skill(&entry, "entry", "# Entry")?;
-        write_skill(&child, "child", "# Child contract")?;
+        write_skill(
+            &child,
+            "child",
+            "# Child contract\n\n## Agent task: review\n\nReview.",
+        )?;
         write_file(
             &child.join("run.yaml"),
-            r#"skill: child
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   review:
-    default: true
     steps:
       - id: review
-        agent: { role: reviewer, task: review }
+        agent: review
         outputs:
-          result: object
+          result: {type: object}
 "#,
         )?;
         write_file(
             &entry.join("run.yaml"),
-            r#"skill: entry
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   main:
-    default: true
     result_from: [review]
     steps:
       - id: review
         skill: ./child
-        artifacts:
-          wrap_as: review_result
+        outputs:
+          review_result: {}
+        result_as: review_result
 "#,
         )?;
 
@@ -953,15 +956,23 @@ runners:
         let temp = tempdir()?;
         let entry = temp.path().join("entry");
         let child = entry.join("child");
-        write_skill(&entry, "entry", "# Entry")?;
-        write_skill(&child, "child", "# Child contract")?;
+        write_skill(
+            &entry,
+            "entry",
+            "# Entry\n\n## Agent task: answer\n\nAnswer.",
+        )?;
+        write_skill(
+            &child,
+            "child",
+            "# Child contract\n\n## Agent task: review\n\nReview.",
+        )?;
         write_file(
             &child.join("run.yaml"),
-            "skill: child\nrunners:\n  review:\n    default: true\n    outputs:\n      verdict: string\n",
+            "minimum_runx: 0.12.0\nmethods:\n  review:\n    steps:\n      - id: review\n        agent: review\n        inputs: $input\n        outputs:\n          verdict: {type: string}\n",
         )?;
         write_file(
             &entry.join("run.yaml"),
-            "skill: entry\nskills: [./child]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          skills: [./child]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
         )?;
 
         let chain = load_skill_operator_context_chain(
@@ -984,22 +995,23 @@ runners:
         let child = entry.join("child");
         let rubric = child.join("context/rubric");
         write_skill(&entry, "entry", "# Entry")?;
-        write_skill(&child, "child", "# Child")?;
+        write_skill(&child, "child", "# Child\n\n## Agent task: judge\n\nJudge.")?;
         write_skill(&rubric, "rubric", "child-local rubric")?;
         write_file(
             &child.join("run.yaml"),
-            r#"skill: child
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   graph:
-    default: true
     result_from: [judge]
     steps:
       - id: judge
-        agent: { role: reviewer, task: judge }
-        context_skills:
-          - ./context/rubric
-        artifacts:
-          wrap_as: judgment
+        agent: judge
+        context:
+          skills:
+            - ./context/rubric
+        outputs:
+          judgment: {}
+        result_as: judgment
 "#,
         )?;
         write_entry_workflow(&entry, "./child", "")?;
@@ -1033,26 +1045,25 @@ runners:
         let entry = temp.path().join("entry");
         let child = entry.join("child");
         write_skill(&entry, "entry", "# Entry")?;
-        write_skill(&child, "child", "# Child")?;
+        write_skill(&child, "child", "# Child\n\n## Agent task: judge\n\nJudge.")?;
         write_skill(&entry.join("context/rubric"), "rubric", "rubric")?;
         write_file(
             &child.join("run.yaml"),
-            r#"skill: child
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   graph:
-    default: true
     result_from: [judge]
     steps:
       - id: judge
-        agent: { role: reviewer, task: judge }
+        agent: judge
         outputs:
-          result: object
+          result: {type: object}
 "#,
         )?;
         write_entry_workflow(
             &entry,
             "./child",
-            "        context_skills:\n          - ./context/rubric\n",
+            "        context:\n          skills:\n            - ./context/rubric\n",
         )?;
 
         let error = operator_context_error(
@@ -1066,7 +1077,7 @@ runners:
         assert!(
             error
                 .to_string()
-                .contains("context_skills does not apply to this skill step")
+                .contains("context does not apply to this skill step")
         );
         Ok(())
     }
@@ -1104,10 +1115,14 @@ runners:
         let temp = tempdir()?;
         let project = temp.path().join(".runx");
         let child = project.join("added-skills/acme/registry-child/1.0.0");
-        write_skill(&child, "registry-child", "# Registry Child")?;
+        write_skill(
+            &child,
+            "registry-child",
+            "# Registry Child\n\n## Agent task: review\n\nReview.",
+        )?;
         write_file(
             &child.join("run.yaml"),
-            "skill: registry-child\nrunners:\n  agent:\n    default: true\n    steps:\n      - id: agent\n        agent: { role: reviewer, task: review }\n        outputs:\n          result: object\n",
+            "minimum_runx: 0.12.0\nmethods:\n  agent:\n    steps:\n      - id: agent\n        agent: review\n        outputs:\n          result: {type: object}\n",
         )?;
         write_file(
             &child.join("references/rubric.md"),
@@ -1147,7 +1162,7 @@ runners:
         assert_eq!(
             registry.digest,
             runx_contracts::sha256_prefixed(
-                b"---\nname: registry-child\ndescription: registry-child fixture.\n---\n# Registry Child\n"
+                b"---\nname: registry-child\ndescription: registry-child fixture.\n---\n# Registry Child\n\n## Agent task: review\n\nReview.\n"
             )
         );
         assert_eq!(
@@ -1188,9 +1203,14 @@ runners:
             write_entry_workflow(&previous, &format!("./child-{index}"), "")?;
             previous = next;
         }
+        write_skill(
+            &previous,
+            "entry",
+            "# Child\n\n## Agent task: done\n\nDone.",
+        )?;
         write_file(
             &previous.join("run.yaml"),
-            "skill: entry\nrunners:\n  agent:\n    default: true\n    steps:\n      - id: agent\n        agent: { role: reviewer, task: done }\n        outputs:\n          result: object\n",
+            "minimum_runx: 0.12.0\nmethods:\n  agent:\n    steps:\n      - id: agent\n        agent: done\n        outputs:\n          result: {type: object}\n",
         )?;
         let error = operator_context_error(
             load_skill_operator_context_chain(
@@ -1214,14 +1234,18 @@ runners:
         let entry = temp.path().join("entry");
         let child = entry.join("child");
         write_skill(&entry, "entry", "# Entry")?;
-        write_skill(&child, "child", "# Child")?;
+        write_skill(
+            &child,
+            "child",
+            "# Child\n\n## Agent task: review\n\nReview.",
+        )?;
         write_file(
             &child.join("run.yaml"),
-            "skill: child\nrunners:\n  agent:\n    default: true\n    steps:\n      - id: agent\n        agent: { role: reviewer, task: review }\n        outputs:\n          result: object\n",
+            "minimum_runx: 0.12.0\nmethods:\n  agent:\n    steps:\n      - id: agent\n        agent: review\n        outputs:\n          result: {type: object}\n",
         )?;
         write_file(
             &entry.join("run.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [second]\n    steps:\n      - id: first\n        skill: ./child\n      - id: second\n        skill: ./child\n        artifacts:\n          wrap_as: review_result\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    result_from: [second]\n    steps:\n      - id: first\n        skill: ./child\n      - id: second\n        skill: ./child\n        outputs:\n          review_result: {}\n        result_as: review_result\n",
         )?;
         let chain = load_skill_operator_context_chain(
             &entry,
@@ -1270,7 +1294,7 @@ runners:
   "source": {
     "command": "true",
     "args": [],
-    "input_mode": "none"
+    "inputs_via": "none"
   },
   "artifacts": {
     "wrap_as": "record_result"
@@ -1280,7 +1304,7 @@ runners:
         )?;
         write_file(
             &entry.join("run.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
         )?;
 
         let chain = load_skill_operator_context_chain(
@@ -1321,14 +1345,14 @@ runners:
   "source": {
     "command": "sh",
     "args": ["-c", "touch \"$RUNX_CWD/tool-ran\""],
-    "input_mode": "none"
+    "inputs_via": "none"
   }
 }
 "#,
         )?;
         write_file(
             &entry.join("run.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
         )?;
 
         let error = operator_context_error(
@@ -1357,7 +1381,7 @@ runners:
         write_skill(&entry, "entry", "# Entry")?;
         write_file(
             &entry.join("run.yaml"),
-            "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [apply]\n    steps:\n      - id: apply\n        tool: runx.skill.apply\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    result_from: [apply]\n    steps:\n      - id: apply\n        tool: runx.skill.apply\n",
         )?;
 
         let chain = load_skill_operator_context_chain(
@@ -1396,7 +1420,7 @@ runners:
         write_file(
             &dir.join("run.yaml"),
             &format!(
-                "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [child]\n    steps:\n      - id: child\n        skill: {child_ref}\n        artifacts:\n          wrap_as: child_result\n{extra}"
+                "minimum_runx: 0.12.0\nmethods:\n  main:\n    result_from: [child]\n    steps:\n      - id: child\n        skill: {child_ref}\n        outputs:\n          child_result: {{}}\n        result_as: child_result\n{extra}"
             ),
         )
     }

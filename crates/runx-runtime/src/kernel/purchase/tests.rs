@@ -303,20 +303,20 @@ struct Project {
 
 impl Project {
     fn new() -> Self {
-        Self::with_pays(None)
+        Self::with_payment(None)
     }
 
-    fn with_pays(pays: Option<&str>) -> Self {
+    fn with_payment(payment: Option<&str>) -> Self {
         let root = tempfile::tempdir().unwrap();
         crate::kernel::connectors::plugin_with_fixture_connectors(root.path(), &["fixture/wallet"]);
-        if let Some(pays) = pays {
+        if let Some(payment) = payment {
             let path = root.path().join("connectors/fixture/wallet/connector.yaml");
             let manifest = std::fs::read_to_string(&path).unwrap();
-            let start = manifest.find("pays:\n").unwrap();
+            let start = manifest.find("payment:\n").unwrap();
             let end = manifest[start..].find("operations:\n").unwrap() + start;
             std::fs::write(
                 path,
-                format!("{}{}{}", &manifest[..start], pays, &manifest[end..]),
+                format!("{}{}{}", &manifest[..start], payment, &manifest[end..]),
             )
             .unwrap();
         }
@@ -365,11 +365,9 @@ impl Project {
 
     fn paid() -> PaidMethod {
         let terms: PaidSkillOfferTerms = serde_json::from_value(json!({
-            "price": {"model": "fixed", "amount_minor": 5},
+            "price": {"basis": "fixed", "amount_minor": 5},
             "currency": "USD",
-            "accepted_settlement_families": ["x402"],
-            "input_schema_digest": format!("sha256:{}", "d".repeat(64)),
-            "output_schema_digest": format!("sha256:{}", "e".repeat(64))
+            "accepts": ["x402"]
         }))
         .unwrap();
         PaidMethod::reached("registry:acme/inbox@1.0.0", None, "create", Some(&terms)).unwrap()
@@ -824,8 +822,8 @@ fn a_balance_alone_pays_where_no_grant_does() {
 
 #[test]
 fn a_non_x402_quote_offers_a_compatible_grant_without_evm_terms() {
-    let project = Project::with_pays(Some(
-        "pays:\n  mpp:\n    methods: [stripe]\n    currencies: [USD]\n",
+    let project = Project::with_payment(Some(
+        "payment:\n  mpp:\n    payment_methods: [stripe]\n    currencies: [USD]\n",
     ));
     let mut offered = quote(NETWORK, 5);
     offered["value"]["purchase"]["accepted_settlement_families"] = json!(["mpp"]);

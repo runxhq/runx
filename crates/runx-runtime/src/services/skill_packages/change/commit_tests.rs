@@ -9,51 +9,20 @@ use serde_json::json;
 
 use super::*;
 
-const VALID_MANUAL: &str = "---\nname: demo\ndescription: Make one bounded, reviewable decision from supplied evidence.\n---\n\n# Demo\n\nUse this skill when an operator needs one bounded decision. Inspect the supplied evidence, stop when it is incomplete, and return the decision without mutating an external system.\n";
-const VALID_MANIFEST: &str = r#"skill: demo
-version: "0.1.0"
+const VALID_MANUAL: &str = "---\nname: demo\ndescription: Make one bounded, reviewable decision from supplied evidence.\n---\n\n# Demo\n\n## Agent task: demo-decide\n\nUse this skill when an operator needs one bounded decision. Inspect the supplied evidence, stop when it is incomplete, and return the decision without mutating an external system.\n";
+const VALID_MANIFEST: &str = r#"version: "0.1.0"
+minimum_runx: 0.12.0
 
 catalog:
-  kind: skill
-  audience: builder
   visibility: public
-  role: canonical
-  execution: plan
-  completion: plan
-  approval: none
 
-harness:
-  cases:
-    - name: demo-operator-journeys
-      runner: decide
-      operator_journeys:
-        - mode: standalone
-          confusors: [code-plan, code-intake]
-          request: Make one bounded demo decision from supplied evidence.
-          expected_outcome: Return the advertised reviewable decision.
-        - mode: composed
-          request: Continue a bounded decision from prior evidence.
-          expected_outcome: Reuse the supplied evidence without rediscovery.
-          prior_evidence:
-            - The objective evidence supplied by the prior step.
-          must_not_repeat:
-            - Do not rediscover supplied evidence.
-      caller:
-        answers:
-          decide:
-            decision:
-              status: ready
-      expect:
-        status: sealed
-
-runners:
+methods:
   decide:
-    default: true
     steps:
       - id: decide
-        agent: { role: builder, task: demo-decide }
+        agent: demo-decide
         outputs:
-          decision: object
+          decision: {type: object}
 "#;
 
 #[test]

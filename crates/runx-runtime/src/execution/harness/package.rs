@@ -139,14 +139,7 @@ fn prepare_package_tests(
     harness.stage_fixtures(&loaded)?;
     harness.stage_installed_connectors(&loaded, workspace.paths())?;
     harness.stage_installed_skills(&loaded, workspace.env())?;
-    let mut report = PackageTestReport::not_declared();
-    let cases = test_paths(&loaded.directory)?
-        .into_iter()
-        .map(|path| load_test_case(&path).map_err(|error| format!("{}: {error}", path.display())))
-        .collect();
-    replay_cases(cases, &harness, effects, &mut report)?;
-    finalize_report(&mut report);
-    Ok(report)
+    Ok((loaded, harness))
 }
 
 fn replay_cases(
@@ -548,30 +541,32 @@ mod tests {
         // been.
         fs::write(
             skill_dir.join("run.yaml"),
-            r#"skill: unsent-exchange
-version: "0.1.0"
-harness:
-  cases:
-    - name: refused-before-its-write
-      runner: inspect
-      inputs: {}
-      caller:
-        http_exchanges:
-          - request: { method: PATCH, url: "https://fixture.runx.invalid/item", body: none }
-            response: { status: 200, headers: { content-type: application/json }, body: "{}" }
-      expect:
-        status: failure
-runners:
+            r#"version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
   inspect:
-    default: true
     inputs:
-      path: { type: string, required: true }
+      path: {type: string}
     result_from: [read]
     steps:
       - id: read
         tool: fs.read
         inputs:
           path: $input.path
+"#,
+        )?;
+        fs::create_dir_all(skill_dir.join("tests"))?;
+        fs::write(
+            skill_dir.join("tests/refused-before-its-write.yaml"),
+            r#"name: refused-before-its-write
+method: inspect
+inputs: {}
+providers:
+  http:
+    - request: {method: PATCH, url: "https://fixture.runx.invalid/item", body: none}
+      response: {status: 200, headers: {content-type: application/json}, body: "{}"}
+expect:
+  status: failure
 "#,
         )?;
         let env = BTreeMap::from([(
@@ -770,15 +765,10 @@ runners:
         )?;
         fs::write(
             skill_dir.join("run.yaml"),
-            r#"skill: demo
-version: "0.1.0"
-harness:
-  files:
-    - fixtures/declared.txt
-  cases: []
-runners:
+            r#"version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
   inspect:
-    default: true
     result_from:
       - digest
     steps:
@@ -827,15 +817,10 @@ runners:
         )?;
         fs::write(
             skill_dir.join("run.yaml"),
-            r#"skill: demo
-version: "0.1.0"
-harness:
-  files:
-    - fixtures/bin/demo-command
-  cases: []
-runners:
+            r#"version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
   inspect:
-    default: true
     result_from:
       - digest
     steps:

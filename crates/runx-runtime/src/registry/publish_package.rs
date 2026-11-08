@@ -260,28 +260,27 @@ mod tests {
         )?;
         fs::write(
             root.join("run.yaml"),
-            r#"skill: publish-shape
-harness:
-  files:
-    - fixtures/helper.mjs
-  cases:
-    - name: smoke
-      runner: main
-      inputs:
-        helper: ./fixtures/helper.mjs
-      expect:
-        status: sealed
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   main:
-    default: true
     steps:
       - id: main
-        tool: { command: node, args: [run.mjs] }
+        tool: {command: node, args: [run.mjs]}
         outputs:
-          plan: object
-        artifacts:
-          wrap_as: packet
-          packet: acme/publish-shape.plan.v1
+          plan: {type: object}
+          packet: {packet: acme/publish-shape.plan.v1}
+        result_as: packet
+"#,
+        )?;
+        fs::create_dir_all(root.join("tests"))?;
+        fs::write(
+            root.join("tests/smoke.yaml"),
+            r#"name: smoke
+method: main
+inputs:
+  helper: ./fixtures/helper.mjs
+expect:
+  status: sealed
 "#,
         )?;
         fs::write(
@@ -316,11 +315,11 @@ runners:
         fs::create_dir_all(root.join("context/review"))?;
         fs::write(
             root.join("context/review/SKILL.md"),
-            "---\nname: review-context\ndescription: Review context.\n---\n# Review\n",
+            "---\nname: review-context\ndescription: Review context.\n---\n# Review\n\n## Agent task: context\n\nContext.\n",
         )?;
         fs::write(
             root.join("context/review/run.yaml"),
-            "skill: review-context\nrunners:\n  context:\n    default: true\n    steps:\n      - id: context\n        agent: { role: agent, task: context }\n",
+            "minimum_runx: 0.12.0\nmethods:\n  context:\n    steps:\n      - id: context\n        agent: context\n",
         )?;
         fs::create_dir_all(root.join("packets"))?;
         fs::write(
@@ -378,36 +377,38 @@ runners:
         )?;
         fs::write(
             root.join("run.yaml"),
-            r#"skill: root
-harness:
-  cases:
-    - name: sibling
-      runner: main
-      inputs: {}
-      expect:
-        status: sealed
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   main:
-    default: true
     result_from: [sibling]
     steps:
       - id: sibling
         skill: ../sibling
-        artifacts:
-          wrap_as: sibling_packet
-          packet: acme/root.sibling.v1
+        outputs:
+          sibling_packet: {packet: acme/root.sibling.v1}
+        result_as: sibling_packet
+"#,
+        )?;
+        fs::create_dir_all(root.join("tests"))?;
+        fs::write(
+            root.join("tests/sibling.yaml"),
+            r#"name: sibling
+method: main
+inputs: {}
+expect:
+  status: sealed
 "#,
         )?;
         fs::write(
             sibling.join("SKILL.md"),
-            "---\nname: sibling\ndescription: Sibling fixture.\n---\n# Sibling\n",
+            "---\nname: sibling\ndescription: Sibling fixture.\n---\n# Sibling\n\n## Agent task: verify\n\nVerify.\n",
         )?;
         fs::write(
             sibling.join("run.yaml"),
-            r#"skill: sibling
-runners:
+            r#"minimum_runx: 0.12.0
+default_method: default
+methods:
   default:
-    default: true
     result_from: [digest]
     steps:
       - id: digest
@@ -417,21 +418,14 @@ runners:
   verify:
     inputs:
       provider_operation:
-        type: json
-        required: true
         packet: acme/provider.operation.v1
     steps:
       - id: verify
-        agent: { role: agent, task: verify }
+        agent: verify
         inputs:
           provider_operation: $input.provider_operation
         outputs:
-          verification: object
-        artifacts:
-          named_emits:
-            verification: verification
-          packets:
-            verification: acme/sibling.verification.v1
+          verification: {type: object, packet: acme/sibling.verification.v1}
 "#,
         )?;
         // The sibling reads a packet a third workspace package owns, and
@@ -511,7 +505,7 @@ runners:
             )?;
             fs::write(
                 root.join("run.yaml"),
-                "skill: root\nrunners:\n  main:\n    default: true\n    steps:\n      - id: child\n        skill: child\n",
+                "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: child\n        skill: child\n",
             )?;
             fs::write(
                 child.join("SKILL.md"),
@@ -519,7 +513,7 @@ runners:
             )?;
             fs::write(
                 child.join("run.yaml"),
-                "skill: child\nrunners:\n  main:\n    default: true\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: child}\n",
+                "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: child}\n",
             )?;
             let roots = std::env::join_paths([child.parent().ok_or("child parent missing")?])?;
             let env = BTreeMap::from([(
@@ -576,20 +570,22 @@ runners:
         )?;
         fs::write(
             root.join("run.yaml"),
-            r#"skill: root
-harness:
-  cases:
-    - name: sibling
-      runner: main
-      inputs: {}
-      expect: { status: sealed }
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   main:
-    default: true
     result_from: [sibling]
     steps:
       - id: sibling
         skill: ../sibling
+"#,
+        )?;
+        fs::create_dir_all(root.join("tests"))?;
+        fs::write(
+            root.join("tests/sibling.yaml"),
+            r#"name: sibling
+method: main
+inputs: {}
+expect: {status: sealed}
 "#,
         )?;
         fs::write(
@@ -598,15 +594,14 @@ runners:
         )?;
         fs::write(
             sibling.join("run.yaml"),
-            r#"skill: sibling
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     result_from: [digest]
     steps:
       - id: digest
         tool: data.digest
-        inputs: { value: sibling }
+        inputs: {value: sibling}
 "#,
         )?;
 
@@ -654,24 +649,21 @@ runners:
         fs::create_dir_all(&root)?;
         fs::write(
             root.join("SKILL.md"),
-            "---\nname: packet-consumer\ndescription: Packet consumer fixture.\n---\n# Consumer\n",
+            "---\nname: packet-consumer\ndescription: Packet consumer fixture.\n---\n# Consumer\n\n## Agent task: inspect\n\nInspect.\n",
         )?;
         fs::write(
             root.join("run.yaml"),
-            r#"skill: packet-consumer
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   inspect:
-    default: true
     inputs:
       plan:
-        type: json
-        required: true
         packet: acme/planner.input_plan.v1
     examples:
-      - plan: { operation: inspect }
+      - plan: {operation: inspect}
     steps:
       - id: inspect
-        agent: { role: agent, task: inspect }
+        agent: inspect
         inputs:
           plan: $input.plan
 "#,
@@ -723,18 +715,16 @@ runners:
         )?;
         fs::write(
             root.join("run.yaml"),
-            r#"skill: missing-packet
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   main:
-    default: true
     steps:
       - id: main
-        tool: { command: node, args: [run.mjs] }
+        tool: {command: node, args: [run.mjs]}
         outputs:
-          plan: object
-        artifacts:
-          wrap_as: packet
-          packet: acme/missing-packet.plan.v1
+          plan: {type: object}
+          packet: {packet: acme/missing-packet.plan.v1}
+        result_as: packet
 "#,
         )?;
         fs::write(
@@ -783,11 +773,11 @@ operations:
         fs::create_dir_all(&skill)?;
         fs::write(
             skill.join("SKILL.md"),
-            "---\nname: sync\ndescription: Syncs Acme items.\n---\n# Sync\n",
+            "---\nname: sync\ndescription: Syncs Acme items.\n---\n# Sync\n\n## Agent task: plan\n\nPlan.\n",
         )?;
         fs::write(
             skill.join("run.yaml"),
-            "skill: sync\nconnectors:\n  web: {operations: [page.read]}\n  acme-ops: {operations: [item.sync]}\nrunners:\n  main:\n    default: true\n    steps:\n      - id: plan\n        agent: { role: agent, task: plan }\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: plan\n        agent: plan\n        calls:\n          operations: [web/page.read, acme-ops/item.sync]\n",
         )?;
         let connector = root.join("connectors/acme-ops");
         fs::create_dir_all(connector.join("tools/acme/sync"))?;
@@ -816,8 +806,8 @@ operations:
         fs::write(
             extra.join("connector.yaml"),
             ACME_OPS
-                .replace("id: acme-ops", "id: acme-extra")
-                .replace("name: Acme Ops", "name: Acme Extra"),
+                .replace("name: acme-ops", "name: acme-extra")
+                .replace("title: Acme Ops", "title: Acme Extra"),
         )?;
         Ok(skill)
     }
@@ -954,12 +944,12 @@ operations:
         assert!(!snapshot.is_runtime_capability()?);
         fs::write(
             work.join("SKILL.md"),
-            "---\nname: pinned\ndescription: Read a page.\n---\n# Pinned\n",
+            "---\nname: pinned\ndescription: Read a page.\n---\n# Pinned\n\n## Agent task: plan\n\nPlan.\n",
         )?;
         fs::write(
             work.join("run.yaml"),
             format!(
-                "skill: pinned\nconnectors:\n  web:\n    manifest_digest: {}\n    operations: [page.read]\nrunners:\n  main:\n    default: true\n    steps:\n      - id: plan\n        agent: {{role: agent, task: plan}}\n",
+                "minimum_runx: 0.12.0\nconnectors:\n  web:\n    manifest_digest: {}\nmethods:\n  main:\n    steps:\n      - id: plan\n        agent: plan\n        calls:\n          operations: [web/page.read]\n",
                 snapshot.manifest_digest,
             ),
         )?;
@@ -1079,7 +1069,7 @@ operations:
         let skill = plugin_repository(temp.path())?;
         fs::write(
             skill.join("run.yaml"),
-            "skill: sync\nconnectors:\n  acme-ops: {operations: [item.delete]}\nrunners:\n  main:\n    default: true\n    steps:\n      - id: plan\n        agent: { role: agent, task: plan }\n",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: plan\n        agent: plan\n        calls:\n          operations: [acme-ops/item.delete]\n",
         )?;
         let error = package_at(&skill)
             .err()

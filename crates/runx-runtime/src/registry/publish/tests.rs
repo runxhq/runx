@@ -18,7 +18,7 @@ fn publish_skill_sends_the_complete_package_contract() -> Result<(), Box<dyn std
         "rxk_secret",
         &HostedSkillPublishRequest {
             markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
-            profile_document: Some("skill: hello\nrunners: {}\n"),
+            profile_document: Some("minimum_runx: 0.12.0\nmethods: {}\n"),
             version: Some("sha-123"),
             publisher: Some("kam"),
             package_files: &files,
@@ -105,7 +105,7 @@ fn publish_admin_sends_publisher_and_test_and_no_upsert() -> Result<(), Box<dyn 
         &HostedAdminSkillPublishRequest {
             publisher: "runx",
             markdown: "---\nname: hello\ndescription: hello fixture.\n---\nHello.\n",
-            profile_document: Some("skill: hello\nrunners: {}\n"),
+            profile_document: Some("minimum_runx: 0.12.0\nmethods: {}\n"),
             version: Some("sha-123"),
             package_files: &files,
             harness: &harness,

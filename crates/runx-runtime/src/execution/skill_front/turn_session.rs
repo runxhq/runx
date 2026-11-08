@@ -440,11 +440,11 @@ mod tests {
         fs::create_dir_all(&skill)?;
         fs::write(
             skill.join("SKILL.md"),
-            "---\nname: turn-demo\ndescription: Digests, then answers.\n---\n# Turn demo\n\nDigest, then answer.\n",
+            "---\nname: turn-demo\ndescription: Digests, then answers.\n---\n# Turn demo\n\n## Agent task: answer\n\nDigest, then answer.\n",
         )?;
         fs::write(
             skill.join("run.yaml"),
-            "skill: turn-demo\ntools: [data.digest]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [data.digest]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
         )?;
         let started = LocalOrchestrator::default().run_skill_with_binding(
             &SkillRunRequest {
@@ -618,11 +618,11 @@ mod tests {
         fs::create_dir_all(&skill)?;
         fs::write(
             skill.join("SKILL.md"),
-            "---\nname: asks\ndescription: Asks, then answers.\n---\n# Asks\n\nAsk, then answer.\n",
+            "---\nname: asks\ndescription: Asks, then answers.\n---\n# Asks\n\n## Agent task: answer\n\nAsk, then answer.\n",
         )?;
         fs::write(
             skill.join("run.yaml"),
-            "skill: asks\nasks: true\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          ask: true\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
         )?;
         let started = LocalOrchestrator::default().run_skill_with_binding(
             &SkillRunRequest {
@@ -737,17 +737,17 @@ mod tests {
         )?;
         fs::write(
             child.join("run.yaml"),
-            "skill: child\nrunners:\n  digest:\n    default: true\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: child\n          encoding: utf8_text\n",
+            "minimum_runx: 0.12.0\nmethods:\n  digest:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: child\n          encoding: utf8_text\n",
         )?;
         let skill = root.join("parent");
         fs::create_dir_all(&skill)?;
         fs::write(
             skill.join("SKILL.md"),
-            "---\nname: parent\ndescription: Calls its child.\n---\n# Parent\n\nCall the child, then answer.\n",
+            "---\nname: parent\ndescription: Calls its child.\n---\n# Parent\n\n## Agent task: answer\n\nCall the child, then answer.\n",
         )?;
         fs::write(
             skill.join("run.yaml"),
-            "skill: parent\nskills: [../child]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          skills: [../child]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
         )?;
         let started = LocalOrchestrator::default().run_skill_with_binding(
             &SkillRunRequest {
@@ -822,11 +822,11 @@ mod tests {
         fs::create_dir_all(&skill)?;
         fs::write(
             skill.join("SKILL.md"),
-            "---\nname: files-demo\ndescription: Reads and writes files.\n---\n# Files demo\n\nRead, write, answer.\n",
+            "---\nname: files-demo\ndescription: Reads and writes files.\n---\n# Files demo\n\n## Agent task: answer\n\nRead, write, answer.\n",
         )?;
         fs::write(
             skill.join("run.yaml"),
-            "skill: files-demo\ntools: [fs.read, fs.write]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [fs.read, fs.write]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
         )?;
         let started = LocalOrchestrator::default().run_skill_with_binding(
             &SkillRunRequest {
@@ -882,11 +882,11 @@ mod tests {
         fs::create_dir_all(&skill)?;
         fs::write(
             skill.join("SKILL.md"),
-            "---\nname: edits-demo\ndescription: Edits a file.\n---\n# Edits demo\n\nEdit, answer.\n",
+            "---\nname: edits-demo\ndescription: Edits a file.\n---\n# Edits demo\n\n## Agent task: answer\n\nEdit, answer.\n",
         )?;
         fs::write(
             skill.join("run.yaml"),
-            "skill: edits-demo\ntools: [fs.edit]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+            "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [fs.edit]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
         )?;
         let started = LocalOrchestrator::default().run_skill_with_binding(
             &SkillRunRequest {

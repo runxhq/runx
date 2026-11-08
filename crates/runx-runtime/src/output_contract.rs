@@ -281,7 +281,10 @@ mod tests {
         assert!(declares_output_contract(
             Some(&JsonObject::from([(
                 "result".to_owned(),
-                JsonValue::String("object".to_owned())
+                JsonValue::Object(JsonObject::from([(
+                    "type".to_owned(),
+                    JsonValue::String("object".to_owned()),
+                )]))
             )])),
             None,
         ));
@@ -320,12 +323,18 @@ mod tests {
             ),
         ]));
         let output = JsonObject::from([
-            ("result".to_owned(), JsonValue::String("object".to_owned())),
+            (
+                "result".to_owned(),
+                JsonValue::Object(JsonObject::from([(
+                    "type".to_owned(),
+                    JsonValue::String("object".to_owned()),
+                )])),
+            ),
             (
                 "optional".to_owned(),
                 JsonValue::Object(JsonObject::from([
                     ("type".to_owned(), JsonValue::String("string".to_owned())),
-                    ("required".to_owned(), JsonValue::Bool(false)),
+                    ("optional".to_owned(), JsonValue::Bool(true)),
                 ])),
             ),
         ]);
@@ -359,7 +368,10 @@ mod tests {
             &JsonValue::Object(JsonObject::new()),
             Some(&JsonObject::from([(
                 "result".to_owned(),
-                JsonValue::String("object".to_owned()),
+                JsonValue::Object(JsonObject::from([(
+                    "type".to_owned(),
+                    JsonValue::String("object".to_owned()),
+                )])),
             )])),
             None,
         );

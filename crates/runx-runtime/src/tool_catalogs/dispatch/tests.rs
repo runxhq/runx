@@ -56,7 +56,7 @@ fn dispatch_invokes_local_tool_with_declared_inputs_only() -> Result<(), Box<dyn
   "source": {
     "command": "/bin/sh",
     "args": ["./run.sh"],
-    "input_mode": "stdin"
+    "inputs_via": "stdin"
   },
   "inputs": {
     "message": { "type": "string", "required": true }
@@ -113,7 +113,7 @@ fn dispatch_materializes_one_declared_tool_input_map() -> Result<(), Box<dyn std
   "source": {
     "command": "/bin/sh",
     "args": ["./run.sh"],
-    "input_mode": "stdin"
+    "inputs_via": "stdin"
   },
   "inputs": {
     "count": { "type": "integer", "required": true },
@@ -183,7 +183,7 @@ fn dispatch_rejects_missing_and_type_invalid_inputs_before_tool_execution()
   "source": {
     "command": "/bin/sh",
     "args": ["./run.sh"],
-    "input_mode": "stdin"
+    "inputs_via": "stdin"
   },
   "inputs": {
     "message": { "type": "string", "required": true }
@@ -326,7 +326,7 @@ fn process_protocol_fields_survive_production_input_materialization()
         &temp.path().join("tools/test/process-protocol"),
         r#"{
       "schema":"runx.tool.manifest.v1","name":"test.process-protocol",
-      "source":{"command":"/bin/sh","args":["./run.sh"],"input_mode":"stdin"},
+      "source":{"command":"/bin/sh","args":["./run.sh"],"inputs_via":"stdin"},
       "inputs":{"operation":{"type":"string","required":true},"phase":{"type":"string","required":false},"idempotency_key":{"type":"string","required":false},"session_account":{"type":"string","required":false}},
       "scopes":["test.process-protocol"]
     }"#,

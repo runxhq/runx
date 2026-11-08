@@ -1022,14 +1022,14 @@ mod tests {
             "requests": [{
                 "id": "update",
                 "each": {"$argument": "/updates"},
-                "method": "PATCH",
+                "http_method": "PATCH",
                 "url": {"$concat": ["https://api.example.test/items/", {"$item": "/id"}]},
                 "body": {"$item": "/patch"}
             }],
             "readbacks": [{
                 "request": {
                     "id": "read",
-                    "method": "GET",
+                    "http_method": "GET",
                     "url": {"$concat": ["https://api.example.test/items/", {"$item": "/id"}]}
                 },
                 "matches": [{"expected": {"source": "item", "path": "patch.title"}, "observed": "title"}]
@@ -1111,13 +1111,13 @@ mod tests {
         serde_json::from_value(serde_json::json!({
             "allowed_hosts": ["api.example.test"],
             "requests": [
-                {"id": "me", "method": "GET", "url": "https://api.example.test/me"},
+                {"id": "me", "http_method": "GET", "url": "https://api.example.test/me"},
                 {
                     "id": "posts",
-                    "method": "GET",
+                    "http_method": "GET",
                     "url": {"$concat": ["https://api.example.test/users/", {"$response": "me.json.data.id"}, "/posts"]},
                     "query": {"size": 2, "cursor": {"$argument": "/cursor"}},
-                    "pages": {"param": "cursor", "cursor": "meta.next", "items": "data", "limit": {"$argument": "/limit"}}
+                    "pages": {"items": "data", "limit": {"$argument": "/limit"}, "next": {"cursor": "meta.next", "param": "cursor"}}
                 }
             ],
             "decode": [{"op": "auto_json"}],
@@ -1208,7 +1208,7 @@ mod tests {
             "allowed_hosts": ["api.example.test"],
             "requests": [{
                 "id": "me",
-                "method": "GET",
+                "http_method": "GET",
                 "url": "https://api.example.test/me",
                 "query": {"state": {"$argument": "/state"}}
             }],
@@ -1260,7 +1260,7 @@ mod tests {
         let spec: HttpImplementation = serde_json::from_value(serde_json::json!({
             "allowed_hosts": ["api.example.test"],
             "auth": {"app": {"type": "bearer"}, "key": {"type": "header", "name": "authorization", "field": "api_key"}, "user": {"type": "oauth1"}},
-            "requests": [{"id": "me", "method": "GET", "url": "https://api.example.test/me"}],
+            "requests": [{"id": "me", "http_method": "GET", "url": "https://api.example.test/me"}],
             "decode": [{"op": "auto_json"}],
             "result_paths": {"me": "acknowledgement"}
         }))
@@ -1319,7 +1319,7 @@ mod tests {
         let spec: HttpImplementation = serde_json::from_value(serde_json::json!({
             "allowed_hosts": ["api.indexnow.test"],
             "auth": {"site": {"type": "body", "field": "key", "pointer": "/key"}},
-            "requests": [{"id": "submit", "method": "POST", "url": "https://api.indexnow.test/indexnow",
+            "requests": [{"id": "submit", "http_method": "POST", "url": "https://api.indexnow.test/indexnow",
                 "body": {"host": "example.test", "urlList": {"$argument": "/urls"}}}],
             "decode": [{"op": "auto_json"}],
             "result_paths": {"submit": "acknowledgement"}

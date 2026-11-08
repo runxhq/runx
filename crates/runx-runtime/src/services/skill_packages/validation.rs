@@ -332,7 +332,7 @@ mod tests {
         std::fs::write(
             candidate.join("run.yaml"),
             format!(
-                "skill: probe\nconnectors:\n  slack:\n    manifest_digest: {}\n    operations: [channel.post]\nrunners:\n  inspect:\n    default: true\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {{value: ready}}\n",
+                "minimum_runx: 0.12.0\nconnectors:\n  slack:\n    manifest_digest: {}\nmethods:\n  inspect:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {{value: ready}}\n      - id: post\n        operation: slack/channel.post\n        idempotency_key: $run.id\n",
                 connector.manifest_digest
             ),
         )?;

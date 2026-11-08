@@ -21,9 +21,9 @@ fn spec() -> Result<HttpImplementation, String> {
         "allowed_hosts": ["api.example.test"],
         "requests": [{
             "id": "query", "each": {"$argument": "/queries"},
-            "method": "POST", "url": "https://api.example.test/query",
+            "http_method": "POST", "url": "https://api.example.test/query",
             "body": {"$item": ""},
-            "pages": {"in": "body", "param": "/page_token", "cursor": "next", "items": "data"}
+            "pages": {"items": "data", "next": {"cursor": "next", "param": "/page_token", "in": "body"}}
         }],
         "decode": [{"op": "auto_json"}],
         "result_paths": {"rows": "acknowledgement"}
@@ -109,7 +109,8 @@ fn post_cursors_keep_their_type_and_each_item_has_its_own_cursor() -> Result<(),
 fn a_body_cursor_can_address_an_object_inside_an_existing_array() -> Result<(), String> {
     let mut descriptor = serde_json::to_value(spec()?).map_err(|error| error.to_string())?;
     descriptor["requests"][0]["body"] = serde_json::json!({"queries":[{"$item":""}]});
-    descriptor["requests"][0]["pages"]["param"] = serde_json::json!("/queries/0/page_token");
+    descriptor["requests"][0]["pages"]["next"]["param"] =
+        serde_json::json!("/queries/0/page_token");
     let nested: HttpImplementation =
         serde_json::from_value(descriptor).map_err(|error| error.to_string())?;
     let transport = BodyPages::default();
@@ -265,7 +266,7 @@ fn a_resumed_query_cursor_replaces_the_value_embedded_in_the_url() -> Result<(),
     }
     let spec: HttpImplementation = serde_json::from_value(serde_json::json!({
         "allowed_hosts":["api.example.test"],
-        "requests":[{"id":"query","method":"GET","url":"https://api.example.test/query?cursor=first&keep=yes","pages":{"param":"cursor","cursor":"next","items":"data"}}],
+        "requests":[{"id":"query","http_method":"GET","url":"https://api.example.test/query?cursor=first&keep=yes","pages":{"items":"data","next":{"cursor":"next","param":"cursor"}}}],
         "decode":[{"op":"auto_json"}],"result_paths":{"rows":"acknowledgement"}
     })).map_err(|error|error.to_string())?;
     let transport = QueryPages::default();
