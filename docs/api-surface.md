@@ -34,13 +34,3 @@ Version: `0.4.5`
 | Import | Types | Runtime |
 | --- | --- | --- |
 | `@runxhq/contracts` | `./dist/index.d.ts` | `./dist/index.js` |
-
-## @runxhq/langchain
-
-Optional LangChain bridge for runx tool catalogs and governed workflow tools.
-
-Version: `0.2.0`
-
-| Import | Types | Runtime |
-| --- | --- | --- |
-| `@runxhq/langchain` | `./dist/index.d.ts` | `./dist/index.js` |

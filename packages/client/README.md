@@ -100,8 +100,7 @@ const response = toOpenAiResponse(output);
 The adapters export also provides Anthropic, Vercel AI, LangChain and CrewAI
 response formatting. It preserves native output and imports no Node runtime
 modules or framework SDKs. It does not invent run-state inspection or implement
-an assistant harness. `@runxhq/langchain` separately wraps a finite client call
-as a LangChain tool and leaves pending outcomes to the host.
+an assistant harness.
 
 ## Status
 

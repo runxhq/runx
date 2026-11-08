@@ -462,7 +462,6 @@ generated-contract layer:
   native CLI.
 - `@runxhq/client`: finite native invocation and portable response formatting
   over generated contracts.
-- `@runxhq/langchain`: optional LangChain tool formatting over the public client.
 
 For the generated package export index, see [docs/api-surface.md](api-surface.md).
 

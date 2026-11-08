@@ -37,8 +37,8 @@ falling back to a TypeScript implementation of local behavior.
 Four crossing families exist between the TypeScript surface and the
 Rust runtime. Each crossing has a contract surface that owns the wire shape.
 
-1. **CLI JSON.** Anything that shells `runx`, including package launchers, the
-   LangChain bridge, `runx-py`, user scripts, and CI workflows. The Rust CLI
+1. **CLI JSON.** Anything that shells `runx`, including package launchers,
+   `runx-py`, user scripts, and CI workflows. The Rust CLI
    owns behavior; the contract is each command's JSON output shape, exit
    codes, and human-output stability.
 2. **Published TypeScript contracts.** Anything that imports from
@@ -99,7 +99,6 @@ implied.
 | `@runxhq/cli` | Stays as a platform-aware npm launcher that resolves and execs the Rust binary. It must remain useful from an installed package without TypeScript sources and must fail closed instead of falling back to TypeScript local execution. It also carries the drift-free cold-start: `npx @runxhq/cli new <name> --objective <outcome>` downloads the launcher and enters the same canonical Skill Build authoring lane without a prior Runx install. The launcher owns no templates or authoring logic. |
 | `@runxhq/core` | Deleted. Its registry/config/parser remnants were not a shipped execution boundary; live OSS code uses Rust crates, generated contracts, tool-local modules, or explicit protocol packages instead. Cloud uses its owning feature packages and the small `@runx/protocol` contract/utility subpaths. |
 | `@runxhq/client` | Typed finite Node invocation of the native CLI, with bounded processes and artifact decoding. The `./adapters` subpath formats native results without Node or framework imports. The previous host-adapters package and unimplemented HostBridge run-state contract are removed. |
-| `@runxhq/langchain` | Optional LangChain tool formatting over `@runxhq/client`; it does not own subprocess transport or continuation. |
 | `runx-py` | Stays as a thin Python client over `runx` CLI JSON output. |
 
 Cloud packages remain TypeScript. The Rust runtime consumes cloud through the

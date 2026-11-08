@@ -84,12 +84,8 @@ const forbiddenHostedCredentialContractTerms = [
 const packageDependencyFields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
 const forbiddenPackageImports = {
   "client": {
-    prefixes: ["@runxhq/cli", "@runxhq/langchain", "@langchain", "@anthropic-ai", "@ai-sdk", "ai"],
+    prefixes: ["@runxhq/cli", "@langchain", "@anthropic-ai", "@ai-sdk", "ai"],
     reason: "@runxhq/client must not depend on CLI or framework packages.",
-  },
-  langchain: {
-    prefixes: ["@runxhq/cli"],
-    reason: "@runxhq/langchain must not depend on CLI or host packages.",
   },
 };
 const staticSpecifierPattern =
