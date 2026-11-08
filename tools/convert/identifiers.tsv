@@ -635,6 +635,7 @@ oss	validateRunnerManifestYamlBatch	12	runner	validateMethodManifestYamlBatch		s
 oss	create_sequential_graph_step_index	11	graph	create_sequential_workflow_step_index		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
 oss	HarnessExpectation	11	harness	TestExpectation	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/lib.rs
 oss	HarnessJsonExpectation	11	harness	TestJsonExpectation	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-runtime/src/execution/harness/fixtures.rs
+oss	HELD	11	hold	?	a bare word: code or prose, read in place	crates/runx-runtime/src/registry/tiers.rs scripts/lib/loopback-registry.mjs
 oss	OperationHold	11	hold	OperationLease	the lease family	crates/runx-contracts/src/connector.rs crates/runx-runtime/src/execution/harness/provider_responses.rs
 oss	run_graph_with_host	11	graph	run_workflow_with_host		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs crates/runx-runtime/benches/graph_throughput/volume_paths/artifact_io.rs
 oss	selected_runner_name	11	runner	selected_method_name		crates/runx-runtime/src/execution/operator_context.rs crates/runx-runtime/src/execution/prepared_skill.rs
@@ -710,6 +711,7 @@ oss	harness-secret	7	harness	test-secret	the test sense	skills/twitter/tests/acc
 oss	HarnessHttpExchangeFixture	7	harness	TestHttpExchangeFixture	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/lib.rs
 oss	HarnessRunRequest	7	harness	TestRunRequest	the test sense	crates/runx-cli/src/main.rs crates/runx-runtime/src/execution/orchestrator.rs
 oss	held_answer	7	hold	leased_answer	the lease family	crates/runx-runtime/src/execution/harness/provider_responses.rs
+oss	holds_at	7	hold	holds_at	English, or a skill's own word: stays	crates/runx-contracts/src/registry_tier_statement.rs crates/runx-runtime/src/registry/tiers.rs
 oss	inspect_root_runner_accumulator	7	runner	inspect_root_method_accumulator		crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	LoadedRunnerInput	7	runner	LoadedMethodInput		crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	plan_sequential_graph_transition_indexed	7	graph	plan_sequential_workflow_transition_indexed		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
@@ -869,6 +871,7 @@ oss	sealed_graph_run	4	graph	sealed_workflow_run		crates/runx-runtime/src/execut
 oss	selectedRunner	4	runner	selectedMethod		fixtures/contracts/host-protocol/inspect-host-state-needs-agent.json fixtures/sdk-rust/host-protocol/inspect-host-state-needs-agent.json
 oss	sequential_graph_state	4	graph	sequential_workflow_state		crates/runx-core/tests/state_machine_proptest.rs
 oss	suspended_hold	4	hold	suspended_hold	a run waiting: stays	crates/runx-runtime/src/execution/runner/graph_engine.rs
+oss	tier_held	4	hold	tier_held	English, or a skill's own word: stays	crates/runx-runtime/tests/registry_fixture.rs crates/runx-runtime/tests/turn_loads.rs
 oss	TransitionSequentialGraph	4	graph	TransitionSequentialWorkflow		crates/runx-core/src/kernel_eval/dispatch.rs crates/runx-core/src/kernel_eval/input.rs
 oss	validate_admitted_runner	4	runner	validate_admitted_runner	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
 oss	validate_harness_manifest	4	harness	validate_test_manifest	the test sense	crates/runx-parser/src/runner.rs crates/runx-parser/src/skill.rs
@@ -999,6 +1002,7 @@ oss	write_graph_tool_skill_at	3	graph	write_workflow_tool_skill_at		crates/runx-
 oss	write_runner_input_skill_at	3	runner	write_method_input_skill_at		crates/runx-cli/tests/export.rs
 oss	write_skill_with_runner_inputs	3	runner	write_skill_with_method_inputs		crates/runx-cli/tests/export.rs
 oss	add_inline_harness_case	2	harness	add_inline_test_case	the test sense	crates/runx-runtime/src/doctor.rs fixtures/doctor/skill-fixture-missing/expected.json
+oss	AdmittedClosure	2	closure	AdmittedClosure	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	adopt_nested_graph_result	2	graph	adopt_nested_workflow_result		crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	agent_act_invocation_corpus	2	agent_act	turn_invocation_corpus		crates/runx-contracts/tests/schema_wire_conformance/corpora.rs crates/runx-contracts/tests/schema_wire_conformance/covered.rs
 oss	agent_graph	2	graph	agent_workflow		crates/runx-runtime/src/receipts/seal.rs
@@ -1273,6 +1277,7 @@ oss	a_model_key_variable_holding_a_reference_is_refused_not_sent	1	hold	a_model_
 oss	a_namespace_holding_a_connector_and_surfaces_is_refused	1	hold	a_namespace_holding_a_connector_and_surfaces_is_refused	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/connectors/tests.rs
 oss	a_one_turn_runner_hands_its_agent_the_run_inputs	1	runner	a_one_turn_method_hands_its_agent_the_run_inputs		crates/runx-runtime/tests/agent_turns.rs
 oss	a_package_below_the_rule_waits_on_trust_once_per_closure	1	closure	a_package_below_the_rule_waits_on_trust_once_per_closure	a package's closure, or English: stays	crates/runx-runtime/tests/turn_loads.rs
+oss	a_package_holding_a_signature_is_never_published	1	hold	a_package_holding_a_signature_is_never_published	English, or a skill's own word: stays	crates/runx-runtime/src/registry/publish_package.rs
 oss	a_packages_tests_read_the_registry_children_its_project_holds	1	hold	a_packages_tests_read_the_registry_children_its_project_holds	English, or a skill's own word: stays	crates/runx-cli/tests/registry.rs
 oss	a_paused_graph_reads_its_original_snapshot_after_process_exit	1	graph	a_paused_workflow_reads_its_original_snapshot_after_process_exit		crates/runx-cli/tests/operator_journeys.rs
 oss	a_project_skill_reaching_only_what_the_turn_reaches_loads_and_the_floor_holds_its_process	1	hold	a_project_skill_reaching_only_what_the_turn_reaches_loads_and_the_floor_holds_its_process	English, or a skill's own word: stays	crates/runx-runtime/tests/turn_trust.rs
@@ -1291,6 +1296,7 @@ oss	a_sealed_run_holds_its_receipt_and_waits_on_nothing	1	hold	a_sealed_run_hold
 oss	a_secret_held_by_a_manager_is_read_there_on_every_call	1	hold	a_secret_held_by_a_manager_is_read_there_on_every_call	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/credentials.rs
 oss	a_skill_of_several_runners_is_read_without_trust_and_binds_the_runner_named	1	runner	a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named		crates/runx-runtime/tests/turn_loads.rs
 oss	a_skill_whose_harness_grants_a_plugin_connector_publishes	1	harness	a_skill_whose_test_grants_a_plugin_connector_publishes	the test sense	crates/runx-cli/tests/registry.rs
+oss	a_statement_holds_from_its_issue_until_it_expires	1	hold	a_statement_holds_from_its_issue_until_it_expires	English, or a skill's own word: stays	crates/runx-contracts/src/registry_tier_statement.rs
 oss	a_successful_answer_about_another_purchase_holds	1	hold	a_successful_answer_about_another_purchase_holds	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/purchase/tests.rs
 oss	a_take_answers_the_hold_s_evidence_in_place_of_what_it_holds	1	hold	a_take_answers_the_lease_s_evidence_in_place_of_what_it_leases	the lease family	crates/runx-runtime/src/execution/harness/provider_responses.rs
 oss	a_take_holds_nothing_from_an_error_or_an_answer_without_its_fields	1	hold	a_take_leases_nothing_from_an_error_or_an_answer_without_its_fields	the lease family	crates/runx-runtime/src/execution/harness/provider_responses.rs
