@@ -11,6 +11,14 @@ use std::path::{Path, PathBuf};
 use runx_contracts::{ActForm, DecisionChoice, Receipt, ReferenceType};
 use runx_runtime::{HarnessReplayError, HarnessReplayOutput, run_harness_fixture};
 
+/// An act's legitimacy as its receipt states it.
+fn legitimacy(act: &runx_contracts::ReceiptAct) -> String {
+    serde_json::to_value(&act.intent.legitimacy)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
 const SKILL: &str = r#"
 skill: call-acts
 connectors:
@@ -161,7 +169,7 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
     // Legitimacy is the execution term admission derived, never prose.
     let term = receipt.authority.terms.first().expect("the admitted term");
     assert_eq!(
-        act.intent.legitimacy.as_str(),
+        legitimacy(act),
         format!("runx:authority_term:{}", term.term_id)
     );
     // Who acted is admission's: the term's principal, under its grant.
@@ -262,7 +270,7 @@ fn a_whole_act_forwards_the_invokers_and_an_absent_one_leaves_the_operations_obs
     assert_eq!(act.intent.purpose.as_str(), "Post a message to a channel.");
     let term = receipt.authority.terms.first().expect("the admitted term");
     assert_eq!(
-        act.intent.legitimacy.as_str(),
+        legitimacy(act),
         format!("runx:authority_term:{}", term.term_id),
         "a governed call is legitimate by its term, stated act or not"
     );
@@ -387,12 +395,7 @@ expect:
     assert_eq!(act.form, ActForm::Reply);
     assert_eq!(act.intent.purpose.as_str(), "Tell the channel");
     assert_eq!(act.reason.as_deref(), Some("In the agent's own words."));
-    assert!(
-        act.intent
-            .legitimacy
-            .as_str()
-            .starts_with("runx:authority_term:")
-    );
+    assert!(legitimacy(act).starts_with("runx:authority_term:"));
     assert!(
         act.artifact_refs
             .iter()

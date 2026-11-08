@@ -47,12 +47,6 @@ impl Category {
 /// a category an author can declare.
 pub const UNCATEGORIZED: &str = generated::UNCATEGORIZED;
 
-/// Every declarable category, in rail order.
-#[must_use]
-pub const fn registry_categories() -> &'static [Category] {
-    generated::CATEGORIES
-}
-
 #[must_use]
 pub fn registry_category(id: &str) -> Option<&'static Category> {
     generated::CATEGORIES

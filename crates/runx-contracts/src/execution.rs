@@ -4,9 +4,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::RunxSchema;
-use crate::{
-    CanonicalJsonError, JsonNumber, JsonObject, JsonValue, PacketId, canonical_stable_json,
-};
+use crate::{JsonNumber, JsonObject, JsonValue, PacketId};
 
 /// One declared input shared by skills, local tools, inspection, and runtime
 /// materialization. Keeping this at the contract boundary prevents each
@@ -70,16 +68,6 @@ impl InputDefinition {
             Ok(value)
         } else {
             Err(format!("is {}, not {text}", self.input_type))
-        }
-    }
-
-    /// The command-line text that gives this input `value`, which
-    /// [`Self::value_from_text`] reads back: a `string` is its own text; any
-    /// other value is written as JSON.
-    pub fn text_for_value(&self, value: &JsonValue) -> Result<String, CanonicalJsonError> {
-        match value {
-            JsonValue::String(text) if self.input_type == "string" => Ok(text.clone()),
-            value => canonical_stable_json(value),
         }
     }
 
@@ -219,29 +207,29 @@ mod tests {
         }
     }
 
-    /// The text a command line writes for a value reads back as that value,
-    /// for every declared type.
+    /// The text a command line passes reads as a value of its declared type.
     #[test]
-    fn a_value_written_as_text_reads_back_by_its_declared_type() -> Result<(), String> {
-        for (input_type, json) in [
-            ("string", r#""Sydney, AU""#),
-            ("string", r#""{\"not\":\"json\"}""#),
-            ("number", "1.5"),
-            ("integer", "42"),
-            ("boolean", "true"),
-            ("object", r#"{"provider":"example","periods":[]}"#),
-            ("array", "[1,2]"),
-            ("json", r#""fixture""#),
+    fn text_reads_as_its_declared_type() -> Result<(), String> {
+        for (input_type, text, expected) in [
+            ("string", "Sydney, AU", r#""Sydney, AU""#),
+            ("string", r#"{"not":"json"}"#, r#""{\"not\":\"json\"}""#),
+            ("number", "1.5", "1.5"),
+            ("integer", "42", "42"),
+            ("boolean", "true", "true"),
+            (
+                "object",
+                r#"{"provider":"example","periods":[]}"#,
+                r#"{"provider":"example","periods":[]}"#,
+            ),
+            ("array", "[1,2]", "[1,2]"),
+            ("json", r#""fixture""#, r#""fixture""#),
         ] {
-            let declared = declared(input_type);
-            let value: JsonValue = serde_json::from_str(json).map_err(|error| error.to_string())?;
-            let text = declared
-                .text_for_value(&value)
-                .map_err(|error| error.to_string())?;
+            let expected: JsonValue =
+                serde_json::from_str(expected).map_err(|error| error.to_string())?;
             assert_eq!(
-                declared.value_from_text(&text)?,
-                value,
-                "{input_type} {json}"
+                declared(input_type).value_from_text(text)?,
+                expected,
+                "{input_type} {text}"
             );
         }
         Ok(())

@@ -12,25 +12,6 @@ pub enum SignalSchema {
     V1,
 }
 
-/// Canonical signal type identifiers. The wire form is an open
-/// `NonEmptyString` so adapters that observe a new event category can publish
-/// their own identifier without a contract edit.
-pub mod signal_type {
-    pub const ISSUE_OPENED: &str = "issue_opened";
-    pub const ISSUE_COMMENT: &str = "issue_comment";
-    pub const PULL_REQUEST_EVENT: &str = "pull_request_event";
-    pub const REVIEW_EVENT: &str = "review_event";
-    pub const CHAT_MESSAGE: &str = "chat_message";
-    pub const ALERT: &str = "alert";
-    pub const DEPLOYMENT_EVENT: &str = "deployment_event";
-    pub const EFFECT_REQUIRED: &str = "effect_required";
-    pub const SCHEDULE_TICK: &str = "schedule_tick";
-    pub const OPERATOR_NOTE: &str = "operator_note";
-    pub const SYSTEM_EVENT: &str = "system_event";
-    /// Customer-facing support ticket from a help desk or inbox.
-    pub const SUPPORT_TICKET: &str = "support_ticket";
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SignalTrustLevel {

@@ -87,13 +87,6 @@ pub struct RuntimeCommand {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ToolCatalogSearchOptions {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub limit: Option<u64>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ToolCatalogSearchResult {
     pub tool_id: String,
     pub name: String,
@@ -137,16 +130,6 @@ pub struct ToolInspectResult {
 #[serde(deny_unknown_fields)]
 pub struct ToolInspectReport {
     pub tool: ToolInspectResult,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ToolInspectOptions {
-    pub tool: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub search_from_directory: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

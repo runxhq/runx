@@ -188,15 +188,6 @@ pub struct ReferenceDeclaration {
     pub locator: NonEmptyString,
 }
 
-impl ConnectorManifest {
-    #[must_use]
-    pub fn operation(&self, name: &str) -> Option<&ConnectorOperation> {
-        self.operations
-            .iter()
-            .find_map(|(key, operation)| (key.as_str() == name).then_some(operation))
-    }
-}
-
 /// How a principal's authority over the provider is held. Every key is an
 /// alternative; placements say which ones they accept.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -724,19 +715,6 @@ pub struct OperationHold {
     /// it. Only a take fills fields.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub fields: BTreeMap<CredentialName, Template>,
-}
-
-/// What runx Connect returns in place of a held value, at the value's place
-/// in the provider's answer, as `{"$held": {...}}`: the kernel records that
-/// a hold was taken and what it covers, never what it holds.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct HoldEvidence {
-    pub target: NonEmptyString,
-    pub expires_at: NonEmptyString,
-    /// `sha256:` over the stable JSON of the hold's fields, which tells holds
-    /// apart without showing one.
-    pub value_digest: NonEmptyString,
 }
 
 /// The key a hold's evidence stands under in a provider answer.

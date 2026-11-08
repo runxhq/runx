@@ -60,17 +60,6 @@ pub enum SubjectKind {
     Graph,
 }
 
-impl SubjectKind {
-    /// Stable string label, identical to the serde `snake_case` representation.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Step => "step",
-            Self::Graph => "graph",
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Subject {

@@ -280,13 +280,6 @@ pub fn string_enum(variants: &[&str], identity: Option<Identity<'_>>) -> Value {
     Value::Object(schema)
 }
 
-/// A union of subschemas rendered as `{ "anyOf": [...] }`, the committed shape
-/// for data-carrying enums (externally-tagged, internally-tagged, and untagged
-/// representations all collapse to an `anyOf` of variant subschemas).
-pub fn any_of(variants: Vec<Value>) -> Value {
-    json!({ "anyOf": variants })
-}
-
 /// An `anyOf` union of variant subschemas carrying a top-level identity
 /// envelope. Used by data-carrying enums that are themselves a contract
 /// document (e.g. the `runx.ai/spec` documents emitted as a bare-`$id`
@@ -777,10 +770,6 @@ impl<T, const MIN_ITEMS: usize, const MAX_ITEMS: usize> BoundedVec<T, MIN_ITEMS,
             .contains(&value.len())
             .then_some(Self(value))
     }
-
-    pub fn as_slice(&self) -> &[T] {
-        &self.0
-    }
 }
 
 impl<T, const MIN_ITEMS: usize, const MAX_ITEMS: usize> std::ops::Deref
@@ -924,10 +913,6 @@ impl IsoDateTime {
 
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-
-    pub fn into_string(self) -> String {
-        self.0
     }
 }
 

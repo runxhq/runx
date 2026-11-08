@@ -102,11 +102,6 @@ impl TermLegitimacy {
     pub fn term_id(&self) -> &str {
         &self.0[TERM_LEGITIMACY_PREFIX.len()..]
     }
-
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 impl std::fmt::Display for TermLegitimacy {

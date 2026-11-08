@@ -235,22 +235,6 @@ pub fn is_publisher_namespace(value: &str) -> bool {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
 }
 
-impl ConnectorName {
-    /// The registry namespace: the whole name of a leaf (`stripe`), the
-    /// parent of a surface (`google` in `google/calendar`).
-    #[must_use]
-    pub fn namespace(&self) -> &str {
-        self.0
-            .split_once('/')
-            .map_or(self.0.as_str(), |(namespace, _)| namespace)
-    }
-
-    /// The surface under a parent namespace, when the name has one.
-    #[must_use]
-    pub fn surface(&self) -> Option<&str> {
-        self.0.split_once('/').map(|(_, surface)| surface)
-    }
-}
 identifier!(
     /// A connector operation name such as `channel.post` or `reports.run_realtime`.
     OperationName,

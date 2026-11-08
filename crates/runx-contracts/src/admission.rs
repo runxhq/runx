@@ -10,10 +10,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::Reference;
-use crate::connector::{
-    ConnectorDigestError, ConnectorName, Digest, InstanceId, OperationName, Placement,
-    stable_digest,
-};
+use crate::connector::{ConnectorName, Digest, InstanceId, OperationName, Placement};
 use crate::schema::{NonEmptyString, RunxSchema};
 
 /// An operation call before admission: everything a grant, a delegation or
@@ -45,13 +42,6 @@ pub struct OperationIntent {
     /// Digest of the act the call performs, when its caller states one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act_digest: Option<Digest>,
-}
-
-impl OperationIntent {
-    /// The digest every derived term, approval and receipt binds.
-    pub fn digest(&self) -> Result<Digest, ConnectorDigestError> {
-        stable_digest(self)
-    }
 }
 
 /// An exact amount an operation moves, in the provider's smallest unit.

@@ -27,10 +27,6 @@ impl BuyerKey {
     pub fn new(value: String) -> Option<Self> {
         canonical_ed25519_bytes(&value, 32).then_some(Self(value))
     }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for BuyerKey {
@@ -59,10 +55,6 @@ pub struct BuyerSignature(String);
 impl BuyerSignature {
     pub fn new(value: String) -> Option<Self> {
         canonical_ed25519_bytes(&value, 64).then_some(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
     }
 }
 

@@ -87,13 +87,9 @@ fn marketplace_paid_and_free_runners_share_one_manifest() -> Result<(), String> 
     );
     assert_eq!(offer.currency.as_str(), "USD");
     assert_eq!(
-        offer
-            .accepted_settlement_families
-            .as_slice()
-            .iter()
-            .map(|family| family.as_str())
-            .collect::<Vec<_>>(),
-        ["x402", "stripe-spt"]
+        serde_json::to_value(&offer.accepted_settlement_families)
+            .map_err(|error| error.to_string())?,
+        serde_json::json!(["x402", "stripe-spt"])
     );
     assert!(!offers.contains_key("preview"));
     Ok(())

@@ -121,16 +121,6 @@ impl OutputValidationError {
             message: message.into(),
         }
     }
-
-    #[must_use]
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-
-    #[must_use]
-    pub fn message(&self) -> &str {
-        &self.message
-    }
 }
 
 impl fmt::Display for OutputValidationError {
@@ -337,7 +327,7 @@ mod tests {
         let Err(error) = validate_output_value(Some(&output), &extra) else {
             return Err("extra field must fail".into());
         };
-        assert_eq!(error.path(), "$.message");
+        assert!(error.to_string().starts_with("$.message: "));
         assert!(
             serde_json::to_string(&output_value_schema(Some(&output)))?
                 .contains("\"additionalProperties\":false")
@@ -370,7 +360,7 @@ mod tests {
         let Err(error) = validate_output_value(Some(&output), &missing) else {
             return Err("missing required field must fail".into());
         };
-        assert_eq!(error.path(), "$.notify_plan");
+        assert!(error.to_string().starts_with("$.notify_plan: "));
         assert!(validate_output_value(Some(&output), &wrong_enum).is_err());
         assert!(validate_output_value(Some(&output), &wrong_type).is_err());
         Ok(())
@@ -417,7 +407,7 @@ mod tests {
         let Err(error) = validate_output_value(Some(&output), &invalid) else {
             return Err("nested enum must be enforced".into());
         };
-        assert_eq!(error.path(), "$.result/decision");
+        assert!(error.to_string().starts_with("$.result/decision: "));
         let schema = serde_json::to_value(output_value_schema(Some(&output)))?;
         assert_eq!(
             schema["properties"]["result"]["required"][0],

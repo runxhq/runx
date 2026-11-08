@@ -260,17 +260,6 @@ impl PaidSkillPrice {
         }
     }
 
-    /// The most one call can cost: the fixed amount, the dearest case, or
-    /// the byte price at `max_bytes`. A buyer authorizes this when the exact
-    /// amount waits on a size only the seller's host knows.
-    pub fn ceiling_minor(&self) -> Option<PortableAmountMinor> {
-        match self {
-            Self::Fixed { amount_minor } => Some(*amount_minor),
-            Self::InputChoice { cases, .. } => cases.iter().map(|case| case.amount_minor).max(),
-            Self::ArtifactBytes { max_bytes, .. } => self.artifact_amount(max_bytes.get()),
-        }
-    }
-
     /// The stored artifact an `artifact_bytes` price reads: the
     /// `artifact_uri` its input holds. Its committed size, looked up by the
     /// caller, is what the call costs.
@@ -565,9 +554,14 @@ mod tests {
                 "accepted_settlement_families": ["rail-a", "rail-b"]
             }}
         }))?;
-        let offer = &listing.offers.as_map()["transcribe"];
+        let offers = serde_json::to_value(&listing.offers)?;
         assert_eq!(
-            offer.price.amount_minor(&JsonObject::new(), None),
+            offers["transcribe"]["accepted_settlement_families"],
+            json!(["rail-a", "rail-b"])
+        );
+        let price: PaidSkillPrice = serde_json::from_value(offers["transcribe"]["price"].clone())?;
+        assert_eq!(
+            price.amount_minor(&JsonObject::new(), None),
             Ok(amount(125))
         );
 
@@ -699,7 +693,6 @@ mod tests {
             price.amount_minor(&none, None),
             Err(PriceError::ArtifactSizeUnknown)
         );
-        assert_eq!(price.ceiling_minor(), Some(amount(75)));
 
         let overflowing = json!({
             "model": "artifact_bytes",

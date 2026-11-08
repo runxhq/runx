@@ -229,14 +229,6 @@ fn identifiers_follow_their_grammar() {
         assert_eq!(is_connector_name(name), valid, "check: {name}");
         assert_eq!(pattern.is_valid(&json!(name)), valid, "pattern: {name}");
     }
-    let name = ConnectorName::new("google/calendar").unwrap();
-    assert_eq!(
-        (name.namespace(), name.surface()),
-        ("google", Some("calendar"))
-    );
-    let leaf = ConnectorName::new("stripe").unwrap();
-    assert_eq!((leaf.namespace(), leaf.surface()), ("stripe", None));
-
     assert!(Digest::new(format!("sha256:{}", "a".repeat(64))).is_some());
     assert!(Digest::new(format!("sha256:{}", "A".repeat(64))).is_none());
     assert!(InstanceId::new("slack-acme.prod").is_some());
@@ -288,10 +280,14 @@ fn a_secret_reference_names_a_manager_runx_reads_and_never_a_value() {
     assert!(SECRET_REFERENCE_PATTERN.starts_with(&format!("^({})://", SECRET_SCHEMES.join("|"))));
 }
 
+fn operation<'a>(manifest: &'a ConnectorManifest, name: &str) -> &'a ConnectorOperation {
+    &manifest.operations[&OperationName::new(name).expect("operation name")]
+}
+
 #[test]
 fn manifest_round_trips_and_rejects_unknown_fields() {
     let manifest = slack();
-    let operation = manifest.operation("channel.post").expect("operation");
+    let operation = operation(&manifest, "channel.post");
     assert_eq!(operation.access(), OperationAccess::Mutate);
     assert_eq!(operation.approval, ApprovalFloor::Required);
     assert!(operation.implemented_by(Placement::Hosted));
@@ -315,12 +311,7 @@ fn operation_digest_binds_authority_not_copy_or_implementation() {
     let manifest = slack();
     let name = OperationName::new("channel.post").expect("name");
     let digest = |manifest: &ConnectorManifest| {
-        operation_digest(
-            &manifest.id,
-            &name,
-            manifest.operation("channel.post").expect("op"),
-        )
-        .expect("digest")
+        operation_digest(&manifest.id, &name, operation(manifest, "channel.post")).expect("digest")
     };
     let base = digest(&manifest);
 

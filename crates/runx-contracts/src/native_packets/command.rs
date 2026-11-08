@@ -35,11 +35,6 @@ impl ProcessEnvName {
             && chars.all(|character| matches!(character, '_' | 'A'..='Z' | '0'..='9'));
         valid.then_some(Self(value))
     }
-
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for ProcessEnvName {

@@ -1,7 +1,5 @@
 //! Canonical JSON primitives shared by Runx contract boundaries.
 
-use std::io::{self, Write};
-
 use serde::Serialize;
 use thiserror::Error;
 
@@ -35,40 +33,6 @@ pub fn canonical_stable_json<T: Serialize + ?Sized>(
 /// `sha256:<hex>` over the canonical encoding of `value`.
 pub fn canonical_digest<T: Serialize + ?Sized>(value: &T) -> Result<String, CanonicalJsonError> {
     to_canonical_bytes(value).map(|bytes| sha256_prefixed(&bytes))
-}
-
-/// Append one serde value using the JSON leaf encoding shared by Runx's
-/// canonical writers.
-///
-/// This is intentionally a leaf primitive: object ordering and field omission
-/// remain the responsibility of the canonicalization contract calling it.
-pub fn write_canonical_json_fragment<T: Serialize + ?Sized>(
-    value: &T,
-    output: &mut String,
-) -> Result<(), CanonicalJsonError> {
-    let mut serializer = serde_json::Serializer::new(JsonStringWriter { output });
-    value
-        .serialize(&mut serializer)
-        .map_err(|source| CanonicalJsonError::Serialization {
-            message: source.to_string(),
-        })
-}
-
-struct JsonStringWriter<'a> {
-    output: &'a mut String,
-}
-
-impl Write for JsonStringWriter<'_> {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        let text = std::str::from_utf8(bytes)
-            .map_err(|source| io::Error::new(io::ErrorKind::InvalidData, source))?;
-        self.output.push_str(text);
-        Ok(bytes.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
 }
 
 #[cfg(test)]

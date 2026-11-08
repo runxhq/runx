@@ -95,13 +95,8 @@ fn registry_paid_listing_is_resolved_once_and_returned_without_profile_reparsing
     );
     assert_eq!(offer.currency.as_str(), "USD");
     assert_eq!(
-        offer
-            .accepted_settlement_families
-            .as_slice()
-            .iter()
-            .map(|family| family.as_str())
-            .collect::<Vec<_>>(),
-        ["x402", "stripe-spt"]
+        serde_json::to_value(&offer.accepted_settlement_families)?,
+        serde_json::json!(["x402", "stripe-spt"])
     );
     assert!(!listing.offers.as_map().contains_key("preview"));
 

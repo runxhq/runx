@@ -17,8 +17,7 @@ use crate::schema::{
     any_of_with_identity, const_string, object_schema, record_named, titled,
 };
 use crate::{
-    Digest, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, RECEIPT_CANONICALIZATION, Reference,
-    ReferenceType, RunxPrincipalId,
+    Digest, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, Reference, ReferenceType, RunxPrincipalId,
 };
 
 pub const PURCHASE_SCHEMA: &str = "runx.payment.purchase.v1";
@@ -185,10 +184,6 @@ impl SettlementFamilies {
         (unique && (1..=16).contains(&value.len())).then_some(Self(value))
     }
 
-    pub fn as_slice(&self) -> &[SettlementFamily] {
-        &self.0
-    }
-
     pub fn accepts(&self, family: &str) -> bool {
         self.0.iter().any(|accepted| accepted.as_str() == family)
     }
@@ -270,16 +265,6 @@ impl RunxSchema for PrincipalReference {
 #[serde(transparent)]
 pub struct PaymentReference(Reference);
 
-impl PaymentReference {
-    pub fn new(value: Reference) -> Self {
-        Self(value)
-    }
-
-    pub fn as_reference(&self) -> &Reference {
-        &self.0
-    }
-}
-
 impl RunxSchema for PaymentReference {
     fn json_schema() -> Value {
         titled(Reference::json_schema(), "PaymentReference")
@@ -310,10 +295,6 @@ impl PurchaseRunReference {
                     || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'-'))
             });
         (value.reference_type == ReferenceType::Act && valid_identifier).then_some(Self(value))
-    }
-
-    pub fn as_reference(&self) -> &Reference {
-        &self.0
     }
 }
 
@@ -359,12 +340,6 @@ pub enum PurchaseCanonicalizerVersion {
     ReceiptC14nV1,
 }
 
-impl PurchaseCanonicalizerVersion {
-    pub const fn as_str(self) -> &'static str {
-        RECEIPT_CANONICALIZATION
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaymentIdempotencyBinding {
@@ -393,12 +368,6 @@ pub struct OfferVersionBinding {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct EmbeddedOfferVersionBinding(OfferVersionBinding);
-
-impl EmbeddedOfferVersionBinding {
-    pub fn as_offer_version(&self) -> &OfferVersionBinding {
-        &self.0
-    }
-}
 
 impl From<OfferVersionBinding> for EmbeddedOfferVersionBinding {
     fn from(value: OfferVersionBinding) -> Self {
@@ -815,8 +784,8 @@ mod tests {
     #[test]
     fn canonicalizer_value_is_bound_to_receipt_constant() {
         assert_eq!(
-            PurchaseCanonicalizerVersion::ReceiptC14nV1.as_str(),
-            RECEIPT_CANONICALIZATION
+            serde_json::to_value(PurchaseCanonicalizerVersion::ReceiptC14nV1).ok(),
+            Some(serde_json::Value::from(crate::RECEIPT_CANONICALIZATION))
         );
     }
 

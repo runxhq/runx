@@ -157,21 +157,6 @@ pub enum WorkerFailureCode {
     InternalFailure,
 }
 
-impl WorkerFailureCode {
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::InvalidProtocol => "invalid_protocol",
-            Self::InvalidRequest => "invalid_request",
-            Self::ResourceLimit => "resource_limit",
-            Self::ModuleRejected => "module_rejected",
-            Self::ExecutionFailed => "execution_failed",
-            Self::OutputRejected => "output_rejected",
-            Self::InternalFailure => "internal_failure",
-        }
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum ProtocolError {
     #[error("worker frame I/O failed: {0}")]

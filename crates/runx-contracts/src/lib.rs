@@ -92,7 +92,7 @@ pub use authority::{
 };
 pub use canonical_json::{
     CanonicalJsonError, STABLE_JSON_CANONICALIZATION, canonical_digest, canonical_stable_json,
-    to_canonical_bytes, write_canonical_json_fragment,
+    to_canonical_bytes,
 };
 pub use connector::{
     ConnectorManifest, ConnectorName, ConnectorOperation, Digest, InstanceId, OperationAccess,
@@ -140,10 +140,7 @@ pub use host_protocol::{
     TurnCallResult, TurnContextLine, TurnEnvelope, TurnInvocation, TurnLoad, TurnLocator,
     TurnReadPage, TurnStatus, TurnTarget, TurnTool, check_answer,
 };
-pub use json::{
-    JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_bool_field, json_object,
-    json_object_field, json_string_field,
-};
+pub use json::{JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_string_field};
 pub use ledger::{
     LedgerCanonicalization, LedgerChain, LedgerChainVersion, LedgerDigestHex, LedgerEntry,
     LedgerEntryMeta, LedgerEntrySchemaVersion, LedgerPayload, LedgerPayloadVersion, LedgerProducer,
@@ -263,8 +260,8 @@ pub use registry_signed_manifest::{
     RegistrySubjectKind, is_registry_subject_name, registry_content_digest,
 };
 pub use registry_taxonomy::{
-    Category as RegistryCategory, TaxonomySubject, UNCATEGORIZED, registry_categories,
-    registry_category, validate_registry_category,
+    Category as RegistryCategory, TaxonomySubject, UNCATEGORIZED, registry_category,
+    validate_registry_category,
 };
 pub use registry_version::{
     REGISTRY_VERSION_MAX_LENGTH, REGISTRY_VERSION_PATTERN, is_registry_version,
@@ -282,9 +279,7 @@ pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,
 };
 pub use schema_reconcile::{SchemaDrift, reconcile_schema_artifacts};
-pub use signal::{
-    SIGNAL_SCHEMA, Signal, SignalAuthenticity, SignalSchema, SignalTrustLevel, signal_type,
-};
+pub use signal::{SIGNAL_SCHEMA, Signal, SignalAuthenticity, SignalSchema, SignalTrustLevel};
 pub use skill_authoring::{
     SKILL_APPLY_RESULT_SCHEMA, SKILL_ARCHITECTURE_DECISION_SCHEMA, SKILL_ARCHITECTURE_PLAN_SCHEMA,
     SKILL_CHANGE_BUNDLE_SCHEMA, SKILL_CHANGE_DRAFT_SCHEMA, SKILL_VALIDATION_RESULT_SCHEMA,
