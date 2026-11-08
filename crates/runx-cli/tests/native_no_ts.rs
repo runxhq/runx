@@ -65,10 +65,8 @@ fn native_cli_smoke_runs_without_node_or_typescript_env() -> Result<(), Box<dyn 
     let test_fixture = write_sequential_workflow_smoke_test(&temp)?;
     let harness = native_command()?
         .args([
-            "harness",
-            test_fixture
-                .to_str()
-                .ok_or("non-utf8 harness fixture path")?,
+            "test",
+            test_fixture.to_str().ok_or("non-utf8 test path")?,
             "--receipt-dir",
             receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
             "--json",
@@ -77,8 +75,8 @@ fn native_cli_smoke_runs_without_node_or_typescript_env() -> Result<(), Box<dyn 
     assert_success(&harness)?;
     let receipt = serde_json::from_slice::<serde_json::Value>(&harness.stdout)?;
     assert_eq!(receipt["schema"], "runx.receipt.v1");
-    // Flat receipts carry no nested harness state; a terminal seal is the
-    // "sealed" signal, and this graph closes cleanly.
+    // Flat receipts carry no nested test state; a terminal seal is the
+    // "sealed" signal, and this workflow closes cleanly.
     assert_eq!(receipt["seal"]["outcome"], "completed");
 
     Ok(())
@@ -100,26 +98,49 @@ fn assert_success(output: &std::process::Output) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
+/// A package whose method runs two repository fixture skills in sequence,
+/// and the one test that replays it.
 fn write_sequential_workflow_smoke_test(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let workflow_path = crate::support::repo_root()?.join("fixtures/graphs/sequential/graph.yaml");
-    let test_path = root.join("sequential-workflow-smoke.yaml");
+    let fixtures = crate::support::repo_root()?.join("fixtures/skills");
+    for skill in ["echo", "json-output"] {
+        crate::support::copy_dir(&fixtures.join(skill), &root.join("skills").join(skill))?;
+    }
+    let package = root.join("sequential-echo");
+    fs::create_dir_all(package.join("tests"))?;
+    fs::write(
+        package.join("SKILL.md"),
+        "---\nname: sequential-echo\ndescription: Runs json-output, then echo.\n---\n\nUsed only by the native smoke test.\n",
+    )?;
+    fs::write(
+        package.join("run.yaml"),
+        r#"minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: first
+        skill: ../skills/json-output
+        inputs:
+          message: hello from graph
+      - id: second
+        skill: ../skills/echo
+        inputs:
+          message: $steps.first.result.message
+"#,
+    )?;
+    let test_path = package.join("tests/sequential-workflow-smoke.yaml");
     fs::write(
         &test_path,
-        format!(
-            r#"
-name: sequential-workflow-smoke
-kind: graph
-target: {}
+        r#"name: sequential-workflow-smoke
 expect:
   status: sealed
   steps:
     - first
     - second
 "#,
-            workflow_path.display()
-        ),
     )?;
     Ok(test_path)
 }

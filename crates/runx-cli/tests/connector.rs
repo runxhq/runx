@@ -388,26 +388,22 @@ fn inspect_without_an_instance_says_how_to_set_one_up_once() -> TestResult {
 }
 
 /// A skill that appends one event through the store's own operation.
-const LEDGER: &str = r#"skill: ledger
-connectors:
-  store:
-    operations: [events.append]
-runners:
+const LEDGER: &str = r#"minimum_runx: 0.12.0
+methods:
   append_event:
-    default: true
     inputs:
-      data_source_uri: { type: string, required: true }
-      resource: { type: string, required: true }
-      aggregate_id: { type: string, required: true }
-      expected_version: { type: number, required: true }
-      idempotency_key: { type: string, required: true }
-      event: { type: json, required: true }
+      data_source_uri: {type: string}
+      resource: {type: string}
+      aggregate_id: {type: string}
+      expected_version: {type: number}
+      idempotency_key: {type: string}
+      event: {}
     result_from: [append]
     steps:
       - id: append
         operation: store/events.append
         idempotency_key: $input.idempotency_key
-        input:
+        inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id

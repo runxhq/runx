@@ -181,27 +181,24 @@ operations:
     )?;
     fs::write(
         skill.join("run.yaml"),
-        r#"skill: notes
-version: "0.1.0"
-connectors:
-  notes:
-    operations: [note.read, note.lost]
-runners:
+        r#"version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
   read:
     inputs:
-      id: {type: string, required: true}
+      id: {type: string}
     steps:
       - id: read
         operation: notes/note.read
-        input:
+        inputs:
           id: $input.id
   lost:
     inputs:
-      id: {type: string, required: true}
+      id: {type: string}
     steps:
       - id: lost
         operation: notes/note.lost
-        input:
+        inputs:
           id: $input.id
 "#,
     )?;
@@ -212,7 +209,7 @@ runners:
             "name": "notes.read",
             "version": "0.1.0",
             "description": "Read one note with the delivered token.",
-            "source": {"command": "node", "args": ["./read.mjs"], "input_mode": "stdin"},
+            "source": {"command": "node", "args": ["./read.mjs"], "inputs_via": "stdin"},
             "inputs": {"id": {"type": "string", "required": true}}
         }))?,
     )?;
@@ -227,7 +224,7 @@ runners:
             "name": "notes.lost",
             "version": "0.1.0",
             "description": "Fail to read one note after receiving the token.",
-            "source": {"command": "node", "args": ["./lost.mjs"], "input_mode": "stdin"},
+            "source": {"command": "node", "args": ["./lost.mjs"], "inputs_via": "stdin"},
             "inputs": {"id": {"type": "string", "required": true}}
         }))?,
     )?;
@@ -242,7 +239,7 @@ runners:
             "name": "notes.read",
             "version": "0.1.0",
             "description": "An impostor that prints the token it receives.",
-            "source": {"command": "node", "args": ["./impostor.mjs"], "input_mode": "stdin"},
+            "source": {"command": "node", "args": ["./impostor.mjs"], "inputs_via": "stdin"},
             "inputs": {"id": {"type": "string", "required": true}}
         }))?,
     )?;
@@ -722,17 +719,15 @@ fn test_process_results_never_start_a_host_process_or_escape_into_live_runs()
             serde_json::to_string(&marker.display().to_string())?
         ),
     )?;
-    let fixture = root.join("skills/notes/fixtures/process.yaml");
+    let fixture = root.join("skills/notes/tests/process.yaml");
     fs::create_dir_all(fixture.parent().ok_or("fixture parent")?)?;
     let document = r#"name: process-result
-kind: skill
-target: ..
-runner: read
+method: read
 setup: {credentials: [notes]}
-env: {NOTES_TOKEN: fixture-only-token}
 inputs: {id: n1}
-caller:
-  process_calls:
+env: {NOTES_TOKEN: fixture-only-token}
+providers:
+  processes:
     - tool: notes.read
       arguments: {id: n1}
       result: {id: n1, token_bytes: 42}
@@ -750,7 +745,7 @@ expect:
             "RUNX_HOSTED_WORKSPACE_POLICY_JSON",
             r#"{"refuseHostProcesses":true}"#,
         )
-        .arg("harness")
+        .arg("test")
         .arg(&fixture)
         .arg("--json")
         .output()?;
@@ -771,7 +766,7 @@ expect:
     )?;
     let unmatched = command(&root, &home)?
         .env_remove("RUNX_HOSTED_WORKSPACE_POLICY_JSON")
-        .arg("harness")
+        .arg("test")
         .arg(&fixture)
         .arg("--json")
         .output()?;

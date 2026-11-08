@@ -71,9 +71,15 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
     assert_eq!(completed["status"], "sealed");
     assert_eq!(completed["outcome"], "completed");
     assert_eq!(completed["trace"]["graph"], "skill-build");
-    assert_eq!(fs::read_dir(&target)?.count(), 2);
-    assert!(target.join("SKILL.md").is_file());
-    assert!(target.join("run.yaml").is_file());
+    // The target holds exactly the files the author wrote, as written.
+    let mut written = package_files(&target, &target)?;
+    written.sort();
+    let mut expected = digest_note_files()
+        .iter()
+        .map(|(path, contents)| ((*path).to_owned(), (*contents).to_owned()))
+        .collect::<Vec<_>>();
+    expected.sort();
+    assert_eq!(written, expected);
     assert!(package_modules(&target)?.is_empty());
 
     fs::remove_dir_all(root)?;
@@ -121,6 +127,24 @@ fn command(repo: &Path, runx_home: &Path) -> Command {
     command.env("RUNX_CWD", runx_home);
     crate::support::isolate_project(&mut command);
     command
+}
+
+/// Every file under `dir`, by its path from `root`, with its contents.
+fn package_files(root: &Path, dir: &Path) -> TestResult<Vec<(String, String)>> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            files.extend(package_files(root, &path)?);
+        } else {
+            let relative = path
+                .strip_prefix(root)?
+                .to_string_lossy()
+                .replace('\\', "/");
+            files.push((relative, fs::read_to_string(&path)?));
+        }
+    }
+    Ok(files)
 }
 
 fn package_modules(target: &Path) -> TestResult<Vec<PathBuf>> {
@@ -258,10 +282,10 @@ fn authoring_answers() -> Value {
                     "decision": "write",
                     "summary": "Create one manual and one declarative native digest graph.",
                     "non_goals": ["Do not add JavaScript, network access, or provider effects."],
-                    "writes": [
-                        { "path": "SKILL.md", "contents": digest_note_manual() },
-                        { "path": "run.yaml", "contents": digest_note_manifest() }
-                    ],
+                    "writes": digest_note_files()
+                        .iter()
+                        .map(|(path, contents)| serde_json::json!({ "path": path, "contents": contents }))
+                        .collect::<Vec<_>>(),
                     "deletes": [],
                     "expected_outputs": [{
                         "name": "digest_result",
@@ -303,49 +327,28 @@ claim an external effect.
 "#
 }
 
-pub(crate) fn digest_note_manifest() -> &'static str {
-    r#"skill: digest-note
-version: "0.1.0"
+/// The digest-note package, by path: its manual, its `run.yaml`, the one test
+/// that proves its method, and the eval its operator journey became.
+pub(crate) fn digest_note_files() -> [(&'static str, &'static str); 4] {
+    [
+        ("SKILL.md", digest_note_manual()),
+        ("run.yaml", DIGEST_NOTE_MANIFEST),
+        ("tests/digest-note-ready.yaml", DIGEST_NOTE_TEST),
+        ("evals/evals.json", DIGEST_NOTE_EVALS),
+    ]
+}
+
+const DIGEST_NOTE_MANIFEST: &str = r#"version: "0.1.0"
+minimum_runx: 0.12.0
 
 catalog:
-  kind: graph
-  audience: public
   visibility: public
-  role: context
-  execution: read
-  completion: runtime_receipt
-  approval: none
 
-harness:
-  cases:
-    - name: digest-note-ready
-      runner: digest
-      operator_journeys:
-        - mode: standalone
-          confusors: [extract, sign-receipt]
-          request: Digest this exact note into one reusable content identity.
-          expected_outcome: Hash the supplied note once and return its canonical digest in a sealed receipt.
-        - mode: composed
-          request: Digest the note already supplied by the upstream content step.
-          expected_outcome: Reuse the exact supplied note bytes without reacquiring or rewriting them.
-          prior_evidence:
-            - The exact note bytes supplied by the upstream step.
-          must_not_repeat:
-            - Do not reacquire or rewrite the supplied note.
-      inputs:
-        note: one bounded note
-      expect:
-        status: sealed
-        receipt:
-          schema: runx.receipt.v1
-
-runners:
+methods:
   digest:
-    default: true
     inputs:
       note:
         type: string
-        required: true
         description: Exact UTF-8 note to digest.
     result_from:
       - digest
@@ -355,5 +358,27 @@ runners:
         inputs:
           value: $input.note
           encoding: utf8_text
-"#
+"#;
+
+const DIGEST_NOTE_TEST: &str = r#"name: digest-note-ready
+method: digest
+inputs:
+  note: one bounded note
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+"#;
+
+const DIGEST_NOTE_EVALS: &str = r#"{
+  "skill_name": "digest-note",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Digest this exact note into one reusable content identity.",
+      "expected_output": "Hash the supplied note once and return its canonical digest in a sealed receipt.",
+      "files": []
+    }
+  ]
 }
+"#;

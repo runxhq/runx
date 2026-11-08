@@ -14,11 +14,11 @@ fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResu
     fs::create_dir_all(&skill)?;
     fs::write(
         skill.join("SKILL.md"),
-        "---\nname: artifact-demo\ndescription: Read a captured local source.\n---\n# Artifact demo\n",
+        "---\nname: artifact-demo\ndescription: Read a captured local source.\n---\n# Artifact demo\n\n## Agent task: answer\n\nAnswer from the captured source.\n",
     )?;
     fs::write(
         skill.join("run.yaml"),
-        "skill: artifact-demo\ntools: [artifact.admit, artifact.read]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [artifact.admit, artifact.read]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
     )?;
     fs::write(root.join("source.txt"), "a🙂bc")?;
     let started = assert_json(
@@ -114,26 +114,23 @@ fn a_paused_workflow_reads_its_original_snapshot_after_process_exit() -> TestRes
     fs::create_dir_all(&skill)?;
     fs::write(
         skill.join("SKILL.md"),
-        "---\nname: artifact-pause\ndescription: Keep captured bytes through a pause.\n---\n# Artifact pause\n",
+        "---\nname: artifact-pause\ndescription: Keep captured bytes through a pause.\n---\n# Artifact pause\n\n## Agent task: continue-after-capture\n\nContinue from the captured bytes.\n",
     )?;
     fs::write(
         skill.join("run.yaml"),
-        r#"skill: artifact-pause
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   read:
-    default: true
     result_from: [read]
     steps:
       - id: capture
         tool: artifact.admit
-        scopes: [fs.read]
         inputs: {path: source.txt, media_type: text/plain}
       - id: pause
-        agent: {role: reader, task: continue-after-capture}
-        outputs: {continue: boolean}
+        agent: continue-after-capture
+        outputs: {continue: {type: boolean}}
       - id: read
         tool: artifact.read
-        scopes: [fs.read]
         inputs:
           artifact_uri: $steps.capture.local_artifact.artifact_uri
           encoding: utf8
@@ -181,11 +178,11 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
     fs::create_dir_all(&skill)?;
     fs::write(
         skill.join("SKILL.md"),
-        "---\nname: claim-reader\ndescription: Read exact signed declared outputs.\n---\n# Claim reader\n\nUse the native reader and distinguish a retained claim from receipt metadata.\n",
+        "---\nname: claim-reader\ndescription: Read exact signed declared outputs.\n---\n# Claim reader\n\n## Agent task: answer\n\nUse the native reader and distinguish a retained claim from receipt metadata.\n",
     )?;
     fs::write(
         skill.join("run.yaml"),
-        "skill: claim-reader\ntools: [data.digest, receipt.read]\nrunners:\n  answer:\n    default: true\n    outputs: {answer: string}\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [data.digest, receipt.read]\n        inputs: $input\n        outputs: {answer: {type: string}}\n",
     )?;
     let started = assert_json(
         &command(&root)
@@ -312,15 +309,11 @@ fn skill_author_journey_discovers_tests_runs_verifies_and_reads_history() -> Tes
     let skills_dir = root.join("skills");
     let skill_dir = skills_dir.join("digest-note");
     let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(&skill_dir)?;
-    fs::write(
-        skill_dir.join("SKILL.md"),
-        crate::skill_build_authoring::digest_note_manual(),
-    )?;
-    fs::write(
-        skill_dir.join("run.yaml"),
-        crate::skill_build_authoring::digest_note_manifest(),
-    )?;
+    for (path, contents) in crate::skill_build_authoring::digest_note_files() {
+        let path = skill_dir.join(path);
+        fs::create_dir_all(path.parent().ok_or("package file has no parent")?)?;
+        fs::write(path, contents)?;
+    }
 
     let list = command(&root)
         .args(["list", "skills", "--ok-only", "--json"])
@@ -351,16 +344,16 @@ fn skill_author_journey_discovers_tests_runs_verifies_and_reads_history() -> Tes
             .is_some_and(|inputs| inputs.iter().any(|input| input["name"] == "note"))
     );
 
-    let harness = command(&root)
-        .arg("harness")
+    let tested = command(&root)
+        .arg("test")
         .arg(&skill_dir)
         .arg("--receipt-dir")
         .arg(&receipt_dir)
         .arg("--json")
         .output()?;
-    let harness = assert_json(&harness, 0)?;
-    assert_eq!(harness["status"], "passed");
-    assert_eq!(harness["case_count"], 1);
+    let tested = assert_json(&tested, 0)?;
+    assert_eq!(tested["status"], "passed");
+    assert_eq!(tested["case_count"], 1);
 
     let run = command(&root)
         .arg("skill")
@@ -393,17 +386,16 @@ fn process_tool_instantiates_wasm_seals_and_verifies() -> TestResult {
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: wasm-probe
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     steps:
       - id: probe
-        tool: { command: node, args: [run.mjs] }
+        tool: {command: node, args: [run.mjs]}
         outputs:
-          memory_bytes: number
-          marker: number
-          instantiated: boolean
+          memory_bytes: {type: number}
+          marker: {type: number}
+          instantiated: {type: boolean}
 "#,
     )?;
     fs::write(
@@ -708,54 +700,50 @@ fn nested_workflow_resume_preserves_completed_effects() -> TestResult {
         fs::create_dir_all(&skill_dir)?;
         fs::write(
             skill_dir.join("SKILL.md"),
-            "---\nname: nested-resume\ndescription: Preserve completed child steps across host turns.\n---\n# Nested resume\nReturn a bounded decision for each review.\n",
+            "---\nname: nested-resume\ndescription: Preserve completed child steps across host turns.\n---\n# Nested resume\nReturn a bounded decision for each review.\n\n## Agent task: first-review\n\nReturn a bounded decision.\n\n## Agent task: second-review\n\nReturn a bounded decision given the first.\n",
         )?;
-        let mut manifest = r#"skill: nested-resume
-runners:
+        let mut manifest = r#"minimum_runx: 0.12.0
+default_method: run
+methods:
   run:
-    default: true
     result_from: [child]
     steps:
       - id: child
-        skill: .
-        runner: child
+        skill: .#child
   child:
     result_from: [second-review]
     steps:
       - id: first-write
         tool: fs.write
-        scopes: [fs.write]
         inputs:
           path: first.txt
           contents: executed once
       - id: first-review
-        agent: { role: reviewer, task: first-review }
-        outputs: { decision: object }
+        agent: first-review
+        outputs: {decision: {type: object}}
         inputs:
           written: $steps.first-write.file_write
       - id: second-write
         tool: fs.write
-        scopes: [fs.write]
         inputs:
           path: second.txt
           contents: executed once
       - id: second-review
-        agent: { role: reviewer, task: second-review }
-        outputs: { decision: object }
+        agent: second-review
+        outputs: {decision: {type: object}}
         inputs:
           written: $steps.second-write.file_write
           prior: $steps.first-review.decision
 "#
         .to_owned();
         if topology == "deep" {
-            manifest = manifest.replacen("        runner: child", "        runner: middle", 1);
+            manifest = manifest.replacen("        skill: .#child", "        skill: .#middle", 1);
             manifest.push_str(
                 r#"  middle:
     result_from: [inner]
     steps:
       - id: inner
-        skill: .
-        runner: child
+        skill: .#child
 "#,
             );
         }
@@ -823,29 +811,27 @@ fn compact_skill_output_externalizes_oversized_intermediate_context() -> TestRes
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: compact-output
-version: "0.1.0"
-runners:
+        r#"version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
   run:
-    default: true
     inputs:
       payload:
         type: string
-        required: true
     result_from: [finish]
     steps:
       - id: expand
         inputs:
           payload: "$input.payload"
-        tool: { module: compact-output.mjs, export: expand }
+        tool: {module: compact-output.mjs, export: expand}
         outputs:
-          intermediate: object
+          intermediate: {type: object}
       - id: finish
         inputs:
           intermediate: $steps.expand.intermediate
-        tool: { module: compact-output.mjs, export: finish }
+        tool: {module: compact-output.mjs, export: finish}
         outputs:
-          result: object
+          result: {type: object}
 "#,
     )?;
     fs::write(

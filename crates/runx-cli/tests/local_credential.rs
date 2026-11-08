@@ -106,15 +106,14 @@ fn a_skill_cannot_take_a_connector_credential_as_its_environment()
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: key-probe
-runners:
+minimum_runx: 0.12.0
+methods:
   probe:
-    default: true
     steps:
       - id: probe
-        tool: { command: sh, args: ["-c", 'printf ''{"key":"%s"}'' "$SEARCH_API_KEY"'], environment: { required: [SEARCH_API_KEY] } }
+        tool: {command: sh, args: ["-c", 'printf ''{"key":"%s"}'' "$SEARCH_API_KEY"'], environment: {required: [SEARCH_API_KEY]}}
         outputs:
-          key: string
+          key: {type: string}
 "#,
     )?;
 
@@ -480,15 +479,14 @@ fn write_env_probe_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Err
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: env-probe
-runners:
+minimum_runx: 0.12.0
+methods:
   probe:
-    default: true
     steps:
       - id: probe
-        tool: { command: sh, args: ["-c", 'test -n "$PROBE_TOKEN" && { test -z "$EXPECTED_TOKEN" || test "$PROBE_TOKEN" = "$EXPECTED_TOKEN"; } && printf ''{"configured":true}'''], environment: { required: [PROBE_TOKEN], optional: [EXPECTED_TOKEN] } }
+        tool: {command: sh, args: ["-c", 'test -n "$PROBE_TOKEN" && { test -z "$EXPECTED_TOKEN" || test "$PROBE_TOKEN" = "$EXPECTED_TOKEN"; } && printf ''{"configured":true}'''], environment: {required: [PROBE_TOKEN], optional: [EXPECTED_TOKEN]}}
         outputs:
-          configured: boolean
+          configured: {type: boolean}
 "#,
     )?;
     Ok(skill_dir)
@@ -504,15 +502,14 @@ fn write_env_denial_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Er
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: env-denial
-runners:
+minimum_runx: 0.12.0
+methods:
   probe:
-    default: true
     steps:
       - id: probe
-        tool: { command: sh, args: ["-c", 'test -z "$PROBE_TOKEN" && printf ''{"blocked":true}'''] }
+        tool: {command: sh, args: ["-c", 'test -z "$PROBE_TOKEN" && printf ''{"blocked":true}''']}
         outputs:
-          blocked: boolean
+          blocked: {type: boolean}
 "#,
     )?;
     Ok(skill_dir)
@@ -523,23 +520,22 @@ fn write_resume_env_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Er
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: resume-env\ndescription: resume-env fixture.\n---\n# Resume Environment\n",
+        "---\nname: resume-env\ndescription: resume-env fixture.\n---\n# Resume Environment\n\n## Agent task: approve-workspace-env\n\nApprove the workspace environment the next step reads.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: resume-env
-runners:
+minimum_runx: 0.12.0
+methods:
   resume-env:
-    default: true
     result_from: [approve]
     steps:
       - id: approve
-        agent: { role: reviewer, task: approve-workspace-env }
+        agent: approve-workspace-env
         outputs:
-          approved: boolean
+          approved: {type: boolean}
       - id: probe
-        tool: { command: sh, args: ["-c", 'payload="$(cat)"; if test -z "$payload"; then echo missing-stdin >&2; exit 9; elif test -z "$RESUME_PROBE_TOKEN"; then echo missing-probe >&2; exit 10; elif test "$RESUME_PROBE_TOKEN" != "after-resume"; then echo stale-probe >&2; exit 11; fi'], timeout_seconds: 5, input_mode: stdin, environment: { required: [RESUME_PROBE_TOKEN] } }
+        tool: {command: sh, args: ["-c", 'payload="$(cat)"; if test -z "$payload"; then echo missing-stdin >&2; exit 9; elif test -z "$RESUME_PROBE_TOKEN"; then echo missing-probe >&2; exit 10; elif test "$RESUME_PROBE_TOKEN" != "after-resume"; then echo stale-probe >&2; exit 11; fi'], timeout_seconds: 5, inputs_via: stdin, environment: {required: [RESUME_PROBE_TOKEN]}}
 "#,
     )?;
     Ok(skill_dir)
@@ -555,15 +551,14 @@ fn write_inline_workflow_timeout_skill(root: &Path) -> Result<PathBuf, Box<dyn s
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: inline-workflow-timeout
-runners:
+minimum_runx: 0.12.0
+methods:
   timeout:
-    default: true
     steps:
       - id: timeout
-        tool: { command: sh, args: ["-c", "sleep 5"], timeout_seconds: 1 }
+        tool: {command: sh, args: ["-c", "sleep 5"], timeout_seconds: 1}
         outputs:
-          slept: boolean
+          slept: {type: boolean}
 "#,
     )?;
     Ok(skill_dir)

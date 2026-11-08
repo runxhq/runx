@@ -143,8 +143,8 @@ fn native_skill_resolves_bare_local_skill_and_documented_input_flags()
         &profile_path,
         profile
             .replace(
-                "      thread_title:\n        type: string\n        required: false\n",
-                "      thread_title:\n        type: string\n        required: false\n      severity:\n        type: string\n        required: false\n",
+                "      thread_title:\n        type: string\n        optional: true\n",
+                "      thread_title:\n        type: string\n        optional: true\n      severity:\n        type: string\n        optional: true\n",
             )
             .replace(
                 "          thread_title: $input.thread_title\n",
@@ -477,15 +477,13 @@ fn native_skill_inspect_binds_pinned_registry_dependencies_once_installed()
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: parent
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     result_from: [child]
     steps:
       - id: child
-        skill: registry:acme/echo@1.0.0
-        runner: default
+        skill: registry:acme/echo@1.0.0#default
 "#,
     )?;
     let inspect = || -> Result<serde_json::Value, Box<dyn std::error::Error>> {
@@ -546,15 +544,13 @@ fn native_skill_inspect_reports_a_pin_the_registry_lacks_and_a_run_refuses_it()
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: parent
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     result_from: [child]
     steps:
       - id: child
-        skill: registry:acme/echo@2.0.0
-        runner: default
+        skill: registry:acme/echo@2.0.0#default
 "#,
     )?;
     let skill = skill_dir.to_str().ok_or("non-utf8 skill dir")?;
@@ -762,11 +758,13 @@ fn native_skill_resolves_registry_versions_side_by_side() -> Result<(), Box<dyn 
     assert!(v2_dir.to_string_lossy().contains("1.1.0"));
     assert_eq!(
         fs::read_to_string(v1_dir.join("SKILL.md"))?,
-        "---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n"
+        format!("---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n{ECHO_TASK}")
     );
     assert_eq!(
         fs::read_to_string(v2_dir.join("SKILL.md"))?,
-        "---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n\nVersion two.\n"
+        format!(
+            "---\nname: echo\ndescription: echo fixture.\n---\n# Echo\n\nVersion two.\n{ECHO_TASK}"
+        )
     );
 
     Ok(())
@@ -788,7 +786,7 @@ fn a_workflow_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn 
     )?;
     fs::write(
         graph.join("run.yaml"),
-        "skill: nested\nversion: \"0.1.0\"\nrunners:\n  default:\n    default: true\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
+        "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
     )?;
 
     let run = || -> Result<serde_json::Value, Box<dyn std::error::Error>> {
@@ -832,11 +830,11 @@ fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn st
     fs::create_dir_all(&skill)?;
     fs::write(
         skill.join("SKILL.md"),
-        "---\nname: with-context\ndescription: Write with the echo skill as context.\n---\n\nWrite with context.\n",
+        "---\nname: with-context\ndescription: Write with the echo skill as context.\n---\n\n## Agent task: write\n\nWrite with context.\n",
     )?;
     fs::write(
         skill.join("run.yaml"),
-        "skill: with-context\nversion: \"0.1.0\"\nrunners:\n  default:\n    default: true\n    steps:\n      - id: write\n        agent: { role: writer, task: write }\n        context_skills: [registry:acme/echo@1.0.0]\n        outputs:\n          result: object\n",
+        "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: write\n        agent: write\n        outputs:\n          result: {type: object}\n        context:\n          skills: [registry:acme/echo@1.0.0]\n",
     )?;
 
     let output = registry_runx_command(&root, &registry)?
@@ -944,7 +942,7 @@ fn a_missing_program_fails_its_step_once_and_is_named() -> Result<(), Box<dyn st
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: missing-program\nversion: \"0.1.0\"\nrunners:\n  default:\n    default: true\n    steps:\n      - id: run\n        tool: { command: runx-test-program-not-installed }\n        outputs:\n          message: string\n",
+        "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: run\n        tool: {command: runx-test-program-not-installed}\n        outputs:\n          message: {type: string}\n",
     )?;
     let receipt_dir = root.join("receipts");
 
@@ -1027,26 +1025,23 @@ fn terminal_interrupt_exits_130_and_kills_the_active_skill_context()
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: interrupt-fixture
-version: "0.1.0"
-runners:
+        r#"version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     inputs:
       started_path:
         type: string
-        required: true
       sentinel_path:
         type: string
-        required: true
     steps:
       - id: default
-        tool: { command: sh, args: [./run.sh, "{{started_path}}", "{{sentinel_path}}"], timeout_seconds: 30 }
+        tool: {command: sh, args: [./run.sh, "{{started_path}}", "{{sentinel_path}}"], timeout_seconds: 30}
         inputs:
           started_path: $input.started_path
           sentinel_path: $input.sentinel_path
         outputs:
-          completed: boolean
+          completed: {type: boolean}
 "#,
     )?;
     fs::write(
@@ -1122,16 +1117,15 @@ fn terminal_interrupt_kills_the_active_javascript_worker_before_the_watchdog()
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: javascript-interrupt-fixture
-version: "0.1.0"
-runners:
+        r#"version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     steps:
       - id: default
-        tool: { module: main.mjs }
+        tool: {module: main.mjs}
         outputs:
-          completed: boolean
+          completed: {type: boolean}
 "#,
     )?;
     fs::write(
@@ -1274,7 +1268,7 @@ fn write_operator_context_skill(root: &Path) -> Result<PathBuf, Box<dyn std::err
     )?;
     fs::write(
         child_dir.join("SKILL.md"),
-        "---\nname: nested-review\ndescription: nested-review fixture.\n---\n# Nested Review Skill\n\nJudge the work against the supplied review-rubric context skill.\n",
+        "---\nname: nested-review\ndescription: nested-review fixture.\n---\n# Nested Review Skill\n\n## Agent task: operator-context-review\n\nJudge the work against the supplied review-rubric context skill.\n",
     )?;
     fs::write(
         child_dir.join("context/review-rubric/SKILL.md"),
@@ -1289,7 +1283,7 @@ fn write_operator_context_skill(root: &Path) -> Result<PathBuf, Box<dyn std::err
   "source": {
     "command": "node",
     "args": ["record.mjs"],
-    "input_mode": "stdin"
+    "inputs_via": "stdin"
   },
   "inputs": {
     "decision": {
@@ -1312,10 +1306,9 @@ fn write_operator_context_skill(root: &Path) -> Result<PathBuf, Box<dyn std::err
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: operator-context
-runners:
+minimum_runx: 0.12.0
+methods:
   review:
-    default: true
     result_from: [review]
     steps:
       - id: review
@@ -1325,18 +1318,18 @@ runners:
     fs::write(
         child_dir.join("run.yaml"),
         r#"
-skill: nested-review
-runners:
+minimum_runx: 0.12.0
+methods:
   nested-review:
-    default: true
     result_from: [record]
     steps:
       - id: verdict
-        agent: { role: reviewer, task: operator-context-review }
+        agent: operator-context-review
         outputs:
-          decision: string
-        context_skills:
-          - ./context/review-rubric
+          decision: {type: string}
+        context:
+          skills:
+            - ./context/review-rubric
       - id: record
         tool: example.record
         inputs:
@@ -1360,17 +1353,16 @@ fn write_approval_workflow_skill(root: &Path) -> Result<PathBuf, Box<dyn std::er
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: approval-workflow
-runners:
+minimum_runx: 0.12.0
+methods:
   approval-workflow:
-    default: true
     result_from: [fail]
     steps:
       - id: approve
-        ask: { gate: approval-workflow.local-development, reason: approve the local development fixture }
+        ask: {gate: approval-workflow.local-development, reason: approve the local development fixture}
       - id: fail
-        tool: { module: fail.mjs, export: fail }
-        outputs: { result: object }
+        tool: {module: fail.mjs, export: fail}
+        outputs: {result: {type: object}}
 "#,
     )?;
     Ok(skill_dir)
@@ -1381,30 +1373,33 @@ fn write_multi_method_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: multi-method\ndescription: multi-method fixture.\n---\n# Multi Runner\n",
+        "---\nname: multi-method\ndescription: multi-method fixture.\n---\n# Multi Method\n\n## Agent task: first-task\n\nDo the first task.\n\n## Agent task: second-task\n\nDo the second task.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: multi-method
-runners:
+minimum_runx: 0.12.0
+default_method: first
+methods:
   first:
-    default: true
     steps:
       - id: first
-        agent: { role: builder, task: first-task }
+        agent: first-task
         outputs:
-          result: object
+          result: {type: object}
   second:
     steps:
       - id: second
-        agent: { role: builder, task: second-task }
+        agent: second-task
         outputs:
-          result: object
+          result: {type: object}
 "#,
     )?;
     Ok(skill_dir)
 }
+
+/// The echo fixture's agent task, which every published manual carries.
+const ECHO_TASK: &str = "\n## Agent task: echo\n\nEcho the input as the result.\n";
 
 /// A loopback registry publishing the echo fixture as acme's at each
 /// version, with each manual body.
@@ -1413,7 +1408,8 @@ fn publish_echo(
 ) -> Result<crate::registry_fixture::LoopbackRegistry, Box<dyn std::error::Error>> {
     let registry = crate::registry_fixture::LoopbackRegistry::serve()?;
     for (version, body) in versions {
-        let markdown = format!("---\nname: echo\ndescription: echo fixture.\n---\n{body}");
+        let markdown =
+            format!("---\nname: echo\ndescription: echo fixture.\n---\n{body}{ECHO_TASK}");
         registry.publish(crate::registry_fixture::Publication::new(
             "acme",
             version,

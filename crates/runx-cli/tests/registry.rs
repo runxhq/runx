@@ -21,11 +21,12 @@ fn registry_publish_search_install_json() -> Result<(), Box<dyn std::error::Erro
     fs::write(
         skill_dir.join("run.yaml"),
         include_str!("../../../fixtures/registry/install/echo/run.yaml").replacen(
-            "skill: echo\n",
-            "skill: echo\nversion: \"1.0.0\"\n",
+            "minimum_runx: 0.12.0\n",
+            "version: \"1.0.0\"\nminimum_runx: 0.12.0\n",
             1,
         ),
     )?;
+    write_echo_test(&skill_dir)?;
     let registry = LoopbackRegistry::serve()?;
 
     let publish = registry_command(&registry, &root)?
@@ -92,6 +93,7 @@ fn registry_publish_install_executes_bundled_sibling() -> Result<(), Box<dyn std
     let registry = LoopbackRegistry::serve()?;
     let install_dir = crate::support::added_skills();
     fs::create_dir_all(skill_dir.join("packets"))?;
+    fs::create_dir_all(skill_dir.join("tests"))?;
     fs::create_dir_all(&sibling_dir)?;
     fs::create_dir_all(&leaf_dir)?;
     fs::write(
@@ -100,25 +102,22 @@ fn registry_publish_install_executes_bundled_sibling() -> Result<(), Box<dyn std
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: bundled-root
-version: "1.0.0"
-harness:
-  cases:
-    - name: sibling
-      runner: default
-      expect:
-        status: sealed
-runners:
+        r#"version: "1.0.0"
+minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     result_from: [sibling]
     steps:
       - id: sibling
         skill: ../sibling
-        artifacts:
-          wrap_as: sibling_packet
-          packet: acme/bundled-root.sibling.v1
+        outputs:
+          sibling_packet: {packet: acme/bundled-root.sibling.v1}
+        result_as: sibling_packet
 "#,
+    )?;
+    fs::write(
+        skill_dir.join("tests/sibling.yaml"),
+        "name: sibling\nmethod: default\nexpect:\n  status: sealed\n",
     )?;
     fs::write(
         skill_dir.join("packets/sibling.v1.schema.json"),
@@ -130,10 +129,9 @@ runners:
     )?;
     fs::write(
         sibling_dir.join("run.yaml"),
-        r#"skill: bundled-sibling
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     result_from: [leaf]
     steps:
       - id: leaf
@@ -146,10 +144,9 @@ runners:
     )?;
     fs::write(
         leaf_dir.join("run.yaml"),
-        r#"skill: bundled-leaf
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     result_from: [digest]
     steps:
       - id: digest
@@ -242,35 +239,42 @@ fn adding_a_skill_adds_the_connectors_it_carries() -> Result<(), Box<dyn std::er
     let registry = LoopbackRegistry::serve()?;
     let workspace = root.join("workspace");
     crate::support::plugin_with_fixture_connectors(&source, &["fixture/forge"])?;
-    fs::create_dir_all(&skill_dir)?;
+    fs::create_dir_all(skill_dir.join("tests"))?;
     fs::create_dir_all(&workspace)?;
     fs::write(
         skill_dir.join("SKILL.md"),
         "---\nname: carrier\ndescription: Carries the fixture/forge connector.\n---\n# Carrier\n",
     )?;
+    // A package carries the connectors its steps call, so its `read` method
+    // calls fixture/forge's issue.read, as the requirement it declared did.
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: carrier
-version: "1.0.0"
-connectors:
-  fixture/forge:
-    operations: [issue.read]
-harness:
-  cases:
-    - name: digest
-      runner: default
-      expect:
-        status: sealed
-runners:
+        r#"version: "1.0.0"
+minimum_runx: 0.12.0
+default_method: default
+methods:
   default:
-    default: true
     result_from: [digest]
     steps:
       - id: digest
         tool: data.digest
         inputs:
           value: carried
+  read:
+    inputs:
+      repository: {type: string}
+      number: {type: integer}
+    steps:
+      - id: read
+        operation: fixture/forge/issue.read
+        inputs:
+          repository: $input.repository
+          number: $input.number
 "#,
+    )?;
+    fs::write(
+        skill_dir.join("tests/digest.yaml"),
+        "name: digest\nmethod: default\nexpect:\n  status: sealed\n",
     )?;
 
     let publish = registry_command(&registry, &root)?
@@ -419,25 +423,41 @@ fn registry_package_metadata_names_the_declared_connectors()
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: connected
+        // A package calls a connector from a step, so `sync`'s steps call
+        // what the package declared: forge's two reads, in that order, and
+        // the webhook chosen per run.
+        r#"minimum_runx: 0.12.0
+default_method: default
 connectors:
-  fixture/forge:
-    operations: [issues.read, issue.read]
   webhook:
-    operations: [handoff.deliver]
-    connector_from: $input.provider
-    allowed_connectors: [fixture/automation, fixture/hooks]
-runners:
+    choose: $input.provider
+    from: [fixture/automation, fixture/hooks]
+methods:
   default:
-    default: true
     inputs:
-      provider: { type: string, required: true }
+      provider: {type: string}
     result_from: [digest]
     steps:
       - id: digest
         tool: data.digest
         inputs:
           value: connected
+  sync:
+    inputs:
+      provider: {type: string}
+    steps:
+      - id: list
+        operation: fixture/forge/issues.read
+        inputs: {repository: acme/app, numbers: [1]}
+      - id: read
+        operation: fixture/forge/issue.read
+        inputs: {repository: acme/app, number: 1}
+      - id: deliver
+        operation: webhook/handoff.deliver
+        idempotency_key: connected-delivery
+        inputs:
+          webhook_host: acme.hooks.fixture.invalid
+          delivery: {event_id: evt-1, handoff_scope: orchestrator.hooks.workflow.invoke, handoff_audience: "hooks:acme", idempotency_key: connected-delivery, payload: {}}
 "#,
     )?;
 
@@ -884,6 +904,7 @@ fn an_operator_publish_goes_into_the_namespace_it_names() -> Result<(), Box<dyn 
         skill_dir.join("run.yaml"),
         include_str!("../../../fixtures/registry/install/echo/run.yaml"),
     )?;
+    write_echo_test(&skill_dir)?;
     let registry = LoopbackRegistry::serve()?;
     let skill = skill_dir.to_str().ok_or("non-utf8 skill dir")?;
     let operator = |args: &[&str]| -> Result<std::process::Output, Box<dyn std::error::Error>> {
@@ -1074,7 +1095,7 @@ fn records_a_host_holds_install_verified_and_a_run_reads_them()
     )?;
     fs::write(
         parent.join("run.yaml"),
-        "skill: parent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
+        "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
     )?;
     let asked = registry.asked().len();
     let run = runx_command()?
@@ -1176,6 +1197,17 @@ fn publish_echo(
 
 /// `runx` reaching `registry` as its publisher, trusting its key, with its
 /// own home under `root`.
+/// The echo fixture's one test, which a publish runs, beside its manual and
+/// run.yaml in `skill_dir`.
+fn write_echo_test(skill_dir: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all(skill_dir.join("tests"))?;
+    fs::write(
+        skill_dir.join("tests/agent-boundary.yaml"),
+        include_str!("../../../fixtures/registry/install/echo/tests/agent-boundary.yaml"),
+    )?;
+    Ok(())
+}
+
 fn registry_command(
     registry: &LoopbackRegistry,
     root: &std::path::Path,
@@ -1199,25 +1231,26 @@ fn hosted_records(
     Ok(root.join("skills/records"))
 }
 
-/// The one provider answer every case below reads through, the `caller` of
-/// a case at `indent`: the fixture grant, and an empty `records.list`.
-fn records_provider(indent: usize) -> String {
+/// The one provider answer every test below reads through, a test's
+/// `providers`: the fixture grant, and an empty `records.list`.
+fn records_providers() -> String {
     [
-        "provider_responses:",
-        "  principal_id: operator-fixture",
-        "  grant:",
-        "    grant_id: records-fixture",
-        "    provider: fixture/records",
-        "    scopes: [records.read]",
-        "  operations:",
-        "    - operation: records.list",
-        "      target: \"fixture-records://records\"",
-        "      access: read",
-        "      result:",
-        "        records: []",
+        "providers:",
+        "  hosted:",
+        "    principal_id: operator-fixture",
+        "    grant:",
+        "      grant_id: records-fixture",
+        "      provider: fixture/records",
+        "      scopes: [records.read]",
+        "    operations:",
+        "      - operation: records.list",
+        "        target: \"fixture-records://records\"",
+        "        access: read",
+        "        result:",
+        "          records: []",
     ]
     .iter()
-    .map(|line| format!("{}{line}\n", " ".repeat(indent)))
+    .map(|line| format!("{line}\n"))
     .collect()
 }
 
@@ -1274,9 +1307,14 @@ fn a_case_grants_a_connector_its_composed_skill_carries() -> Result<(), Box<dyn 
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  digest:\n    steps:\n      - id: records\n        skill: ../records#list\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $steps.records\n",
+    )?;
+    fs::create_dir_all(skill_dir.join("tests"))?;
+    fs::write(
+        skill_dir.join("tests/digest-reaches-the-composed-records-grant.yaml"),
         format!(
-            "skill: records-digest\nharness:\n  cases:\n    - name: digest-reaches-the-composed-records-grant\n      caller:\n{provider}      expect:\n        status: sealed\n        steps: [records, digest]\nrunners:\n  digest:\n    default: true\n    steps:\n      - id: records\n        skill: ../records\n        runner: list\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $steps.records\n",
-            provider = records_provider(8),
+            "name: digest-reaches-the-composed-records-grant\n{}expect:\n  status: sealed\n  steps: [records, digest]\n",
+            records_providers(),
         ),
     )?;
     let published = publish(&skill_dir, &LoopbackRegistry::serve()?, None)?;
@@ -1316,14 +1354,14 @@ fn publish_records_revisions(
     Ok(registry)
 }
 
-/// A package in no plugin whose one case lists records through each named
+/// A package in no plugin whose one test lists records through each named
 /// version of acme's records skill, granting fixture/records.
 fn records_consumer(
     root: &std::path::Path,
     versions: &[&str],
 ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let consumer = root.join("consumer/ledger");
-    fs::create_dir_all(consumer.join("fixtures"))?;
+    fs::create_dir_all(consumer.join("tests"))?;
     fs::write(
         consumer.join("SKILL.md"),
         "---\nname: ledger\ndescription: Lists records through a published records skill.\n---\n# Ledger\n",
@@ -1333,21 +1371,21 @@ fn records_consumer(
         .enumerate()
         .map(|(index, version)| {
             format!(
-                "      - id: records-{index}\n        skill: registry:acme/records@{version}\n        runner: list\n"
+                "      - id: records-{index}\n        skill: registry:acme/records@{version}#list\n"
             )
         })
         .collect::<String>();
     fs::write(
         consumer.join("run.yaml"),
         format!(
-            "skill: ledger\nversion: \"1.0.0\"\nrunners:\n  default:\n    default: true\n    result_from: [records-0]\n    steps:\n{steps}"
+            "version: \"1.0.0\"\nminimum_runx: 0.12.0\nmethods:\n  default:\n    result_from: [records-0]\n    steps:\n{steps}"
         ),
     )?;
     fs::write(
-        consumer.join("fixtures/reads-through-registry-child.yaml"),
+        consumer.join("tests/reads-through-registry-child.yaml"),
         format!(
-            "name: ledger-reads-through-registry-child\nkind: skill\ntarget: ..\nrunner: default\ncaller:\n{}expect:\n  status: sealed\n",
-            records_provider(2)
+            "name: ledger-reads-through-registry-child\nmethod: default\n{}expect:\n  status: sealed\n",
+            records_providers()
         ),
     )?;
     Ok(consumer)
@@ -1402,20 +1440,24 @@ fn a_packages_tests_read_the_registry_children_its_project_holds()
     let registry = LoopbackRegistry::serve()?;
     publish_echo(&registry, "1.0.0", "Echo")?;
     let parent = root.join("parent");
-    fs::create_dir_all(&parent)?;
+    fs::create_dir_all(parent.join("tests"))?;
     fs::write(
         parent.join("SKILL.md"),
         "---\nname: parent\ndescription: Runs the echo registry skill as a step.\n---\n# Parent\n",
     )?;
     fs::write(
         parent.join("run.yaml"),
-        "skill: parent\nharness:\n  cases:\n    - name: reaches-the-child\n      runner: default\n      expect:\n        status: needs_agent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
+        "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
+    )?;
+    fs::write(
+        parent.join("tests/reaches-the-child.yaml"),
+        "name: reaches-the-child\nmethod: default\nexpect:\n  status: needs_agent\n",
     )?;
     let test = || -> Result<std::process::Output, Box<dyn std::error::Error>> {
         Ok(registry_command(&registry, &root)?
             .env("RUNX_CWD", &root)
             .args([
-                "harness",
+                "test",
                 parent.to_str().ok_or("non-utf8 parent dir")?,
                 "--json",
             ])
@@ -1449,30 +1491,35 @@ fn a_packages_tests_read_the_registry_children_its_project_holds()
     Ok(())
 }
 
-/// A graph case runs its composed skill's operations under the provider
-/// grant its caller answers for, bound from the graph file's directory.
+/// A test of a fixture package runs its composed skill's operations under
+/// the provider grant its providers answer for, bound from the fixture
+/// package's directory.
 #[test]
 fn a_workflow_case_binds_the_grant_its_composed_skill_calls()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("test-workflow-binding");
     let skill_dir = hosted_records(&root)?;
-    let support = skill_dir.join("fixtures/support");
-    fs::create_dir_all(&support)?;
+    let live = skill_dir.join("fixtures/live");
+    fs::create_dir_all(&live)?;
     fs::write(
-        support.join("live.graph"),
-        "name: records-live\nsteps:\n  - id: records\n    skill: ../..\n    runner: list\n",
+        live.join("SKILL.md"),
+        "---\nname: records-live\ndescription: A test fixture that composes records with the packages it calls.\n---\n\nUsed only by records's tests.\n",
     )?;
-    let case = skill_dir.join("fixtures/workflow-binds-grant.yaml");
+    fs::write(
+        live.join("run.yaml"),
+        "minimum_runx: 0.12.0\ncatalog:\n  visibility: internal\nmethods:\n  run:\n    steps:\n      - id: records\n        skill: ../..#list\n",
+    )?;
+    let case = skill_dir.join("tests/workflow-binds-grant.yaml");
     fs::write(
         &case,
         format!(
-            "name: records-workflow-binds-grant\nkind: graph\ntarget: support/live.graph\nexpect:\n  status: sealed\ncaller:\n{}",
-            records_provider(2)
+            "name: records-workflow-binds-grant\npackage: fixtures/live\n{}expect:\n  status: sealed\n",
+            records_providers()
         ),
     )?;
     let run = runx_command()?
         .current_dir(&root)
-        .args(["harness", case.to_str().ok_or("non-utf8 case")?, "--json"])
+        .args(["test", case.to_str().ok_or("non-utf8 case")?, "--json"])
         .output()?;
     assert_eq!(
         run.status.code(),

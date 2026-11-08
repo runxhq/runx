@@ -49,7 +49,7 @@ fn a_run_started_without_an_id_refuses_a_second_driver_while_it_runs() -> TestRe
     fs::write(
         skill.join("run.yaml"),
         format!(
-            "skill: slow\nrunners:\n  default:\n    default: true\n    steps:\n      - id: slow\n        tool: {}\n        outputs: {{done: boolean}}\n",
+            "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: slow\n        tool: {}\n        outputs: {{done: {{type: boolean}}}}\n",
             serde_json::json!({"command": "sh", "args": ["-c", script]})
         ),
     )?;

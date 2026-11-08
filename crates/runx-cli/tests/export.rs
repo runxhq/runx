@@ -543,7 +543,7 @@ fn generated_shims_are_compact_digest_bound_and_detect_drift()
     let manual = fixture.project.join("skills/visible/SKILL.md");
     fs::write(
         &manual,
-        "---\nname: visible\ndescription: Export visible through runx after a source change.\n---\n# visible\n\nChanged instructions.\n",
+        "---\nname: visible\ndescription: Export visible through runx after a source change.\n---\n# visible\n\n## Agent task: visible\n\nChanged instructions.\n",
     )?;
 
     let output = crate::support::unsigned_runx_command_at(&fixture.project)
@@ -847,7 +847,7 @@ fn generated_project_shims_resolve_after_the_project_moves()
     }
     fs::write(
         moved.join("skills/visible/SKILL.md"),
-        "---\nname: visible\ndescription: Changed source.\n---\n# Changed\n",
+        "---\nname: visible\ndescription: Changed source.\n---\n# Changed\n\n## Agent task: visible\n\nChanged instructions.\n",
     )?;
     let output = crate::support::unsigned_runx_command_at(&moved)
         .args(["skill", "inspect"])
@@ -1164,22 +1164,21 @@ impl ExportFixture {
         visibility: Option<&str>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let dir = self.project.join("skills").join(name);
-        let harness = readiness_test("default", &[input_name]);
         fs::create_dir_all(&dir)?;
         fs::write(
             dir.join("SKILL.md"),
             format!(
-                "---\nname: {name}\ndescription: Export {name} through runx.\n---\n# {name}\n\nRun the governed skill.\n"
+                "---\nname: {name}\ndescription: Export {name} through runx.\n---\n# {name}\n\n## Agent task: {name}\n\nRun the governed skill.\n"
             ),
         )?;
         fs::write(
             dir.join("run.yaml"),
             format!(
-                "skill: {name}\ncatalog:\n  kind: skill\n  audience: public\n  visibility: {}\n  role: context\n{harness}runners:\n  default:\n    default: true\n    inputs:\n      {input_name}:\n        type: string\n        required: true\n        description: Work to perform.\n    steps:\n      - id: default\n        agent: {{ role: reviewer, task: {name} }}\n        outputs:\n          result: object\n",
+                "minimum_runx: 0.12.0\ncatalog:\n  visibility: {}\nmethods:\n  default:\n    inputs:\n      {input_name}:\n        type: string\n        description: Work to perform.\n    steps:\n      - id: default\n        agent: {name}\n        outputs:\n          result: {{type: object}}\n",
                 visibility.unwrap_or("public")
             ),
         )?;
-        Ok(())
+        write_readiness_test(&dir, name, "default", &[input_name])
     }
 
     fn write_skill_with_method_inputs(&self, name: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -1201,9 +1200,7 @@ impl ExportFixture {
         )?;
         fs::write(
             dir.join("run.yaml"),
-            format!(
-                "skill: {name}\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: public\n  role: canonical\nrunners:\n  payments:\n    result_from: [read]\n    steps:\n      - id: read\n        tool: data.compare\n  payout_preflight:\n    inputs:\n      claim:\n        type: string\n        required: true\n    result_from: [read]\n    steps:\n      - id: read\n        tool: data.compare\n"
-            ),
+            "minimum_runx: 0.12.0\ncatalog:\n  visibility: public\nmethods:\n  payments:\n    result_from: [read]\n    steps:\n      - id: read\n        tool: data.compare\n  payout_preflight:\n    inputs:\n      claim:\n        type: string\n    result_from: [read]\n    steps:\n      - id: read\n        tool: data.compare\n",
         )?;
         Ok(())
     }
@@ -1221,19 +1218,20 @@ impl ExportFixture {
         dir: &Path,
         name: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let harness = readiness_test("plan", &["objective", "principal"]);
         fs::create_dir_all(dir)?;
         fs::write(
             dir.join("SKILL.md"),
-            format!("---\nname: {name}\ndescription: Export {name} through runx.\n---\n# {name}\n"),
+            format!(
+                "---\nname: {name}\ndescription: Export {name} through runx.\n---\n# {name}\n\n## Agent task: {name}\n\nPlan the bounded send.\n"
+            ),
         )?;
         fs::write(
             dir.join("run.yaml"),
             format!(
-                "skill: {name}\ncatalog:\n  kind: skill\n  audience: public\n  visibility: public\n  role: canonical\n{harness}runners:\n  plan:\n    default: true\n    inputs:\n      objective:\n        type: string\n        required: true\n        description: Bounded send objective.\n      principal:\n        type: string\n        required: true\n        description: Principal represented by the send.\n      provider_context:\n        type: json\n        required: false\n        description: Provider readiness.\n    steps:\n      - id: plan\n        agent: {{ role: reviewer, task: {name} }}\n        outputs:\n          result: object\n"
+                "minimum_runx: 0.12.0\ncatalog:\n  visibility: public\nmethods:\n  plan:\n    inputs:\n      objective:\n        type: string\n        description: Bounded send objective.\n      principal:\n        type: string\n        description: Principal represented by the send.\n      provider_context:\n        description: Provider readiness.\n        optional: true\n    steps:\n      - id: plan\n        agent: {name}\n        outputs:\n          result: {{type: object}}\n"
             ),
         )?;
-        Ok(())
+        write_readiness_test(dir, name, "plan", &["objective", "principal"])
     }
 
     fn read_home_file(&self, relative: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -1245,14 +1243,33 @@ impl ExportFixture {
     }
 }
 
-fn readiness_test(runner: &str, inputs: &[&str]) -> String {
+/// The sealed test that proves `method` of the package at `dir`, and the
+/// eval its standalone operator journey became.
+fn write_readiness_test(
+    dir: &Path,
+    name: &str,
+    method: &str,
+    inputs: &[&str],
+) -> Result<(), Box<dyn std::error::Error>> {
     let inputs = inputs
         .iter()
-        .map(|input| format!("        \"{input}\": fixture\n"))
+        .map(|input| format!("  \"{input}\": fixture\n"))
         .collect::<String>();
-    format!(
-        "harness:\n  cases:\n    - name: export-operator-journeys\n      runner: {runner}\n      operator_journeys:\n        - mode: standalone\n          confusors: [research, code-intake, extract]\n          request: Run the advertised default operation from a cold selection.\n          expected_outcome: Return the promised bounded result.\n        - mode: composed\n          request: Continue from a prior bounded result.\n          expected_outcome: Reuse supplied evidence without repeating completed work.\n          prior_evidence:\n            - A typed result supplied by the prior step.\n          must_not_repeat:\n            - Do not repeat prior discovery.\n      inputs:\n{inputs}      expect:\n        status: sealed\n"
-    )
+    fs::create_dir_all(dir.join("tests"))?;
+    fs::write(
+        dir.join("tests/export-operator-journeys.yaml"),
+        format!(
+            "name: export-operator-journeys\nmethod: {method}\ninputs:\n{inputs}expect:\n  status: sealed\n"
+        ),
+    )?;
+    fs::create_dir_all(dir.join("evals"))?;
+    fs::write(
+        dir.join("evals/evals.json"),
+        format!(
+            "{{\n  \"skill_name\": \"{name}\",\n  \"evals\": [\n    {{\n      \"id\": 1,\n      \"prompt\": \"Run the advertised default operation from a cold selection.\",\n      \"expected_output\": \"Return the promised bounded result.\",\n      \"files\": []\n    }}\n  ]\n}}\n"
+        ),
+    )?;
+    Ok(())
 }
 
 impl ExportFixture {
@@ -1262,7 +1279,11 @@ impl ExportFixture {
         let manifest = self.project.join("skills").join(name).join("run.yaml");
         fs::write(
             &manifest,
-            format!("tools: [data.digest]\n{}", fs::read_to_string(&manifest)?),
+            fs::read_to_string(&manifest)?.replacen(
+                &format!("        agent: {name}\n"),
+                &format!("        agent: {name}\n        calls:\n          tools: [data.digest]\n"),
+                1,
+            ),
         )?;
         Ok(())
     }

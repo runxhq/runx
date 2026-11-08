@@ -7,9 +7,6 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use runx_contracts::ReceiptSchema;
-use runx_runtime::harness::{ReceiptExpectation, TestFixture};
-
 const FIXTURE_SIGNING_SEED: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
 
@@ -240,110 +237,33 @@ fn require_stderr_prefix(lines: &[&str], cursor: &mut usize, prefix: &str) -> Re
     }
 }
 
-pub struct GovernedTestFixture {
-    path: PathBuf,
-    root: PathBuf,
-}
-
-impl GovernedTestFixture {
-    pub fn path_str(&self) -> Result<&str, Box<dyn std::error::Error>> {
-        self.path
-            .to_str()
-            .ok_or_else(|| "non-utf8 governed harness path".into())
-    }
-
-    pub fn receipt_dir(&self) -> PathBuf {
-        self.root.join(".runx").join("receipts")
-    }
-}
-
-impl Drop for GovernedTestFixture {
-    fn drop(&mut self) {
-        fs::remove_dir_all(&self.root).ok();
-    }
-}
-
-pub fn governed_test_fixture(
-    fixture: &str,
-) -> Result<GovernedTestFixture, Box<dyn std::error::Error>> {
-    let repo = repo_root()?;
-    let source_path = repo.join(fixture);
-    let parent = source_path
-        .parent()
-        .ok_or("harness fixture path has no parent")?;
-    let root = isolated_target_temp_root("governed-test")?;
-    let file_name = source_path
-        .file_name()
-        .ok_or("harness fixture path has no file name")?;
-    let path = root.join(file_name);
-    let fixture = runx_runtime::load_test_fixture(&source_path)?;
-    fs::write(&path, governed_test_document(fixture, parent)?)?;
-    Ok(GovernedTestFixture { path, root })
-}
-
 pub fn write_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let skill_dir = root.join("code-intake");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: code-intake\ndescription: code-intake fixture.\n---\n# Issue Intake\n",
+        "---\nname: code-intake\ndescription: code-intake fixture.\n---\n# Issue Intake\n\n## Agent task: code-intake\n\nTurn the thread into an intake report.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: code-intake
-runners:
+minimum_runx: 0.12.0
+methods:
   intake:
-    default: true
     inputs:
       thread_title:
         type: string
-        required: false
+        optional: true
     steps:
       - id: intake
-        agent: { role: builder, task: code-intake }
+        agent: code-intake
         inputs:
           thread_title: $input.thread_title
         outputs:
-          intake_report: object
+          intake_report: {type: object}
 "#,
     )?;
     Ok(skill_dir)
-}
-
-fn governed_test_document(
-    mut fixture: TestFixture,
-    fixture_parent: &Path,
-) -> Result<String, Box<dyn std::error::Error>> {
-    if !fixture.target.is_empty() {
-        let target = Path::new(&fixture.target);
-        fixture.target = if target.is_absolute() {
-            target.to_path_buf()
-        } else {
-            fixture_parent.join(target)
-        }
-        .canonicalize()?
-        .to_string_lossy()
-        .into_owned();
-    }
-    if fixture.expect.receipt.is_some() {
-        fixture.expect.receipt = Some(ReceiptExpectation {
-            schema: ReceiptSchema::V1,
-            body_digest: None,
-            receipt_id: None,
-            receipt_digest: None,
-            subject_uri: None,
-            state: None,
-            outcome: None,
-            reason: None,
-            act_ids: None,
-            decision_ids: None,
-            child_receipt_uris: None,
-            child_receipt_count: None,
-            verification_uris: None,
-        });
-    }
-    Ok(serde_json::to_string(&fixture)?)
 }
 
 /// How a [`MockConnect`] answers a provider operation's request body: with

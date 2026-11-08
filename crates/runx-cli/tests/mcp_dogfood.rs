@@ -261,8 +261,11 @@ fn mcp_continuations_survive_server_exit_and_resume_through_the_cli()
         let receipts = root.join("receipts with spaces");
         let skill = if agent {
             let path = crate::support::write_agent_task_skill(root)?;
-            let manifest = fs::read_to_string(path.join("run.yaml"))?
-                .replace("required: false", "required: true");
+            let manifest = fs::read_to_string(path.join("run.yaml"))?.replacen(
+                "        optional: true\n",
+                "",
+                1,
+            );
             fs::write(path.join("run.yaml"), manifest)?;
             path
         } else {
@@ -274,16 +277,15 @@ fn mcp_continuations_survive_server_exit_and_resume_through_the_cli()
             )?;
             fs::write(
                 path.join("run.yaml"),
-                r#"skill: approval
-runners:
+                r#"minimum_runx: 0.12.0
+methods:
   main:
-    default: true
     inputs:
-      thread_title: { type: string, required: true }
+      thread_title: {type: string}
     result_from: [approve]
     steps:
       - id: approve
-        ask: { gate: approval, reason: Approve this thread. }
+        ask: {gate: approval, reason: Approve this thread.}
         inputs:
           thread_title: $input.thread_title
 "#,
@@ -431,11 +433,11 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: turn-demo\ndescription: Answers with what it digested.\n---\n# Turn demo\n\nDigest what you need, then answer.\n",
+        "---\nname: turn-demo\ndescription: Answers with what it digested.\n---\n# Turn demo\n\n## Agent task: answer\n\nDigest what you need, then answer.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: turn-demo\ntools: [data.digest]\nrunners:\n  answer:\n    default: true\n    inputs:\n      question: { type: string, required: true }\n    outputs:\n      answer: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [data.digest]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
     )?;
     let receipts = workspace.path().join("receipts");
     let mut start = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key");
@@ -647,11 +649,11 @@ fn a_cancelled_turn_call_is_recorded_and_the_turn_goes_on() -> Result<(), Box<dy
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: cancel-demo\ndescription: Runs a command, then answers.\n---\n# Cancel demo\n\nRun, then answer.\n",
+        "---\nname: cancel-demo\ndescription: Runs a command, then answers.\n---\n# Cancel demo\n\n## Agent task: answer\n\nRun, then answer.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: cancel-demo\ntools: [command.execute, data.digest]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [command.execute, data.digest]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
     )?;
     let receipts = workspace.path().join("receipts");
     let started = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key")
@@ -1056,15 +1058,14 @@ Return the allowlisted workspace marker.
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        r#"skill: mcp-workspace-env
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     steps:
       - id: default
-        tool: { module: marker.mjs, environment: { required: [MCP_DOGFOOD_MARKER] } }
+        tool: {module: marker.mjs, environment: {required: [MCP_DOGFOOD_MARKER]}}
         outputs:
-          marker: string
+          marker: {type: string}
 "#,
     )?;
     fs::write(

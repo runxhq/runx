@@ -37,16 +37,14 @@ fn skills(root: &Path) -> TestResult {
     skill(
         root,
         "proc-start",
-        r#"skill: proc-start
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   start:
-    default: true
     inputs:
-      args: { type: array, required: true }
+      args: {type: array}
     steps:
       - id: start
         tool: process.start
-        scopes: [process.exec]
         inputs:
           command: sh
           args: $input.args
@@ -56,36 +54,32 @@ runners:
     skill(
         root,
         "proc-tty",
-        r#"skill: proc-tty
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   start:
-    default: true
     inputs:
-      args: { type: array, required: true }
+      args: {type: array}
     steps:
       - id: start
         tool: process.start
-        scopes: [process.exec]
         inputs:
           command: sh
           args: $input.args
           max_seconds: 60
-          tty: { rows: 24, cols: 80 }
+          tty: {rows: 24, cols: 80}
 "#,
     )?;
     skill(
         root,
         "cmd",
-        r#"skill: cmd
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   run:
-    default: true
     inputs:
-      args: { type: array, required: true }
+      args: {type: array}
     steps:
       - id: run
         tool: command.execute
-        scopes: [process.exec]
         inputs:
           command: sh
           args: $input.args
@@ -95,17 +89,15 @@ runners:
     skill(
         root,
         "proc-write",
-        r#"skill: proc-write
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   write:
-    default: true
     inputs:
-      process_id: { type: string, required: true }
-      input: { type: string, required: true }
+      process_id: {type: string}
+      input: {type: string}
     steps:
       - id: write
         tool: process.write
-        scopes: [process.exec]
         inputs:
           process_id: $input.process_id
           input: $input.input
@@ -114,16 +106,14 @@ runners:
     skill(
         root,
         "proc-resize",
-        r#"skill: proc-resize
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   resize:
-    default: true
     inputs:
-      process_id: { type: string, required: true }
+      process_id: {type: string}
     steps:
       - id: resize
         tool: process.resize
-        scopes: [process.exec]
         inputs:
           process_id: $input.process_id
           rows: 40

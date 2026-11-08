@@ -53,7 +53,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx harness <fixture.yaml...|skill-dir|SKILL.md> [-R dir] [-j|--json]",
+        "runx test <package-dir|SKILL.md|tests/<name>.yaml...> [--receipt-dir dir] [-j|--json]",
     );
     assert_help_line(&help, "runx doctor [path|authority|registry] [--json]");
     assert_help_line(
@@ -73,8 +73,8 @@ fn top_level_help_and_version_are_native() {
         "runx registry search|install|package|publish ... [-j|--json]",
     );
     assert!(
-        !help.contains("runx harness <fixture.yaml|skill-dir|SKILL.md>"),
-        "native help must not advertise harness target forms that only the old TypeScript path handled"
+        !help.contains("runx harness"),
+        "native help must not advertise harness, which runx test replaced"
     );
     assert!(
         !help.contains("runx url-add"),
@@ -129,12 +129,12 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
         RouterAction::PrintCommandHelp("notarize")
     );
     assert_eq!(
-        plan(&["harness", "--help"]),
-        RouterAction::PrintCommandHelp("harness")
+        plan(&["test", "--help"]),
+        RouterAction::PrintCommandHelp("test")
     );
     assert_eq!(
-        plan(&["harness", "-h"]),
-        RouterAction::PrintCommandHelp("harness")
+        plan(&["test", "-h"]),
+        RouterAction::PrintCommandHelp("test")
     );
 
     assert_help_line(
@@ -170,10 +170,10 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
     );
     assert!(help("notarize").contains("anyone can read it"));
     assert_help_line(
-        &help("harness"),
-        "runx harness <fixture.yaml...|skill-dir|SKILL.md> [-R dir] [-j|--json]",
+        &help("test"),
+        "runx test <package-dir|SKILL.md|tests/<name>.yaml...> [--receipt-dir dir] [-j|--json]",
     );
-    assert!(help("harness").contains("inline harness.cases and sorted fixtures/*.yaml"));
+    assert!(help("test").contains("A package runs each of its tests/*.yaml, in name order."));
 }
 
 #[test]
@@ -483,9 +483,9 @@ fn mcp_rejects_unknown_shapes_without_delegating() {
 fn routes_test_to_native_method() {
     assert_eq!(
         plan(&[
-            "harness",
+            "test",
             "fixtures/harness/echo-skill.yaml",
-            "-R",
+            "--receipt-dir",
             ".runx/receipts",
             "-j"
         ]),
@@ -500,7 +500,7 @@ fn routes_test_to_native_method() {
 fn routes_multiple_test_fixtures_to_native_method() {
     assert_eq!(
         plan(&[
-            "harness",
+            "test",
             "fixtures/harness/echo-skill.yaml",
             "fixtures/harness/sequential-workflow.yaml",
             "--json",
@@ -518,8 +518,8 @@ fn routes_multiple_test_fixtures_to_native_method() {
 #[test]
 fn test_rejects_missing_fixture_path() {
     assert_eq!(
-        plan(&["harness"]),
-        RouterAction::Error("runx harness requires a fixture path or skill package".to_owned())
+        plan(&["test"]),
+        RouterAction::Error("runx test requires a package or a test file".to_owned())
     );
 }
 
@@ -788,7 +788,7 @@ fn managed_agent_rounds_need_explicit_managed_agent_consent() {
     }
 }
 
-/// `runx harness` runs every fixture; there is no second fixture loop.
+/// `runx test` runs every test; there is no second test loop.
 #[test]
 fn there_is_no_dev_command() {
     assert_eq!(

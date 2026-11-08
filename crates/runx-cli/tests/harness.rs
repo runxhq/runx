@@ -4,19 +4,16 @@ use std::process::Command;
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 #[test]
-fn package_mode_runs_inline_and_conventional_fixture_cases() -> TestResult {
+fn package_mode_runs_every_test_in_tests() -> TestResult {
     let root = crate::support::temp_root("runx-package-test-union");
     let skill_dir = root.join("skill");
     let receipt_dir = root.join("receipts");
-    fs::create_dir_all(skill_dir.join("fixtures"))?;
     write_process_tool_skill(&skill_dir)?;
     fs::write(
-        skill_dir.join("fixtures/conventional.yaml"),
+        skill_dir.join("tests/conventional.yaml"),
         r#"
 name: conventional
-kind: skill
-target: ..
-runner: default
+method: default
 expect:
   status: sealed
   output:
@@ -27,7 +24,7 @@ expect:
 
     let output = unsigned_runx_command()?
         .args([
-            "harness",
+            "test",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--receipt-dir",
             receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
@@ -60,10 +57,7 @@ expect:
         })
         .count();
     // Each case seals its graph receipt and its one step receipt.
-    assert_eq!(
-        stored_receipts, 4,
-        "inline and conventional receipts persist"
-    );
+    assert_eq!(stored_receipts, 4, "every test's receipts persist");
     Ok(())
 }
 
@@ -80,7 +74,7 @@ fn package_mode_keeps_default_receipts_after_isolated_replay() -> TestResult {
         .env("RUNX_CWD", &root)
         .env("RUNX_PROJECT_DIR", &project)
         .args([
-            "harness",
+            "test",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--json",
         ])
@@ -118,17 +112,14 @@ fn package_mode_persists_complete_nested_receipt_lineage() -> TestResult {
     let skill_dir = root.join("parent");
     let child_dir = root.join("child");
     let receipt_dir = root.join("receipts");
-    fs::create_dir_all(skill_dir.join("fixtures"))?;
-    fs::create_dir_all(&child_dir)?;
+    fs::create_dir_all(skill_dir.join("tests"))?;
     write_nested_test_parent(&skill_dir)?;
     write_process_tool_skill(&child_dir)?;
     fs::write(
-        skill_dir.join("fixtures/conventional.yaml"),
+        skill_dir.join("tests/conventional.yaml"),
         r#"
 name: nested-conventional
-kind: skill
-target: ..
-runner: default
+method: default
 expect:
   status: sealed
 "#,
@@ -137,7 +128,7 @@ expect:
     for _ in 0..2 {
         let output = unsigned_runx_command()?
             .args([
-                "harness",
+                "test",
                 skill_dir.to_str().ok_or("non-utf8 skill dir")?,
                 "--receipt-dir",
                 receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
@@ -188,7 +179,7 @@ expect:
 #[test]
 fn inline_test_rejects_receipt_expectation_drift() -> TestResult {
     assert_inline_expectation_fails(
-        "receipt:\n            schema: runx.receipt.v1\n            state: deferred",
+        "receipt:\n    schema: runx.receipt.v1\n    state: deferred",
         "expect.receipt.state",
     )
 }
@@ -201,12 +192,12 @@ fn inline_test_rejects_step_expectation_drift() -> TestResult {
 #[test]
 fn inline_test_rejects_step_output_expectation_drift() -> TestResult {
     assert_inline_expectation_fails(
-        "step_outputs:\n            run:\n              subset:\n                status: expected",
+        "step_outputs:\n    run:\n      subset:\n        status: expected",
         "expect.step_outputs.run.subset.status",
     )
 }
 
-/// Every harness case seals under the fixture identity: the caller's signing
+/// Every test seals under the fixture identity: the caller's signing
 /// variables, even a partial set, never reach a case.
 #[test]
 fn package_test_seals_under_the_fixture_identity_whatever_the_signer_env() -> TestResult {
@@ -220,7 +211,7 @@ fn package_test_seals_under_the_fixture_identity_whatever_the_signer_env() -> Te
     command.env("RUNX_RECEIPT_SIGN_KID", "partial-explicit-key");
     let output = command
         .args([
-            "harness",
+            "test",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--receipt-dir",
             receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
@@ -256,7 +247,7 @@ fn a_refusing_host_never_runs_a_packages_process_tool() -> TestResult {
             r#"{"refuseHostProcesses":true}"#,
         )
         .args([
-            "harness",
+            "test",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--receipt-dir",
             root.join("receipts")
@@ -283,16 +274,13 @@ fn standalone_fixture_persists_to_requested_store() -> TestResult {
     let root = crate::support::temp_root("runx-standalone-test-receipts");
     let skill_dir = root.join("skill");
     let receipt_dir = root.join(".runx/receipts");
-    fs::create_dir_all(skill_dir.join("fixtures"))?;
     write_process_tool_skill(&skill_dir)?;
-    let fixture_path = skill_dir.join("fixtures/standalone.yaml");
+    let fixture_path = skill_dir.join("tests/standalone.yaml");
     fs::write(
         &fixture_path,
         r#"
 name: standalone
-kind: skill
-target: ..
-runner: default
+method: default
 expect:
   status: sealed
   output:
@@ -303,7 +291,7 @@ expect:
 
     let output = unsigned_runx_command()?
         .args([
-            "harness",
+            "test",
             fixture_path.to_str().ok_or("non-utf8 fixture path")?,
             "--receipt-dir",
             receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
@@ -344,6 +332,7 @@ fn unsigned_runx_command() -> TestResult<Command> {
 }
 
 fn write_process_tool_skill(skill_dir: &std::path::Path) -> TestResult {
+    fs::create_dir_all(skill_dir.join("tests"))?;
     fs::write(
         skill_dir.join("SKILL.md"),
         "---\nname: test-hint\ndescription: test-hint fixture.\n---\n# Harness Hint\n",
@@ -351,25 +340,21 @@ fn write_process_tool_skill(skill_dir: &std::path::Path) -> TestResult {
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: test-hint
 version: "0.1.0"
+minimum_runx: 0.12.0
 
-harness:
-  cases:
-    - name: smoke
-      runner: default
-      expect:
-        status: sealed
-
-runners:
+methods:
   default:
-    default: true
     steps:
       - id: default
-        tool: { command: sh, args: [-c, 'printf "{\"ok\":true}"'], timeout_seconds: 5 }
+        tool: {command: sh, args: [-c, 'printf "{\"ok\":true}"'], timeout_seconds: 5}
         outputs:
-          ok: boolean
+          ok: {type: boolean}
 "#,
+    )?;
+    fs::write(
+        skill_dir.join("tests/smoke.yaml"),
+        "name: smoke\nmethod: default\nexpect:\n  status: sealed\n",
     )?;
     Ok(())
 }
@@ -382,17 +367,15 @@ fn write_nested_test_parent(skill_dir: &std::path::Path) -> TestResult {
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: test-parent
 version: "0.1.0"
+minimum_runx: 0.12.0
 
-runners:
+methods:
   default:
-    default: true
     result_from: [nested]
     steps:
       - id: nested
-        skill: ../child
-        runner: default
+        skill: ../child#default
 "#,
     )?;
     Ok(())
@@ -406,30 +389,30 @@ fn assert_inline_expectation_fails(expectation: &str, expected_field: &str) -> T
         skill_dir.join("SKILL.md"),
         "---\nname: test-negative\ndescription: test-negative fixture.\n---\n# Harness Negative\n",
     )?;
-    let manifest = r#"
-skill: test-negative
+    fs::write(
+        skill_dir.join("run.yaml"),
+        r#"
 version: "0.1.0"
-harness:
-  cases:
-    - name: rejects-drift
-      expect:
-        __EXPECTATION__
-runners:
+minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     result_from: [run]
     steps:
       - id: run
-        tool: { command: sh, args: [-c, 'printf "{\"ok\":true}"'], timeout_seconds: 5 }
+        tool: {command: sh, args: [-c, 'printf "{\"ok\":true}"'], timeout_seconds: 5}
         outputs:
-          ok: boolean
-"#
-    .replace("__EXPECTATION__", expectation);
-    fs::write(skill_dir.join("run.yaml"), manifest)?;
+          ok: {type: boolean}
+"#,
+    )?;
+    fs::create_dir_all(skill_dir.join("tests"))?;
+    fs::write(
+        skill_dir.join("tests/rejects-drift.yaml"),
+        format!("name: rejects-drift\nexpect:\n  {expectation}\n"),
+    )?;
 
     let output = unsigned_runx_command()?
         .args([
-            "harness",
+            "test",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--json",
         ])
