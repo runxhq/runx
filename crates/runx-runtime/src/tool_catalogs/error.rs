@@ -9,11 +9,6 @@ pub enum ToolCatalogError {
         path: PathBuf,
         source: io::Error,
     },
-    Json {
-        action: &'static str,
-        path: PathBuf,
-        source: serde_json::Error,
-    },
     InvalidManifest {
         path: PathBuf,
         message: String,
@@ -32,48 +27,12 @@ impl ToolCatalogError {
             source,
         }
     }
-
-    pub(crate) fn json(
-        action: &'static str,
-        path: impl Into<PathBuf>,
-        source: serde_json::Error,
-    ) -> Self {
-        Self::Json {
-            action,
-            path: path.into(),
-            source,
-        }
-    }
-
-    pub(crate) fn concise_message(&self) -> String {
-        match self {
-            Self::InvalidManifest { message, .. }
-            | Self::InvalidRequest(message)
-            | Self::Unqualified(message)
-            | Self::NotFound(message) => message.clone(),
-            Self::Io {
-                action,
-                path,
-                source,
-            } => format!("{action} {}: {source}", path.display()),
-            Self::Json {
-                action,
-                path,
-                source,
-            } => format!("{action} {}: {source}", path.display()),
-        }
-    }
 }
 
 impl fmt::Display for ToolCatalogError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io {
-                action,
-                path,
-                source,
-            } => write!(formatter, "{action} {}: {source}", path.display()),
-            Self::Json {
                 action,
                 path,
                 source,

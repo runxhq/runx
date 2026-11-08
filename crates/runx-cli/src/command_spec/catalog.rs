@@ -285,12 +285,11 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "tool",
         top_level_usage: &[],
         usage: &[
-            "runx tool build <tool-dir>|--all [--json]",
             "runx tool search <query> [--source source] [--json]",
             "runx tool inspect <ref> [--source source] [--json]",
         ],
         notes: &[],
-        options: &["--all", "--source source", "-j, --json"],
+        options: &["--source source", "-j, --json"],
     },
     CommandSpec {
         name: "registry",

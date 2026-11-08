@@ -118,16 +118,13 @@ pub enum ListKind {
 #[derive(Debug, Eq, PartialEq)]
 pub struct ToolPlan {
     pub action: ToolAction,
-    pub path: Option<PathBuf>,
-    pub ref_or_query: Option<String>,
-    pub all: bool,
+    pub ref_or_query: String,
     pub source: Option<String>,
     pub json: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ToolAction {
-    Build,
     Search,
     Inspect,
 }
@@ -601,28 +598,21 @@ fn parse_list_kind(value: &str) -> Option<ListKind> {
 fn parse_tool_plan(args: &[OsString]) -> Result<ToolPlan, String> {
     let subcommand = os_arg(args, 1, "tool")?;
     let action = match subcommand {
-        "build" => ToolAction::Build,
         "search" => ToolAction::Search,
         "inspect" => ToolAction::Inspect,
         _ => return Err(format!("unknown tool subcommand {subcommand}")),
     };
     let mut json = false;
-    let mut all = false;
     let mut source = None;
-    let mut positionals = Vec::<OsString>::new();
+    let mut positionals = Vec::new();
     let mut index = 2;
 
     while index < args.len() {
         let Some(token) = args[index].to_str() else {
-            if action != ToolAction::Build {
-                return Err("runx tool search and inspect arguments must be UTF-8".to_owned());
-            }
-            positionals.push(args[index].clone());
-            index += 1;
-            continue;
+            return Err("runx tool search and inspect arguments must be UTF-8".to_owned());
         };
         if !crate::cli_args::is_flag(token) {
-            positionals.push(OsString::from(token));
+            positionals.push(token.to_owned());
             index += 1;
             continue;
         }
@@ -636,13 +626,6 @@ fn parse_tool_plan(args: &[OsString]) -> Result<ToolPlan, String> {
                 json = true;
                 index += 1;
             }
-            "--all" => {
-                if inline_value.is_some() {
-                    return Err("--all does not take a value".to_owned());
-                }
-                all = true;
-                index += 1;
-            }
             "--source" => {
                 let (value, next_index) = flag_value(args, index, flag, inline_value, "tool")?;
                 source = Some(value);
@@ -652,96 +635,19 @@ fn parse_tool_plan(args: &[OsString]) -> Result<ToolPlan, String> {
         }
     }
 
-    match action {
-        ToolAction::Build => build_tool_plan(positionals, all, source, json),
-        ToolAction::Search => search_tool_plan(positionals, all, source, json),
-        ToolAction::Inspect => inspect_tool_plan(positionals, all, source, json),
+    let ref_or_query = positionals.join(" ");
+    if ref_or_query.is_empty() {
+        return Err(match action {
+            ToolAction::Search => "runx tool search requires a query".to_owned(),
+            ToolAction::Inspect => "runx tool inspect requires a tool name".to_owned(),
+        });
     }
-}
-
-fn build_tool_plan(
-    positionals: Vec<OsString>,
-    all: bool,
-    source: Option<String>,
-    json: bool,
-) -> Result<ToolPlan, String> {
-    if source.is_some() {
-        return Err("runx tool build does not accept --source".to_owned());
-    }
-    if all && !positionals.is_empty() {
-        return Err("runx tool build accepts either --all or one tool directory".to_owned());
-    }
-    if !all && positionals.len() != 1 {
-        return Err("runx tool build requires a tool directory or --all".to_owned());
-    }
-
     Ok(ToolPlan {
-        action: ToolAction::Build,
-        path: positionals.first().cloned().map(PathBuf::from),
-        ref_or_query: None,
-        all,
-        source: None,
-        json,
-    })
-}
-
-fn search_tool_plan(
-    positionals: Vec<OsString>,
-    all: bool,
-    source: Option<String>,
-    json: bool,
-) -> Result<ToolPlan, String> {
-    if all {
-        return Err("runx tool search does not accept --all".to_owned());
-    }
-    let query = utf8_tool_positionals(positionals)?.join(" ");
-    if query.is_empty() {
-        return Err("runx tool search requires a query".to_owned());
-    }
-
-    Ok(ToolPlan {
-        action: ToolAction::Search,
-        path: None,
-        ref_or_query: Some(query),
-        all: false,
+        action,
+        ref_or_query,
         source,
         json,
     })
-}
-
-fn inspect_tool_plan(
-    positionals: Vec<OsString>,
-    all: bool,
-    source: Option<String>,
-    json: bool,
-) -> Result<ToolPlan, String> {
-    if all {
-        return Err("runx tool inspect does not accept --all".to_owned());
-    }
-    let tool = utf8_tool_positionals(positionals)?.join(" ");
-    if tool.is_empty() {
-        return Err("runx tool inspect requires a tool name".to_owned());
-    }
-
-    Ok(ToolPlan {
-        action: ToolAction::Inspect,
-        path: None,
-        ref_or_query: Some(tool),
-        all: false,
-        source,
-        json,
-    })
-}
-
-fn utf8_tool_positionals(positionals: Vec<OsString>) -> Result<Vec<String>, String> {
-    positionals
-        .into_iter()
-        .map(|value| {
-            value
-                .into_string()
-                .map_err(|_| "runx tool search and inspect arguments must be UTF-8".to_owned())
-        })
-        .collect()
 }
 
 fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {

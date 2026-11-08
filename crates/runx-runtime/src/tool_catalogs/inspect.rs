@@ -4,7 +4,7 @@
 use std::path::{Component, Path, PathBuf};
 
 use runx_contracts::tools::{
-    ToolBuildStatus, ToolInspectOrigin, ToolInspectProvenance, ToolInspectReport, ToolInspectResult,
+    ToolInspectOrigin, ToolInspectProvenance, ToolInspectReport, ToolInspectResult,
 };
 
 use super::error::ToolCatalogError;
@@ -43,7 +43,6 @@ pub fn inspect_tool_with_effects(
     let manifest_path = resolve_local_manifest(options)?;
     let tool = read_local_tool_manifest(&manifest_path)?;
     Ok(ToolInspectReport {
-        status: ToolBuildStatus::Success,
         tool: inspect_local_tool(&manifest_path, tool)?,
     })
 }

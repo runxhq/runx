@@ -9,17 +9,10 @@ use crate::schema::RunxSchema;
 use crate::{ArtifactDeclaration, EnvironmentRequirements, IdempotencyPolicy, InputDefinition};
 
 pub const TOOL_MANIFEST_SCHEMA: &str = "runx.tool.manifest.v1";
-pub const TOOL_BUILD_REPORT_SCHEMA: &str = "runx.tool.build.v1";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum ToolManifestSchema {
     #[serde(rename = "runx.tool.manifest.v1")]
-    V1,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-pub enum ToolBuildReportSchema {
-    #[serde(rename = "runx.tool.build.v1")]
     V1,
 }
 
@@ -29,13 +22,6 @@ pub enum ToolCommandInputMode {
     Args,
     Stdin,
     None,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ToolBuildStatus {
-    Success,
-    Failure,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -101,24 +87,6 @@ pub struct RuntimeCommand {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct BuiltToolItem {
-    pub path: String,
-    pub manifest: String,
-    pub source_digest: String,
-    pub schema_digest: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ToolBuildReport {
-    pub schema: ToolBuildReportSchema,
-    pub status: ToolBuildStatus,
-    pub built: Vec<BuiltToolItem>,
-    pub errors: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ToolCatalogSearchOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u64>,
@@ -143,7 +111,6 @@ pub struct ToolCatalogSearchResult {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolCatalogSearchReport {
-    pub status: ToolBuildStatus,
     pub query: String,
     pub source: String,
     pub results: Vec<ToolCatalogSearchResult>,
@@ -169,7 +136,6 @@ pub struct ToolInspectResult {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolInspectReport {
-    pub status: ToolBuildStatus,
     pub tool: ToolInspectResult,
 }
 
@@ -206,7 +172,7 @@ pub struct ToolInspectProvenance {
 #[cfg(test)]
 mod tests {
     use super::{
-        ToolBuildReport, ToolBuildReportSchema, ToolBuildStatus, ToolCatalogSearchResult,
+        ToolCatalogSearchResult,
         ToolCommandInputMode, ToolInput, ToolInspectOrigin, ToolInspectProvenance,
         ToolInspectResult, ToolManifest, ToolManifestSchema, ToolSource,
     };
@@ -308,28 +274,6 @@ mod tests {
             input_mode: None,
             environment: EnvironmentRequirements::default(),
         }
-    }
-
-    #[test]
-    fn tool_build_report_uses_cli_json_shape() -> Result<(), serde_json::Error> {
-        let report: ToolBuildReport = serde_json::from_str(
-            r#"{
-              "schema": "runx.tool.build.v1",
-              "status": "success",
-              "built": [{
-                "path": "tools/demo/echo",
-                "manifest": "tools/demo/echo/manifest.json",
-                "source_digest": "sha256:source",
-                "schema_digest": "sha256:schema"
-              }],
-              "errors": []
-            }"#,
-        )?;
-
-        assert_eq!(report.schema, ToolBuildReportSchema::V1);
-        assert_eq!(report.status, ToolBuildStatus::Success);
-        assert_eq!(report.built[0].manifest, "tools/demo/echo/manifest.json");
-        Ok(())
     }
 
     #[test]

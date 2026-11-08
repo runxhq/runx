@@ -630,6 +630,36 @@ fn skill_package_rejects_unbound_bundled_tool_dependencies() {
 }
 
 #[test]
+fn skill_package_rejects_a_node_tool_that_imports_uncompiled_typescript() {
+    let source = package([
+        ("SKILL.md", manual("typescript-tool-source")),
+        (
+            "tools/example/echo/manifest.json",
+            r#"{
+  "schema": "runx.tool.manifest.v1",
+  "name": "example.echo",
+  "source": { "command": "node", "args": ["./run.mjs"] }
+}"#
+            .to_owned(),
+        ),
+        (
+            "tools/example/echo/run.mjs",
+            "import './src/index.ts';\n".to_owned(),
+        ),
+        (
+            "tools/example/echo/src/index.ts",
+            "export const ok = true;\n".to_owned(),
+        ),
+    ]);
+
+    let error = validate_skill_package(source).expect_err("a TypeScript import must fail package");
+    assert!(
+        error.to_string().contains("imports uncompiled TypeScript"),
+        "{error}"
+    );
+}
+
+#[test]
 fn a_mark_beside_the_manual_ships_with_the_package_and_a_bad_one_fails_it() {
     let mark = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="#0f62fe"/></svg>"##;
     let validated = validate_skill_package(package([

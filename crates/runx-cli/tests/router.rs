@@ -181,7 +181,7 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 fn json_flags_make_argument_failures_machine_readable() {
     for args in [
         &["config", "set", "--json"][..],
-        &["tool", "build", "--json"][..],
+        &["tool", "search", "--json"][..],
         &["export", "nope", "--json"][..],
         &["doctor", "registry", "extra", "-j"][..],
     ] {
@@ -237,15 +237,8 @@ fn filesystem_paths_do_not_require_utf8() {
         assert_eq!(skill.skill_path, path_buf);
     }
     assert_eq!(
-        route_args(vec!["tool".into(), "build".into(), path.clone()]),
-        RouterAction::RunTool(ToolPlan {
-            action: ToolAction::Build,
-            path: Some(PathBuf::from(path)),
-            ref_or_query: None,
-            all: false,
-            source: None,
-            json: false,
-        })
+        route_args(vec!["tool".into(), "inspect".into(), path]),
+        RouterAction::Error("runx tool search and inspect arguments must be UTF-8".to_owned())
     );
 }
 
@@ -947,25 +940,12 @@ fn every_command_that_prints_json_reads_dash_j_as_json() {
 #[test]
 fn routes_tool_to_native_plan_and_rejects_unknown_subcommands() {
     assert_eq!(
-        plan(&["tool", "build", "tools/fixture/minimal", "--json"]),
-        RouterAction::RunTool(ToolPlan {
-            action: ToolAction::Build,
-            path: Some(PathBuf::from("tools/fixture/minimal")),
-            ref_or_query: None,
-            all: false,
-            source: None,
-            json: true,
-        })
-    );
-    assert_eq!(
         plan(&[
             "tool", "search", "echo", "writer", "--source", "native", "--json",
         ]),
         RouterAction::RunTool(ToolPlan {
             action: ToolAction::Search,
-            path: None,
-            ref_or_query: Some("echo writer".to_owned()),
-            all: false,
+            ref_or_query: "echo writer".to_owned(),
             source: Some("native".to_owned()),
             json: true,
         })

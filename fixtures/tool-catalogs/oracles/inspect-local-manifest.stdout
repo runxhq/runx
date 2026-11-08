@@ -1,5 +1,4 @@
 {
-  "status": "success",
   "tool": {
     "name": "fixture.local_echo",
     "description": "Local inspect fixture tool.",

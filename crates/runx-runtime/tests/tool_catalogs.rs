@@ -1,55 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use runx_contracts::tools::{ToolBuildStatus, ToolInspectOrigin};
-use runx_runtime::{
-    ToolBuildOptions, ToolInspectOptions, ToolSearchOptions, build_tool_catalogs, inspect_tool,
-    search_tools,
-};
-
-#[test]
-fn tool_catalogs_build_minimal_manifest() -> Result<(), Box<dyn std::error::Error>> {
-    let temp_root = copy_minimal_tool_fixture("build_minimal_manifest")?;
-    let tool_dir = temp_root.join("tools/fixture/minimal");
-    let manifest_path = tool_dir.join("manifest.json");
-    let manifest_before = fs::read(&manifest_path)?;
-
-    let report = build_tool_catalogs(&ToolBuildOptions {
-        root: temp_root.clone(),
-        tool_path: Some(tool_dir),
-        all: false,
-    })?;
-
-    assert_eq!(report.status, ToolBuildStatus::Success);
-    assert_eq!(report.built.len(), 1);
-    assert!(report.errors.is_empty());
-
-    assert_eq!(fs::read(&manifest_path)?, manifest_before);
-    assert!(report.built[0].source_digest.starts_with("sha256:"));
-    assert!(report.built[0].schema_digest.starts_with("sha256:"));
-    Ok(())
-}
-
-#[test]
-fn tool_catalogs_reject_node_entrypoints_that_import_typescript()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp_root = copy_minimal_tool_fixture("reject_node_typescript")?;
-    let tool_dir = temp_root.join("tools/fixture/minimal");
-    fs::create_dir_all(tool_dir.join("src"))?;
-    fs::write(tool_dir.join("run.mjs"), "import './src/index.ts';\n")?;
-    fs::write(tool_dir.join("src/index.ts"), "export const ok = true;\n")?;
-
-    let report = build_tool_catalogs(&ToolBuildOptions {
-        root: temp_root,
-        tool_path: Some(tool_dir),
-        all: false,
-    })?;
-
-    assert_eq!(report.status, ToolBuildStatus::Failure);
-    assert_eq!(report.errors.len(), 1);
-    assert!(report.errors[0].contains("imports uncompiled TypeScript"));
-    Ok(())
-}
+use runx_contracts::tools::ToolInspectOrigin;
+use runx_runtime::{ToolInspectOptions, ToolSearchOptions, inspect_tool, search_tools};
 
 #[test]
 fn tool_catalogs_search_returns_native_tools() {
@@ -59,7 +12,6 @@ fn tool_catalogs_search_returns_native_tools() {
         limit: 20,
     });
 
-    assert_eq!(report.status, ToolBuildStatus::Success);
     let read = report
         .results
         .iter()
@@ -79,7 +31,6 @@ fn tool_catalogs_inspect_native_tool() -> Result<(), Box<dyn std::error::Error>>
         allow_explicit_manifest_path: true,
     })?;
 
-    assert_eq!(report.status, ToolBuildStatus::Success);
     assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Native);
     assert_eq!(report.tool.name, "fs.read");
     assert_eq!(report.tool.execution, "native");
@@ -98,7 +49,6 @@ fn tool_catalogs_inspect_local_manifest() -> Result<(), Box<dyn std::error::Erro
         allow_explicit_manifest_path: true,
     })?;
 
-    assert_eq!(report.status, ToolBuildStatus::Success);
     assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Local);
     assert_eq!(report.tool.name, "fixture.minimal");
     assert_eq!(report.tool.execution, "process");
@@ -209,7 +159,7 @@ fn tool_catalogs_reject_parent_traversal_explicit_manifest_path()
 }
 
 fn copy_minimal_tool_fixture(name: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let source = repo_root()?.join("fixtures/tool-catalogs/build/minimal/workspace");
+    let source = repo_root()?.join("fixtures/tool-catalogs/workspace");
     let target = std::env::temp_dir()
         .join("runx-tool-catalogs-tests")
         .join(format!("{name}-{}", std::process::id()));

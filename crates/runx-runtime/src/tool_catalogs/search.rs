@@ -1,4 +1,4 @@
-use runx_contracts::tools::{ToolBuildStatus, ToolCatalogSearchReport};
+use runx_contracts::tools::ToolCatalogSearchReport;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolSearchOptions {
@@ -31,7 +31,6 @@ pub fn search_tools_with_effects(
     }
 
     ToolCatalogSearchReport {
-        status: ToolBuildStatus::Success,
         query: options.query.clone(),
         source,
         results,

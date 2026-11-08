@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,7 +41,6 @@ const expectedFiles = new Set<string>();
 
 try {
   const cases = [
-    ...(await buildCases(tempRoot)),
     ...(await searchCases()),
     ...(await inspectCases()),
   ];
@@ -57,29 +56,6 @@ try {
   console.log(`${check ? "checked" : "generated"} ${cases.length} tool catalog oracle cases`);
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
-}
-
-async function buildCases(root: string): Promise<readonly OracleCase[]> {
-  const cases = [
-    ["build-minimal", "minimal", "tools/fixture/minimal", 0],
-    ["build-multi-command", "multi-command", "tools/fixture/multi_command", 0],
-    ["build-metadata-heavy", "metadata-heavy", "tools/fixture/metadata_heavy", 0],
-    ["build-invalid", "invalid", "tools/fixture/invalid", 1],
-  ] as const;
-
-  const generated: OracleCase[] = [];
-  for (const [name, fixtureName, toolPath, expectedStatus] of cases) {
-    const sourceWorkspace = path.join(fixtureRoot, "build", fixtureName, "workspace");
-    const workspace = path.join(root, name, "workspace");
-    await cp(sourceWorkspace, workspace, { recursive: true });
-    generated.push({
-      name,
-      argv: ["tool", "build", toolPath, "--json"],
-      cwd: workspace,
-      expectedStatus,
-    });
-  }
-  return generated;
 }
 
 async function searchCases(): Promise<readonly OracleCase[]> {

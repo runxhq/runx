@@ -1,11 +1,11 @@
-// Module rationale: command wiring keeps tool build/search/inspect output together.
+// Module rationale: command wiring keeps tool search and inspect output together.
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use runx_runtime::{
-    ToolBuildOptions, ToolCatalogError, ToolInspectOptions, ToolSearchOptions, WorkspaceEnv,
-    build_tool_catalogs, inspect_tool_with_effects, search_tools_with_effects,
+    ToolCatalogError, ToolInspectOptions, ToolSearchOptions, WorkspaceEnv,
+    inspect_tool_with_effects, search_tools_with_effects,
 };
 
 use crate::router::{ToolAction, ToolPlan};
@@ -27,46 +27,13 @@ struct ToolCliOutput {
 
 fn run_tool(plan: ToolPlan, workspace: &WorkspaceEnv) -> Result<ToolCliOutput, ToolCliError> {
     match plan.action {
-        ToolAction::Build => run_build(plan, workspace.env(), workspace.cwd()),
         ToolAction::Search => run_search(plan),
         ToolAction::Inspect => run_inspect(plan, workspace.env(), workspace.cwd()),
     }
 }
 
-fn run_build(
-    plan: ToolPlan,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<ToolCliOutput, ToolCliError> {
-    let root = runx_runtime::RunxPaths::resolve(env, cwd)
-        .workspace()
-        .to_path_buf();
-    let tool_path = plan
-        .path
-        .as_deref()
-        .map(|path| resolve_user_path(path, env, cwd));
-    let report = build_tool_catalogs(&ToolBuildOptions {
-        root,
-        tool_path,
-        all: plan.all,
-    })?;
-    let stdout = if plan.json {
-        json_line(&report)?
-    } else {
-        render_build_report(report.built.len(), &report.errors)
-    };
-    let exit_code = if report.status == runx_contracts::tools::ToolBuildStatus::Success {
-        0
-    } else {
-        1
-    };
-    Ok(ToolCliOutput { stdout, exit_code })
-}
-
 fn run_search(plan: ToolPlan) -> Result<ToolCliOutput, ToolCliError> {
-    let query = plan
-        .ref_or_query
-        .ok_or_else(|| ToolCliError::Usage("runx tool search requires a query".to_owned()))?;
+    let query = plan.ref_or_query;
     let effects = crate::runtime::runtime_effect_registry().map_err(|error| {
         ToolCliError::Internal(format!("failed to initialize runtime effects: {error}"))
     })?;
@@ -94,9 +61,7 @@ fn run_inspect(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<ToolCliOutput, ToolCliError> {
-    let tool = plan
-        .ref_or_query
-        .ok_or_else(|| ToolCliError::Usage("runx tool inspect requires a tool name".to_owned()))?;
+    let tool = plan.ref_or_query;
     let root = runx_runtime::RunxPaths::resolve(env, cwd)
         .workspace()
         .to_path_buf();
@@ -145,15 +110,6 @@ fn json_line<T: serde::Serialize>(value: &T) -> Result<String, ToolCliError> {
     serde_json::to_string_pretty(value)
         .map(|json| format!("{json}\n"))
         .map_err(|error| ToolCliError::Internal(error.to_string()))
-}
-
-fn render_build_report(count: usize, errors: &[String]) -> String {
-    let mut lines = vec!["".to_owned(), format!("  tool build  {count} tool(s)")];
-    for error in errors {
-        lines.push(format!("  {error}"));
-    }
-    lines.push(String::new());
-    lines.join("\n")
 }
 
 fn render_search_results(results: &[runx_contracts::tools::ToolCatalogSearchResult]) -> String {
@@ -233,7 +189,6 @@ fn render_cli_error(message: &str) -> String {
 
 #[derive(Debug)]
 enum ToolCliError {
-    Usage(String),
     Runtime(ToolCatalogError),
     Internal(String),
 }
@@ -241,7 +196,6 @@ enum ToolCliError {
 impl ToolCliError {
     fn exit_code(&self) -> u8 {
         match self {
-            Self::Usage(_) => 2,
             Self::Runtime(_) | Self::Internal(_) => 1,
         }
     }
@@ -250,7 +204,7 @@ impl ToolCliError {
 impl std::fmt::Display for ToolCliError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Usage(message) | Self::Internal(message) => formatter.write_str(message),
+            Self::Internal(message) => formatter.write_str(message),
             Self::Runtime(error) => write!(formatter, "{error}"),
         }
     }

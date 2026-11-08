@@ -1,5 +1,4 @@
 {
-  "status": "success",
   "query": "fs.read",
   "source": "native",
   "results": [

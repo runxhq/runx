@@ -1,5 +1,4 @@
 {
-  "status": "success",
   "query": "not-a-native-tool",
   "source": "native",
   "results": []

@@ -73,7 +73,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   mcp: annotation("adapter", ["mcp", "caller-mediated-resolution", "graph-runtime", "receipts"], ["mcp.skills.validate", "mcp.run.validate"], "none"),
   skill: annotation("local-runtime", ["skill-resolution", "skill-authoring", "graph-runtime", "receipts", "execution-boundary", "authority", "caller-mediated-resolution", "adapter-process-tool", "adapter-agent", "cli-presentation"], ["skill.run.validate", "skill.inspect.validate"]),
   harness: annotation("local-runtime", ["harness", "receipts", "execution-boundary"], ["harness.execute"]),
-  tool: annotation("external-stub", ["tool-catalog"], ["tool.build.validate", "tool.search.validate", "tool.inspect.validate"]),
+  tool: annotation("external-stub", ["tool-catalog"], ["tool.search.validate", "tool.inspect.validate"]),
   registry: annotation("external-stub", ["registry", "cli-presentation"], ["registry.validate"]),
 };
 
@@ -88,7 +88,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("history", "runx-cli + runx-runtime", "semantic", "Search/filter behavior is command-level parity with normalized output."),
   surface("processes", "runx-cli + runx-runtime process supervisor", "schema-exact", "Processes process.start runs under the runx binary as their supervisor are listed, read by cursor and stopped natively."),
   surface("registry", "runx-cli + runx-runtime registry", "fixture-backed", "Local and hosted registry envelopes are exercised through native registry commands."),
-  surface("tool-catalog", "runx-runtime tool catalogs", "fixture-backed", "Catalog discovery, dispatch, and local tool builds use the canonical native or manifest-owned path."),
+  surface("tool-catalog", "runx-runtime tool catalogs", "fixture-backed", "Catalog discovery and dispatch use the canonical native or manifest-owned path."),
   surface("mcp", "runx-runtime adapters/mcp", "stubbed", "Protocol behavior uses local servers and deterministic clients."),
   surface("adapter-process-tool", "runx-runtime process tool adapter", "fixture-backed", "Exact process invocation, environment, cwd, supervision, and execution-boundary evidence are parity-critical."),
   surface("adapter-agent", "runx-runtime external agent adapter", "stubbed", "Managed agent calls are represented by local stubs, not live providers."),

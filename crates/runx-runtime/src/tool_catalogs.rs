@@ -1,4 +1,3 @@
-pub mod build;
 pub(crate) mod dispatch;
 pub mod error;
 pub mod inspect;
@@ -7,7 +6,6 @@ pub(crate) mod native;
 pub(crate) mod projection;
 pub mod search;
 
-pub use build::{ToolBuildOptions, build_tool_catalogs};
 pub use error::ToolCatalogError;
 pub use inspect::{
     LocalToolResolution, ToolInspectOptions, inspect_tool, inspect_tool_with_effects,

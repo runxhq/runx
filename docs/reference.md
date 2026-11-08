@@ -940,7 +940,6 @@ Process code contains only the domain behavior the native catalog cannot
 express.
 
 ```bash
-runx tool build --all --json
 runx harness ./skills/<skill-that-calls-the-tool> --json
 ```
 
@@ -948,9 +947,8 @@ A tool is proved through the skill that calls it: that skill's harness
 fixtures run the tool on the path a user runs.
 
 When a `run.mjs` entrypoint is needed, it is a thin process shim and owns no
-contract metadata. `runx tool build` is read-only: it validates the source
-manifest and reports hashes derived from the manifest and its declared source
-files without rewriting either. Do not create one of these packages merely to
+contract metadata. Loading the package validates the manifest and binds the
+digests of its declared source files without rewriting either. Do not create one of these packages merely to
 wrap a capability already owned by the native catalog. The declared entrypoint
 must run directly on the supported Node runtime; do not probe for build output
 or import uncompiled TypeScript.

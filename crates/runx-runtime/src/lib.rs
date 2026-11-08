@@ -185,8 +185,8 @@ pub use skill_package::{
 };
 pub use skill_package::{inspect_connector_readiness, resolve_local_skill_reference};
 pub use tool_catalogs::{
-    ToolBuildOptions, ToolCatalogError, ToolInspectOptions, ToolSearchOptions, build_tool_catalogs,
-    inspect_tool, inspect_tool_with_effects, search_tools, search_tools_with_effects,
+    ToolCatalogError, ToolInspectOptions, ToolSearchOptions, inspect_tool,
+    inspect_tool_with_effects, search_tools, search_tools_with_effects,
 };
 
 pub const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");

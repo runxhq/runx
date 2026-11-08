@@ -296,9 +296,8 @@ authoring.
   scopes and retry/idempotency. Effect and approval stay with the capability
   that invokes the tool; never duplicate them in this manifest. Never persist
   generated `runtime`, `output`, `runx`, hash, or toolkit fields beside that
-  contract.
-  `runx tool build` validates and reports derived hashes without rewriting the
-  package. The declared entrypoint must execute on the
+  contract. Loading the package validates it and binds its source files'
+  digests without rewriting it. The declared entrypoint must execute on the
   repository's supported runtime without probing for generated files or
   importing uncompiled TypeScript. A bundled tool lives at
   `tools/<namespace>/<name>/manifest.json`, its dotted manifest name must match

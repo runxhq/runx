@@ -142,7 +142,6 @@ fn lookup_miss(error: &ToolCatalogError) -> bool {
         ToolCatalogError::NotFound(_) | ToolCatalogError::Unqualified(_) => true,
         ToolCatalogError::InvalidRequest(_)
         | ToolCatalogError::Io { .. }
-        | ToolCatalogError::Json { .. }
         | ToolCatalogError::InvalidManifest { .. } => false,
     }
 }

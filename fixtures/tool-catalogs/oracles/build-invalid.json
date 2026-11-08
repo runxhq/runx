@@ -1,8 +1,0 @@
-{
-  "schema": "runx.tool.build.v1",
-  "status": "failure",
-  "built": [],
-  "errors": [
-    "tools/fixture/invalid: source.command is required."
-  ]
-}

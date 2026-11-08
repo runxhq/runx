@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::tools::{
-    ToolBuildStatus, ToolCatalogSearchResult, ToolInput, ToolInspectOrigin, ToolInspectProvenance,
+    ToolCatalogSearchResult, ToolInput, ToolInspectOrigin, ToolInspectProvenance,
     ToolInspectReport, ToolInspectResult,
 };
 use runx_contracts::{
@@ -64,7 +64,6 @@ fn inspect_report(
     root: &Path,
 ) -> ToolInspectReport {
     ToolInspectReport {
-        status: ToolBuildStatus::Success,
         tool: ToolInspectResult {
             name: name.to_owned(),
             description: Some(description.to_owned()),
