@@ -1039,6 +1039,7 @@ function convertPackage(dir) {
   const manual = readFileSync(manualPath, "utf8");
   const sectioned = agentTaskSections(manual, tasks, notes);
   if (sectioned !== manual) files.set(manualPath, sectioned);
+  convertToolManifests(dir, files, notes);
   return { files, notes, tests: tests.size, graphs: graphPackages.size };
 }
 
@@ -1064,7 +1065,50 @@ function settlePackage(dir, doc) {
     if (!isMap(testDoc.contents)) refuse(`tests/${entry} is not a map`);
     if (settleTestEnv(testDoc.contents, dir, `tests/${entry}`, notes)) files.set(file, testDoc.toString(styleOf(text)));
   }
+  convertToolManifests(dir, files, notes);
   return { files, notes, tests, graphs: 0, settled: true };
+}
+
+// ---- Tool manifests a package or connector owns
+
+// A tool manifest (runx.tool.manifest.v1) under a package's or connector's
+// own tools/ says how its process gets its inputs as `source.inputs_via`,
+// as a step's tool does (rename-table.tsv row 44); today it says
+// `input_mode`. Manifests are written by hand, so the key is renamed where
+// it stands and the rest of the file keeps its bytes.
+function toolManifests(dir) {
+  const found = [];
+  const walk = (folder) => {
+    for (const entry of existsSync(folder) ? readdirSync(folder, { withFileTypes: true }) : []) {
+      const full = path.join(folder, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name === "manifest.json") found.push(full);
+    }
+  };
+  walk(path.join(dir, "tools"));
+  return found.sort();
+}
+
+function convertToolManifests(dir, files, notes) {
+  for (const file of toolManifests(dir)) {
+    const text = readFileSync(file, "utf8");
+    let manifest;
+    try {
+      manifest = JSON.parse(text);
+    } catch {
+      refuse(`${path.relative(dir, file)} isn't JSON`);
+    }
+    if (manifest?.schema !== "runx.tool.manifest.v1" || !Object.hasOwn(manifest.source ?? {}, "input_mode")) continue;
+    const where = path.relative(dir, file);
+    if (Object.hasOwn(manifest.source, "inputs_via")) refuse(`${where} sets both source.input_mode and source.inputs_via`);
+    const keys = text.match(/"input_mode"\s*:/g) ?? [];
+    if (keys.length !== 1) refuse(`${where} says "input_mode" ${keys.length} times, so the one in source can't be told`);
+    const next = text.replace(/"input_mode"(\s*:)/, '"inputs_via"$1');
+    const converted = JSON.parse(next);
+    if (converted.source?.inputs_via !== manifest.source.input_mode) refuse(`${where}: "input_mode" isn't source's own key`);
+    files.set(file, next);
+    notes.push(`${where}: source.input_mode is source.inputs_via`);
+  }
 }
 
 // ---- A connector (plans/0.12/contracts/connector-yaml.md)
@@ -1125,7 +1169,9 @@ function convertConnector(dir) {
   // `id` is already in the 0.12 shape, and nothing in it changes again.
   if (!has(root, "id")) {
     only(root, CONNECTOR_ROOT_KEYS_012, "connector.yaml, which says no id,");
-    return { files: new Map(), notes, settled: true };
+    const files = new Map();
+    convertToolManifests(dir, files, notes);
+    return { files, notes, settled: true };
   }
   only(root, CONNECTOR_ROOT_KEYS, "connector.yaml");
   rename(root, "name", "title");
@@ -1182,7 +1228,9 @@ function convertConnector(dir) {
       if (next.items.length) pages.items.push(new Pair(new Scalar("next"), next));
     }
   }
-  return { files: new Map([[file, doc.toString(styleOf(text))]]), notes };
+  const files = new Map([[file, doc.toString(styleOf(text))]]);
+  convertToolManifests(dir, files, notes);
+  return { files, notes };
 }
 
 // ---- Command line
