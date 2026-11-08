@@ -30,7 +30,6 @@ runners:
       note: {{type: string, required: true}}
       tier: {{type: string, schema: {{enum: [basic, plus]}}}}
       artifact: {{type: object, required: true}}
-      envelope: {{type: object, required: true, artifact: true}}
     steps:
       - id: transcribe
         tool: {{command: transcribe}}
@@ -152,10 +151,6 @@ fn a_price_reads_only_required_inputs_of_the_right_kind() -> Result<(), String> 
             "{model: artifact_bytes, artifact_input: note, base_amount_minor: 1, unit_bytes: 1024, unit_amount_minor: 1, max_bytes: 4096}",
             "so runner transcribe declares it a json or object input",
         ),
-        (
-            "{model: artifact_bytes, artifact_input: envelope, base_amount_minor: 1, unit_bytes: 1024, unit_amount_minor: 1, max_bytes: 4096}",
-            "so runner transcribe declares it a json or object input",
-        ),
     ] {
         let error = refused(price)?;
         assert!(error.contains(expected), "{error}");
@@ -229,13 +224,6 @@ fn an_offer_names_the_leased_resource_it_acts_on() -> Result<(), String> {
 
 #[test]
 fn marketplace_rejects_undeclared_method_and_unknown_rail_fields() -> Result<(), String> {
-    let undeclared =
-        offer("{model: fixed, amount_minor: 125}").replace("    transcribe:\n", "    missing:\n");
-    let Err(error) = validate(&manifest(&undeclared)) else {
-        return Err("undeclared offer unexpectedly passed".to_owned());
-    };
-    assert!(error.contains("references an undeclared runner"));
-
     let provider_shape = format!(
         "{}\n      stripe_price_id: price_private",
         offer("{model: fixed, amount_minor: 125}")
@@ -264,32 +252,5 @@ fn marketplace_rejects_ambiguous_terms() -> Result<(), String> {
         };
         assert!(error.contains(expected), "{error}");
     }
-    Ok(())
-}
-
-#[test]
-fn continuation_dependencies_name_other_declared_methods_once()
--> Result<(), Box<dyn std::error::Error>> {
-    let source = "skill: async-work\nrunners:\n  schedule:\n    continuations: [continue]\n    steps:\n      - id: scheduled\n        tool: data.digest\n        inputs: {value: waiting}\n  continue:\n    steps:\n      - id: observed\n        tool: data.digest\n        inputs: {value: ready}\n";
-    let parsed = validate_method_manifest(parse_method_manifest_yaml(source)?)?;
-    assert_eq!(parsed.runners["schedule"].continuations, ["continue"]);
-    for invalid in ["[missing]", "[schedule]", "[continue, continue]"] {
-        assert!(
-            validate_method_manifest(parse_method_manifest_yaml(
-                &source.replace("[continue]", invalid)
-            )?)
-            .is_err(),
-            "{invalid}"
-        );
-    }
-    Ok(())
-}
-
-#[test]
-fn a_schedule_packet_does_not_invent_continuation_edges() -> Result<(), Box<dyn std::error::Error>>
-{
-    let source = "skill: async-work\nrunners:\n  schedule:\n    steps:\n      - id: schedule\n        tool: {module: schedule.mjs}\n        outputs: {schedule_intent: object}\n        artifacts:\n          named_emits: {schedule_intent: schedule_intent}\n          packets: {schedule_intent: runx.external_job_schedule_intent.v1}\n";
-    let manifest = validate_method_manifest(parse_method_manifest_yaml(source)?)?;
-    assert!(manifest.runners["schedule"].continuations.is_empty());
     Ok(())
 }

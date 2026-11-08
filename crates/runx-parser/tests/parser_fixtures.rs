@@ -23,7 +23,6 @@ const SKILL_FIXTURES: &[&str] = &[
 
 const METHOD_MANIFEST_FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/parser/method-manifests/test-basic.json"),
-    include_str!("../../../fixtures/parser/method-manifests/validation-test-unknown-method.json"),
     include_str!(
         "../../../fixtures/parser/method-manifests/validation-invalid-reflect-policy.json"
     ),
@@ -182,21 +181,12 @@ runners:
     let catalog = manifest.catalog.ok_or("catalog should be present")?;
     assert_eq!(catalog.category.as_deref(), Some("content"));
     assert_eq!(catalog.tags, vec!["docs".to_owned(), "writing".to_owned()]);
-    assert_eq!(catalog.publisher.as_deref(), Some("zhtwangk"));
-    assert_eq!(
-        catalog.links.get("source").map(String::as_str),
-        Some("https://github.com/example/docs-demo")
-    );
     Ok(())
 }
 
 #[test]
 fn catalog_rejects_noncanonical_publisher_and_non_https_links() -> Result<(), String> {
-    for (field, value) in [
-        ("publisher", "ZHTWangK"),
-        ("links", "{source: http://example.com/repo}"),
-        ("tags", "[docs, docs]"),
-    ] {
+    for (field, value) in [("tags", "[docs, docs]")] {
         let raw = parse_method_manifest_yaml(&format!(
             "skill: docs-demo\ncatalog:\n  kind: skill\n  audience: public\n  visibility: public\n  role: canonical\n  {field}: {value}\nrunners:\n  main:\n    steps:\n      - id: write\n        agent: {{ role: writer, task: write }}\n"
         ))

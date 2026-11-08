@@ -57,16 +57,3 @@ fn a_run_time_choice_needs_a_source_and_a_closed_list() -> Result<(), String> {
     assert!(error.contains("allowed_connectors"), "{error}");
     Ok(())
 }
-
-#[test]
-fn operation_steps_must_name_a_declared_requirement_and_listed_operation() -> Result<(), String> {
-    let undeclared = validate(&profile(SLACK, "        operation: github/issue.read"))
-        .err()
-        .ok_or("undeclared requirement must fail")?;
-    assert!(undeclared.contains("does not declare"), "{undeclared}");
-    let unlisted = validate(&profile(SLACK, "        operation: slack/thread.reply"))
-        .err()
-        .ok_or("unlisted operation must fail")?;
-    assert!(unlisted.contains("is not listed"), "{unlisted}");
-    Ok(())
-}

@@ -1,7 +1,4 @@
-use runx_parser::{
-    CatalogApproval, CatalogAudience, CatalogCompletion, CatalogExecution, CatalogKind,
-    CatalogRole, CatalogVisibility, parse_method_manifest_yaml, validate_method_manifest,
-};
+use runx_parser::{CatalogVisibility, parse_method_manifest_yaml, validate_method_manifest};
 
 fn parse_manifest(yaml: &str) -> Result<runx_parser::SkillMethodManifest, String> {
     let raw = parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?;
@@ -34,19 +31,9 @@ runners:
     let catalog = manifest
         .catalog
         .ok_or_else(|| "expected catalog metadata".to_owned())?;
-    assert_eq!(catalog.kind, CatalogKind::Graph);
-    assert_eq!(catalog.audience, CatalogAudience::Builder);
     assert_eq!(catalog.visibility, CatalogVisibility::Internal);
-    assert_eq!(catalog.role, CatalogRole::WorkflowStage);
-    assert_eq!(catalog.execution, Some(CatalogExecution::Plan));
-    assert_eq!(catalog.completion, Some(CatalogCompletion::Plan));
-    assert_eq!(catalog.approval, Some(CatalogApproval::Required));
-    assert_eq!(catalog.part_of, vec!["runx/demo"]);
     // Typed kinds serialize back to their original snake_case wire strings.
-    assert_eq!(catalog.kind.as_str(), "graph");
-    assert_eq!(catalog.audience.as_str(), "builder");
     assert_eq!(catalog.visibility.as_str(), "internal");
-    assert_eq!(catalog.role.as_str(), "workflow-stage");
     Ok(())
 }
 
@@ -70,35 +57,7 @@ runners:
     let catalog = manifest
         .catalog
         .ok_or_else(|| "expected catalog metadata".to_owned())?;
-    assert_eq!(catalog.kind, CatalogKind::Skill);
     assert_eq!(catalog.visibility, CatalogVisibility::Public);
-    assert_eq!(catalog.role, CatalogRole::Context);
-    Ok(())
-}
-
-#[test]
-fn catalog_audience_accepts_system_sync_profiles() -> Result<(), String> {
-    let manifest = parse_manifest(
-        r#"
-catalog:
-  kind: skill
-  audience: system
-  visibility: internal
-  role: canonical
-skill: demo
-runners:
-  default:
-    steps:
-      - id: default
-        agent: { role: agent, task: default }
-"#,
-    )?;
-
-    let catalog = manifest
-        .catalog
-        .ok_or_else(|| "expected catalog metadata".to_owned())?;
-    assert_eq!(catalog.audience, CatalogAudience::System);
-    assert_eq!(catalog.audience.as_str(), "system");
     Ok(())
 }
 

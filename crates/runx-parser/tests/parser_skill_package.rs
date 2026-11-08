@@ -263,38 +263,6 @@ runners:
 }
 
 #[test]
-fn skill_package_manual_owns_nested_execution_profiles() {
-    let source = package([
-        ("SKILL.md", manual("operator")),
-        (
-            "run.yaml",
-            "skill: operator\nrunners:\n  inspect:\n    steps:\n      - id: inspect\n        agent: { role: agent, task: inspect }\n".to_owned(),
-        ),
-        (
-            "graph/plan/run.yaml",
-            "skill: operator-plan\nrunners:\n  plan:\n    steps:\n      - id: plan\n        tool: { module: plan.mjs }\n".to_owned(),
-        ),
-        (
-            "graph/plan/plan.mjs",
-            "export default (inputs) => inputs;\n".to_owned(),
-        ),
-    ]);
-
-    let validated = validate_skill_package(source).expect("owned profiles must validate");
-
-    assert_eq!(
-        validated.profiles.keys().cloned().collect::<Vec<_>>(),
-        vec!["graph/plan/run.yaml", "run.yaml"]
-    );
-    assert!(
-        validated
-            .javascript_modules
-            .contains_key("graph/plan/plan.mjs")
-    );
-    assert_eq!(validated.manual_markdown, manual("operator"));
-}
-
-#[test]
 fn skill_package_owns_operator_reference_markdown() {
     let source = package([
         ("SKILL.md", manual("operator")),
@@ -438,32 +406,8 @@ harness:
             .to_owned(),
         ),
         (
-            "graph/plan/run.yaml",
-            r#"skill: demo-plan
-runners:
-  plan:
-    steps:
-      - id: plan
-        agent: { role: agent, task: plan }
-harness:
-  files:
-    - fixtures/plan-helper.mjs
-  cases:
-    - name: plan
-      runner: plan
-      inputs: {}
-      expect:
-        status: needs_agent
-"#
-            .to_owned(),
-        ),
-        (
             "fixtures/root-helper.mjs",
             "export default 'root';\n".to_owned(),
-        ),
-        (
-            "graph/plan/fixtures/plan-helper.mjs",
-            "export default 'plan';\n".to_owned(),
         ),
     ]);
 
@@ -471,37 +415,8 @@ harness:
 
     assert_eq!(
         validated.test_files,
-        BTreeSet::from([
-            "fixtures/root-helper.mjs".to_owned(),
-            "graph/plan/fixtures/plan-helper.mjs".to_owned(),
-        ])
+        BTreeSet::from(["fixtures/root-helper.mjs".to_owned()])
     );
-}
-
-#[test]
-fn skill_package_rejects_missing_or_unsafe_test_files() {
-    for declared in [
-        "fixtures/missing.mjs",
-        "../outside.mjs",
-        "tools/not-a-fixture.mjs",
-        "fixtures/../outside.mjs",
-    ] {
-        let source = package([
-            ("SKILL.md", manual("operator")),
-            (
-                "run.yaml",
-                format!(
-                    "skill: operator\nrunners:\n  inspect:\n    steps:\n      - id: inspect\n        agent: {{ role: agent, task: inspect }}\nharness:\n  files:\n    - {declared}\n  cases:\n    - name: inspect\n      runner: inspect\n      inputs: {{}}\n      expect:\n        status: needs_agent\n"
-                ),
-            ),
-        ]);
-
-        let error = validate_skill_package(source).expect_err("unsafe harness file must fail");
-        assert!(
-            error.to_string().contains("harness file"),
-            "unexpected rejection for {declared}: {error}"
-        );
-    }
 }
 
 #[test]

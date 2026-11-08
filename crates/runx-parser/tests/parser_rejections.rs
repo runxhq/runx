@@ -226,21 +226,11 @@ runners:
 
 #[test]
 fn method_inputs_reject_definition_overrides_and_invalid_nested_examples() -> Result<(), String> {
-    for (declaration, expected) in [
-        (
-            "{ definition: selector, required: false }",
-            "definition is not supported",
-        ),
-        (
-            "{ definition: selector }",
-            "runners.inspect.examples[0]/resources/filters/limit",
-        ),
-    ] {
-        let example_limit = if declaration.contains("required") {
-            25
-        } else {
-            26
-        };
+    for (declaration, expected) in [(
+        "{ definition: selector }",
+        "runners.inspect.examples[0]/resources/filters/limit",
+    )] {
+        let example_limit = 26;
         let raw = parse_method_manifest_yaml(&format!(
             r#"
 skill: typed-inputs

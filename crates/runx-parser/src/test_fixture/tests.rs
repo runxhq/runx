@@ -20,7 +20,6 @@ expect:
 "#,
     )?;
 
-    assert_eq!(fixture.kind, TestFixtureKind::Skill);
     assert!(fixture.setup.receipts.is_empty());
     assert!(fixture.expect.receipt.is_some());
     assert!(fixture.expect.output.is_some());

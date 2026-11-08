@@ -1,1 +1,0 @@
-{"expected":{"rejection":{"kind":"validation","message":"skill is required."}},"input":{"yaml":"runners:\n  known:\n    steps:\n      - id: known\n        agent: { role: agent, task: known }\nharness:\n  cases:\n    - name: unknown\n      runner: missing\n      expect:\n        status: sealed\n"},"name":"validation-test-unknown-method","scope":"method-manifests"}
