@@ -52,7 +52,8 @@ Executable registry refs are explicit, `registry:<publisher>/<name>[@<version>]`
 with the method after `#`.
 Before the run, `runx skill` fetches each one the project does not hold, exactly
 as it fetches a top-level ref, into the project's
-`skills/<publisher>/<name>/<version>/`, and repeats for the skills those name. The
+`.runx/added-skills/<publisher>/<name>/<version>/` with the registry's
+`signature.json`, and repeats for the skills those name. The
 run resolves the step from there, so the runtime itself never reaches a
 registry. A ref with no version names the one version the project holds.
 `--registry <url>` or `RUNX_REGISTRY_URL` names another hosted registry instead
