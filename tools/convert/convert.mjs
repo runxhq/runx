@@ -785,8 +785,11 @@ function convertConnector(dir) {
     const implementation = node(operation, "implementation");
     renameProcessScopes(implementation && node(implementation, "process"));
     const http = implementation && node(implementation, "http");
-    for (const request of (http && node(http, "requests")?.items) ?? []) {
-      // `method` is a skill's method everywhere else in runx.
+    const checks = ["preconditions", "readbacks"].flatMap((key) => (http && node(http, key)?.items) ?? []);
+    const requests = [...((http && node(http, "requests")?.items) ?? []), ...checks.map((check) => node(check, "request")).filter(isMap)];
+    for (const request of requests) {
+      // `method` is a skill's method everywhere else in runx, and a check's
+      // request is a request like any other.
       rename(request, "method", "http_method");
       const pages = node(request, "pages");
       if (pages === undefined) continue;
