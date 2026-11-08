@@ -3,7 +3,6 @@
   "expected": {
     "kind": "output",
     "value": {
-      "workflowId": "gx_fixture",
       "state": "running",
       "steps": [
         {
@@ -23,7 +22,8 @@
           "state": "pending",
           "stepId": "second"
         }
-      ]
+      ],
+      "workflowId": "gx_fixture"
     }
   },
   "input": {
@@ -43,7 +43,6 @@
     },
     "kind": "state-machine.transitionSequentialWorkflow",
     "state": {
-      "workflowId": "gx_fixture",
       "state": "running",
       "steps": [
         {
@@ -57,7 +56,8 @@
           "state": "pending",
           "stepId": "second"
         }
-      ]
+      ],
+      "workflowId": "gx_fixture"
     }
   },
   "name": "sequential-transition-step-succeeded"

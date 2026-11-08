@@ -12,7 +12,6 @@
   "input": {
     "kind": "state-machine.planSequentialWorkflowTransition",
     "state": {
-      "workflowId": "gx_fixture",
       "state": "pending",
       "steps": [
         {
@@ -25,7 +24,8 @@
           "state": "pending",
           "stepId": "second"
         }
-      ]
+      ],
+      "workflowId": "gx_fixture"
     },
     "steps": [
       {

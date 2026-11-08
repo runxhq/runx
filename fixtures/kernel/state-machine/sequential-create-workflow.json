@@ -3,7 +3,6 @@
   "expected": {
     "kind": "output",
     "value": {
-      "workflowId": "gx_fixture",
       "state": "pending",
       "steps": [
         {
@@ -16,11 +15,11 @@
           "state": "pending",
           "stepId": "second"
         }
-      ]
+      ],
+      "workflowId": "gx_fixture"
     }
   },
   "input": {
-    "workflowId": "gx_fixture",
     "kind": "state-machine.createSequentialWorkflow",
     "steps": [
       {
@@ -32,7 +31,8 @@
         ],
         "id": "second"
       }
-    ]
+    ],
+    "workflowId": "gx_fixture"
   },
   "name": "sequential-create-workflow"
 }
