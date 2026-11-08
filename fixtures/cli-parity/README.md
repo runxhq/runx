@@ -7,9 +7,10 @@ annotations in memory.
 
 ## Fixture
 
-`harness/echo-skill.yaml` is the only persisted runtime fixture. Command
-metadata and derived parity cases are not checked in, so they cannot drift
-from the native catalog.
+The one executed runtime fixture is a test of the echo fixture package,
+`fixtures/skills/echo/tests/cli-parity-echo-skill.yaml`, since a test lives in
+the package it tests. Command metadata and derived parity cases are not
+checked in, so they cannot drift from the native catalog.
 
 ## Parity Rules
 

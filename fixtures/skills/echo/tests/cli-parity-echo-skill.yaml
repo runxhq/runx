@@ -1,6 +1,4 @@
 name: cli-parity-echo-skill
-kind: skill
-target: ../../skills/echo
 inputs:
   message: hello from cli parity
 expect:

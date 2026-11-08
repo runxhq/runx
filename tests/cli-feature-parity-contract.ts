@@ -72,7 +72,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   export: annotation("filesystem", ["skill-export", "cli-presentation"], ["export.validate"]),
   mcp: annotation("adapter", ["mcp", "caller-mediated-resolution", "workflow-runtime", "receipts"], ["mcp.skills.validate", "mcp.run.validate"], "none"),
   skill: annotation("local-runtime", ["skill-resolution", "skill-authoring", "workflow-runtime", "receipts", "execution-boundary", "authority", "caller-mediated-resolution", "adapter-process-tool", "adapter-agent", "cli-presentation"], ["skill.run.validate", "skill.inspect.validate"]),
-  harness: annotation("local-runtime", ["harness", "receipts", "execution-boundary"], ["harness.execute"]),
+  test: annotation("local-runtime", ["test", "receipts", "execution-boundary"], ["test.execute"]),
   tool: annotation("external-stub", ["tool-catalog"], ["tool.search.validate", "tool.inspect.validate"]),
   registry: annotation("external-stub", ["registry", "cli-presentation"], ["registry.validate"]),
 };
@@ -80,11 +80,11 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
 const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("cli-presentation", "runx-cli", "semantic", "Human output is normalized semantically; JSON output stays schema-exact."),
   surface("skill-resolution", "runx-cli + runx-runtime + runx-core", "fixture-backed", "Covers local paths, registry refs, and runx-maintained skill resolution."),
-  surface("workflow-runtime", "runx-runtime", "fixture-backed", "Covers graph execution, branching, caller handoffs, receipts, and the deterministic decision kernel."),
+  surface("workflow-runtime", "runx-runtime", "fixture-backed", "Covers workflow execution, branching, caller handoffs, receipts, and the deterministic decision kernel."),
   surface("receipts", "runx-receipts + runx-runtime + runx-cli", "schema-exact", "Receipt JSON and signature metadata are schema-exact parity surfaces."),
   surface("ledger", "runx-runtime", "schema-exact", "Append-only run state and continuation history must survive cutover."),
   surface("execution-boundary", "runx-contracts + runx-runtime", "schema-exact", "Runtime-observed execution boundaries remain explicit in operator and sealed evidence."),
-  surface("harness", "runx-runtime harness via runx-cli", "fixture-backed", "Harness replay mode proves deterministic fixture execution and sealed receipt checks."),
+  surface("test", "runx-runtime test replay via runx-cli", "fixture-backed", "A package's tests replay deterministically and check their sealed receipts."),
   surface("history", "runx-cli + runx-runtime", "semantic", "Search/filter behavior is command-level parity with normalized output."),
   surface("processes", "runx-cli + runx-runtime process supervisor", "schema-exact", "Processes process.start runs under the runx binary as their supervisor are listed, read by cursor and stopped natively."),
   surface("registry", "runx-cli + runx-runtime registry", "fixture-backed", "Hosted registry envelopes are exercised through native registry commands against a loopback registry."),
@@ -101,7 +101,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("skill-export", "runx-cli + runx-runtime", "semantic", "Host-agent shims are generated from validated skill packages and delegate back to governed runx skill execution."),
   surface("authority", "runx-core/policy", "schema-exact", "Grant, scope, and authority-kind policy remains machine-checkable without OSS brokerage."),
   surface("caller-mediated-resolution", "runx-runtime", "fixture-backed", "Required input, approvals, and agent work keep the same continuation contract."),
-  surface("skill-authoring", "runx-runtime + skill-build", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, harness, and transactional apply lane."),
+  surface("skill-authoring", "runx-runtime + skill-build", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, test, and transactional apply lane."),
   surface("list", "runx-cli", "semantic", "Inventory output for tools, skills, graphs and packets stays represented."),
 ];
 
@@ -122,11 +122,11 @@ export function loadCliFeatureParityContract(runx: string): CliFeatureParityCont
 
 function oracleCases(commands: readonly CommandMatrixEntry[]): readonly OracleCase[] {
   const executableCases = [
-    execute(commands, "help.top-level", "cli.help", ["--help"], 0, false, ["Usage:", "runx skill", "runx harness"], []),
+    execute(commands, "help.top-level", "cli.help", ["--help"], 0, false, ["Usage:", "runx skill", "runx test"], []),
     execute(commands, "usage.unsupported", "cli.help", ["not-a-command"], 64, false, [], ["unknown command not-a-command"]),
     execute(commands, "config.list.execute", "config", ["config", "list", "--json"], 0, true, [], []),
     execute(commands, "secret.list.execute", "secret", ["secret", "list", "--json"], 0, true, ["\"secrets\": []"], []),
-    execute(commands, "harness.execute", "harness", ["harness", "fixtures/cli-parity/harness/echo-skill.yaml", "--json"], 0, true, [], []),
+    execute(commands, "test.execute", "test", ["test", "fixtures/skills/echo/tests/cli-parity-echo-skill.yaml", "--json"], 0, true, [], []),
     execute(
       commands,
       "history.execute",
