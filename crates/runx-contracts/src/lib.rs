@@ -308,7 +308,7 @@ pub use tools::{
 };
 pub use work_outcome::{WorkOutcome, WorkProposal, WorkState};
 pub use x402::{
-    RUNX_PURCHASE_EXTENSION_KEY, RUNX_X402_PURCHASE_EXTENSION_SCHEMA, RunxX402PurchaseExtension,
+    RUNX_PURCHASE_EXTENSION_KEY, RUNX_X402_PURCHASE_EXTENSION_SCHEMA,
     RunxX402PurchaseExtensionInfo, X402_PAYMENT_PAYLOAD_SCHEMA_ID, X402_PAYMENT_REQUIRED_HEADER,
     X402_PAYMENT_REQUIRED_SCHEMA_ID, X402_PAYMENT_REQUIREMENTS_SCHEMA_ID,
     X402_PAYMENT_RESPONSE_HEADER, X402_PAYMENT_SIGNATURE_HEADER, X402_PROTOCOL_VERSION,
@@ -316,7 +316,7 @@ pub use x402::{
     X402_UPSTREAM_PACKAGE, X402_UPSTREAM_PACKAGE_VERSION, X402AcceptedRequirements, X402IconUrl,
     X402Network, X402PaymentPayload, X402PaymentRequired, X402PaymentRequirements,
     X402PositiveNumber, X402ResourceInfo, X402ServiceName, X402SettleResponse, X402Tag, X402Tags,
-    X402Version2, parse_runx_purchase_extension, runx_purchase_extension_value,
+    X402Version2,
 };
 
 pub use skill_inspection::{

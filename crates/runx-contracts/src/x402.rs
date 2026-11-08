@@ -17,7 +17,7 @@ use crate::schema::{
     record_named, titled,
 };
 use crate::{
-    Digest, JsonObject, JsonValue, OfferVersionBinding, PaymentIdempotencyBinding,
+    Digest, JsonObject, OfferVersionBinding, PaymentIdempotencyBinding,
     PurchaseCanonicalizerVersion, Reference,
 };
 
@@ -86,10 +86,6 @@ impl X402Network {
         let value = value.into();
         (value.len() >= 3 && value.contains(':')).then_some(Self(value))
     }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for X402Network {
@@ -115,10 +111,6 @@ pub struct X402PositiveNumber(f64);
 impl X402PositiveNumber {
     pub fn new(value: f64) -> Option<Self> {
         (value.is_finite() && value > 0.0).then_some(Self(value))
-    }
-
-    pub fn get(self) -> f64 {
-        self.0
     }
 }
 
@@ -161,10 +153,6 @@ impl X402ServiceName {
         let value = value.into();
         printable_ascii(&value, 32).then_some(Self(value))
     }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for X402ServiceName {
@@ -192,10 +180,6 @@ impl X402Tag {
         let value = value.into();
         printable_ascii(&value, 32).then_some(Self(value))
     }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 impl<'de> Deserialize<'de> for X402Tag {
@@ -221,10 +205,6 @@ pub struct X402Tags(Vec<X402Tag>);
 impl X402Tags {
     pub fn new(value: Vec<X402Tag>) -> Option<Self> {
         (value.len() <= 5).then_some(Self(value))
-    }
-
-    pub fn as_slice(&self) -> &[X402Tag] {
-        &self.0
     }
 }
 
@@ -252,10 +232,6 @@ impl X402IconUrl {
     pub fn new(value: impl Into<String>) -> Option<Self> {
         let value = value.into();
         (value.len() <= 2_048).then_some(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
     }
 }
 
@@ -358,10 +334,6 @@ pub struct X402AcceptedRequirements(Vec<X402PaymentRequirements>);
 impl X402AcceptedRequirements {
     pub fn new(value: Vec<X402PaymentRequirements>) -> Option<Self> {
         (!value.is_empty()).then_some(Self(value))
-    }
-
-    pub fn as_slice(&self) -> &[X402PaymentRequirements] {
-        &self.0
     }
 }
 
@@ -536,15 +508,6 @@ pub enum RunxX402PurchaseExtensionInfo {
     },
 }
 
-/// The standard external x402 `{ info, schema }` declaration, specialized to
-/// the strict Runx v1 purchase projection.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct RunxX402PurchaseExtension {
-    pub info: RunxX402PurchaseExtensionInfo,
-    pub schema: JsonObject,
-}
-
 fn external_object_schema(id: &'static str, properties: Vec<Property>) -> Value {
     object_schema(properties, false, Some(Identity::External { url: id }))
 }
@@ -572,18 +535,4 @@ impl fmt::Display for X402Network {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
     }
-}
-
-/// Convert a typed extension declaration into the opaque external extension map value.
-pub fn runx_purchase_extension_value(
-    extension: &RunxX402PurchaseExtension,
-) -> Result<JsonValue, serde_json::Error> {
-    serde_json::from_value(serde_json::to_value(extension)?)
-}
-
-/// Decode the opaque external extension map value into the strict Runx declaration.
-pub fn parse_runx_purchase_extension(
-    value: JsonValue,
-) -> Result<RunxX402PurchaseExtension, de::value::Error> {
-    value.deserialize_into()
 }
