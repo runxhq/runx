@@ -83,7 +83,9 @@ export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/sr
 // by extension, Go among them, and Makefiles by name.
 export const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|json|ya?ml|toml|sql|rb|py|sh|md|go|mk)$|(^|\/)Makefile$/;
 
-// What can't truthfully change (§4.6): history documents, and Ausca's
-// catalog history, content-addressed immutable purchase data, and its dated
-// run-through records. Signed data is found by its signature.
-export const HISTORY = /(^|\/)(release\/notes|plans\/(archive|evidence)|\.scafld\/specs\/archive|\.ai|mockups|proof)\/|^catalog\/history\/|^docs\/run-through-findings-[0-9-]+\.md$/;
+// What can't truthfully change (§4.6), in its text or its path: history
+// documents; Ausca's catalog history, content-addressed immutable purchase
+// data, and its dated run-through records; and Cloud's copy of the CLI release
+// it adopted, as that release shipped, each file's digest in its release.json.
+// Signed data is found by its signature.
+export const HISTORY = /(^|\/)(release\/notes|plans\/(archive|evidence)|\.scafld\/specs\/archive|\.ai|mockups|proof)\/|^catalog\/history\/|^docs\/run-through-findings-[0-9-]+\.md$|^apps\/web\/src\/content\/release\//;

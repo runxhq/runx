@@ -236,6 +236,18 @@ test("Cloud's generated API schema modules are their generator's", (t) => {
   assert.equal(read(root, "packages/api/src/generated/index.ts"), "// Each test schema.\n");
 });
 
+test("Cloud's copy of the CLI release it adopted keeps its text and its paths", (t) => {
+  const release = {
+    "apps/web/src/content/release/release.json": '{ "files": { "schemas/harness-context.schema.json": {} } }\n',
+    "apps/web/src/content/release/schemas/schemas/harness-context.schema.json": '{ "title": "The harness context a runner reads." }\n',
+  };
+  const root = tree(t, { ...cloudPin, ...release, "apps/web/src/lib/release.ts": "// The harness-context schema ships with the release.\n" });
+  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
+  assert.equal(status, 0, out);
+  for (const [file, text] of Object.entries(release)) assert.equal(read(root, file), text, file);
+  assert.equal(read(root, "apps/web/src/lib/release.ts"), "// The run-context schema ships with the release.\n");
+});
+
 test("Ausca's catalog keys are pinned, so retained history decodes, while the code around them renames", (t) => {
   const root = tree(t, auscaPins);
   const { status, out } = run(RENAME, "apply", "ausca", root, "--write");

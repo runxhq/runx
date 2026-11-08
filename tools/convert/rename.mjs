@@ -394,10 +394,12 @@ function apply(repo, root, write, list, showStays) {
   // its file, a test. Each segment of a path, a folder or a file's stem, is
   // renamed when the table renames that exact name. A renamed folder moves
   // whole, its run.yaml and vendored files included, so no package is split.
-  // A file keeps its own name only where the name isn't ours to change.
+  // A file keeps its own name only where the name isn't ours to change, and a
+  // history document keeps its whole path as it keeps its text.
   const moves = new Map();
   const stranded = [];
   for (const file of workingFiles(root)) {
+    if (HISTORY_DOCS.test(file)) continue;
     const parts = file.split("/");
     const keepsName = KEEPS_NAME.test(file);
     const renamed = parts.map((part, index) => {
@@ -407,7 +409,7 @@ function apply(repo, root, write, list, showStays) {
       const stem = dot > 0 ? part.slice(0, dot) : part;
       let to = renames.get(stem);
       const upTo = parts.slice(0, index + 1).join("/") + (last ? "" : "/");
-      if (to === undefined && bareWord(stem) !== undefined && !STAYING_PATHS.test(upTo) && !HISTORY_DOCS.test(file)) to = renamedBare(stem, "");
+      if (to === undefined && bareWord(stem) !== undefined && !STAYING_PATHS.test(upTo)) to = renamedBare(stem, "");
       return to === undefined ? part : to + (dot > 0 ? part.slice(dot) : "");
     });
     const target = renamed.join("/");
