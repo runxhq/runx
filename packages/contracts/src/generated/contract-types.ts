@@ -3371,10 +3371,9 @@ export type RunxListItemContract = {
   readonly steps?: number;
   /** A skill's catalog visibility; public when its manifest declares none. */
   readonly visibility?: RunxListVisibilityContract;
-  readonly wraps?: string;
 };
 
-export type RunxListItemKindContract = "tool" | "skill" | "graph" | "packet" | "overlay";
+export type RunxListItemKindContract = "tool" | "skill" | "graph" | "packet";
 
 export type RunxListReportContract = {
   readonly items: readonly RunxListItemContract[];
@@ -3383,7 +3382,7 @@ export type RunxListReportContract = {
   readonly schema: RunxListSchemaContract;
 };
 
-export type RunxListRequestedKindContract = "all" | "tools" | "skills" | "graphs" | "packets" | "overlays";
+export type RunxListRequestedKindContract = "all" | "tools" | "skills" | "graphs" | "packets";
 
 export type RunxListSchemaContract = "runx.list.v1";
 

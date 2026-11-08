@@ -23,7 +23,6 @@ pub enum RunxListRequestedKind {
     Skills,
     Graphs,
     Packets,
-    Overlays,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -33,7 +32,6 @@ pub enum RunxListItemKind {
     Skill,
     Graph,
     Packet,
-    Overlay,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -99,8 +97,6 @@ pub struct RunxListItem {
     pub harness_cases: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub steps: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wraps: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]

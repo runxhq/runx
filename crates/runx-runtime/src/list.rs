@@ -1,5 +1,5 @@
 // Module rationale: native list discovery keeps tool, skill,
-// graph, packet, and overlay projection in one audited surface.
+// graph and packet projection in one audited surface.
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -9,21 +9,13 @@ pub use runx_contracts::{
 };
 
 use crate::RuntimeError;
-use crate::filesystem::{read_dir_sorted, read_to_string};
+use crate::filesystem::read_dir_sorted;
 use crate::path_util::{count_yaml_files, display_path, lexical_normalize, project_path};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RunxListOptions {
     pub root: PathBuf,
     pub requested_kind: RunxListRequestedKind,
-}
-
-#[must_use]
-pub fn default_list_options(root: PathBuf) -> RunxListOptions {
-    RunxListOptions {
-        root,
-        requested_kind: RunxListRequestedKind::All,
-    }
 }
 
 pub fn list_authoring_primitives(
@@ -82,12 +74,6 @@ fn discover_list_items(
     ) {
         items.extend(discover_packet_list_items(root)?);
     }
-    if matches!(
-        requested_kind,
-        RunxListRequestedKind::All | RunxListRequestedKind::Overlays
-    ) {
-        items.extend(discover_overlay_list_items(root)?);
-    }
     Ok(items)
 }
 
@@ -135,8 +121,7 @@ fn discover_tool_list_items(
                     fixtures: Some(count_yaml_files(&tool_entry.path.join("fixtures"))?),
                     harness_cases: None,
                     steps: None,
-                    wraps: None,
-                }),
+                    }),
                 Err(()) => items.push(invalid_item(
                     RunxListItemKind::Tool,
                     format!("{}.{}", namespace_entry.name, tool_entry.name),
@@ -291,7 +276,6 @@ fn skill_profile_list_item(
                 .map(|runner| runner.graph.steps.len() as u64)
                 .sum(),
         ),
-        wraps: None,
     }
 }
 
@@ -369,45 +353,6 @@ fn discover_packet_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeE
                 fixtures: None,
                 harness_cases: None,
                 steps: None,
-                wraps: None,
-            });
-        }
-    }
-    Ok(items)
-}
-
-fn discover_overlay_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
-    let overlays_root = root.join("skills-overlays");
-    let mut items = Vec::new();
-    for publisher_entry in read_dir_sorted(&overlays_root)? {
-        if !publisher_entry.is_dir {
-            continue;
-        }
-        for skill_entry in read_dir_sorted(&publisher_entry.path)? {
-            if !skill_entry.is_dir {
-                continue;
-            }
-            let profile_path = skill_entry.path.join(runx_parser::PROFILE_FILE);
-            if !profile_path.exists() {
-                continue;
-            }
-            let contents = read_to_string(&profile_path)?;
-            items.push(RunxListItem {
-                kind: RunxListItemKind::Overlay,
-                name: format!("{}/{}", publisher_entry.name, skill_entry.name),
-                source: RunxListSource::Local,
-                path: project_path(root, &profile_path),
-                status: RunxListStatus::Ok,
-                visibility: None,
-                description: None,
-                runners: None,
-                diagnostics: None,
-                scopes: None,
-                emits: None,
-                fixtures: None,
-                harness_cases: None,
-                steps: None,
-                wraps: overlay_wraps(&contents),
             });
         }
     }
@@ -435,7 +380,6 @@ fn invalid_item(
         fixtures: None,
         harness_cases: None,
         steps: None,
-        wraps: None,
     }
 }
 
@@ -450,17 +394,6 @@ fn fallback_skill_name(root: &Path, skill_dir: &Path) -> String {
         || ".".to_owned(),
         |name| name.to_string_lossy().into_owned(),
     )
-}
-
-fn overlay_wraps(contents: &str) -> Option<String> {
-    contents.lines().find_map(|line| {
-        let trimmed = line.trim();
-        trimmed
-            .strip_prefix("wraps:")
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned)
-    })
 }
 
 fn sort_list_items(items: &mut [RunxListItem]) {
@@ -487,7 +420,6 @@ fn kind_order(kind: RunxListItemKind) -> u8 {
         RunxListItemKind::Skill => 1,
         RunxListItemKind::Graph => 2,
         RunxListItemKind::Packet => 3,
-        RunxListItemKind::Overlay => 4,
     }
 }
 
@@ -496,14 +428,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
-
-    #[test]
-    fn overlay_wraps_reads_plain_wraps_line() {
-        assert_eq!(
-            overlay_wraps("name: demo\n  wraps: acme/base\n"),
-            Some("acme/base".to_owned())
-        );
-    }
 
     #[test]
     fn named_emit_lists_only_explicit_packet_binding() -> Result<(), &'static str> {
@@ -586,7 +510,6 @@ mod tests {
             fixtures: None,
             harness_cases: None,
             steps: None,
-            wraps: None,
-        }
+            }
     }
 }

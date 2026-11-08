@@ -194,7 +194,6 @@ fn list_item(name: &str, scopes: &[&str], emits: Option<Vec<RunxListEmit>>) -> R
         fixtures: None,
         harness_cases: None,
         steps: None,
-        wraps: None,
     }
 }
 

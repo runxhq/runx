@@ -51,8 +51,7 @@
               "tool",
               "skill",
               "graph",
-              "packet",
-              "overlay"
+              "packet"
             ],
             "title": "RunxListItemKind",
             "type": "string"
@@ -121,9 +120,6 @@
             ],
             "title": "RunxListVisibility",
             "type": "string"
-          },
-          "wraps": {
-            "type": "string"
           }
         },
         "required": [
@@ -144,8 +140,7 @@
         "tools",
         "skills",
         "graphs",
-        "packets",
-        "overlays"
+        "packets"
       ],
       "title": "RunxListRequestedKind",
       "type": "string"

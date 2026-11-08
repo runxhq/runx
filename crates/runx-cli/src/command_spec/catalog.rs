@@ -100,7 +100,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "list",
         top_level_usage: &[],
         usage: &[
-            "runx list [tools|skills|graphs|packets|overlays] [--ok-only|--invalid-only] [-j|--json]",
+            "runx list [tools|skills|graphs|packets] [--ok-only|--invalid-only] [-j|--json]",
         ],
         notes: &[],
         options: &["--ok-only", "--invalid-only", "-j, --json"],

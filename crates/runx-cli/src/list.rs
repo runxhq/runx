@@ -85,7 +85,6 @@ fn requested_kind(kind: ListKind) -> RunxListRequestedKind {
         ListKind::Skills => RunxListRequestedKind::Skills,
         ListKind::Graphs => RunxListRequestedKind::Graphs,
         ListKind::Packets => RunxListRequestedKind::Packets,
-        ListKind::Overlays => RunxListRequestedKind::Overlays,
     }
 }
 
@@ -126,7 +125,6 @@ fn kind_label(kind: RunxListItemKind) -> &'static str {
         RunxListItemKind::Skill => "skill",
         RunxListItemKind::Graph => "graph",
         RunxListItemKind::Packet => "packet",
-        RunxListItemKind::Overlay => "overlay",
     }
 }
 
@@ -200,7 +198,7 @@ mod tests {
 
         let output = run_list_command(
             &ListPlan {
-                kind: ListKind::Overlays,
+                kind: ListKind::Packets,
                 filter: FilterMode::All,
                 json: false,
             },

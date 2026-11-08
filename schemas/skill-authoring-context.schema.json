@@ -37,8 +37,7 @@
               "tool",
               "skill",
               "graph",
-              "packet",
-              "overlay"
+              "packet"
             ],
             "title": "RunxListItemKind",
             "type": "string"
@@ -101,8 +100,7 @@
               "tool",
               "skill",
               "graph",
-              "packet",
-              "overlay"
+              "packet"
             ],
             "title": "RunxListItemKind",
             "type": "string"

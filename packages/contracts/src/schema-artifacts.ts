@@ -17428,8 +17428,7 @@ export const runxSchemaArtifacts = {
                 "tool",
                 "skill",
                 "graph",
-                "packet",
-                "overlay"
+                "packet"
               ],
               "title": "RunxListItemKind",
               "type": "string"
@@ -17498,9 +17497,6 @@ export const runxSchemaArtifacts = {
               ],
               "title": "RunxListVisibility",
               "type": "string"
-            },
-            "wraps": {
-              "type": "string"
             }
           },
           "required": [
@@ -17521,8 +17517,7 @@ export const runxSchemaArtifacts = {
           "tools",
           "skills",
           "graphs",
-          "packets",
-          "overlays"
+          "packets"
         ],
         "title": "RunxListRequestedKind",
         "type": "string"
@@ -37188,8 +37183,7 @@ export const runxSchemaArtifacts = {
                 "tool",
                 "skill",
                 "graph",
-                "packet",
-                "overlay"
+                "packet"
               ],
               "title": "RunxListItemKind",
               "type": "string"
@@ -37252,8 +37246,7 @@ export const runxSchemaArtifacts = {
                 "tool",
                 "skill",
                 "graph",
-                "packet",
-                "overlay"
+                "packet"
               ],
               "title": "RunxListItemKind",
               "type": "string"
