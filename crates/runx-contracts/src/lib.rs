@@ -65,8 +65,7 @@ pub mod x402;
 
 pub use act::assignment::{
     ActAssignment, ActAssignmentActor, ActAssignmentHost, ActAssignmentHostKind,
-    ActAssignmentIdempotency, ActAssignmentSchema, BuildActAssignment, IntentKeyInput,
-    derive_content_digest, derive_intent_key, derive_trigger_key,
+    ActAssignmentIdempotency, ActAssignmentSchema,
 };
 pub use act::call::{CALL_ACT_TARGET_MAX, CALL_ACT_TEXT_MAX, CallAct};
 pub use act::result::{

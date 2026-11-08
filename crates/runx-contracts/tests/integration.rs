@@ -5,7 +5,6 @@
 //! Cargo.toml keeps Cargo from also building each file as its own binary.
 //! See .scafld/specs/active/test-surface-build-consolidation.md.
 
-mod act_assignment_fixtures;
 mod credential_delivery_fixtures;
 mod doctor_fixtures;
 mod example_external_fixture;
