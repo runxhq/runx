@@ -8,7 +8,7 @@ describe("twitter archive selection", () => {
     const second = select("runx:local-artifact:second");
 
     expect(first).toEqual(second);
-    expect(first.evidence_refs).toEqual(["sha256:archive-content"]);
+    expect(first.evidence_locators).toEqual(["sha256:archive-content"]);
   });
 });
 

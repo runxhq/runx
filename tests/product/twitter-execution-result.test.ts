@@ -14,7 +14,7 @@ describe("twitter execution provider outcomes", () => {
         {
           kind: "unfollow",
           status: "done",
-          provider_ref: "target-1",
+          external_id: "target-1",
           detail: null,
         },
       ],
@@ -71,7 +71,7 @@ describe("twitter execution provider outcomes", () => {
         {
           kind: "unfollow",
           status: "done",
-          provider_ref: "target-1",
+          external_id: "target-1",
           detail: "Target account is inactive; the requested not-following state is already satisfied.",
         },
       ],
@@ -106,7 +106,7 @@ describe("twitter execution provider outcomes", () => {
     }).twitter_execution;
     expect(first.counts).toEqual({ processed: 1, succeeded: 0, failed: 1 });
     expect(first.last_failure).toEqual({
-      act_id: "act-001", reason: "The first act was refused.", evidence_ref: "fixture:first",
+      act_id: "act-001", reason: "The first act was refused.", evidence_uri: "fixture:first",
     });
     const second = finalizeExecution({
       execution_plan: {
