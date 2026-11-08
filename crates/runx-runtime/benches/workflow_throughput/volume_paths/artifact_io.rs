@@ -191,8 +191,7 @@ impl ToolCalls {
             parse_method_manifest_yaml(&serde_json::to_string(&serde_json::json!({
                 "minimum_runx": "0.12.0",
                 "methods": {"call": {
-                    // Each artifact tool reads the files it admits or pages.
-                    "steps": [{"id": "call", "tool": tool, "scopes": ["fs.read"], "inputs": inputs}],
+                    "steps": [{"id": "call", "tool": tool, "inputs": inputs}],
                 }},
             }))?)?,
         )?
