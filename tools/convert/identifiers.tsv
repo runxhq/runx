@@ -1594,6 +1594,7 @@ oss	web-search-composes-in-graph	1	graph	web-search-composes-in-workflow		skills
 oss	webhook-handoff-composes-in-graph	1	graph	webhook-handoff-composes-in-workflow		skills/webhook-handoff/tests/composes-in-workflow.yaml
 oss	wrong-closure	1	closure	wrong-closure	a package's closure, or English: stays	crates/runx-cli/tests/operator_journeys.rs
 oss	agent		decided	agent	one thing: the skill's name, which agent-session takes	
+oss	input_mode		decided	inputs_via	how a process gets its inputs, the format's word (rename-table.tsv row 44), in the tool manifest's contract too	
 oss	OpenTurn		decided	OpenTurn	the open turn (turn.rs:230). The MCP server's private listing line of the same name (server_turn.rs:271) becomes ListedTurn by hand	
 oss	run_ref		decided	run_ref	one thing: a reference to the run, the name harness_ref takes	
 oss	RunContext		moved	CallerContext	Kam, 8 November: one thing with the CLI's CallerContext (parser.rs:167), the caller's current and historical context, so Stage 3 makes them one type under that name	
