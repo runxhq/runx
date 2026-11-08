@@ -174,7 +174,7 @@ methods:
         when:
           value: $steps.context.adoption_context.decision
           equals: build
-        skill: skill-build#build
+        skill: runx/skill-build#build
         inputs:
           objective: $input.objective
           repo_root: $input.repo_root

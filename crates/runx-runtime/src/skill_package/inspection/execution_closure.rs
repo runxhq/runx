@@ -28,6 +28,9 @@ struct ClosureAccumulator {
     /// Every registry ref a step or context skill of the closure names,
     /// held or not.
     registry_refs: BTreeSet<String>,
+    /// The registry refs the closure's own packages name, which a publish
+    /// carries: those its registry children name are their publishers'.
+    local_registry_refs: BTreeSet<String>,
     package_bindings: BTreeSet<ExecutionPackageBinding>,
     /// Each connector the closure binds, as its package resolved it.
     connector_bindings: BTreeMap<ExecutionConnectorBinding, Arc<LoadedConnector>>,
@@ -93,6 +96,8 @@ pub(crate) struct LocalExecutionClosure {
     /// Each package the closure runs, with the packets its runners declare.
     pub packages: BTreeMap<PathBuf, BTreeSet<runx_contracts::PacketId>>,
     pub skill_edges: BTreeSet<LocalSkillEdge>,
+    /// Every registry ref those packages name.
+    pub registry_refs: BTreeSet<String>,
 }
 
 #[derive(Serialize)]
@@ -380,6 +385,7 @@ impl ClosureAccumulator {
         LocalExecutionClosure {
             packages: self.local_packages,
             skill_edges: self.local_skill_edges,
+            registry_refs: self.local_registry_refs,
         }
     }
 }
@@ -396,6 +402,7 @@ fn merge_local_execution_closure(
             .extend(packet_ids);
     }
     target.skill_edges.extend(source.skill_edges);
+    target.registry_refs.extend(source.registry_refs);
 }
 
 struct ExecutionClosureInspector<'a> {
@@ -760,12 +767,18 @@ impl<'a> ExecutionClosureInspector<'a> {
             }
         }
         for step in &graph.steps {
-            walk.closure.registry_refs.extend(
-                step.context_skills
-                    .iter()
-                    .filter(|reference| runx_parser::registry_ref(reference).is_some())
-                    .cloned(),
-            );
+            let context_registry_refs = step
+                .context_skills
+                .iter()
+                .filter(|reference| runx_parser::registry_ref(reference).is_some());
+            if context.materialize_local {
+                walk.closure
+                    .local_registry_refs
+                    .extend(context_registry_refs.clone().cloned());
+            }
+            walk.closure
+                .registry_refs
+                .extend(context_registry_refs.cloned());
             if self.unheld_registry_refs == UnheldRegistryRefs::Report
                 && let Some(env) = self.env
             {
@@ -840,6 +853,11 @@ impl<'a> ExecutionClosureInspector<'a> {
                 let reference = step_reference(step);
                 if runx_parser::registry_ref(reference).is_some() {
                     walk.closure.registry_refs.insert(reference.to_owned());
+                    if context.materialize_local {
+                        walk.closure
+                            .local_registry_refs
+                            .insert(reference.to_owned());
+                    }
                 }
                 // A bundled name is a requirement of the runtime, never a
                 // package the closure carries (D30).

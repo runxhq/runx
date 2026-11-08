@@ -196,6 +196,31 @@ fn refuse_signatures(
     }
 }
 
+/// A published package binds an exact closure, so each registry ref it
+/// names pins the version it binds: one that names none would run whatever
+/// the registry publishes next (D30).
+fn refuse_unpinned_registry_refs(
+    closure: &crate::skill_package::LocalExecutionClosure,
+) -> Result<(), RegistryPublishPackageError> {
+    let unpinned = closure
+        .registry_refs
+        .iter()
+        .filter(|reference| {
+            crate::registry::parse_registry_ref(reference)
+                .version
+                .is_none()
+        })
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    if unpinned.is_empty() {
+        return Ok(());
+    }
+    Err(RegistryPublishPackageError::invalid(format!(
+        "a published package pins each registry ref to a version, and it names {} with none",
+        unpinned.join(", ")
+    )))
+}
+
 fn prepare_loaded_package(
     loaded: &LoadedSkillPackage,
     env: &BTreeMap<String, String>,
@@ -204,6 +229,7 @@ fn prepare_loaded_package(
     let local_closure = crate::skill_package::inspect_loaded_local_execution_closure(loaded, env)
         .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
     refuse_signatures(loaded, &local_closure)?;
+    refuse_unpinned_registry_refs(&local_closure)?;
     let profile_document = loaded
         .profile_path
         .as_deref()
@@ -301,6 +327,119 @@ mod tests {
             };
             assert!(error.contains("signature"), "{path}: {error}");
         }
+        Ok(())
+    }
+
+    /// A published package pins every registry ref it names: one with no
+    /// version is refused, though the project holds a signed copy it would
+    /// run today.
+    #[test]
+    fn a_package_naming_an_unpinned_registry_ref_is_never_published()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let child = temp.path().join(".runx/added-skills/acme/echo/1.0.0");
+        fs::create_dir_all(&child)?;
+        fs::write(
+            child.join("SKILL.md"),
+            "---\nname: echo\ndescription: Echoes.\n---\n# Echo\n",
+        )?;
+        fs::write(
+            child.join("run.yaml"),
+            "version: \"1.0.0\"\nminimum_runx: 0.12.0\nmethods:\n  say:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: hi\n          encoding: utf8_text\n",
+        )?;
+        crate::registry::signature::testing::sign(
+            &child,
+            runx_contracts::RegistrySubjectKind::Skill,
+            "acme/echo",
+            "1.0.0",
+        )?;
+        let root = temp.path().join("skills/caller");
+        fs::create_dir_all(&root)?;
+        fs::write(
+            root.join("SKILL.md"),
+            "---\nname: caller\ndescription: Calls echo.\n---\n# Caller\n",
+        )?;
+        let profile = |reference: &str| {
+            format!(
+                "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: call\n        skill: {reference}#say\n"
+            )
+        };
+        let mut env = crate::registry::signature::testing::trusting("acme")?;
+        env.insert(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            temp.path().display().to_string(),
+        );
+        env.insert(
+            crate::paths::RUNX_HOME_ENV.to_owned(),
+            temp.path().join("home").display().to_string(),
+        );
+        let publish = || {
+            prepare_registry_publish_package(RegistryPublishPackageRequest {
+                subject: "skills/caller",
+                env: &env,
+                cwd: temp.path(),
+            })
+        };
+        fs::write(root.join("run.yaml"), profile("registry:acme/echo"))?;
+        let error = publish().err().ok_or("an unpinned ref was published")?;
+        assert!(
+            error.to_string().contains("registry:acme/echo with none"),
+            "{error}"
+        );
+        fs::write(root.join("run.yaml"), profile("registry:acme/echo@1.0.0"))?;
+        publish()?;
+        Ok(())
+    }
+
+    /// `runx/<name>` names the skill this runx bundles: a requirement of the
+    /// runtime, which a published package never carries, and which a
+    /// workspace copy of the same name does not shadow (D30).
+    #[test]
+    fn a_bundled_name_is_a_runtime_requirement_and_never_carried()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let shadow = temp.path().join("skills/receipt-query");
+        fs::create_dir_all(&shadow)?;
+        fs::write(
+            shadow.join("SKILL.md"),
+            "---\nname: receipt-query\ndescription: A workspace copy.\n---\n# Shadow\n",
+        )?;
+        let root = temp.path().join("skills/caller");
+        fs::create_dir_all(&root)?;
+        fs::write(
+            root.join("SKILL.md"),
+            "---\nname: caller\ndescription: Reads receipts.\n---\n# Caller\n",
+        )?;
+        fs::write(
+            root.join("run.yaml"),
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: read\n        skill: runx/receipt-query#read\n",
+        )?;
+        let env = BTreeMap::from([
+            (
+                crate::paths::RUNX_CWD_ENV.to_owned(),
+                temp.path().display().to_string(),
+            ),
+            (
+                crate::paths::RUNX_HOME_ENV.to_owned(),
+                temp.path().join("home").display().to_string(),
+            ),
+        ]);
+        let package = prepare_registry_publish_package(RegistryPublishPackageRequest {
+            subject: "skills/caller",
+            env: &env,
+            cwd: temp.path(),
+        })?;
+        let paths = package
+            .package_files()
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(paths, ["runx.package.json"], "nothing bundled is carried");
+        assert!(
+            temp.path().join("home/bundled/receipt-query").is_dir(),
+            "the bundled copy materialized into the home"
+        );
+        assert!(!temp.path().join(".runx/added-skills").exists());
         Ok(())
     }
 
