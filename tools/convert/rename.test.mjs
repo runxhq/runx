@@ -249,6 +249,16 @@ test("Ausca's own runners stay: a shell variable, a GPU job runner, its sandbox'
 // Cloud's pinned cipher label, which every Cloud tree holds.
 const cloudPin = { "packages/api/src/payments/holdings-postgres.ts": 'export const label = "purchase-holdings";\n' };
 
+test("a row of bare-words.tsv names what a bare word becomes at its site, so Cloud's client.harness is client.tests", (t) => {
+  const root = tree(t, {
+    ...cloudPin,
+    "packages/api/src/registry/native-harness.ts": "const result = await createNativeRuntimeClient(bin, env).harness.run({ skillPath });\nexport const test = result;\n",
+  });
+  const { status, out } = run(RENAME, "apply", "cloud", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "packages/api/src/registry/native-test.ts"), "const result = await createNativeRuntimeClient(bin, env).tests.run({ skillPath });\nexport const test = result;\n");
+});
+
 test("Cloud's generated API schema modules are their generator's", (t) => {
   const generated = {
     "packages/api/src/generated/public-protocol-schemas.ts": 'export const publicProtocolSchemas = { Summary: { description: "One harness run, by its runner." } };\n',
