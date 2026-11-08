@@ -5,8 +5,8 @@
 # scafld
 .ai/
 
-# dependencies
-node_modules/
+# dependencies, as a directory or a link to one
+node_modules
 
 # build output (root and any nested package)
 dist/*
