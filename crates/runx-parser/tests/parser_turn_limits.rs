@@ -2,52 +2,66 @@ use runx_contracts::{
     AllowedOperation, CatalogRule, CatalogTrust, SkillAllowance, TrustTier, TurnAllowance,
 };
 use runx_parser::{
-    SkillMethodManifest, StepKind, parse_method_manifest_yaml, parse_workflow_yaml,
+    SkillMethodManifest, Source, StepKind, parse_method_manifest_yaml, parse_workflow_yaml,
     validate_method_manifest, validate_workflow,
 };
 
-fn manifest(yaml: &str) -> Result<SkillMethodManifest, String> {
-    validate_method_manifest(parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?)
-        .map_err(|error| error.to_string())
+fn manifest(skill: &str, yaml: &str) -> Result<SkillMethodManifest, String> {
+    validate_method_manifest(
+        skill,
+        parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())
 }
 
-fn refusal(yaml: &str) -> Result<String, String> {
-    manifest(yaml)
+fn refusal(skill: &str, yaml: &str) -> Result<String, String> {
+    manifest(skill, yaml)
         .err()
         .ok_or_else(|| "expected the manifest to be refused".to_owned())
 }
 
-fn allowance(manifest: &SkillMethodManifest, runner: &str) -> Result<TurnAllowance, String> {
+fn allowance(manifest: &SkillMethodManifest, method: &str) -> Result<TurnAllowance, String> {
     let step = manifest
-        .runners
-        .get(runner)
-        .and_then(|runner| runner.graph.steps.first())
-        .ok_or_else(|| format!("runner {runner} has no step"))?;
+        .methods
+        .get(method)
+        .and_then(|method| method.graph.steps.first())
+        .ok_or_else(|| format!("method {method} has no step"))?;
     match &step.kind {
         StepKind::Agent(agent) => Ok(agent.allowance.clone()),
         kind => Err(format!("expected an agent step, got {kind:?}")),
     }
 }
 
+/// One method, `work`, of one agent turn that may load under `rules`.
+fn loading(rules: &str) -> String {
+    format!(
+        "minimum_runx: 0.12.0\nmethods:\n  work:\n    steps:\n      - id: work\n        agent: work\n        calls:\n          load: [{rules}]\n        inputs: $input\n        outputs: {{summary: {{type: string}}}}\n"
+    )
+}
+
 #[test]
 fn every_agent_turn_receives_its_methods_explicit_operations() -> Result<(), String> {
     let manifest = manifest(
+        "triage",
         r#"
-skill: triage
-connectors:
-  github:
-    operations: [issue.read, issue.comment]
-tools: [fs.read, git.status]
-skills: [./label]
-asks: true
-runners:
+minimum_runx: 0.12.0
+methods:
   review:
-    operations: [github/issue.read, github/issue.comment]
     steps:
       - id: read
-        agent: { role: reviewer, task: read }
+        agent: read
+        calls:
+          tools: [fs.read, git.status]
+          operations: [github/issue.read, github/issue.comment]
+          skills: [./label]
+          ask: true
       - id: reply
-        agent: { role: writer, task: reply }
+        agent: reply
+        calls:
+          tools: [fs.read, git.status]
+          operations: [github/issue.read, github/issue.comment]
+          skills: [./label]
+          ask: true
 "#,
     )?;
 
@@ -66,70 +80,94 @@ runners:
         skills: vec![SkillAllowance::Skill("./label".into())],
         asks: true,
     };
-    for step in &manifest.runners["review"].graph.steps {
+    for step in &manifest.methods["review"].graph.steps {
         let StepKind::Agent(agent) = &step.kind else {
             return Err("expected agent steps".to_owned());
         };
         assert_eq!(agent.allowance, expected);
         assert_eq!(
             agent.connectors, manifest.connectors,
-            "each turn admits its operations under the skill's declarations"
+            "each turn admits its operations under the skill's requirements"
         );
     }
     Ok(())
 }
 
 #[test]
-fn a_method_without_steps_is_one_agent_turn() -> Result<(), String> {
-    let manifest = manifest(
-        r#"
-skill: answer
-tools: [fs.read]
-runners:
+fn a_method_of_one_agent_turn_is_one_agent_step() -> Result<(), String> {
+    // What today's parser made of a method with no steps, the converter now
+    // writes: one agent step named for the method, given the method's input
+    // and answering in its outputs.
+    let source = r#"
+minimum_runx: 0.12.0
+methods:
   reply:
-    default: true
     inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
-"#,
-    )?;
+      question: {type: string}
+    steps:
+      - id: reply
+        agent: reply
+        calls:
+          tools: [fs.read]
+        inputs: $input
+        outputs:
+          answer: {type: string}
+"#;
+    let manifest = manifest("answer", source)?;
 
-    let runner = &manifest.runners["reply"];
-    let [step] = runner.graph.steps.as_slice() else {
+    let method = &manifest.methods["reply"];
+    let [step] = method.graph.steps.as_slice() else {
         return Err("expected one step".to_owned());
     };
     assert_eq!(step.id, "reply");
     let StepKind::Agent(agent) = &step.kind else {
         return Err("expected an agent step".to_owned());
     };
-    assert_eq!(agent.task.as_str(), "reply");
+    assert_eq!(agent.task, "reply");
+    assert_eq!(step.bindings.len(), 1);
+    assert!(step.bindings[0].at.is_empty());
+    assert_eq!(step.bindings[0].source, Source::Input { path: Vec::new() });
     assert!(
         step.outputs
             .as_ref()
             .is_some_and(|outputs| outputs.contains_key("answer"))
     );
-    assert_eq!(runner.graph.result_from, ["reply"]);
+    assert_eq!(method.graph.result_from, ["reply"]);
     assert_eq!(allowance(&manifest, "reply")?.tools, ["fs.read"]);
+
+    // The method without steps is refused, by name.
+    let stepless = refusal(
+        "answer",
+        "minimum_runx: 0.12.0\nmethods:\n  reply:\n    inputs:\n      question: {type: string}\n",
+    )?;
+    assert!(
+        stepless.contains("methods.reply has no steps; a method is always its steps"),
+        "{stepless}"
+    );
     Ok(())
 }
 
 #[test]
 fn a_skills_entry_is_a_ref_or_a_catalog_rule() -> Result<(), String> {
     let manifest = manifest(
+        "session",
         r#"
-skill: session
-skills:
-  - ./label
-  - { catalog: { trust: verified } }
-  - { project: true }
-runners:
+minimum_runx: 0.12.0
+methods:
   work:
-    outputs: { summary: string }
+    steps:
+      - id: work
+        agent: work
+        calls:
+          skills: [./label]
+          load: [{catalog: {trust: verified}}, {project: true}]
+        inputs: $input
+        outputs: {summary: {type: string}}
 "#,
     )?;
+    let allowance = allowance(&manifest, "work")?;
     assert_eq!(
-        manifest.skills,
+        allowance.skills,
         [
             SkillAllowance::Skill("./label".into()),
             SkillAllowance::Rule(CatalogRule {
@@ -144,7 +182,6 @@ runners:
             }),
         ]
     );
-    let allowance = allowance(&manifest, "work")?;
     assert_eq!(
         allowance
             .named_skills()
@@ -163,35 +200,41 @@ runners:
         ("{ catalog: { trust: anyone } }", "is not a catalog rule"),
         ("{ registry: true }", "is not a catalog rule"),
     ] {
-        let error = refusal(&format!(
-            "skill: session\nskills: [{rule}]\nrunners:\n  work:\n    outputs: {{ summary: string }}\n"
-        ))?;
-        assert!(error.contains("skills[0]"), "{rule}: {error}");
+        let error = refusal("session", &loading(rule))?;
+        assert!(error.contains("load[0]"), "{rule}: {error}");
         assert!(error.contains(expected), "{rule}: {error}");
     }
-    let repeated = refusal(
-        "skill: session\nskills: [{ project: true }, { project: true }]\nrunners:\n  work:\n    outputs: { summary: string }\n",
-    )?;
-    assert!(repeated.contains("skills[1] repeats"), "{repeated}");
+    let repeated = refusal("session", &loading("{ project: true }, { project: true }"))?;
+    assert!(repeated.contains("load[1] repeats"), "{repeated}");
     Ok(())
 }
 
 #[test]
-fn a_method_narrows_the_skills_limits() -> Result<(), String> {
+fn each_turn_takes_the_calls_its_step_writes() -> Result<(), String> {
     let manifest = manifest(
+        "session",
         r#"
-skill: session
-tools: [fs.read, fs.edit]
-skills: [{ catalog: { trust: verified } }, { project: true }]
-asks: true
-runners:
+minimum_runx: 0.12.0
+methods:
   read:
-    tools: [fs.read]
-    skills: [{ project: true }]
-    asks: false
-    outputs: { summary: string }
+    steps:
+      - id: read
+        agent: read
+        calls:
+          tools: [fs.read]
+          load: [{project: true}]
+        inputs: $input
+        outputs: {summary: {type: string}}
   develop:
-    outputs: { summary: string }
+    steps:
+      - id: develop
+        agent: develop
+        calls:
+          tools: [fs.read, fs.edit]
+          load: [{catalog: {trust: verified}}, {project: true}]
+          ask: true
+        inputs: $input
+        outputs: {summary: {type: string}}
 "#,
     )?;
     let read = allowance(&manifest, "read")?;
@@ -208,26 +251,35 @@ runners:
 #[test]
 fn methods_opt_into_connector_calls_without_changing_workflow_operations() -> Result<(), String> {
     let manifest = manifest(
+        "inspect",
         r#"
-skill: inspect
-connectors:
-  fixture/forge:
-    operations: [issue.read, branch.push]
-runners:
+minimum_runx: 0.12.0
+methods:
   supplied:
-    operations: []
-    outputs: { summary: string }
+    steps:
+    - id: supplied
+      agent: supplied
+      inputs: $input
+      outputs: {summary: {type: string}}
   read:
-    operations: [fixture/forge/issue.read]
-    outputs: { summary: string }
+    steps:
+    - id: read
+      agent: read
+      calls:
+        operations: [fixture/forge/issue.read]
+      inputs: $input
+      outputs: {summary: {type: string}}
   omitted:
-    outputs: { summary: string }
+    steps:
+    - id: omitted
+      agent: omitted
+      inputs: $input
+      outputs: {summary: {type: string}}
   graph:
-    operations: []
     steps:
     - id: read
       operation: fixture/forge/issue.read
-      input: {repository: example/project, number: 1}
+      inputs: {repository: example/project, number: 1}
 "#,
     )?;
     assert!(allowance(&manifest, "supplied")?.operations.is_empty());
@@ -240,31 +292,43 @@ runners:
     );
     assert!(allowance(&manifest, "omitted")?.operations.is_empty());
     assert!(matches!(
-        manifest.runners["graph"].graph.steps[0].kind,
+        manifest.methods["graph"].graph.steps[0].kind,
         StepKind::Operation(_)
     ));
-    assert_eq!(manifest.connectors["fixture/forge"].operations.len(), 2);
+    // A requirement lists exactly the operations the steps name, once each.
+    assert_eq!(
+        manifest.connectors["fixture/forge"]
+            .operations
+            .iter()
+            .map(|operation| operation.as_str())
+            .collect::<Vec<_>>(),
+        ["issue.read"]
+    );
     Ok(())
 }
 
 #[test]
-fn method_operations_cannot_widen_or_misstate_the_package_ceiling() -> Result<(), String> {
+fn a_turns_operations_each_name_a_connector_and_an_operation() -> Result<(), String> {
     for (operations, expected) in [
-        ("[issue.read]", "must name requirement/operation"),
-        ("[/issue.read]", "must name requirement/operation"),
-        ("[github/]", "must name requirement/operation"),
+        ("[issue.read]", "names <connector>/<operation>"),
+        ("[/issue.read]", "names <connector>/<operation>"),
+        ("[github/]", "names <connector>/<operation>"),
         ("[github/issue.read, github/issue.read]", "repeats"),
-        ("null", "is required"),
+        ("null", "must be an array"),
         ("[42]", "must be a string"),
     ] {
-        let error = refusal(&format!(
-            "skill: inspect\nconnectors:\n  github:\n    operations: [issue.read]\nrunners:\n  read:\n    operations: {operations}\n    outputs: {{ summary: string }}\n"
-        ))?;
-        assert!(error.contains("runners.read.operations"), "{error}");
+        let error = refusal(
+            "inspect",
+            &format!(
+                "minimum_runx: 0.12.0\nmethods:\n  read:\n    steps:\n      - id: read\n        agent: read\n        calls:\n          operations: {operations}\n        inputs: $input\n        outputs: {{summary: {{type: string}}}}\n"
+            ),
+        )?;
+        assert!(error.contains("calls.operations"), "{error}");
         assert!(error.contains(expected), "{operations}: {error}");
     }
     let error = refusal(
-        "skill: inspect\noperations: []\nrunners:\n  read:\n    outputs: { summary: string }\n",
+        "inspect",
+        "minimum_runx: 0.12.0\noperations: []\nmethods:\n  read:\n    steps:\n      - id: read\n        agent: read\n",
     )?;
     assert!(error.contains("not supported"), "{error}");
     Ok(())
@@ -273,18 +337,19 @@ fn method_operations_cannot_widen_or_misstate_the_package_ceiling() -> Result<()
 #[test]
 fn a_composed_method_returns_its_steps_not_method_outputs() -> Result<(), String> {
     let error = refusal(
+        "demo",
         r#"
-skill: demo
-runners:
+minimum_runx: 0.12.0
+methods:
   default:
-    outputs: { answer: string }
+    outputs: {answer: {type: string}}
     steps:
       - id: decide
-        agent: { role: reviewer, task: decide }
+        agent: decide
 "#,
     )?;
     assert!(
-        error.contains("belong to a runner without steps"),
+        error.contains("methods.default.outputs is not supported"),
         "{error}"
     );
     Ok(())
@@ -293,12 +358,18 @@ runners:
 #[test]
 fn a_tool_limit_must_be_an_admissible_catalog_ref() -> Result<(), String> {
     let error = refusal(
+        "demo",
         r#"
-skill: demo
-tools: [/tmp/tool/manifest.json]
-runners:
+minimum_runx: 0.12.0
+methods:
   default:
-    outputs: { answer: string }
+    steps:
+      - id: default
+        agent: default
+        calls:
+          tools: [/tmp/tool/manifest.json]
+        inputs: $input
+        outputs: {answer: {type: string}}
 "#,
     )?;
     assert!(error.contains("tools[0]"), "{error}");
@@ -308,12 +379,18 @@ runners:
 #[test]
 fn a_limit_is_listed_once() -> Result<(), String> {
     let error = refusal(
+        "demo",
         r#"
-skill: demo
-tools: [fs.read, fs.read]
-runners:
+minimum_runx: 0.12.0
+methods:
   default:
-    outputs: { answer: string }
+    steps:
+      - id: default
+        agent: default
+        calls:
+          tools: [fs.read, fs.read]
+        inputs: $input
+        outputs: {answer: {type: string}}
 "#,
     )?;
     assert!(error.contains("repeats"), "{error}");
@@ -321,19 +398,22 @@ runners:
 }
 
 #[test]
-fn an_agent_step_declares_no_tools_or_scopes_of_its_own() -> Result<(), String> {
+fn an_agent_step_declares_no_tools_or_scopes_outside_its_calls() -> Result<(), String> {
     for field in ["allowed_tools: [fs.read]", "scopes: [fs.read]"] {
-        let error = refusal(&format!(
-            r#"
-skill: demo
-runners:
+        let error = refusal(
+            "demo",
+            &format!(
+                r#"
+minimum_runx: 0.12.0
+methods:
   default:
     steps:
       - id: review
-        agent: {{ role: reviewer, task: review }}
+        agent: review
         {field}
 "#
-        ))?;
+            ),
+        )?;
         assert!(
             error.contains("does not apply to this agent step"),
             "{error}"
@@ -350,7 +430,7 @@ fn a_workflow_outside_a_skill_allows_nothing() -> Result<(), String> {
 name: bare
 steps:
   - id: review
-    agent: { role: builder, task: review }
+    agent: review
 "#,
         )
         .map_err(|error| error.to_string())?,
@@ -391,26 +471,28 @@ steps:
 #[test]
 fn step_and_gate_ids_are_identifiers_a_run_can_address() -> Result<(), String> {
     let step = refusal(
+        "triage",
         r#"
-skill: triage
-runners:
+minimum_runx: 0.12.0
+methods:
   review:
     steps:
       - id: read/0
-        agent: { role: reviewer, task: read }
+        agent: read
         outputs:
-          summary: string
+          summary: {type: string}
 "#,
     )?;
     assert!(step.contains("must match [a-z][a-z0-9_-]*"), "{step}");
     let gate = refusal(
+        "triage",
         r#"
-skill: triage
-runners:
+minimum_runx: 0.12.0
+methods:
   review:
     steps:
       - id: confirm
-        ask: { gate: "send#now", reason: Send it? }
+        ask: {gate: "send#now", reason: Send it?}
 "#,
     )?;
     assert!(gate.contains("must match [a-z0-9][a-z0-9_.-]*"), "{gate}");

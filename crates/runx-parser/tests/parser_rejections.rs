@@ -158,9 +158,10 @@ fn workflow_agent_task_accepts_context_skills() -> Result<(), String> {
 name: context-skills
 steps:
   - id: apply_taste
-    agent: { role: builder, task: apply taste }
-    context_skills:
-      - registry:runx/taste-profile@1.0.0
+    agent: apply taste
+    context:
+      skills:
+        - registry:runx/taste-profile@1.0.0
 "#,
         )
         .map_err(|error| error.to_string())?,
@@ -176,124 +177,137 @@ steps:
 
 #[test]
 fn method_inputs_expand_one_exact_definition_and_validate_nested_examples() -> Result<(), String> {
+    // The converter copies a definition taken under another name; one name
+    // for both is the owner's call, so the shared input is named for the
+    // input that takes it.
     let raw = parse_method_manifest_yaml(
         r#"
-skill: typed-inputs
-input_definitions:
-  selector:
+minimum_runx: 0.12.0
+shared_inputs:
+  resources:
     type: object
-    required: true
     description: Bounded issue selector.
-    schema:
-      required: [kind, filters]
-      additionalProperties: false
-      properties:
-        kind: { type: string, enum: [issues] }
-        filters:
-          type: object
-          required: [limit]
-          additionalProperties: false
-          properties:
-            limit: { type: integer, minimum: 1, maximum: 25 }
-runners:
+    required: [kind, filters]
+    additionalProperties: false
+    properties:
+      kind: {type: string, enum: [issues]}
+      filters:
+        type: object
+        required: [limit]
+        additionalProperties: false
+        properties:
+          limit: {type: integer, minimum: 1, maximum: 25}
+methods:
   inspect:
-    default: true
     inputs:
-      resources: { definition: selector }
+      resources: {}
     examples:
-      - resources: { kind: issues, filters: { limit: 25 } }
+      - resources: {kind: issues, filters: {limit: 25}}
     steps:
       - id: inspect
-        agent: { role: operator, task: inspect }
+        agent: inspect
         inputs:
           resources: $input.resources
 "#,
     )
     .map_err(|error| error.to_string())?;
-    let manifest = runx_parser::validate_method_manifest(raw).map_err(|error| error.to_string())?;
-    let runner = manifest
-        .runners
+    let manifest = runx_parser::validate_method_manifest("typed-inputs", raw)
+        .map_err(|error| error.to_string())?;
+    let method = manifest
+        .methods
         .get("inspect")
-        .ok_or_else(|| "expanded runner is missing".to_owned())?;
+        .ok_or_else(|| "expanded method is missing".to_owned())?;
 
     assert_eq!(
-        runner.inputs["resources"],
-        manifest.input_definitions["selector"]
+        method.inputs["resources"],
+        manifest.shared_inputs["resources"]
     );
-    assert_eq!(runner.examples.len(), 1);
+    assert_eq!(method.examples.len(), 1);
     Ok(())
 }
 
-#[test]
-fn method_inputs_reject_definition_overrides_and_invalid_nested_examples() -> Result<(), String> {
-    for (declaration, expected) in [(
-        "{ definition: selector }",
-        "runners.inspect.examples[0]/resources/filters/limit",
-    )] {
-        let example_limit = 26;
-        let raw = parse_method_manifest_yaml(&format!(
-            r#"
-skill: typed-inputs
-input_definitions:
-  selector:
+/// A method `inspect` taking the shared input `resources` as `declaration`,
+/// with one example whose limit is `example_limit`.
+fn shared_selector(declaration: &str, example_limit: u32) -> String {
+    format!(
+        r#"
+minimum_runx: 0.12.0
+shared_inputs:
+  resources:
     type: object
-    required: true
-    schema:
-      required: [filters]
-      properties:
-        filters:
-          type: object
-          required: [limit]
-          properties:
-            limit: {{ type: integer, maximum: 25 }}
-runners:
+    required: [filters]
+    properties:
+      filters:
+        type: object
+        required: [limit]
+        properties:
+          limit: {{type: integer, maximum: 25}}
+methods:
   inspect:
     inputs:
       resources: {declaration}
     examples:
-      - resources: {{ filters: {{ limit: {example_limit} }} }}
+      - resources: {{filters: {{limit: {example_limit}}}}}
     steps:
       - id: inspect
-        agent: {{ role: operator, task: inspect }}
+        agent: inspect
         inputs:
           resources: $input.resources
 "#
-        ))
+    )
+}
+
+#[test]
+fn method_inputs_override_a_definition_by_key_and_validate_nested_examples() -> Result<(), String> {
+    // A key beside a shared input overrides that key of it.
+    let raw = parse_method_manifest_yaml(&shared_selector("{optional: true}", 25))
         .map_err(|error| error.to_string())?;
-        let error = runx_parser::validate_method_manifest(raw)
-            .err()
-            .ok_or_else(|| {
-                "invalid reusable input declaration unexpectedly validated".to_owned()
-            })?;
-        assert!(error.to_string().contains(expected), "{error}");
-    }
+    let manifest = runx_parser::validate_method_manifest("typed-inputs", raw)
+        .map_err(|error| error.to_string())?;
+    assert!(manifest.shared_inputs["resources"].required);
+    assert!(!manifest.methods["inspect"].inputs["resources"].required);
+
+    let raw = parse_method_manifest_yaml(&shared_selector("{}", 26))
+        .map_err(|error| error.to_string())?;
+    let error = runx_parser::validate_method_manifest("typed-inputs", raw)
+        .err()
+        .ok_or_else(|| "an invalid nested example unexpectedly validated".to_owned())?;
+    assert!(
+        error
+            .to_string()
+            .contains("methods.inspect.examples[0]/resources/filters/limit"),
+        "{error}"
+    );
     Ok(())
 }
 
 #[test]
 fn workflow_step_rejects_malformed_artifact_contract() -> Result<(), String> {
-    let raw = parse_workflow_yaml(
-        r#"
-name: malformed-step-artifacts
-steps:
-  - id: package
-    tool: { module: package.mjs }
-    artifacts:
-      packets:
-        result: runx.test.result.v1
-"#,
-    )
-    .map_err(|error| error.to_string())?;
-    let error = validate_workflow(raw)
-        .err()
-        .ok_or_else(|| "expected malformed workflow-step artifacts to be rejected".to_owned())?;
-
-    assert!(
-        error
-            .to_string()
-            .contains("artifacts.packets requires steps.0.artifacts.named_emits"),
-        "{error}"
-    );
+    // An output with a packet is an artifact, so a packet names an output the
+    // step declares, and the result it becomes is one of its outputs.
+    for (artifacts, expected) in [
+        (
+            "    artifacts:\n      packets:\n        result: runx.test.result.v1\n",
+            "steps.0.artifacts does not apply to this tool step",
+        ),
+        (
+            "    result_as: result\n",
+            "steps.0.result_as names result, which the step's outputs don't declare",
+        ),
+        (
+            "    outputs:\n      result: {type: object, packet: not a packet}\n",
+            "steps.0.outputs is invalid: output declaration is invalid: packet \"not a packet\" is not a packet id",
+        ),
+    ] {
+        let raw = parse_workflow_yaml(&format!(
+            "name: malformed-step-artifacts\nsteps:\n  - id: package\n    tool: {{ module: package.mjs }}\n{artifacts}"
+        ))
+        .map_err(|error| error.to_string())?;
+        let error = validate_workflow(raw).err().ok_or_else(|| {
+            "expected malformed workflow-step artifacts to be rejected".to_owned()
+        })?;
+        assert!(error.to_string().contains(expected), "{error}");
+    }
     Ok(())
 }
 
@@ -306,19 +320,20 @@ name: bad-context-skills
 steps:
   - id: shell
     tool: { command: echo }
-    context_skills:
-      - ../taste-profile
+    context:
+      skills:
+        - ../taste-profile
 "#,
         )
         .map_err(|error| error.to_string())?,
     )
     .err()
-    .ok_or_else(|| "expected context_skills validation rejection".to_owned())?;
+    .ok_or_else(|| "expected context skills validation rejection".to_owned())?;
 
     assert!(
         error
             .to_string()
-            .contains("context_skills does not apply to this tool step"),
+            .contains("context does not apply to this tool step"),
         "{error}"
     );
     Ok(())
@@ -353,10 +368,10 @@ Body
 fn yaml_parity_rejects_embedded_colon_mapping_key() -> Result<(), String> {
     let error = parse_method_manifest_yaml(
         r#"
-skill: bad
+minimum_runx: 0.12.0
 email:send:
   value: x
-runners:
+methods:
   default:
     steps:
       - id: default

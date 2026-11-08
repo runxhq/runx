@@ -4,20 +4,20 @@ use runx_parser::{
     validate_skill_with_options,
 };
 
-/// One runner named `main` with the given steps (each line indented for a
+/// One method named `main` with the given steps (each line indented for a
 /// step list item).
 fn runner(steps: &str) -> Result<runx_parser::SkillMethodDefinition, String> {
     method_with("", steps)
 }
 
 fn method_with(extra: &str, steps: &str) -> Result<runx_parser::SkillMethodDefinition, String> {
-    let yaml = format!("skill: demo\nrunners:\n  main:\n{extra}    steps:\n{steps}");
+    let yaml = format!("minimum_runx: 0.12.0\nmethods:\n  main:\n{extra}    steps:\n{steps}");
     let raw = parse_method_manifest_yaml(&yaml).map_err(|error| error.to_string())?;
-    let mut manifest = validate_method_manifest(raw).map_err(|error| error.to_string())?;
+    let mut manifest = validate_method_manifest("demo", raw).map_err(|error| error.to_string())?;
     manifest
-        .runners
+        .methods
         .remove("main")
-        .ok_or_else(|| "runner main is missing".to_owned())
+        .ok_or_else(|| "method main is missing".to_owned())
 }
 
 fn only_step(runner: &runx_parser::SkillMethodDefinition) -> &runx_parser::WorkflowStep {
@@ -27,14 +27,14 @@ fn only_step(runner: &runx_parser::SkillMethodDefinition) -> &runx_parser::Workf
 #[test]
 fn a_process_tool_parses_its_command_and_input_mode() -> Result<(), String> {
     let runner = runner(
-        "      - id: run\n        tool: {command: node, args: [run.mjs], input_mode: stdin}\n",
+        "      - id: run\n        tool: {command: node, args: [run.mjs], inputs_via: stdin}\n",
     )?;
     let StepKind::Tool(ToolTarget::Process(process)) = &only_step(&runner).kind else {
         return Err("expected a process tool".to_owned());
     };
     assert_eq!(process.command, "node");
     assert_eq!(process.args, ["run.mjs"]);
-    assert_eq!(process.input_mode, Some(InputMode::Stdin));
+    assert_eq!(process.inputs_via, Some(InputMode::Stdin));
     Ok(())
 }
 
@@ -83,18 +83,18 @@ fn environment_rejects_duplicates_invalid_names_and_runtime_owned_names() {
 #[test]
 fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
     let runner = method_with(
-        "    inputs:\n      archive_file: {type: string, required: true}\n      archive_base: {type: string, required: true}\n",
-        "      - id: run\n        tool:\n          module: domain.mjs\n          pages:\n            path_from: archive_file\n            path_scope_from: archive_base\n            media_type: application/javascript\n            framing: json_array\n            page_bytes: 524288\n",
+        "    inputs:\n      archive_file: {type: string}\n      archive_base: {type: string}\n",
+        "      - id: run\n        tool:\n          module: domain.mjs\n          paged_input:\n            path: archive_file\n            path_scope: archive_base\n            media_type: application/javascript\n            framing: json_array\n            page_bytes: 524288\n",
     )?;
     let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&runner).kind else {
         return Err("expected a worker tool".to_owned());
     };
-    let pages = worker.pages.as_ref().ok_or("pages were not parsed")?;
+    let pages = worker.paged_input.as_ref().ok_or("pages were not parsed")?;
     assert_eq!(
         pages.source,
         runx_parser::ArtifactPageInput::Path {
-            path_from: "archive_file".to_owned(),
-            path_scope_from: Some("archive_base".to_owned()),
+            path: "archive_file".to_owned(),
+            path_scope: Some("archive_base".to_owned()),
             media_type: "application/javascript".to_owned(),
         }
     );
@@ -105,17 +105,17 @@ fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
 #[test]
 fn a_worker_parses_an_already_admitted_artifact_source() -> Result<(), String> {
     let runner = method_with(
-        "    inputs:\n      snapshot: {type: string, required: true}\n",
-        "      - id: run\n        scopes: [fs.read]\n        tool:\n          module: domain.mjs\n          pages:\n            artifact_from: snapshot\n            framing: json_array\n            page_bytes: 65536\n",
+        "    inputs:\n      snapshot: {type: string}\n",
+        "      - id: run\n        tool:\n          module: domain.mjs\n          paged_input:\n            artifact: snapshot\n            framing: json_array\n            page_bytes: 65536\n",
     )?;
     let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&runner).kind else {
         return Err("expected a worker tool".to_owned());
     };
-    let pages = worker.pages.as_ref().ok_or("pages were not parsed")?;
+    let pages = worker.paged_input.as_ref().ok_or("pages were not parsed")?;
     assert_eq!(
         pages.source,
         runx_parser::ArtifactPageInput::Artifact {
-            artifact_from: "snapshot".to_owned()
+            artifact: "snapshot".to_owned()
         }
     );
     let encoded = serde_json::to_value(pages).map_err(|error| error.to_string())?;
@@ -128,21 +128,22 @@ fn a_worker_parses_an_already_admitted_artifact_source() -> Result<(), String> {
 #[test]
 fn a_worker_rejects_ambiguous_or_reserved_page_inputs() {
     for pages in [
-        "path_from: runx_page, media_type: application/json, framing: json_array",
-        "path_from: archive, path_scope_from: archive, media_type: application/json, framing: json_array",
-        "path_from: archive, media_type: application/json, framing: json_array, page_bytes: 4194305",
-        "artifact_from: snapshot, path_from: archive, media_type: application/json, framing: json_array",
-        "artifact_from: snapshot, path_scope_from: scope, framing: json_array",
-        "artifact_from: snapshot, media_type: application/json, framing: json_array",
-        "artifact_from: runx_page, framing: json_array",
-        "artifact_from: nested.snapshot, framing: json_array",
-        "artifact_from: null, framing: json_array",
-        "artifact_from: 3, framing: json_array",
-        "artifact_from: '', framing: json_array",
+        "path: runx_page, media_type: application/json, framing: json_array",
+        "path: archive, path_scope: archive, media_type: application/json, framing: json_array",
+        "path: archive, media_type: application/json, framing: json_array, page_bytes: 4194305",
+        "artifact: snapshot, path: archive, media_type: application/json, framing: json_array",
+        "artifact: snapshot, path_scope: scope, framing: json_array",
+        "artifact: snapshot, media_type: application/json, framing: json_array",
+        "artifact: runx_page, framing: json_array",
+        "artifact: nested.snapshot, framing: json_array",
+        "artifact: null, framing: json_array",
+        "artifact: 3, framing: json_array",
+        "artifact: '', framing: json_array",
         "framing: json_array",
     ] {
-        let steps =
-            format!("      - id: run\n        tool: {{module: domain.mjs, pages: {{{pages}}}}}\n");
+        let steps = format!(
+            "      - id: run\n        tool: {{module: domain.mjs, paged_input: {{{pages}}}}}\n"
+        );
         assert!(runner(&steps).is_err(), "invalid pages passed: {pages}");
     }
 }
@@ -164,9 +165,9 @@ fn a_worker_rejects_process_fields_escapes_and_bad_bounds() {
 }
 
 #[test]
-fn an_agent_step_names_its_role_and_task() -> Result<(), String> {
+fn an_agent_step_names_its_task() -> Result<(), String> {
     let runner = runner(
-        "      - id: decide\n        agent: {role: reviewer, task: decide-release}\n        outputs: {decision: string}\n",
+        "      - id: decide\n        agent: decide-release\n        outputs: {decision: {type: string}}\n",
     )?;
     assert_eq!(
         only_step(&runner).kind,
@@ -209,12 +210,12 @@ fn an_ask_step_yields_the_approval_decision_packet() -> Result<(), String> {
 
 #[test]
 fn an_operation_step_carries_its_call_on_the_step() -> Result<(), String> {
-    let yaml = "skill: demo\nconnectors:\n  slack:\n    operations: [channel.post]\nrunners:\n  main:\n    steps:\n      - id: post\n        operation: slack/channel.post\n        idempotency_key: $input.key\n        input: {channel_locator: $input.channel}\n        result_fields: [message_locator]\n";
+    let yaml = "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: post\n        operation: slack/channel.post\n        idempotency_key: $input.key\n        inputs: {channel_locator: $input.channel}\n        result:\n          required: [message_locator]\n";
     let raw = parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?;
-    let manifest = validate_method_manifest(raw).map_err(|error| error.to_string())?;
-    let step = &manifest.runners["main"].graph.steps[0];
-    assert!(step.inputs.contains_key("input"));
-    assert!(step.inputs.contains_key("result_fields"));
+    let manifest = validate_method_manifest("demo", raw).map_err(|error| error.to_string())?;
+    let step = &manifest.methods["main"].graph.steps[0];
+    assert!(step.inputs.contains_key("inputs"));
+    assert!(step.inputs.contains_key("result"));
     assert_eq!(
         step.inputs
             .get("idempotency_key")
@@ -227,12 +228,20 @@ fn an_operation_step_carries_its_call_on_the_step() -> Result<(), String> {
             .any(|binding| binding.at == ["idempotency_key"])
     );
 
-    let wrapped = yaml.replace(
+    // The call is spelled one way: the old `input` is refused.
+    let respelled = yaml.replace(
+        "        inputs: {channel_locator: $input.channel}\n",
         "        input: {channel_locator: $input.channel}\n",
-        "        inputs: {input: {channel_locator: $input.channel}}\n",
     );
-    let raw = parse_method_manifest_yaml(&wrapped).map_err(|error| error.to_string())?;
-    assert!(validate_method_manifest(raw).is_err());
+    let raw = parse_method_manifest_yaml(&respelled).map_err(|error| error.to_string())?;
+    let error = validate_method_manifest("demo", raw)
+        .err()
+        .ok_or("an operation step's old input key passed")?
+        .to_string();
+    assert!(
+        error.contains("input does not apply to this operation step"),
+        "{error}"
+    );
     Ok(())
 }
 
@@ -242,7 +251,7 @@ fn a_method_result_defaults_to_its_last_step() -> Result<(), String> {
         "      - id: first\n        tool: {module: one.mjs}\n      - id: second\n        tool: {module: two.mjs}\n",
     )?;
     assert_eq!(runner.graph.result_from, ["second"]);
-    // The graph carries its skill's identity, not the runner's.
+    // The graph carries its skill's identity, not the method's.
     assert_eq!(runner.graph.name, "demo");
     Ok(())
 }
@@ -258,7 +267,7 @@ fn a_method_takes_only_method_fields() {
     ] {
         assert!(
             method_with(extra, "      - id: run\n        tool: {module: one.mjs}\n").is_err(),
-            "runner field passed: {extra}"
+            "method field passed: {extra}"
         );
     }
 }
@@ -291,17 +300,17 @@ fn skill_markdown_carries_only_manual_fields() -> Result<(), String> {
     Ok(())
 }
 
-/// A runner whose steps may call `tracker/item.update`.
+/// A method whose steps may call `tracker/item.update`.
 fn acting(steps: &str) -> Result<runx_parser::SkillMethodDefinition, String> {
     let yaml = format!(
-        "skill: demo\nconnectors:\n  tracker:\n    operations: [item.update]\nrunners:\n  main:\n    inputs:\n      item: {{type: string, required: true}}\n    steps:\n{steps}"
+        "minimum_runx: 0.12.0\nmethods:\n  main:\n    inputs:\n      item: {{type: string}}\n    steps:\n{steps}"
     );
     let raw = parse_method_manifest_yaml(&yaml).map_err(|error| error.to_string())?;
-    let mut manifest = validate_method_manifest(raw).map_err(|error| error.to_string())?;
+    let mut manifest = validate_method_manifest("demo", raw).map_err(|error| error.to_string())?;
     manifest
-        .runners
+        .methods
         .remove("main")
-        .ok_or_else(|| "runner main is missing".to_owned())
+        .ok_or_else(|| "method main is missing".to_owned())
 }
 
 #[test]
@@ -309,7 +318,7 @@ fn an_operation_act_binds_the_invokers_act_whole_or_by_field() -> Result<(), Str
     use runx_parser::Source;
 
     let whole = acting(
-        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: $run.act\n",
+        "      - id: close\n        operation: tracker/item.update\n        inputs: {id: $input.item}\n        act: $run.act\n",
     )?;
     let act = only_step(&whole).act.clone().ok_or("the step has an act")?;
     assert!(act.values.is_empty());
@@ -322,14 +331,14 @@ fn an_operation_act_binds_the_invokers_act_whole_or_by_field() -> Result<(), Str
     );
 
     let fields = acting(
-        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {purpose: $run.act.purpose, target: $input.item, decision: close}\n",
+        "      - id: close\n        operation: tracker/item.update\n        inputs: {id: $input.item}\n        act: {purpose: $run.act.purpose, target: $input.item, form: close}\n",
     )?;
     let act = only_step(&fields)
         .act
         .clone()
         .ok_or("the step has an act")?;
     assert_eq!(
-        act.values.get("decision"),
+        act.values.get("form"),
         Some(&runx_contracts::JsonValue::String("close".to_owned()))
     );
     let sources = act
@@ -346,11 +355,11 @@ fn an_operation_act_binds_the_invokers_act_whole_or_by_field() -> Result<(), Str
 fn only_an_act_reads_the_invokers_act() -> Result<(), String> {
     for (steps, field) in [
         (
-            "      - id: close\n        operation: tracker/item.update\n        input: {why: $run.act.purpose}\n",
-            "input",
+            "      - id: close\n        operation: tracker/item.update\n        inputs: {why: $run.act.purpose}\n",
+            "inputs",
         ),
         (
-            "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        when: {value: $run.act.decision, equals: close}\n",
+            "      - id: close\n        operation: tracker/item.update\n        inputs: {id: $input.item}\n        when: {value: $run.act.purpose, equals: close}\n",
             "when",
         ),
         (
@@ -377,7 +386,7 @@ fn a_skill_step_gives_its_child_an_act_and_other_steps_take_none() -> Result<(),
     assert!(only_step(&child).act.is_some());
     for steps in [
         "      - id: note\n        tool: {module: note.mjs}\n        act: {purpose: Note}\n",
-        "      - id: think\n        agent: {role: writer, task: draft}\n        act: {purpose: Think}\n",
+        "      - id: think\n        agent: draft\n        act: {purpose: Think}\n",
     ] {
         let Err(error) = runner(steps) else {
             return Err("only governed calls and child runs take an act".to_owned());
@@ -390,13 +399,13 @@ fn a_skill_step_gives_its_child_an_act_and_other_steps_take_none() -> Result<(),
 #[test]
 fn an_act_states_its_purpose() -> Result<(), String> {
     let Err(error) = acting(
-        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {form: reply, reason: $run.act.reason}\n",
+        "      - id: close\n        operation: tracker/item.update\n        inputs: {id: $input.item}\n        act: {form: reply, reason: $run.act.reason}\n",
     ) else {
         return Err("an act without a purpose is refused".to_owned());
     };
     assert!(error.contains("needs a purpose"), "{error}");
     let Err(error) = acting(
-        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {purpose: Close it, legitimacy: $run.act.reason}\n",
+        "      - id: close\n        operation: tracker/item.update\n        inputs: {id: $input.item}\n        act: {purpose: Close it, legitimacy: $run.act.reason}\n",
     ) else {
         return Err("an act states only an act's fields".to_owned());
     };
@@ -410,7 +419,7 @@ fn an_act_states_its_purpose() -> Result<(), String> {
 #[test]
 fn an_input_cannot_take_the_name_of_the_invokers_act() -> Result<(), String> {
     let Err(error) = method_with(
-        "    inputs:\n      act: {type: string}\n",
+        "    inputs:\n      act: {type: string, optional: true}\n",
         "      - id: note\n        tool: {module: note.mjs}\n",
     ) else {
         return Err("act is reserved".to_owned());

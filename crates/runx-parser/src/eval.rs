@@ -397,7 +397,7 @@ mod tests {
         let output = evaluate_parser_document_str(
             r#"{
               "kind": "parser.validateTestFixtureYaml",
-              "yaml": "name: fixture\nkind: skill\ntarget: ..\nexpect:\n  status: sealed\n"
+              "yaml": "name: fixture\nexpect:\n  status: sealed\n"
             }"#,
         )
         .map_err(|error| error.to_string())?;

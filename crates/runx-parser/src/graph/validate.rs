@@ -166,9 +166,9 @@ mod tests {
 name: references
 steps:
   - id: select
-    agent: {role: reviewer, task: review}
+    agent: review
   - id: review
-    agent: {role: reviewer, task: review}
+    agent: review
     inputs:
       bounty: $steps.select.result
       claim: $input.claim
@@ -192,11 +192,11 @@ steps:
 name: forward
 steps:
   - id: review
-    agent: {role: reviewer, task: review}
+    agent: review
     inputs:
       bounty: $steps.select.result
   - id: select
-    agent: {role: reviewer, task: review}
+    agent: review
 "#,
         )?;
         assert!(
@@ -211,7 +211,7 @@ steps:
         for (fragment, expected) in [
             (
                 "    context: {readme: scan.result}\n",
-                "context does not apply to this agent step",
+                "context.readme is not a field here",
             ),
             (
                 "    idempotency_key: review-1\n",
@@ -219,7 +219,7 @@ steps:
             ),
         ] {
             let source = format!(
-                "name: review\nsteps:\n  - id: scan\n    tool: data.digest\n  - id: review\n    agent: {{role: reviewer, task: review}}\n{fragment}"
+                "name: review\nsteps:\n  - id: scan\n    tool: data.digest\n  - id: review\n    agent: review\n{fragment}"
             );
             let message = validate_err(&source)?;
             assert!(message.contains(expected), "{fragment}: {message}");
@@ -234,7 +234,7 @@ steps:
 name: typed-step-outputs
 steps:
   - id: analyze
-    agent: {role: reviewer, task: review}
+    agent: review
     outputs:
       verdict:
         type: string
@@ -275,7 +275,7 @@ result_from:
   - missing
 steps:
   - id: present
-    agent: {role: reviewer, task: review}
+    agent: review
 "#,
         )?;
         assert!(error.contains("result_from.0 references unknown step 'missing'"));
@@ -290,14 +290,14 @@ steps:
 name: gated
 steps:
   - id: admit
-    agent: {{role: reviewer, task: review}}
+    agent: review
   - id: draft
     when: {{value: $steps.admit.result.decision, equals: ready}}
-    agent: {{role: reviewer, task: review}}
+    agent: review
   - id: finalize{consumer_when}
     inputs:
       draft: $steps.draft.result
-    agent: {{role: reviewer, task: review}}
+    agent: review
 "#
             )
         };
@@ -322,7 +322,7 @@ result_from:
   - result
 steps:
   - id: result
-    agent: {role: reviewer, task: review}
+    agent: review
 "#,
         )?;
         assert!(error.contains("result_from contains duplicate step 'result'"));
@@ -341,7 +341,7 @@ steps:
   - id: send
     operation: example/message.send
     idempotency_key: send-1
-    input: {{text: hello}}
+    inputs: {{text: hello}}
 "#
             )
         };
@@ -404,20 +404,21 @@ steps:
     }
 
     #[test]
-    fn operation_steps_validate_with_their_duplicate_tolerance() -> Result<(), String> {
-        let graph = validate_yaml(
-            r#"
+    fn operation_steps_validate_with_their_retry_tolerance() -> Result<(), String> {
+        // `duplicates: forbidden` was the default, so it converts to nothing:
+        // recovery never resends a write whose outcome is unknown unless the
+        // step says `retry_unknown_outcomes: true`.
+        let source = r#"
 name: deliver
 steps:
   - id: post
     operation: slack/channel.post
-    duplicates: forbidden
     idempotency_key: notify-1
-    input:
+    inputs:
       channel_locator: slack://acme/C1
       text: hello
-"#,
-        )?;
+"#;
+        let graph = validate_yaml(source)?;
         let step = &graph.steps[0];
         let operation = step.operation().ok_or("expected an operation")?;
         assert_eq!(operation.requirement, "slack");
@@ -425,12 +426,17 @@ steps:
             operation.operation.as_ref().map(|name| name.as_str()),
             Some("channel.post")
         );
-        assert_eq!(step.duplicates, Some(crate::DuplicatePolicy::Forbidden));
+        assert!(!step.retry_unknown_outcomes);
+        let visible = validate_yaml(&source.replace(
+            "    idempotency_key: notify-1\n",
+            "    retry_unknown_outcomes: true\n    idempotency_key: notify-1\n",
+        ))?;
+        assert!(visible.steps[0].retry_unknown_outcomes);
         Ok(())
     }
 
     #[test]
-    fn an_operation_chosen_at_run_time_is_its_operation_name() -> Result<(), String> {
+    fn an_operation_chosen_at_run_time_is_its_choice() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
 name: sync
@@ -438,8 +444,10 @@ steps:
   - id: plan
     tool: data.digest
   - id: push
-    operation: github
-    operation_name: $steps.plan.sync_plan.provider_operation
+    operation:
+      connector: github
+      choose: $steps.plan.sync_plan.provider_operation
+      from: [issues.list, issues.get]
 "#,
         )?;
         assert_eq!(
@@ -457,7 +465,10 @@ steps:
     operation: github
 "#,
         )?;
-        assert!(message.contains("choose the operation with operation_name"));
+        assert!(
+            message.contains("chooses one per run with {connector, choose, from}"),
+            "{message}"
+        );
         Ok(())
     }
 
@@ -469,12 +480,12 @@ steps:
                 "does not apply to this operation step",
             ),
             (
-                "    inputs: {input: {}}\n",
-                "does not apply to this operation step",
+                "    input: {}\n",
+                "input does not apply to this operation step",
             ),
             (
                 "    operation_name: $steps.plan.digest\n",
-                "names its operation and also an operation_name",
+                "operation_name does not apply to this operation step",
             ),
         ] {
             let source = format!(
@@ -494,10 +505,13 @@ name: tool-step
 steps:
   - id: digest
     tool: data.digest
-    duplicates: visible
+    retry_unknown_outcomes: true
 "#,
         )?;
-        assert!(message.contains("does not apply to this tool step"));
+        assert!(
+            message.contains("retry_unknown_outcomes does not apply to this tool step"),
+            "{message}"
+        );
         Ok(())
     }
 

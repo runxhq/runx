@@ -7,8 +7,6 @@ fn validates_receipt_and_output_expectations() -> Result<(), TestFixtureError> {
     let fixture = parse_test_fixture(
         r#"
 name: echo-skill
-kind: skill
-target: ../skills/echo
 expect:
   status: sealed
   receipt:
@@ -20,6 +18,8 @@ expect:
 "#,
     )?;
 
+    // A test runs its own package unless it names a fixture package.
+    assert_eq!(fixture.package, None);
     assert!(fixture.setup.receipts.is_empty());
     assert!(fixture.expect.receipt.is_some());
     assert!(fixture.expect.output.is_some());
@@ -27,36 +27,21 @@ expect:
 }
 
 #[test]
-fn inline_expectations_use_the_conventional_contract() -> Result<(), TestFixtureError> {
-    let expectation = parse_test_expectation(JsonObject::from([
-        ("status".to_owned(), JsonValue::String("sealed".to_owned())),
-        (
-            "receipt".to_owned(),
-            JsonValue::Object(JsonObject::from([
-                (
-                    "schema".to_owned(),
-                    JsonValue::String("runx.receipt.v1".to_owned()),
-                ),
-                (
-                    "outcome".to_owned(),
-                    JsonValue::String("completed".to_owned()),
-                ),
-            ])),
-        ),
-        (
-            "step_outputs".to_owned(),
-            JsonValue::Object(JsonObject::from([(
-                "inspect".to_owned(),
-                JsonValue::Object(JsonObject::from([(
-                    "subset".to_owned(),
-                    JsonValue::Object(JsonObject::from([(
-                        "status".to_owned(),
-                        JsonValue::String("ready".to_owned()),
-                    )])),
-                )])),
-            )])),
-        ),
-    ]))?;
+fn expectations_use_the_conventional_contract() -> Result<(), TestFixtureError> {
+    let expectation = parse_test_fixture(
+        r#"
+name: inspect
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+    outcome: completed
+  step_outputs:
+    inspect:
+      subset: { status: ready }
+"#,
+    )?
+    .expect;
 
     assert_eq!(expectation.status, Some(TestExpectedStatus::Sealed));
     assert_eq!(
@@ -73,7 +58,7 @@ fn inline_expectations_use_the_conventional_contract() -> Result<(), TestFixture
 #[test]
 fn validates_package_relative_receipt_setup() -> Result<(), TestFixtureError> {
     let fixture = parse_test_fixture(
-        "name: receipt-proof\nkind: skill\ntarget: ..\nsetup:\n  receipts:\n    - fixtures/receipt-store/sha256-demo.json\n",
+        "name: receipt-proof\nsetup:\n  receipts:\n    - fixtures/receipt-store/sha256-demo.json\nexpect:\n  status: sealed\n",
     )?;
 
     assert_eq!(
@@ -86,7 +71,7 @@ fn validates_package_relative_receipt_setup() -> Result<(), TestFixtureError> {
 #[test]
 fn rejects_receipt_setup_path_escape() {
     let error = parse_test_fixture(
-        "name: receipt-proof\nkind: skill\ntarget: ..\nsetup:\n  receipts:\n    - ../receipt.json\n",
+        "name: receipt-proof\nsetup:\n  receipts:\n    - ../receipt.json\nexpect:\n  status: sealed\n",
     )
     .expect_err("receipt setup path escape must fail");
 
@@ -100,10 +85,8 @@ fn admits_request_sensitive_test_http_exchanges() -> Result<(), TestFixtureError
     let fixture = parse_test_fixture(
         r#"
 name: deterministic-mcp
-kind: skill
-target: ..
-caller:
-  http_exchanges:
+providers:
+  http:
     - request:
         method: POST
         url: https://fixture.runx.invalid/mcp
@@ -123,10 +106,12 @@ caller:
         url: https://fixture.runx.invalid/mcp
         body: { json: null }
       response: { status: 200, body: '{"deleted":true}' }
+expect:
+  status: sealed
 "#,
     )?;
 
-    let exchanges = &fixture.caller.http_exchanges;
+    let exchanges = &fixture.providers.http;
     assert_eq!(exchanges.len(), 3);
     assert_eq!(exchanges[0].request.method, "POST");
     assert_eq!(exchanges[0].request.url, "https://fixture.runx.invalid/mcp");
@@ -145,16 +130,16 @@ fn test_http_exchanges_reject_malformed_urls_and_bound_characters() {
         "https://fixture.runx.invalid/source#fragment",
     ] {
         assert!(
-            validate_test_http_url(malformed, "caller.http_exchanges[0].request.url").is_err(),
+            validate_test_http_url(malformed, "providers.http[0].request.url").is_err(),
             "malformed URL must fail: {malformed:?}",
         );
     }
 
     let prefix = "https://fixture.runx.invalid/";
     let at_limit = format!("{prefix}{}", "é".repeat(2048 - prefix.chars().count()));
-    assert!(validate_test_http_url(&at_limit, "caller.http_exchanges[0].request.url").is_ok());
+    assert!(validate_test_http_url(&at_limit, "providers.http[0].request.url").is_ok());
     let over_limit = format!("{at_limit}é");
-    assert!(validate_test_http_url(&over_limit, "caller.http_exchanges[0].request.url").is_err());
+    assert!(validate_test_http_url(&over_limit, "providers.http[0].request.url").is_err());
 }
 
 #[test]
@@ -166,12 +151,12 @@ fn test_http_exchanges_reject_credentials_and_fragments() {
         let fixture = format!(
             r#"
 name: unreachable-url
-kind: skill
-target: ..
-caller:
-  http_exchanges:
+providers:
+  http:
     - request: {{ method: GET, url: "{url}", body: none }}
       response: {{ status: 200, body: unreachable }}
+expect:
+  status: sealed
 "#,
         );
         assert!(
@@ -195,19 +180,19 @@ fn test_http_exchanges_canonicalize_final_urls_so_an_alias_is_one_request()
         let fixture = format!(
             r#"
 name: canonical-url-alias
-kind: skill
-target: ..
-caller:
-  http_exchanges:
+providers:
+  http:
     - request: {{ method: POST, url: "{first}", body: none }}
       response: {{ status: 200, body: first }}
     - request: {{ method: POST, url: "{alias}", body: none }}
       response: {{ status: 200, body: alias }}
+expect:
+  status: sealed
 "#,
         );
         // An alias is the same final URL, so both answer one request, in order.
         let parsed = parse_test_fixture(&fixture)?;
-        let exchanges = &parsed.caller.http_exchanges;
+        let exchanges = &parsed.providers.http;
         assert_eq!(exchanges[0].request.url, exchanges[1].request.url);
     }
     Ok(())
@@ -224,7 +209,7 @@ fn test_http_exchanges_enforce_count_and_body_bounds() {
         .collect::<Vec<_>>()
         .join("");
     let too_many = format!(
-        "name: too-many-exchanges\nkind: skill\ntarget: ..\ncaller:\n  http_exchanges:\n{entries}"
+        "name: too-many-exchanges\nproviders:\n  http:\n{entries}expect:\n  status: sealed\n"
     );
     assert!(
         parse_test_fixture(&too_many).is_err(),
@@ -235,15 +220,15 @@ fn test_http_exchanges_enforce_count_and_body_bounds() {
     let oversized_body = format!(
         r#"
 name: oversized-exchange-body
-kind: skill
-target: ..
-caller:
-  http_exchanges:
+providers:
+  http:
     - request:
         method: POST
         url: https://fixture.runx.invalid/mcp
         body: {{ json: "{oversized}" }}
       response: {{ status: 200, body: ok }}
+expect:
+  status: sealed
 "#,
     );
     assert!(
@@ -257,20 +242,26 @@ fn test_http_exchanges_reject_unknown_body_fields() {
     let error = parse_test_fixture(
         r#"
 name: widened-mcp-body
-kind: skill
-target: ..
-caller:
-  http_exchanges:
+providers:
+  http:
     - request:
         method: POST
         url: https://fixture.runx.invalid/mcp
         body: { json: { operation: status }, extra: ignored }
       response: { status: 200, body: ok }
+expect:
+  status: sealed
 "#,
     )
     .expect_err("unknown body fields must fail instead of changing identity silently");
 
-    assert!(matches!(error, TestFixtureError::Invalid { .. }));
+    // The providers are typed in the test's document, so a body with a field
+    // it doesn't know fails to parse.
+    assert!(
+        matches!(error, TestFixtureError::Parse(_))
+            && error.to_string().contains("TestHttpRequestBodyFixture"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -278,10 +269,8 @@ fn test_http_exchanges_accept_json_bodies_for_get_and_delete() -> Result<(), Tes
     let fixture = parse_test_fixture(
         r#"
 name: method-agnostic-body-identity
-kind: skill
-target: ..
-caller:
-  http_exchanges:
+providers:
+  http:
     - request:
         method: GET
         url: https://fixture.runx.invalid/source
@@ -292,9 +281,11 @@ caller:
         url: https://fixture.runx.invalid/source
         body: { json: null }
       response: { status: 200, body: delete }
+expect:
+  status: sealed
 "#,
     )?;
-    let exchanges = &fixture.caller.http_exchanges;
+    let exchanges = &fixture.providers.http;
     assert_eq!(exchanges.len(), 2);
     assert_eq!(exchanges[0].request.method, "GET");
     assert_eq!(exchanges[1].request.method, "DELETE");
@@ -306,10 +297,8 @@ fn admits_a_repeated_request_as_answers_in_order() -> Result<(), TestFixtureErro
     let fixture = parse_test_fixture(
         r#"
 name: read-change-read
-kind: skill
-target: ..
-caller:
-  http_exchanges:
+providers:
+  http:
     - request: &request
         method: GET
         url: https://fixture.runx.invalid/item
@@ -317,10 +306,12 @@ caller:
       response: { status: 200, body: before }
     - request: *request
       response: { status: 200, body: after }
+expect:
+  status: sealed
 "#,
     )?;
 
-    let exchanges = &fixture.caller.http_exchanges;
+    let exchanges = &fixture.providers.http;
     assert_eq!(exchanges.len(), 2);
     assert_eq!(exchanges[0].request.url, exchanges[1].request.url);
     Ok(())
@@ -331,37 +322,45 @@ fn rejects_non_http_test_exchange_urls() {
     let error = parse_test_fixture(
         r#"
 name: deterministic-web
-kind: skill
-target: ..
-caller:
-  http_exchanges:
+providers:
+  http:
     - request: { method: GET, url: "file:///private/source", body: none }
       response: { status: 200, body: hidden }
+expect:
+  status: sealed
 "#,
     )
     .expect_err("a non-HTTP exchange must fail");
 
     assert!(
-        matches!(error, TestFixtureError::Invalid { field, .. } if field == "caller.http_exchanges[0].request.url")
+        matches!(error, TestFixtureError::Invalid { field, .. } if field == "providers.http[0].request.url")
     );
 }
 
 #[test]
-fn rejects_unknown_caller_fields() {
-    let error = parse_test_fixture(
-        "name: deterministic-web\nkind: skill\ntarget: ..\ncaller:\n  network: true\n",
-    )
-    .expect_err("an unknown caller field must fail");
-    assert!(matches!(error, TestFixtureError::Invalid { field, .. } if field == "caller"));
+fn rejects_unknown_host_and_provider_fields() {
+    // A test's caller is its host and its providers, and neither takes a
+    // field it doesn't know.
+    for block in ["host", "providers"] {
+        let error = parse_test_fixture(&format!(
+            "name: deterministic-web\n{block}:\n  network: true\nexpect:\n  status: sealed\n"
+        ))
+        .expect_err("an unknown field must fail");
+        assert!(
+            matches!(error, TestFixtureError::Parse(_))
+                && error.to_string().contains("unknown field `network`"),
+            "{block}: {error}"
+        );
+    }
 }
 
 #[test]
 fn process_calls_are_bounded_and_exact_not_an_order_dependent_fallback()
 -> Result<(), TestFixtureError> {
-    let prefix = "name: process\nkind: skill\ntarget: ../skill\ncaller:\n  process_calls:\n";
+    let prefix = "name: process\nexpect:\n  status: sealed\nproviders:\n  processes:\n";
     let call = "    - tool: source.read\n      arguments: {id: one}\n      result: {value: 7}\n";
     let fixture = parse_test_fixture(&format!("{prefix}{call}"))?;
-    assert_eq!(fixture.caller.process_calls.len(), 1);
+    assert_eq!(fixture.providers.processes.len(), 1);
     assert!(parse_test_fixture(&format!("{prefix}{call}{call}")).is_err());
     assert!(parse_test_fixture(&format!("{prefix}{}", call.repeat(33))).is_err());
     assert!(parse_test_fixture(&format!("{prefix}{}", call.replace("source.read", "''"))).is_err());
@@ -370,10 +369,10 @@ fn process_calls_are_bounded_and_exact_not_an_order_dependent_fallback()
 
 #[test]
 fn exact_text_http_bodies_cover_forms_and_remain_byte_bounded() -> Result<(), TestFixtureError> {
-    let document = "name: form\nkind: skill\ntarget: ..\ncaller:\n  http_exchanges:\n    - request:\n        method: POST\n        url: https://provider.example/payment\n        body: {text: 'amount=150&currency=usd'}\n      response: {status: 200, body: '{}'}\n";
+    let document = "name: form\nproviders:\n  http:\n    - request:\n        method: POST\n        url: https://provider.example/payment\n        body: {text: 'amount=150&currency=usd'}\n      response: {status: 200, body: '{}'}\nexpect:\n  status: sealed\n";
     let fixture = parse_test_fixture(document)?;
     assert_eq!(
-        fixture.caller.http_exchanges[0].request.body,
+        fixture.providers.http[0].request.body,
         TestHttpRequestBodyFixture::Text {
             text: "amount=150&currency=usd".to_owned()
         }
