@@ -21,11 +21,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use runx_contracts::{
-    InstanceAuthority, JsonObject, PaidSkillOfferTerms, Placement, PortableAmountMinor, Purchase,
-    PurchaseExecutionState, PurchaseMethod, PurchaseOutcomeGate, PurchasePaymentChallenge,
-    PurchasePaymentOption, PurchasePaymentOptionBinding, PurchasePaymentState, PurchaseQuote,
-    PurchaseRead, PurchaseRequest, QUOTE_PURCHASE_RESULT_SCHEMA, QuotePurchaseResult,
-    RUNX_BALANCE_SETTLEMENT_FAMILY, ResolutionRequest, ResolutionResponseActor, sha256_prefixed,
+    CurrencyCode, Digest, InstanceAuthority, JsonObject, OfferVersionBinding, PaidSkillOfferTerms,
+    Placement, PortableAmountMinor, PrincipalReference, Purchase, PurchaseExecutionState,
+    PurchaseMethod, PurchaseOutcomeGate, PurchasePaymentChallenge, PurchasePaymentOption,
+    PurchasePaymentOptionBinding, PurchasePaymentState, PurchaseQuote, PurchaseRead,
+    PurchaseRequest, QUOTE_PURCHASE_RESULT_SCHEMA, QuotePurchaseResult,
+    RUNX_BALANCE_SETTLEMENT_FAMILY, Reference, ResolutionRequest, ResolutionResponseActor,
+    sha256_prefixed,
 };
 use serde::{Deserialize, Serialize};
 
@@ -133,13 +135,82 @@ impl PurchaseSettlement {
     }
 }
 
+/// What a decided purchase commits to, as its buyer approved it. runx's every
+/// answer about the purchase must name the same purchase, offer, package and
+/// amount, for the buyer the session acts for.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Commitments {
+    purchase_id: String,
+    input_digest: Digest,
+    seller_ref: PrincipalReference,
+    skill_ref: Reference,
+    offer_version: OfferVersionBinding,
+    package_digest: Digest,
+    amount_minor: PortableAmountMinor,
+    currency: CurrencyCode,
+}
+
+impl Commitments {
+    fn of(purchase: &Purchase) -> Self {
+        Self {
+            purchase_id: purchase.purchase_id.as_str().to_owned(),
+            input_digest: purchase.input_digest.clone(),
+            seller_ref: purchase.seller_ref.clone(),
+            skill_ref: purchase.skill_ref.clone(),
+            offer_version: purchase.offer_version.clone(),
+            package_digest: purchase.package_digest.clone(),
+            amount_minor: purchase.amount_minor,
+            currency: purchase.currency.clone(),
+        }
+    }
+
+    /// Whether runx answered about this purchase, bought by `buyer`: the one
+    /// check every answer passes, a success as a refusal.
+    fn answered_by(&self, purchase: &Purchase, buyer: &str) -> Result<(), String> {
+        let answered = Self::of(purchase);
+        let differs = [
+            (
+                "purchase",
+                answered.purchase_id != self.purchase_id
+                    || answered.input_digest != self.input_digest,
+            ),
+            (
+                "buyer",
+                purchase.buyer_ref.as_reference().uri.as_str() != buyer,
+            ),
+            (
+                "offer",
+                answered.seller_ref != self.seller_ref
+                    || answered.skill_ref != self.skill_ref
+                    || answered.offer_version != self.offer_version,
+            ),
+            ("package", answered.package_digest != self.package_digest),
+            (
+                "amount",
+                answered.amount_minor != self.amount_minor || answered.currency != self.currency,
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(commitment, differs)| differs.then_some(commitment))
+        .collect::<Vec<_>>();
+        if differs.is_empty() {
+            return Ok(());
+        }
+        Err(format!(
+            "runx answered about another {} than the one decided",
+            differs.join(" and ")
+        ))
+    }
+}
+
 /// What a resend of an attempted purchase needs, committed with the attempt.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case", deny_unknown_fields)]
 enum PurchaseEvent {
     Decided {
         idempotency_key: String,
-        purchase_id: String,
+        purchase: Box<Commitments>,
         method: Paid,
         /// The run whose ledger reserved the amount, and its key there.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -147,7 +218,6 @@ enum PurchaseEvent {
     },
     Answered {
         idempotency_key: String,
-        purchase_id: String,
     },
 }
 
@@ -365,7 +435,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         .map(|_| (call.run_id.to_owned(), purchase_key.clone()));
     let decided = PurchaseEvent::Decided {
         idempotency_key: purchase_key.clone(),
-        purchase_id: quote.purchase.purchase_id.as_str().to_owned(),
+        purchase: Box::new(Commitments::of(&quote.purchase)),
         method: method.paid.clone(),
         spend: spend.clone(),
     };
@@ -391,7 +461,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
     let sent = Sent {
         recovering: false,
         idempotency_key: purchase_key,
-        purchase_id: quote.purchase.purchase_id.as_str().to_owned(),
+        purchase: Commitments::of(&quote.purchase),
         method: method.paid.clone(),
         spend,
     };
@@ -402,7 +472,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
 struct Sent {
     recovering: bool,
     idempotency_key: String,
-    purchase_id: String,
+    purchase: Commitments,
     method: Paid,
     spend: Option<(String, String)>,
 }
@@ -423,27 +493,28 @@ fn recover(
             "the current account and endpoint do not match the recorded purchase binding; the original attempt remains unresolved".to_owned()));
     }
     let mut sent = None;
-    let mut answered_id = None;
+    let mut answered = false;
     for recorded in store.read::<PurchaseEvent>(key).map_err(state)? {
         match recorded.event {
             PurchaseEvent::Decided {
                 idempotency_key,
-                purchase_id,
+                purchase,
                 method,
                 spend,
             } if idempotency_key == pending.idempotency_key => {
                 sent = Some(Sent {
                     recovering: true,
                     idempotency_key,
-                    purchase_id,
+                    purchase: *purchase,
                     method,
                     spend,
                 });
             }
-            PurchaseEvent::Answered {
-                idempotency_key,
-                purchase_id: answered,
-            } if idempotency_key == pending.idempotency_key => answered_id = Some(answered),
+            PurchaseEvent::Answered { idempotency_key }
+                if idempotency_key == pending.idempotency_key =>
+            {
+                answered = true;
+            }
             _ => {}
         }
     }
@@ -453,9 +524,10 @@ fn recover(
             "the attempt records no decision to send it again with".to_owned(),
         ));
     };
-    match answered_id {
-        Some(purchase_id) => follow(call, session, custody, &purchase_id, &sent),
-        None => send(call, route, session, store, custody, key, &sent),
+    if answered {
+        follow(call, session, custody, &sent)
+    } else {
+        send(call, route, session, store, custody, key, &sent)
     }
 }
 
@@ -475,7 +547,7 @@ fn send(
     if let Some(object) = account_payment.as_object_mut() {
         object.insert(
             "purchase_id".to_owned(),
-            serde_json::json!(sent.purchase_id),
+            serde_json::json!(sent.purchase.purchase_id),
         );
     }
     let mut body = serde_json::json!({
@@ -486,16 +558,7 @@ fn send(
     if let (Some(version), Some(object)) = (&call.paid.version, body.as_object_mut()) {
         object.insert("version".to_owned(), serde_json::json!(version));
     }
-    let held = |reason: String| -> RuntimeError {
-        if let Err(error) = custody.unknown(reason.clone()) {
-            return state(error);
-        }
-        RuntimeError::ProviderEffectUnknown {
-            plan_digest: call.paid.target(),
-            idempotency_key: sent.idempotency_key.clone(),
-            reason,
-        }
-    };
+    let hold = |reason: String| held(call, custody, sent, reason);
     let response = match session.exchange(
         HttpMethod::Post,
         route,
@@ -504,46 +567,48 @@ fn send(
         "application/json",
     ) {
         Ok(response) => response,
-        Err(error) => return Err(held(format!("the purchase may have been sent: {error}"))),
+        Err(error) => return Err(hold(format!("the purchase may have been sent: {error}"))),
     };
     match response.status {
         200..=299 => {
             let reading: PurchaseRead = serde_json::from_str(&response.body)
-                .map_err(|error| held(format!("the purchase answer is not a purchase: {error}")))?;
-            let purchase_id = reading.purchase.purchase_id.as_str().to_owned();
+                .map_err(|error| hold(format!("the purchase answer is not a purchase: {error}")))?;
+            sent.purchase
+                .answered_by(&reading.purchase, &session.principal_uri)
+                .map_err(hold)?;
             store
                 .append(vec![append(
                     store,
                     key,
                     &PurchaseEvent::Answered {
                         idempotency_key: sent.idempotency_key.clone(),
-                        purchase_id: purchase_id.clone(),
                     },
                 )?])
                 .map_err(state)?;
             settle_or_follow(call, session, custody, reading, sent)
         }
-        408 | 425 | 429 | 500..=599 => Err(held(format!(
+        408 | 425 | 429 | 500..=599 => Err(hold(format!(
             "runx answered the purchase with HTTP {}",
             response.status
         ))),
         status => {
             if sent.recovering {
-                return Err(held(format!(
+                return Err(hold(format!(
                     "the purchase may already have paid; HTTP {status} on recovery cannot prove otherwise"
                 )));
             }
             // An HTTP failure can follow settlement. Release only after an
             // independent read proves this account's exact purchase unpaid.
-            let observed = read(call, session, &sent.purchase_id).map_err(|_| {
-                held("the purchase refusal has no independent unpaid readback".to_owned())
+            let observed = read(call, session, &sent.purchase.purchase_id).map_err(|_| {
+                hold("the purchase refusal has no independent unpaid readback".to_owned())
             })?;
-            if observed.purchase.purchase_id.as_str() != sent.purchase_id
-                || observed.purchase.buyer_ref.as_reference().uri.as_str() != session.principal_uri
-                || observed.purchase.payment_state != PurchasePaymentState::Unpaid
+            sent.purchase
+                .answered_by(&observed.purchase, &session.principal_uri)
+                .map_err(hold)?;
+            if observed.purchase.payment_state != PurchasePaymentState::Unpaid
                 || observed.purchase.execution_state != PurchaseExecutionState::Unstarted
             {
-                return Err(held(
+                return Err(hold(
                     "the purchase refusal does not prove that this purchase moved no money"
                         .to_owned(),
                 ));
@@ -570,10 +635,9 @@ fn follow(
     call: &PurchaseCall<'_>,
     session: &HostedSession,
     custody: &EffectCustody,
-    purchase_id: &str,
     sent: &Sent,
 ) -> Result<Bought, RuntimeError> {
-    let reading = read(call, session, purchase_id)?;
+    let reading = read_sent(call, session, custody, sent)?;
     settle_or_follow(call, session, custody, reading, sent)
 }
 
@@ -643,9 +707,42 @@ fn settle_or_follow(
             }
             _ => {
                 std::thread::sleep(POLL);
-                reading = read(call, session, reading.purchase.purchase_id.as_str())?;
+                reading = read_sent(call, session, custody, sent)?;
             }
         }
+    }
+}
+
+/// Read the purchase an attempt sent, as runx answers it about that purchase
+/// and no other.
+fn read_sent(
+    call: &PurchaseCall<'_>,
+    session: &HostedSession,
+    custody: &EffectCustody,
+    sent: &Sent,
+) -> Result<PurchaseRead, RuntimeError> {
+    let reading = read(call, session, &sent.purchase.purchase_id)?;
+    sent.purchase
+        .answered_by(&reading.purchase, &session.principal_uri)
+        .map_err(|reason| held(call, custody, sent, reason))?;
+    Ok(reading)
+}
+
+/// Hold an attempt whose outcome is unknown: it may have paid, so only
+/// runx's answer under its key settles it.
+fn held(
+    call: &PurchaseCall<'_>,
+    custody: &EffectCustody,
+    sent: &Sent,
+    reason: String,
+) -> RuntimeError {
+    if let Err(error) = custody.unknown(reason.clone()) {
+        return state(error);
+    }
+    RuntimeError::ProviderEffectUnknown {
+        plan_digest: call.paid.target(),
+        idempotency_key: sent.idempotency_key.clone(),
+        reason,
     }
 }
 

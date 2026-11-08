@@ -646,6 +646,40 @@ fn a_refund_releases_the_reservation() {
     assert_eq!(project.committed(), 0);
 }
 
+/// A successful answer counts only for what was sent, as a refusal's
+/// readback does: the same purchase, for this buyer, on the decided offer,
+/// amount and package. An answer about any other holds the call as unknown,
+/// with what may have been spent still reserved.
+#[test]
+fn a_successful_answer_about_another_purchase_holds() {
+    for (field, value, named) in [
+        ("/purchase_id", json!("paid_2"), "purchase"),
+        ("/buyer_ref/uri", json!("runx:principal:buyer-2"), "buyer"),
+        ("/offer_version/version", json!("2026-08-22.2"), "offer"),
+        ("/amount_minor", json!(6), "amount"),
+        (
+            "/package_digest",
+            json!(format!("sha256:{}", "8".repeat(64))),
+            "package",
+        ),
+    ] {
+        let project = Project::new();
+        let mut answered = purchase("fulfilled");
+        *answered["purchase"].pointer_mut(field).unwrap() = value;
+        let runx = Runx::new(quote(NETWORK, 5), vec![(201, answered)]);
+        let Err(RuntimeError::ProviderEffectUnknown { reason, .. }) =
+            project.buy(&runx, &mut project.approve(), Some(1_000_000))
+        else {
+            panic!("an answer about another {named} holds");
+        };
+        assert!(
+            reason.contains(&format!("another {named} ")),
+            "{field}: {reason}"
+        );
+        assert_eq!(project.committed(), 50_000, "{field}: stays reserved");
+    }
+}
+
 #[test]
 fn a_quote_the_listing_does_not_price_is_refused_before_asking() {
     let project = Project::new();
