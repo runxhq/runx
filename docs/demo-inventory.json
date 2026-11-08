@@ -32,7 +32,5 @@
       "command": "runx harness examples/managed-agent"
     }
   ],
-  "fixture_support": [
-    "examples/host-protocol"
-  ]
+  "fixture_support": []
 }

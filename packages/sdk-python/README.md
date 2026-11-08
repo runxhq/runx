@@ -2,7 +2,7 @@
 
 Python SDK for [runx](https://runx.ai), the governed runtime for agent skills, tools, and graphs.
 
-`runx-py` is a thin Python client over the `runx` CLI JSON output. Install the CLI separately (`@runxhq/cli` on npm), then use this package from Python to search and run skills, continue runs awaiting agent input, and format host protocol results for popular agent frameworks.
+`runx-py` is a thin Python client over the `runx` CLI's JSON output. Install the CLI separately (`@runxhq/cli` on npm), then use this package from Python to search the registry, run skills, and resume a paused run with a `runx.resume.v1` answers document.
 
 See the [TypeScript interop boundary](../../docs/ts-interop-boundary.md) for
 the package outcome and ownership rules.
@@ -38,20 +38,6 @@ print(report["status"])
 continued = client.continue_run("runx/web-search", run_id="run_123", answers_file="answers.json")
 print(continued["status"])
 ```
-
-## Framework adapters
-
-Bridge runx into an existing agent framework (OpenAI, Anthropic, CrewAI, LangChain, Vercel AI):
-
-```python
-from runx import create_host_bridge, create_openai_host_adapter
-
-bridge = create_host_bridge(run=my_host_run, continue_run=my_host_continue)
-adapter = create_openai_host_adapter(bridge)
-response = adapter.run("runx/web-search")
-```
-
-The bridge translates host protocol results, including `needs_agent` runs and approval gates, into framework-native tool messages. `RunxClient` remains a CLI client; host protocol execution is provided by the embedding runtime.
 
 ## Links
 

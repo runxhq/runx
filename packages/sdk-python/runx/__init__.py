@@ -30,8 +30,6 @@ class SkillSearchResult:
     skill_id: str
     name: str
     publisher: str
-    source: str
-    source_label: str
     trust_tier: str
     required_scopes: tuple[str, ...]
     tags: tuple[str, ...]
@@ -40,6 +38,8 @@ class SkillSearchResult:
     summary: str | None = None
     version: str | None = None
     digest: str | None = None
+    source: str | None = None
+    source_label: str | None = None
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "SkillSearchResult":
@@ -47,8 +47,6 @@ class SkillSearchResult:
             skill_id=str(value["skill_id"]),
             name=str(value["name"]),
             publisher=str(value["skill_id"]).split("/", 1)[0],
-            source=str(value["source"]),
-            source_label=str(value["source_label"]),
             trust_tier=str(value["trust_tier"]),
             required_scopes=tuple(str(item) for item in value.get("required_scopes", [])),
             tags=tuple(str(item) for item in value.get("tags", [])),
@@ -57,6 +55,8 @@ class SkillSearchResult:
             summary=_optional_str(value.get("summary")),
             version=_optional_str(value.get("version")),
             digest=_optional_str(value.get("digest")),
+            source=_optional_str(value.get("source")),
+            source_label=_optional_str(value.get("source_label")),
         )
 
 
@@ -143,51 +143,9 @@ def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
 
 
-from .host_protocol import (  # noqa: E402
-    ProviderHostAdapter,
-    HostBoundaryContext,
-    HostBoundaryResolver,
-    HostBridge,
-    HostCompletedResult,
-    HostDeniedResult,
-    HostEscalatedResult,
-    HostFailedResult,
-    HostNeedsAgentResult,
-    HostRunResult,
-    HostRunState,
-    create_anthropic_host_adapter,
-    create_crewai_host_adapter,
-    create_host_bridge,
-    create_langchain_host_adapter,
-    create_openai_host_adapter,
-    create_vercel_ai_host_adapter,
-    normalize_host_result,
-    normalize_host_state,
-)
-
-
 __all__ = [
     "CopyableCommand",
     "RunxClient",
     "RunxCommandError",
     "SkillSearchResult",
-    "ProviderHostAdapter",
-    "HostBoundaryContext",
-    "HostBoundaryResolver",
-    "HostBridge",
-    "HostCompletedResult",
-    "HostDeniedResult",
-    "HostEscalatedResult",
-    "HostFailedResult",
-    "HostNeedsAgentResult",
-    "HostRunResult",
-    "HostRunState",
-    "create_anthropic_host_adapter",
-    "create_crewai_host_adapter",
-    "create_host_bridge",
-    "create_langchain_host_adapter",
-    "create_openai_host_adapter",
-    "create_vercel_ai_host_adapter",
-    "normalize_host_result",
-    "normalize_host_state",
 ]

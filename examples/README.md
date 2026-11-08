@@ -30,8 +30,3 @@ set.
 | --- | --- | --- |
 | `managed-agent` | agent (host-drives default; yields `needs_agent` to the calling agent) | `runx harness examples/managed-agent` |
 | `hello-graph` | graph harness baseline | `runx harness examples/hello-graph/harness.yaml` |
-
-## Fixture support
-
-`host-protocol` holds a Python host bridge sample for the OpenAI host adapter.
-It is intentionally not a user-facing demo by itself.

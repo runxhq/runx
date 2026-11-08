@@ -99,7 +99,7 @@ implied.
 | `@runxhq/cli` | Stays as a platform-aware npm launcher that resolves and execs the Rust binary. It must remain useful from an installed package without TypeScript sources and must fail closed instead of falling back to TypeScript local execution. It also carries the drift-free cold-start: `npx @runxhq/cli skill runx/skill-build build -i objective=<outcome> -i target_dir=<dir>` downloads the launcher and runs the same `skill-build` skill without a prior Runx install. The launcher owns no templates or authoring logic. |
 | `@runxhq/core` | Deleted. Its registry/config/parser remnants were not a shipped execution boundary; live OSS code uses Rust crates, generated contracts, tool-local modules, or explicit protocol packages instead. Cloud uses its owning feature packages and the small `@runx/protocol` contract/utility subpaths. |
 | `@runxhq/client` | Typed finite Node invocation of the native CLI, with bounded processes and artifact decoding. The `./adapters` subpath formats native results without Node or framework imports. The previous host-adapters package and unimplemented HostBridge run-state contract are removed. |
-| `runx-py` | Stays as a thin Python client over `runx` CLI JSON output. |
+| `runx-py` | A thin Python client over the `runx` CLI's JSON output. `RunxClient` runs the CLI with `--json` to search the registry, run a skill, and resume a paused run from a `runx.resume.v1` document, and returns what the CLI printed. |
 
 Cloud packages remain TypeScript. The Rust runtime consumes cloud through the
 cloud HTTP contracts. Local registry and policy configuration remains
