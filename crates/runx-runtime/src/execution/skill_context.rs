@@ -4,9 +4,6 @@ use std::path::{Component, Path};
 use runx_contracts::{ContextEntry, JsonObject, JsonValue};
 
 use crate::RuntimeError;
-use crate::registry::{
-    FileRegistryStore, RegistryResolveOptions, RegistrySkillResolution, resolve_registry_skill,
-};
 
 mod catalog;
 mod entry;
@@ -96,7 +93,12 @@ fn load_context_skill(
                 created_at,
             );
         }
-        return load_registry_context_skill(step_id, reference, env, created_at);
+        return Err(RuntimeError::InvalidRunStep {
+            step_id: step_id.to_owned(),
+            reason: format!(
+                "context skill '{reference}' is not installed in this project; `runx skill` fetches it before the run"
+            ),
+        });
     }
     validate_local_context_ref(step_id, reference)?;
     load_context_skill_directory(
@@ -109,30 +111,13 @@ fn load_context_skill(
     )
 }
 
-/// Whether the project or a named local registry holds the context skill a
-/// registry ref names.
+/// Whether the project holds the context skill a registry ref names.
 pub(crate) fn registry_holds_context_skill(
     reference: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<bool, RuntimeError> {
     let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
-    if crate::execution::graph::installed_registry_skill(reference, &paths)?.is_some() {
-        return Ok(true);
-    }
-    let Some(registry_dir) = paths.registry_dir() else {
-        return Ok(false);
-    };
-    Ok(resolve_registry_skill(
-        &FileRegistryStore::new(registry_dir),
-        reference,
-        RegistryResolveOptions {
-            version: None,
-            registry_url: env.get("RUNX_REGISTRY_URL").cloned(),
-        },
-    )
-    .ok()
-    .flatten()
-    .is_some())
+    Ok(crate::execution::graph::installed_registry_skill(reference, &paths)?.is_some())
 }
 
 /// A context skill read from a package directory: a local path, or the
@@ -224,87 +209,6 @@ fn load_context_skill_directory(
     Ok(entry)
 }
 
-fn load_registry_context_skill(
-    step_id: &str,
-    reference: &str,
-    env: &BTreeMap<String, String>,
-    created_at: &str,
-) -> Result<ContextEntry, RuntimeError> {
-    let (resolution, package) = resolve_registry_context_skill(step_id, reference, env)?;
-    validate_context_manifest(step_id, reference, package.root_manifest())?;
-    let mut data = JsonObject::new();
-    insert_string(&mut data, "skill", reference);
-    insert_string(&mut data, "source", &resolution.source);
-    insert_string(&mut data, "security_boundary", "untrusted-agent-context");
-    insert_string(&mut data, "source_label", &resolution.source_label);
-    insert_string(&mut data, "skill_id", &resolution.skill_id);
-    insert_string(&mut data, "name", &resolution.name);
-    insert_string(&mut data, "version", &resolution.version);
-    insert_string(&mut data, "digest", &resolution.digest);
-    insert_string(&mut data, "trust_tier", resolution.trust_tier.as_str());
-    if let Some(profile_digest) = &resolution.profile_digest {
-        insert_string(
-            &mut data,
-            "profile_digest",
-            &prefixed_registry_digest(profile_digest),
-        );
-    }
-    if let Some(bundle_digest) = &resolution.bundle_digest {
-        insert_string(&mut data, "bundle_digest", bundle_digest);
-    }
-    if let Some(description) = &package.skill.description {
-        insert_string(&mut data, "description", description);
-    }
-    insert_catalog_summary(&mut data, package.root_manifest())?;
-    manual_context_entry(step_id, reference, env, created_at, &package, data)
-}
-
-fn resolve_registry_context_skill(
-    step_id: &str,
-    reference: &str,
-    env: &BTreeMap<String, String>,
-) -> Result<(RegistrySkillResolution, runx_parser::ValidatedSkillPackage), RuntimeError> {
-    let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
-    let Some(registry_dir) = paths.registry_dir() else {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step_id.to_owned(),
-            reason: format!(
-                "context skill '{reference}' is not installed in this project; `runx skill` fetches it before the run, and RUNX_REGISTRY_DIR names a local registry"
-            ),
-        });
-    };
-    let store = FileRegistryStore::new(registry_dir);
-    let registry_url = env.get("RUNX_REGISTRY_URL").cloned();
-    let resolution = resolve_registry_skill(
-        &store,
-        reference,
-        RegistryResolveOptions {
-            version: None,
-            registry_url,
-        },
-    )
-    .map_err(|error| RuntimeError::InvalidRunStep {
-        step_id: step_id.to_owned(),
-        reason: format!("context skill registry ref '{reference}' could not be resolved: {error}"),
-    })?
-    .ok_or_else(|| RuntimeError::InvalidRunStep {
-        step_id: step_id.to_owned(),
-        reason: format!("context skill registry ref '{reference}' was not found"),
-    })?;
-
-    let mut source = runx_parser::SkillPackageSource::from_documents(
-        resolution.markdown.clone(),
-        resolution.profile_document.clone(),
-    );
-    for file in &resolution.package_files {
-        source
-            .files
-            .insert(file.path.clone(), file.content.as_bytes().to_vec());
-    }
-    let package = runx_parser::validate_skill_package(source)?;
-    Ok((resolution, package))
-}
-
 fn insert_catalog_summary(
     data: &mut JsonObject,
     manifest: Option<&runx_parser::SkillRunnerManifest>,
@@ -392,12 +296,4 @@ fn validate_local_context_ref(step_id: &str, reference: &str) -> Result<(), Runt
         }
     }
     Ok(())
-}
-
-fn prefixed_registry_digest(digest: &str) -> String {
-    if digest.starts_with("sha256:") {
-        digest.to_owned()
-    } else {
-        format!("sha256:{digest}")
-    }
 }

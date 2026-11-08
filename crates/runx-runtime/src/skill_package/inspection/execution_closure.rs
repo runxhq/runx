@@ -20,8 +20,8 @@ struct ClosureAccumulator {
     skill_edges: BTreeSet<String>,
     direct_external_skill_edges: BTreeSet<DirectExternalSkillEdge>,
     unresolved_skill_edges: BTreeSet<String>,
-    /// Registry context skills neither the project nor a named local
-    /// registry holds; reported, never part of the closure.
+    /// Registry context skills the project does not hold; reported, never
+    /// part of the closure.
     unheld_context_registry_refs: BTreeSet<String>,
     /// Every registry ref a step or context skill of the closure names,
     /// held or not.
@@ -137,7 +137,7 @@ impl EdgeDepth {
     }
 }
 
-/// What inspection does with a registry ref its `RUNX_REGISTRY_DIR` does not hold.
+/// What inspection does with a registry ref the project does not hold.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum UnheldRegistryRefs {
     /// Record it as an unresolved edge, so a host can supply it and inspect again.
@@ -278,8 +278,8 @@ fn load_rule_label(rule: &runx_contracts::CatalogRule) -> String {
 }
 
 /// The registry refs a package's runners and harness graphs name that the
-/// environment's registry directory does not hold: what a host supplies
-/// before the package's closure can be bound.
+/// environment's project does not hold: what is fetched into it before the
+/// package's closure can be bound.
 pub(super) fn unheld_registry_refs(
     loaded: Arc<LoadedSkillPackage>,
     env: &BTreeMap<String, String>,
@@ -838,7 +838,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         let env = self.env.unwrap_or(&empty_env);
         if self.unheld_registry_refs == UnheldRegistryRefs::Report
             && runx_parser::registry_ref(reference).is_some()
-            && !crate::execution::graph::registry_holds_step_skill(step, reference, env)?
+            && !crate::execution::graph::registry_holds_step_skill(reference, env)?
         {
             return Ok(Some(ResolvedStepSkill {
                 edge: format!("{reference}#{requested_runner}"),

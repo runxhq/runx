@@ -1,33 +1,7 @@
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::Path;
-
-pub const RUNX_REGISTRY_SOURCE_AUTHORITY_ENV: &str = "RUNX_REGISTRY_SOURCE_AUTHORITY";
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RegistryManifestSourceAuthority {
     OfficialRunx,
     RegistrySource(String),
-}
-
-pub fn registry_manifest_source_authority_from_env(
-    env: &BTreeMap<String, String>,
-) -> Option<RegistryManifestSourceAuthority> {
-    if env
-        .get(RUNX_REGISTRY_SOURCE_AUTHORITY_ENV)
-        .map(String::as_str)
-        .map(str::trim)
-        .is_some_and(|value| value == "official_runx")
-    {
-        return Some(RegistryManifestSourceAuthority::OfficialRunx);
-    }
-    if let Some(registry_url) = env.get("RUNX_REGISTRY_URL") {
-        return Some(registry_manifest_source_authority_from_registry_url(
-            registry_url,
-        ));
-    }
-    env.get("RUNX_REGISTRY_DIR")
-        .map(|value| registry_manifest_source_authority_from_registry_dir(value))
 }
 
 pub fn registry_manifest_source_authority_from_registry_url(
@@ -41,14 +15,6 @@ pub fn registry_manifest_source_authority_from_registry_url(
             canonical_registry_url(value)
         ))
     }
-}
-
-pub fn registry_manifest_source_authority_from_registry_dir(
-    value: &str,
-) -> RegistryManifestSourceAuthority {
-    let path = Path::new(value);
-    let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    RegistryManifestSourceAuthority::RegistrySource(format!("local:{}", canonical.display()))
 }
 
 pub fn registry_manifest_source_key(source: &RegistryManifestSourceAuthority) -> String {

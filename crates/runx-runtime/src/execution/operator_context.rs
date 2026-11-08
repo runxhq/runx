@@ -1165,69 +1165,6 @@ runners:
     }
 
     #[test]
-    fn operator_context_includes_admitted_registry_child_provenance() -> Result<(), Box<dyn Error>>
-    {
-        use crate::registry::{
-            FileRegistryStore, IngestSkillOptions, RegistryPackageFile, ingest_skill_markdown,
-        };
-
-        let temp = tempdir()?;
-        let registry_dir = temp.path().join("registry");
-        let store = FileRegistryStore::new(&registry_dir);
-        ingest_skill_markdown(
-            &store,
-            "---\nname: registry-child\ndescription: registry-child fixture.\n---\n# Registry Child\n",
-            IngestSkillOptions {
-                publisher_slug: Some("acme".to_owned()),
-                version: Some("1.0.0".to_owned()),
-                created_at: Some("2026-07-12T00:00:00Z".to_owned()),
-                profile_document: Some(
-                    "skill: registry-child\nrunners:\n  agent:\n    default: true\n    steps:\n      - id: agent\n        agent: { role: reviewer, task: review }\n        outputs:\n          result: object\n"
-                        .to_owned(),
-                ),
-                package_files: vec![RegistryPackageFile {
-                    path: "references/rubric.md".to_owned(),
-                    content: "registry package rubric".to_owned(),
-                }],
-                ..IngestSkillOptions::default()
-            },
-        )?;
-        let entry = temp.path().join("entry");
-        write_skill(&entry, "entry", "# Entry")?;
-        write_entry_graph(&entry, "registry:acme/registry-child@1.0.0", "")?;
-        let env = [(
-            "RUNX_REGISTRY_DIR".to_owned(),
-            registry_dir.to_string_lossy().into_owned(),
-        )]
-        .into_iter()
-        .collect();
-
-        let chain = load_skill_operator_context_chain(
-            &entry,
-            None,
-            SkillOperatorContextOptions::new(env, temp.path().to_path_buf()),
-        )?;
-        let child = chain.entry.steps[0]
-            .children
-            .first()
-            .ok_or("missing registry child")?;
-        let registry = child
-            .package
-            .registry
-            .as_ref()
-            .ok_or("missing registry provenance")?;
-        assert_eq!(registry.reference, "registry:acme/registry-child@1.0.0");
-        assert_eq!(registry.skill_id, "acme/registry-child");
-        assert_eq!(registry.version, "1.0.0");
-        assert!(registry.digest.starts_with("sha256:"));
-        assert!(registry.bundle_digest.is_some());
-        assert_eq!(registry.trust_tier, "community");
-        assert!(!registry.source.is_empty());
-        assert!(!registry.source_label.is_empty());
-        Ok(())
-    }
-
-    #[test]
     fn operator_context_rejects_cycles_and_depth_overflow() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         let entry = temp.path().join("entry");

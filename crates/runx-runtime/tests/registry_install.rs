@@ -8,7 +8,8 @@ use runx_runtime::registry::{
     InstallCandidate, InstallError, InstallLocalSkillOptions, RegistryManifestSignature,
     RegistryManifestSourceAuthority, RegistryManifestTrustEnvError, RegistryPackageFile,
     RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
-    TrustedRegistryManifestKey, install_local_skill, skill_content_digest,
+    TrustedRegistryManifestKey, install_local_skill,
+    registry_manifest_source_authority_from_registry_url, skill_content_digest,
     trusted_registry_manifest_keys_from_env,
 };
 use tempfile::tempdir;
@@ -697,6 +698,8 @@ fn registry_install_rejects_third_party_key_outside_publisher_namespace()
     Ok(())
 }
 
+/// A key the environment names never signs for the official registry, so it
+/// cannot promote what it signs to the official tier.
 #[test]
 fn registry_manifest_env_key_cannot_self_promote_to_official()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -711,20 +714,21 @@ fn registry_manifest_env_key_cannot_self_promote_to_official()
         ),
         (
             runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV.to_owned(),
-            "runx".to_owned(),
-        ),
-        (
-            runx_runtime::registry::RUNX_REGISTRY_SOURCE_AUTHORITY_ENV.to_owned(),
-            "official_runx".to_owned(),
+            "acme".to_owned(),
         ),
     ]
     .into_iter()
     .collect::<BTreeMap<_, _>>();
 
-    assert!(matches!(
-        trusted_registry_manifest_keys_from_env(&env),
-        Err(RegistryManifestTrustEnvError::InvalidKey)
-    ));
+    for official in ["https://runx.ai", "https://api.runx.ai/"] {
+        assert!(matches!(
+            trusted_registry_manifest_keys_from_env(
+                &env,
+                &registry_manifest_source_authority_from_registry_url(official),
+            ),
+            Err(RegistryManifestTrustEnvError::InvalidKey)
+        ));
+    }
     Ok(())
 }
 

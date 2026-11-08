@@ -13,11 +13,7 @@ use runx_parser::{
 };
 
 use crate::RuntimeError;
-use crate::registry::{
-    FileRegistryStore, InstallCandidate, InstallLocalSkillOptions, RegistryResolveOptions,
-    RegistrySkillResolution, install_local_skill, resolve_registry_skill, split_skill_id,
-    trusted_registry_manifest_keys_from_env,
-};
+use crate::registry::split_skill_id;
 
 use super::graph_index::PriorRunIndex;
 
@@ -689,7 +685,12 @@ fn resolve_step_skill_directory(
                     registry_ref: Some(skill.to_owned()),
                 });
             }
-            return materialize_registry_step_skill(graph_dir, step, skill, options);
+            return Err(RuntimeError::InvalidRunStep {
+                step_id: step.id.clone(),
+                reason: format!(
+                    "nested skill '{skill}' is not installed in this project; `runx skill` fetches it before the run"
+                ),
+            });
         }
         if let Some(directory) = crate::registry::package_bundle::resolve_bundled_skill(
             graph_dir, skill,
@@ -755,132 +756,16 @@ fn resolve_step_skill_directory(
     })
 }
 
-/// Whether the project or a named local registry holds the skill a registry
-/// ref names, resolved exactly as execution resolves it.
+/// Whether the project holds the skill a registry ref names, resolved
+/// exactly as execution resolves it: the user's own copy, or the one a
+/// registry added.
 pub(crate) fn registry_holds_step_skill(
-    step: &GraphStep,
     reference: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<bool, RuntimeError> {
     let paths = crate::paths::RunxPaths::resolve(env, Path::new("."));
-    if own_registry_skill(reference, &paths, env)?.is_some()
-        || installed_registry_skill(reference, &paths)?.is_some()
-    {
-        return Ok(true);
-    }
-    let Some(registry_dir) = paths.registry_dir() else {
-        return Ok(false);
-    };
-    Ok(find_step_registry_skill(step, reference, registry_dir, env)?.is_some())
-}
-
-fn find_step_registry_skill(
-    step: &GraphStep,
-    reference: &str,
-    registry_dir: &Path,
-    env: &BTreeMap<String, String>,
-) -> Result<Option<RegistrySkillResolution>, RuntimeError> {
-    resolve_registry_skill(
-        &FileRegistryStore::new(registry_dir),
-        reference,
-        RegistryResolveOptions {
-            version: None,
-            registry_url: env.get("RUNX_REGISTRY_URL").cloned(),
-        },
-    )
-    .map_err(|source| RuntimeError::InvalidRunStep {
-        step_id: step.id.clone(),
-        reason: format!("nested skill registry ref '{reference}' could not be resolved: {source}"),
-    })
-}
-
-// Function rationale: registry step materialization owns cache, digest, and manifest restoration.
-fn materialize_registry_step_skill(
-    graph_dir: &Path,
-    step: &GraphStep,
-    reference: &str,
-    options: StepSkillLoadOptions<'_>,
-) -> Result<ResolvedStepSkillDirectory, RuntimeError> {
-    let paths = crate::paths::RunxPaths::resolve(options.env, Path::new("."));
-    let Some(registry_dir) = paths.registry_dir() else {
-        return Err(RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: format!(
-                "nested skill '{reference}' is not installed in this project; `runx skill` fetches it before the run, and RUNX_REGISTRY_DIR names a local registry"
-            ),
-        });
-    };
-    let resolution = find_step_registry_skill(step, reference, registry_dir, options.env)?
-        .ok_or_else(|| RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: format!("nested skill registry ref '{reference}' was not found"),
-        })?;
-
-    split_skill_id(&resolution.skill_id).map_err(|source| RuntimeError::InvalidRunStep {
-        step_id: step.id.clone(),
-        reason: format!(
-            "nested skill registry ref '{reference}' resolved to invalid skill id '{}': {source}",
-            resolution.skill_id
-        ),
-    })?;
-    // A registry child is added to the project's added skills, once per
-    // version, like any other added skill.
-    let destination_root = crate::RunxPaths::resolve(options.env, graph_dir).added_skills();
-    let candidate = InstallCandidate {
-        markdown: resolution.markdown,
-        profile_document: resolution.profile_document,
-        package_files: resolution.package_files,
-        bundle_digest: resolution.bundle_digest,
-        source: resolution.source,
-        source_label: resolution.source_label,
-        package: format!("{}@{}", resolution.skill_id, resolution.version),
-        skill_id: Some(resolution.skill_id),
-        version: Some(resolution.version),
-        signed_manifest: resolution.signed_manifest,
-        profile_digest: resolution.profile_digest,
-        runner_names: resolution.runner_names,
-        trust_tier: Some(resolution.trust_tier),
-        manifest_source_authority: crate::registry::registry_manifest_source_authority_from_env(
-            options.env,
-        ),
-    };
-    let trusted_manifest_keys = trusted_registry_manifest_keys_from_env(options.env).map_err(
-        |source| RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: format!(
-                "nested skill registry ref '{reference}' trust configuration is invalid: {source}"
-            ),
-        },
-    )?;
-    let install = install_local_skill(
-        &candidate,
-        &InstallLocalSkillOptions {
-            destination_root,
-            connectors_root: crate::RunxPaths::resolve(options.env, graph_dir).added_connectors(),
-            install_records: crate::RunxPaths::resolve(options.env, graph_dir).install_records(),
-            expected_digest: None,
-            trusted_manifest_keys,
-        },
-    )
-    .map_err(|source| RuntimeError::InvalidRunStep {
-        step_id: step.id.clone(),
-        reason: format!("nested skill registry ref '{reference}' failed admission: {source}"),
-    })?;
-    let directory = install
-        .destination
-        .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason: format!(
-                "nested skill registry ref '{reference}' installed to invalid path {}",
-                install.destination.display()
-            ),
-        })?;
-    Ok(ResolvedStepSkillDirectory {
-        directory,
-        registry_ref: Some(reference.to_owned()),
-    })
+    Ok(own_registry_skill(reference, &paths, env)?.is_some()
+        || installed_registry_skill(reference, &paths)?.is_some())
 }
 
 /// The user's own copy of the skill a registry ref names, at

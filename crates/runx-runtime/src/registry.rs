@@ -59,9 +59,7 @@ pub use publish_package::{
 };
 pub use refs::{ParsedRegistryRef, parse_registry_ref, safe_skill_package_parts};
 pub use source_authority::{
-    RUNX_REGISTRY_SOURCE_AUTHORITY_ENV, RegistryManifestSourceAuthority, canonical_registry_url,
-    is_official_runx_registry_url, registry_manifest_source_authority_from_env,
-    registry_manifest_source_authority_from_registry_dir,
+    RegistryManifestSourceAuthority, canonical_registry_url, is_official_runx_registry_url,
     registry_manifest_source_authority_from_registry_url, registry_manifest_source_key,
 };
 pub use trust_anchor::{
@@ -70,8 +68,7 @@ pub use trust_anchor::{
     RegistryManifestKeyError, RegistryManifestTrustEnvError, RegistryManifestTrustScope,
     RegistryManifestVerificationFailure, TrustedRegistryManifestKey,
     default_trusted_registry_manifest_keys, registry_manifest_key_allows,
-    trusted_registry_manifest_keys_from_env, trusted_registry_manifest_keys_from_env_with_source,
-    verify_registry_signed_manifest,
+    trusted_registry_manifest_keys_from_env, verify_registry_signed_manifest,
 };
 pub use types::{
     AcquiredRegistrySkill, ProfileMode, PublishSkillMarkdownResult, PublishStatus,

@@ -20,9 +20,7 @@ use super::refs::parse_registry_ref;
 use super::source_authority::{
     RegistryManifestSourceAuthority, registry_manifest_source_authority_from_registry_url,
 };
-use super::trust_anchor::{
-    RegistryManifestTrustEnvError, trusted_registry_manifest_keys_from_env_with_source,
-};
+use super::trust_anchor::{RegistryManifestTrustEnvError, trusted_registry_manifest_keys_from_env};
 use super::types::RegistrySkillVersion;
 use crate::http::RuntimeHttpTransport;
 
@@ -95,10 +93,7 @@ pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
         connectors_root: paths.added_connectors(),
         install_records: paths.install_records(),
         expected_digest: None,
-        trusted_manifest_keys: trusted_registry_manifest_keys_from_env_with_source(
-            &env,
-            Some(source_authority.clone()),
-        )?,
+        trusted_manifest_keys: trusted_registry_manifest_keys_from_env(&env, &source_authority)?,
     };
     let mut supplied = BTreeSet::new();
     for _ in 0..=MAX_CLOSURE_DEPTH {

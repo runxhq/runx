@@ -81,8 +81,9 @@ impl From<super::RegistryManifestTrustEnvError> for ResolveError {
         match error {
             super::RegistryManifestTrustEnvError::InvalidKey => Self::Failed(error.to_string()),
             super::RegistryManifestTrustEnvError::MissingKeyId
-            | super::RegistryManifestTrustEnvError::MissingPublisher
-            | super::RegistryManifestTrustEnvError::MissingSource => Self::Usage(error.to_string()),
+            | super::RegistryManifestTrustEnvError::MissingPublisher => {
+                Self::Usage(error.to_string())
+            }
         }
     }
 }
@@ -478,7 +479,7 @@ pub fn trusted_manifest_keys_for_source(
     env: &BTreeMap<String, String>,
     source_authority: RegistryManifestSourceAuthority,
 ) -> Result<Vec<TrustedRegistryManifestKey>, ResolveError> {
-    super::trusted_registry_manifest_keys_from_env_with_source(env, Some(source_authority))
+    super::trusted_registry_manifest_keys_from_env(env, &source_authority)
         .map_err(ResolveError::from)
 }
 

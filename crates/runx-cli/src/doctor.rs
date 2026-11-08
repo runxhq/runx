@@ -333,7 +333,7 @@ fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRepo
             paths.added_skills(),
             &["RUNX_PROJECT_DIR", "RUNX_CWD"],
         ),
-        registry_trust_key_diagnostic(env),
+        registry_trust_key_diagnostic(env, &target),
         registry_remote_install_diagnostic(&target, env),
     ];
     DoctorReport {
@@ -409,7 +409,11 @@ fn path_diagnostic(id: &str, title: &str, path: PathBuf, env_names: &[&str]) -> 
 }
 
 // Function rationale: one diagnostic assembles the trust-key matrix and repair hints.
-fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagnostic {
+// An operator key signs only from the registry the target selects.
+fn registry_trust_key_diagnostic(
+    env: &BTreeMap<String, String>,
+    target: &RegistryTarget,
+) -> DoctorDiagnostic {
     let configured_key_id = env
         .get(runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV)
         .filter(|value| !value.trim().is_empty())
@@ -418,30 +422,26 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
         .get(runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV)
         .filter(|value| !value.trim().is_empty())
         .cloned();
-    let configured_source =
-        runx_runtime::registry::registry_manifest_source_authority_from_env(env)
-            .map(|source| runx_runtime::registry::registry_manifest_source_key(&source));
     let key_material_configured = env_contains_non_empty(
         env,
         runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
     );
     let mut keys =
         runx_runtime::registry::default_trusted_registry_manifest_keys().unwrap_or_default();
-    let configured = key_material_configured
-        && configured_key_id.is_some()
-        && configured_publisher.is_some()
-        && configured_source.is_some();
+    let configured =
+        key_material_configured && configured_key_id.is_some() && configured_publisher.is_some();
     if configured
-        && let Ok(configured_keys) =
-            runx_runtime::registry::trusted_registry_manifest_keys_from_env(env)
+        && let Ok(configured_keys) = runx_runtime::registry::trusted_registry_manifest_keys_from_env(
+            env,
+            &target.manifest_source_authority(),
+        )
     {
         keys = configured_keys;
     }
     let partial = !configured
         && (key_material_configured
             || configured_key_id.is_some()
-            || configured_publisher.is_some()
-            || configured_source.is_some());
+            || configured_publisher.is_some());
     let mut evidence = JsonObject::new();
     evidence.insert(
         "key_ids".to_owned(),
@@ -471,7 +471,6 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
                 "RUNX_REGISTRY_URL",
-                "RUNX_REGISTRY_DIR",
             ]
             .into_iter()
             .map(|name| JsonValue::String(name.to_owned()))
@@ -494,14 +493,14 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
             )
         } else if partial {
             format!(
-                "Registry manifest trust key is partially configured; set {}, {}, {}, and a registry source.",
+                "Registry manifest trust key is partially configured; set {}, {} and {} together.",
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
             )
         } else {
             format!(
-                "Using built-in registry trust keys. Set {}, {}, {}, and a registry source to add an operator key.",
+                "Using built-in registry trust keys. Set {}, {} and {} to add an operator key for the selected registry.",
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
                 runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
@@ -524,9 +523,8 @@ fn registry_trust_key_diagnostic(env: &BTreeMap<String, String>) -> DoctorDiagno
                     runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
                     runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
                     "RUNX_REGISTRY_URL",
-                    "RUNX_REGISTRY_DIR",
                 ],
-                "Set the registry manifest trust key id, public key, allowed publisher namespace, and registry source together.",
+                "Set the registry manifest trust key id, public key and allowed publisher namespace together; the key signs only from the registry RUNX_REGISTRY_URL selects.",
                 DoctorRepairRisk::Sensitive,
             )]
         } else {

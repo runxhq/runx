@@ -27,8 +27,6 @@ pub const RUNX_RECEIPT_DIR_ENV: &str = "RUNX_RECEIPT_DIR";
 
 /// Where a project keeps its detached processes, inside its runx directory.
 pub(crate) const PROCESSES_DIR: &str = "processes";
-/// The local registry directory registry refs resolve from.
-pub const RUNX_REGISTRY_DIR_ENV: &str = "RUNX_REGISTRY_DIR";
 
 const RUNX_DIR: &str = ".runx";
 pub(crate) const ARTIFACTS_DIR: &str = "artifacts";
@@ -40,7 +38,6 @@ pub struct RunxPaths {
     workspace: PathBuf,
     project: PathBuf,
     receipts: Option<PathBuf>,
-    registry: Option<PathBuf>,
 }
 
 impl RunxPaths {
@@ -65,22 +62,13 @@ impl RunxPaths {
         let project =
             env_path(env, RUNX_PROJECT_DIR_ENV).map_or_else(|| workspace.join(RUNX_DIR), &within);
         let receipts = env_path(env, RUNX_RECEIPT_DIR_ENV).map(within);
-        let registry = env_path(env, RUNX_REGISTRY_DIR_ENV).map(within);
         Self {
             cwd,
             home,
             workspace,
             project,
             receipts,
-            registry,
         }
-    }
-
-    /// The local registry directory registry refs resolve from, when one is
-    /// configured: `RUNX_REGISTRY_DIR`, relative to the workspace.
-    #[must_use]
-    pub fn registry_dir(&self) -> Option<&Path> {
-        self.registry.as_deref()
     }
 
     /// The directory runx was invoked from.

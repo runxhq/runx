@@ -94,9 +94,6 @@ pub fn resolve_registry_target(
     if let Some(target) = explicit_registry_target(registry, env, cwd) {
         return target;
     }
-    if let Some(target) = env_registry_dir_target(configured_registry, env, cwd) {
-        return target;
-    }
     if let Some(registry) = configured_registry.filter(|value| is_remote_registry_url(value)) {
         return RegistryTarget::Remote {
             registry_url: registry.to_owned(),
@@ -142,18 +139,6 @@ fn explicit_registry_target(
             .cloned(),
         source_kind: registry_source_kind(registry),
     })
-}
-
-fn env_registry_dir_target(
-    configured_registry: Option<&str>,
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Option<RegistryTarget> {
-    let paths = crate::RunxPaths::resolve(env, cwd);
-    Some(local_registry_target(
-        paths.registry_dir()?.to_path_buf(),
-        remote_registry_url(configured_registry),
-    ))
 }
 
 fn default_local_registry_target(
@@ -210,10 +195,6 @@ fn registry_source_kind(registry: &str) -> LocalRegistrySourceKind {
     }
 }
 
-fn remote_registry_url(value: Option<&str>) -> Option<&str> {
-    value.filter(|entry| is_remote_registry_url(entry))
-}
-
 fn file_url_path(value: &str) -> Option<PathBuf> {
     let url = Url::parse(value).ok()?;
     if url.scheme() != "file" {
@@ -266,7 +247,6 @@ mod tests {
     fn a_named_local_registry_or_an_empty_registry_url_stays_local() {
         let local = [
             target(Some("./registry"), &[]),
-            target(None, &[("RUNX_REGISTRY_DIR", "/srv/registry")]),
             target(None, &[("RUNX_REGISTRY_URL", "")]),
         ];
         for target in &local {

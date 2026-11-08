@@ -3,10 +3,7 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::signature::{ED25519, UnparsedPublicKey};
 use std::collections::BTreeMap;
 
-use super::source_authority::{
-    RegistryManifestSourceAuthority, registry_manifest_source_authority_from_env,
-    registry_manifest_source_key,
-};
+use super::source_authority::{RegistryManifestSourceAuthority, registry_manifest_source_key};
 use super::types::{RegistrySignedManifest, RegistrySubjectKind, TrustTier};
 use runx_contracts::{REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX};
 
@@ -147,22 +144,14 @@ pub enum RegistryManifestTrustEnvError {
     MissingKeyId,
     #[error("registry manifest trust publisher is required")]
     MissingPublisher,
-    #[error("registry manifest trust source is required")]
-    MissingSource,
 }
 
+/// The keys a package from `source_authority` may be signed by: the built-in
+/// official key, and the operator key the environment names, which signs
+/// only from that source.
 pub fn trusted_registry_manifest_keys_from_env(
     env: &BTreeMap<String, String>,
-) -> Result<Vec<TrustedRegistryManifestKey>, RegistryManifestTrustEnvError> {
-    trusted_registry_manifest_keys_from_env_with_source(
-        env,
-        registry_manifest_source_authority_from_env(env),
-    )
-}
-
-pub fn trusted_registry_manifest_keys_from_env_with_source(
-    env: &BTreeMap<String, String>,
-    source_authority: Option<RegistryManifestSourceAuthority>,
+    source_authority: &RegistryManifestSourceAuthority,
 ) -> Result<Vec<TrustedRegistryManifestKey>, RegistryManifestTrustEnvError> {
     let mut trusted_keys = default_trusted_registry_manifest_keys()
         .map_err(|_| RegistryManifestTrustEnvError::InvalidKey)?;
@@ -175,7 +164,7 @@ pub fn trusted_registry_manifest_keys_from_env_with_source(
         .ok_or(RegistryManifestTrustEnvError::MissingKeyId)?;
     if matches!(
         source_authority,
-        Some(RegistryManifestSourceAuthority::OfficialRunx)
+        RegistryManifestSourceAuthority::OfficialRunx
     ) {
         return Err(RegistryManifestTrustEnvError::InvalidKey);
     }
@@ -183,10 +172,7 @@ pub fn trusted_registry_manifest_keys_from_env_with_source(
         .get(RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV)
         .cloned()
         .ok_or(RegistryManifestTrustEnvError::MissingPublisher)?;
-    let allowed_source = source_authority
-        .as_ref()
-        .map(registry_manifest_source_key)
-        .ok_or(RegistryManifestTrustEnvError::MissingSource)?;
+    let allowed_source = registry_manifest_source_key(source_authority);
     let key = TrustedRegistryManifestKey::from_base64(
         key_id,
         public_key,
@@ -326,20 +312,20 @@ mod tests {
 
     #[test]
     fn env_trust_key_cannot_promote_itself_to_official_source() {
-        let result = trusted_registry_manifest_keys_from_env_with_source(
+        let result = trusted_registry_manifest_keys_from_env(
             &trust_env(),
-            Some(RegistryManifestSourceAuthority::OfficialRunx),
+            &RegistryManifestSourceAuthority::OfficialRunx,
         );
         assert_eq!(result, Err(RegistryManifestTrustEnvError::InvalidKey));
     }
 
     #[test]
     fn third_party_source_trust_key_still_requires_publisher() {
-        let result = trusted_registry_manifest_keys_from_env_with_source(
+        let result = trusted_registry_manifest_keys_from_env(
             &trust_env(),
-            Some(RegistryManifestSourceAuthority::RegistrySource(
-                "local:/tmp/runx-registry".to_owned(),
-            )),
+            &RegistryManifestSourceAuthority::RegistrySource(
+                "remote:https://registry.runx.test".to_owned(),
+            ),
         );
 
         assert_eq!(result, Err(RegistryManifestTrustEnvError::MissingPublisher));
