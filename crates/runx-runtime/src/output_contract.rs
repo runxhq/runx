@@ -49,7 +49,7 @@ pub(crate) fn project_declared_output_claim(
     let fields = payload.as_object();
     let mut claim = JsonObject::new();
     if let Some(raw_output) = raw_output {
-        for (name, field) in parse_output_contract(raw_output)? {
+        for (name, field) in result_fields(parse_output_contract(raw_output)?, artifacts) {
             let Some(value) = fields.and_then(|fields| fields.get(&name)).cloned() else {
                 if !field.is_required() {
                     continue;
@@ -64,6 +64,18 @@ pub(crate) fn project_declared_output_claim(
     }
     claim.extend(project_artifact_outputs(payload, artifacts));
     Ok(claim)
+}
+
+/// The outputs a producer returns as fields of its result: every declared
+/// output but the one `result_as` names, which is the whole result.
+pub(crate) fn result_fields(
+    mut outputs: BTreeMap<String, OutputField>,
+    artifacts: Option<&SkillArtifactContract>,
+) -> BTreeMap<String, OutputField> {
+    if let Some(whole) = artifacts.and_then(|artifacts| artifacts.wrap_as.as_deref()) {
+        outputs.remove(whole);
+    }
+    outputs
 }
 
 /// Project only the artifact-addressable portion of a producer payload.
@@ -177,12 +189,23 @@ pub(crate) fn output_contract_checks(
 ) -> Result<ContractChecks, RuntimeError> {
     let mut checks = ContractChecks::default();
     if let Some(output) = output {
-        validate_output_value(Some(output), payload).map_err(|error| {
-            RuntimeError::SkillFailed {
-                skill_name: skill_name.to_owned(),
-                message: format!("runner output contract violation at {error}"),
-            }
-        })?;
+        let violation = |error| RuntimeError::SkillFailed {
+            skill_name: skill_name.to_owned(),
+            message: format!("runner output contract violation at {error}"),
+        };
+        validate_output_value(Some(&result_fields(output.clone(), artifacts)), payload)
+            .map_err(violation)?;
+        // The output `result_as` names is the whole result, checked as one value.
+        if let Some((whole, field)) = artifacts
+            .and_then(|artifacts| artifacts.wrap_as.as_deref())
+            .and_then(|whole| output.get_key_value(whole))
+        {
+            validate_output_value(
+                Some(&BTreeMap::from([(whole.clone(), field.clone())])),
+                &JsonValue::Object(JsonObject::from([(whole.clone(), payload.clone())])),
+            )
+            .map_err(violation)?;
+        }
         checks.output_contract_digest = Some(
             output_contract_digest(Some(output))
                 .map_err(|source| RuntimeError::json("hashing runner output contract", source))?,

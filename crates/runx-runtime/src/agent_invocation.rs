@@ -73,7 +73,12 @@ fn envelope(
         .ok_or_else(|| {
             invalid_agent_invocation(request, "an agent step must declare at least one output")
         })?;
-    let output = output_schema_fields(raw_output)?;
+    // The answer holds the step's outputs as its fields, but for the one
+    // `result_as` names: that one is the whole answer.
+    let output = crate::output_contract::result_fields(
+        output_schema_fields(raw_output)?,
+        request.artifacts.as_ref(),
+    );
     let output_schema = crate::packet_schemas::agent_output_contract_schema(
         &output,
         request.artifacts.as_ref(),
