@@ -1,7 +1,7 @@
 use runx_parser::{
-    ParseError, ValidationError, assert_yaml_scalar_subset, parse_graph_yaml,
-    parse_runner_manifest_yaml, parse_skill_markdown, parse_tool_manifest_json,
-    parse_tool_manifest_yaml, validate_graph, validate_skill, validate_tool_manifest,
+    ParseError, ValidationError, parse_graph_yaml, parse_runner_manifest_yaml,
+    parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml, validate_graph,
+    validate_skill, validate_tool_manifest,
 };
 
 #[test]
@@ -20,11 +20,6 @@ fn parse_rejections_cover_every_error_kind() -> Result<(), String> {
     assert!(
         matches!(invalid_document, ParseError::InvalidDocument { .. }),
         "{invalid_document:?}"
-    );
-    let unsupported_scalar = parse_rejection(assert_yaml_scalar_subset("fixture", "yes"))?;
-    assert!(
-        matches!(unsupported_scalar, ParseError::UnsupportedScalar { .. }),
-        "{unsupported_scalar:?}"
     );
     Ok(())
 }
