@@ -36,8 +36,7 @@ function runCommand(command, args, options = {}) {
 function runTurn({ runx, receiptDir, loopId, turnIndex, maxTurns, objective, previousSummary, scenario, requestedTool }) {
   const result = runCommand(runx, [
     "skill",
-    PACKAGE,
-    "turn",
+    `${PACKAGE}#turn`,
     "--receipt-dir",
     receiptDir,
     "--json",
@@ -64,8 +63,7 @@ function runContextPreview({ runx, receiptDir }) {
     runx,
     [
       "skill",
-      PACKAGE,
-      "context-gate",
+      `${PACKAGE}#context-gate`,
       "--receipt-dir",
       receiptDir,
       "--json",
