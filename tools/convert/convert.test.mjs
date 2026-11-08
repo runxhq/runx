@@ -210,6 +210,67 @@ ${operations}    steps:
   assert.match(run, /      - id: plan\n        agent: plan\n        calls:\n          operations: \[web\/page\.read\]\n/);
 });
 
+test("an expectation loses the data envelope of an emit that is a plain output now, and keeps an artifact's", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": manual("hygiene"),
+    "run.yaml": `skill: hygiene
+version: "0.1.0"
+runners:
+  review:
+    steps:
+      - id: finalize
+        tool: { module: hygiene.mjs, export: finalize }
+        outputs:
+          result: { type: object }
+          receipt: { type: object }
+        artifacts:
+          named_emits: { result: result, receipt: receipt }
+          packets: { receipt: hygiene/receipt.v1 }
+      - id: report
+        tool: { module: hygiene.mjs, export: report }
+        artifacts:
+          wrap_as: report
+harness:
+  cases:
+    - name: suppresses-hard-bounce
+      expect:
+        status: sealed
+        step_outputs:
+          finalize:
+            subset:
+              result: { data: { decision: { state: suppressed } } }
+              receipt: { data: { recorded: true } }
+          report:
+            subset:
+              report: { data: { lines: 1 } }
+        output:
+          subset:
+            result: { data: { decision: { state: suppressed } } }
+`,
+  });
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.equal(
+    read(dir, "tests/suppresses-hard-bounce.yaml"),
+    `name: suppresses-hard-bounce
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        result: {decision: {state: suppressed}}
+        receipt: {data: {recorded: true}}
+    report:
+      subset:
+        report: {data: {lines: 1}}
+  output:
+    subset:
+      result: {decision: {state: suppressed}}
+`,
+  );
+  assert.match(out, /harness\.cases\.suppresses-hard-bounce\.expect\.step_outputs\.finalize\.subset\.result\.data: the envelope's level goes/);
+});
+
 const invoiceCase = (env, path) => `name: reads-invoice
 runner: pay
 env:

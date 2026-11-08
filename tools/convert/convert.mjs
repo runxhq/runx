@@ -209,7 +209,8 @@ function convertStep(doc, step, scope, notes) {
   if (kind === "operation") convertOperation(doc, step, scope, where, notes);
   if (kind === "skill" || kind === "operation") convertAct(step, where, notes);
   if (kind === "ask") only(node(step, "ask"), ["gate", "reason", "type"], `${where}.ask`);
-  convertOutputs(doc, step, where);
+  const emits = convertOutputs(doc, step, where);
+  if (scope.emits) scope.emits.set(id, emits);
 }
 
 // A step's act keeps its purpose and record. `decision` goes: nothing in runx
@@ -271,7 +272,8 @@ function convertOutputs(doc, step, where) {
   const artifacts = take(step, "artifacts");
   let outputs = node(step, "outputs");
   convertFields(doc, outputs, "output", `${where}.outputs`);
-  if (artifacts === undefined) return;
+  const emits = { plain: new Set(), artifact: new Set() };
+  if (artifacts === undefined) return emits;
   only(artifacts, ["named_emits", "packets", "wrap_as", "packet"], `${where}.artifacts`);
   const named = read(artifacts, "named_emits") ?? {};
   const packets = read(artifacts, "packets") ?? {};
@@ -311,6 +313,12 @@ function convertOutputs(doc, step, where) {
     insertAt(step, indexOf(step, "outputs") + 1, "result_as", new Scalar(wrapAs));
     if (wrapPacket !== undefined) setPacket(wrapped, wrapPacket, wrapAs);
   }
+  // Today every emit is held in a `{ data }` envelope. In 0.12 only an
+  // output with a packet, and the one result_as names, is an artifact and
+  // keeps it; a named emit with no packet is a plain output.
+  for (const name of Object.keys(named)) (packets[name] === undefined && name !== wrapAs ? emits.plain : emits.artifact).add(name);
+  if (wrapAs !== undefined) emits.artifact.add(wrapAs);
+  return emits;
 }
 
 // ---- Offers: what a paid method charges, on the method itself
@@ -534,7 +542,8 @@ function convertMethod(doc, name, method, context, notes) {
   }
   convertFields(doc, node(method, "outputs"), "output", `${where}.outputs`);
   if (!isSeq(steps)) refuse(`${where}.steps is not a list`);
-  const scope = { where, calls: allowanceCalls(allowance), requirementOperations: context.requirementOperations, tasks: context.tasks };
+  const scope = { where, calls: allowanceCalls(allowance), requirementOperations: context.requirementOperations, tasks: context.tasks, emits: new Map() };
+  context.emits?.set(name, scope.emits);
   let agents = 0;
   for (const step of steps.items) {
     if (isMap(step) && has(step, "agent")) agents += 1;
@@ -600,7 +609,46 @@ function settleTestEnv(test, dir, where, notes) {
   return true;
 }
 
-function convertCase(doc, testCase, where, packageOf, evals, notes, dir) {
+// A test's expectations read a step's emits as they were held: in their
+// `{ data }` envelope. Where an emit is a plain output now, the envelope's
+// level goes from `step_outputs` and `output`, and an emit that kept its
+// packet keeps it. An expectation setting keys beside `data`, or a name
+// plain in one step and an artifact in another, says what can't be
+// rewritten, so it's refused.
+function unwrapEnvelope(pair, where, notes) {
+  if (!isMap(pair.value) || !has(pair.value, "data")) return;
+  if (pair.value.items.length !== 1) refuse(`${where} sets keys beside its emit's data envelope, which a plain output doesn't have`);
+  pair.value = node(pair.value, "data");
+  notes.push(`${where}.data: the envelope's level goes, as its emit is a plain output now`);
+}
+
+function settleExpectedEmits(testCase, steps, where, notes) {
+  const expect = node(testCase, "expect");
+  if (!isMap(expect) || steps === undefined) return;
+  for (const stepPair of node(expect, "step_outputs")?.items ?? []) {
+    const emits = steps.get(keyOf(stepPair));
+    if (!emits || !isMap(stepPair.value)) continue;
+    for (const form of ["exact", "subset"]) {
+      for (const pair of node(stepPair.value, form)?.items ?? []) {
+        if (emits.plain.has(keyOf(pair))) unwrapEnvelope(pair, `${where}.expect.step_outputs.${keyOf(stepPair)}.${form}.${keyOf(pair)}`, notes);
+      }
+    }
+  }
+  const output = node(expect, "output");
+  if (!isMap(output)) return;
+  const plainNames = new Set([...steps.values()].flatMap((emits) => [...emits.plain]));
+  const artifactNames = new Set([...steps.values()].flatMap((emits) => [...emits.artifact]));
+  for (const form of ["exact", "subset"]) {
+    for (const pair of node(output, form)?.items ?? []) {
+      const name = keyOf(pair);
+      if (!plainNames.has(name)) continue;
+      if (artifactNames.has(name)) refuse(`${where}.expect.output.${form}.${name} is a plain output of one step and an artifact of another, so its envelope can't be told`);
+      unwrapEnvelope(pair, `${where}.expect.output.${form}.${name}`, notes);
+    }
+  }
+}
+
+function convertCase(doc, testCase, where, packageOf, evals, notes, dir, emitsOf) {
   only(testCase, CASE_KEYS, where);
   settleTestEnv(testCase, dir, where, notes);
   const name = read(testCase, "name");
@@ -632,6 +680,7 @@ function convertCase(doc, testCase, where, packageOf, evals, notes, dir) {
   if (host.items.length) testCase.items.push(new Pair(new Scalar("host"), host));
   if (providers.items.length) testCase.items.push(new Pair(new Scalar("providers"), providers));
 
+  settleExpectedEmits(testCase, emitsOf(testCase), where, notes);
   const journeys = plain(take(testCase, "operator_journeys")) ?? [];
   const method = read(testCase, "method");
   for (const journey of journeys) evals.push({ ...journey, case: name, method });
@@ -693,7 +742,7 @@ function convertGraph(file, into, skillName, notes) {
   out.contents = out.createNode({ minimum_runx: MINIMUM_RUNX, catalog: { visibility: "internal" }, methods: { run: {} } });
   const method = node(node(out.contents, "methods"), "run");
   method.items.push(new Pair(new Scalar("steps"), steps));
-  const scope = { where: `${path.basename(file)}`, calls: () => undefined, requirementOperations: new Map(), tasks: new Set() };
+  const scope = { where: `${path.basename(file)}`, calls: () => undefined, requirementOperations: new Map(), tasks: new Set(), emits: new Map() };
   for (const step of steps.items) convertStep(out, step, scope, notes);
   if (scope.tasks.size) refuse(`${path.basename(file)} has agent steps, whose fixture package needs their task sections written by hand`);
   // A process runs in its package's directory, which is now `into`, so a
@@ -719,7 +768,7 @@ function convertGraph(file, into, skillName, notes) {
     if (isSeq(args)) for (const arg of args.items) relocate(arg, where);
   }
   const skill = `---\nname: ${graphName}\ndescription: A test fixture that composes ${skillName} with the packages it calls.\n---\n\nUsed only by ${skillName}'s tests.\n`;
-  return { runYaml: out.toString(styleOf(graphText)), skill, graphName };
+  return { runYaml: out.toString(styleOf(graphText)), skill, graphName, emits: scope.emits };
 }
 
 
@@ -898,8 +947,9 @@ function convertPackage(dir) {
     insertAt(root, indexOf(root, "minimum_runx") + 1, "default_method", new Scalar(defaults[0]));
   }
   const tasks = new Set();
+  const methodEmits = new Map();
   for (const pair of node(root, "methods").items) {
-    convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations, tasks }, notes);
+    convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations, tasks, emits: methodEmits }, notes);
   }
   for (const [method, offer] of offers) {
     const target = node(node(root, "methods"), method);
@@ -929,8 +979,17 @@ function convertPackage(dir) {
     }
     return `fixtures/${stem}`;
   };
+  // The steps a test runs: its fixture package's, or its own method's, which
+  // is the default method or the only one when it names none.
+  const methodNames = node(root, "methods").items.map(keyOf);
+  const emitsOf = (testCase) => {
+    const fixture = read(testCase, "package");
+    if (fixture !== undefined) return [...graphPackages.values()].find((graph) => `fixtures/${path.basename(graph.into)}` === fixture)?.emits;
+    const method = read(testCase, "method") ?? (methodNames.length === 1 ? methodNames[0] : defaults[0]);
+    return methodEmits.get(method);
+  };
   const addTest = (testDoc, where, base) => {
-    const caseName = convertCase(testDoc, testDoc.contents, where, packageOf, evals, notes, dir);
+    const caseName = convertCase(testDoc, testDoc.contents, where, packageOf, evals, notes, dir, emitsOf);
     const file = path.join(dir, "tests", `${base ?? slug(caseName)}.yaml`);
     if (tests.has(file)) refuse(`two tests would both be ${path.relative(dir, file)}`);
     tests.set(file, testDoc);
