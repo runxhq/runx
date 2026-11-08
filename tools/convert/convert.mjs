@@ -210,6 +210,7 @@ function convertStep(doc, step, scope, notes) {
   if (kind === "skill" || kind === "operation") convertAct(step, where, notes);
   if (kind === "ask") only(node(step, "ask"), ["gate", "reason", "type"], `${where}.ask`);
   const emits = convertOutputs(doc, step, where);
+  if (kind === "skill") emits.calls = { from: scope.dir, reference: read(step, "skill") };
   if (scope.emits) scope.emits.set(id, emits);
 }
 
@@ -550,7 +551,7 @@ function convertMethod(doc, name, method, context, notes) {
   }
   convertFields(doc, node(method, "outputs"), "output", `${where}.outputs`);
   if (!isSeq(steps)) refuse(`${where}.steps is not a list`);
-  const scope = { where, calls: allowanceCalls(allowance), requirementOperations: context.requirementOperations, tasks: context.tasks, emits: new Map() };
+  const scope = { where, calls: allowanceCalls(allowance), requirementOperations: context.requirementOperations, tasks: context.tasks, emits: new Map(), dir: context.dir };
   context.emits?.set(name, scope.emits);
   let agents = 0;
   for (const step of steps.items) {
@@ -630,11 +631,11 @@ function unwrapEnvelope(pair, where, notes) {
   notes.push(`${where}.data: the envelope's level goes, as its emit is a plain output now`);
 }
 
-function settleExpectedEmits(testCase, steps, where, notes) {
+function settleExpectedEmits(testCase, steps, where, notes, emitsOfStep) {
   const expect = node(testCase, "expect");
   if (!isMap(expect) || steps === undefined) return;
   for (const stepPair of node(expect, "step_outputs")?.items ?? []) {
-    const emits = steps.get(keyOf(stepPair));
+    const emits = emitsOfStep(steps.get(keyOf(stepPair)), `${where}.expect.step_outputs.${keyOf(stepPair)}`);
     if (!emits || !isMap(stepPair.value)) continue;
     for (const form of ["exact", "subset"]) {
       for (const pair of node(stepPair.value, form)?.items ?? []) {
@@ -644,8 +645,9 @@ function settleExpectedEmits(testCase, steps, where, notes) {
   }
   const output = node(expect, "output");
   if (!isMap(output)) return;
-  const plainNames = new Set([...steps.values()].flatMap((emits) => [...emits.plain]));
-  const artifactNames = new Set([...steps.values()].flatMap((emits) => [...emits.artifact]));
+  const all = [...steps.values()].map((emits) => emitsOfStep(emits, `${where}.expect.output`));
+  const plainNames = new Set(all.flatMap((emits) => [...emits.plain]));
+  const artifactNames = new Set(all.flatMap((emits) => [...emits.artifact]));
   for (const form of ["exact", "subset"]) {
     for (const pair of node(output, form)?.items ?? []) {
       const name = keyOf(pair);
@@ -688,7 +690,7 @@ function convertCase(doc, testCase, where, packageOf, evals, notes, dir, emitsOf
   if (host.items.length) testCase.items.push(new Pair(new Scalar("host"), host));
   if (providers.items.length) testCase.items.push(new Pair(new Scalar("providers"), providers));
 
-  settleExpectedEmits(testCase, emitsOf(testCase), where, notes);
+  settleExpectedEmits(testCase, emitsOf(testCase), where, notes, emitsOf.ofStep);
   const journeys = plain(take(testCase, "operator_journeys")) ?? [];
   const method = read(testCase, "method");
   for (const journey of journeys) evals.push({ ...journey, case: name, method });
@@ -750,7 +752,7 @@ function convertGraph(file, into, skillName, notes) {
   out.contents = out.createNode({ minimum_runx: MINIMUM_RUNX, catalog: { visibility: "internal" }, methods: { run: {} } });
   const method = node(node(out.contents, "methods"), "run");
   method.items.push(new Pair(new Scalar("steps"), steps));
-  const scope = { where: `${path.basename(file)}`, calls: () => undefined, requirementOperations: new Map(), tasks: new Set(), emits: new Map() };
+  const scope = { where: `${path.basename(file)}`, calls: () => undefined, requirementOperations: new Map(), tasks: new Set(), emits: new Map(), dir: into };
   for (const step of steps.items) convertStep(out, step, scope, notes);
   if (scope.tasks.size) refuse(`${path.basename(file)} has agent steps, whose fixture package needs their task sections written by hand`);
   // A process runs in its package's directory, which is now `into`, so a
@@ -977,7 +979,7 @@ function convertPackage(dir) {
   const tasks = new Set();
   const methodEmits = new Map();
   for (const pair of node(root, "methods").items) {
-    convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations, tasks, emits: methodEmits }, notes);
+    convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations, tasks, emits: methodEmits, dir }, notes);
   }
   for (const [method, offer] of offers) {
     const target = node(node(root, "methods"), method);
@@ -1018,6 +1020,26 @@ function convertPackage(dir) {
   };
   // The inputs each fixture package's tests pass it.
   const fixtureInputs = new Map();
+  // A skill step's output is the result of the method it calls, so a step
+  // calling one of this package's own methods, `.#name` from the package or
+  // `../..#name` from a fixture package, holds that method's emits.
+  emitsOf.ofStep = (emits, where, seen = new Set()) => {
+    const own = { plain: new Set(emits?.plain ?? []), artifact: new Set(emits?.artifact ?? []) };
+    const call = emits?.calls;
+    if (!call || typeof call.reference !== "string") return own;
+    const [reference, called] = call.reference.split("#");
+    if (path.resolve(call.from, reference) !== path.resolve(dir)) return own;
+    const method = called ?? (methodNames.length === 1 ? methodNames[0] : defaults[0]);
+    if (seen.has(method)) return own;
+    seen.add(method);
+    for (const step of methodEmits.get(method)?.values() ?? []) {
+      const inner = emitsOf.ofStep(step, where, seen);
+      for (const name of inner.plain) own.plain.add(name);
+      for (const name of inner.artifact) own.artifact.add(name);
+    }
+    for (const name of own.plain) if (own.artifact.has(name)) refuse(`${where}.${name} is a plain output of one step and an artifact of another, so its envelope can't be told`);
+    return own;
+  };
   const addTest = (testDoc, where, base) => {
     const caseName = convertCase(testDoc, testDoc.contents, where, packageOf, evals, notes, dir, emitsOf);
     const fixture = read(testDoc.contents, "package");

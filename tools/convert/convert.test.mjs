@@ -330,6 +330,41 @@ test("a fixture package declares the inputs its tests pass and its steps read, e
   assert.match(read(dir, "fixtures/session/run.yaml"), /^methods:\n  run:\n    inputs:\n      action: \{optional: true\}\n      account_id: \{optional: true\}\n    steps:\n/m);
 });
 
+test("a step calling one of its package's methods holds that method's emits, so its expectation loses their envelope too", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": manual("review"),
+    "run.yaml": [
+      "skill: review",
+      "version: \"0.1.0\"",
+      "runners:",
+      "  review:",
+      "    default: true",
+      "    steps:",
+      "      - id: assess",
+      "        skill: .",
+      "        runner: assess",
+      "  assess:",
+      "    steps:",
+      "      - id: finalize",
+      "        tool: { module: review.mjs, export: finalize }",
+      "        artifacts:",
+      "          named_emits: { pr_review: pr_review }",
+      "harness:",
+      "  cases:",
+      "    - name: reviews-exact-head",
+      "      expect:",
+      "        step_outputs:",
+      "          assess:",
+      "            subset:",
+      "              pr_review: { data: { decision: draft_ready } }",
+      "",
+    ].join("\n"),
+  });
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.match(read(dir, "tests/reviews-exact-head.yaml"), /    assess:\n      subset:\n        pr_review: \{decision: draft_ready\}\n/);
+});
+
 const invoiceCase = (env, path) => `name: reads-invoice
 runner: pay
 env:
