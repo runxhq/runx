@@ -500,7 +500,7 @@ operations:
           post: readbacks.0.data
   posts.delete:
     description: Delete each listed post of the account. Each answer states the resulting state, which is the evidence; X offers no read of one item cheap enough to confirm a batch.
-    verb: write
+    verb: delete
     scopes: ["twitter:write"]
     credentials: [user]
     target:

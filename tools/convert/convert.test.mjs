@@ -425,6 +425,15 @@ test("a converted package and connector convert again to themselves", (t) => {
   assert.deepEqual({ package: snapshot(dir), connector: snapshot(connector) }, converted);
 });
 
+test("a connector's delete stays a verb of its own, and the other kinds of write fold into write", (t) => {
+  const connector = tree(t, {
+    "connector.yaml": "schema: runx.connector.v1\nid: demo\nname: Demo\ndescription: A test connector.\noperations:\n  thing.delete:\n    description: Delete a thing.\n    verb: delete\n  thing.comment:\n    description: Comment on a thing.\n    verb: comment\n",
+  });
+  const { status, out } = convert("--write", connector);
+  assert.equal(status, 0, out);
+  assert.match(read(connector, "connector.yaml"), /\n  thing\.delete:\n    description: Delete a thing\.\n    verb: delete\n  thing\.comment:\n    description: Comment on a thing\.\n    verb: write\n/);
+});
+
 test("a converted package's test still loses RUNX_CWD, as converting it from the old shape does", (t) => {
   const dir = tree(t, payPackage({}));
   assert.equal(convert("--write", dir).status, 0);

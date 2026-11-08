@@ -1162,7 +1162,10 @@ function convertToolManifests(dir, files, notes) {
 const CONNECTOR_ROOT_KEYS = ["schema", "id", "name", "description", "category", "auth", "parameters", "placements", "operations", "references", "pays", "runtime_capability"];
 const CONNECTOR_ROOT_KEYS_012 = ["schema", "name", "title", "description", "category", "auth", "parameters", "placements", "operations", "references", "payment"];
 const OPERATION_KEYS = ["description", "verb", "scopes", "credentials", "target", "approval", "idempotency_key_format", "guarantees", "amount", "cost", "input_schema", "result_fields", "effect", "implementation", "holds", "hosted"];
-const VERBS = { read: "read", write: "write", execute: "execute", revoke: "revoke", create: "write", comment: "write", delete: "write", merge: "write", update: "write", review: "write" };
+// The authority's own verbs. `delete` stays one, because a grant serving a
+// delete or a revoke is a destructive one; the other kinds of write fold into
+// `write`, and `scopes` says which kind it is.
+const VERBS = { read: "read", write: "write", delete: "delete", execute: "execute", revoke: "revoke", create: "write", comment: "write", merge: "write", update: "write", review: "write" };
 const PAGE_KEYS = ["param", "in", "cursor", "items", "limit"];
 
 // A lease is a provider-issued credential for one resource, which Connect holds
