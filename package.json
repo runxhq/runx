@@ -65,7 +65,6 @@
     "fixtures:harness:check": "tsx scripts/generate-rust-harness-fixtures.ts --check",
     "fixtures:harness:generate": "tsx scripts/generate-rust-harness-fixtures.ts --write",
     "fixtures:harness:summary": "tsx scripts/generate-rust-harness-fixtures.ts --check --summary-json",
-    "fixtures:harness:summary-check": "node scripts/check-inline-harness-summary-snapshot.mjs",
     "fixtures:skills:check": "tsx scripts/generate-rust-skill-fixtures.ts --check",
     "fixtures:skills:generate": "tsx scripts/generate-rust-skill-fixtures.ts",
     "fixtures:doctor:check": "tsx scripts/generate-rust-doctor-fixtures.ts --check",
