@@ -12,7 +12,9 @@ use serde::Serialize;
 
 use super::super::LoadedSkillPackage;
 use super::SkillInspectionError;
+use crate::identity::PackageIdentity;
 use crate::kernel::connectors::LoadedConnector;
+use crate::registry::SignedPackage;
 
 #[derive(Default)]
 struct ClosureAccumulator {
@@ -42,6 +44,31 @@ struct ClosureAccumulator {
     environment_optional: BTreeSet<String>,
     agent_acts: usize,
     declared_artifact: bool,
+    /// Who each package the closure binds is, by its package root, when the
+    /// walk binds a run (D30).
+    identities: BTreeMap<PathBuf, BoundIdentity>,
+    /// Each `project:<name>` the closure binds, and the directory that is it.
+    project_roots: BTreeMap<String, PathBuf>,
+}
+
+/// Who a bound package is, and whether that is its own identity or the one
+/// of the package that carries it.
+struct BoundIdentity {
+    identity: PackageIdentity,
+    own: bool,
+}
+
+/// How the walk reached a package, which is what its identity follows from.
+enum Reach {
+    /// Bound by itself: a run's root, or a fixture package a test runs.
+    Root,
+    /// A `registry:` reference: its installed copy, verified, or the
+    /// person's own copy, which answers their own references (§6.5).
+    Registry(Option<SignedPackage>),
+    /// `runx/<name>`, the skill this runx bundles.
+    Bundled(String),
+    /// A relative `skill:` path, incorporated in the package rooted here.
+    Incorporated(PathBuf),
 }
 
 impl ClosureAccumulator {
@@ -165,18 +192,31 @@ pub(super) fn inspect_execution_closures(
         .collect()
 }
 
-/// The closure of `loaded`'s runner `method_name`, and every package it binds
-/// as it was loaded, by canonical directory: what a run of that runner admits.
+/// What a run of a runner admits: the closure of `loaded`'s runner
+/// `method_name`, every package it binds as it was loaded, by canonical
+/// directory, and who each is, by package root, with each signature verified
+/// against its exact bytes (D30).
+pub(super) type AdmittedClosure = (
+    JsonValue,
+    BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
+    BTreeMap<PathBuf, PackageIdentity>,
+);
+
 pub(super) fn inspect_method_execution_closure(
     loaded: Arc<LoadedSkillPackage>,
     method_name: &str,
     env: &BTreeMap<String, String>,
-) -> Result<(JsonValue, BTreeMap<PathBuf, Arc<LoadedSkillPackage>>), SkillInspectionError> {
+) -> Result<AdmittedClosure, SkillInspectionError> {
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
+    inspector.identify = true;
     let mut closure = inspector.inspect_root_method_accumulator(method_name)?;
     let packages = std::mem::take(&mut closure.packages);
-    Ok((serialize_closure(closure)?, packages))
+    let identities = std::mem::take(&mut closure.identities)
+        .into_iter()
+        .map(|(root, bound)| (root, bound.identity))
+        .collect();
+    Ok((serialize_closure(closure)?, packages, identities))
 }
 
 /// Every runner the closure of `loaded`'s runner `method_name` binds, its
@@ -367,6 +407,8 @@ struct ExecutionClosureInspector<'a> {
     /// Each package root's connectors, read once per walk: building a scope
     /// parses every connector manifest the project holds.
     connector_scopes: BTreeMap<PathBuf, Arc<crate::kernel::connectors::ConnectorScope>>,
+    /// Whether the walk binds a run, and so sets who each package is.
+    identify: bool,
 }
 
 impl<'a> ExecutionClosureInspector<'a> {
@@ -405,7 +447,90 @@ impl<'a> ExecutionClosureInspector<'a> {
             env,
             unheld_registry_refs,
             connector_scopes: BTreeMap::new(),
+            identify: false,
         })
+    }
+
+    /// Sets who the package `loaded` is, reached by `reach`: a package's own
+    /// identity stands over one it is carried under, and two directories are
+    /// never one `project:<name>`.
+    fn record_identity(
+        &self,
+        loaded: &LoadedSkillPackage,
+        package_root: &Path,
+        reach: Reach,
+        walk: &mut ExecutionWalkState<'_>,
+    ) -> Result<(), SkillInspectionError> {
+        let Some(env) = self.env.filter(|_| self.identify) else {
+            return Ok(());
+        };
+        let refused = SkillInspectionError::Identity;
+        let (identity, own) = match reach {
+            Reach::Root | Reach::Registry(None) => (
+                crate::identity::skill_identity(loaded, env).map_err(refused)?,
+                true,
+            ),
+            Reach::Registry(Some(signed)) => (PackageIdentity::Signed(signed), true),
+            Reach::Bundled(reference) => (
+                crate::identity::bundled_skill_identity(&reference, loaded, env)
+                    .map_err(refused)?,
+                true,
+            ),
+            Reach::Incorporated(carrier) => {
+                if carrier == package_root {
+                    return Ok(());
+                }
+                // Code a package carries binds as that package, and a
+                // signature of its own is still checked: one that fails is
+                // refused, whatever carries it.
+                if crate::registry::carries_signature(package_root) {
+                    crate::identity::skill_identity(loaded, env).map_err(refused)?;
+                }
+                let carried = walk
+                    .closure
+                    .identities
+                    .get(&carrier)
+                    .map(|bound| bound.identity.clone())
+                    .ok_or_else(|| {
+                        refused(format!(
+                            "{} is carried by {}, which the closure has not bound",
+                            package_root.display(),
+                            carrier.display()
+                        ))
+                    })?;
+                (carried, false)
+            }
+        };
+        if walk
+            .closure
+            .identities
+            .get(package_root)
+            .is_some_and(|existing| existing.own || !own)
+        {
+            return Ok(());
+        }
+        if let (true, PackageIdentity::Project { name }) = (own, &identity) {
+            if let Some(other) = walk
+                .closure
+                .project_roots
+                .get(name)
+                .filter(|other| other.as_path() != package_root)
+            {
+                return Err(refused(format!(
+                    "two directories bind as {} in one run, {} and {}; give one another name",
+                    identity.name(),
+                    other.display(),
+                    package_root.display()
+                )));
+            }
+            walk.closure
+                .project_roots
+                .insert(name.clone(), package_root.to_path_buf());
+        }
+        walk.closure
+            .identities
+            .insert(package_root.to_path_buf(), BoundIdentity { identity, own });
+        Ok(())
     }
 
     fn inspect_root_method(
@@ -439,6 +564,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                 method_name: method_name.to_owned(),
                 edge_depth: EdgeDepth::Direct,
                 materialize_local: true,
+                reach: Reach::Root,
             },
             &mut walk,
         )?;
@@ -472,6 +598,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     method_name,
                     edge_depth: EdgeDepth::Direct,
                     materialize_local: true,
+                    reach: Reach::Root,
                 },
                 &mut walk,
             )?;
@@ -491,7 +618,10 @@ impl<'a> ExecutionClosureInspector<'a> {
             method_name,
             edge_depth,
             materialize_local,
+            reach,
         } = target;
+        let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
+        self.record_identity(&loaded, &package_root, reach, walk)?;
         if !walk.visited.insert((
             skill_directory.clone(),
             method_name.clone(),
@@ -506,7 +636,6 @@ impl<'a> ExecutionClosureInspector<'a> {
         walk.closure
             .runners
             .insert((skill_directory.clone(), method_name.clone()));
-        let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
         let scope = self.connector_scope(&package_root)?;
         for (key, requirement) in loaded
             .manifest()
@@ -712,8 +841,12 @@ impl<'a> ExecutionClosureInspector<'a> {
                 if runx_parser::registry_ref(reference).is_some() {
                     walk.closure.registry_refs.insert(reference.to_owned());
                 }
+                // A bundled name is a requirement of the runtime, never a
+                // package the closure carries (D30).
+                let carried = runx_parser::registry_ref(reference).is_none()
+                    && !crate::registry::is_bundled_reference(reference);
                 if context.materialize_local
-                    && runx_parser::registry_ref(reference).is_none()
+                    && carried
                     && let Some(nested) = nested.as_ref()
                 {
                     let source_package_root =
@@ -746,8 +879,16 @@ impl<'a> ExecutionClosureInspector<'a> {
                     );
                 }
                 if let Some(nested) = nested {
-                    let nested_materialize_local =
-                        context.materialize_local && runx_parser::registry_ref(reference).is_none();
+                    let reach = if runx_parser::registry_ref(reference).is_some() {
+                        Reach::Registry(nested.signed)
+                    } else if crate::registry::is_bundled_reference(reference) {
+                        Reach::Bundled(reference.to_owned())
+                    } else {
+                        Reach::Incorporated(canonical_directory(
+                            &loaded.package_root,
+                            "bound graph package",
+                        )?)
+                    };
                     self.walk_method(
                         MethodWalkTarget {
                             loaded: nested.loaded,
@@ -755,7 +896,8 @@ impl<'a> ExecutionClosureInspector<'a> {
                             profile_path: nested.profile_path,
                             method_name: nested.method_name,
                             edge_depth: EdgeDepth::Nested,
-                            materialize_local: nested_materialize_local,
+                            materialize_local: context.materialize_local && carried,
+                            reach,
                         },
                         walk,
                     )?;
@@ -802,6 +944,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             step,
             crate::execution::graph::StepSkillLoadOptions::from_disk(env),
         )?;
+        let signed = loaded_step.registry.map(|registry| registry.signed);
         let nested = loaded_step.package;
         let canonical_directory = canonical_directory(&nested.directory, "referenced sub-skill")?;
         let manifest =
@@ -814,7 +957,9 @@ impl<'a> ExecutionClosureInspector<'a> {
             crate::execution::graph::select_step_method(manifest, target.method.as_deref())?
                 .name
                 .clone();
-        let nested_profile = if runx_parser::registry_ref(reference).is_some() {
+        let nested_profile = if runx_parser::registry_ref(reference).is_some()
+            || crate::registry::is_bundled_reference(reference)
+        {
             nested
                 .profile_path
                 .clone()
@@ -830,6 +975,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                 canonical_directory,
                 profile_path: nested_profile,
                 method_name: nested_method,
+                signed,
             }),
         }))
     }
@@ -842,6 +988,7 @@ struct MethodWalkTarget {
     method_name: String,
     edge_depth: EdgeDepth,
     materialize_local: bool,
+    reach: Reach,
 }
 
 #[derive(Clone, Copy)]
@@ -868,6 +1015,8 @@ struct ResolvedNestedSkill {
     canonical_directory: PathBuf,
     profile_path: String,
     method_name: String,
+    /// What a registry child's verified signature says it is.
+    signed: Option<SignedPackage>,
 }
 
 fn record_direct_external_skill_edge(

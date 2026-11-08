@@ -116,9 +116,9 @@ runx verify <receipt-id> --json
   documentation decision skill" -i target_dir=skills/docs-demo` to author a
   skill. Runx inspects the catalog, returns an exact agent/resume handoff
   unless `--managed-agent` was explicitly authorized, and writes only the
-  validated package. It never generates a placeholder module. Like every package runx
-  adds, the `skill-build` it uses is added to the project directory under
-  `.runx/added-skills/runx/skill-build/<version>/`. To cold-start without installing Runx
+  validated package. It never generates a placeholder module. The `skill-build`
+  it uses is the one this release bundles, materialized into the runx home at
+  `<home>/bundled/skill-build/<version>/`, never into your project. To cold-start without installing Runx
   first, use the same command through `npx @runxhq/cli`.
 - Compose the example into a graph with [Skill To Graph](./skill-to-graph.md).
 - Bind provider accounts once as described in

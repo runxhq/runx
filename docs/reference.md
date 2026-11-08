@@ -790,8 +790,15 @@ skills you write (`skills/<name>/`, or `skills/<publisher>/<name>/` for your own
 copy of a registry skill) and `connectors/` your own connectors
 (`connectors/<name>/`). `.runx/added-skills/` holds every skill added from a
 registry by `runx registry install`, by running a registry ref or as a
-registry step's child (`<publisher>/<name>/<version>/`), and the core skills this
-release carries, added as `runx/<name>/<version>/` when first used.
+registry step's child (`<publisher>/<name>/<version>/`), each with the
+registry's signed manifest as its `signature.json`. That signature is the
+package's identity: a run binds it as `<publisher>/<name>` only while it
+verifies against the package's exact bytes, and refuses it otherwise, so a
+committed package keeps its identity in CI and on a teammate's machine, and
+nothing else in the workspace can state one. Install marks both directories
+`* -text` in their `.gitattributes`, so a CRLF checkout never changes those
+bytes. The core skills this release carries materialize into the runx home,
+at `<home>/bundled/<name>/<version>/`, never into the project.
 `.runx/added-connectors/` holds installed connectors (`<name>/<version>/`) and
 the runtime capability connectors (`store`, `web`, `artifact`) a skill uses,
 added from the release and checked against it on every read. Yours take
@@ -1018,11 +1025,13 @@ lanes as the UI.
 Each ships as a portable `SKILL.md` plus a colocated execution profile at
 `skills/<skill>/run.yaml` when it exposes methods, with its tests beside it in
 `tests/`. Bare skill names resolve to the workspace's own skills or
-to the core skills this release carries, which are added under
-`.runx/added-skills/runx/<name>/<version>/` when first used. Every other
-package runs by its `publisher/name[@version]` ref, optionally with `--registry`
-and `--digest`, unless your own copy at `skills/<publisher>/<name>/` answers it;
-only a trusted, signed registry package is added to the project, at
+to the core skills this release carries. `runx/<name>` names a core skill and
+nothing else, at every depth, so no workspace copy shadows it; it materializes
+into the runx home at `<home>/bundled/<name>/<version>/` when first used. Every
+other package runs by its `publisher/name[@version]` ref, optionally with
+`--registry` and `--digest`, unless your own copy at
+`skills/<publisher>/<name>/` answers it; only a trusted, signed registry
+package is added to the project, at
 `.runx/added-skills/<publisher>/<name>/<version>/`. A ref without a version takes
 the newest version this runx reads: when the registry's current version needs
 another runx, the newest older version this one reads is used instead, and the
@@ -1045,10 +1054,11 @@ The runtime injects each referenced `SKILL.md` as a generic
 path refs resolve relative to the package; `runx skill` fetches each registry ref
 the project does not hold before the run, into the project's added skills, and
 the runtime reads it from there, never from a registry during execution. A
-registry skill is installed only as its registry signed it, and keeps the
-registry provenance its install recorded: its skill id, version, trust tier and
-digests. Context skills are bounded, digest-labeled, and presented to managed
-agents as untrusted advisory data.
+registry skill is installed only as its registry signed it, and is read only
+once its `signature.json` verifies at the version the ref pins; its provenance
+is what that signature states: its skill id, version and digests. Context
+skills are bounded, digest-labeled, and presented to managed agents as
+untrusted advisory data.
 
 Skill steps can execute registry skills too, naming the method with `#`:
 
@@ -1062,7 +1072,9 @@ steps:
 runx catalog unless `--registry <url>` or `RUNX_REGISTRY_URL` names another
 hosted registry. A registry child is added to the project's
 `.runx/added-skills/<publisher>/<name>/<version>/` like any other added skill,
-and a package's tests read the registry children its project holds.
+and a package's tests read the registry children its project holds. A
+child binds only after its signature verifies at the version its ref pins, so
+an installed package never runs an altered or unsigned copy.
 
 Any runnable skill package can also be exposed locally as an MCP tool with:
 

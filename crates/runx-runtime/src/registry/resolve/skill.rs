@@ -207,6 +207,19 @@ fn resolve_skill_ref(
 
     let raw_ref = skill_ref.to_string_lossy();
     let parsed = parse_registry_ref(&raw_ref);
+    // `runx/<name>` names the skill this runx bundles and nothing else: no
+    // workspace copy shadows it, and a published one says `registry:` (D30).
+    if runx_parser::registry_ref(&raw_ref).is_none()
+        && crate::registry::is_bundled_reference(&parsed.skill_id)
+    {
+        return resolve_bundled_skill(&parsed.skill_id, parsed.version.as_deref(), cwd, &options)?
+            .ok_or_else(|| {
+                format!(
+                    "{raw_ref} names a skill runx {} bundles, and it bundles none by that name; a published skill is run as registry:<publisher>/<name>@<version>",
+                    crate::RUNX_VERSION
+                )
+            });
+    }
     // The user's own copy takes precedence over what runx adds, whatever
     // version the ref names (core-shape §6.5).
     if let Some(resolved) = resolve_workspace_skill(&parsed.skill_id, cwd, &options)? {
@@ -362,25 +375,16 @@ fn resolve_registry_skill(
     // A fetched skill is added to the project's added skills, once per
     // version, like any other; one read for inspection, to the home's cache.
     let paths = crate::RunxPaths::resolve(env, cwd);
-    let (destination_root, connectors_root, install_records) = match options.holder {
-        Holder::Project => (
-            paths.added_skills(),
-            paths.added_connectors(),
-            paths.install_records(),
-        ),
+    let (destination_root, connectors_root) = match options.holder {
+        Holder::Project => (paths.added_skills(), paths.added_connectors()),
         Holder::Cache => {
             let cache = paths.inspection_cache();
-            (
-                cache.join("skills"),
-                cache.join("connectors"),
-                cache.join("installs"),
-            )
+            (cache.join("skills"), cache.join("connectors"))
         }
     };
     let install_options = InstallLocalSkillOptions {
         destination_root,
         connectors_root,
-        install_records,
         expected_digest: options.expected_digest.map(ToOwned::to_owned),
         registry_keys: crate::registry::registry_keys(env, &paths).map_err(ResolveError::from)?,
     };

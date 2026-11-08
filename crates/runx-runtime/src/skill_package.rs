@@ -92,19 +92,32 @@ fn usable_example_status(status: Option<&TestExpectedStatus>) -> bool {
 
 /// The packages a run admitted, by canonical directory: its skill and every
 /// child skill its execution closure binds, as they were when the run was
-/// bound. A run reads every package it executes from here and never from
-/// disk again: its modules, its child skills' runners, its agents'
-/// instructions. So what a run executes is what it admitted, however the
-/// files change while it runs; a run continued in another process binds
-/// again, under the digests it started with.
+/// bound, each with who it is (D30). A run reads every package it executes
+/// from here and never from disk again: its modules, its child skills'
+/// runners, its agents' instructions. So what a run executes is what it
+/// admitted, however the files change while it runs; a run continued in
+/// another process binds again, under the digests it started with, and so
+/// verifies each signature again.
 #[derive(Clone, Debug)]
-pub(crate) struct AdmittedPackages(Arc<BTreeMap<PathBuf, Arc<LoadedSkillPackage>>>);
+pub(crate) struct AdmittedPackages {
+    packages: Arc<BTreeMap<PathBuf, Arc<LoadedSkillPackage>>>,
+    /// Who each package is, by its package root, as the binding set it.
+    identities: Arc<BTreeMap<PathBuf, crate::identity::PackageIdentity>>,
+}
 
 impl AdmittedPackages {
+    /// Who the admitted package rooted at `package_root` is.
+    pub(crate) fn identity(
+        &self,
+        package_root: &Path,
+    ) -> Option<&crate::identity::PackageIdentity> {
+        self.identities.get(package_root)
+    }
+
     /// The admitted package at `directory`, as the run names it or as the
     /// loader resolves it. A package the run did not admit is refused.
     pub(crate) fn get(&self, directory: &Path) -> Result<Arc<LoadedSkillPackage>, RuntimeError> {
-        if let Some(package) = self.0.get(directory) {
+        if let Some(package) = self.packages.get(directory) {
             return Ok(Arc::clone(package));
         }
         let resolved = resolve_skill_package_directory(directory)?;
@@ -114,7 +127,7 @@ impl AdmittedPackages {
                 source,
             )
         })?;
-        self.0.get(&canonical).cloned().ok_or_else(|| {
+        self.packages.get(&canonical).cloned().ok_or_else(|| {
             runx_parser::SkillPackageError::invalid(
                 canonical.to_string_lossy(),
                 "is not a skill package this run admitted",
@@ -163,7 +176,10 @@ pub(crate) fn verify_loaded_execution_binding(
     }
     Ok(ExecutionBinding {
         closure_digest: closure.fully_bound.then_some(closure.digest),
-        packages: AdmittedPackages(Arc::new(closure.packages)),
+        packages: AdmittedPackages {
+            packages: Arc::new(closure.packages),
+            identities: Arc::new(closure.identities),
+        },
     })
 }
 
@@ -422,7 +438,11 @@ fn collect_package_source(
     totals: &mut PackageTotals,
 ) -> Result<(), RuntimeError> {
     for entry in read_dir_sorted(current)? {
-        if ignored_package_entry(&entry.name) {
+        // A package's signature is the registry's envelope over its files,
+        // never one of them: bind verifies it apart (D30).
+        if ignored_package_entry(&entry.name)
+            || (current == root && entry.name == crate::registry::SIGNATURE_FILE)
+        {
             continue;
         }
         collect_package_entry(root, entry, source, totals)?;

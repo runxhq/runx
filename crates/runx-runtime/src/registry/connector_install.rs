@@ -3,8 +3,8 @@
 //! are the registry's exactly: its signed manifest must name this connector,
 //! version and content digest under a trusted key, and the runtime's own
 //! loader and packager must reproduce those files from the staged copy before
-//! it is renamed into place. A version directory is written once and never
-//! rewritten.
+//! it is renamed into place, beside the manifest as its `signature.json`. A
+//! version directory is written once and never rewritten.
 
 use std::fs;
 use std::io;
@@ -15,13 +15,13 @@ use runx_contracts::{RegistryContentFile, is_registry_version, registry_content_
 use serde::{Deserialize, Serialize};
 
 use super::install::{InstallStatus, unique_suffix};
-use super::install_record::{InstallRecord, write_install_record};
 use super::keys::{
     RegistryKey, RegistryManifestVerificationFailure, registry_key_signs,
     verify_registry_signed_manifest,
 };
 use super::package_files::validate_registry_package_file_path;
 use super::publish_package::connector_package;
+use super::signature::{SIGNATURE_FILE, signature_document, write_gitattributes};
 use super::source_authority::RegistryManifestSourceAuthority;
 use super::types::{
     RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
@@ -44,9 +44,6 @@ pub struct RegistryConnectorVersion {
 pub struct InstallRegistryConnectorOptions {
     /// The project's connectors directory, `RunxPaths::connectors()`.
     pub connectors_root: PathBuf,
-    /// Where the project records each package a registry added
-    /// (`RunxPaths::install_records()`).
-    pub install_records: PathBuf,
     /// A content digest the caller pinned (`--digest`).
     pub expected_content_digest: Option<String>,
     /// The registry keys its signed manifest must verify under
@@ -205,17 +202,25 @@ pub fn install_registry_connector(
         });
     }
     verify_signed_manifest(published, &content_digest, options)?;
+    let signature = signature_document(&published.signed_manifest)
+        .map_err(|reason| invalid_package(connector_ref, reason))?;
+    let marked = |installed: InstalledRegistryConnector| {
+        write_gitattributes(&options.connectors_root)
+            .map(|()| installed)
+            .map_err(|reason| invalid_package(connector_ref, reason))
+    };
 
     let versions =
         crate::kernel::connectors::name_directory(&options.connectors_root, connector_ref);
     let destination = versions.join(&published.version);
     if destination.exists() {
         return existing_version(published, &content_digest, destination)
-            .and_then(|installed| recorded(installed, published, options));
+            .and_then(|installed| signed(installed, published, &signature))
+            .and_then(marked);
     }
     fs::create_dir_all(&versions).map_err(|source| io_error(&versions, source))?;
     let staged = versions.join(format!(".staging-{}", unique_suffix()));
-    let written = stage(published, &content_digest, &staged).and_then(|loaded| {
+    let written = stage(published, &content_digest, &staged, &signature).and_then(|loaded| {
         match fs::rename(&staged, &destination) {
             Ok(()) => Ok(installed(
                 published,
@@ -227,6 +232,7 @@ pub fn install_registry_connector(
             // Another install placed this version first: it must be these files.
             Err(_) if destination.exists() => {
                 existing_version(published, &content_digest, destination.clone())
+                    .and_then(|installed| signed(installed, published, &signature))
             }
             Err(source) => Err(io_error(&destination, source)),
         }
@@ -234,31 +240,29 @@ pub fn install_registry_connector(
     if staged.exists() {
         let _ignored = fs::remove_dir_all(&staged);
     }
-    written.and_then(|installed| recorded(installed, published, options))
+    written.and_then(marked)
 }
 
-/// `installed`, once the project records it as the registry's.
-fn recorded(
+/// `installed`, an existing version, once it carries this `signature`: one
+/// it lacks is written, and another is a conflict.
+fn signed(
     installed: InstalledRegistryConnector,
     published: &RegistryConnectorVersion,
-    options: &InstallRegistryConnectorOptions,
+    signature: &str,
 ) -> Result<InstalledRegistryConnector, ConnectorInstallError> {
-    write_install_record(
-        &options.install_records,
-        &options.connectors_root,
-        &installed.destination,
-        &InstallRecord {
-            package: format!("{}@{}", published.connector, published.version),
-            trust_tier: published.trust_tier,
-        },
-    )
-    .map_err(|reason| {
-        invalid_package(
-            &published.connector,
-            format!("recording the install: {reason}"),
-        )
-    })?;
-    Ok(installed)
+    let path = installed.destination.join(SIGNATURE_FILE);
+    match fs::read_to_string(&path) {
+        Ok(existing) if existing == signature => Ok(installed),
+        Ok(_) => Err(ConnectorInstallError::ConflictingVersion {
+            name: published.connector.clone(),
+            destination: installed.destination,
+        }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            fs::write(&path, signature).map_err(|source| io_error(&path, source))?;
+            Ok(installed)
+        }
+        Err(source) => Err(io_error(&path, source)),
+    }
 }
 
 /// The signed manifest must verify under a trusted key, name this connector
@@ -318,8 +322,15 @@ fn stage(
     published: &RegistryConnectorVersion,
     content_digest: &Digest,
     staged: &Path,
+    signature: &str,
 ) -> Result<Loaded, ConnectorInstallError> {
     for file in &published.files {
+        if file.path == SIGNATURE_FILE {
+            return Err(invalid_package(
+                &published.connector,
+                format!("{SIGNATURE_FILE} is the registry's, never a package file"),
+            ));
+        }
         let path = staged.join(&file.path);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|source| io_error(parent, source))?;
@@ -328,6 +339,8 @@ fn stage(
         super::package_files::restore_script_permissions(&path, &file.content)
             .map_err(|source| io_error(&path, source))?;
     }
+    let path = staged.join(SIGNATURE_FILE);
+    fs::write(&path, signature).map_err(|source| io_error(&path, source))?;
     load(published, content_digest, staged)
 }
 

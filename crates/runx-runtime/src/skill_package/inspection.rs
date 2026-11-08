@@ -62,6 +62,10 @@ pub enum SkillInspectionError {
     },
     #[error("sub-skill reference {reference} escapes the inspected execution closure")]
     ProfileEscape { reference: String },
+    /// Who a package is could not be settled: a signature that fails, a copy
+    /// that is not what its reference names, or two packages as one.
+    #[error("{0}")]
+    Identity(String),
     #[error("{context}: {source}")]
     Json {
         context: &'static str,
@@ -343,6 +347,8 @@ pub(crate) struct InspectedExecutionClosureBinding {
     /// Every package the closure binds, as it was loaded, by canonical
     /// directory.
     pub(crate) packages: BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
+    /// Who each package is, by its package root.
+    pub(crate) identities: BTreeMap<PathBuf, crate::identity::PackageIdentity>,
 }
 
 /// Whether a run of `runner` reaches an agent turn that can make calls, child
@@ -377,7 +383,8 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     selected_method: &str,
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<InspectedExecutionClosureBinding, SkillInspectionError> {
-    let (closure, packages) = inspect_method_execution_closure(loaded, selected_method, env)?;
+    let (closure, packages, identities) =
+        inspect_method_execution_closure(loaded, selected_method, env)?;
     let closure = closure
         .as_object()
         .ok_or_else(|| SkillInspectionError::ClosureInvalid {
@@ -404,6 +411,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
         digest,
         fully_bound,
         packages,
+        identities,
     })
 }
 

@@ -83,12 +83,7 @@ fn load_context_skill(
             crate::execution::graph::installed_registry_skill(reference, &paths)?
         {
             return load_context_skill_directory(
-                step_id,
-                reference,
-                &directory,
-                Some(&paths),
-                env,
-                created_at,
+                step_id, reference, &directory, true, env, created_at,
             );
         }
         return Err(RuntimeError::InvalidRunStep {
@@ -103,7 +98,7 @@ fn load_context_skill(
         step_id,
         reference,
         &workflow_dir.join(reference),
-        None,
+        false,
         env,
         created_at,
     )
@@ -119,13 +114,13 @@ pub(crate) fn registry_holds_context_skill(
 }
 
 /// A context skill read from a package directory: a local path, or the
-/// installed version of a registry ref in the project at `installed`, which
-/// keeps the registry provenance its install recorded.
+/// installed version of a registry ref, which reads only once its signature
+/// verifies at the version the ref pins, and keeps the provenance it states.
 fn load_context_skill_directory(
     step_id: &str,
     reference: &str,
     skill_dir: &Path,
-    installed: Option<&crate::paths::RunxPaths>,
+    installed: bool,
     env: &BTreeMap<String, String>,
     created_at: &str,
 ) -> Result<ContextEntry, RuntimeError> {
@@ -137,31 +132,27 @@ fn load_context_skill_directory(
             source,
         )
     })?;
-    let origin = match installed {
-        Some(paths) => crate::registry::installed_origin(paths, &package).map_err(|reason| {
-            RuntimeError::InvalidRunStep {
-                step_id: step_id.to_owned(),
-                reason,
-            }
-        })?,
-        None => None,
-    };
+    let signed = installed
+        .then(|| crate::identity::registry_copy_identity(reference, &package, env))
+        .transpose()
+        .map_err(|reason| RuntimeError::InvalidRunStep {
+            step_id: step_id.to_owned(),
+            reason,
+        })?;
     let mut data = JsonObject::new();
     insert_string(&mut data, "skill", reference);
-    match (&origin, installed) {
-        (Some(origin), _) => {
+    match &signed {
+        Some(signed) => {
             insert_string(&mut data, "source", "runx-registry");
             insert_string(&mut data, "source_label", "runx registry");
-            insert_string(&mut data, "skill_id", &origin.skill_id);
-            insert_string(&mut data, "version", &origin.version);
-            insert_string(&mut data, "digest", &origin.digest);
-            insert_string(&mut data, "trust_tier", origin.trust_tier.as_str());
-            if let Some(bundle_digest) = &origin.bundle_digest {
-                insert_string(&mut data, "bundle_digest", bundle_digest);
+            insert_string(&mut data, "skill_id", &signed.name);
+            insert_string(&mut data, "version", &signed.version);
+            insert_string(&mut data, "digest", &package.package.manual_digest);
+            if let Some(bundle_digest) = crate::execution::graph::package_files_digest(&package) {
+                insert_string(&mut data, "bundle_digest", &bundle_digest);
             }
         }
-        (None, Some(_)) => insert_string(&mut data, "source", "installed"),
-        (None, None) => insert_string(&mut data, "source", "local-path"),
+        None => insert_string(&mut data, "source", "local-path"),
     }
     insert_string(&mut data, "security_boundary", "untrusted-agent-context");
     insert_string(&mut data, "name", &package.package.skill.name);

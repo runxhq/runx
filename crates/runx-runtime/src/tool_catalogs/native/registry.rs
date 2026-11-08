@@ -129,7 +129,8 @@ fn search(
 }
 
 /// The project's own skills and connectors whose name or summary holds the
-/// query. A package a registry added is the registry's, found there.
+/// query. A package carrying a registry's signature is the registry's, found
+/// there.
 fn project_hits(
     paths: &RunxPaths,
     query: &str,
@@ -147,10 +148,7 @@ fn project_hits(
     let mut hits = Vec::new();
     if wants(CatalogPackageKind::Skill) {
         for directory in crate::skill_package::discover_workspace_skill_package_dirs(workspace)? {
-            if crate::registry::read_install_record(paths, &directory)
-                .map_err(|message| super::invalid_input(SEARCH, message))?
-                .is_some()
-            {
+            if crate::registry::carries_signature(&directory) {
                 continue;
             }
             let Ok(loaded) = crate::load_validated_skill_package(&directory) else {
@@ -252,13 +250,13 @@ fn inspect_connector(
     if let Ok(connector) = scope.named(reference) {
         let readiness = crate::kernel::admission::connector_readiness(&connector, env, workspace)
             .map_err(|message| super::invalid_input(INSPECT, message))?;
-        let record = match &connector.origin {
-            ConnectorOrigin::Installed { directory } => {
-                crate::registry::read_install_record(paths, directory)
-                    .map_err(|message| super::invalid_input(INSPECT, message))?
-            }
-            ConnectorOrigin::Plugin { .. } | ConnectorOrigin::RuntimeCapability => None,
-        };
+        // Its identity, from its signature; its tier is a statement apart,
+        // read only when a decision needs more than community, so only the
+        // runtime's own reads as first party here (D30).
+        let identity = crate::identity::connector_identity(&connector, env, paths)
+            .map_err(|message| super::invalid_input(INSPECT, message))?;
+        let trust_tier = matches!(identity, crate::identity::PackageIdentity::Bundled { .. })
+            .then_some(runx_contracts::TrustTier::FirstParty);
         return Ok(Some(ConnectorInspection {
             connector: connector.name.as_str().to_owned(),
             // An added version is named by its directory.
@@ -273,7 +271,7 @@ fn inspect_connector(
                 ConnectorOrigin::Plugin { .. } => CatalogSource::Project,
                 _ => CatalogSource::Registry,
             },
-            trust_tier: record.map(|record| record.trust_tier),
+            trust_tier,
             operations: connector
                 .manifest
                 .operations

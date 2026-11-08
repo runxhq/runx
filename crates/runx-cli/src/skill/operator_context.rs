@@ -154,13 +154,13 @@ fn append_node(
     }
     if let Some(registry) = &node.package.registry {
         out.push_str(&format!(
-            "registry_ref: {}\nregistry_skill_id: {}\nregistry_version: {}\nregistry_digest: {}\nregistry_bundle_digest: {}\nregistry_trust_tier: {}\n",
+            "registry_ref: {}\nregistry_skill_id: {}\nregistry_version: {}\nregistry_digest: {}\nregistry_bundle_digest: {}\nregistry_key_id: {}\n",
             registry.reference,
             registry.skill_id,
             registry.version,
             registry.digest,
             registry.bundle_digest.as_deref().unwrap_or("none"),
-            registry.trust_tier,
+            registry.key_id,
         ));
     }
     out.push_str(&format!(

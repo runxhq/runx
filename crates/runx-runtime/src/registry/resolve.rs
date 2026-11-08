@@ -290,7 +290,6 @@ pub fn install_connector(
     let paths = crate::RunxPaths::resolve(env, cwd);
     let options = InstallRegistryConnectorOptions {
         connectors_root: paths.added_connectors(),
-        install_records: paths.install_records(),
         expected_content_digest: expected_content_digest.map(ToOwned::to_owned),
         registry_keys: super::registry_keys(env, &paths)?,
         manifest_source_authority: source_authority,

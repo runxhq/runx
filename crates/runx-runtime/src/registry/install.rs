@@ -9,7 +9,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use runx_contracts::sha256_prefixed;
 use runx_parser::{SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install};
 
-use super::install_record::{InstallRecord, write_install_record};
 use super::keys::{
     RegistryKey, RegistryManifestVerificationFailure, registry_key_signs,
     verify_registry_signed_manifest,
@@ -19,6 +18,7 @@ use super::package_files::{
     validate_registry_skill_package,
 };
 use super::refs::safe_skill_package_parts;
+use super::signature::{SIGNATURE_FILE, signature_document, write_gitattributes};
 use super::source_authority::RegistryManifestSourceAuthority;
 use super::types::{
     RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
@@ -50,9 +50,6 @@ pub struct InstallLocalSkillOptions {
     /// The project's added connectors: every connector the installed package
     /// carries is added there, so the project can bind its instances.
     pub connectors_root: PathBuf,
-    /// Where the project records each package a registry added
-    /// (`RunxPaths::install_records()`).
-    pub install_records: PathBuf,
     pub expected_digest: Option<String>,
     /// The registry keys a signed manifest must verify under
     /// (`registry_keys`).
@@ -147,8 +144,8 @@ pub enum InstallError {
     ConflictingPackageFile(PathBuf),
     #[error("a connector the skill package carries could not be added to the project: {0}")]
     CarriedConnector(String),
-    #[error("recording the install: {0}")]
-    Record(String),
+    #[error("marking where packages are added: {0}")]
+    Gitattributes(String),
     #[error("io error at {path}: {source}")]
     Io { path: PathBuf, source: io::Error },
 }
@@ -159,7 +156,7 @@ pub fn install_local_skill(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
 ) -> Result<InstallLocalSkillResult, InstallError> {
-    install_skill(candidate, options, false, candidate.trust_tier)
+    install_skill(candidate, options, false)
 }
 
 // Bundled bytes are authenticated by the installed runtime artifact. They use
@@ -169,48 +166,41 @@ pub(super) fn install_bundled_skill(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
 ) -> Result<InstallLocalSkillResult, InstallError> {
-    install_skill(candidate, options, true, Some(TrustTier::FirstParty))
+    install_skill(candidate, options, true)
 }
 
-/// Install `candidate`, recording it as a registry's package of `trust_tier`
-/// when it has one. Only bytes this runtime bundles install unsigned.
+/// Install `candidate` with its `signature.json`. Only bytes this runtime
+/// bundles install unsigned.
 fn install_skill(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
     bundled: bool,
-    trust_tier: Option<TrustTier>,
 ) -> Result<InstallLocalSkillResult, InstallError> {
     let validated = validate_install_candidate(candidate, options, bundled)?;
     let paths = install_paths(candidate, options, &validated.install.skill.name);
+    let signature = candidate
+        .signed_manifest
+        .as_ref()
+        .map(signature_document)
+        .transpose()
+        .map_err(|reason| InstallError::InvalidPackageFile {
+            ref_name: exact_package(candidate),
+            reason,
+        })?;
     let status = place_package(
         &paths,
         &PackageDocuments {
             markdown: &validated.install.markdown,
             profile_document: candidate.profile_document.as_deref(),
             package_files: &candidate.package_files,
+            signature: signature.as_deref(),
             ref_name: &exact_package(candidate),
         },
     )?;
-    let record = trust_tier.map(|trust_tier| InstallRecord {
-        package: exact_package(candidate),
-        trust_tier,
-    });
-    if let Some(record) = &record {
-        write_install_record(
-            &options.install_records,
-            &options.destination_root,
-            &paths.package_root,
-            record,
-        )
-        .map_err(InstallError::Record)?;
+    if signature.is_some() {
+        write_gitattributes(&options.destination_root).map_err(InstallError::Gitattributes)?;
     }
-    add_carried_connectors(
-        &paths.package_root,
-        &options.connectors_root,
-        record
-            .as_ref()
-            .map(|record| (&options.install_records, record.trust_tier)),
-    )?;
+    add_carried_connectors(&paths.package_root, &options.connectors_root)?;
 
     Ok(InstallLocalSkillResult {
         status,
@@ -230,8 +220,8 @@ fn install_skill(
 
 /// Copies the installed skill at `package_dir` in the project of `source`
 /// into the project of `target`, as installing it there leaves it: its
-/// files, its install record, and the connectors it carries. A version the
-/// target already holds is left as it is.
+/// files, its signature among them, and the connectors it carries. A version
+/// the target already holds is left as it is.
 ///
 /// # Errors
 ///
@@ -269,22 +259,9 @@ pub(crate) fn copy_installed_skill(
         let _ignored = fs::remove_dir_all(&staged);
     }
     copied?;
-    let record = super::read_install_record(source, &package_dir)?;
-    if let Some(record) = &record {
-        write_install_record(
-            &target.install_records(),
-            &target.added_skills(),
-            &destination,
-            record,
-        )?;
-    }
-    let records = target.install_records();
-    add_carried_connectors(
-        &destination,
-        &target.added_connectors(),
-        record.as_ref().map(|record| (&records, record.trust_tier)),
-    )
-    .map_err(|error| error.to_string())
+    write_gitattributes(&target.added_skills())?;
+    add_carried_connectors(&destination, &target.added_connectors())
+        .map_err(|error| error.to_string())
 }
 
 /// Copies every installed skill the project of `source` holds, each a
@@ -358,47 +335,27 @@ fn exact_package(candidate: &InstallCandidate) -> String {
 }
 
 /// Adds every connector the installed package at `package_root` carries to
-/// `connectors_root`, the project's added connectors, as the version it publishes: the package's
-/// own copy, checked against the digests its bundle binds when it is loaded.
-/// A registry's package records each one at its own tier.
-fn add_carried_connectors(
-    package_root: &Path,
-    connectors_root: &Path,
-    record: Option<(&PathBuf, TrustTier)>,
-) -> Result<(), InstallError> {
+/// `connectors_root`, the project's added connectors, as the version it
+/// publishes: the package's own copy, checked against the digests its bundle
+/// binds when it is loaded. It carries no signature of its own, so bound by
+/// itself it is no registry's.
+fn add_carried_connectors(package_root: &Path, connectors_root: &Path) -> Result<(), InstallError> {
     let invalid = |message: String| InstallError::CarriedConnector(message);
     let scope = crate::kernel::connectors::ConnectorScope::at(package_root)
         .map_err(|error| invalid(error.to_string()))?;
     if !scope.is_bundle() {
         return Ok(());
     }
-    for connector in scope
+    let connectors = scope
         .connectors()
-        .map_err(|error| invalid(error.to_string()))?
-    {
+        .map_err(|error| invalid(error.to_string()))?;
+    if !connectors.is_empty() {
+        write_gitattributes(connectors_root).map_err(InstallError::Gitattributes)?;
+    }
+    for connector in connectors {
         let source = scope.connector_directory(&connector);
-        let directory = crate::registry::write_connector_version(
-            connectors_root,
-            &connector,
-            source.as_deref(),
-        )
-        .map_err(invalid)?;
-        if let Some((records, trust_tier)) = record {
-            let version = directory
-                .file_name()
-                .map(|version| version.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            write_install_record(
-                records,
-                connectors_root,
-                &directory,
-                &InstallRecord {
-                    package: format!("{}@{version}", connector.name),
-                    trust_tier,
-                },
-            )
-            .map_err(InstallError::Record)?;
-        }
+        crate::registry::write_connector_version(connectors_root, &connector, source.as_deref())
+            .map_err(invalid)?;
     }
     Ok(())
 }
@@ -419,6 +376,7 @@ struct InstallPaths {
 struct InstallWritePlan {
     writes_skill: bool,
     writes_method_manifest: bool,
+    writes_signature: bool,
     package_files: Vec<PackageFileWritePlan>,
 }
 
@@ -432,6 +390,7 @@ impl InstallWritePlan {
     fn status(&self) -> InstallStatus {
         if self.writes_skill
             || self.writes_method_manifest
+            || self.writes_signature
             || self.package_files.iter().any(|file| file.write)
         {
             InstallStatus::Installed
@@ -447,6 +406,8 @@ struct PackageDocuments<'a> {
     markdown: &'a str,
     profile_document: Option<&'a str>,
     package_files: &'a [RegistryPackageFile],
+    /// The registry's signed manifest, written as `signature.json`.
+    signature: Option<&'a str>,
     ref_name: &'a str,
 }
 
@@ -866,9 +827,20 @@ fn prepare_install_write_plan(
         markdown,
         profile_document,
         package_files,
+        signature,
         ref_name,
     } = *documents;
     let existing = read_optional(&paths.destination)?;
+    let signature_path = paths.package_root.join(SIGNATURE_FILE);
+    let existing_signature = match signature {
+        Some(_) => read_optional(&signature_path)?,
+        None => None,
+    };
+    if let (Some(existing), Some(next)) = (&existing_signature, signature)
+        && existing != next
+    {
+        return Err(InstallError::ConflictingPackageFile(signature_path));
+    }
     let existing_method_manifest = match &paths.method_manifest_path {
         Some(path) => read_optional(path)?,
         None => None,
@@ -895,6 +867,12 @@ fn prepare_install_write_plan(
                 reason,
             }
         })?;
+        if file.path == SIGNATURE_FILE {
+            return Err(InstallError::InvalidPackageFile {
+                ref_name: ref_name.to_owned(),
+                reason: format!("{SIGNATURE_FILE} is the registry's, never a package file"),
+            });
+        }
         if !seen_package_paths.insert(file.path.clone()) {
             return Err(InstallError::InvalidPackageFile {
                 ref_name: ref_name.to_owned(),
@@ -918,6 +896,7 @@ fn prepare_install_write_plan(
         writes_skill: existing.is_none(),
         writes_method_manifest: paths.method_manifest_path.is_some()
             && existing_method_manifest.is_none(),
+        writes_signature: signature.is_some() && existing_signature.is_none(),
         package_files: package_file_plans,
     })
 }
@@ -931,6 +910,7 @@ fn commit_install_write_plan(
         markdown,
         profile_document,
         package_files,
+        signature,
         ..
     } = *documents;
     debug_assert_eq!(write_plan.package_files.len(), package_files.len());
@@ -959,6 +939,9 @@ fn commit_install_write_plan(
             })?;
         }
         write_atomic(&file.path, &file.content)?;
+    }
+    if let (true, Some(signature)) = (write_plan.writes_signature, signature) {
+        write_atomic(&paths.package_root.join(SIGNATURE_FILE), signature)?;
     }
     Ok(())
 }

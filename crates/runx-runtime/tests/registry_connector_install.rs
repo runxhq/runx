@@ -277,7 +277,6 @@ fn a_newer_connector_version_installs_beside_its_source() -> Result<(), Box<dyn 
     };
     let options = InstallRegistryConnectorOptions {
         connectors_root: temp.path().join("connectors"),
-        install_records: temp.path().join(".runx").join("installs"),
         expected_content_digest: None,
         registry_keys: vec![RegistryKey::from_base64(
             crate::registry_fixture::KEY_ID,
@@ -357,7 +356,6 @@ fn options(
 ) -> Result<InstallRegistryConnectorOptions, Box<dyn std::error::Error>> {
     Ok(InstallRegistryConnectorOptions {
         connectors_root: root.join("connectors"),
-        install_records: root.join(".runx").join("installs"),
         expected_content_digest: None,
         registry_keys: vec![RegistryKey::from_base64(
             crate::registry_fixture::KEY_ID,

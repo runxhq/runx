@@ -98,11 +98,13 @@ version takes the newest version your runx reads; when the current version
 needs a newer runx, the output names it and the newest version yours reads
 runs instead.
 
-Every package a project runs is added under
-`.runx/added-skills/<publisher>/<name>/<version>/`: a registry skill when it is
-first run or installed, the registry skills a graph names, and a bundled runx
-skill the first time the project uses it.
-Commit them or ignore them as you would any other dependency.
+Every registry package a project runs is added under
+`.runx/added-skills/<publisher>/<name>/<version>/`, with its `signature.json`: a
+registry skill when it is first run or installed, and the registry skills a
+graph names. A bundled runx skill materializes into the runx home instead,
+never the project. Commit added packages or ignore them as you would any other
+dependency: a committed package keeps its identity wherever its signature
+verifies.
 
 ## Operator-first package contract
 

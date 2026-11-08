@@ -1,7 +1,7 @@
 //! A turn's load (agent-sessions §4.1). The package a call names resolves as
 //! `runx skill` and `runx connector` resolve it; the turn's catalog rules
-//! admit it by where it comes from and its tier; and what it binds must agree
-//! with the connectors the turn already reaches. A load adds no capability by
+//! admit it by who it is, as binding sets it (D30), and its tier; and what it
+//! binds must agree with the connectors the turn already reaches. A load adds no capability by
 //! where a file sits (D12): the project's own is admitted when it reaches only
 //! what the turn already reaches, and otherwise waits on the person's trust,
 //! as a package below its rule's tier does. Trust is recorded in the person's
@@ -30,25 +30,14 @@ use crate::RuntimeError;
 use crate::adapter::SkillAdapter;
 use crate::approval::ApprovalResolution;
 use crate::execution::output_projection::project_step_claim;
+use crate::identity::PackageIdentity;
 use crate::kernel::connectors::{ConnectorScope, LoadedConnector};
 use crate::paths::RunxPaths;
 use crate::receipts::StepSeal;
 use crate::registry::resolve::{
-    AbsentPins, Holder, ResolvedSkillRef, SkillRefKind, SkillResolverOptions, install_connector,
+    AbsentPins, Holder, ResolvedSkillRef, SkillResolverOptions, install_connector,
     resolve_registry_target, resolve_skill_ref_details,
 };
-
-/// Where a package comes from, as a rule reads it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum Origin {
-    /// The project authored it.
-    Project,
-    /// A registry published it, at a tier, under a publisher.
-    Registry {
-        tier: TrustTier,
-        publisher: Option<String>,
-    },
-}
 
 /// What the rules make of a package.
 #[derive(Debug, PartialEq, Eq)]
@@ -66,7 +55,8 @@ enum Ruling {
 /// A package found and bound.
 struct Bound {
     package: LoadedPackage,
-    origin: Origin,
+    /// Who it is, as binding set it.
+    identity: PackageIdentity,
     /// A skill's manual and every runner it declares.
     manual: Option<SkillManual>,
     runners: Vec<LoadedMethod>,
@@ -110,9 +100,13 @@ where
     if let Some(reason) = revision_refusal(&bound, &load.held) {
         return Err(refused(reason));
     }
+    let tier = bound.identity.tier(None);
+    let mut bound = bound;
+    report_tier(&mut bound.package, tier);
     let what = describe(&bound.package);
     match ruling(
-        &bound.origin,
+        &bound.identity,
+        tier,
         &beyond(&bound, &load.held),
         &load.rules,
         &what,
@@ -219,21 +213,6 @@ fn bind_skill(
 ) -> Result<Bound, String> {
     let resolved = resolve_loaded(reference, paths, env)?;
     let directory = canonical(&resolved.runnable_path)?;
-    let origin = match resolved.kind {
-        SkillRefKind::Registry => Origin::Registry {
-            tier: resolved
-                .trust_tier
-                .as_deref()
-                .and_then(TrustTier::from_name)
-                .ok_or_else(|| format!("registry skill {reference} carries no trust tier"))?,
-            publisher: resolved.skill_id.as_deref().and_then(publisher_of),
-        },
-        SkillRefKind::Bundled => Origin::Registry {
-            tier: TrustTier::FirstParty,
-            publisher: Some("runx".to_owned()),
-        },
-        _ => recorded_origin(paths, &directory)?,
-    };
     let loaded = Arc::new(
         crate::load_validated_skill_package(&directory).map_err(|error| error.to_string())?,
     );
@@ -258,6 +237,7 @@ fn bind_skill(
     let mut tools = Vec::new();
     let mut closures = Vec::new();
     let mut connectors = Vec::new();
+    let mut identity = None;
     for runner in &runners {
         let binding = crate::skill_package::verify_loaded_execution_binding(
             Arc::clone(&loaded),
@@ -267,6 +247,9 @@ fn bind_skill(
             None,
         )
         .map_err(|error| format!("{reference}#{runner}: {error}"))?;
+        if identity.is_none() {
+            identity = binding.packages.identity(&loaded.package_root).cloned();
+        }
         let closure_digest = binding.closure_digest.ok_or_else(|| {
             format!("{reference}#{runner}: its execution closure is not fully bound")
         })?;
@@ -306,15 +289,20 @@ fn bind_skill(
         "connectors": reached,
     }))
     .map_err(|error| error.to_string())?;
-    let (trust_tier, publisher) = tier_and_publisher(&origin);
+    // A load that binds no runner binds no closure, so it sets who the
+    // package is from the package alone.
+    let identity = match identity {
+        Some(identity) => identity,
+        None => crate::identity::skill_identity(&loaded, env)?,
+    };
     Ok(Bound {
         package: LoadedPackage::Skill {
             skill: package_name.into(),
-            trust_tier,
-            publisher,
+            trust_tier: None,
+            publisher: identity.publisher().and_then(NonEmptyString::new),
             package_digest: package_digest.into(),
         },
-        origin,
+        identity,
         manual: Some(SkillManual {
             digest: loaded.package.manual_digest.as_str().into(),
             content: loaded.package.manual_markdown.clone(),
@@ -381,7 +369,7 @@ fn bind_connector(
             scope()?.named(name).map_err(|error| error.to_string())?
         }
     };
-    let origin = connector_origin(&connector, paths)?;
+    let identity = crate::identity::connector_identity(&connector, env, paths)?;
     let mut connectors = Vec::new();
     agree(&mut connectors, &connector, name)?;
     // Each operation as a call on the connector, pinned to the manifest the
@@ -423,15 +411,14 @@ fn bind_connector(
             .collect::<Vec<_>>(),
     }))
     .map_err(|error| error.to_string())?;
-    let (trust_tier, publisher) = tier_and_publisher(&origin);
     Ok(Bound {
         package: LoadedPackage::Connector {
             connector: connector.name.as_str().into(),
-            trust_tier,
-            publisher,
+            trust_tier: None,
+            publisher: identity.publisher().and_then(NonEmptyString::new),
             manifest_digest: connector.manifest_digest.as_str().into(),
         },
-        origin,
+        identity,
         manual: None,
         runners: Vec::new(),
         tools,
@@ -441,67 +428,25 @@ fn bind_connector(
     })
 }
 
-/// A runtime capability is runx's; an added version is the registry's, as
-/// the project recorded it; any other is the project's own.
-fn connector_origin(connector: &LoadedConnector, paths: &RunxPaths) -> Result<Origin, String> {
-    let capability = ConnectorScope::runtime_capabilities()
-        .map_err(|error| error.to_string())?
-        .iter()
-        .any(|capability| {
-            capability.name == connector.name
-                && capability.connector_digest == connector.connector_digest
-        });
-    if capability {
-        return Ok(Origin::Registry {
-            tier: TrustTier::FirstParty,
-            publisher: Some("runx".to_owned()),
-        });
-    }
-    match &connector.origin {
-        crate::kernel::connectors::ConnectorOrigin::Installed { directory } => {
-            recorded_origin(paths, &canonical(directory)?)
-        }
-        crate::kernel::connectors::ConnectorOrigin::Plugin { .. } => Ok(Origin::Project),
-        crate::kernel::connectors::ConnectorOrigin::RuntimeCapability => Ok(Origin::Registry {
-            tier: TrustTier::FirstParty,
-            publisher: Some("runx".to_owned()),
-        }),
-    }
-}
-
-/// A package on disk is the registry's when the project recorded it so, and
-/// otherwise the project's own, which it holds inside its workspace.
-fn recorded_origin(paths: &RunxPaths, directory: &Path) -> Result<Origin, String> {
-    let workspace = canonical(paths.workspace())?;
-    match crate::registry::read_install_record(paths, directory)? {
-        Some(record) => Ok(Origin::Registry {
-            tier: record.trust_tier,
-            publisher: publisher_of(&record.package),
-        }),
-        None if directory.starts_with(&workspace) => Ok(Origin::Project),
-        None => Err(format!(
-            "{} is neither the project's own nor a package a registry added",
-            directory.display()
-        )),
-    }
-}
-
-/// What the rules make of a package from `origin` that reaches `beyond`, the
-/// connectors it binds that the turn does not already reach.
+/// What the rules make of the package `identity` names, at `tier` (a
+/// project package has none), that reaches `beyond`, the connectors it binds
+/// that the turn does not already reach.
 fn ruling(
-    origin: &Origin,
+    identity: &PackageIdentity,
+    tier: Option<TrustTier>,
     beyond: &[&ConnectorBinding],
     rules: &[CatalogRule],
     what: &str,
 ) -> Ruling {
-    match origin {
-        Origin::Project if !rules.iter().any(|rule| rule.project) => Ruling::Refused(format!(
+    let project = identity.is_project();
+    match tier.filter(|_| !project) {
+        None if !rules.iter().any(|rule| rule.project) => Ruling::Refused(format!(
             "{what} is the project's own, and the turn's rules admit only the catalog"
         )),
         // Where a file sits adds no capability (D12): the project's own that
         // reaches only what the turn already reaches adds none.
-        Origin::Project if beyond.is_empty() => Ruling::Admitted,
-        Origin::Project => Ruling::AsksTrust {
+        None if beyond.is_empty() => Ruling::Admitted,
+        None => Ruling::AsksTrust {
             reason: format!(
                 "Trust {what}, the project's own, which reaches connector {} the turn does not already reach.",
                 beyond
@@ -511,7 +456,7 @@ fn ruling(
                     .join(", ")
             ),
         },
-        Origin::Registry { tier, .. } => {
+        Some(tier) => {
             let minimums = rules
                 .iter()
                 .filter_map(|rule| rule.catalog.map(|catalog| catalog.trust))
@@ -619,7 +564,7 @@ fn ask_trust<A>(
         .map_err(|error| RuntimeError::effect_state("asking for trust", error.to_string()))?;
     match resolution {
         ApprovalResolution::Approved { .. } => {
-            let (tier, _) = tier_and_publisher(&bound.origin);
+            let tier = reported_tier(&bound.package);
             for closure in &bound.closures {
                 crate::registry::record_trust(
                     paths,
@@ -677,21 +622,22 @@ fn agree(
     Ok(())
 }
 
-fn tier_and_publisher(origin: &Origin) -> (Option<TrustTier>, Option<NonEmptyString>) {
-    match origin {
-        Origin::Project => (None, None),
-        Origin::Registry { tier, publisher } => (
-            Some(*tier),
-            publisher.as_deref().and_then(NonEmptyString::new),
-        ),
+/// Report the tier the load's decision read.
+fn report_tier(package: &mut LoadedPackage, tier: Option<TrustTier>) {
+    match package {
+        LoadedPackage::Skill { trust_tier, .. } | LoadedPackage::Connector { trust_tier, .. } => {
+            *trust_tier = tier;
+        }
     }
 }
 
-/// The publisher of `<publisher>/<name>[@version]`.
-fn publisher_of(reference: &str) -> Option<String> {
-    reference
-        .split_once('/')
-        .map(|(publisher, _)| publisher.to_owned())
+/// The tier the load reported, which a person's trust is recorded at.
+fn reported_tier(package: &LoadedPackage) -> Option<TrustTier> {
+    match package {
+        LoadedPackage::Skill { trust_tier, .. } | LoadedPackage::Connector { trust_tier, .. } => {
+            *trust_tier
+        }
+    }
 }
 
 fn describe(package: &LoadedPackage) -> String {
@@ -732,10 +678,19 @@ mod tests {
         project: true,
     };
 
-    fn registry(tier: TrustTier) -> Origin {
-        Origin::Registry {
-            tier,
-            publisher: Some("acme".to_owned()),
+    fn signed() -> PackageIdentity {
+        PackageIdentity::Signed(crate::registry::SignedPackage {
+            kind: runx_contracts::RegistrySubjectKind::Skill,
+            name: "acme/echo".to_owned(),
+            version: "1.0.0".to_owned(),
+            content_digest: format!("sha256:{}", "a".repeat(64)),
+            key_id: "operator-key".to_owned(),
+        })
+    }
+
+    fn project() -> PackageIdentity {
+        PackageIdentity::Project {
+            name: "x".to_owned(),
         }
     }
 
@@ -764,7 +719,7 @@ mod tests {
                 publisher: None,
                 manifest_digest: "sha256:b".into(),
             },
-            origin: Origin::Project,
+            identity: project(),
             manual: None,
             runners: Vec::new(),
             tools: Vec::new(),
@@ -775,22 +730,22 @@ mod tests {
     }
 
     #[test]
-    fn a_rule_admits_by_origin_and_tier() {
+    fn a_rule_admits_by_identity_and_tier() {
         let rules = [catalog(TrustTier::Verified), PROJECT];
         assert_eq!(
-            ruling(&Origin::Project, &[], &rules, "it"),
+            ruling(&project(), None, &[], &rules, "it"),
             Ruling::Admitted
         );
         assert_eq!(
-            ruling(&registry(TrustTier::FirstParty), &[], &rules, "it"),
+            ruling(&signed(), Some(TrustTier::FirstParty), &[], &rules, "it"),
             Ruling::Admitted
         );
         assert_eq!(
-            ruling(&registry(TrustTier::Verified), &[], &rules, "it"),
+            ruling(&signed(), Some(TrustTier::Verified), &[], &rules, "it"),
             Ruling::Admitted
         );
         assert_eq!(
-            ruling(&registry(TrustTier::Community), &[], &rules, "it"),
+            ruling(&signed(), Some(TrustTier::Community), &[], &rules, "it"),
             Ruling::AsksTrust {
                 reason: "Trust it, a community package, below the turn's verified rule.".to_owned()
             }
@@ -814,18 +769,19 @@ mod tests {
 
         let rules = [PROJECT];
         assert_eq!(
-            ruling(&Origin::Project, &[], &rules, "skill x"),
+            ruling(&project(), None, &[], &rules, "skill x"),
             Ruling::Admitted
         );
         assert_eq!(
-            ruling(&Origin::Project, &reached, &rules, "skill x"),
+            ruling(&project(), None, &reached, &rules, "skill x"),
             Ruling::AsksTrust {
                 reason: "Trust skill x, the project's own, which reaches connector marker the turn does not already reach.".to_owned()
             }
         );
         assert_eq!(
             ruling(
-                &registry(TrustTier::Verified),
+                &signed(),
+                Some(TrustTier::Verified),
                 &reached,
                 &[catalog(TrustTier::Verified)],
                 "skill x"
@@ -853,15 +809,21 @@ mod tests {
     }
 
     #[test]
-    fn a_rule_of_one_origin_refuses_the_other() {
+    fn a_rule_of_one_kind_refuses_the_other() {
         let refused =
-            |origin: &Origin, rule: CatalogRule| match ruling(origin, &[], &[rule], "skill x") {
+            |identity: &PackageIdentity, tier: Option<TrustTier>, rule: CatalogRule| match ruling(
+                identity,
+                tier,
+                &[],
+                &[rule],
+                "skill x",
+            ) {
                 Ruling::Refused(reason) => reason,
                 other => format!("not refused: {other:?}"),
             };
-        let reason = refused(&Origin::Project, catalog(TrustTier::Community));
+        let reason = refused(&project(), None, catalog(TrustTier::Community));
         assert!(reason.contains("admit only the catalog"), "{reason}");
-        let reason = refused(&registry(TrustTier::FirstParty), PROJECT);
+        let reason = refused(&signed(), Some(TrustTier::FirstParty), PROJECT);
         assert!(reason.contains("admit only the project's own"), "{reason}");
     }
 }

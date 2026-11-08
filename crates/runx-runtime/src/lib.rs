@@ -30,6 +30,7 @@ mod filesystem;
 pub mod host;
 mod hosted_api;
 mod http;
+mod identity;
 mod input_contract;
 mod install;
 pub mod interrupt;

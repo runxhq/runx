@@ -1,6 +1,11 @@
 //! Core skills ship as ordinary, complete packages inside the runtime artifact.
 //! Acquisition changes; package validation, execution and authority do not.
+//! Each materializes into the runx home, at `<home>/bundled/<name>/<version>/`
+//! and never into a project, and binds as `runx/<name>` only while its bytes
+//! are the ones the CLI carries (D30).
 
+use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::LazyLock;
 
 use runx_contracts::sha256_prefixed;
@@ -52,6 +57,59 @@ pub(crate) struct BundledSkill {
     package: RegistryPublishPackageParts,
     #[serde(skip)]
     version: String,
+}
+
+/// Each bundled skill's execution package digest, by its `runx/<name>`: what a
+/// materialized copy must load as to bind as the CLI's own.
+static PACKAGE_DIGESTS: LazyLock<Result<BTreeMap<String, String>, String>> = LazyLock::new(|| {
+    bundled_skills()?
+        .iter()
+        .map(|skill| {
+            skill
+                .validated_package()
+                .map(|package| (skill.skill_id.clone(), package.package_digest))
+                .map_err(|error| error.to_string())
+        })
+        .collect()
+});
+
+/// `runx/<name>` when the package at `package_root`, loaded with
+/// `package_digest`, is a bundled skill as the CLI carries it: materialized
+/// in the home's bundled skills and holding exactly its bytes. A copy
+/// anywhere else, or with any other byte, is not the CLI's.
+///
+/// # Errors
+///
+/// Returns an error when the bundle the CLI carries does not read.
+pub(crate) fn bundled_identity(
+    package_root: &Path,
+    package_digest: &str,
+    paths: &RunxPaths,
+) -> Result<Option<String>, String> {
+    let Ok(home) = std::fs::canonicalize(paths.bundled_skills()) else {
+        return Ok(None);
+    };
+    let Some(name) = package_root
+        .strip_prefix(&home)
+        .ok()
+        .and_then(|relative| relative.components().next())
+        .map(|name| format!("runx/{}", name.as_os_str().to_string_lossy()))
+    else {
+        return Ok(None);
+    };
+    let digests = PACKAGE_DIGESTS.as_ref().map_err(Clone::clone)?;
+    Ok((digests.get(&name).map(String::as_str) == Some(package_digest)).then_some(name))
+}
+
+/// Whether `reference` names a bundled skill the way only a bundled skill is
+/// named: `runx/<name>`, with no `registry:`, which resolves to the CLI's own
+/// copy at every depth and to nothing else (D30).
+#[must_use]
+pub fn is_bundled_reference(reference: &str) -> bool {
+    runx_parser::registry_ref(reference).is_none()
+        && reference.strip_prefix("runx/").is_some_and(|rest| {
+            !rest.is_empty() && !rest.contains(['/', '\\']) && rest != "." && rest != ".."
+        })
 }
 
 fn bundled_skill(name: &str) -> Result<Option<&'static BundledSkill>, String> {
@@ -124,7 +182,9 @@ impl BundledSkill {
             bundle_digest,
             source: "bundled:runx".to_owned(),
             source_label: "Bundled Runx core".to_owned(),
-            package: format!("{}@{version}", self.skill_id),
+            // Named by its name and version alone: the home's bundled skills
+            // are runx's, so no publisher directory is needed.
+            package: format!("{}@{version}", self.package.metadata.name),
             skill_id: Some(self.skill_id.clone()),
             version: Some(version.to_owned()),
             signed_manifest: None,
@@ -136,9 +196,10 @@ impl BundledSkill {
         install_bundled_skill(
             &candidate,
             &InstallLocalSkillOptions {
-                destination_root: paths.added_skills(),
+                destination_root: paths.bundled_skills(),
+                // The connectors it carries are added to the project, so the
+                // project can bind their instances; the skill never is.
                 connectors_root: paths.added_connectors(),
-                install_records: paths.install_records(),
                 expected_digest: expected_digest.map(str::to_owned),
                 // Bundled bytes are the runtime's own, signed by nothing.
                 registry_keys: Vec::new(),

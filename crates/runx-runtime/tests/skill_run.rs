@@ -1416,7 +1416,9 @@ methods:
     assert_eq!(string_field(data, "source"), Some("runx-registry"));
     assert_eq!(string_field(data, "skill_id"), Some("acme/taste-profile"));
     assert_eq!(string_field(data, "version"), Some("1.0.0"));
-    assert_eq!(string_field(data, "trust_tier"), Some("community"));
+    // Its identity is its signature's; its tier is a statement apart, read
+    // only when a decision needs more than community (D30).
+    assert!(!data.contains_key("trust_tier"));
     assert_eq!(string_field(data, "content_kind"), Some("skill-manual"));
     assert_eq!(
         string_field(data, "description"),
@@ -2430,9 +2432,7 @@ fn a_nested_runx_skill_from_another_registry_is_refused() -> Result<(), Box<dyn 
         .err()
         .ok_or("a runx skill from another registry was installed")?;
     assert!(
-        error
-            .to_string()
-            .contains("third-party keys may not sign runx/*"),
+        error.to_string().contains("may not sign runx/*"),
         "unexpected error: {error}"
     );
     assert!(!temp.path().join(".runx/added-skills/runx").exists());
@@ -3842,7 +3842,7 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
     );
     assert!(
         project
-            .join("installs/added-skills/acme/registry-child/1.0.0.json")
+            .join("added-skills/acme/registry-child/1.0.0/signature.json")
             .is_file()
     );
     assert!(!temp.path().join(".runx/added-skills").exists());

@@ -2,10 +2,10 @@ mod bundled;
 mod connector_install;
 mod http;
 mod install;
-mod install_record;
 mod keys;
 pub(crate) mod package_bundle;
 mod package_files;
+pub(crate) use package_files::registry_bundle_digest;
 pub use package_files::skill_content_digest;
 mod package_metadata;
 mod payload;
@@ -14,12 +14,13 @@ mod publish_closure;
 mod publish_package;
 mod refs;
 pub mod resolve;
+pub(crate) mod signature;
 mod source_authority;
 mod trust_record;
 mod types;
 
-pub(crate) use bundled::bundled_skills;
-pub use bundled::materialize_bundled_skill;
+pub(crate) use bundled::{bundled_identity, bundled_skills};
+pub use bundled::{is_bundled_reference, materialize_bundled_skill};
 pub(crate) use connector_install::write_connector_version;
 pub use connector_install::{
     ConnectorInstallError, InstallRegistryConnectorOptions, InstalledRegistryConnector,
@@ -31,8 +32,6 @@ pub use install::{
     InstallStatus, install_local_skill,
 };
 pub(crate) use install::{copy_installed_skill, copy_installed_skills};
-pub use install_record::{InstallRecord, read_install_record};
-pub(crate) use install_record::{InstalledOrigin, installed_origin};
 pub use keys::{
     REGISTRY_SIGNED_MANIFEST_SCHEMA, RUNX_REGISTRY_KEYS_ENV, RegistryKey, RegistryKeyScope,
     RegistryKeysError, RegistryManifestVerificationFailure, official_registry_keys,
@@ -59,6 +58,7 @@ pub use publish_package::{
 };
 pub(crate) use refs::split_skill_id;
 pub use refs::{ParsedRegistryRef, parse_registry_ref, safe_skill_package_parts};
+pub use signature::{SIGNATURE_FILE, SignedPackage, carries_signature, verify_package_signature};
 pub use source_authority::{
     RegistryManifestSourceAuthority, canonical_registry_url, is_official_runx_registry_url,
     registry_manifest_source_authority_from_registry_url, registry_manifest_source_key,

@@ -168,6 +168,34 @@ fn load_publish_package(
     Ok(crate::load_validated_skill_package(load_path)?)
 }
 
+/// A `signature.json` is the registry's name for a version it signed, so a
+/// package that holds one, at its root or any package's it carries, is never
+/// published (D30): it is an installed copy, which the registry already has.
+fn refuse_signatures(
+    loaded: &LoadedSkillPackage,
+    closure: &crate::skill_package::LocalExecutionClosure,
+) -> Result<(), RegistryPublishPackageError> {
+    let signed = std::iter::once(&loaded.package_root)
+        .chain(closure.packages.keys())
+        .find(|root| crate::registry::carries_signature(root));
+    let held = loaded.package.source.files.keys().find(|path| {
+        path.as_str() == crate::registry::SIGNATURE_FILE
+            || path.ends_with(&format!("/{}", crate::registry::SIGNATURE_FILE))
+    });
+    match (signed, held) {
+        (Some(root), _) => Err(RegistryPublishPackageError::invalid(format!(
+            "{} holds a {}, the registry's signature over a version it published; publish the package's source instead",
+            root.display(),
+            crate::registry::SIGNATURE_FILE
+        ))),
+        (None, Some(path)) => Err(RegistryPublishPackageError::invalid(format!(
+            "the package holds {path}, and {} is the registry's name for its signature",
+            crate::registry::SIGNATURE_FILE
+        ))),
+        (None, None) => Ok(()),
+    }
+}
+
 fn prepare_loaded_package(
     loaded: &LoadedSkillPackage,
     env: &BTreeMap<String, String>,
@@ -175,6 +203,7 @@ fn prepare_loaded_package(
 ) -> Result<RegistryPublishPackage, RegistryPublishPackageError> {
     let local_closure = crate::skill_package::inspect_loaded_local_execution_closure(loaded, env)
         .map_err(|error| RegistryPublishPackageError::invalid(error.to_string()))?;
+    refuse_signatures(loaded, &local_closure)?;
     let profile_document = loaded
         .profile_path
         .as_deref()
@@ -246,6 +275,32 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(paths, ["runx.package.json"]);
         assert_eq!(package.metadata.name, "manual-only");
+        Ok(())
+    }
+
+    /// An installed copy carries the registry's signature, and the name is
+    /// the registry's: publishing one, or a package holding one, is refused.
+    #[test]
+    fn a_package_holding_a_signature_is_never_published() -> Result<(), Box<dyn std::error::Error>>
+    {
+        for path in ["signature.json", "references/signature.json"] {
+            let temp = tempfile::tempdir()?;
+            fs::write(
+                temp.path().join("SKILL.md"),
+                "---\nname: installed\ndescription: An installed copy.\n---\n# Installed\n",
+            )?;
+            fs::create_dir_all(temp.path().join("references"))?;
+            fs::write(temp.path().join(path), "{}")?;
+            let error = match prepare_registry_publish_package(RegistryPublishPackageRequest {
+                subject: temp.path().to_str().ok_or("temporary path is not UTF-8")?,
+                env: &BTreeMap::new(),
+                cwd: temp.path(),
+            }) {
+                Ok(_) => return Err(format!("{path} published").into()),
+                Err(error) => error.to_string(),
+            };
+            assert!(error.contains("signature"), "{path}: {error}");
+        }
         Ok(())
     }
 

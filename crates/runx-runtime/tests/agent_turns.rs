@@ -350,9 +350,9 @@ fn a_turn_shows_what_it_may_call_by_the_names_its_calls_take() -> TestResult {
 }
 
 /// A bundled skill a load binds is the runtime's own copy, named
-/// `runx/<name>@<version>` however runx materialized it: here into a project
-/// directory outside the workspace, which no path inside the workspace names.
-/// Its runner then runs as the load bound it.
+/// `runx/<name>@<version>`: materialized into the runx home, which no path
+/// inside the workspace names, and never into the project. Its runner then
+/// runs as the load bound it.
 #[test]
 fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult {
     let temp = tempdir()?;
@@ -395,7 +395,7 @@ fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult
             .to_owned(),
         receipt_dir: Some(receipts),
         env,
-        cwd: root,
+        cwd: root.clone(),
     })?;
 
     let load = turn.call(
@@ -419,6 +419,18 @@ fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult
     };
     assert!(skill.as_str().starts_with("runx/receipt-query@"), "{skill}");
     assert_eq!(skill, package);
+    assert!(
+        matches!(
+            &loaded.package,
+            runx_contracts::LoadedPackage::Skill { trust_tier: Some(runx_contracts::TrustTier::FirstParty), publisher: Some(publisher), .. }
+                if publisher.as_str() == "runx"
+        ),
+        "{loaded:?}"
+    );
+    // The home here fell back to the workspace, and bundled skills still
+    // materialize there, never into the project.
+    assert!(root.join(".runx/bundled/receipt-query").is_dir());
+    assert!(!temp.path().join("project/added-skills").exists());
 
     let read = turn.call(TURN, tool.name.as_str(), None, JsonObject::new())?;
     assert!(

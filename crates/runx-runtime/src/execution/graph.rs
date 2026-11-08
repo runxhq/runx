@@ -37,16 +37,17 @@ pub(crate) struct LoadedStepSkill {
     pub(crate) admitted: Option<crate::skill_package::AdmittedPackages>,
 }
 
+/// A registry child's provenance: what its verified signature says it is,
+/// and the digests of the files it signs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LoadedStepSkillRegistryProvenance {
     pub(crate) reference: String,
-    pub(crate) source: String,
-    pub(crate) source_label: String,
-    pub(crate) skill_id: String,
-    pub(crate) version: String,
+    pub(crate) signed: crate::registry::SignedPackage,
+    /// The manual's digest.
     pub(crate) digest: String,
+    /// The digest of the package files beside the manual and the profile,
+    /// when it has any.
     pub(crate) bundle_digest: Option<String>,
-    pub(crate) trust_tier: String,
 }
 
 struct ResolvedStepSkillDirectory {
@@ -586,35 +587,57 @@ pub(crate) fn load_step_skill_package(
         None => Arc::new(crate::load_validated_skill_package(&resolved.directory)?),
     };
     let registry = match resolved.registry_ref {
-        Some(reference) => {
-            let paths = crate::RunxPaths::resolve(options.env, workflow_dir);
-            crate::registry::installed_origin(&paths, &package)
-                .map_err(|reason| RuntimeError::InvalidRunStep {
-                    step_id: step.id.clone(),
-                    reason,
-                })?
-                .map(|origin| registry_provenance(reference, origin))
-        }
+        Some(reference) => Some(registry_provenance(reference, &package, options).map_err(
+            |reason| RuntimeError::InvalidRunStep {
+                step_id: step.id.clone(),
+                reason,
+            },
+        )?),
         None => None,
     };
     Ok(LoadedStepSkillPackage { package, registry })
 }
 
-/// A registry child's provenance, as its install recorded it.
+/// A registry child's provenance, from its signature: verified when its run
+/// bound it, or now, against its exact bytes and the version its ref pins
+/// (D30). An installed copy that does not verify never binds.
 fn registry_provenance(
     reference: String,
-    origin: crate::registry::InstalledOrigin,
-) -> LoadedStepSkillRegistryProvenance {
-    LoadedStepSkillRegistryProvenance {
+    package: &crate::LoadedSkillPackage,
+    options: StepSkillLoadOptions<'_>,
+) -> Result<LoadedStepSkillRegistryProvenance, String> {
+    let admitted = options
+        .packages
+        .and_then(|admitted| admitted.identity(&package.package_root));
+    let signed = match admitted {
+        Some(crate::identity::PackageIdentity::Signed(signed)) => signed.clone(),
+        _ => crate::identity::registry_copy_identity(&reference, package, options.env)?,
+    };
+    Ok(LoadedStepSkillRegistryProvenance {
         reference,
-        source: "runx-registry".to_owned(),
-        source_label: "runx registry".to_owned(),
-        skill_id: origin.skill_id,
-        version: origin.version,
-        digest: origin.digest,
-        bundle_digest: origin.bundle_digest,
-        trust_tier: origin.trust_tier.as_str().to_owned(),
-    }
+        signed,
+        digest: package.package.manual_digest.clone(),
+        bundle_digest: package_files_digest(package),
+    })
+}
+
+/// The registry's digest of the files a package holds beside its manual and
+/// profile, when it holds any.
+pub(crate) fn package_files_digest(package: &crate::LoadedSkillPackage) -> Option<String> {
+    let files = package
+        .package
+        .source
+        .files
+        .iter()
+        .filter(|(path, _)| {
+            path.as_str() != "SKILL.md" && path.as_str() != runx_parser::PROFILE_FILE
+        })
+        .map(|(path, content)| crate::registry::RegistryPackageFile {
+            path: path.clone(),
+            content: String::from_utf8_lossy(content).into_owned(),
+        })
+        .collect::<Vec<_>>();
+    crate::registry::registry_bundle_digest(&files)
 }
 
 pub(crate) fn select_step_method<'a>(
@@ -652,6 +675,36 @@ fn resolve_step_skill_directory(
     options: StepSkillLoadOptions<'_>,
 ) -> Result<ResolvedStepSkillDirectory, RuntimeError> {
     if let Some(skill) = step.skill().map(|target| target.skill.as_str()) {
+        // `runx/<name>` names the skill this runx bundles and nothing else, at
+        // every depth: no workspace copy shadows it, and an installed package
+        // reaches it too (D30).
+        if crate::registry::is_bundled_reference(skill) {
+            let paths = crate::RunxPaths::resolve(options.env, workflow_dir);
+            let installed = crate::registry::materialize_bundled_skill(skill, &paths, None)
+                .map_err(|reason| RuntimeError::InvalidRunStep {
+                    step_id: step.id.clone(),
+                    reason,
+                })?
+                .ok_or_else(|| RuntimeError::InvalidRunStep {
+                    step_id: step.id.clone(),
+                    reason: format!(
+                        "{skill} names a skill runx {} bundles, and it bundles none by that name; a published skill is named registry:<publisher>/<name>@<version>",
+                        crate::RUNX_VERSION
+                    ),
+                })?;
+            let directory =
+                installed
+                    .destination
+                    .parent()
+                    .ok_or_else(|| RuntimeError::InvalidRunStep {
+                        step_id: step.id.clone(),
+                        reason: "bundled skill has no package directory".to_owned(),
+                    })?;
+            return Ok(ResolvedStepSkillDirectory {
+                directory: directory.to_path_buf(),
+                registry_ref: None,
+            });
+        }
         if runx_parser::registry_ref(skill).is_some() {
             let paths = crate::RunxPaths::resolve(options.env, workflow_dir);
             // The user's own copy takes precedence over what runx added,
@@ -714,25 +767,6 @@ fn resolve_step_skill_directory(
             )? {
                 return Ok(ResolvedStepSkillDirectory {
                     directory,
-                    registry_ref: None,
-                });
-            }
-            if let Some(installed) = crate::registry::materialize_bundled_skill(skill, &paths, None)
-                .map_err(|reason| RuntimeError::InvalidRunStep {
-                    step_id: step.id.clone(),
-                    reason,
-                })?
-            {
-                let directory =
-                    installed
-                        .destination
-                        .parent()
-                        .ok_or_else(|| RuntimeError::InvalidRunStep {
-                            step_id: step.id.clone(),
-                            reason: "bundled skill has no package directory".to_owned(),
-                        })?;
-                return Ok(ResolvedStepSkillDirectory {
-                    directory: directory.to_path_buf(),
                     registry_ref: None,
                 });
             }

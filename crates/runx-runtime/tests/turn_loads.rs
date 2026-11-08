@@ -580,7 +580,7 @@ fn a_rule_admits_only_the_origin_it_names() -> TestResult {
         refused(&registry)?.contains("admit only the project's own"),
         "{registry:?}"
     );
-    // The install record keeps the acquired copy the registry's.
+    // Its signature keeps the acquired copy the registry's.
     let copy = turn.call(
         TURN,
         "load",
@@ -610,6 +610,101 @@ fn a_rule_admits_only_the_origin_it_names() -> TestResult {
         input(serde_json::json!({"skill": "skills/notes", "connector": "store"}))?,
     )?;
     refused(&malformed)?;
+    Ok(())
+}
+
+/// The cold read's probe, as a regression (D30): a repository that ships
+/// `.runx/installs` records claiming `runx` and `first_party`, and
+/// `.runx/trust` records for what it ships, gains nothing. A skill it ships
+/// under `.runx/added-skills/runx/` and a connector under
+/// `.runx/added-connectors/` are the person's own, with no publisher and no
+/// tier, so a catalog rule refuses them and only a rule admitting the
+/// project's own admits them.
+#[test]
+fn a_repository_shipping_install_and_trust_records_gains_nothing() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    let fake = project.root.join(".runx/added-skills/runx/fake/1.0.0");
+    crate::support::write_test_skill_package(
+        &fake,
+        "---\nname: fake\ndescription: Claims to be runx's.\n---\n# Fake\n",
+        "skill: fake\nrunners:\n  jot:\n    default: true\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+    )?;
+    let marker = project.root.join(".runx/added-connectors/marker/1.0.0");
+    std::fs::create_dir_all(&marker)?;
+    std::fs::write(
+        marker.join("connector.yaml"),
+        "schema: runx.connector.v1\nname: marker\ntitle: Marker\ndescription: Writes a marker.\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {template: \"ops://records\"}\n",
+    )?;
+    let shipped = |path: &str, record: serde_json::Value| -> TestResult {
+        let path = project.root.join(".runx").join(path);
+        std::fs::create_dir_all(path.parent().ok_or("a record has a directory")?)?;
+        std::fs::write(path, serde_json::to_vec(&record)?)?;
+        Ok(())
+    };
+    shipped(
+        "installs/added-skills/runx/fake/1.0.0.json",
+        serde_json::json!({"package": "runx/fake@1.0.0", "trust_tier": "first_party"}),
+    )?;
+    shipped(
+        "installs/added-connectors/marker/1.0.0.json",
+        serde_json::json!({"package": "marker@1.0.0", "trust_tier": "first_party"}),
+    )?;
+
+    let catalog =
+        project.start(project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?)?;
+    let turn = project.open(&catalog)?;
+    for package in [
+        serde_json::json!({"skill": ".runx/added-skills/runx/fake/1.0.0"}),
+        serde_json::json!({"connector": "marker"}),
+    ] {
+        let load = turn.call(TURN, "load", None, input(package.clone())?)?;
+        assert!(
+            refused(&load)?.contains("admit only the catalog"),
+            "{package}: {load:?}"
+        );
+    }
+    drop(turn);
+
+    let own = project.start(project.session(serde_json::json!([{"project": true}]))?)?;
+    let turn = project.open(&own)?;
+    let skill = loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": ".runx/added-skills/runx/fake/1.0.0"}))?,
+    )?)?;
+    assert!(
+        matches!(
+            &skill.package,
+            LoadedPackage::Skill {
+                trust_tier: None,
+                publisher: None,
+                ..
+            }
+        ),
+        "a shipped record states no identity: {skill:?}"
+    );
+    // A trust record for the exact closure the load binds, shipped beside
+    // it, is no person's trust: the project's own needs none, and a
+    // catalog rule never reads it.
+    let connector = loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"connector": "marker"}))?,
+    )?)?;
+    assert!(
+        matches!(
+            &connector.package,
+            LoadedPackage::Connector {
+                trust_tier: None,
+                publisher: None,
+                ..
+            }
+        ),
+        "{connector:?}"
+    );
     Ok(())
 }
 

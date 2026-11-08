@@ -65,7 +65,6 @@ fn trusted_signed_manifest_installs() -> Result<(), Box<dyn std::error::Error>> 
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
             connectors_root: temp.path().join("connectors"),
-            install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             registry_keys: registry_keys()?,
         },
@@ -74,6 +73,27 @@ fn trusted_signed_manifest_installs() -> Result<(), Box<dyn std::error::Error>> 
     assert_eq!(install.skill_id.as_deref(), Some("acme/echo"));
     assert_eq!(install.digest, skill_digest());
     assert!(install.destination.exists());
+    // Install keeps the registry's signed manifest as the package's
+    // signature.json, where it discarded it, and marks where it adds
+    // packages as binary, so a CRLF checkout never changes their bytes.
+    let root = install.destination.parent().ok_or("a package root")?;
+    let kept: RegistrySignedManifest =
+        serde_json::from_str(&std::fs::read_to_string(root.join("signature.json"))?)?;
+    assert_eq!(Some(kept), candidate.signed_manifest);
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("skills/.gitattributes"))?,
+        "* -text\n"
+    );
+    let signed = runx_runtime::registry::verify_package_signature(
+        root,
+        RegistrySubjectKind::Skill,
+        &registry_keys()?,
+    )?
+    .ok_or("the installed copy carries its signature")?;
+    assert_eq!(
+        (signed.name.as_str(), signed.version.as_str()),
+        ("acme/echo", "1.0.0")
+    );
     Ok(())
 }
 
@@ -307,7 +327,6 @@ fn options(root: &std::path::Path) -> Result<InstallLocalSkillOptions, Box<dyn s
     Ok(InstallLocalSkillOptions {
         destination_root: root.join("skills"),
         connectors_root: root.join("connectors"),
-        install_records: root.join(".runx").join("installs"),
         expected_digest: None,
         registry_keys: registry_keys()?,
     })
@@ -326,7 +345,6 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
             connectors_root: temp.path().join("connectors"),
-            install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             registry_keys: registry_keys()?,
         },
@@ -538,7 +556,6 @@ fn registry_install_rejects_out_of_scope_manifest_key() -> Result<(), Box<dyn st
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
             connectors_root: temp.path().join("connectors"),
-            install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             registry_keys: vec![RegistryKey::from_base64(
                 crate::registry_fixture::KEY_ID,
@@ -573,7 +590,6 @@ fn registry_install_rejects_official_key_from_non_official_source()
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
             connectors_root: temp.path().join("connectors"),
-            install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             registry_keys: vec![RegistryKey::from_base64(
                 crate::registry_fixture::KEY_ID,
@@ -608,7 +624,6 @@ fn registry_install_accepts_official_source_signature_for_community_skill()
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
             connectors_root: temp.path().join("connectors"),
-            install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             registry_keys: vec![RegistryKey::from_base64(
                 crate::registry_fixture::KEY_ID,
@@ -634,7 +649,6 @@ fn registry_install_rejects_third_party_key_outside_publisher_namespace()
         &InstallLocalSkillOptions {
             destination_root: temp.path().join("skills"),
             connectors_root: temp.path().join("connectors"),
-            install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
             registry_keys: vec![RegistryKey::from_base64(
                 crate::registry_fixture::KEY_ID,
@@ -709,7 +723,6 @@ fn install_error(
         &InstallLocalSkillOptions {
             destination_root: temp_path.join("skills"),
             connectors_root: temp_path.join("connectors"),
-            install_records: temp_path.join(".runx").join("installs"),
             expected_digest: None,
             registry_keys: registry_keys()?,
         },

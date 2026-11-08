@@ -242,7 +242,6 @@ fn run_install(
     let options = InstallLocalSkillOptions {
         destination_root: paths.added_skills(),
         connectors_root: paths.added_connectors(),
-        install_records: paths.install_records(),
         expected_digest: plan.expected_digest.clone(),
         registry_keys: runx_runtime::registry::registry_keys(env, &paths)?,
     };

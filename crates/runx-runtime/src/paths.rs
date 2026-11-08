@@ -284,12 +284,6 @@ impl RunxPaths {
         self.project.join("tmp")
     }
 
-    /// What the project records of each package a registry added to it.
-    #[must_use]
-    pub fn install_records(&self) -> PathBuf {
-        self.project.join("installs")
-    }
-
     #[must_use]
     pub fn authoring_locks(&self) -> PathBuf {
         self.project.join("authoring").join("locks")

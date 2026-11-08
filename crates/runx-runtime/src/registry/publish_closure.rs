@@ -186,7 +186,6 @@ impl RecordInstaller {
         let options = InstallLocalSkillOptions {
             destination_root: paths.added_skills(),
             connectors_root: paths.added_connectors(),
-            install_records: paths.install_records(),
             expected_digest: None,
             registry_keys: registry_keys(env, &paths)?,
         };

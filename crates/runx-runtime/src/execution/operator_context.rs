@@ -103,7 +103,9 @@ pub struct SkillOperatorContextRegistry {
     pub version: String,
     pub digest: String,
     pub bundle_digest: Option<String>,
-    pub trust_tier: String,
+    /// The registry key its signature verified under. Its tier is a
+    /// statement apart, read only when a decision needs it (D30).
+    pub key_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -700,13 +702,17 @@ fn local_package(skill_dir: &Path, reference: Option<String>) -> SkillOperatorCo
     }
 }
 
+/// A registry child's source, as its context names it.
+const REGISTRY_SOURCE: &str = "runx-registry";
+const REGISTRY_SOURCE_LABEL: &str = "runx registry";
+
 fn loaded_package(loaded: &LoadedStepSkill, reference: &str) -> SkillOperatorContextPackage {
     match loaded.registry.as_ref() {
         Some(registry) => SkillOperatorContextPackage {
             directory: loaded.directory.clone(),
             reference: Some(reference.to_owned()),
-            source: registry.source.clone(),
-            source_label: registry.source_label.clone(),
+            source: REGISTRY_SOURCE.to_owned(),
+            source_label: REGISTRY_SOURCE_LABEL.to_owned(),
             registry: Some(registry_context(registry)),
         },
         None => local_package(&loaded.directory, Some(reference.to_owned())),
@@ -716,13 +722,13 @@ fn loaded_package(loaded: &LoadedStepSkill, reference: &str) -> SkillOperatorCon
 fn registry_context(value: &LoadedStepSkillRegistryProvenance) -> SkillOperatorContextRegistry {
     SkillOperatorContextRegistry {
         reference: value.reference.clone(),
-        source: value.source.clone(),
-        source_label: value.source_label.clone(),
-        skill_id: value.skill_id.clone(),
-        version: value.version.clone(),
+        source: REGISTRY_SOURCE.to_owned(),
+        source_label: REGISTRY_SOURCE_LABEL.to_owned(),
+        skill_id: value.signed.name.clone(),
+        version: value.signed.version.clone(),
         digest: value.digest.clone(),
         bundle_digest: value.bundle_digest.clone(),
-        trust_tier: value.trust_tier.clone(),
+        key_id: value.signed.key_id.clone(),
     }
 }
 
@@ -1107,10 +1113,10 @@ methods:
     }
 
     /// A registry child the project holds keeps its registry provenance:
-    /// its identity and tier as the install recorded them, and the digests
-    /// of its installed files.
+    /// its identity as its signature states it, and the digests of its
+    /// installed files.
     #[test]
-    fn operator_context_rebuilds_an_installed_registry_childs_provenance()
+    fn operator_context_reads_an_installed_registry_childs_provenance_from_its_signature()
     -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         let project = temp.path().join(".runx");
@@ -1128,17 +1134,24 @@ methods:
             &child.join("references/rubric.md"),
             "registry package rubric",
         )?;
-        write_file(
-            &project.join("installs/added-skills/acme/registry-child/1.0.0.json"),
-            r#"{"package": "acme/registry-child@1.0.0", "trust_tier": "verified"}"#,
+        crate::registry::signature::testing::sign(
+            &child,
+            runx_contracts::RegistrySubjectKind::Skill,
+            "acme/registry-child",
+            "1.0.0",
         )?;
         let entry = temp.path().join("entry");
         write_skill(&entry, "entry", "# Entry")?;
         write_entry_workflow(&entry, "registry:acme/registry-child@1.0.0", "")?;
-        let env = BTreeMap::from([(
+        let mut env = crate::registry::signature::testing::trusting("acme")?;
+        env.insert(
             crate::paths::RUNX_CWD_ENV.to_owned(),
             temp.path().to_string_lossy().into_owned(),
-        )]);
+        );
+        env.insert(
+            crate::paths::RUNX_HOME_ENV.to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        );
 
         let chain = load_skill_operator_context_chain(
             &entry,
@@ -1157,7 +1170,7 @@ methods:
         assert_eq!(registry.reference, "registry:acme/registry-child@1.0.0");
         assert_eq!(registry.skill_id, "acme/registry-child");
         assert_eq!(registry.version, "1.0.0");
-        assert_eq!(registry.trust_tier, "verified");
+        assert_eq!(registry.key_id, crate::registry::signature::testing::KEY_ID);
         assert_eq!(registry.source, "runx-registry");
         assert_eq!(
             registry.digest,
