@@ -59,16 +59,19 @@ pub(crate) fn materialize_tool_inputs(
 /// explicitly mapped values still receive the child's complete validation.
 pub(crate) fn materialize_nested_method_inputs(
     declared: &BTreeMap<String, SkillInput>,
+    constraints: &JsonObject,
     supplied: &JsonObject,
 ) -> Result<JsonObject, InputContractError> {
-    materialize_declared_inputs(
+    let inputs = materialize_declared_inputs(
         declared,
         supplied,
         &JsonObject::new(),
         "runner",
         MissingRequired::Reject,
         UnknownInputs::Project,
-    )
+    )?;
+    admit_constraints(declared, constraints, &inputs)?;
+    Ok(inputs)
 }
 
 /// Validate and normalize all values already supplied by a caller while
@@ -95,16 +98,73 @@ pub(crate) fn materialize_present_method_inputs(
 /// undeclared inputs.
 pub(crate) fn materialize_complete_method_inputs(
     declared: &BTreeMap<String, SkillInput>,
+    constraints: &JsonObject,
     supplied: &JsonObject,
 ) -> Result<JsonObject, InputContractError> {
-    materialize_declared_inputs(
+    let inputs = materialize_declared_inputs(
         declared,
         supplied,
         &JsonObject::new(),
         "runner",
         MissingRequired::Reject,
         UnknownInputs::Reject,
-    )
+    )?;
+    admit_constraints(declared, constraints, &inputs)?;
+    Ok(inputs)
+}
+
+/// Check a method's whole input object against its constraints across
+/// fields (`input_constraints`), once each field has passed its own check,
+/// so a call that breaks them is refused before anything runs.
+fn admit_constraints(
+    declared: &BTreeMap<String, SkillInput>,
+    constraints: &JsonObject,
+    inputs: &JsonObject,
+) -> Result<(), InputContractError> {
+    if constraints.is_empty() {
+        return Ok(());
+    }
+    let accepted = JsonValue::Object(runx_parser::constrained_input_schema(declared, constraints));
+    let refusal = |path: String, message: String| {
+        InputContractError::new(
+            "runner",
+            "input_constraints",
+            path,
+            message,
+            accepted.clone(),
+        )
+    };
+    let schema = serde_json::to_value(JsonValue::Object(constraints.clone())).map_err(|error| {
+        refusal(
+            "/".to_owned(),
+            format!("the input constraints could not be serialized: {error}"),
+        )
+    })?;
+    let validator = jsonschema::draft202012::options()
+        .build(&schema)
+        .map_err(|error| {
+            refusal(
+                "/".to_owned(),
+                format!("the input constraints are invalid: {error}"),
+            )
+        })?;
+    let instance = serde_json::to_value(inputs).map_err(|error| {
+        refusal(
+            "/".to_owned(),
+            format!("the inputs could not be serialized: {error}"),
+        )
+    })?;
+    let Some(error) = validator.iter_errors(&instance).next() else {
+        return Ok(());
+    };
+    let path = match error.instance_path().as_str() {
+        "" => "/".to_owned(),
+        path => path.to_owned(),
+    };
+    Err(refusal(
+        path,
+        format!("the inputs together break the method's input constraints: {error}"),
+    ))
 }
 
 /// Check one value an `declared_by` input takes, as admitting the whole invocation
@@ -412,7 +472,7 @@ mod tests {
             ),
         ]);
 
-        let nested = materialize_nested_method_inputs(&declared, &supplied)?;
+        let nested = materialize_nested_method_inputs(&declared, &JsonObject::new(), &supplied)?;
         assert_eq!(nested.len(), 1);
         assert_eq!(
             nested.get("objective").and_then(JsonValue::as_str),
@@ -567,7 +627,8 @@ mod tests {
             )])),
         )]);
         assert!(
-            materialize_complete_method_inputs(&declared, &missing_direction).is_err(),
+            materialize_complete_method_inputs(&declared, &JsonObject::new(), &missing_direction)
+                .is_err(),
             "execution admission must not preserve missing required inputs"
         );
 
@@ -581,7 +642,9 @@ mod tests {
                 ])),
             ),
         ]);
-        let Err(error) = materialize_complete_method_inputs(&declared, &invalid_conditional) else {
+        let Err(error) =
+            materialize_complete_method_inputs(&declared, &JsonObject::new(), &invalid_conditional)
+        else {
             return Err("conditional nested schemas must be enforced".into());
         };
         let error = error.into_runtime_error();
@@ -589,6 +652,72 @@ mod tests {
             error,
             crate::RuntimeError::InputContract { ref path, .. } if path == "/resources/base"
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn a_method_admits_only_inputs_that_meet_its_constraints_across_fields()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let declared = BTreeMap::from([
+            ("url".to_owned(), string_input(false)),
+            ("owner".to_owned(), string_input(false)),
+            ("name".to_owned(), string_input(false)),
+        ]);
+        let required = |names: &[&str]| {
+            JsonValue::Object(JsonObject::from([(
+                "required".to_owned(),
+                JsonValue::Array(
+                    names
+                        .iter()
+                        .map(|name| JsonValue::String((*name).to_owned()))
+                        .collect(),
+                ),
+            )]))
+        };
+        let constraints = JsonObject::from([(
+            "oneOf".to_owned(),
+            JsonValue::Array(vec![required(&["url"]), required(&["owner", "name"])]),
+        )]);
+        let call = |pairs: &[(&str, &str)]| {
+            pairs
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), JsonValue::String((*value).to_owned())))
+                .collect::<JsonObject>()
+        };
+
+        for admitted in [
+            call(&[("url", "https://github.com/acme/app")]),
+            call(&[("owner", "acme"), ("name", "app")]),
+        ] {
+            materialize_complete_method_inputs(&declared, &constraints, &admitted)?;
+            materialize_nested_method_inputs(&declared, &constraints, &admitted)?;
+        }
+        for refused in [
+            call(&[("owner", "acme")]),
+            call(&[
+                ("url", "https://github.com/acme/app"),
+                ("owner", "acme"),
+                ("name", "app"),
+            ]),
+            JsonObject::new(),
+        ] {
+            for outcome in [
+                materialize_complete_method_inputs(&declared, &constraints, &refused),
+                materialize_nested_method_inputs(&declared, &constraints, &refused),
+            ] {
+                let Err(error) = outcome else {
+                    return Err(format!("{refused:?} met constraints it breaks").into());
+                };
+                assert!(
+                    matches!(
+                        error.clone().into_runtime_error(),
+                        crate::RuntimeError::InputContract { ref input, ref path, .. }
+                            if input == "input_constraints" && path == "/"
+                    ),
+                    "{error}"
+                );
+            }
+        }
         Ok(())
     }
 }

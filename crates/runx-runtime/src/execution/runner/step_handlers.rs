@@ -234,6 +234,7 @@ where
 {
     let inputs = crate::input_contract::materialize_nested_method_inputs(
         &skill.runner.inputs,
+        &skill.runner.input_constraints,
         &request.inputs,
     )
     .map_err(crate::input_contract::InputContractError::into_runtime_error)?;

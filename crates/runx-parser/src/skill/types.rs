@@ -96,6 +96,12 @@ pub struct SkillMethodDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub inputs: BTreeMap<String, SkillInput>,
+    /// JSON Schema the whole input object must also satisfy, across its
+    /// fields: only combinators and dependencies, never `properties` or
+    /// `required`, which stay on the fields. Part of the method's input
+    /// schema and its digest.
+    #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
+    pub input_constraints: JsonObject,
     /// Complete, parser-validated calls for this method. These are contract
     /// examples, not tests: inspection and generated operator instructions
     /// expose them without reparsing package files.
@@ -111,10 +117,11 @@ pub struct SkillMethodDefinition {
 }
 
 impl SkillMethodDefinition {
-    /// The method's input schema: every input field, with which are required.
+    /// The method's input schema: every input field, with which are
+    /// required, and the constraints across them.
     #[must_use]
     pub fn input_schema(&self) -> JsonObject {
-        runx_contracts::input_contract_schema(&self.inputs)
+        constrained_input_schema(&self.inputs, &self.input_constraints)
     }
 
     /// The method's output schema: its result step's outputs, or one of
@@ -195,4 +202,17 @@ impl SkillMethodDefinition {
         }
         environment
     }
+}
+
+/// The input schema of `inputs` under `constraints`, the cross-field JSON
+/// Schema a method states beside its fields. The constraints take only keys
+/// the field schema never writes, so merging them overwrites nothing.
+#[must_use]
+pub fn constrained_input_schema(
+    inputs: &BTreeMap<String, SkillInput>,
+    constraints: &JsonObject,
+) -> JsonObject {
+    let mut schema = runx_contracts::input_contract_schema(inputs);
+    schema.extend(constraints.clone());
+    schema
 }

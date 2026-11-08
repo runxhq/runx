@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::ValidationError;
@@ -8,10 +10,26 @@ use super::{FIELDS, SkillMethodDefinition, validate_input_fields};
 const METHOD_FIELDS: &[&str] = &[
     "description",
     "inputs",
+    "input_constraints",
     "examples",
     "steps",
     "result_from",
     "offer",
+];
+
+/// The JSON Schema keys a method's `input_constraints` may use: those that
+/// relate fields to each other. `properties` and `required` stay on the
+/// fields themselves.
+const INPUT_CONSTRAINT_KEYS: &[&str] = &[
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "not",
+    "if",
+    "then",
+    "else",
+    "dependentRequired",
+    "dependentSchemas",
 ];
 
 /// The workflow keys a method carries for its steps.
@@ -27,8 +45,15 @@ pub(crate) fn validate_method_definition(
 ) -> Result<SkillMethodDefinition, ValidationError> {
     FIELDS.reject_unknown_fields(&method, &format!("methods.{name}"), METHOD_FIELDS)?;
     let inputs = validate_input_fields(inputs, &format!("methods.{name}.inputs"))?;
+    let input_constraints =
+        validate_input_constraints(name, method.get("input_constraints"), &inputs)?;
     let examples = parse_method_examples(name, method.get("examples"))?;
-    validate_input_examples(&format!("methods.{name}.examples"), &examples, &inputs)?;
+    validate_input_examples(
+        &format!("methods.{name}.examples"),
+        &examples,
+        &inputs,
+        &input_constraints,
+    )?;
     Ok(SkillMethodDefinition {
         name: name.to_owned(),
         description: FIELDS
@@ -42,6 +67,7 @@ pub(crate) fn validate_method_definition(
             .map(|offer| validate_offer(name, offer, &inputs))
             .transpose()?,
         inputs,
+        input_constraints,
         examples,
         graph: method_workflow(skill, name, &method)?,
         raw: method,
@@ -82,6 +108,105 @@ fn method_workflow(
         .map_err(|error| FIELDS.validation_error(format!("methods.{name}: {error}")))
 }
 
+/// A method's cross-field constraints: a JSON Schema object of only
+/// [`INPUT_CONSTRAINT_KEYS`], naming only inputs the method declares.
+fn validate_input_constraints(
+    method: &str,
+    value: Option<&JsonValue>,
+    inputs: &BTreeMap<String, super::SkillInput>,
+) -> Result<JsonObject, ValidationError> {
+    let Some(value) = value else {
+        return Ok(JsonObject::new());
+    };
+    let field = format!("methods.{method}.input_constraints");
+    let constraints = FIELDS.required_object(Some(value), &field)?.clone();
+    if constraints.is_empty() {
+        return Err(FIELDS.validation_error(format!("{field} lists nothing.")));
+    }
+    if let Some(key) = constraints
+        .keys()
+        .find(|key| !INPUT_CONSTRAINT_KEYS.contains(&key.as_str()))
+    {
+        return Err(FIELDS.validation_error(match key.as_str() {
+            "properties" | "required" => format!(
+                "{field}.{key} belongs on the inputs themselves; constraints relate fields to each other."
+            ),
+            _ => format!(
+                "{field}.{key} is not a constraint across inputs; use {}.",
+                INPUT_CONSTRAINT_KEYS.join(", ")
+            ),
+        }));
+    }
+    let mut named = BTreeSet::new();
+    named_inputs(&JsonValue::Object(constraints.clone()), &mut named);
+    if let Some(name) = named
+        .iter()
+        .find(|name| !inputs.contains_key(name.as_str()))
+    {
+        return Err(FIELDS.validation_error(format!(
+            "{field} names input {name}, which method {method} does not declare."
+        )));
+    }
+    let schema = serde_json::to_value(super::constrained_input_schema(inputs, &constraints))
+        .map_err(|error| FIELDS.validation_error(format!("{field} is invalid: {error}")))?;
+    jsonschema::draft202012::meta::validate(&schema).map_err(|error| {
+        FIELDS.validation_error(format!("{field} is not valid JSON Schema: {error}"))
+    })?;
+    Ok(constraints)
+}
+
+/// Every input a constraint schema names: in `required`, `properties`,
+/// `dependentRequired` and `dependentSchemas` at the input object's own
+/// level, through its combinators. A field's own value schema is not
+/// entered, since names there are its own.
+fn named_inputs(schema: &JsonValue, named: &mut BTreeSet<String>) {
+    let JsonValue::Object(schema) = schema else {
+        return;
+    };
+    let strings = |value: &JsonValue| -> Vec<String> {
+        value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(JsonValue::as_str)
+            .map(str::to_owned)
+            .collect()
+    };
+    if let Some(required) = schema.get("required") {
+        named.extend(strings(required));
+    }
+    if let Some(JsonValue::Object(properties)) = schema.get("properties") {
+        named.extend(properties.keys().cloned());
+    }
+    if let Some(JsonValue::Object(dependent)) = schema.get("dependentRequired") {
+        for (name, requires) in dependent {
+            named.insert(name.clone());
+            named.extend(strings(requires));
+        }
+    }
+    if let Some(JsonValue::Object(dependent)) = schema.get("dependentSchemas") {
+        for (name, nested) in dependent {
+            named.insert(name.clone());
+            named_inputs(nested, named);
+        }
+    }
+    for key in ["allOf", "anyOf", "oneOf"] {
+        for nested in schema
+            .get(key)
+            .and_then(JsonValue::as_array)
+            .into_iter()
+            .flatten()
+        {
+            named_inputs(nested, named);
+        }
+    }
+    for key in ["not", "if", "then", "else"] {
+        if let Some(nested) = schema.get(key) {
+            named_inputs(nested, named);
+        }
+    }
+}
+
 /// What a paid method charges. A price reads only inputs the method requires:
 /// each `by_input` input an `enum`, with a case for every combination of
 /// their values, and the `by_size` input a value holding the stored
@@ -90,7 +215,7 @@ fn method_workflow(
 fn validate_offer(
     method: &str,
     value: &JsonValue,
-    inputs: &std::collections::BTreeMap<String, super::SkillInput>,
+    inputs: &BTreeMap<String, super::SkillInput>,
 ) -> Result<runx_contracts::PaidSkillOfferTerms, ValidationError> {
     let field = format!("methods.{method}.offer");
     let terms = serde_json::to_value(value)
@@ -203,10 +328,11 @@ fn parse_method_examples(
 pub fn validate_input_examples(
     field: &str,
     examples: &[JsonObject],
-    inputs: &std::collections::BTreeMap<String, super::SkillInput>,
+    inputs: &BTreeMap<String, super::SkillInput>,
+    constraints: &JsonObject,
 ) -> Result<(), ValidationError> {
-    let schema =
-        serde_json::to_value(runx_contracts::input_contract_schema(inputs)).map_err(|error| {
+    let schema = serde_json::to_value(super::constrained_input_schema(inputs, constraints))
+        .map_err(|error| {
             FIELDS.validation_error(format!("{field} schema could not be serialized: {error}"))
         })?;
     let validator = jsonschema::draft202012::options()

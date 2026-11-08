@@ -156,6 +156,7 @@ impl BoundRun {
         if existing.is_some() {
             crate::input_contract::materialize_complete_method_inputs(
                 &self.runner.inputs,
+                &self.runner.input_constraints,
                 &workflow_inputs,
             )
             .map_err(|error| error.into_runtime_error())?;

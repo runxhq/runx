@@ -19,7 +19,7 @@ pub use method_definition::validate_input_examples;
 pub use types::{
     ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, InputMode, RawSkillIr,
     SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillMethodDefinition,
-    ValidateSkillMode, ValidateSkillOptions, ValidatedSkill,
+    ValidateSkillMode, ValidateSkillOptions, ValidatedSkill, constrained_input_schema,
 };
 
 pub(crate) use catalog::validate_catalog_metadata;

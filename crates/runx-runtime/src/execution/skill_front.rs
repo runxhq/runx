@@ -552,12 +552,16 @@ fn prepare_skill_execution(
         .map_err(|error| SkillRunError::Invalid(error.to_string()))?;
     restore_continuation_inputs(&mut request, &raw_workspace)?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
-    let materialize = if request.answers.is_some() {
-        crate::input_contract::materialize_present_method_inputs
+    let materialized = if request.answers.is_some() {
+        crate::input_contract::materialize_present_method_inputs(&runner.inputs, &request.inputs)
     } else {
-        crate::input_contract::materialize_complete_method_inputs
+        crate::input_contract::materialize_complete_method_inputs(
+            &runner.inputs,
+            &runner.input_constraints,
+            &request.inputs,
+        )
     };
-    request.inputs = match materialize(&runner.inputs, &request.inputs) {
+    request.inputs = match materialized {
         Ok(inputs) => inputs,
         Err(error) => {
             let source = error.into_runtime_error();

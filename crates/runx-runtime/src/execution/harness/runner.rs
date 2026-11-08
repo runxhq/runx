@@ -631,6 +631,7 @@ where
     let target = skill_fixture_target(fixture, skill_dir, &options)?;
     match crate::input_contract::materialize_complete_method_inputs(
         &target.runner.inputs,
+        &target.runner.input_constraints,
         &fixture.inputs,
     ) {
         Ok(inputs) => run_workflow_skill_fixture(fixture, target, inputs, adapter, options),

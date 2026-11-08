@@ -1,6 +1,5 @@
 //! MCP tool discovery and transport adaptation. The local orchestrator owns
 //! execution, continuation, and receipt persistence for every runner kind.
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use super::types::{
@@ -10,7 +9,6 @@ use super::types::{
 use crate::RuntimeError;
 use runx_contracts::schema::RunxSchema;
 use runx_contracts::{CallAct, JsonObject, JsonValue};
-use runx_parser::SkillInput;
 
 impl McpServerOptions {
     pub fn from_skill_paths_with_execution(
@@ -120,7 +118,7 @@ fn load_mcp_server_tool(
             .description
             .clone()
             .unwrap_or_else(|| format!("runx skill {}", skill.name)),
-        input_schema: skill_inputs_to_json_schema(&runner.inputs)?,
+        input_schema: skill_inputs_to_json_schema(&runner)?,
         result: McpServerToolBehavior::Skill(Box::new(McpServerSkillExecution {
             skill_path,
             skill_name: skill.name,
@@ -140,12 +138,12 @@ fn mcp_method_error(skill_name: &str, error: impl std::fmt::Display) -> RuntimeE
     }
 }
 
-/// A skill tool takes the runner's inputs, and the act its caller states
-/// beside them.
+/// A skill tool takes the method's inputs, under its constraints across
+/// them, and the act its caller states beside them.
 fn skill_inputs_to_json_schema(
-    inputs: &BTreeMap<String, SkillInput>,
+    method: &runx_parser::SkillMethodDefinition,
 ) -> Result<JsonObject, RuntimeError> {
-    let mut schema = runx_contracts::input_contract_schema(inputs);
+    let mut schema = method.input_schema();
     let act = JsonValue::from_serialize(&CallAct::json_schema()).map_err(|error| {
         RuntimeError::EngineInvariant {
             context: "describing a skill tool",

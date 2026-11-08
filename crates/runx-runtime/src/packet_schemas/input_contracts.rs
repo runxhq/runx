@@ -34,9 +34,10 @@ pub(crate) fn hydrate_packet_input_contracts(
             let declared_by = format!("{profile_path} method {method_name}");
             hydrate_inputs(&mut runner.inputs, &declared_by, &catalog)?;
             validate_input_examples(
-                &format!("runners.{method_name}.examples"),
+                &format!("methods.{method_name}.examples"),
                 &runner.examples,
                 &runner.inputs,
+                &runner.input_constraints,
             )
             .map_err(|source| SkillPackageError::Validation {
                 path: profile_path.clone(),

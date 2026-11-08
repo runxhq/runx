@@ -461,3 +461,105 @@ fn an_empty_list_is_refused_as_listing_nothing() -> Result<(), String> {
     }
     Ok(())
 }
+
+/// A method that takes a repository either by URL or by owner and name.
+fn constrained_method(constraints: &str, examples: &str) -> String {
+    format!(
+        "minimum_runx: 0.12.0\nmethods:\n  main:\n    inputs:\n      url: {{type: string, optional: true}}\n      owner: {{type: string, optional: true}}\n      name: {{type: string, optional: true}}\n{constraints}{examples}    steps:\n      - id: first\n        tool: data.digest\n"
+    )
+}
+
+const EITHER_URL_OR_OWNER_AND_NAME: &str = "    input_constraints:\n      oneOf:\n        - required: [url]\n        - required: [owner, name]\n      dependentRequired:\n        owner: [name]\n";
+
+#[test]
+fn input_constraints_join_the_methods_input_schema_and_its_digest() -> Result<(), String> {
+    let validate = |source: String| {
+        parse_method_manifest_yaml(&source)
+            .map_err(|error| error.to_string())
+            .and_then(|raw| {
+                runx_parser::validate_method_manifest("constrained", raw)
+                    .map_err(|error| error.to_string())
+            })
+    };
+    let constrained = validate(constrained_method(EITHER_URL_OR_OWNER_AND_NAME, ""))?;
+    let open = validate(constrained_method("", ""))?;
+    let method = &constrained.methods["main"];
+    let schema = method.input_schema();
+    assert_eq!(
+        schema
+            .get("oneOf")
+            .and_then(|value| value.as_array())
+            .map(Vec::len),
+        Some(2),
+        "{schema:?}"
+    );
+    assert!(schema.contains_key("dependentRequired"), "{schema:?}");
+    assert_eq!(
+        schema.get("additionalProperties"),
+        Some(&runx_contracts::JsonValue::Bool(false))
+    );
+    let digest = |manifest: &runx_parser::SkillMethodManifest| {
+        manifest.methods["main"]
+            .schemas()
+            .map(|schemas| schemas.input_schema_digest)
+            .map_err(|error| error.to_string())
+    };
+    assert_ne!(digest(&constrained)?, digest(&open)?);
+
+    let error = validate(constrained_method(
+        EITHER_URL_OR_OWNER_AND_NAME,
+        "    examples:\n      - {owner: acme}\n",
+    ))
+    .err()
+    .ok_or("an example that breaks the constraints validated")?;
+    assert!(
+        error.contains("methods.main.examples[0]") && error.contains("input contract"),
+        "{error}"
+    );
+    Ok(())
+}
+
+#[test]
+fn input_constraints_relate_declared_inputs_and_nothing_else() -> Result<(), String> {
+    for (constraints, expected) in [
+        (
+            "    input_constraints: {required: [url]}\n",
+            "input_constraints.required belongs on the inputs themselves",
+        ),
+        (
+            "    input_constraints: {properties: {url: {minLength: 1}}}\n",
+            "input_constraints.properties belongs on the inputs themselves",
+        ),
+        (
+            "    input_constraints: {minProperties: 1}\n",
+            "input_constraints.minProperties is not a constraint across inputs",
+        ),
+        (
+            "    input_constraints:\n      anyOf:\n        - required: [repo]\n",
+            "names input repo, which method main does not declare",
+        ),
+        (
+            "    input_constraints: {dependentRequired: {owner: [branch]}}\n",
+            "names input branch, which method main does not declare",
+        ),
+        (
+            "    input_constraints: {anyOf: url}\n",
+            "input_constraints is not valid JSON Schema",
+        ),
+        (
+            "    input_constraints: {}\n",
+            "input_constraints lists nothing",
+        ),
+    ] {
+        let raw = parse_method_manifest_yaml(&constrained_method(constraints, ""))
+            .map_err(|error| error.to_string())?;
+        let error = runx_parser::validate_method_manifest("constrained", raw)
+            .err()
+            .ok_or_else(|| format!("constraints validated: {constraints}"))?;
+        assert!(
+            error.to_string().contains(expected),
+            "{constraints}: {error}"
+        );
+    }
+    Ok(())
+}

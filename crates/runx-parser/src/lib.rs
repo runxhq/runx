@@ -48,8 +48,9 @@ pub use skill::{
     ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, CatalogMetadata, CatalogVisibility,
     ConnectorRequirement, InputMode, RawSkillIr, SkillArtifactContract, SkillIdempotencyPolicy,
     SkillInput, SkillMethodDefinition, ValidateSkillMode, ValidateSkillOptions, ValidatedSkill,
-    agent_task_manual, agent_task_sections, parse_skill_markdown, validate_input_examples, validate_skill,
-    validate_skill_artifact_contract, validate_skill_with_options,
+    agent_task_manual, agent_task_sections, constrained_input_schema, parse_skill_markdown,
+    validate_input_examples, validate_skill, validate_skill_artifact_contract,
+    validate_skill_with_options,
 };
 pub use test_fixture::{
     ReceiptExpectation, TestExpectation, TestFixture, TestHost, TestHttpExchangeFixture,
