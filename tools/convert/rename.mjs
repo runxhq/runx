@@ -315,11 +315,12 @@ function apply(repo, root, write, list, showStays) {
     for (const [name, from] of [...outside].slice(0, 40)) process.stdout.write(`  ${name}   (${from})\n`);
     return 1;
   }
-  // A new name a file already holds needs a row for the name it lands on:
-  // moved aside, or kept with a note that the two are one thing. Clashes
-  // across files are the compiler's to catch.
+  // A new name a code file already holds needs a row for the name it lands
+  // on: moved aside, or kept with a note that the two are one thing. Clashes
+  // across files are the compiler's to catch, and prose landing on a word it
+  // already uses, such as "tests", is only English.
   const collisions = new Map();
-  for (const file of workingSources(root)) {
+  for (const file of workingSources(root).filter((file) => !file.endsWith(".md"))) {
     const names = new Set(readSource(root, file)?.text?.match(TOKEN) ?? []);
     for (const name of names) {
       const to = renames.get(name);

@@ -153,3 +153,10 @@ test("a name every object inherits, such as constructor, is no bare word", (t) =
   assert.equal(status, 0, out);
   assert.equal(read(root, "packages/client/src/store.ts"), code.replaceAll("runner", "method"));
 });
+
+test("prose may already hold the word a name becomes", (t) => {
+  const root = tree(t, { "docs/plans.md": "A harness-only package is test-only by design.\n" });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "docs/plans.md"), "A test-only package is test-only by design.\n");
+});
