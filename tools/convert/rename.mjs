@@ -166,6 +166,11 @@ const HISTORY = /(^|\/)(migrations|drizzle)\//;
 // Files whose own name isn't ours to change: the converter's own files,
 // scafld's, and vendored copies, which keep their upstream names.
 const KEEPS_NAME = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
+// Files a generator writes from other sources: the schemas and contract
+// types from the Rust contracts, and the bundled skills from their packages.
+// A rename changes their sources, and their generators write them again, so
+// the rename never edits them.
+const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json)$/;
 // Literals whose exact bytes stored data depends on, in files a token rename
 // would otherwise change them in. Each is masked while its file is renamed,
 // and a pin that isn't found refuses.
@@ -191,7 +196,7 @@ function workingFiles(root) {
 }
 
 function workingSources(root) {
-  return workingFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !/lock/.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file));
+  return workingFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !/lock/.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file) && !GENERATED.test(file));
 }
 
 function readSource(root, file) {

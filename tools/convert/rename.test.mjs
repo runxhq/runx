@@ -107,3 +107,15 @@ test("the rename runs again over its own output and changes nothing, a chain of 
   assert.match(again.out, /oss: 0 names in 0 files, 0 paths moved; 0 signed files left as signed; .*TurnInvocation.* already the new names/);
   assert.equal(read(root, "src/turn.ts"), renamed);
 });
+
+test("the rename leaves a generated file to its generator", (t) => {
+  const generated = '{ "properties": { "harness_output": { "type": "string" } } }\n';
+  const root = tree(t, {
+    "schemas/diagnosis.schema.json": generated,
+    "crates/runx-contracts/src/diagnosis.rs": "pub struct Diagnosis { pub harness_output: String }\n",
+  });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "crates/runx-contracts/src/diagnosis.rs"), "pub struct Diagnosis { pub test_output: String }\n");
+  assert.equal(read(root, "schemas/diagnosis.schema.json"), generated);
+});
