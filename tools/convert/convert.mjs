@@ -291,8 +291,10 @@ function convertOutputs(doc, step, where) {
     if (created) value.items.push(new Pair(new Scalar("optional"), new Scalar(true)));
   }
   if (wrapAs !== undefined) {
-    insertAt(step, indexOf(step, "outputs") >= 0 ? indexOf(step, "outputs") + 1 : step.items.length, "result_as", new Scalar(wrapAs));
-    if (wrapPacket !== undefined) setPacket(field(wrapAs).value, wrapPacket, wrapAs);
+    // result_as names an output the step declares, with its packet if it has one.
+    const wrapped = field(wrapAs).value;
+    insertAt(step, indexOf(step, "outputs") + 1, "result_as", new Scalar(wrapAs));
+    if (wrapPacket !== undefined) setPacket(wrapped, wrapPacket, wrapAs);
   }
 }
 
@@ -503,9 +505,25 @@ function writeEvals(skillName, journeys, files, dir, notes) {
 
 // ---- Support graphs, which become fixture packages
 
+// run.yaml admits no anchors or aliases, so a value a graph reused by alias
+// is written out in full where each alias stood.
+function expandAliases(doc) {
+  YAML.visit(doc, {
+    Alias(_, alias) {
+      return alias.resolve(doc).clone();
+    },
+  });
+  YAML.visit(doc, {
+    Node(_, node) {
+      if (node.anchor) node.anchor = undefined;
+    },
+  });
+}
+
 function convertGraph(file, into, skillName, notes) {
   const graphText = readFileSync(file, "utf8");
   const doc = YAML.parseDocument(graphText);
+  expandAliases(doc);
   const root = doc.contents;
   only(root, GRAPH_KEYS, path.basename(file));
   if (has(root, "publisher")) notes.push(`${path.basename(file)}: publisher removed, as catalog.publisher is`);
