@@ -51,6 +51,12 @@ export const STAYS = [
   { word: "runner", why: "GitHub's runner", file: /^\.github\// },
   { word: "runner", why: "GitHub's runner", before: /(GitHub(['’]s)?|[Hh]osted|self-hosted|Actions|CI) $/ },
   { word: "runner", why: "a test runner", before: /\btest $/i },
+  // runner in Ausca: a shell variable, a GPU job runner, its sandbox's own
+  // runner, and the buyer canary's driver beside GitHub's runner limit.
+  { word: "runner", why: "a shell variable holding the command it runs", file: /^deploy\/(resource-release-common|worker-common)\.sh$/ },
+  { word: "runner", why: "a GPU job runner", before: /\bGPU job $/ },
+  { word: "runner", why: "the code-execution sandbox's own runner", file: /^docs\/plans\/code-execution\.md$/ },
+  { word: "runner", why: "the buyer canary's own driver, and GitHub's runner limit", file: /^scripts\/buyer-canary(\.test)?\.mjs$/ },
   // harness: an agent's host, such as Claude Code or Codex (D23, D39).
   { word: "harness", why: "an agent's host", before: /\b(agent|coding) $/i },
   { word: "harness", why: "an agent's host", after: /^(['’]s own | probe)/ },
@@ -70,7 +76,7 @@ export function stayFor(file, line, index, token) {
 export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|harness\/runner\.rs$)|^fixtures\/kernel\/runner\//;
 
 // Files a generator writes, regenerated after a rename and never edited.
-export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json|contracts\/generated\/.+)$|(^|\/)[^/]+\.gen\.go$/;
+export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json)$|\.gen\.go$|^contracts\/generated\//;
 
 // The sources a rename reads, and the guard with it: code, data and prose
 // by extension, Go among them, and Makefiles by name.
@@ -78,5 +84,5 @@ export const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|json|ya?ml|toml|sql|rb|
 
 // What can't truthfully change (§4.6): history documents, and Ausca's
 // catalog history, content-addressed immutable purchase data, and its dated
-// run-through record. Signed data is found by its signature.
-export const HISTORY = /(^|\/)(release\/notes|plans\/(archive|evidence)|\.scafld\/specs\/archive|\.ai|mockups|proof|catalog\/history)\/|(^|\/)docs\/run-through-findings-2026-09\.md$/;
+// run-through records. Signed data is found by its signature.
+export const HISTORY = /(^|\/)(release\/notes|plans\/(archive|evidence)|\.scafld\/specs\/archive|\.ai|mockups|proof)\/|^catalog\/history\/|^docs\/run-through-findings-[0-9-]+\.md$/;

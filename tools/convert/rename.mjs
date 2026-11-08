@@ -169,6 +169,12 @@ const KEEPS_NAME = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
 // would otherwise change them in. Each is masked while its file is renamed,
 // and a pin that isn't found refuses.
 const PINNED = {
+  ausca: [
+    { file: "internal/adapters/catalog/release.go", literal: 'json:"runner"', why: "Ausca's catalog revision key: retained history decodes under it (§4.6)" },
+    { file: "internal/catalogcompiler/source.go", literal: 'yaml:"runner"', why: "Ausca's catalog source key, which compiles to the revision key" },
+    { file: "catalog/source/offers.yaml", literal: "runner:", why: "Ausca's catalog source key, which compiles to the revision key" },
+    { file: "internal/catalogcompiler/compiler_test.go", literal: "runner: ocr", why: "the compiler test's catalog source" },
+  ],
   cloud: [
     {
       file: "packages/api/src/payments/holdings-postgres.ts",

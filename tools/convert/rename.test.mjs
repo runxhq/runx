@@ -182,6 +182,7 @@ test("Ausca's catalog history and run-through record are history, and its genera
   const files = {
     "catalog/history/sha256-abc.json": `${JSON.stringify(kept)}\n`,
     "docs/run-through-findings-2026-09.md": "The runner failed its harness_output check.\n",
+    "docs/run-through-findings-2026-10-02.md": "The runner failed again.\n",
     "contracts/generated/types.ts": "export type Purchase = { runner: string };\n",
   };
   const root = tree(t, { ...files, "src/purchase.ts": "export type Purchase = { runner: string };\n" });
@@ -189,4 +190,43 @@ test("Ausca's catalog history and run-through record are history, and its genera
   assert.equal(status, 0, out);
   for (const [file, text] of Object.entries(files)) assert.equal(read(root, file), text, file);
   assert.equal(read(root, "src/purchase.ts"), "export type Purchase = { method: string };\n");
+});
+
+// Ausca's pinned files, each holding the literal its catalog keeps.
+const auscaPins = {
+  "internal/adapters/catalog/release.go": "type Revision struct {\n\tRunner string `json:\"runner\"`\n}\n",
+  "internal/catalogcompiler/source.go": "type Source struct {\n\tRunner string `yaml:\"runner\"`\n}\n",
+  "catalog/source/offers.yaml": "- offer: transcription\n  runner: ocr\n",
+  "internal/catalogcompiler/compiler_test.go": "const source = \"runner: ocr\"\n",
+};
+
+test("Ausca's lease names take the lease's word", (t) => {
+  const root = tree(t, { ...auscaPins, "internal/app/resources.go": "type ClaimedHold struct{}\n\nvar heldCapability = ClaimedHold{}\n" });
+  const { status, out } = run(RENAME, "apply", "ausca", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "internal/app/resources.go"), "type ClaimedLease struct{}\n\nvar leasedCapability = ClaimedLease{}\n");
+});
+
+test("Ausca's own runners stay: a shell variable, a GPU job runner, its sandbox's and its buyer canary's", (t) => {
+  const kept = {
+    "deploy/worker-common.sh": "local runner=\"$4\"\n\"${runner}\" rollback\n",
+    "docs/gpu.md": "Each GPU job runner pulls one job.\n",
+    "docs/plans/code-execution.md": "The runner executes the snippet in its sandbox.\n",
+    "scripts/buyer-canary.mjs": "const runner = drive;\n",
+  };
+  const root = tree(t, { ...auscaPins, ...kept, "docs/methods.md": "The default runner reads the catalog.\n" });
+  const { status, out } = run(RENAME, "apply", "ausca", root, "--write");
+  assert.equal(status, 0, out);
+  for (const [file, text] of Object.entries(kept)) assert.equal(read(root, file), text, file);
+  assert.equal(read(root, "docs/methods.md"), "The default method reads the catalog.\n");
+});
+
+test("Ausca's catalog keys are pinned, so retained history decodes, while the code around them renames", (t) => {
+  const root = tree(t, auscaPins);
+  const { status, out } = run(RENAME, "apply", "ausca", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "internal/adapters/catalog/release.go"), "type Revision struct {\n\tMethod string `json:\"runner\"`\n}\n");
+  assert.equal(read(root, "internal/catalogcompiler/source.go"), "type Source struct {\n\tMethod string `yaml:\"runner\"`\n}\n");
+  assert.equal(read(root, "catalog/source/offers.yaml"), auscaPins["catalog/source/offers.yaml"]);
+  assert.equal(read(root, "internal/catalogcompiler/compiler_test.go"), auscaPins["internal/catalogcompiler/compiler_test.go"]);
 });
