@@ -116,13 +116,6 @@ export function validateMethodManifestYamlBatch(documents, env = process.env) {
   );
 }
 
-export function validateWorkflowYamlBatch(documents, env = process.env) {
-  return evaluateParserRequests(
-    documents.map((yaml) => ({ kind: "parser.validateWorkflowYaml", yaml })),
-    env,
-  );
-}
-
 export function validateTestFixtureYamlBatch(documents, env = process.env) {
   return evaluateParserRequests(
     documents.map((yaml) => ({ kind: "parser.validateTestFixtureYaml", yaml })),
@@ -147,10 +140,6 @@ export function validateSkillMarkdown(markdown, env = process.env) {
 
 export function validateMethodManifestYaml(document, env = process.env) {
   return validateMethodManifestYamlBatch([document], env)[0];
-}
-
-export function validateWorkflowYaml(yaml, env = process.env) {
-  return validateWorkflowYamlBatch([yaml], env)[0];
 }
 
 export function validateTestFixtureYaml(yaml, env = process.env) {

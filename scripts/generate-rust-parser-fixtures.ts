@@ -73,8 +73,6 @@ function parserRequest(
       return { kind: "parser.validateSkillMarkdown", ...input };
     case "method-manifests":
       return { kind: "parser.validateMethodManifestYaml", ...input };
-    case "graphs":
-      return { kind: "parser.validateWorkflowYaml", ...input };
     case "tool-manifests":
       return {
         kind: typeof input.json === "string"

@@ -11,4 +11,4 @@ pub use types::{
     AgentTask, AskGate, LoadStep, LoadTarget, OperationStepTarget, ProcessTool, RawWorkflowIr,
     SkillTarget, StepAct, StepKind, ToolTarget, WorkerTool, Workflow, WorkflowStep, WorkflowWhen,
 };
-pub use validate::{parse_workflow_yaml, validate_workflow, validate_workflow_document};
+pub(crate) use validate::validate_workflow_document;

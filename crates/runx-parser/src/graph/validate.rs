@@ -8,28 +8,14 @@ use super::helpers::{
 };
 use super::step::validate_step;
 use super::types::{RawWorkflowIr, Workflow};
-use crate::{ParseError, ValidationError, assert_yaml_supported_subset};
+use crate::ValidationError;
 
-pub fn parse_workflow_yaml(source: &str) -> Result<RawWorkflowIr, ParseError> {
-    assert_yaml_supported_subset("graph", source)?;
-    let document: JsonObject =
-        serde_norway::from_str(source).map_err(|error| ParseError::InvalidYaml {
-            field: "graph".to_owned(),
-            message: error.to_string(),
-        })?;
-    Ok(RawWorkflowIr { document })
-}
-
-pub fn validate_workflow(raw: RawWorkflowIr) -> Result<Workflow, ValidationError> {
-    validate_workflow_document(raw.document.clone(), Some(raw))
-}
-
-pub fn validate_workflow_document(
+/// The workflow a method's steps make: `document` holds the method's
+/// workflow keys and its skill's `name`, as the method parser gathers them.
+/// A method is the only place a workflow is written.
+pub(crate) fn validate_workflow_document(
     document: JsonObject,
-    raw: Option<RawWorkflowIr>,
 ) -> Result<Workflow, ValidationError> {
-    reject_unsupported_top_level(&document)?;
-
     let name = required_string(document.get("name"), "name")?;
     let result_from =
         optional_string_array(document.get("result_from"), "result_from")?.unwrap_or_default();
@@ -64,7 +50,7 @@ pub fn validate_workflow_document(
         effects,
         reach,
         steps,
-        raw: raw.unwrap_or(RawWorkflowIr { document }),
+        raw: RawWorkflowIr { document },
     })
 }
 
@@ -200,27 +186,6 @@ fn validate_gated_context(steps: &[crate::WorkflowStep]) -> Result<(), Validatio
         }
     }
     Ok(())
-}
-
-/// The fields of a workflow document: a method's steps, under its skill's
-/// name.
-const WORKFLOW_FIELDS: &[&str] = &[
-    "name",
-    "result_from",
-    "outputs",
-    "effects",
-    "reach",
-    "steps",
-];
-
-fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationError> {
-    match document
-        .keys()
-        .find(|key| !WORKFLOW_FIELDS.contains(&key.as_str()))
-    {
-        Some(key) => Err(validation_error(format!("{key} is not a graph field."))),
-        None => Ok(()),
-    }
 }
 
 #[cfg(test)]

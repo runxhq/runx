@@ -3,10 +3,10 @@ use std::fmt;
 use crate::{
     ParseError, SkillInstallError, SkillInstallOrigin, ValidateSkillMode, ValidateSkillOptions,
     ValidationError, parse_method_manifest_yaml, parse_packet_schema_document,
-    parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml, parse_workflow_yaml,
+    parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml,
     test_fixture::{TestFixtureError, parse_test_fixture},
     validate_method_manifest, validate_skill_artifact_contract, validate_skill_install,
-    validate_skill_with_options, validate_tool_manifest, validate_workflow,
+    validate_skill_with_options, validate_tool_manifest,
 };
 use runx_contracts::{JsonObject, JsonValue, json_string_field};
 use serde::{Deserialize, Serialize};
@@ -107,7 +107,6 @@ fn is_supported_parser_kind(kind: &str) -> bool {
         "parser.validateSkillMarkdown"
             | "parser.validateMethodManifestYaml"
             | "parser.validateConnectorManifestYaml"
-            | "parser.validateWorkflowYaml"
             | "parser.validateToolManifestYaml"
             | "parser.validateToolManifestJson"
             | "parser.validateTestFixtureYaml"
@@ -143,8 +142,6 @@ enum ParserInput {
     ValidateMethodManifestYaml { skill: String, yaml: String },
     #[serde(rename = "parser.validateConnectorManifestYaml")]
     ValidateConnectorManifestYaml { yaml: String },
-    #[serde(rename = "parser.validateWorkflowYaml")]
-    ValidateWorkflowYaml { yaml: String },
     #[serde(rename = "parser.validateToolManifestYaml")]
     ValidateToolManifestYaml { yaml: String },
     #[serde(rename = "parser.validateToolManifestJson")]
@@ -266,10 +263,6 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
                 )
             })?;
             to_json_value(validated.manifest)
-        }
-        ParserInput::ValidateWorkflowYaml { yaml } => {
-            let raw = parse_workflow_yaml(&yaml)?;
-            to_json_value(validate_workflow(raw)?)
         }
         ParserInput::ValidateToolManifestYaml { yaml } => {
             let raw = parse_tool_manifest_yaml(&yaml)?;

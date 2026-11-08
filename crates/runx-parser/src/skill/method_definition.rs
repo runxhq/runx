@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use runx_contracts::{JsonObject, JsonValue};
 
 use crate::ValidationError;
-use crate::graph::{RawWorkflowIr, validate_workflow_document};
+use crate::graph::validate_workflow_document;
 
 use super::{FIELDS, SkillMethodDefinition, validate_input_fields};
 
@@ -107,7 +107,7 @@ fn method_workflow(
     {
         document.insert("result_from".to_owned(), JsonValue::Array(vec![last]));
     }
-    validate_workflow_document(document.clone(), Some(RawWorkflowIr { document }))
+    validate_workflow_document(document)
         .map_err(|error| FIELDS.validation_error(format!("methods.{name}: {error}")))
 }
 
