@@ -783,68 +783,40 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use runx_contracts::connector::{HttpImplementation, LeaseTake};
-    use serde_json::json;
 
     use super::leased_answer;
 
-    fn take() -> LeaseTake {
-        serde_json::from_value(json!({
-            "take": "lease",
-            "target": {"$concat": ["acme:inbox/", {"$result": "/lease/inbox_id"}]},
-            "expires_at": {"$result": "/lease/expires_at"},
-            "fields": {"capability": {"$response": "write.capability"}},
-        }))
-        .expect("a take")
-    }
-
-    fn spec() -> HttpImplementation {
-        serde_json::from_value(json!({
-            "allowed_hosts": ["inbox.acme.test"],
-            "requests": [{"id": "provision", "http_method": "POST", "url": "https://inbox.acme.test/inboxes"}],
-            "result_paths": {"lease": "acknowledgement.lease"},
-        }))
-        .expect("an http implementation")
-    }
-
+    /// The take, against the cases runx Connect also passes, so the
+    /// harness that plays Connect and Connect never take a lease apart
+    /// (connector-yaml.md, `lease`). Answers compare as JSON values, since
+    /// key order isn't part of an answer; each answer's `value_digest` binds
+    /// the fields the take holds.
     #[test]
-    fn a_take_answers_the_lease_s_evidence_in_place_of_what_it_leases() {
-        let answer = leased_answer(
-            &take(),
-            &spec(),
-            200,
-            r#"{"lease":{"inbox_id":"inb_1","expires_at":"2026-10-16T00:00:00.000Z"},"capability":"auc_secret"}"#,
-        )
-        .expect("a leased answer");
-        assert!(!answer.contains("auc_secret"));
-        let answer: serde_json::Value = serde_json::from_str(&answer).expect("json");
-        assert_eq!(
-            answer["capability"]["$lease"],
-            json!({
-                "target": "acme:inbox/inb_1",
-                "expires_at": "2026-10-16T00:00:00.000Z",
-                "value_digest": runx_contracts::sha256_prefixed(br#"{"capability":"auc_secret"}"#),
-            })
-        );
-        assert_eq!(answer["lease"]["inbox_id"], json!("inb_1"));
-    }
-
-    #[test]
-    fn a_take_leases_nothing_from_an_error_or_an_answer_without_its_fields() {
-        let refused = leased_answer(
-            &take(),
-            &spec(),
-            409,
-            r#"{"error":"quota","capability":"auc_secret"}"#,
-        )
-        .expect("an error answer");
-        assert_eq!(refused, r#"{"capability":null,"error":"quota"}"#);
-        leased_answer(
-            &take(),
-            &spec(),
-            200,
-            r#"{"lease":{"inbox_id":"inb_1","expires_at":"2026-10-16T00:00:00.000Z"}}"#,
-        )
-        .expect_err("no capability to lease");
-        leased_answer(&take(), &spec(), 200, "not json").expect_err("not an object");
+    fn a_take_answers_as_the_shared_lease_corpus_says() {
+        let corpus: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../fixtures/contracts/connector-lease.json"
+        ))
+        .expect("the lease corpus");
+        let spec: HttpImplementation =
+            serde_json::from_value(corpus["http"].clone()).expect("an http implementation");
+        let cases = corpus["cases"].as_array().expect("cases");
+        assert!(!cases.is_empty());
+        for case in cases {
+            let name = case["name"].as_str().expect("a name");
+            let take: LeaseTake = serde_json::from_value(case["take"].clone()).expect("a take");
+            let status = u16::try_from(case["status"].as_u64().expect("a status")).expect("u16");
+            let body = case["body"].as_str().expect("a body");
+            let answer = leased_answer(&take, &spec, status, body);
+            let expected = &case["expected"];
+            if expected["error"] == true {
+                assert!(answer.is_err(), "{name}: {answer:?}");
+            } else if let Some(raw) = expected["raw"].as_str() {
+                assert_eq!(answer.as_deref(), Ok(raw), "{name}");
+            } else {
+                let answer: serde_json::Value =
+                    serde_json::from_str(&answer.expect(name)).expect("a JSON answer");
+                assert_eq!(answer, expected["answer"], "{name}");
+            }
+        }
     }
 }
