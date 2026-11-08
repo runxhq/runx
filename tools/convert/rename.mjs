@@ -19,11 +19,10 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { GENERATED, HISTORY as HISTORY_DOCS, STAYING_PATHS, bareWord, renamedBare, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY as HISTORY_DOCS, SOURCE, STAYING_PATHS, bareWord, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
-const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|json|ya?ml|toml|sql|rb|py|sh|md)$/;
 const TOKEN = /[A-Za-z_$][A-Za-z0-9_$-]*[A-Za-z0-9]|[A-Za-z]/g;
 
 // Each renamed word, in the forms a segment of a name can take.
@@ -373,7 +372,7 @@ function apply(repo, root, write, list, showStays) {
           count += 1;
           bare += 1;
           const next = renamedBare(token, line.slice(index + token.length));
-          if (/\.(rs|ts|tsx|mts|mjs|js|cjs)$/.test(file) && names(file, text).has(next)) landsOn.add(`${file}\t${token} -> ${next}`);
+          if (/\.(rs|ts|tsx|mts|mjs|js|cjs|go)$/.test(file) && names(file, text).has(next)) landsOn.add(`${file}\t${token} -> ${next}`);
           return next;
         }),
       )

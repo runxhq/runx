@@ -70,7 +70,11 @@ export function stayFor(file, line, index, token) {
 export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|harness\/runner\.rs$)|^fixtures\/kernel\/runner\//;
 
 // Files a generator writes, regenerated after a rename and never edited.
-export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json)$/;
+export const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json)$|(^|\/)[^/]+\.gen\.go$/;
+
+// The sources a rename reads, and the guard with it: code, data and prose
+// by extension, Go among them, and Makefiles by name.
+export const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|json|ya?ml|toml|sql|rb|py|sh|md|go|mk)$|(^|\/)Makefile$/;
 
 // What can't truthfully change (§4.6): history documents. Signed data is
 // found by its signature.

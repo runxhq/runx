@@ -160,3 +160,19 @@ test("prose may already hold the word a name becomes", (t) => {
   assert.equal(status, 0, out);
   assert.equal(read(root, "docs/plans.md"), "A test-only package is test-only by design.\n");
 });
+
+test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {
+  const generated = "type Purchase struct {\n\tRunner string `json:\"runner\"`\n}\n";
+  const root = tree(t, {
+    "internal/runx/execution.go": "type Execution struct {\n\tRunner string `json:\"runner\"`\n}\n",
+    "internal/cloud/models.gen.go": generated,
+    "Makefile": "check:\n\trunx harness . --json\n",
+    "build/release.mk": "test-skills:\n\trunx harness skills --json\n",
+  });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "internal/runx/execution.go"), "type Execution struct {\n\tMethod string `json:\"method\"`\n}\n");
+  assert.equal(read(root, "internal/cloud/models.gen.go"), generated);
+  assert.equal(read(root, "Makefile"), "check:\n\trunx test . --json\n");
+  assert.equal(read(root, "build/release.mk"), "test-skills:\n\trunx test skills --json\n");
+});

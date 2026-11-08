@@ -13,10 +13,9 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { GENERATED, HISTORY, bareWord, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY, SOURCE, bareWord, stayFor } from "./words.mjs";
 
 const SCOPE = /^(crates|packages|schemas|skills|connectors|docs|scripts)\//;
-const TEXT = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|json|ya?ml|toml|sql|rb|py|sh|md)$/;
 const TOKEN = /[A-Za-z_$][A-Za-z0-9_$-]*[A-Za-z0-9]|[A-Za-z]/g;
 const RETIRED = { runner: /(^|[^A-Za-z])(runners?|Runners?|RUNNERS?)($|[^a-z])/, harness: /(^|[^A-Za-z])(harness(es)?|Harness(es)?|HARNESS(ES)?)($|[^a-z])/ };
 const SIGNED = /"signature"\s*:/;
@@ -30,7 +29,7 @@ function decided(repo) {
 
 function files(root) {
   const listed = execFileSync("git", ["-C", root, "ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8", maxBuffer: 1 << 28 });
-  return listed.split("\n").filter((file) => file && SCOPE.test(file) && TEXT.test(file) && !file.includes("node_modules/") && !HISTORY.test(file) && !/(^|\/)vendor\//.test(file) && !GENERATED.test(file) && existsSync(path.join(root, file)));
+  return listed.split("\n").filter((file) => file && SCOPE.test(file) && SOURCE.test(file) && !file.includes("node_modules/") && !HISTORY.test(file) && !/(^|\/)vendor\//.test(file) && !GENERATED.test(file) && existsSync(path.join(root, file)));
 }
 
 function main([root, ...rest]) {
