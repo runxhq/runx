@@ -510,8 +510,43 @@ function convertMethod(doc, name, method, context, notes) {
 
 const slug = (value) => String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
-function convertCase(doc, testCase, where, packageOf, evals, notes) {
+// The strings among a test's inputs that name a file or folder relative to its package.
+function packagePaths(value, dir) {
+  if (typeof value === "string") {
+    if (value === "" || path.isAbsolute(value)) return [];
+    const resolved = path.relative(dir, path.resolve(dir, value));
+    return existsSync(path.join(dir, resolved)) ? [resolved === "" ? "." : resolved] : [];
+  }
+  if (Array.isArray(value)) return value.flatMap((item) => packagePaths(item, dir));
+  if (value && typeof value === "object") return Object.values(value).flatMap((item) => packagePaths(item, dir));
+  return [];
+}
+
+// A test's workspace and receipts are the runtime's (run-yaml.md, tests): it
+// runs in a fresh workspace holding its package's fixtures/, staged whole at
+// the same paths. Today `RUNX_CWD: .` ran a case in its package's own
+// directory, so a test whose inputs read only under fixtures/ reads the same
+// files there without it, and the key goes. Anything else it could have
+// reached isn't in a test's workspace, so it's refused, as is any other value.
+function settleTestEnv(test, dir, where, notes) {
+  const env = node(test, "env");
+  if (env === undefined) return false;
+  if (!isMap(env)) refuse(`${where}.env is not a map`);
+  if (has(env, "RUNX_RECEIPT_DIR")) refuse(`${where}.env.RUNX_RECEIPT_DIR is the runtime's: a test's receipts go where the runtime puts them`);
+  const cwd = node(env, "RUNX_CWD");
+  if (cwd === undefined) return false;
+  if (![".", "./"].includes(plain(cwd))) refuse(`${where}.env.RUNX_CWD is ${JSON.stringify(plain(cwd))}: a test runs in the workspace the runtime makes, so where else it runs is written by hand`);
+  const outside = [...new Set(packagePaths(read(test, "inputs"), dir))].filter((file) => file !== "fixtures" && !file.startsWith("fixtures/"));
+  if (outside.length) refuse(`${where} ran in its package's directory and its inputs read ${outside.join(", ")}, which a test's workspace doesn't hold: only fixtures/ is staged`);
+  take(env, "RUNX_CWD");
+  if (env.items.length === 0) take(test, "env");
+  notes.push(`${where}.env.RUNX_CWD removed: the test's workspace holds the fixtures/ it read from its package's directory`);
+  return true;
+}
+
+function convertCase(doc, testCase, where, packageOf, evals, notes, dir) {
   only(testCase, CASE_KEYS, where);
+  settleTestEnv(testCase, dir, where, notes);
   const name = read(testCase, "name");
   if (typeof name !== "string" || !name) refuse(`${where} has no name`);
   take(testCase, "metadata");
@@ -823,7 +858,7 @@ function convertPackage(dir) {
     return `fixtures/${stem}`;
   };
   const addTest = (testDoc, where, base) => {
-    const caseName = convertCase(testDoc, testDoc.contents, where, packageOf, evals, notes);
+    const caseName = convertCase(testDoc, testDoc.contents, where, packageOf, evals, notes, dir);
     const file = path.join(dir, "tests", `${base ?? slug(caseName)}.yaml`);
     if (tests.has(file)) refuse(`two tests would both be ${path.relative(dir, file)}`);
     tests.set(file, testDoc);

@@ -137,3 +137,47 @@ runners:
   assert.match(read(dir, "run.yaml"), /        skill: \.\.\/other#read\n        act:\n          purpose: Read the record the first step named\.\n          reason: The digest names it\.\n          previous: \$steps\.first\.digest_result\.digest\n/);
   assert.match(out, /methods\.run\.steps\.child\.act\.decision removed: nothing in runx decides with it/);
 });
+
+const invoiceCase = (env, path) => `name: reads-invoice
+runner: pay
+env:
+${env}
+inputs:
+  path: ${path}
+expect:
+  status: sealed
+`;
+
+const payPackage = (cases) => ({
+  "SKILL.md": manual("payer"),
+  "fixtures/support/invoice.txt": "INV-1 USD 42.00\n",
+  "run.yaml": `skill: payer
+version: "0.1.0"
+runners:
+  pay:
+    inputs:
+      path: { type: string, required: true }
+${digestStep}`,
+  ...cases,
+});
+
+test("a test that ran in its package's directory and read only fixtures/ loses RUNX_CWD, which the runtime owns", (t) => {
+  const dir = tree(t, payPackage({ "fixtures/reads-invoice.yaml": invoiceCase("  RUNX_CWD: .\n  PAYEE: acme", "fixtures/support/invoice.txt") }));
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.equal(read(dir, "tests/reads-invoice.yaml"), "name: reads-invoice\nmethod: pay\ninputs:\n  path: fixtures/support/invoice.txt\nenv:\n  PAYEE: acme\nexpect:\n  status: sealed\n");
+  assert.match(out, /RUNX_CWD removed: the test's workspace holds the fixtures\/ it read from its package's directory/);
+  assert.equal(read(dir, "fixtures/support/invoice.txt"), "INV-1 USD 42.00\n");
+});
+
+test("a test whose RUNX_CWD reached more than fixtures/ is refused", (t) => {
+  const outside = tree(t, payPackage({ "fixtures/reads-invoice.yaml": invoiceCase("  RUNX_CWD: .", "SKILL.md") }));
+  const refusedOutside = convert(outside);
+  assert.equal(refusedOutside.status, 1);
+  assert.match(refusedOutside.out, /its inputs read SKILL\.md, which a test's workspace doesn't hold: only fixtures\/ is staged/);
+
+  const elsewhere = tree(t, payPackage({ "fixtures/reads-invoice.yaml": invoiceCase("  RUNX_CWD: ../..", "fixtures/support/invoice.txt") }));
+  const refusedElsewhere = convert(elsewhere);
+  assert.equal(refusedElsewhere.status, 1);
+  assert.match(refusedElsewhere.out, /env\.RUNX_CWD is "\.\.\/\.\.": a test runs in the workspace the runtime makes/);
+});
