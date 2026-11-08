@@ -166,12 +166,19 @@ const PINNED = {
   ],
 };
 
-function trackedFiles(root) {
-  return execFileSync("git", ["-C", root, "ls-files"], { encoding: "utf8", maxBuffer: 1 << 28 }).split("\n").filter(Boolean);
+// The files the tree holds now, tracked or not, minus what git ignores: the
+// converter runs first and writes files git doesn't know yet, and moves or
+// deletes some it does.
+function workingFiles(root) {
+  const listed = execFileSync("git", ["-C", root, "ls-files", "--cached", "--others", "--exclude-standard"], {
+    encoding: "utf8",
+    maxBuffer: 1 << 28,
+  });
+  return [...new Set(listed.split("\n").filter(Boolean))].filter((file) => existsSync(path.join(root, file)));
 }
 
-function trackedSources(root) {
-  return trackedFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !/lock/.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file));
+function workingSources(root) {
+  return workingFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !/lock/.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file));
 }
 
 function readSource(root, file) {
@@ -188,7 +195,7 @@ function readSource(root, file) {
 /** Every name holding a renamed word in the repo's tracked sources, with its uses and two files. */
 function inventory(root) {
   const found = new Map();
-  for (const file of trackedSources(root)) {
+  for (const file of workingSources(root)) {
     const { text } = readSource(root, file) ?? {};
     if (text === undefined) continue;
     for (const token of text.match(TOKEN) ?? []) {
@@ -236,7 +243,7 @@ function apply(repo, root, write, list) {
   }
   const notes = new Map(rows.map((row) => [row.identifier, row.note]));
   const stored = new Map();
-  for (const file of trackedFiles(root).filter((file) => HISTORY.test(file) && SOURCE.test(file))) {
+  for (const file of workingFiles(root).filter((file) => HISTORY.test(file) && SOURCE.test(file))) {
     for (const name of new Set(readFileSync(path.join(root, file), "utf8").match(TOKEN) ?? [])) {
       if (renames.has(name) && !notes.get(name).startsWith("stored")) stored.set(name, file);
     }
@@ -249,7 +256,7 @@ function apply(repo, root, write, list) {
   // A name an outside package defines is that package's, so it never changes
   // here: an import from anything but a relative path or runx's own packages.
   const outside = new Map();
-  for (const file of trackedSources(root).filter((file) => /\.(ts|tsx|mts|mjs|js|cjs|astro)$/.test(file))) {
+  for (const file of workingSources(root).filter((file) => /\.(ts|tsx|mts|mjs|js|cjs|astro)$/.test(file))) {
     for (const m of readSource(root, file)?.text?.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*["']([^"'.][^"']*)["']/g) ?? []) {
       if (/^(@runxhq\/|@runx\/|runx)/.test(m[2])) continue;
       for (const name of m[1].split(",").map((part) => part.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0])) {
@@ -266,7 +273,7 @@ function apply(repo, root, write, list) {
   // moved aside, or kept with a note that the two are one thing. Clashes
   // across files are the compiler's to catch.
   const collisions = new Map();
-  for (const file of trackedSources(root)) {
+  for (const file of workingSources(root)) {
     const names = new Set(readSource(root, file)?.text?.match(TOKEN) ?? []);
     for (const name of names) {
       const to = renames.get(name);
@@ -281,7 +288,7 @@ function apply(repo, root, write, list) {
   let files = 0;
   let replaced = 0;
   let signed = 0;
-  for (const file of trackedSources(root)) {
+  for (const file of workingSources(root)) {
     const source = readSource(root, file);
     if (source?.signed) signed += 1;
     if (source?.text === undefined) continue;
@@ -309,7 +316,7 @@ function apply(repo, root, write, list) {
   // A file keeps its own name only where the name isn't ours to change.
   const moves = new Map();
   const stranded = [];
-  for (const file of trackedFiles(root)) {
+  for (const file of workingFiles(root)) {
     const parts = file.split("/");
     const keepsName = KEEPS_NAME.test(file);
     const renamed = parts.map((part, index) => {
