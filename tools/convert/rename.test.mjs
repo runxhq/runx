@@ -92,3 +92,18 @@ test("the rename refuses a package file the converter hasn't converted", (t) => 
   assert.match(out, /skills\/diagnose\/run\.yaml   \(a run\.yaml with no minimum_runx\)/);
   assert.match(out, /connectors\/demo\/connector\.yaml   \(a connector\.yaml that says id\)/);
 });
+
+test("the rename runs again over its own output and changes nothing, a chain of names included", (t) => {
+  const root = tree(t, {
+    "src/turn.ts": "export type AgentActInvocation = { act: TurnInvocation };\nexport type TurnInvocation = { id: string };\n",
+  });
+  const first = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(first.status, 0, first.out);
+  const renamed = "export type TurnInvocation = { act: TurnView };\nexport type TurnView = { id: string };\n";
+  assert.equal(read(root, "src/turn.ts"), renamed);
+
+  const again = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(again.status, 0, again.out);
+  assert.match(again.out, /oss: 0 names in 0 files, 0 paths moved; 0 signed files left as signed; .*TurnInvocation.* already the new names/);
+  assert.equal(read(root, "src/turn.ts"), renamed);
+});

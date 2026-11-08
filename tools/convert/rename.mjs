@@ -261,6 +261,15 @@ function namesOf(root, file) {
   return MANUAL.test(file) ? manualTokens(text) : text.match(TOKEN) ?? [];
 }
 
+/** Which of the given names the repo's sources and manuals hold. */
+function presentNames(root, names) {
+  const held = new Set();
+  for (const file of [...workingSources(root), ...workingManuals(root)]) {
+    for (const token of namesOf(root, file)) if (names.has(token)) held.add(token);
+  }
+  return held;
+}
+
 /** Every name holding a renamed word in the repo's tracked sources, with its uses and two files. */
 function inventory(root) {
   const found = new Map();
@@ -303,6 +312,18 @@ function apply(repo, root, write, list) {
     for (const line of unconverted.slice(0, 40)) process.stdout.write(`  ${line}\n`);
     return 1;
   }
+  // A chain renames a name to another's old name: AgentActInvocation becomes
+  // TurnInvocation as TurnInvocation becomes TurnView. A tree holding the
+  // chain's first name hasn't been renamed, so both apply at once. A tree
+  // holding none of them has, so the middle name is already the new one and
+  // stays, and the rename can run again over its own output.
+  const inTree = presentNames(root, new Set(rows.map((row) => row.identifier)));
+  const settled = [];
+  for (const [name] of renames) {
+    const from = rows.filter((row) => row.to === name && row.identifier !== name && renames.has(row.identifier)).map((row) => row.identifier);
+    if (from.length > 0 && !from.some((first) => inTree.has(first))) settled.push(name);
+  }
+  for (const name of settled) renames.delete(name);
   const missing = [...inventory(root).keys()].filter((token) => !known.has(token));
   if (missing.length > 0) {
     process.stdout.write(`refused ${repo}: ${missing.length} names hold a renamed word and aren't in identifiers.tsv; run scan and decide them\n`);
@@ -445,7 +466,7 @@ function apply(repo, root, write, list) {
       }
     }
   }
-  process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed\n`);
+  process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed${settled.length ? `; ${settled.join(", ")} already the new names` : ""}\n`);
   return 0;
 }
 
