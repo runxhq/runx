@@ -17,6 +17,6 @@ pub use authority_mint::{
 };
 pub use interpreter::strict_process_tool_inline_code_denial;
 pub use rfc3339::parse_rfc3339_moment;
-pub use scope::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows};
+pub use scope::{ScopeGrantPolicy, scope_grant_allows};
 pub use tool::{ToolAdmission, admit_agent_tool};
 pub use types::LocalExecutionPolicy;

@@ -48,27 +48,9 @@ pub fn scope_grant_allows(
         .is_some_and(|suffix| !suffix.is_empty() && !suffix.contains(':'))
 }
 
-/// Return required scopes that are not covered by any grant under `policy`.
-#[must_use]
-pub fn missing_granted_scopes(
-    required_scopes: &[String],
-    granted_scopes: &[String],
-    policy: ScopeGrantPolicy,
-) -> Vec<String> {
-    required_scopes
-        .iter()
-        .filter(|required| {
-            !granted_scopes
-                .iter()
-                .any(|granted| scope_grant_allows(granted, required, policy))
-        })
-        .cloned()
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows};
+    use super::{ScopeGrantPolicy, scope_grant_allows};
 
     #[test]
     fn universal_wildcard_is_reserved_for_trusted_grants() {
@@ -138,16 +120,5 @@ mod tests {
             assert!(!scope_grant_allows(":*", ":read", policy));
             assert!(scope_grant_allows(":*", ":*", policy));
         }
-    }
-
-    #[test]
-    fn missing_scopes_uses_the_selected_grant_policy() {
-        let required = vec!["repo:read".to_owned(), "repo:admin:keys".to_owned()];
-        let granted = vec!["repo:*".to_owned()];
-
-        assert_eq!(
-            missing_granted_scopes(&required, &granted, ScopeGrantPolicy::Delegated),
-            ["repo:admin:keys"]
-        );
     }
 }

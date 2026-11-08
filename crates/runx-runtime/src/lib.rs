@@ -169,7 +169,7 @@ pub use runner::{
     GraphRun, RUNX_RUN_ID_ENV, RunClock, Runtime, RuntimeOptions, StepOutcome, StepRun,
 };
 pub use runx_core::kernel_eval;
-pub use runx_core::policy::{ScopeGrantPolicy, missing_granted_scopes, scope_grant_allows};
+pub use runx_core::policy::{ScopeGrantPolicy, scope_grant_allows};
 pub use runx_parser::{
     PROFILE_FILE, SkillArtifactContract, SkillPackageSource, SkillRunnerDefinition,
     SkillRunnerManifest, ValidatedSkillPackage,
