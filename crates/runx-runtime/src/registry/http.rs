@@ -343,7 +343,7 @@ fn ensure_success(route: &str, status: u16) -> Result<(), RegistryClientError> {
 }
 
 fn validated_skill_id(skill_id: &str) -> Result<(&str, &str), RegistryClientError> {
-    super::local::split_skill_id(skill_id)
+    super::refs::split_skill_id(skill_id)
         .map_err(|_| RegistryClientError::InvalidSkillId(skill_id.to_owned()))
 }
 

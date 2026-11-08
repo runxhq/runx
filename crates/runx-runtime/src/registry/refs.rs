@@ -1,3 +1,24 @@
+/// A skill id that is not `<publisher>/<name>`, each part one safe path
+/// segment.
+#[derive(Debug, thiserror::Error)]
+#[error("invalid registry skill id '{0}'. Expected '<publisher>/<name>'.")]
+pub(crate) struct InvalidSkillId(String);
+
+/// The publisher and name of `<publisher>/<name>`. Each part becomes a path
+/// segment where a skill is installed, so neither may be empty, `.`, `..` or
+/// hold a separator.
+pub(crate) fn split_skill_id(skill_id: &str) -> Result<(&str, &str), InvalidSkillId> {
+    let invalid = || InvalidSkillId(skill_id.to_owned());
+    let (publisher, name) = skill_id.split_once('/').ok_or_else(invalid)?;
+    let safe =
+        |part: &str| !(part.is_empty() || matches!(part, "." | "..") || part.contains(['/', '\\']));
+    if safe(publisher) && safe(name) {
+        Ok((publisher, name))
+    } else {
+        Err(invalid())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParsedRegistryRef {
     pub skill_id: String,
@@ -90,5 +111,27 @@ fn non_empty(value: &str) -> Option<String> {
         None
     } else {
         Some(value.to_owned())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_skill_id;
+
+    #[test]
+    fn a_skill_id_is_two_safe_segments() {
+        assert_eq!(split_skill_id("acme/echo").ok(), Some(("acme", "echo")));
+        for invalid in [
+            "echo",
+            "/echo",
+            "acme/",
+            "acme/echo/extra",
+            "../echo",
+            "acme/..",
+            "acme/.",
+            "acme\\x/echo",
+        ] {
+            assert!(split_skill_id(invalid).is_err(), "{invalid}");
+        }
     }
 }

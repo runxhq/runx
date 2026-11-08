@@ -23,23 +23,6 @@ pub(crate) fn restore_script_permissions(path: &Path, content: &str) -> std::io:
     Ok(())
 }
 
-pub(crate) fn normalize_registry_package_files(
-    files: Vec<RegistryPackageFile>,
-) -> Result<Vec<RegistryPackageFile>, String> {
-    for file in &files {
-        validate_registry_package_file_path(&file.path)?;
-    }
-    let mut normalized = files;
-    normalized.sort_by(|left, right| left.path.cmp(&right.path));
-    if let Some(duplicate) = normalized
-        .windows(2)
-        .find(|pair| pair[0].path == pair[1].path)
-    {
-        return Err(format!("duplicate package file '{}'", duplicate[0].path));
-    }
-    Ok(normalized)
-}
-
 /// The manual at the root of every skill package.
 pub(crate) const MANUAL_FILE: &str = "SKILL.md";
 

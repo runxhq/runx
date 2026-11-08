@@ -1,22 +1,10 @@
 // Module rationale: registry wire/domain types are kept together so
-// local, hosted, install, publish, trust, and signed-manifest envelopes evolve
-// under one serialization contract.
+// hosted, install, publish, trust, and signed-manifest envelopes evolve under
+// one serialization contract.
 pub use runx_contracts::TrustTier;
 use runx_contracts::maturity::MaturityTier;
 use runx_contracts::{CopyableCommand, JsonValue, PaidSkillListing};
 use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegistryLinkResolution {
-    pub link: String,
-    pub skill_id: String,
-    pub version: String,
-    pub digest: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registry_url: Option<String>,
-    pub install_command: CopyableCommand,
-    pub run_command: CopyableCommand,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -178,68 +166,6 @@ pub struct RegistrySkillVersion {
     pub updated_at: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RegistrySkill {
-    pub skill_id: String,
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category: Option<String>,
-    pub latest_version: String,
-    pub latest_digest: String,
-    pub versions: Vec<RegistrySkillVersion>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RegistrySkillResolution {
-    pub markdown: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile_document: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile_digest: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub package_files: Vec<RegistryPackageFile>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bundle_digest: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub paid_listing: Option<PaidSkillListing>,
-    pub runner_names: Vec<String>,
-    pub skill_id: String,
-    pub name: String,
-    pub version: String,
-    pub digest: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub signed_manifest: Option<RegistrySignedManifest>,
-    pub source: String,
-    pub source_label: String,
-    pub trust_tier: TrustTier,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registry_url: Option<String>,
-    pub install_command: CopyableCommand,
-    pub run_command: CopyableCommand,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PublishSkillMarkdownResult {
-    pub status: PublishStatus,
-    pub skill_id: String,
-    pub name: String,
-    pub version: String,
-    pub digest: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub signed_manifest: Option<RegistrySignedManifest>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile_digest: Option<String>,
-    pub runner_names: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub registry_url: Option<String>,
-    #[serde(default)]
-    pub harness: RegistryPublishHarnessReport,
-    pub link: RegistryLinkResolution,
-    pub record: RegistrySkillVersion,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryPublishHarnessReport {
     pub status: String,
@@ -253,50 +179,9 @@ pub struct RegistryPublishHarnessReport {
 
 impl RegistryPublishHarnessReport {
     #[must_use]
-    pub fn not_declared() -> Self {
-        Self {
-            status: "not_declared".to_owned(),
-            case_count: 0,
-            assertion_error_count: 0,
-            assertion_errors: Vec::new(),
-            case_names: Vec::new(),
-            receipt_ids: Vec::new(),
-            graph_case_count: 0,
-        }
-    }
-
-    #[must_use]
     pub fn failed(&self) -> bool {
         self.status == "failed"
     }
-
-    /// The maturity this harness run earns, as hosted publication decides it.
-    #[must_use]
-    pub fn maturity(&self) -> runx_contracts::maturity::MaturityTier {
-        let passed = self.status == "passed";
-        runx_contracts::maturity::MaturityTier::from_signals(
-            runx_contracts::maturity::MaturitySignals {
-                declared_case_count: self.case_count,
-                all_declared_cases_passed: passed
-                    && self.case_count > 0
-                    && self.assertion_error_count == 0,
-                has_passing_graph_case: passed && self.graph_case_count > 0,
-            },
-        )
-    }
-}
-
-impl Default for RegistryPublishHarnessReport {
-    fn default() -> Self {
-        Self::not_declared()
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PublishStatus {
-    Published,
-    Unchanged,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

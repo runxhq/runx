@@ -17,8 +17,8 @@ use thiserror::Error;
 use crate::canonical_json::canonical_stable_json;
 use crate::connector::{CredentialName, Template};
 use crate::purchase::{
-    CurrencyCode, EmbeddedOfferVersionBinding, OfferVersionBinding, PortableAmountMinor,
-    PrincipalReference, SettlementFamilies,
+    CurrencyCode, EmbeddedOfferVersionBinding, PortableAmountMinor, PrincipalReference,
+    SettlementFamilies,
 };
 use crate::schema::{NamedSchemas, NonEmptyString, RunxSchema, record_named};
 use crate::{Digest, JsonObject, JsonValue, MAX_PORTABLE_INTEGER};
@@ -439,20 +439,6 @@ pub struct PaidSkillRunnerOffer {
     pub acts_on: Option<PaidSkillActsOn>,
 }
 
-impl PaidSkillRunnerOffer {
-    /// The registry-resolved offer for author terms under `offer_version`.
-    #[must_use]
-    pub fn from_terms(offer_version: OfferVersionBinding, terms: &PaidSkillOfferTerms) -> Self {
-        Self {
-            offer_version: offer_version.into(),
-            price: terms.price.clone(),
-            currency: terms.currency.clone(),
-            accepted_settlement_families: terms.accepted_settlement_families.clone(),
-            acts_on: terms.acts_on.clone(),
-        }
-    }
-}
-
 /// One to sixty-four runner offers keyed by unique runner identity.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
@@ -462,10 +448,6 @@ impl PaidSkillOffers {
     pub fn new(value: BTreeMap<String, PaidSkillRunnerOffer>) -> Option<Self> {
         let valid_names = value.keys().all(|runner| !runner.is_empty());
         (valid_names && (1..=64).contains(&value.len())).then_some(Self(value))
-    }
-
-    pub fn as_map(&self) -> &BTreeMap<String, PaidSkillRunnerOffer> {
-        &self.0
     }
 }
 
@@ -706,9 +688,10 @@ mod tests {
         Ok(())
     }
 
+    /// The registry resolves a runner's offer from these terms; what it
+    /// reads here is what a runner may act on.
     #[test]
-    fn a_runner_offer_carries_its_terms_price_and_what_it_acts_on() -> Result<(), serde_json::Error>
-    {
+    fn offer_terms_name_what_a_runner_acts_on() -> Result<(), serde_json::Error> {
         let terms: PaidSkillOfferTerms = serde_json::from_value(json!({
             "price": {"model": "input_choice", "selectors": ["duration_seconds"], "cases": [
                 {"when": [3600], "amount_minor": 5}
@@ -723,12 +706,7 @@ mod tests {
                 "target": {"$concat": ["ausca:agent-inbox/", {"$argument": "/inbox_id"}]}
             }
         }))?;
-        let offer = PaidSkillRunnerOffer::from_terms(
-            serde_json::from_value::<OfferVersionBinding>(offer_version())?,
-            &terms,
-        );
-        assert_eq!(offer.price, terms.price);
-        assert_eq!(offer.acts_on, terms.acts_on);
+        assert!(terms.acts_on.is_some());
         for target in [
             json!("ausca:agent-inbox"),
             json!({"$result": "/inbox_id"}),

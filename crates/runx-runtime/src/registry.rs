@@ -3,7 +3,6 @@ mod connector_install;
 mod http;
 mod install;
 mod install_record;
-mod local;
 pub(crate) mod package_bundle;
 mod package_files;
 pub use package_files::skill_content_digest;
@@ -35,13 +34,6 @@ pub use install_record::{InstallRecord, read_install_record};
 pub(crate) use install_record::{
     InstalledOrigin, TrustRecord, installed_origin, record_trust, trusted,
 };
-pub use local::{
-    FileRegistryStore, IngestSkillOptions, LocalRegistryError, PublishSkillMarkdownOptions,
-    PutVersionOptions, RegistryResolveOptions, RegistrySearchOptions, build_skill_id,
-    ingest_skill_markdown, publish_skill_markdown, read_registry_skill, resolve_registry_skill,
-    resolve_runx_link, runx_link_for_version, search_registry_with_options, slugify,
-    split_skill_id,
-};
 pub use package_metadata::{
     RegistryConnectorMetadata, RegistryHarnessCaseMetadata, RegistryPackageMetadata,
 };
@@ -59,6 +51,7 @@ pub use publish_package::{
     RegistryPublishPackageParts, RegistryPublishPackageRequest, prepare_registry_connector_package,
     prepare_registry_publish_package, unheld_publish_registry_refs,
 };
+pub(crate) use refs::split_skill_id;
 pub use refs::{ParsedRegistryRef, parse_registry_ref, safe_skill_package_parts};
 pub use source_authority::{
     RegistryManifestSourceAuthority, canonical_registry_url, is_official_runx_registry_url,
@@ -73,11 +66,10 @@ pub use trust_anchor::{
     trusted_registry_manifest_keys_from_env, verify_registry_signed_manifest,
 };
 pub use types::{
-    AcquiredRegistrySkill, ProfileMode, PublishSkillMarkdownResult, PublishStatus,
-    RegistryAttestation, RegistryConnectorDetail, RegistryConnectorOperation,
-    RegistryConnectorSearchResult, RegistryLinkResolution, RegistryManifestSignature,
+    AcquiredRegistrySkill, ProfileMode, RegistryAttestation, RegistryConnectorDetail,
+    RegistryConnectorOperation, RegistryConnectorSearchResult, RegistryManifestSignature,
     RegistryManifestSigner, RegistryPackageFile, RegistryPublishHarnessReport, RegistryPublisher,
-    RegistrySearchResult, RegistrySignedManifest, RegistrySkill, RegistrySkillDetail,
-    RegistrySkillResolution, RegistrySkillVersion, RegistrySourceMetadata, RegistrySubject,
-    RegistrySubjectKind, TrustSignal, TrustTier, UnreadVersion,
+    RegistrySearchResult, RegistrySignedManifest, RegistrySkillDetail, RegistrySkillVersion,
+    RegistrySourceMetadata, RegistrySubject, RegistrySubjectKind, TrustSignal, TrustTier,
+    UnreadVersion,
 };
