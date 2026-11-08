@@ -1,15 +1,15 @@
 //! A turn's load (agent-sessions §4.1). The package a call names resolves as
 //! `runx skill` and `runx connector` resolve it; the turn's catalog rules
 //! admit it by who it is, as binding sets it (D30), and its tier; and what it
-//! binds must agree with the connectors the turn already reaches. A load adds no capability by
-//! where a file sits (D12): the project's own is admitted when it reaches only
-//! what the turn already reaches, and otherwise waits on the person's trust,
-//! as a package below its rule's tier does. Trust is recorded in the person's
-//! home for that exact closure, which covers every connector's implementation.
-//! Its output carries a skill's manual and runners, what it bound and the
-//! calls the turn offers from then on. A skill's load binds the runner it
-//! names or the skill's only runner; one that binds none binds no closure, so
-//! it asks no trust.
+//! binds must agree with the connectors the turn already reaches. A load adds
+//! no capability by where a file sits (D12): the project's own is admitted
+//! when it reaches only what the turn already reaches, and otherwise waits on
+//! the person's trust, as a package below its rule's tier does. Trust is
+//! recorded in the person's home for that exact closure, which covers every
+//! connector's implementation. Its output carries a skill's manual and
+//! runners, what it bound and the calls the turn offers from then on. A
+//! skill's load binds the runner it names or the skill's only runner; one that
+//! binds none binds no closure, so it asks no trust.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

@@ -632,6 +632,122 @@ mod tests {
         );
     }
 
+    fn write(path: &std::path::Path, contents: &str) {
+        fs::create_dir_all(path.parent().expect("a directory")).expect("directory");
+        fs::write(path, contents).expect("file");
+    }
+
+    const DIGEST_METHOD: &str = "    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: hi\n          encoding: utf8_text\n";
+
+    /// A workspace whose `skills/caller` runs a stage of its own by relative
+    /// path, and `registry:acme/echo@1.0.0`, installed and signed.
+    fn bound_workspace(caller_name: &str) -> (tempfile::TempDir, std::collections::BTreeMap<String, String>) {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path();
+        let caller = root.join("skills/caller");
+        write(
+            &caller.join("SKILL.md"),
+            &format!("---\nname: {caller_name}\ndescription: Calls.\n---\n# Caller\n"),
+        );
+        write(
+            &caller.join("run.yaml"),
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps:\n      - id: stage\n        skill: ./stage#run\n      - id: echo\n        skill: registry:acme/echo@1.0.0#say\n",
+        );
+        write(
+            &caller.join("stage/SKILL.md"),
+            "---\nname: stage\ndescription: A stage.\n---\n# Stage\n",
+        );
+        write(
+            &caller.join("stage/run.yaml"),
+            &format!("minimum_runx: 0.12.0\nmethods:\n  run:\n{DIGEST_METHOD}"),
+        );
+        let echo = root.join(".runx/added-skills/acme/echo/1.0.0");
+        write(
+            &echo.join("SKILL.md"),
+            "---\nname: echo\ndescription: Echoes.\n---\n# Echo\n",
+        );
+        write(
+            &echo.join("run.yaml"),
+            &format!("version: \"1.0.0\"\nminimum_runx: 0.12.0\nmethods:\n  say:\n{DIGEST_METHOD}"),
+        );
+        crate::registry::signature::testing::sign(
+            &echo,
+            runx_contracts::RegistrySubjectKind::Skill,
+            "acme/echo",
+            "1.0.0",
+        )
+        .expect("signed");
+        let mut env = crate::registry::signature::testing::trusting("acme").expect("keys");
+        env.insert(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            root.display().to_string(),
+        );
+        env.insert(
+            crate::paths::RUNX_HOME_ENV.to_owned(),
+            root.join("home").display().to_string(),
+        );
+        (temp, env)
+    }
+
+    /// Binding sets who each package is by how it was reached: the root by
+    /// what it carries, code it carries by relative path as the root, and a
+    /// registry child by its own verified signature (D30).
+    #[test]
+    fn binding_sets_each_packages_identity_by_how_it_was_reached() {
+        let (temp, env) = bound_workspace("caller");
+        let caller = temp.path().join("skills/caller");
+        let loaded = super::load_validated_skill_package(&caller).expect("caller loads");
+        let binding = super::verify_loaded_execution_binding(loaded, "main", &env, None, None)
+            .expect("the closure binds");
+        let identity = |path: &std::path::Path| {
+            binding
+                .packages
+                .identity(&fs::canonicalize(path).expect("canonical"))
+                .cloned()
+        };
+        let caller_identity = crate::identity::PackageIdentity::Project {
+            name: "caller".to_owned(),
+        };
+        assert_eq!(identity(&caller), Some(caller_identity.clone()));
+        assert_eq!(identity(&caller.join("stage")), Some(caller_identity));
+        let echo = identity(&temp.path().join(".runx/added-skills/acme/echo/1.0.0"));
+        assert!(
+            matches!(&echo, Some(crate::identity::PackageIdentity::Signed(signed)) if signed.name == "acme/echo" && signed.version == "1.0.0"),
+            "{echo:?}"
+        );
+
+        // A child copy altered after it was signed never binds.
+        write(
+            &temp.path().join(".runx/added-skills/acme/echo/1.0.0/references/added.md"),
+            "added\n",
+        );
+        let loaded = super::load_validated_skill_package(&caller).expect("caller loads");
+        assert!(super::verify_loaded_execution_binding(loaded, "main", &env, None, None).is_err());
+    }
+
+    /// Two different directories never bind as one `project:<name>` in a run:
+    /// here the root and the person's own copy of a registry ref.
+    #[test]
+    fn two_directories_never_bind_as_one_project_name() {
+        let (temp, env) = bound_workspace("echo");
+        let own = temp.path().join("skills/acme/echo");
+        write(
+            &own.join("SKILL.md"),
+            "---\nname: echo\ndescription: The person's own copy.\n---\n# Echo\n",
+        );
+        write(
+            &own.join("run.yaml"),
+            &format!("minimum_runx: 0.12.0\nmethods:\n  say:\n{DIGEST_METHOD}"),
+        );
+        let loaded = super::load_validated_skill_package(&temp.path().join("skills/caller"))
+            .expect("caller loads");
+        let error = match super::verify_loaded_execution_binding(loaded, "main", &env, None, None) {
+            Ok(_) => panic!("two project:echo bound"),
+            Err(error) => error.to_string(),
+        };
+        assert!(error.contains("two directories bind as project:echo"), "{error}");
+    }
+
     #[test]
     fn a_file_past_its_budget_is_refused_without_being_read_whole() {
         let root = tempfile::tempdir().expect("tempdir");

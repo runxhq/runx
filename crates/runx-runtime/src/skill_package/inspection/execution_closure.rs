@@ -471,6 +471,13 @@ impl<'a> ExecutionClosureInspector<'a> {
         let Some(env) = self.env.filter(|_| self.identify) else {
             return Ok(());
         };
+        // Each package is verified once per binding: an identity already set
+        // stands, unless the package was carried and is now reached as itself.
+        if let Some(existing) = walk.closure.identities.get(package_root)
+            && (existing.own || matches!(reach, Reach::Incorporated(_)))
+        {
+            return Ok(());
+        }
         let refused = SkillInspectionError::Identity;
         let (identity, own) = match reach {
             Reach::Root | Reach::Registry(None) => (
@@ -508,14 +515,6 @@ impl<'a> ExecutionClosureInspector<'a> {
                 (carried, false)
             }
         };
-        if walk
-            .closure
-            .identities
-            .get(package_root)
-            .is_some_and(|existing| existing.own || !own)
-        {
-            return Ok(());
-        }
         if let (true, PackageIdentity::Project { name }) = (own, &identity) {
             if let Some(other) = walk
                 .closure
