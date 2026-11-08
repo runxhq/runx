@@ -7,6 +7,7 @@
 //   node tools/convert/rename.mjs apply <repo> <root> [--write] [--list] [--stays]
 //                                         rename, refusing while a name is missing; --list prints each
 //                                         file and its count, --stays each bare word a stay keeps
+//                                         and each one bare-words.tsv decides
 //
 // `scan` keeps every row already in the table, so a decision made by hand
 // stays made. `apply` replaces whole identifiers only, all at once, so a chain
@@ -19,7 +20,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { GENERATED, HISTORY as HISTORY_DOCS, SOURCE, STAYING_PATHS, bareWord, renamedBare, stayFor } from "./words.mjs";
+import { GENERATED, HISTORY as HISTORY_DOCS, SOURCE, STAYING_PATHS, bareWord, decisionsFor, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -132,6 +133,31 @@ function readTable() {
 function writeTable(rows) {
   const ordered = [...rows].sort((a, b) => a.repo.localeCompare(b.repo) || Number(b.uses || 0) - Number(a.uses || 0) || a.identifier.localeCompare(b.identifier));
   writeFileSync(TABLE, `${[COLUMNS.join("\t"), ...ordered.map((row) => COLUMNS.map((column) => row[column] ?? "").join("\t"))].join("\n")}\n`);
+}
+
+// What a bare word becomes in one file, or at one site in it, decided by
+// reading it: where its rename would land on a name its code file already
+// holds, and where it takes another name in context. Each row names one exact
+// token, what it becomes, and why; `before` and `after`, when given, are the
+// patterns a stay's are. A stay in words.mjs still keeps the word first.
+const BARE_WORDS = new URL("./bare-words.tsv", import.meta.url);
+// The sources that bind names: code, unlike prose and data.
+const CODE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|sql|rb|py|sh|go|mk)$|(^|\/)Makefile$/;
+const BARE_COLUMNS = ["repo", "file", "word", "becomes", "before", "after", "why"];
+const NAME = new RegExp(`^(?:${TOKEN.source})$`);
+
+function readDecisions(repo) {
+  const lines = readFileSync(BARE_WORDS, "utf8").split("\n").filter(Boolean);
+  if (lines[0] !== BARE_COLUMNS.join("\t")) throw new Error(`bare-words.tsv's header isn't ${BARE_COLUMNS.join(", ")}`);
+  const rows = lines.slice(1).map((line, index) => {
+    const row = Object.fromEntries(line.split("\t").map((value, column) => [BARE_COLUMNS[column], value]));
+    const where = `bare-words.tsv line ${index + 2}`;
+    if (!row.repo || !row.file || !row.why) throw new Error(`${where} needs a repo, a file and a reason`);
+    if (bareWord(row.word ?? "") === undefined) throw new Error(`${where}: ${row.word} isn't a bare runner or harness`);
+    if (!NAME.test(row.becomes ?? "") || bareWord(row.becomes) !== undefined) throw new Error(`${where}: ${row.word} becomes a new name, and a word that keeps its own is a stay, in words.mjs`);
+    return { ...row, before: row.before ? new RegExp(row.before) : undefined, after: row.after ? new RegExp(row.after) : undefined };
+  });
+  return rows.filter((row) => row.repo === repo);
 }
 
 // Never renamed here: this program and the converter, which hold the old words
@@ -340,13 +366,20 @@ function apply(repo, root, write, list, showStays) {
   let files = 0;
   let replaced = 0;
   let signed = 0;
-  // The bare words (words.mjs): each one renamed unless a stay keeps it, the
-  // stays listed for review, and each code file where a renamed bare word
-  // lands on a name the file already holds, which only its compiler or tests
-  // can clear.
+  // The bare words (words.mjs): each one renamed unless a stay keeps it or a
+  // row of bare-words.tsv decides what it becomes. A renamed bare word that
+  // lands on a name its code file already holds is refused, site by site,
+  // until a row decides it, because two names made one is a duplicate or a
+  // shadowing binding the compiler may never see. Prose landing on a word it
+  // already uses, such as "tests", is only English, and data names no
+  // binding. Nothing is written until every refusal has passed.
+  const decisions = readDecisions(repo);
   let bare = 0;
   const stays = [];
-  const landsOn = new Set();
+  const decided = [];
+  const landings = [];
+  const conflicts = [];
+  const writes = [];
   const fileNames = new Map();
   const names = (file, text) => {
     if (!fileNames.has(file)) fileNames.set(file, new Set(text.match(TOKEN) ?? []));
@@ -358,9 +391,9 @@ function apply(repo, root, write, list, showStays) {
     if (source?.text === undefined) continue;
     const held = pins.filter((pin) => pin.file === file);
     const text = held.reduce((masked, pin, index) => masked.split(pin.literal).join(`\u0000${index}\u0000`), source.text);
-    const full = path.join(root, file);
     let count = 0;
     const lines = text.split("\n");
+    const shownLines = source.text.split("\n");
     const renamed = lines
       .map((line, number) =>
         line.replace(TOKEN, (token, index) => {
@@ -370,25 +403,42 @@ function apply(repo, root, write, list, showStays) {
             return to;
           }
           if (bareWord(token) === undefined) return token;
+          const site = `${file}:${number + 1}`;
+          const shown = shownLines[number].trim().slice(0, 140);
           const stay = stayFor(file, line, index, token);
           if (stay) {
-            stays.push(`${file}:${number + 1}\t${stay.why}\t${line.trim().slice(0, 140)}`);
+            stays.push(`${site}\t${stay.why}\t${shown}`);
             return token;
           }
           count += 1;
           bare += 1;
+          const rows = decisionsFor(decisions, file, line, index, token);
+          if (rows.length > 1) conflicts.push(`${site}\t${token} -> ${rows.map((row) => row.becomes).join(" or ")}\t${shown}`);
+          if (rows.length > 0) {
+            decided.push(`${site}\t${rows[0].why}\t${token} -> ${rows[0].becomes}\t${shown}`);
+            return rows[0].becomes;
+          }
           const next = renamedBare(token, line.slice(index + token.length));
-          if (/\.(rs|ts|tsx|mts|mjs|js|cjs|go)$/.test(file) && names(file, text).has(next)) landsOn.add(`${file}\t${token} -> ${next}`);
+          if (CODE.test(file) && names(file, text).has(next)) landings.push(`${site}\t${token} -> ${next}\t${shown}`);
           return next;
         }),
       )
       .join("\n");
-    const next = held.reduce((restored, pin, index) => restored.split(`\u0000${index}\u0000`).join(pin.literal), renamed);
     if (count === 0) continue;
     files += 1;
     replaced += count;
     if (list) process.stdout.write(`${count}\t${file}\n`);
-    if (write) writeFileSync(full, next);
+    writes.push([file, held.reduce((restored, pin, index) => restored.split(`\u0000${index}\u0000`).join(pin.literal), renamed)]);
+  }
+  if (conflicts.length > 0) {
+    process.stdout.write(`refused ${repo}: ${conflicts.length} bare words are decided by more than one row of bare-words.tsv; a site takes one\n`);
+    for (const conflict of conflicts) process.stdout.write(`  ${conflict}\n`);
+    return 1;
+  }
+  if (landings.length > 0) {
+    process.stdout.write(`refused ${repo}: ${landings.length} renamed bare words land on a name their code file already holds, and no row of bare-words.tsv decides what they become\n`);
+    for (const landing of landings) process.stdout.write(`  ${landing}\n`);
+    return 1;
   }
   // A name that's also a file or folder moves with it: a bench, a module and
   // its file, a test. Each segment of a path, a folder or a file's stem, is
@@ -429,6 +479,7 @@ function apply(repo, root, write, list, showStays) {
     for (const target of taken.slice(0, 20)) process.stdout.write(`  ${target}\n`);
     return 1;
   }
+  if (write) for (const [file, text] of writes) writeFileSync(path.join(root, file), text);
   for (const [from, to] of moves) {
     if (list) process.stdout.write(`move\t${from}\t${to}\n`);
     if (!write) continue;
@@ -447,9 +498,9 @@ function apply(repo, root, write, list, showStays) {
   }
   if (showStays) {
     for (const stay of stays) process.stdout.write(`stays\t${stay}\n`);
-    for (const clash of landsOn) process.stdout.write(`lands on a held name\t${clash}\n`);
+    for (const site of decided) process.stdout.write(`decided\t${site}\n`);
   }
-  process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${bare} of them bare words, ${stays.length} bare words kept, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed${settled.length ? `; ${settled.join(", ")} already the new names` : ""}${landsOn.size ? `; ${landsOn.size} renamed bare words land on a name their file holds` : ""}\n`);
+  process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${bare} of them bare words, ${stays.length} bare words kept, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed${settled.length ? `; ${settled.join(", ")} already the new names` : ""}${decided.length ? `; ${decided.length} bare words as bare-words.tsv decides` : ""}\n`);
   return 0;
 }
 

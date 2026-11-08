@@ -71,6 +71,18 @@ export function stayFor(file, line, index, token) {
   return STAYS.find((stay) => stay.word === word && (!stay.file || stay.file.test(file)) && (!stay.before || stay.before.test(before)) && (!stay.after || stay.after.test(after)));
 }
 
+/**
+ * The rows of bare-words.tsv that decide this occurrence: each names one
+ * exact token in one file, at every site in it or only where its `before`
+ * and `after` match, as a stay's do. More than one is a conflict for the
+ * caller to refuse.
+ */
+export function decisionsFor(rows, file, line, index, token) {
+  const before = line.slice(0, index);
+  const after = line.slice(index + token.length);
+  return rows.filter((row) => row.file === file && row.word === token && (!row.before || row.before.test(before)) && (!row.after || row.after.test(after)));
+}
+
 // A file's own name keeps the word where its folder does: the engine's
 // module, the test runner, and the kernel fixture runner's folder.
 export const STAYING_PATHS = /^crates\/runx-runtime\/src\/execution\/(runner(\.rs|\/)|harness\/runner\.rs$)|^fixtures\/kernel\/runner\//;

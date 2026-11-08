@@ -4,6 +4,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { decisionsFor } from "./words.mjs";
 
 // The rename reads the table beside it, so these trees use names it holds for oss.
 const RENAME = new URL("./rename.mjs", import.meta.url).pathname;
@@ -159,6 +160,30 @@ test("prose may already hold the word a name becomes", (t) => {
   const { status, out } = run(RENAME, "apply", "oss", root, "--write");
   assert.equal(status, 0, out);
   assert.equal(read(root, "docs/plans.md"), "A test-only package is test-only by design.\n");
+});
+
+test("a bare word renamed onto a name its code file already binds is refused at each site, and nothing is written", (t) => {
+  const code = "export async function withFixture(test: (harness: Fixture) => Promise<void>): Promise<void> {\n  const harness = await create();\n  await test(harness);\n}\n";
+  const prose = "Run the harness before the tests.\n";
+  const root = tree(t, { "packages/registry/src/contract.ts": code, "docs/testing.md": prose });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 1, out);
+  assert.match(out, /^refused oss: 3 renamed bare words land on a name their code file already holds, and no row of bare-words\.tsv decides what they become$/m);
+  for (const line of [1, 2, 3]) assert.match(out, new RegExp(`^  packages/registry/src/contract\\.ts:${line}\\tharness -> test\\t`, "m"));
+  assert.equal(read(root, "packages/registry/src/contract.ts"), code);
+  assert.equal(read(root, "docs/testing.md"), prose);
+});
+
+test("a row decides one exact token in its file, at every site or only where its patterns match", () => {
+  const rows = [
+    { file: "src/contract.ts", word: "harness", becomes: "registry", after: /^ = await / },
+    { file: "src/contract.ts", word: "harness", becomes: "test" },
+  ];
+  const line = "const harness = await create(); // the Harness";
+  const decided = (file, token) => decisionsFor(rows, file, line, line.indexOf(token), token).map((row) => row.becomes);
+  assert.deepEqual(decided("src/contract.ts", "harness"), ["registry", "test"]);
+  assert.deepEqual(decided("src/contract.ts", "Harness"), []);
+  assert.deepEqual(decided("src/other.ts", "harness"), []);
 });
 
 test("Go files and Makefiles are sources, and a generated Go file is its generator's", (t) => {
