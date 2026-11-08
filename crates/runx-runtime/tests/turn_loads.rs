@@ -777,26 +777,45 @@ fn a_repository_shipping_install_and_trust_records_gains_nothing() -> TestResult
         ),
         "a shipped record states no identity: {skill:?}"
     );
-    // A trust record for the exact closure the load binds, shipped beside
-    // it, is no person's trust: the project's own needs none, and a
-    // catalog rule never reads it.
-    let connector = loaded(&turn.call(
+    // The shipped connector is the project's own, and reaches what the turn
+    // does not, so it waits on the person's trust (D12), whatever its
+    // install record claims.
+    let held = turn.call(
         TURN,
         "load",
         None,
         input(serde_json::json!({"connector": "marker"}))?,
-    )?)?;
+    )?;
+    let gate = trust_gate(&held, "work/1/trust")?;
     assert!(
-        matches!(
-            &connector.package,
-            LoadedPackage::Connector {
-                trust_tier: None,
-                publisher: None,
-                ..
-            }
-        ),
-        "{connector:?}"
+        gate.reason.as_str().contains("the project's own"),
+        "{gate:?}"
     );
+    let payload = serde_json::to_value(gate.payload.as_ref().ok_or("the gate's payload")?)?;
+    assert!(payload["package"].get("trust_tier").is_none(), "{payload}");
+    assert!(payload["package"].get("publisher").is_none(), "{payload}");
+    drop(turn);
+
+    // The probe's case B: a trust record for that exact closure, shipped in
+    // the repository's .runx/trust, is no person's trust. A person's trust
+    // lives in their home, so the load waits on it again.
+    let closure = payload["closures"][0]
+        .as_str()
+        .ok_or("the gate names the closure it trusts")?
+        .to_owned();
+    shipped(
+        &format!("trust/{}.json", closure.trim_start_matches("sha256:")),
+        serde_json::json!({"closure_digest": closure, "package": "connector marker", "tier": "first_party"}),
+    )?;
+    let again = project.start(project.session(serde_json::json!([{"project": true}]))?)?;
+    let turn = project.open(&again)?;
+    let held = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"connector": "marker"}))?,
+    )?;
+    trust_gate(&held, "work/0/trust")?;
     Ok(())
 }
 
