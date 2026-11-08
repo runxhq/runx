@@ -1070,7 +1070,7 @@ fn manifest_name(directory: &Path) -> Result<ConnectorName, ConnectorRegistryErr
     /// What a manifest declares before the rest of it is read: its name.
     #[derive(serde::Deserialize)]
     struct Declared {
-        id: ConnectorName,
+        name: ConnectorName,
     }
     let path = directory.join(MANIFEST_FILE);
     let document =
@@ -1079,7 +1079,7 @@ fn manifest_name(directory: &Path) -> Result<ConnectorName, ConnectorRegistryErr
             message,
         })?;
     runx_parser::parse_yaml_document::<Declared>(&document)
-        .map(|declared| declared.id)
+        .map(|declared| declared.name)
         .map_err(|error| ConnectorRegistryError::InvalidManifest {
             path,
             message: error.to_string(),
