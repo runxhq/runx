@@ -11,7 +11,7 @@ const WORKFLOW_FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/parser/graphs/parse-malformed-yaml.json"),
     include_str!("../../../fixtures/parser/graphs/sequential-references.json"),
     include_str!("../../../fixtures/parser/graphs/step-kinds.json"),
-    include_str!("../../../fixtures/parser/graphs/tool-and-policy.json"),
+    include_str!("../../../fixtures/parser/graphs/tool-and-guard.json"),
     include_str!("../../../fixtures/parser/graphs/validation-missing-step-id.json"),
     include_str!("../../../fixtures/parser/graphs/validation-two-step-kinds.json"),
 ];
@@ -51,7 +51,7 @@ struct SkillFixture {
 
 #[derive(Debug, Deserialize)]
 struct MethodManifestFixture {
-    input: YamlInput,
+    input: MethodManifestInput,
     expected: MethodManifestExpected,
 }
 
@@ -69,6 +69,13 @@ struct InstallFixture {
 
 #[derive(Debug, Deserialize)]
 struct YamlInput {
+    yaml: String,
+}
+
+/// A `run.yaml`, read as the package its `SKILL.md` names.
+#[derive(Debug, Deserialize)]
+struct MethodManifestInput {
+    skill: String,
     yaml: String,
 }
 
@@ -152,26 +159,21 @@ fn skill_fixtures_match_expected() -> Result<(), String> {
 }
 
 #[test]
-fn catalog_carries_category_tags_publisher_and_links() -> Result<(), String> {
+fn catalog_carries_category_and_tags() -> Result<(), String> {
     let manifest = validate_method_manifest(
+        "docs-demo",
         parse_method_manifest_yaml(
             r#"
-skill: docs-demo
+minimum_runx: 0.12.0
 catalog:
-  kind: skill
-  audience: public
   visibility: public
-  role: canonical
   category: content
   tags: [docs, writing]
-  publisher: zhtwangk
-  links:
-    source: https://github.com/example/docs-demo
-runners:
+methods:
   main:
     steps:
       - id: write
-        agent: { role: writer, task: write }
+        agent: write
 "#,
         )
         .map_err(|error| error.to_string())?,
@@ -185,17 +187,18 @@ runners:
 }
 
 #[test]
-fn catalog_rejects_noncanonical_publisher_and_non_https_links() -> Result<(), String> {
-    for (field, value) in [("tags", "[docs, docs]")] {
-        let raw = parse_method_manifest_yaml(&format!(
-            "skill: docs-demo\ncatalog:\n  kind: skill\n  audience: public\n  visibility: public\n  role: canonical\n  {field}: {value}\nrunners:\n  main:\n    steps:\n      - id: write\n        agent: {{ role: writer, task: write }}\n"
-        ))
-        .map_err(|error| error.to_string())?;
-        assert!(
-            validate_method_manifest(raw).is_err(),
-            "catalog.{field}: {value} should be rejected"
-        );
-    }
+fn catalog_rejects_repeated_tags() -> Result<(), String> {
+    let raw = parse_method_manifest_yaml(
+        "minimum_runx: 0.12.0\ncatalog:\n  visibility: public\n  tags: [docs, docs]\nmethods:\n  main:\n    steps:\n      - id: write\n        agent: write\n",
+    )
+    .map_err(|error| error.to_string())?;
+    let error = validate_method_manifest("docs-demo", raw)
+        .err()
+        .ok_or("catalog.tags: [docs, docs] should be rejected")?;
+    assert!(
+        error.to_string().contains("catalog.tags repeats 'docs'"),
+        "{error}"
+    );
     Ok(())
 }
 
@@ -298,6 +301,7 @@ fn assert_skill_fixture(fixture: SkillFixture) -> Result<(), String> {
 fn assert_method_manifest_fixture(fixture: MethodManifestFixture) -> Result<(), String> {
     if let Some(expected) = fixture.expected.validated {
         let actual = validate_method_manifest(
+            &fixture.input.skill,
             parse_method_manifest_yaml(&fixture.input.yaml).map_err(|error| error.to_string())?,
         )
         .map_err(|error| error.to_string())?;
@@ -309,7 +313,7 @@ fn assert_method_manifest_fixture(fixture: MethodManifestFixture) -> Result<(), 
         .expected
         .rejection
         .ok_or_else(|| "fixture must declare validated or rejection".to_owned())?;
-    assert_method_manifest_rejection(&fixture.input.yaml, rejection)
+    assert_method_manifest_rejection(&fixture.input, rejection)
 }
 
 fn assert_tool_manifest_fixture(fixture: ToolManifestFixture) -> Result<(), String> {
@@ -377,17 +381,20 @@ fn assert_skill_rejection(markdown: &str, rejection: Rejection) -> Result<(), St
     }
 }
 
-fn assert_method_manifest_rejection(yaml: &str, rejection: Rejection) -> Result<(), String> {
+fn assert_method_manifest_rejection(
+    input: &MethodManifestInput,
+    rejection: Rejection,
+) -> Result<(), String> {
     match rejection.kind {
         RejectionKind::Parse => {
-            assert!(parse_method_manifest_yaml(yaml).is_err());
+            assert!(parse_method_manifest_yaml(&input.yaml).is_err());
             Ok(())
         }
         RejectionKind::Validation => {
-            let raw = parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?;
-            let error = validate_method_manifest(raw).err().ok_or_else(|| {
+            let raw = parse_method_manifest_yaml(&input.yaml).map_err(|error| error.to_string())?;
+            let error = validate_method_manifest(&input.skill, raw).err().ok_or_else(|| {
                 format!(
-                    "runner manifest fixture unexpectedly passed; expected validation error: {}",
+                    "method manifest fixture unexpectedly passed; expected validation error: {}",
                     rejection.message
                 )
             })?;
