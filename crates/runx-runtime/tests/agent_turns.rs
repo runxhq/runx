@@ -306,15 +306,44 @@ fn tool_names(status: &TurnStatus) -> Vec<&str> {
     status.tools.iter().map(|tool| tool.name.as_str()).collect()
 }
 
+/// A turn shows what it may call once, by the names its calls take. The act's
+/// declared allowance spells the catalog tool `data.digest`, which a call
+/// names `data_digest`, so a harness that called what the allowance showed
+/// was refused its first call. The status shows the allowance only as its
+/// tools, and each name it shows is one a call takes.
+#[test]
+fn a_turn_shows_what_it_may_call_by_the_names_its_calls_take() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    let status = turn.status(TURN)?;
+    assert_eq!(
+        serde_json::to_value(&status)?["invocation"].get("allowance"),
+        None,
+        "the declared allowance is not shown beside the tools"
+    );
+    assert_eq!(
+        tool_names(&status),
+        ["data_digest", "skill__digest-child", "ask_human"]
+    );
+    let digest = turn.call(
+        TURN,
+        "data_digest",
+        None,
+        input(serde_json::json!({"value": "hello", "encoding": "utf8_text"}))?,
+    )?;
+    assert!(
+        matches!(digest.outcome, TurnCallOutcome::Completed { .. }),
+        "{digest:?}"
+    );
+    Ok(())
+}
+
 #[test]
 fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResult {
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
     let turn = paused.open()?;
-    assert_eq!(
-        serde_json::to_value(&turn.status(TURN)?.invocation.allowance)?,
-        serde_json::json!({"tools": ["data.digest"], "skills": ["../digest-child"], "asks": true})
-    );
 
     let digest = turn.call(
         TURN,

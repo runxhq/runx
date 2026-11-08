@@ -519,6 +519,13 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
         opened["result"]["structuredContent"]["tools"][0]["name"], "data_digest",
         "{opened}"
     );
+    // What the turn allows it shows only by the names a call takes: never
+    // the catalog's `data.digest` beside them.
+    assert_eq!(
+        opened["result"]["structuredContent"]["invocation"].get("allowance"),
+        None,
+        "{opened}"
+    );
 
     write_frame(
         server.stdin_mut()?,

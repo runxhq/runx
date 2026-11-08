@@ -1607,8 +1607,9 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
 }
 
 pub(super) fn turn_status_corpus() -> Vec<(&'static str, Value)> {
+    // The status shows what the act allows only as its tools.
     let valid = json!({
-        "invocation": turn_invocation(),
+        "invocation": drop_field(turn_invocation(), "allowance"),
         "tools": [{
             "name": "data_digest",
             "description": "Digest a value.",
@@ -1626,6 +1627,10 @@ pub(super) fn turn_status_corpus() -> Vec<(&'static str, Value)> {
         (
             "missing invocation",
             drop_field(valid.clone(), "invocation"),
+        ),
+        (
+            "invocation repeating the act's allowance",
+            set_field(valid.clone(), "invocation", turn_invocation()),
         ),
         ("missing tools", drop_field(valid.clone(), "tools")),
         ("missing calls", drop_field(valid.clone(), "calls")),

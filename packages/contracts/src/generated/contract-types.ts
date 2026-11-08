@@ -4079,9 +4079,8 @@ export type TurnEnvelopeContract = {
   readonly voice_profile?: ProfileFileContract;
 };
 
-/** An agent act as its turn's agent reads it. */
+/** An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */
 export type TurnInvocationContract = {
-  readonly allowance: TurnAllowanceContract;
   readonly envelope: TurnEnvelopeContract;
   readonly id: string;
   readonly role: string;

@@ -44707,101 +44707,8 @@ export const runxSchemaArtifacts = {
       },
       "invocation": {
         "additionalProperties": false,
-        "description": "An agent act as its turn's agent reads it.",
+        "description": "An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`).",
         "properties": {
-          "allowance": {
-            "additionalProperties": false,
-            "description": "The calls an open turn admits: the skill's declared limits.",
-            "properties": {
-              "asks": {
-                "const": true,
-                "description": "Whether the turn may ask the human.",
-                "type": "boolean"
-              },
-              "operations": {
-                "items": {
-                  "additionalProperties": false,
-                  "description": "One connector operation a turn may call, named by the requirement that binds its instance.",
-                  "properties": {
-                    "operation": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "requirement": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "requirement",
-                    "operation"
-                  ],
-                  "title": "AllowedOperation",
-                  "type": "object"
-                },
-                "minItems": 1,
-                "type": "array"
-              },
-              "skills": {
-                "description": "Child skills by ref, and the catalog rules a load is admitted under.",
-                "items": {
-                  "anyOf": [
-                    {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    {
-                      "additionalProperties": false,
-                      "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
-                      "properties": {
-                        "catalog": {
-                          "additionalProperties": false,
-                          "properties": {
-                            "trust": {
-                              "description": "The lowest tier a load admits on its own; a package below it waits on the person's trust.",
-                              "enum": [
-                                "first_party",
-                                "verified",
-                                "community"
-                              ],
-                              "title": "TrustTier",
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "trust"
-                          ],
-                          "title": "CatalogTrust",
-                          "type": "object"
-                        },
-                        "project": {
-                          "const": true,
-                          "type": "boolean"
-                        }
-                      },
-                      "title": "CatalogRule",
-                      "type": "object"
-                    }
-                  ],
-                  "description": "One entry of an allowance's `skills`: a child skill by name, or a catalog rule, which admits the skills and connectors a `load` call finds.",
-                  "title": "SkillAllowance"
-                },
-                "minItems": 1,
-                "type": "array"
-              },
-              "tools": {
-                "description": "Catalog tool names.",
-                "items": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "minItems": 1,
-                "type": "array"
-              }
-            },
-            "title": "TurnAllowance",
-            "type": "object"
-          },
           "envelope": {
             "additionalProperties": false,
             "description": "An act's envelope as its turn's agent reads it: whole, except that each context entry is a line of an index, its data read by `turn_read`. The act's instructions and inputs stay whole, as the act itself; each input also reads by its ref.",
@@ -45507,8 +45414,7 @@ export const runxSchemaArtifacts = {
           "id",
           "role",
           "task",
-          "envelope",
-          "allowance"
+          "envelope"
         ],
         "title": "TurnInvocation",
         "type": "object"

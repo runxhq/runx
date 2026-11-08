@@ -612,7 +612,10 @@ pub struct TurnStatus {
     pub calls: Vec<TurnCallResult>,
 }
 
-/// An agent act as its turn's agent reads it.
+/// An agent act as its turn's agent reads it. What the act allows it shows
+/// once, as the status's tools, by the names a call takes: the act's declared
+/// allowance names a catalog tool as the catalog does (`fs.read`), which is
+/// not the name a call takes (`fs_read`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TurnInvocation {
@@ -620,7 +623,6 @@ pub struct TurnInvocation {
     pub role: NonEmptyString,
     pub task: NonEmptyString,
     pub envelope: TurnEnvelope,
-    pub allowance: TurnAllowance,
 }
 
 impl From<&AgentActInvocation> for TurnInvocation {
@@ -630,14 +632,13 @@ impl From<&AgentActInvocation> for TurnInvocation {
             role,
             task,
             envelope,
-            allowance,
+            allowance: _,
         } = invocation;
         Self {
             id: id.clone(),
             role: role.clone(),
             task: task.clone(),
             envelope: TurnEnvelope::from(envelope),
-            allowance: allowance.clone(),
         }
     }
 }
