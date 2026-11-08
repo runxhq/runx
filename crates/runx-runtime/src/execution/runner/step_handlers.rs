@@ -20,6 +20,7 @@ use runx_core::state_machine::StepAdmissionWitness;
 use runx_parser::{AskGate, GraphStep, SkillArtifactContract, StepKind, ToolTarget};
 
 use self::host_resolution::resolve_step_approval;
+pub(super) use self::load::resolve_loaded;
 use super::super::graph::{
     LoadedStepSkill, StepSkillLoadOptions, bind_run_inputs, load_step_skill,
 };

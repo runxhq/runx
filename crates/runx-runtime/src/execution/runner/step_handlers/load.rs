@@ -30,8 +30,8 @@ use crate::kernel::connectors::{ConnectorScope, LoadedConnector};
 use crate::paths::RunxPaths;
 use crate::receipts::StepSeal;
 use crate::registry::resolve::{
-    AbsentPins, Holder, RegistryTarget, SkillRefKind, SkillResolverOptions, install_connector,
-    resolve_registry_target, resolve_skill_ref_details,
+    AbsentPins, Holder, RegistryTarget, ResolvedSkillRef, SkillRefKind, SkillResolverOptions,
+    install_connector, resolve_registry_target, resolve_skill_ref_details,
 };
 
 /// Where a package comes from, as a rule reads it.
@@ -175,16 +175,15 @@ where
     })
 }
 
-/// The skill `reference` names, with `runner` bound, or the skill's only
-/// runner when it names none. A skill of several runners loaded without one
-/// binds none: the load reads its manual and runners, and binds no closure.
-fn bind_skill(
+/// The skill `reference` names, as a load resolves it and as every call of a
+/// runner it bound resolves it again: a project's own skill by its path in
+/// the workspace, any other by its name and version, wherever runx holds it.
+pub(crate) fn resolve_loaded(
     reference: &str,
-    runner: Option<&str>,
     paths: &RunxPaths,
     env: &BTreeMap<String, String>,
-) -> Result<Bound, String> {
-    let resolved = resolve_skill_ref_details(
+) -> Result<ResolvedSkillRef, String> {
+    resolve_skill_ref_details(
         Path::new(reference),
         paths.workspace(),
         SkillResolverOptions {
@@ -194,7 +193,19 @@ fn bind_skill(
             absent_pins: AbsentPins::Fail,
             holder: Holder::Project,
         },
-    )?;
+    )
+}
+
+/// The skill `reference` names, with `runner` bound, or the skill's only
+/// runner when it names none. A skill of several runners loaded without one
+/// binds none: the load reads its manual and runners, and binds no closure.
+fn bind_skill(
+    reference: &str,
+    runner: Option<&str>,
+    paths: &RunxPaths,
+    env: &BTreeMap<String, String>,
+) -> Result<Bound, String> {
+    let resolved = resolve_loaded(reference, paths, env)?;
     let directory = canonical(&resolved.runnable_path)?;
     let origin = match resolved.kind {
         SkillRefKind::Registry => Origin::Registry {
@@ -225,15 +236,13 @@ fn bind_skill(
     };
     let package_digest = loaded.package.package_digest.clone();
     let description = loaded.package.skill.description.clone();
+    // The package's name, which a bound runner's call names it by and
+    // resolves again.
     let package_name = match (&resolved.skill_id, &resolved.version) {
         (Some(skill_id), Some(version)) => format!("{skill_id}@{version}"),
         _ => directory_name(&directory, paths)?,
     };
-    let workspace_path = directory
-        .strip_prefix(canonical(paths.workspace())?)
-        .map(Path::to_path_buf)
-        .map_err(|_| format!("{reference} lies outside the workspace"))?;
-    let skill: NonEmptyString = workspace_path.to_string_lossy().into_owned().into();
+    let skill: NonEmptyString = package_name.clone().into();
     let mut tools = Vec::new();
     let mut closures = Vec::new();
     let mut connectors = BTreeMap::new();

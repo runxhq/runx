@@ -282,7 +282,9 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
         "the load records the runner's inputs: {tool:?}"
     );
     assert_eq!(runner.as_str(), "say");
-    assert_eq!(skill.as_str(), ".runx/added-skills/acme/echo/1.0.0");
+    // The call names the package as the load reports it, and resolves it
+    // again wherever runx holds it.
+    assert_eq!(skill.as_str(), "acme/echo@1.0.0");
     // A skill of one runner binds it without naming it, and its manual comes
     // with it at the digest of its exact bytes.
     let [say] = bound.runners.as_slice() else {

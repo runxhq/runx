@@ -1376,9 +1376,6 @@ where
                 step_id: step.id.clone(),
                 reason: "a loaded skill's call names its runner".to_owned(),
             })?;
-        let directory = crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir)
-            .workspace()
-            .join(&target.skill);
         let changed = |reason: String| RuntimeError::AuthorityDenied {
             verb: runx_contracts::AuthorityVerb::Execute,
             step_id: step.id.clone(),
@@ -1387,6 +1384,10 @@ where
                 target.skill
             ),
         };
+        let paths = crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir);
+        let directory = super::step_handlers::resolve_loaded(&target.skill, &paths, &options.env)
+            .map_err(changed)?
+            .runnable_path;
         let package = std::sync::Arc::new(
             crate::load_validated_skill_package(&directory)
                 .map_err(|error| changed(error.to_string()))?,

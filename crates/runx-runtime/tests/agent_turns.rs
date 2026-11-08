@@ -339,6 +339,85 @@ fn a_turn_shows_what_it_may_call_by_the_names_its_calls_take() -> TestResult {
     Ok(())
 }
 
+/// A bundled skill a load binds is the runtime's own copy, named
+/// `runx/<name>@<version>` however runx materialized it: here into a project
+/// directory outside the workspace, which no path inside the workspace names.
+/// Its runner then runs as the load bound it.
+#[test]
+fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path().join("workspace");
+    let skill_dir = root.join("session");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\nLoad what you need, then answer.\n",
+        "skill: session\nskills: [{catalog: {trust: first_party}}]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+    )?;
+    let mut env = env(&root);
+    env.insert(
+        "RUNX_PROJECT_DIR".to_owned(),
+        temp.path().join("project").to_string_lossy().into_owned(),
+    );
+    let receipts = temp.path().join("receipts");
+    let started = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(receipts.clone()),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env.clone(),
+            cwd: root.clone(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?;
+    assert_eq!(requests(&started)?, [TURN]);
+    let turn = LocalOrchestrator::default().open_turns(&TurnRequest {
+        run_id: text(object(&started.output)?, "run_id")
+            .ok_or("missing run_id")?
+            .to_owned(),
+        receipt_dir: Some(receipts),
+        env,
+        cwd: root,
+    })?;
+
+    let load = turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "runx/receipt-query"}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &load.outcome else {
+        return Err(format!("the bundled skill loads: {load:?}").into());
+    };
+    let loaded: runx_contracts::TurnLoad = JsonValue::Object(output.clone()).deserialize_into()?;
+    let runx_contracts::LoadedPackage::Skill { skill: package, .. } = &loaded.package else {
+        return Err(format!("a skill was loaded: {loaded:?}").into());
+    };
+    let [tool] = loaded.tools.as_slice() else {
+        return Err(format!("its one runner is bound: {loaded:?}").into());
+    };
+    let runx_contracts::TurnTarget::Skill { skill, .. } = &tool.target else {
+        return Err(format!("a bound runner: {tool:?}").into());
+    };
+    assert!(skill.as_str().starts_with("runx/receipt-query@"), "{skill}");
+    assert_eq!(skill, package);
+
+    let read = turn.call(TURN, tool.name.as_str(), None, JsonObject::new())?;
+    assert!(
+        matches!(read.outcome, TurnCallOutcome::Completed { .. }),
+        "{read:?}"
+    );
+    Ok(())
+}
+
 #[test]
 fn an_agent_turn_records_its_calls_and_seals_them_with_its_answer() -> TestResult {
     let temp = tempdir()?;
