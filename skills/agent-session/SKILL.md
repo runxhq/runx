@@ -51,3 +51,13 @@ The read and develop turns explicitly declare `web/page.read` and
 `exa/search.query` as their provider tools. Connector requirements alone do not
 grant turn operations. Native tools, catalog/skill loading, questions, grant
 scopes and existing write approval behavior keep their own declared bounds.
+
+## Agent task: read
+
+Read, search and ask, as above. This turn changes nothing: it offers no tool
+that edits the workspace or runs a command.
+
+## Agent task: develop
+
+Everything the read turn does, and also edit the workspace and run commands,
+each waiting on the person unless a standing approval covers it.

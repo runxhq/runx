@@ -63,7 +63,9 @@ platform wait instructions; no tight refresh loops or parallel navigation.
 Invented random delays and mouse movement do not establish safety. There is
 no universal safe number of posts and no guarantee against account action.
 
-## Resolve high-value targets before writing
+## Agent task: reddit-research
+
+The research turn resolves high-value targets before anything is written.
 
 When the operator asks *where* to contribute, target discovery is part of the
 read-only default runner. Start with the operator's real question or useful

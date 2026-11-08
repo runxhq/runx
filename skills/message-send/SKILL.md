@@ -70,7 +70,9 @@ connector credentials in its inputs or receipts.
 - To bypass unsubscribe, consent, suppression, preflight, legal or human
   approval gates.
 
-## Procedure for `plan`
+## Agent task: message-send
+
+The turn of the `plan` runner, which follows this procedure.
 
 1. Identify the principal being represented and the provider account or surface.
 2. Classify the send: `transactional`, `campaign`, `flow_step`, `support_reply`,

@@ -4,6 +4,8 @@ description: Managed-agent front example; a governed agent step that drafts a tr
 ---
 # Triage intake
 
+## Agent task: triage-intake
+
 Read the issue inputs and produce a short triage summary. When the task is
 complete, return the structured result.
 
