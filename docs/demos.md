@@ -14,9 +14,9 @@ demos, runnable previews, and fixture support.
 
 | Demo | Proof | Run | Gate |
 | --- | --- | --- | --- |
-| `examples/hello-world` | Native CLI top-level skill and harness baseline. | `runx harness examples/hello-world` | harness |
-| `skills/sql-analysis` | A question selects a declared parameterized SQL read and interprets its bounded evidence. The harness replays exact provider fixtures; the optional connector's integration checks prove actual database execution separately. | `runx harness skills/sql-analysis/fixtures/default-reads-selected-query.yaml` | harness |
-| `skills/nws-weather` | The runx-maintained NWS skill reads through its `national-weather-service` connector and seals stable provider metadata. | `runx harness skills/nws-weather/fixtures/nws-forecast-washington-monument.yaml` | live external |
+| `examples/hello-world` | Native CLI top-level skill and test baseline. | `runx test examples/hello-world` | test |
+| `skills/sql-analysis` | A question selects a declared parameterized SQL read and interprets its bounded evidence. The harness replays exact provider fixtures; the optional connector's integration checks prove actual database execution separately. | `runx test skills/sql-analysis/tests/default-reads-selected-query.yaml` | test |
+| `skills/nws-weather` | The runx-maintained NWS skill reads through its `national-weather-service` connector and seals stable provider metadata. | `runx test skills/nws-weather/tests/nws-forecast-washington-monument.yaml` | live external |
 | `examples/loop-orchestration` | A bounded outer loop submits governed runx runs, prints receipt ids and next-turn reasons, demonstrates `context_skills`, and includes a refusal path. | `sh examples/loop-orchestration/run.sh` | harness |
 
 ## Payment Contract Proof

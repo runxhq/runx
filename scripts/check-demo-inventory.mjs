@@ -110,9 +110,9 @@ function hasFile(filePath) {
   }
 }
 
-// The fixture or package a `runx harness` command replays.
+// The package or test a `runx test` command runs.
 function testTarget(command) {
-  return typeof command === "string" ? /^runx harness (\S+)/.exec(command)?.[1] : undefined;
+  return typeof command === "string" ? /^runx test (\S+)/.exec(command)?.[1] : undefined;
 }
 
 function pathExists(filePath) {
