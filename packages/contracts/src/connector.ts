@@ -556,6 +556,13 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
   } catch {
     throw new TemplateError(`request ${request.id} has an invalid URL`);
   }
+  // As the kernel does: what is sent is what admission checked. Parsing may
+  // percent-encode the path, but a dot segment it resolves or a backslash it
+  // reads as a slash would send the request to another resource.
+  const written = writtenPath(rendered);
+  if (written === undefined || !samePath(written, url.pathname)) {
+    throw new TemplateError(`request ${request.id} has a URL whose path changes when parsed`);
+  }
   // As the kernel does: a fragment never reaches the server, so a URL
   // carrying one names a request other than the one sent.
   if (url.href.includes("#")) throw new TemplateError(`request ${request.id} has a URL fragment`);
@@ -607,6 +614,45 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
   }
   headers["content-type"] = "application/json";
   return { method: request.method, url: href, headers, body: JSON.stringify(body) };
+}
+
+/** The path a URL is written with: after its authority, up to its query or fragment. A URL not written `scheme://authority` has none to compare. */
+function writtenPath(url: string): string | undefined {
+  const start = url.indexOf("://");
+  if (start === -1) return undefined;
+  const rest = url.slice(start + 3);
+  const path = rest.slice(firstOf(rest, ["/", "\\", "?", "#"]));
+  return path.slice(0, firstOf(path, ["?", "#"]));
+}
+
+function firstOf(text: string, characters: readonly string[]): number {
+  const found = characters.map((character) => text.indexOf(character)).filter((index) => index !== -1);
+  return found.length === 0 ? text.length : Math.min(...found);
+}
+
+/** Whether a parsed path is the written one apart from percent-encoding. An empty written path is the root. */
+function samePath(written: string, parsed: string): boolean {
+  const left = percentDecoded(written === "" ? "/" : written);
+  const right = percentDecoded(parsed);
+  return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
+
+/** A path's bytes, each percent escape as the byte it stands for. */
+function percentDecoded(path: string): number[] {
+  const bytes = new TextEncoder().encode(path);
+  const decoded: number[] = [];
+  const hex = (byte: number | undefined) => (byte === undefined ? Number.NaN : Number.parseInt(String.fromCharCode(byte), 16));
+  for (let index = 0; index < bytes.length; index += 1) {
+    const high = hex(bytes[index + 1]);
+    const low = hex(bytes[index + 2]);
+    if (bytes[index] === 0x25 && !Number.isNaN(high) && !Number.isNaN(low)) {
+      decoded.push(high * 16 + low);
+      index += 2;
+    } else {
+      decoded.push(bytes[index]!);
+    }
+  }
+  return decoded;
 }
 
 /** An allowlist entry is a host, or `*.domain` for exactly one label under that domain. */

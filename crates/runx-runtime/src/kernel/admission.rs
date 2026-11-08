@@ -1520,4 +1520,73 @@ operations:
         let refused = pins_current(&second, name, digest, &instance).unwrap_err();
         assert!(refused.contains("changed since instance"), "{refused}");
     }
+
+    /// A GitHub repository is `owner/name`, and neither part is a dot
+    /// segment, which a URL parser would resolve into another resource:
+    /// `../user` would read `/user/issues`, and `acme/..` would pass a term on
+    /// `acme/*`. Every operation's grammar refuses both, and admission refuses
+    /// the call before its target is rendered.
+    #[test]
+    fn the_github_repository_grammar_refuses_dot_segments() {
+        let manifest = runx_parser::parse_connector_manifest(include_str!(
+            "../../../../connectors/github/connector.yaml"
+        ))
+        .unwrap();
+        let mut checked = 0;
+        for (name, operation) in &manifest.operations {
+            let Some(grammar) = operation
+                .input_schema
+                .as_ref()
+                .and_then(|schema| schema.get("properties"))
+                .and_then(runx_contracts::JsonValue::as_object)
+                .and_then(|properties| properties.get("repository"))
+            else {
+                continue;
+            };
+            let validator = jsonschema::draft202012::options()
+                .build(&serde_json::to_value(grammar).unwrap())
+                .unwrap();
+            for refused in [
+                "../user",
+                "acme/..",
+                "./app",
+                "acme/.",
+                "../..",
+                "acme/./app",
+            ] {
+                assert!(
+                    !validator.is_valid(&serde_json::json!(refused)),
+                    "{name} admits {refused}"
+                );
+            }
+            for admitted in [
+                "acme/app",
+                "acme/.github",
+                "acme/app.js",
+                "acme/...",
+                "a-b/c_d",
+            ] {
+                assert!(
+                    validator.is_valid(&serde_json::json!(admitted)),
+                    "{name} refuses {admitted}"
+                );
+            }
+            checked += 1;
+        }
+        assert!(
+            checked >= 20,
+            "every repository grammar is checked: {checked}"
+        );
+        let read = &manifest.operations
+            [&runx_contracts::connector::OperationName::new("issue.read".to_owned()).unwrap()];
+        let input = |repository: &str| {
+            serde_json::from_value::<runx_contracts::JsonObject>(
+                serde_json::json!({"repository": repository, "number": 7}),
+            )
+            .unwrap()
+        };
+        super::input_conforms(read, &input("acme/app")).unwrap();
+        let refused = super::input_conforms(read, &input("acme/..")).unwrap_err();
+        assert!(refused.contains("\"/repository\""), "{refused}");
+    }
 }

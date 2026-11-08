@@ -1926,6 +1926,73 @@ fn a_hosted_declared_read_sends_one_request_per_item() {
     );
 }
 
+/// What admission checked is what is sent. The forge fixture's grammar admits
+/// a dot segment, so `acme/..` passes its schema and a term on `acme/*`, and
+/// parsing its URL would resolve `/repos/acme/../issues/7` to
+/// `/repos/issues/7`. The request is refused before it leaves, through runx
+/// Connect and sent directly alike, while `acme/app` is sent both ways.
+#[test]
+fn a_request_whose_path_changes_when_parsed_is_never_sent() {
+    for direct in [false, true] {
+        let fixture = Fixture::for_connector("fixture/forge", &["repo.read"]);
+        let instance = if direct {
+            fixture.set_credential("fixture/forge", "token", "forge-local-token");
+            crate::kernel::instances::instance_id(&["secret", "fixture/forge", "token", "default"])
+        } else {
+            crate::kernel::instances::instance_id(&["hosted", "fixture/forge", "grant_chat"])
+        }
+        .unwrap();
+        let actor_ref =
+            Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
+        let authority = crate::RunAuthority {
+            grants: std::collections::BTreeMap::new(),
+            actor_ref: Some(actor_ref.clone()),
+            mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
+            delegations: vec![AttenuationRequest {
+                principal_ref: actor_ref,
+                resource_ref: Reference::runx(ReferenceType::ConnectorInstance, instance.as_str()),
+                resource_family: AuthorityResourceFamily::Connector,
+                verbs: vec![AuthorityVerb::Read],
+                bounds: AuthorityBounds {
+                    operations: vec!["fixture/forge/issues.read".into()],
+                    scopes: vec!["repo.read".into()],
+                    targets: vec!["acme/*".into()],
+                    uses: None,
+                },
+                expires_at: None,
+            }],
+            max_fanout: None,
+            max_child_depth: None,
+            agent_bounds: false,
+            standing_approvals: Vec::new(),
+            max_cost_micro: None,
+        };
+        let read = |repository: &str| -> JsonObject {
+            serde_json::from_value(serde_json::json!({
+                "input": {"repository": repository, "numbers": [7]},
+            }))
+            .unwrap()
+        };
+        fixture
+            .admit_as("issues", &read("acme/.."), Some(&authority))
+            .expect("the schema and the term both admit acme/..");
+        let refused = fixture.run_under("issues", &read("acme/.."), None, Some(&authority));
+        let reason = match &refused {
+            Err(reason) => reason.clone(),
+            Ok((_, outcome, _)) => serde_json::to_string(packet(outcome)).unwrap(),
+        };
+        assert!(
+            reason.contains("changes when parsed"),
+            "direct: {direct}: {reason}"
+        );
+        assert_eq!(fixture.provider.calls(), 0, "direct: {direct}");
+        fixture
+            .run_under("issues", &read("acme/app"), None, Some(&authority))
+            .expect("acme/app is sent");
+        assert_eq!(fixture.provider.calls(), 1, "direct: {direct}");
+    }
+}
+
 #[test]
 fn a_webhook_write_is_acknowledged_once_behind_its_credential_and_exact_approval() {
     // The webhook's URL is its credential: the operator binds it, and the

@@ -609,13 +609,21 @@ fn render_request(
     cursor: Option<&JsonValue>,
     instance: Option<&Http<'_>>,
 ) -> Result<RuntimeHttpRequest, String> {
-    let mut url = Url::parse(
-        &request
-            .url
-            .render_string(inputs)
-            .map_err(|error| error.to_string())?,
-    )
-    .map_err(|error| format!("request {} has an invalid URL: {error}", request.id))?;
+    let written = request
+        .url
+        .render_string(inputs)
+        .map_err(|error| error.to_string())?;
+    let mut url = Url::parse(&written)
+        .map_err(|error| format!("request {} has an invalid URL: {error}", request.id))?;
+    // What is sent is what admission checked: parsing may percent-encode the
+    // path, but a dot segment it resolves or a backslash it reads as a slash
+    // would send the request to another resource.
+    if !written_path(&written).is_some_and(|path| same_path(path, url.path())) {
+        return Err(format!(
+            "request {} has a URL whose path changes when parsed",
+            request.id
+        ));
+    }
     // A credential that is the endpoint itself replaces the declared URL,
     // which it must extend; the checks below hold for it as for any URL.
     if let Some(instance) = instance
@@ -765,6 +773,41 @@ fn render_request(
         headers,
         body,
     })
+}
+
+/// The path a URL is written with: after its authority, up to its query or
+/// fragment. A URL not written `scheme://authority` has none to compare.
+fn written_path(url: &str) -> Option<&str> {
+    let (_, rest) = url.split_once("://")?;
+    let path = &rest[rest.find(['/', '\\', '?', '#']).unwrap_or(rest.len())..];
+    Some(&path[..path.find(['?', '#']).unwrap_or(path.len())])
+}
+
+/// Whether a parsed path is the written one apart from percent-encoding. An
+/// empty written path is the root.
+fn same_path(written: &str, parsed: &str) -> bool {
+    let written = if written.is_empty() { "/" } else { written };
+    percent_decoded(written) == percent_decoded(parsed)
+}
+
+/// A path's bytes, each percent escape as the byte it stands for.
+fn percent_decoded(path: &str) -> Vec<u8> {
+    let mut decoded = Vec::with_capacity(path.len());
+    let mut rest = path.as_bytes();
+    while let Some((&byte, tail)) = rest.split_first() {
+        let escape = match tail {
+            [high, low, after @ ..] if byte == b'%' => char::from(*high)
+                .to_digit(16)
+                .zip(char::from(*low).to_digit(16))
+                .and_then(|(high, low)| u8::try_from(high * 16 + low).ok())
+                .map(|escaped| (escaped, after)),
+            _ => None,
+        };
+        let (byte, after) = escape.unwrap_or((byte, tail));
+        decoded.push(byte);
+        rest = after;
+    }
+    decoded
 }
 
 /// The answer of a request whose status refuses the caller rather than the
