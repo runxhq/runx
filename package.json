@@ -63,8 +63,6 @@
     "fixtures:harness:check": "tsx scripts/generate-rust-test-fixtures.ts --check",
     "fixtures:harness:generate": "tsx scripts/generate-rust-test-fixtures.ts --write",
     "fixtures:harness:summary": "tsx scripts/generate-rust-test-fixtures.ts --check --summary-json",
-    "fixtures:skills:check": "tsx scripts/generate-rust-skill-fixtures.ts --check",
-    "fixtures:skills:generate": "tsx scripts/generate-rust-skill-fixtures.ts",
     "fixtures:doctor:check": "tsx scripts/generate-rust-doctor-fixtures.ts --check",
     "fixtures:doctor:generate": "tsx scripts/generate-rust-doctor-fixtures.ts",
     "fixtures:tool-catalog:check": "tsx scripts/generate-tool-catalog-oracles.ts --check",

@@ -119,17 +119,6 @@ export function checkCanonicalParserOwnership(findings) {
       findings.push(`${relative(filePath)} interprets raw parser output instead of typed parser IR`);
     }
   }
-  const skillFixtureGeneratorPath = path.join(
-    workspaceRoot,
-    "scripts/generate-rust-skill-fixtures.ts",
-  );
-  const skillFixtureGenerator = existsSync(skillFixtureGeneratorPath)
-    ? readFileSync(skillFixtureGeneratorPath, "utf8")
-    : "";
-  if (!skillFixtureGenerator.includes("validateMethodManifestYamlBatch")) {
-    findings.push(`${relative(skillFixtureGeneratorPath)} must consume parser-owned typed runner structure`);
-  }
-
   const packetParserPath = path.join(workspaceRoot, "crates/runx-parser/src/packet.rs");
   const packetParser = existsSync(packetParserPath) ? readFileSync(packetParserPath, "utf8") : "";
   for (const token of ["PACKET_ID_FIELD", "parse_packet_schema_document", "ValidatedPacketSchema"]) {
