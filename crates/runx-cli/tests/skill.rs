@@ -1,17 +1,11 @@
 use std::fs;
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 #[cfg(unix)]
 use std::time::{Duration, Instant};
 
-use base64::Engine;
-use ring::signature::KeyPair;
 use serde_json::json;
-
-const TEST_MANIFEST_KEY_ID: &str = "runx-registry-skill-test-key";
-const TEST_MANIFEST_SIGNER_ID: &str = "runx-registry-skill-test-signer";
-const TEST_MANIFEST_SEED: [u8; 32] = [7; 32];
 
 #[test]
 fn input_document_supports_file_and_stdin_without_a_second_input_map()
@@ -397,11 +391,13 @@ fn native_skill_positional_runner_selects_non_default_runner()
     Ok(())
 }
 
+/// An inspection binds a pinned registry child the project holds, and
+/// reports one it does not: unresolved, then installed, then fully bound.
 #[test]
-fn native_skill_inspect_binds_pinned_local_registry_dependencies()
+fn native_skill_inspect_binds_pinned_registry_dependencies_once_installed()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-inspect-registry-closure");
-    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
     let skill_dir = root.join("parent");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
@@ -421,23 +417,43 @@ runners:
         runner: default
 "#,
     )?;
+    let inspect = || -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let output = registry_runx_command(&root, &registry)?
+            .current_dir(&root)
+            .args([
+                "skill",
+                "inspect",
+                skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+                "--json",
+            ])
+            .output()?;
+        Ok(assert_json(&output, Some(0))?["execution_closure"].clone())
+    };
 
-    let output = trusted_registry_runx_command(&root)?
-        .current_dir(&root)
-        .env("RUNX_REGISTRY_DIR", &registry_dir)
+    let unheld = inspect()?;
+    assert_eq!(unheld["fully_bound"], false);
+    assert_eq!(
+        unheld["unresolved_skill_edges"],
+        json!(["registry:acme/echo@1.0.0#default"])
+    );
+
+    let install = registry_runx_command(&root, &registry)?
         .args([
-            "skill",
-            "inspect",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "registry",
+            "install",
+            "acme/echo@1.0.0",
+            "--registry",
+            &registry.url,
             "--json",
         ])
         .output()?;
-    let inspected = assert_json(&output, Some(0))?;
-    let closure = &inspected["execution_closure"];
-    assert_eq!(closure["fully_bound"], true);
-    assert_eq!(closure["unresolved_skill_edges"], json!([]));
+    assert_json(&install, Some(0))?;
+
+    let held = inspect()?;
+    assert_eq!(held["fully_bound"], true);
+    assert_eq!(held["unresolved_skill_edges"], json!([]));
     assert_eq!(
-        closure["package_bindings"]
+        held["package_bindings"]
             .as_array()
             .ok_or("package bindings are missing")?
             .len(),
@@ -450,7 +466,7 @@ runners:
 fn native_skill_inspect_reports_a_pin_the_registry_lacks_and_a_run_refuses_it()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-inspect-registry-absent-pin");
-    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
     let skill_dir = root.join("parent");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
@@ -472,11 +488,9 @@ runners:
     )?;
     let skill = skill_dir.to_str().ok_or("non-utf8 skill dir")?;
 
-    // An inspection reports the pin for a caller that supplies registry
-    // records to supply, as the hosted registry closure does.
-    let output = trusted_registry_runx_command(&root)?
+    // An inspection reports the pin the project does not hold.
+    let output = registry_runx_command(&root, &registry)?
         .current_dir(&root)
-        .env("RUNX_REGISTRY_DIR", &registry_dir)
         .args(["skill", "inspect", skill, "--json"])
         .output()?;
     let inspected = assert_json(&output, Some(0))?;
@@ -487,11 +501,10 @@ runners:
         json!(["registry:acme/echo@2.0.0#default"])
     );
 
-    // A run cannot proceed without it.
-    let output = trusted_registry_runx_command(&root)?
+    // A run cannot proceed without it, and the registry does not publish it.
+    let output = registry_runx_command(&root, &registry)?
         .current_dir(&root)
-        .env("RUNX_REGISTRY_DIR", &registry_dir)
-        .args(["skill", skill, "--json"])
+        .args(["skill", skill, "--registry", &registry.url, "--json"])
         .output()?;
     let failed = assert_json(&output, Some(1))?;
     let message = failed["error"]["message"].as_str().unwrap_or_default();
@@ -547,13 +560,13 @@ fn native_skill_exported_shim_resolves_to_source_skill() -> Result<(), Box<dyn s
 #[test]
 fn native_skill_resolves_trusted_registry_ref() -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-registry-ref");
-    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
-    let output = trusted_registry_runx_command(&root)?
+    let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
+    let output = registry_runx_command(&root, &registry)?
         .args([
             "skill",
             "acme/echo@1.0.0",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
             "--json",
         ])
         .output()?;
@@ -570,14 +583,14 @@ fn native_skill_resolves_trusted_registry_ref() -> Result<(), Box<dyn std::error
 #[test]
 fn native_skill_registry_run_reports_provenance() -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-registry-provenance");
-    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
 
-    let json_output = trusted_registry_runx_command(&root)?
+    let json_output = registry_runx_command(&root, &registry)?
         .args([
             "skill",
             "acme/echo@1.0.0",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
             "--json",
         ])
         .output()?;
@@ -588,11 +601,14 @@ fn native_skill_registry_run_reports_provenance() -> Result<(), Box<dyn std::err
     assert_eq!(provenance["skill_id"], "acme/echo");
     assert_eq!(provenance["version"], "1.0.0");
     assert_eq!(provenance["trust_tier"], "community");
-    assert_eq!(provenance["registry_key_id"], TEST_MANIFEST_KEY_ID);
+    assert_eq!(
+        provenance["registry_key_id"],
+        crate::registry_fixture::KEY_ID
+    );
     assert_eq!(provenance["trust_state"], "trusted");
     assert_eq!(
         provenance["registry_source"],
-        format!("local {}", registry_dir.display())
+        format!("remote {}", registry.url)
     );
     assert!(
         provenance["digest"]
@@ -610,25 +626,20 @@ fn native_skill_registry_run_reports_provenance() -> Result<(), Box<dyn std::err
             .is_some_and(|value| value.len() == 16)
     );
 
-    let text_output = trusted_registry_runx_command(&root)?
-        .args([
-            "skill",
-            "acme/echo@1.0.0",
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-        ])
+    let text_output = registry_runx_command(&root, &registry)?
+        .args(["skill", "acme/echo@1.0.0", "--registry", &registry.url])
         .output()?;
     assert_eq!(text_output.status.code(), Some(2));
     let stdout = String::from_utf8(text_output.stdout)?;
     assert!(stdout.contains("entry:\n  kind: registry\n"), "{stdout}");
     assert!(stdout.contains("  skill_id: acme/echo"));
     assert!(stdout.contains("  version: 1.0.0"));
-    assert!(stdout.contains(&format!(
-        "  registry_source: local {}",
-        registry_dir.display()
-    )));
+    assert!(stdout.contains(&format!("  registry_source: remote {}", registry.url)));
     assert!(stdout.contains("  trust_tier: community"));
-    assert!(stdout.contains("  registry_key_id: runx-registry-skill-test-key"));
+    assert!(stdout.contains(&format!(
+        "  registry_key_id: {}",
+        crate::registry_fixture::KEY_ID
+    )));
 
     Ok(())
 }
@@ -637,15 +648,15 @@ fn native_skill_registry_run_reports_provenance() -> Result<(), Box<dyn std::err
 fn native_skill_registry_run_reports_provenance_on_execution_error()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-registry-error-provenance");
-    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
 
-    let json_output = trusted_registry_runx_command(&root)?
+    let json_output = registry_runx_command(&root, &registry)?
         .args([
             "skill",
             "acme/echo@1.0.0",
             "missing-runner",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
             "--json",
         ])
         .output()?;
@@ -665,39 +676,16 @@ fn native_skill_registry_run_reports_provenance_on_execution_error()
 fn native_skill_resolves_registry_versions_side_by_side() -> Result<(), Box<dyn std::error::Error>>
 {
     let root = crate::support::temp_root("runx-skill-registry-versions");
-    let registry_dir = root.join("registry");
-    publish_registry_echo_version_into(&root, &registry_dir, "1.0.0", "# Echo\n", true)?;
-    publish_registry_echo_version_into(
-        &root,
-        &registry_dir,
-        "1.1.0",
-        "# Echo\n\nVersion two.\n",
-        true,
-    )?;
+    let registry = publish_echo(&[("1.0.0", "# Echo\n"), ("1.1.0", "# Echo\n\nVersion two.\n")])?;
+    let run = |reference: &str| -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let output = registry_runx_command(&root, &registry)?
+            .args(["skill", reference, "--registry", &registry.url, "--json"])
+            .output()?;
+        needs_agent_skill_directory(&assert_json(&output, Some(2))?)
+    };
 
-    let v1 = trusted_registry_runx_command(&root)?
-        .args([
-            "skill",
-            "acme/echo@1.0.0",
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--json",
-        ])
-        .output()?;
-    let v1_json = assert_json(&v1, Some(2))?;
-    let v1_dir = needs_agent_skill_directory(&v1_json)?;
-
-    let v2 = trusted_registry_runx_command(&root)?
-        .args([
-            "skill",
-            "acme/echo@1.1.0",
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--json",
-        ])
-        .output()?;
-    let v2_json = assert_json(&v2, Some(2))?;
-    let v2_dir = needs_agent_skill_directory(&v2_json)?;
+    let v1_dir = run("acme/echo@1.0.0")?;
+    let v2_dir = run("acme/echo@1.1.0")?;
 
     assert_ne!(v1_dir, v2_dir);
     assert!(v1_dir.to_string_lossy().contains("1.0.0"));
@@ -720,7 +708,7 @@ fn native_skill_resolves_registry_versions_side_by_side() -> Result<(), Box<dyn 
 #[test]
 fn a_graph_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-registry-nested");
-    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
     let graph = root.join("project").join("nested");
     fs::create_dir_all(&graph)?;
     fs::write(
@@ -732,33 +720,34 @@ fn a_graph_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn std
         "skill: nested\nversion: \"0.1.0\"\nrunners:\n  default:\n    default: true\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
     )?;
 
-    let run = |root: &Path| -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-        let output = trusted_registry_runx_command(root)?
+    let run = || -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let output = registry_runx_command(&root, &registry)?
             .args([
                 "skill",
                 graph.to_str().ok_or("non-utf8 graph dir")?,
                 "--registry",
-                registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+                &registry.url,
                 "--json",
             ])
             .output()?;
         assert_json(&output, Some(2))
     };
     let installed = crate::support::added_skills().join("acme/echo/1.0.0");
-    let first = run(&root)?;
+    let first = run()?;
     assert_eq!(
         needs_agent_skill_directory(&first)?.canonicalize()?,
         installed.canonicalize()?
     );
 
     // Held, it is not fetched again: the run resolves the installed version
-    // even with the registry gone.
-    fs::remove_dir_all(&registry_dir)?;
-    let second = run(&root)?;
+    // and asks the registry nothing.
+    let asked = registry.asked().len();
+    let second = run()?;
     assert_eq!(
         needs_agent_skill_directory(&second)?.canonicalize()?,
         installed.canonicalize()?
     );
+    assert_eq!(registry.asked().len(), asked, "{:?}", registry.asked());
     Ok(())
 }
 
@@ -767,7 +756,7 @@ fn a_graph_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn std
 #[test]
 fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-skill-registry-context");
-    let registry_dir = publish_registry_echo_version(&root, "1.0.0", "# Echo\n", true)?;
+    let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
     let skill = root.join("project").join("with-context");
     fs::create_dir_all(&skill)?;
     fs::write(
@@ -779,12 +768,12 @@ fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn st
         "skill: with-context\nversion: \"0.1.0\"\nrunners:\n  default:\n    default: true\n    steps:\n      - id: write\n        agent: { role: writer, task: write }\n        context_skills: [registry:acme/echo@1.0.0]\n        outputs:\n          result: object\n",
     )?;
 
-    let output = trusted_registry_runx_command(&root)?
+    let output = registry_runx_command(&root, &registry)?
         .args([
             "skill",
             skill.to_str().ok_or("non-utf8 skill dir")?,
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
             "--json",
         ])
         .output()?;
@@ -819,14 +808,18 @@ fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn st
 #[test]
 fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::error::Error>> {
     let unsigned_root = crate::support::temp_root("runx-skill-registry-unsigned");
-    let unsigned_registry =
-        publish_registry_echo_version(&unsigned_root, "1.0.0", "# Echo\n", false)?;
-    let unsigned = trusted_registry_runx_command(&unsigned_root)?
+    let unsigned_registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
+    unsigned_registry.tamper("acme/echo", "1.0.0", |record| {
+        if let Some(record) = record.as_object_mut() {
+            record.remove("signed_manifest");
+        }
+    })?;
+    let unsigned = registry_runx_command(&unsigned_root, &unsigned_registry)?
         .args([
             "skill",
             "acme/echo@1.0.0",
             "--registry",
-            unsigned_registry.to_str().ok_or("non-utf8 registry dir")?,
+            &unsigned_registry.url,
             "--json",
         ])
         .output()?;
@@ -841,14 +834,13 @@ fn native_skill_rejects_untrusted_registry_refs() -> Result<(), Box<dyn std::err
     assert!(!crate::support::added_skills().join("acme/echo").exists());
 
     let mismatch_root = crate::support::temp_root("runx-skill-registry-digest-mismatch");
-    let mismatch_registry =
-        publish_registry_echo_version(&mismatch_root, "1.0.0", "# Echo\n", true)?;
-    let mismatch = trusted_registry_runx_command(&mismatch_root)?
+    let mismatch_registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
+    let mismatch = registry_runx_command(&mismatch_root, &mismatch_registry)?
         .args([
             "skill",
             "acme/echo@1.0.0",
             "--registry",
-            mismatch_registry.to_str().ok_or("non-utf8 registry dir")?,
+            &mismatch_registry.url,
             "--digest",
             "sha256:0000000000000000000000000000000000000000000000000000000000000000",
             "--json",
@@ -1161,26 +1153,18 @@ fn runx_command() -> Command {
     crate::support::isolated_runx_command_with_inherited_cwd("skill-test-key")
 }
 
-fn trusted_registry_runx_command(root: &Path) -> Result<Command, Box<dyn std::error::Error>> {
+/// `runx` with its home and project under `root`, trusting `registry`'s key.
+fn registry_runx_command(
+    root: &Path,
+    registry: &crate::registry_fixture::LoopbackRegistry,
+) -> Result<Command, Box<dyn std::error::Error>> {
     let mut command = crate::support::signed_runx_command("skill-test-key");
-    let key_pair = test_manifest_key_pair()?;
     command.env("RUNX_HOME", root.join("home"));
     // A fetched skill is added to the project's added skills.
     let project = root.join("project");
     fs::create_dir_all(&project)?;
     command.env("RUNX_CWD", &project);
-    command.env(
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-        base64::engine::general_purpose::STANDARD.encode(key_pair.public_key().as_ref()),
-    );
-    command.env(
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
-        TEST_MANIFEST_KEY_ID,
-    );
-    command.env(
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
-        "acme",
-    );
+    command.envs(registry.env()?);
     Ok(command)
 }
 
@@ -1351,127 +1335,24 @@ runners:
     Ok(skill_dir)
 }
 
-fn publish_registry_echo_version(
-    root: &Path,
-    version: &str,
-    markdown_body: &str,
-    signed: bool,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let registry_dir = root.join("registry");
-    publish_registry_echo_version_into(root, &registry_dir, version, markdown_body, signed)?;
-    Ok(registry_dir)
-}
-
-fn publish_registry_echo_version_into(
-    root: &Path,
-    registry_dir: &Path,
-    version: &str,
-    markdown_body: &str,
-    signed: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let skill_dir = root.join(format!("skill-{version}"));
-    fs::create_dir_all(&skill_dir)?;
-    fs::write(
-        skill_dir.join("SKILL.md"),
-        format!("---\nname: echo\ndescription: echo fixture.\n---\n{markdown_body}"),
-    )?;
-    fs::write(
-        skill_dir.join("run.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
-    )?;
-    let publish = trusted_registry_runx_command(root)?
-        .args([
-            "registry",
-            "publish",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--publisher",
+/// A loopback registry publishing the echo fixture as acme's at each
+/// version, with each manual body.
+fn publish_echo(
+    versions: &[(&str, &str)],
+) -> Result<crate::registry_fixture::LoopbackRegistry, Box<dyn std::error::Error>> {
+    let registry = crate::registry_fixture::LoopbackRegistry::serve()?;
+    for (version, body) in versions {
+        let markdown = format!("---\nname: echo\ndescription: echo fixture.\n---\n{body}");
+        registry.publish(crate::registry_fixture::Publication::new(
             "acme",
-            "--version",
             version,
-            "--json",
-        ])
-        .output()?;
-    assert!(
-        publish.status.success(),
-        "stderr={}\nstdout={}",
-        String::from_utf8_lossy(&publish.stderr),
-        String::from_utf8_lossy(&publish.stdout)
-    );
-    if signed {
-        sign_registry_version(registry_dir, version)?;
+            &markdown,
+            Some(include_str!(
+                "../../../fixtures/registry/install/echo-run.yaml"
+            )),
+        ))?;
     }
-    Ok(())
-}
-
-fn sign_registry_version(
-    registry_dir: &Path,
-    version: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let version_path = registry_dir
-        .join("acme")
-        .join("echo")
-        .join(format!("{version}.json"));
-    let mut version_record =
-        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&version_path)?)?;
-    version_record["signed_manifest"] = signed_manifest(&version_record)?;
-    fs::write(
-        version_path,
-        format!("{}\n", serde_json::to_string_pretty(&version_record)?),
-    )?;
-    Ok(())
-}
-
-/// The envelope the registry serves for a stored record's exact files.
-fn signed_manifest(
-    version_record: &serde_json::Value,
-) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let skill_id = version_record["skill_id"]
-        .as_str()
-        .ok_or("missing skill_id")?;
-    let version = version_record["version"]
-        .as_str()
-        .ok_or("missing version")?;
-    let markdown = version_record["markdown"]
-        .as_str()
-        .ok_or("missing markdown")?;
-    let package_files: Vec<runx_runtime::registry::RegistryPackageFile> =
-        serde_json::from_value(version_record["package_files"].clone()).unwrap_or_default();
-    let content_digest = runx_runtime::registry::skill_content_digest(
-        markdown,
-        version_record["profile_document"].as_str(),
-        &package_files,
-    )?;
-    let mut manifest = runx_contracts::RegistrySignedManifest {
-        schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
-        subject: runx_contracts::RegistrySubject {
-            kind: runx_contracts::RegistrySubjectKind::Skill,
-            name: skill_id.to_owned(),
-        },
-        version: version.to_owned(),
-        content_digest,
-        signer: runx_contracts::RegistryManifestSigner {
-            id: TEST_MANIFEST_SIGNER_ID.to_owned(),
-            key_id: TEST_MANIFEST_KEY_ID.to_owned(),
-        },
-        signature: runx_contracts::RegistryManifestSignature {
-            alg: "ed25519".to_owned(),
-            value: "base64:".to_owned(),
-        },
-    };
-    let signature = test_manifest_key_pair()?.sign(&manifest.signing_payload()?);
-    manifest.signature.value = format!(
-        "base64:{}",
-        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(signature.as_ref())
-    );
-    Ok(serde_json::to_value(manifest)?)
-}
-
-fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, io::Error> {
-    ring::signature::Ed25519KeyPair::from_seed_unchecked(&TEST_MANIFEST_SEED).map_err(|error| {
-        io::Error::other(format!("static registry manifest seed rejected: {error:?}"))
-    })
+    Ok(registry)
 }
 
 fn needs_agent_skill_directory(

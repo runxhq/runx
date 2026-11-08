@@ -9,12 +9,13 @@ use runx_contracts::{
     JsonObject, JsonValue, LoadedPackage, ResolutionRequest, TrustTier, TurnCallOutcome,
     TurnCallResult, TurnLoad, TurnTarget,
 };
-use runx_runtime::registry::{FileRegistryStore, IngestSkillOptions, ingest_skill_markdown};
 use runx_runtime::{
     LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
     TurnSession,
 };
 use tempfile::tempdir;
+
+use crate::registry_fixture::{LoopbackRegistry, Publication};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -24,19 +25,17 @@ const TURN: &str = "work";
 /// A runner's body that digests its value.
 const DIGEST_RUNNER: &str = "    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n";
 
-/// A project with a local registry holding `acme/echo` at each tier asked.
+/// A project whose registry publishes `acme/echo` at each tier asked.
 struct Project {
     root: PathBuf,
-    registry: PathBuf,
+    registry: LoopbackRegistry,
 }
 
 impl Project {
     fn new(root: &Path) -> TestResult<Self> {
-        let registry = root.join("registry");
-        std::fs::create_dir_all(&registry)?;
         Ok(Self {
             root: root.to_path_buf(),
-            registry,
+            registry: LoopbackRegistry::serve()?,
         })
     }
 
@@ -62,19 +61,13 @@ impl Project {
         note: &str,
         runners: &str,
     ) -> TestResult {
-        ingest_skill_markdown(
-            &FileRegistryStore::new(&self.registry),
-            &format!("---\nname: {name}\ndescription: Says it, digested. {note}\n---\n# {name}\n"),
-            IngestSkillOptions {
-                publisher_slug: Some("acme".to_owned()),
-                version: Some(version.to_owned()),
-                created_at: Some("2026-10-16T00:00:00Z".to_owned()),
-                profile_document: Some(format!("skill: {name}\nrunners:\n{runners}")),
-                trust_tier: Some(tier),
-                ..IngestSkillOptions::default()
-            },
-        )?;
-        crate::skill_run::sign_registry_version(&self.registry, &format!("acme/{name}"), version)?;
+        let markdown =
+            format!("---\nname: {name}\ndescription: Says it, digested. {note}\n---\n# {name}\n");
+        let profile = format!("skill: {name}\nrunners:\n{runners}");
+        self.registry.publish(Publication {
+            trust_tier: tier,
+            ..Publication::new("acme", version, &markdown, Some(&profile))
+        })?;
         Ok(())
     }
 
@@ -111,15 +104,12 @@ impl Project {
     }
 
     fn env(&self) -> TestResult<BTreeMap<String, String>> {
-        let mut env = crate::skill_run::trusted_manifest_env_for_publisher("acme", None)?;
+        let mut env = self.registry.env()?;
         env.insert(
             "RUNX_CWD".to_owned(),
             self.root.to_string_lossy().into_owned(),
         );
-        env.insert(
-            "RUNX_REGISTRY_DIR".to_owned(),
-            self.registry.to_string_lossy().into_owned(),
-        );
+        env.insert("RUNX_REGISTRY_URL".to_owned(), self.registry.url.clone());
         crate::support::insert_test_signing_env(&mut env);
         Ok(env)
     }

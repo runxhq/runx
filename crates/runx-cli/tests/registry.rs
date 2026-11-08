@@ -3,22 +3,14 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use base64::Engine;
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
-use ring::signature::KeyPair;
 use serde_json::json;
 
 use crate::registry_fixture::{LoopbackRegistry, Publication};
 
-const TEST_MANIFEST_KEY_ID: &str = "runx-registry-test-key";
-const TEST_MANIFEST_SIGNER_ID: &str = "runx-registry-test-signer";
-const TEST_MANIFEST_SEED: [u8; 32] = [7; 32];
-
 #[test]
-fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error::Error>> {
-    let root = temp_root("registry-local");
+fn registry_publish_search_install_json() -> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("registry-publish");
     let skill_dir = root.join("skill");
-    let registry_dir = root.join("registry");
     let install_dir = crate::support::added_skills();
     fs::create_dir_all(&skill_dir)?;
     fs::write(
@@ -29,16 +21,15 @@ fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error
         skill_dir.join("run.yaml"),
         include_str!("../../../fixtures/registry/install/echo-run.yaml"),
     )?;
+    let registry = LoopbackRegistry::serve()?;
 
-    let publish = runx_command()?
+    let publish = registry_command(&registry, &root)?
         .args([
             "registry",
             "publish",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--publisher",
-            "acme",
+            &registry.url,
             "--version",
             "1.0.0",
             "--json",
@@ -49,13 +40,13 @@ fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error
         &["\"action\": \"publish\"", "\"skill_id\": \"acme/echo\""],
     )?;
 
-    let search = runx_command()?
+    let search = registry_command(&registry, &root)?
         .args([
             "registry",
             "search",
             "echo",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
             "--json",
         ])
         .output()?;
@@ -64,15 +55,14 @@ fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error
         &["\"action\": \"search\"", "\"skill_id\": \"acme/echo\""],
     )?;
 
-    mutate_registry_version(&registry_dir, insert_signed_manifest)?;
-    let install = runx_command()?
+    let install = registry_command(&registry, &root)?
         .env("RUNX_CWD", &root)
         .args([
             "registry",
             "install",
             "acme/echo@1.0.0",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
             "--json",
         ])
         .output()?;
@@ -84,27 +74,19 @@ fn registry_local_publish_search_install_json() -> Result<(), Box<dyn std::error
             "\"status\": \"installed\"",
         ],
     )?;
-    assert!(
-        install_dir
-            .join("acme")
-            .join("echo")
-            .join("1.0.0")
-            .join("SKILL.md")
-            .exists()
-    );
+    assert!(install_dir.join("acme/echo/1.0.0/SKILL.md").exists());
 
     Ok(())
 }
 
 #[test]
-fn registry_local_publish_install_executes_bundled_sibling()
--> Result<(), Box<dyn std::error::Error>> {
+fn registry_publish_install_executes_bundled_sibling() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-bundled-sibling");
     let source = root.join("source");
     let skill_dir = source.join("root");
     let sibling_dir = source.join("sibling");
     let leaf_dir = source.join("leaf");
-    let registry_dir = root.join("registry");
+    let registry = LoopbackRegistry::serve()?;
     let install_dir = crate::support::added_skills();
     fs::create_dir_all(skill_dir.join("packets"))?;
     fs::create_dir_all(&sibling_dir)?;
@@ -191,15 +173,13 @@ runners:
         ],
     )?;
 
-    let publish = runx_command()?
+    let publish = registry_command(&registry, &root)?
         .args([
             "registry",
             "publish",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--publisher",
-            "acme",
+            &registry.url,
             "--version",
             "1.0.0",
             "--json",
@@ -207,14 +187,14 @@ runners:
         .output()?;
     assert_success_contains(&publish, &["\"action\": \"publish\""])?;
 
-    let install = runx_command()?
+    let install = registry_command(&registry, &root)?
         .env("RUNX_CWD", &root)
         .args([
             "registry",
             "install",
             "acme/bundled-root@1.0.0",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
             "--json",
         ])
         .output()?;
@@ -257,7 +237,7 @@ fn adding_a_skill_adds_the_connectors_it_carries() -> Result<(), Box<dyn std::er
     let root = temp_root("registry-carried-connectors");
     let source = root.join("source");
     let skill_dir = source.join("carrier");
-    let registry_dir = root.join("registry");
+    let registry = LoopbackRegistry::serve()?;
     let workspace = root.join("workspace");
     crate::support::plugin_with_fixture_connectors(&source, &["fixture/forge"])?;
     fs::create_dir_all(&skill_dir)?;
@@ -290,15 +270,13 @@ runners:
 "#,
     )?;
 
-    let publish = runx_command()?
+    let publish = registry_command(&registry, &root)?
         .args([
             "registry",
             "publish",
             skill_dir.to_str().ok_or("non-utf8 skill dir")?,
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--publisher",
-            "acme",
+            &registry.url,
             "--version",
             "1.0.0",
             "--json",
@@ -306,14 +284,14 @@ runners:
         .output()?;
     assert_success_contains(&publish, &["\"action\": \"publish\""])?;
 
-    let add = runx_command()?
+    let add = registry_command(&registry, &root)?
         .current_dir(&workspace)
         .args([
             "registry",
             "install",
             "acme/carrier@1.0.0",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
             "--json",
         ])
         .output()?;
@@ -327,7 +305,7 @@ runners:
     assert!(versions[0].join("connector.yaml").is_file());
 
     // The workspace is in no plugin; the carried copy is reached by its ref.
-    let inspect = runx_command()?
+    let inspect = registry_command(&registry, &root)?
         .current_dir(&workspace)
         .args(["connector", "inspect", "fixture/forge", "--json"])
         .output()?;
@@ -710,59 +688,32 @@ fn a_root_name_installs_the_canonical_skill_it_addresses() -> Result<(), Box<dyn
 #[test]
 fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-side-by-side");
-    let registry_dir = root.join("registry");
     let install_dir = crate::support::added_skills();
-    publish_fixture_version(&root, &registry_dir, "1.0.0", "Echo")?;
-    publish_fixture_version(&root, &registry_dir, "2.0.0", "Echo v2")?;
-    sign_registry_version(&registry_dir, "1.0.0")?;
-    sign_registry_version(&registry_dir, "2.0.0")?;
+    let registry = LoopbackRegistry::serve()?;
+    publish_echo(&registry, "1.0.0", "Echo")?;
+    publish_echo(&registry, "2.0.0", "Echo v2")?;
 
     for subject in ["acme/echo@1.0.0", "acme/echo@2.0.0"] {
-        let install = runx_command()?
+        let install = registry_command(&registry, &root)?
             .env("RUNX_CWD", &root)
             .args([
                 "registry",
                 "install",
                 subject,
                 "--registry",
-                registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+                &registry.url,
                 "--json",
             ])
             .output()?;
         assert_success_contains(&install, &["\"action\": \"install\""])?;
     }
 
-    assert!(
-        install_dir
-            .join("acme")
-            .join("echo")
-            .join("1.0.0")
-            .join("SKILL.md")
-            .exists()
-    );
-    assert!(
-        install_dir
-            .join("acme")
-            .join("echo")
-            .join("2.0.0")
-            .join("SKILL.md")
-            .exists()
-    );
+    let installed = |version: &str| install_dir.join("acme/echo").join(version).join("SKILL.md");
+    assert!(installed("1.0.0").exists());
+    assert!(installed("2.0.0").exists());
     assert_ne!(
-        fs::read_to_string(
-            install_dir
-                .join("acme")
-                .join("echo")
-                .join("1.0.0")
-                .join("SKILL.md")
-        )?,
-        fs::read_to_string(
-            install_dir
-                .join("acme")
-                .join("echo")
-                .join("2.0.0")
-                .join("SKILL.md")
-        )?
+        fs::read_to_string(installed("1.0.0"))?,
+        fs::read_to_string(installed("2.0.0"))?
     );
 
     Ok(())
@@ -773,37 +724,32 @@ fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn st
     type VersionMutator = fn(&mut serde_json::Value);
     let cases: [(&str, VersionMutator); 3] = [
         ("unknown_key", |version| {
-            version["signed_manifest"]["signer"]["key_id"] =
-                serde_json::Value::String("unknown-key".to_owned());
+            version["signed_manifest"]["signer"]["key_id"] = json!("unknown-key");
         }),
         ("invalid_signature", |version| {
-            version["signed_manifest"]["signature"]["value"] =
-                serde_json::Value::String("base64:invalid".to_owned());
+            version["signed_manifest"]["signature"]["value"] = json!("base64:invalid");
         }),
         ("digest_mismatch", |version| {
-            version["markdown"] = serde_json::Value::String(
-                "---\nname: echo\ndescription: echo fixture.\n---\n# Tampered\n".to_owned(),
-            );
+            version["markdown"] =
+                json!("---\nname: echo\ndescription: echo fixture.\n---\n# Tampered\n");
         }),
     ];
 
     for (error_kind, mutate) in cases {
         let root = temp_root(&format!("registry-{error_kind}"));
-        let registry_dir = publish_registry_fixture(&root)?;
-        mutate_registry_version(&registry_dir, |version| {
-            mutate(version);
-            Ok(())
-        })?;
+        let registry = LoopbackRegistry::serve()?;
+        publish_echo(&registry, "1.0.0", "Echo")?;
+        registry.tamper("acme/echo", "1.0.0", mutate)?;
         let install_dir = crate::support::added_skills();
 
-        let install = runx_command()?
+        let install = registry_command(&registry, &root)?
             .env("RUNX_CWD", &root)
             .args([
                 "registry",
                 "install",
                 "acme/echo@1.0.0",
                 "--registry",
-                registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+                &registry.url,
                 "--json",
             ])
             .output()?;
@@ -821,13 +767,32 @@ fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn st
 #[test]
 fn registry_local_install_accepts_unsigned_manifest() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-local-unsigned");
-    let registry_dir = publish_registry_fixture(&root)?;
-    mutate_registry_version(&registry_dir, |version| {
-        if let Some(object) = version.as_object_mut() {
-            object.remove("signed_manifest");
-        }
-        Ok(())
-    })?;
+    let skill_dir = root.join("skill");
+    let registry_dir = root.join("registry");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
+    )?;
+    let publish = runx_command()?
+        .args([
+            "registry",
+            "publish",
+            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
+            "--registry",
+            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            "--publisher",
+            "acme",
+            "--version",
+            "1.0.0",
+            "--json",
+        ])
+        .output()?;
+    assert_success_contains(&publish, &["\"action\": \"publish\""])?;
     let install_dir = crate::support::added_skills();
 
     let install = runx_command()?
@@ -851,14 +816,7 @@ fn registry_local_install_accepts_unsigned_manifest() -> Result<(), Box<dyn std:
             "\"status\": \"installed\"",
         ],
     )?;
-    assert!(
-        install_dir
-            .join("acme")
-            .join("echo")
-            .join("1.0.0")
-            .join("SKILL.md")
-            .exists()
-    );
+    assert!(install_dir.join("acme/echo/1.0.0/SKILL.md").exists());
     Ok(())
 }
 
@@ -877,40 +835,31 @@ fn registry_json_parse_failure_uses_failure_envelope() -> Result<(), Box<dyn std
 fn registry_human_output_names_selected_version_and_digest()
 -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-human");
-    let registry_dir = root.join("registry");
-    publish_fixture_version(&root, &registry_dir, "1.0.0", "Echo")?;
-    publish_fixture_version(&root, &registry_dir, "2.0.0", "Echo v2")?;
-    mutate_registry_version(&registry_dir, insert_signed_manifest)?;
+    let registry = LoopbackRegistry::serve()?;
+    publish_echo(&registry, "1.0.0", "Echo")?;
+    publish_echo(&registry, "2.0.0", "Echo v2")?;
 
-    let install_v1 = runx_command()?
+    let install_v1 = registry_command(&registry, &root)?
         .env("RUNX_CWD", &root)
         .args([
             "registry",
             "install",
             "acme/echo@1.0.0",
             "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
+            &registry.url,
         ])
         .output()?;
     assert_success_contains(
         &install_v1,
         &[
             "registry install acme/echo@1.0.0",
+            "source           remote",
             "status           installed",
             "version          1.0.0",
             "digest           sha256:",
-            "signed           yes (runx-registry-test-key)",
+            &format!("signed           yes ({})", crate::registry_fixture::KEY_ID),
             "destination      ",
         ],
-    )?;
-
-    let file_registry = format!("file://{}", registry_dir.display());
-    let file_search = runx_command()?
-        .args(["registry", "search", "echo", "--registry", &file_registry])
-        .output()?;
-    assert_success_contains(
-        &file_search,
-        &["registry search  echo", "source           file"],
     )?;
 
     Ok(())
@@ -919,22 +868,17 @@ fn registry_human_output_names_selected_version_and_digest()
 #[test]
 fn registry_human_output_names_search_results() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_root("registry-search-human");
-    let registry_dir = root.join("registry");
-    publish_fixture_version(&root, &registry_dir, "1.0.0", "Echo")?;
+    let registry = LoopbackRegistry::serve()?;
+    publish_echo(&registry, "1.0.0", "Echo")?;
 
-    let search = runx_command()?
-        .args([
-            "registry",
-            "search",
-            "echo",
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-        ])
+    let search = registry_command(&registry, &root)?
+        .args(["registry", "search", "echo", "--registry", &registry.url])
         .output()?;
     assert_success_contains(
         &search,
         &[
             "registry search  echo",
+            "source           remote",
             "results          1",
             "- acme/echo@1.0.0",
             "digest   sha256:",
@@ -947,9 +891,14 @@ fn registry_human_output_names_search_results() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-fn publish_registry_fixture(root: &std::path::Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+/// An operator holding the registry's publish credential publishes through
+/// the operator route, into the namespace it names with --publisher and only
+/// that, and what it publishes installs as the registry signed it.
+#[test]
+fn an_operator_publish_goes_into_the_namespace_it_names() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = temp_root("registry-operator-publish");
     let skill_dir = root.join("skill");
-    let registry_dir = root.join("registry");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
@@ -959,156 +908,105 @@ fn publish_registry_fixture(root: &std::path::Path) -> Result<PathBuf, Box<dyn s
         skill_dir.join("run.yaml"),
         include_str!("../../../fixtures/registry/install/echo-run.yaml"),
     )?;
+    let registry = LoopbackRegistry::serve()?;
+    let skill = skill_dir.to_str().ok_or("non-utf8 skill dir")?;
+    let operator = |args: &[&str]| -> Result<std::process::Output, Box<dyn std::error::Error>> {
+        Ok(runx_command()?
+            .envs(registry.env_trusting("partner")?)
+            .env("RUNX_HOME", root.join("home"))
+            .env("RUNX_CWD", &root)
+            .env("RUNX_HOSTED_REGISTRY_PUBLISH_TOKEN", "operator-token")
+            .args(args)
+            .output()?)
+    };
 
-    let publish = runx_command()?
-        .args([
-            "registry",
-            "publish",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--publisher",
-            "acme",
-            "--version",
-            "1.0.0",
-            "--json",
-        ])
-        .output()?;
-    assert_success_contains(&publish, &["\"action\": \"publish\""])?;
-    mutate_registry_version(&registry_dir, insert_signed_manifest)?;
-    Ok(registry_dir)
+    let unnamed = operator(&[
+        "registry",
+        "publish",
+        skill,
+        "--registry",
+        &registry.url,
+        "--json",
+    ])?;
+    assert_json_failure_contains(
+        &unnamed,
+        "names the namespace it publishes into with --publisher",
+    )?;
+
+    let published = operator(&[
+        "registry",
+        "publish",
+        skill,
+        "--registry",
+        &registry.url,
+        "--publisher",
+        "partner",
+        "--json",
+    ])?;
+    assert_success_contains(&published, &["\"skill_id\": \"partner/echo\""])?;
+    let output: serde_json::Value = serde_json::from_slice(&published.stdout)?;
+    let version = output["registry"]["publish"]["version"]
+        .as_str()
+        .ok_or("the publish names its version")?
+        .to_owned();
+    let asked = registry.asked();
+    assert!(
+        asked
+            .iter()
+            .any(|line| line.starts_with("POST /v1/admin/registry/publish ")),
+        "{asked:?}"
+    );
+    assert!(
+        asked
+            .iter()
+            .all(|line| !line.starts_with("POST /v1/skills ")),
+        "{asked:?}"
+    );
+
+    let install = operator(&[
+        "registry",
+        "install",
+        &format!("partner/echo@{version}"),
+        "--registry",
+        &registry.url,
+        "--json",
+    ])?;
+    assert_success_contains(&install, &["\"status\": \"installed\""])?;
+    fs::remove_dir_all(&root)?;
+    Ok(())
 }
 
-fn publish_fixture_version(
-    root: &std::path::Path,
-    registry_dir: &std::path::Path,
+/// Publishes the echo fixture as acme's at `version`, its manual titled
+/// `title`.
+fn publish_echo(
+    registry: &LoopbackRegistry,
     version: &str,
     title: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let skill_dir = root.join(format!("skill-{}", version.replace('.', "-")));
-    fs::create_dir_all(&skill_dir)?;
-    fs::write(
-        skill_dir.join("SKILL.md"),
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md")
-            .replace("# Echo", &format!("# {title}")),
-    )?;
-    fs::write(
-        skill_dir.join("run.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
-    )?;
-    let publish = runx_command()?
-        .args([
-            "registry",
-            "publish",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "--registry",
-            registry_dir.to_str().ok_or("non-utf8 registry dir")?,
-            "--publisher",
-            "acme",
-            "--version",
-            version,
-            "--json",
-        ])
-        .output()?;
-    assert_success_contains(&publish, &["\"action\": \"publish\""])?;
-    Ok(())
-}
-
-fn sign_registry_version(
-    registry_dir: &std::path::Path,
-    version: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let version_path = registry_dir
-        .join("acme")
-        .join("echo")
-        .join(format!("{version}.json"));
-    let mut version_record =
-        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&version_path)?)?;
-    version_record["signed_manifest"] = signed_manifest(&version_record)?;
-    fs::write(
-        version_path,
-        format!("{}\n", serde_json::to_string_pretty(&version_record)?),
-    )?;
-    Ok(())
-}
-
-fn mutate_registry_version(
-    registry_dir: &std::path::Path,
-    mutate: impl FnOnce(&mut serde_json::Value) -> Result<(), Box<dyn std::error::Error>>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let version_path = registry_dir.join("acme").join("echo").join("1.0.0.json");
-    let mut version =
-        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&version_path)?)?;
-    mutate(&mut version)?;
-    fs::write(
-        version_path,
-        format!("{}\n", serde_json::to_string_pretty(&version)?),
-    )?;
-    Ok(())
-}
-
-fn insert_signed_manifest(
-    version: &mut serde_json::Value,
-) -> Result<(), Box<dyn std::error::Error>> {
-    version["signed_manifest"] = signed_manifest(version)?;
-    Ok(())
-}
-
-/// The envelope the registry serves for a stored record's exact files.
-fn signed_manifest(
-    version_record: &serde_json::Value,
-) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let skill_id = version_record["skill_id"]
-        .as_str()
-        .ok_or("missing skill_id")?;
-    let version = version_record["version"]
-        .as_str()
-        .ok_or("missing version")?;
-    let markdown = version_record["markdown"]
-        .as_str()
-        .ok_or("missing markdown")?;
-    let package_files: Vec<runx_runtime::registry::RegistryPackageFile> =
-        serde_json::from_value(version_record["package_files"].clone()).unwrap_or_default();
-    let content_digest = runx_runtime::registry::skill_content_digest(
-        markdown,
-        version_record["profile_document"].as_str(),
-        &package_files,
-    )?;
-    sign_envelope(
-        runx_contracts::RegistrySubjectKind::Skill,
-        skill_id,
+    let markdown = include_str!("../../../fixtures/registry/install/echo-SKILL.md")
+        .replace("# Echo", &format!("# {title}"));
+    registry.publish(Publication::new(
+        "acme",
         version,
-        content_digest,
-    )
+        &markdown,
+        Some(include_str!(
+            "../../../fixtures/registry/install/echo-run.yaml"
+        )),
+    ))?;
+    Ok(())
 }
 
-/// The envelope the registry serves for one subject's version and content.
-fn sign_envelope(
-    kind: runx_contracts::RegistrySubjectKind,
-    name: &str,
-    version: &str,
-    content_digest: String,
-) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let mut manifest = runx_contracts::RegistrySignedManifest {
-        schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
-        subject: runx_contracts::RegistrySubject {
-            kind,
-            name: name.to_owned(),
-        },
-        version: version.to_owned(),
-        content_digest,
-        signer: runx_contracts::RegistryManifestSigner {
-            id: TEST_MANIFEST_SIGNER_ID.to_owned(),
-            key_id: TEST_MANIFEST_KEY_ID.to_owned(),
-        },
-        signature: runx_contracts::RegistryManifestSignature {
-            alg: "ed25519".to_owned(),
-            value: "base64:".to_owned(),
-        },
-    };
-    let signature = test_manifest_key_pair()?.sign(&manifest.signing_payload()?);
-    manifest.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
-    Ok(serde_json::to_value(manifest)?)
+/// `runx` reaching `registry` as its publisher, trusting its key, with its
+/// own home under `root`.
+fn registry_command(
+    registry: &LoopbackRegistry,
+    root: &std::path::Path,
+) -> Result<Command, Box<dyn std::error::Error>> {
+    let mut command = runx_command()?;
+    command
+        .envs(registry.publisher_env()?)
+        .env("RUNX_HOME", root.join("home"));
+    Ok(command)
 }
 
 /// Makes `root` the hosted-records plugin: one hosted connector,
@@ -1346,28 +1244,10 @@ fn a_graph_case_binds_the_grant_its_composed_skill_calls() -> Result<(), Box<dyn
     Ok(())
 }
 
-fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {
-    ring::signature::Ed25519KeyPair::from_seed_unchecked(&TEST_MANIFEST_SEED).map_err(|error| {
-        std::io::Error::other(format!("static registry manifest seed rejected: {error:?}"))
-    })
-}
-
 fn runx_command() -> Result<Command, Box<dyn std::error::Error>> {
     let mut command = Command::new(env!("CARGO_BIN_EXE_runx"));
     command.env("NO_COLOR", "1");
     crate::support::isolate_project(&mut command);
-    command.env(
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-        STANDARD.encode(test_manifest_key_pair()?.public_key().as_ref()),
-    );
-    command.env(
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
-        TEST_MANIFEST_KEY_ID,
-    );
-    command.env(
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
-        "acme",
-    );
     Ok(command)
 }
 

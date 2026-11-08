@@ -2,12 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use base64::Engine;
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
-use ring::signature::KeyPair;
 use runx_contracts::JsonValue;
 use runx_receipts::ReceiptTreeConfig;
-use runx_runtime::registry::TrustTier;
 use runx_runtime::registry::{FileRegistryStore, IngestSkillOptions, ingest_skill_markdown};
 use runx_runtime::{
     LocalOrchestrator, LocalReceiptStore, RUNX_RECEIPT_DIR_ENV, RunResult, SkillRunRequest,
@@ -17,10 +13,9 @@ use runx_runtime::{
 };
 use tempfile::tempdir;
 
+use crate::registry_fixture::{LoopbackRegistry, Publication};
+
 const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
-const TEST_MANIFEST_KEY_ID: &str = "runx-runtime-registry-test-key";
-const TEST_MANIFEST_SIGNER_ID: &str = "runx-runtime-registry-test-signer";
-const TEST_MANIFEST_SEED: [u8; 32] = [9; 32];
 
 fn registry_child_profile_document() -> String {
     r#"
@@ -48,136 +43,58 @@ runners:
     .to_owned()
 }
 
-fn trusted_manifest_env() -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
-    trusted_manifest_env_for_publisher("acme", None)
+/// A loopback registry publishing `acme/registry-child@1.0.0`.
+fn registry_child() -> Result<LoopbackRegistry, Box<dyn std::error::Error>> {
+    let registry = LoopbackRegistry::serve()?;
+    let profile = registry_child_profile_document();
+    registry.publish(Publication::new(
+        "acme",
+        "1.0.0",
+        "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
+        Some(&profile),
+    ))?;
+    Ok(registry)
 }
 
-pub(crate) fn trusted_manifest_env_for_publisher(
-    publisher: &str,
-    source_authority: Option<&str>,
+/// The environment of a project at `root` that reaches `registry` and
+/// trusts its key.
+fn registry_env(
+    registry: &LoopbackRegistry,
+    root: &Path,
 ) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
-    let key_pair = test_manifest_key_pair()?;
-    let mut env = [
-        (
-            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV.to_owned(),
-            TEST_MANIFEST_KEY_ID.to_owned(),
-        ),
-        (
-            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV.to_owned(),
-            STANDARD.encode(key_pair.public_key().as_ref()),
-        ),
-        (
-            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV.to_owned(),
-            publisher.to_owned(),
-        ),
-    ]
-    .into_iter()
-    .collect::<BTreeMap<_, _>>();
-    if let Some(source_authority) = source_authority {
-        env.insert(
-            runx_runtime::registry::RUNX_REGISTRY_SOURCE_AUTHORITY_ENV.to_owned(),
-            source_authority.to_owned(),
-        );
-    }
+    let mut env = registry.env()?;
+    env.insert(
+        runx_runtime::RUNX_CWD_ENV.to_owned(),
+        root.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "RUNX_HOME".to_owned(),
+        root.join("home").to_string_lossy().into_owned(),
+    );
     Ok(env)
 }
 
-pub(crate) fn sign_registry_version(
-    registry_dir: &Path,
-    skill_id: &str,
-    version: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let version_path = registry_version_path(registry_dir, skill_id, version)?;
-    let mut version_record =
-        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&version_path)?)?;
-    version_record["signed_manifest"] = signed_manifest(&version_record)?;
-    fs::write(
-        version_path,
-        format!("{}\n", serde_json::to_string_pretty(&version_record)?),
-    )?;
-    Ok(())
-}
-
-fn tamper_registry_version_markdown(
-    registry_dir: &Path,
-    skill_id: &str,
-    version: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let version_path = registry_version_path(registry_dir, skill_id, version)?;
-    let mut version_record =
-        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&version_path)?)?;
-    let markdown = version_record["markdown"]
-        .as_str()
-        .ok_or("registry version missing markdown")?;
-    version_record["markdown"] =
-        serde_json::Value::String(markdown.replace("Registry", "Tampered"));
-    fs::write(
-        version_path,
-        format!("{}\n", serde_json::to_string_pretty(&version_record)?),
-    )?;
-    Ok(())
-}
-
-fn registry_version_path(
-    registry_dir: &Path,
-    skill_id: &str,
-    version: &str,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let (publisher, name) = skill_id
-        .split_once('/')
-        .ok_or("registry test skill id must be publisher/name")?;
-    Ok(registry_dir
-        .join(publisher)
-        .join(name)
-        .join(format!("{version}.json")))
-}
-
-/// The envelope the registry serves for a stored record's exact files.
-fn signed_manifest(
-    version_record: &serde_json::Value,
-) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let skill_id = version_record["skill_id"]
-        .as_str()
-        .ok_or("missing skill_id")?;
-    let version = version_record["version"]
-        .as_str()
-        .ok_or("missing version")?;
-    let markdown = version_record["markdown"]
-        .as_str()
-        .ok_or("missing markdown")?;
-    let package_files: Vec<runx_runtime::registry::RegistryPackageFile> =
-        serde_json::from_value(version_record["package_files"].clone()).unwrap_or_default();
-    let content_digest = runx_runtime::registry::skill_content_digest(
-        markdown,
-        version_record["profile_document"].as_str(),
-        &package_files,
-    )?;
-    let mut manifest = runx_contracts::RegistrySignedManifest {
-        schema: runx_runtime::registry::REGISTRY_SIGNED_MANIFEST_SCHEMA.to_owned(),
-        subject: runx_contracts::RegistrySubject {
-            kind: runx_contracts::RegistrySubjectKind::Skill,
-            name: skill_id.to_owned(),
+/// Fetch every registry skill the package at `skill_dir` names from
+/// `registry` into the project at `root`, as `runx skill` does before a run,
+/// and return the environment a run of it takes.
+fn fetch_registry_refs(
+    registry: &LoopbackRegistry,
+    root: &Path,
+    skill_dir: &Path,
+) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
+    let env = registry_env(registry, root)?;
+    runx_runtime::registry::resolve::resolve_skill_ref_details(
+        skill_dir,
+        root,
+        runx_runtime::registry::resolve::SkillResolverOptions {
+            env: &env,
+            registry: Some(&registry.url),
+            expected_digest: None,
+            absent_pins: runx_runtime::registry::resolve::AbsentPins::Fail,
+            holder: runx_runtime::registry::resolve::Holder::Project,
         },
-        version: version.to_owned(),
-        content_digest,
-        signer: runx_contracts::RegistryManifestSigner {
-            id: TEST_MANIFEST_SIGNER_ID.to_owned(),
-            key_id: TEST_MANIFEST_KEY_ID.to_owned(),
-        },
-        signature: runx_contracts::RegistryManifestSignature {
-            alg: "ed25519".to_owned(),
-            value: "base64:".to_owned(),
-        },
-    };
-    let signature = test_manifest_key_pair()?.sign(&manifest.signing_payload()?);
-    manifest.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
-    Ok(serde_json::to_value(manifest)?)
-}
-
-fn test_manifest_key_pair() -> Result<ring::signature::Ed25519KeyPair, std::io::Error> {
-    ring::signature::Ed25519KeyPair::from_seed_unchecked(&TEST_MANIFEST_SEED).map_err(|error| {
-        std::io::Error::other(format!("static registry manifest seed rejected: {error:?}"))
-    })
+    )?;
+    Ok(env)
 }
 
 #[test]
@@ -1448,10 +1365,10 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
 fn graph_agent_task_injects_registry_skill_as_current_context()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let registry_dir = temp.path().join("registry");
-    let store = FileRegistryStore::new(&registry_dir);
-    ingest_skill_markdown(
-        &store,
+    let registry = LoopbackRegistry::serve()?;
+    registry.publish(Publication::new(
+        "acme",
+        "1.0.0",
         r#"---
 name: taste-profile
 description: Portable taste guidance for downstream agents.
@@ -1461,34 +1378,22 @@ description: Portable taste guidance for downstream agents.
 Prefer clear product taste over ornamental flourish. Flag incoherent hierarchy,
 weak contrast, and interaction states that feel bolted on.
 "#,
-        IngestSkillOptions {
-            publisher_slug: Some("runx".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
-            profile_document: Some(
-                r#"skill: taste-profile
+        Some(
+            r#"skill: taste-profile
 runners:
   main:
     default: true
     steps:
       - id: main
         agent: { role: critic, task: apply taste judgement }
-"#
-                .to_owned(),
-            ),
-            ..IngestSkillOptions::default()
-        },
-    )?;
+"#,
+        ),
+    ))?;
     let skill_dir = write_graph_agent_task_with_context_skill(
         temp.path(),
-        "registry:runx/taste-profile@1.0.0",
+        "registry:acme/taste-profile@1.0.0",
     )?;
-    let env = [(
-        "RUNX_REGISTRY_DIR".to_owned(),
-        registry_dir.to_string_lossy().into_owned(),
-    )]
-    .into_iter()
-    .collect::<BTreeMap<_, _>>();
+    let env = fetch_registry_refs(&registry, temp.path(), &skill_dir)?;
 
     let result = run_skill(SkillRunRequest {
         current_context: Vec::new(),
@@ -1522,8 +1427,9 @@ runners:
     );
     let data = object_field(context_entry, "data").ok_or("missing context data")?;
     assert_eq!(string_field(data, "source"), Some("runx-registry"));
-    assert_eq!(string_field(data, "skill_id"), Some("runx/taste-profile"));
+    assert_eq!(string_field(data, "skill_id"), Some("acme/taste-profile"));
     assert_eq!(string_field(data, "version"), Some("1.0.0"));
+    assert_eq!(string_field(data, "trust_tier"), Some("community"));
     assert_eq!(string_field(data, "content_kind"), Some("skill-manual"));
     assert_eq!(
         string_field(data, "description"),
@@ -1644,22 +1550,18 @@ runners:
 fn graph_agent_task_rejects_registry_runtime_path_context_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let registry_dir = temp.path().join("registry");
-    let store = FileRegistryStore::new(&registry_dir);
-    ingest_skill_markdown(
-        &store,
+    let registry = LoopbackRegistry::serve()?;
+    registry.publish(Publication::new(
+        "acme",
+        "1.0.0",
         r#"---
 name: runtime-helper
 description: Internal runtime helper.
 ---
 # Runtime Helper
 "#,
-        IngestSkillOptions {
-            publisher_slug: Some("sourcey".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
-            profile_document: Some(
-                r#"skill: runtime-helper
+        Some(
+            r#"skill: runtime-helper
 catalog:
   kind: skill
   audience: builder
@@ -1673,22 +1575,14 @@ runners:
     steps:
       - id: main
         agent: { role: builder, task: internal helper }
-"#
-                .to_owned(),
-            ),
-            ..IngestSkillOptions::default()
-        },
-    )?;
+"#,
+        ),
+    ))?;
     let skill_dir = write_graph_agent_task_with_context_skill(
         temp.path(),
-        "registry:sourcey/runtime-helper@1.0.0",
+        "registry:acme/runtime-helper@1.0.0",
     )?;
-    let env = [(
-        "RUNX_REGISTRY_DIR".to_owned(),
-        registry_dir.to_string_lossy().into_owned(),
-    )]
-    .into_iter()
-    .collect::<BTreeMap<_, _>>();
+    let env = fetch_registry_refs(&registry, temp.path(), &skill_dir)?;
 
     let error = match run_skill(SkillRunRequest {
         current_context: Vec::new(),
@@ -2574,27 +2468,9 @@ fn native_graph_skill_run_executes_nested_process_tool_skill()
 fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn std::error::Error>>
 {
     let temp = tempdir()?;
-    let registry_dir = temp.path().join("registry");
-    let store = FileRegistryStore::new(&registry_dir);
-    ingest_skill_markdown(
-        &store,
-        "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
-        IngestSkillOptions {
-            publisher_slug: Some("acme".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
-            profile_document: Some(registry_child_profile_document()),
-            ..IngestSkillOptions::default()
-        },
-    )?;
-    sign_registry_version(&registry_dir, "acme/registry-child", "1.0.0")?;
+    let registry = registry_child()?;
     let skill_dir = write_graph_nested_registry_skill(temp.path())?;
-    let receipt_dir = temp.path().join("receipts");
-    let mut env = trusted_manifest_env()?;
-    env.insert(
-        "RUNX_REGISTRY_DIR".to_owned(),
-        registry_dir.to_string_lossy().into_owned(),
-    );
+    let env = fetch_registry_refs(&registry, temp.path(), &skill_dir)?;
 
     let result = run_skill(SkillRunRequest {
         current_context: Vec::new(),
@@ -2602,7 +2478,7 @@ fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn
         run_authority: None,
         act: None,
         skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir),
+        receipt_dir: Some(temp.path().join("receipts")),
         run_id: None,
         answers: None,
         inputs: BTreeMap::new(),
@@ -2620,18 +2496,15 @@ fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn
     Ok(())
 }
 
+/// An inspection reports a registry child the project does not hold, and
+/// binds it once it is installed.
 #[test]
-fn skill_inspection_reports_registry_refs_the_registry_directory_does_not_hold()
+fn skill_inspection_reports_registry_refs_the_project_does_not_hold()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let registry_dir = temp.path().join("registry");
-    fs::create_dir_all(&registry_dir)?;
+    let registry = registry_child()?;
     let skill_dir = write_graph_nested_registry_skill(temp.path())?;
-    let mut env = trusted_manifest_env()?;
-    env.insert(
-        "RUNX_REGISTRY_DIR".to_owned(),
-        registry_dir.to_string_lossy().into_owned(),
-    );
+    let env = registry_env(&registry, temp.path())?;
     let closure_of = |inspection: &runx_contracts::SkillInspection| -> Result<JsonValue, Box<dyn std::error::Error>> {
         Ok(JsonValue::Object(
             inspection
@@ -2657,19 +2530,7 @@ fn skill_inspection_reports_registry_refs_the_registry_directory_does_not_hold()
         )]))
     );
 
-    let store = FileRegistryStore::new(&registry_dir);
-    ingest_skill_markdown(
-        &store,
-        "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
-        IngestSkillOptions {
-            publisher_slug: Some("acme".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
-            profile_document: Some(registry_child_profile_document()),
-            ..IngestSkillOptions::default()
-        },
-    )?;
-    sign_registry_version(&registry_dir, "acme/registry-child", "1.0.0")?;
+    fetch_registry_refs(&registry, temp.path(), &skill_dir)?;
     let held = closure_of(&runx_runtime::inspect_skill_package(
         &skill_dir,
         None,
@@ -2685,61 +2546,34 @@ fn skill_inspection_reports_registry_refs_the_registry_directory_does_not_hold()
     Ok(())
 }
 
+/// No registry but the official one serves runx's own skills: a child
+/// another registry signs under `runx/` is refused before it is installed.
 #[test]
-fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
--> Result<(), Box<dyn std::error::Error>> {
+fn a_nested_runx_skill_from_another_registry_is_refused() -> Result<(), Box<dyn std::error::Error>>
+{
     let temp = tempdir()?;
-    let registry_dir = temp.path().join("registry");
-    let store = FileRegistryStore::new(&registry_dir);
-    ingest_skill_markdown(
-        &store,
+    let registry = LoopbackRegistry::serve()?;
+    registry.publish(Publication::new(
+        "runx",
+        "1.0.0",
         "---\nname: registry-child\ndescription: Official registry-backed nested child.\n---\n# Registry Child\n",
-        IngestSkillOptions {
-            publisher_slug: Some("runx".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
-            profile_document: Some(registry_child_profile_document()),
-            trust_tier: Some(TrustTier::FirstParty),
-            ..IngestSkillOptions::default()
-        },
-    )?;
-    sign_registry_version(&registry_dir, "runx/registry-child", "1.0.0")?;
+        Some(&registry_child_profile_document()),
+    ))?;
     let skill_dir = write_graph_nested_registry_skill_with_ref(
         temp.path(),
         "registry:runx/registry-child@1.0.0",
     )?;
-    let receipt_dir = temp.path().join("receipts");
-    let mut env = trusted_manifest_env_for_publisher("runx", Some("official_runx"))?;
-    env.insert(
-        "RUNX_REGISTRY_DIR".to_owned(),
-        registry_dir.to_string_lossy().into_owned(),
-    );
 
-    let error = match run_skill(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }) {
-        Ok(_) => {
-            return Err(
-                "env-promoted official nested registry skill unexpectedly succeeded".into(),
-            );
-        }
-        Err(error) => error,
-    };
+    let error = fetch_registry_refs(&registry, temp.path(), &skill_dir)
+        .err()
+        .ok_or("a runx skill from another registry was installed")?;
     assert!(
-        error.to_string().contains("trust configuration is invalid"),
+        error
+            .to_string()
+            .contains("third-party keys may not sign runx/*"),
         "unexpected error: {error}"
     );
+    assert!(!temp.path().join(".runx/added-skills/runx").exists());
 
     Ok(())
 }
@@ -2748,48 +2582,17 @@ fn native_graph_skill_run_rejects_env_promoted_official_nested_registry_skill()
 fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let registry_dir = temp.path().join("registry");
-    let store = FileRegistryStore::new(&registry_dir);
-    ingest_skill_markdown(
-        &store,
-        "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
-        IngestSkillOptions {
-            publisher_slug: Some("acme".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
-            profile_document: Some(registry_child_profile_document()),
-            ..IngestSkillOptions::default()
-        },
-    )?;
+    let registry = registry_child()?;
+    registry.tamper("acme/registry-child", "1.0.0", |record| {
+        if let Some(record) = record.as_object_mut() {
+            record.remove("signed_manifest");
+        }
+    })?;
     let skill_dir = write_graph_nested_registry_skill(temp.path())?;
-    let receipt_dir = temp.path().join("receipts");
-    let mut env = trusted_manifest_env()?;
-    env.insert(
-        "RUNX_REGISTRY_DIR".to_owned(),
-        registry_dir.to_string_lossy().into_owned(),
-    );
-    env.insert(
-        "RUNX_REGISTRY_URL".to_owned(),
-        "https://registry.example.test".to_owned(),
-    );
 
-    let error = match run_skill(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }) {
-        Ok(_) => return Err("unsigned nested registry skill unexpectedly succeeded".into()),
-        Err(error) => error,
-    };
+    let error = fetch_registry_refs(&registry, temp.path(), &skill_dir)
+        .err()
+        .ok_or("an unsigned nested registry skill was installed")?;
     assert!(
         error.to_string().contains("signed manifest is required"),
         "unexpected error: {error}"
@@ -2802,46 +2605,18 @@ fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
 fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let registry_dir = temp.path().join("registry");
-    let store = FileRegistryStore::new(&registry_dir);
-    ingest_skill_markdown(
-        &store,
-        "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
-        IngestSkillOptions {
-            publisher_slug: Some("acme".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some(FIXTURE_CREATED_AT.to_owned()),
-            profile_document: Some(registry_child_profile_document()),
-            ..IngestSkillOptions::default()
-        },
-    )?;
-    sign_registry_version(&registry_dir, "acme/registry-child", "1.0.0")?;
-    tamper_registry_version_markdown(&registry_dir, "acme/registry-child", "1.0.0")?;
+    let registry = registry_child()?;
+    registry.tamper("acme/registry-child", "1.0.0", |record| {
+        let tampered = record["markdown"]
+            .as_str()
+            .map(|markdown| markdown.replace("Registry", "Tampered"));
+        record["markdown"] = serde_json::json!(tampered);
+    })?;
     let skill_dir = write_graph_nested_registry_skill(temp.path())?;
-    let receipt_dir = temp.path().join("receipts");
-    let mut env = trusted_manifest_env()?;
-    env.insert(
-        "RUNX_REGISTRY_DIR".to_owned(),
-        registry_dir.to_string_lossy().into_owned(),
-    );
 
-    let error = match run_skill(SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipt_dir),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
-    }) {
-        Ok(_) => return Err("tampered nested registry skill unexpectedly succeeded".into()),
-        Err(error) => error,
-    };
+    let error = fetch_registry_refs(&registry, temp.path(), &skill_dir)
+        .err()
+        .ok_or("a tampered nested registry skill was installed")?;
     assert!(
         error.to_string().contains("digest mismatch"),
         "unexpected error: {error}"
@@ -4260,7 +4035,7 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
     let temp = tempdir()?;
     // The registry the package is published to holds acme's skill.
     let hosted = temp.path().join("hosted");
-    ingest_skill_markdown(
+    let mut record = ingest_skill_markdown(
         &FileRegistryStore::new(&hosted),
         "---\nname: registry-child\ndescription: Registry-backed nested child.\n---\n# Registry Child\n",
         IngestSkillOptions {
@@ -4271,9 +4046,23 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
             ..IngestSkillOptions::default()
         },
     )?;
-    sign_registry_version(&hosted, "acme/registry-child", "1.0.0")?;
+    record.signed_manifest = Some(crate::registry_fixture::sign(
+        runx_contracts::RegistrySubjectKind::Skill,
+        &record.skill_id,
+        &record.version,
+        runx_runtime::registry::skill_content_digest(
+            &record.markdown,
+            record.profile_document.as_deref(),
+            &record.package_files,
+        )?,
+    )?);
+    fs::write(
+        hosted.join("acme/registry-child/1.0.0.json"),
+        serde_json::to_string_pretty(&record)?,
+    )?;
     let skill_dir = write_graph_nested_registry_skill(temp.path())?;
-    let env = trusted_manifest_env()?;
+    let mut env = LoopbackRegistry::serve()?.env()?;
+    env.remove("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK");
     let subject = skill_dir.to_string_lossy().into_owned();
     let request = runx_runtime::registry::RegistryPublishPackageRequest {
         subject: &subject,

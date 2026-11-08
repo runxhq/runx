@@ -1,16 +1,19 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::sha256_prefixed;
-use runx_runtime::registry::resolve::{LocalRegistrySourceKind, RegistryTarget, install_skill_ref};
+use runx_runtime::registry::resolve::{
+    RegistryTarget, install_skill_ref, trusted_manifest_keys_for_source,
+};
 use runx_runtime::registry::{
-    FileRegistryStore, IngestSkillOptions, InstallCandidate, InstallError,
-    InstallLocalSkillOptions, PutVersionOptions, RegistryManifestSignature,
+    InstallCandidate, InstallError, InstallLocalSkillOptions, RegistryManifestSignature,
     RegistryManifestSourceAuthority, RegistryManifestTrustEnvError, RegistryPackageFile,
-    RegistrySignedManifest, RegistrySkillVersion, RegistrySubject, RegistrySubjectKind, TrustTier,
-    TrustedRegistryManifestKey, ingest_skill_markdown, install_local_skill, skill_content_digest,
+    RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
+    TrustedRegistryManifestKey, install_local_skill, skill_content_digest,
     trusted_registry_manifest_keys_from_env,
 };
 use tempfile::tempdir;
+
+use crate::registry_fixture::{LoopbackRegistry, Publication};
 
 #[cfg(unix)]
 #[test]
@@ -135,44 +138,32 @@ fn a_carried_connector_this_runx_does_not_read_leaves_nothing()
 
 /// A name without a version installs the newest version this runx reads and
 /// names the newer one it does not; that version, asked for by name, refuses.
+/// The registry lists one version a page, so the older one is found on the
+/// next.
 #[test]
 fn a_bare_name_installs_the_newest_version_this_runx_reads()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let registry = temp.path().join("registry");
-    let store = FileRegistryStore::new(&registry);
-    let readable = ingest_skill_markdown(
-        &store,
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
-        IngestSkillOptions {
-            publisher_slug: Some("acme".to_owned()),
-            version: Some("1.0.0".to_owned()),
-            created_at: Some("2026-10-01T00:00:00.000Z".to_owned()),
-            profile_document: Some(
-                include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
-            ),
-            ..IngestSkillOptions::default()
-        },
-    )?;
-    let package_files = unreadable_connector_files();
-    store.put_version(
-        RegistrySkillVersion {
-            version: "2.0.0".to_owned(),
-            bundle_digest: Some(bundle_digest(&package_files)?),
-            package_files,
-            created_at: "2026-10-02T00:00:00.000Z".to_owned(),
-            updated_at: "2026-10-02T00:00:00.000Z".to_owned(),
-            ..readable
-        },
-        PutVersionOptions { upsert: false },
-    )?;
-    let target = RegistryTarget::Local {
-        registry_path: registry,
-        registry_url: None,
-        source_kind: LocalRegistrySourceKind::Local,
+    let registry = LoopbackRegistry::serve()?;
+    registry.page_size(1);
+    let markdown = include_str!("../../../fixtures/registry/install/echo-SKILL.md");
+    let profile = include_str!("../../../fixtures/registry/install/echo-run.yaml");
+    registry.publish(Publication::new("acme", "1.0.0", markdown, Some(profile)))?;
+    registry.publish(Publication {
+        files: unreadable_connector_files(),
+        ..Publication::new("acme", "2.0.0", markdown, Some(profile))
+    })?;
+    let target = RegistryTarget::Remote {
+        registry_url: registry.url.clone(),
     };
-    let options = options(temp.path())?;
-    let env = BTreeMap::new();
+    let env = registry_env(&registry, temp.path())?;
+    let options = InstallLocalSkillOptions {
+        trusted_manifest_keys: trusted_manifest_keys_for_source(
+            &env,
+            target.manifest_source_authority(),
+        )?,
+        ..options(temp.path())?
+    };
 
     let installed = install_skill_ref(
         "acme/echo",
@@ -214,6 +205,83 @@ fn a_bare_name_installs_the_newest_version_this_runx_reads()
             .contains("does not read acme/echo@2.0.0")
     );
     Ok(())
+}
+
+/// A paid version's listing reaches the ref it resolves to, as the registry
+/// served it with the acquisition: the registry derives a listing, and a
+/// client only carries it.
+#[test]
+fn an_acquired_paid_listing_reaches_the_resolved_ref() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let registry = LoopbackRegistry::serve()?;
+    registry.publish(Publication::new(
+        "acme",
+        "1.0.0",
+        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        Some(include_str!(
+            "../../../fixtures/registry/install/echo-run.yaml"
+        )),
+    ))?;
+    let listing = serde_json::json!({
+        "skill_id": "acme/echo",
+        "version": "1.0.0",
+        "skill_digest": skill_digest(),
+        "profile_digest": profile_digest(),
+        "bundle_digest": format!("sha256:{}", "c".repeat(64)),
+        "seller_ref": {"type": "principal", "uri": "runx:principal:acme"},
+        "offers": {"default": {
+            "offer_version": {
+                "offer_id": "acme/echo#default",
+                "version": "1.0.0",
+                "profile_digest": profile_digest(),
+                "input_schema_digest": format!("sha256:{}", "d".repeat(64)),
+                "output_schema_digest": format!("sha256:{}", "e".repeat(64)),
+            },
+            "price": {"model": "fixed", "amount_minor": 125},
+            "currency": "USD",
+            "accepted_settlement_families": ["x402"],
+        }},
+    });
+    registry.tamper("acme/echo", "1.0.0", |record| {
+        record["paid_listing"] = listing.clone();
+    })?;
+    let env = registry_env(&registry, temp.path())?;
+
+    let resolved = runx_runtime::registry::resolve::resolve_skill_ref_details(
+        std::path::Path::new("acme/echo@1.0.0"),
+        temp.path(),
+        runx_runtime::registry::resolve::SkillResolverOptions {
+            env: &env,
+            registry: Some(&registry.url),
+            expected_digest: None,
+            absent_pins: runx_runtime::registry::resolve::AbsentPins::Fail,
+            holder: runx_runtime::registry::resolve::Holder::Project,
+        },
+    )?;
+
+    assert_eq!(
+        serde_json::to_value(resolved.paid_listing.ok_or("the listing was dropped")?)?,
+        listing
+    );
+    Ok(())
+}
+
+/// The environment of a project at `root` reaching `registry` and trusting
+/// its key.
+fn registry_env(
+    registry: &LoopbackRegistry,
+    root: &std::path::Path,
+) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
+    let mut env = registry.env()?;
+    env.insert(
+        "RUNX_HOME".to_owned(),
+        root.join("home").to_string_lossy().into_owned(),
+    );
+    env.insert(
+        runx_runtime::RUNX_CWD_ENV.to_owned(),
+        root.to_string_lossy().into_owned(),
+    );
+    Ok(env)
 }
 
 /// A bundle carrying a connector whose manifest has a field this runx does

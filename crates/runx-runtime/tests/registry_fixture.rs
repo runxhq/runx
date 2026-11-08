@@ -1,6 +1,7 @@
 //! A hosted registry on loopback, for OSS tests: one stateful service that
 //! speaks the hosted registry's wire contract (the routes
-//! `registry/http.rs` reads and `registry/publish.rs` writes), keeps what is
+//! `registry/http.rs` reads and `registry/publish.rs` writes, an operator's
+//! publish included), keeps what is
 //! published, and signs each version with a fixture key the runtime is told
 //! to trust through `RUNX_REGISTRY_MANIFEST_TRUST_KEY_*`. Cloud's own
 //! contract test holds the service side.
@@ -329,18 +330,15 @@ enum Publish {
 }
 
 /// The record the registry builds for a publication: the service's fields,
-/// signed over the version's content.
+/// signed over the version's content. Its name and runners are read from the
+/// manual and profile alone, so a version carrying files a newer runx reads
+/// still publishes, as the service would hold it.
 fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
-    let mut source = runx_parser::SkillPackageSource::from_documents(
-        publication.markdown,
-        publication.profile.map(str::to_owned),
-    );
-    for file in &publication.files {
-        source
-            .files
-            .insert(file.path.clone(), file.content.as_bytes().to_vec());
-    }
-    let package = runx_parser::validate_skill_package(source)?;
+    let package =
+        runx_parser::validate_skill_package(runx_parser::SkillPackageSource::from_documents(
+            publication.markdown,
+            publication.profile.map(str::to_owned),
+        ))?;
     let name = package.skill.name.clone();
     let skill_id = format!("{}/{name}", publication.publisher);
     let mut files = publication.files.clone();
@@ -537,6 +535,9 @@ fn route(request: &Request, state: &Mutex<State>, base: &str) -> Result<Response
             json!({"status": "error", "error": {"code": "unauthorized"}}),
         ),
         ("POST", ["v1", "skills"]) if request.authorized => publish(request, state, base)?,
+        ("POST", ["v1", "admin", "registry", "publish"]) if request.authorized => {
+            admin_publish(request, state, base)?
+        }
         ("GET", ["v1", "skills"]) => {
             let state = lock(state);
             success(json!({"skills": search_skills(&state, &request.query)?}))
@@ -621,32 +622,13 @@ fn route(request: &Request, state: &Mutex<State>, base: &str) -> Result<Response
 /// the principal's, at the version it names, or one named by its content.
 fn publish(request: &Request, state: &Mutex<State>, base: &str) -> Result<Response, Error> {
     let body: Value = serde_json::from_slice(&request.body)?;
-    let markdown = text(&body, "markdown")?;
-    let files: Vec<RegistryPackageFile> =
-        serde_json::from_value(body["package_files"].clone()).unwrap_or_default();
-    let profile = body["profile_document"].as_str();
-    let content = runx_runtime::registry::skill_content_digest(markdown, profile, &files)?;
-    let label = format!(
-        "sha-{}",
-        &content.trim_start_matches("sha256:")[..12.min(content.len())]
-    );
-    let version = body["version"].as_str().unwrap_or(&label);
     let publisher = body["publisher"].as_str().unwrap_or(PUBLISHER);
-    let record = build_record(&Publication {
-        files,
-        ..Publication::new(publisher, version, markdown, profile)
-    })?;
-    let status = match lock(state).put(record.clone()) {
-        Ok(Publish::Published) => "published",
-        Ok(Publish::Unchanged) => "unchanged",
-        Err(error) => {
-            return Ok((
-                "409 Conflict",
-                json!({"status": "error", "error": {"code": "version_conflict", "detail": error.to_string()}}),
-            ));
-        }
+    let (status, record) = match record_publish(&body, publisher, state)? {
+        Ok(recorded) => recorded,
+        Err(refused) => return Ok(refused),
     };
     let skill_id = text(&record, "skill_id")?;
+    let version = text(&record, "version")?;
     Ok(success(json!({"publish": {
         "status": status,
         "skill_id": skill_id,
@@ -660,6 +642,70 @@ fn publish(request: &Request, state: &Mutex<State>, base: &str) -> Result<Respon
         "run_command": record["run_command"],
         "public_url": format!("{base}/x/{skill_id}@{version}"),
     }})))
+}
+
+/// An operator's publish, as `POST /v1/admin/registry/publish` takes it:
+/// into the namespace it must name, with the harness report it ran.
+fn admin_publish(request: &Request, state: &Mutex<State>, base: &str) -> Result<Response, Error> {
+    let body: Value = serde_json::from_slice(&request.body)?;
+    let (Some(publisher), true) = (body["publisher"].as_str(), body["harness"].is_object()) else {
+        return Ok((
+            "400 Bad Request",
+            json!({"status": "error", "error": {"code": "invalid_request", "detail": "an operator publish names its publisher and carries its harness report"}}),
+        ));
+    };
+    let (status, record) = match record_publish(&body, publisher, state)? {
+        Ok(recorded) => recorded,
+        Err(refused) => return Ok(refused),
+    };
+    let skill_id = text(&record, "skill_id")?;
+    let version = text(&record, "version")?;
+    Ok(success(json!({"publish": {
+        "status": status,
+        "skill_id": skill_id,
+        "name": record["name"],
+        "version": version,
+        "digest": record["digest"],
+        "profile_digest": record["profile_digest"],
+        "record": {"trust_tier": record["trust_tier"]},
+        "link": {
+            "install_command": record["install_command"],
+            "run_command": record["run_command"],
+            "public_url": format!("{base}/x/{skill_id}@{version}"),
+        },
+    }})))
+}
+
+/// Record a publish's version under `publisher`: the version it names, or
+/// one named by its content. A version already published with other content
+/// is refused.
+fn record_publish(
+    body: &Value,
+    publisher: &str,
+    state: &Mutex<State>,
+) -> Result<Result<(&'static str, Value), Response>, Error> {
+    let markdown = text(body, "markdown")?;
+    let files: Vec<RegistryPackageFile> =
+        serde_json::from_value(body["package_files"].clone()).unwrap_or_default();
+    let profile = body["profile_document"].as_str();
+    let content = runx_runtime::registry::skill_content_digest(markdown, profile, &files)?;
+    let label = format!(
+        "sha-{}",
+        &content.trim_start_matches("sha256:")[..12.min(content.len())]
+    );
+    let version = body["version"].as_str().unwrap_or(&label);
+    let record = build_record(&Publication {
+        files,
+        ..Publication::new(publisher, version, markdown, profile)
+    })?;
+    Ok(match lock(state).put(record.clone()) {
+        Ok(Publish::Published) => Ok(("published", record)),
+        Ok(Publish::Unchanged) => Ok(("unchanged", record)),
+        Err(error) => Err((
+            "409 Conflict",
+            json!({"status": "error", "error": {"code": "version_conflict", "detail": error.to_string()}}),
+        )),
+    })
 }
 
 fn connector_route(
