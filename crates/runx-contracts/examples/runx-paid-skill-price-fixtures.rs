@@ -47,26 +47,24 @@ fn parse_args() -> io::Result<Options> {
 
 fn fixture_document() -> io::Result<Value> {
     let duration = json!({
-        "model": "input_choice",
-        "selectors": ["duration_seconds"],
+        "basis": "by_input",
         "cases": [
-            {"when": [3600], "amount_minor": 5},
-            {"when": [86400], "amount_minor": 20},
-            {"when": [604800], "amount_minor": 100}
+            {"inputs": {"duration_seconds": 3600}, "amount_minor": 5},
+            {"inputs": {"duration_seconds": 86400}, "amount_minor": 20},
+            {"inputs": {"duration_seconds": 604800}, "amount_minor": 100}
         ]
     });
     let pair = json!({
-        "model": "input_choice",
-        "selectors": ["from", "to", "rush"],
+        "basis": "by_input",
         "cases": [
-            {"when": ["en", "fr", false], "amount_minor": 3},
-            {"when": ["en", "fr", true], "amount_minor": 9},
-            {"when": ["fr", "en", false], "amount_minor": 4}
+            {"inputs": {"from": "en", "to": "fr", "rush": false}, "amount_minor": 3},
+            {"inputs": {"from": "en", "to": "fr", "rush": true}, "amount_minor": 9},
+            {"inputs": {"from": "fr", "to": "en", "rush": false}, "amount_minor": 4}
         ]
     });
     let bytes = json!({
-        "model": "artifact_bytes",
-        "artifact_input": "artifact",
+        "basis": "by_size",
+        "input": "artifact",
         "base_amount_minor": 25,
         "unit_bytes": 1_048_576,
         "unit_amount_minor": 5,
@@ -75,11 +73,11 @@ fn fixture_document() -> io::Result<Value> {
     let prices = vec![
         price_case(
             "fixed",
-            json!({"model": "fixed", "amount_minor": 125}),
+            json!({"basis": "fixed", "amount_minor": 125}),
             vec![call("any-inputs", json!({"note": "x"}), None)],
         )?,
         price_case(
-            "input-choice-duration",
+            "by-input-duration",
             duration,
             vec![
                 call("hour", json!({"duration_seconds": 3600}), None),
@@ -95,7 +93,7 @@ fn fixture_document() -> io::Result<Value> {
             ],
         )?,
         price_case(
-            "input-choice-pair",
+            "by-input-pair",
             pair,
             vec![
                 call(
@@ -116,7 +114,7 @@ fn fixture_document() -> io::Result<Value> {
             ],
         )?,
         price_case(
-            "artifact-bytes",
+            "by-size",
             bytes,
             vec![
                 call(
@@ -145,41 +143,42 @@ fn fixture_document() -> io::Result<Value> {
         )?,
         price_case(
             "zero-amount",
-            json!({"model": "fixed", "amount_minor": 0}),
+            json!({"basis": "fixed", "amount_minor": 0}),
             vec![],
         )?,
         price_case(
-            "unknown-model",
-            json!({"model": "quote", "amount_minor": 5}),
+            "unknown-basis",
+            json!({"basis": "quote", "amount_minor": 5}),
             vec![],
         )?,
         price_case(
             "duplicate-case",
-            json!({"model": "input_choice", "selectors": ["a"], "cases": [
-                {"when": [1], "amount_minor": 1},
-                {"when": [1.0], "amount_minor": 2}
+            json!({"basis": "by_input", "cases": [
+                {"inputs": {"a": 1}, "amount_minor": 1},
+                {"inputs": {"a": 1.0}, "amount_minor": 2}
             ]}),
             vec![],
         )?,
         price_case(
-            "case-arity",
-            json!({"model": "input_choice", "selectors": ["a", "b"], "cases": [
-                {"when": [1], "amount_minor": 1}
+            "case-inputs-differ",
+            json!({"basis": "by_input", "cases": [
+                {"inputs": {"a": 1, "b": 1}, "amount_minor": 1},
+                {"inputs": {"a": 2}, "amount_minor": 2}
             ]}),
             vec![],
         )?,
         price_case(
             "fractional-choice",
-            json!({"model": "input_choice", "selectors": ["a"], "cases": [
-                {"when": [1.5], "amount_minor": 1}
+            json!({"basis": "by_input", "cases": [
+                {"inputs": {"a": 1.5}, "amount_minor": 1}
             ]}),
             vec![],
         )?,
         price_case(
-            "artifact-overflow",
+            "size-overflow",
             json!({
-                "model": "artifact_bytes",
-                "artifact_input": "artifact",
+                "basis": "by_size",
+                "input": "artifact",
                 "base_amount_minor": 1,
                 "unit_bytes": 1,
                 "unit_amount_minor": 9_007_199_254_740_991_u64,
