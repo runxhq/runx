@@ -52,7 +52,7 @@ pub(super) struct RawNativeInvocation<'a> {
     pub(super) credential_delivery: &'a crate::CredentialDelivery,
     pub(super) local_artifacts: &'a crate::services::LocalArtifactService,
     pub(super) effects: &'a crate::RuntimeEffectRegistry,
-    pub(super) bounds: crate::services::WorkspaceBounds,
+    pub(super) reach: runx_contracts::Reach,
     pub(super) call: Option<&'a crate::tool_catalogs::ToolCall>,
 }
 
@@ -175,7 +175,7 @@ where
             credential_delivery: invocation.credential_delivery,
             local_artifacts: invocation.local_artifacts,
             effects: invocation.effects,
-            bounds: invocation.bounds,
+            reach: invocation.reach,
             call: invocation.call,
         })
     }
@@ -195,7 +195,7 @@ where
             credential_delivery: invocation.credential_delivery,
             local_artifacts: invocation.local_artifacts,
             effects: invocation.effects,
-            bounds: invocation.bounds,
+            reach: invocation.reach,
             call: invocation.call,
         };
         let output = (self.handler)(&invocation)?;

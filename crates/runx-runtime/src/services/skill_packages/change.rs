@@ -139,7 +139,7 @@ pub(crate) fn skill_change_effect(
     repo_root: &Path,
     target_dir: &str,
     change: &SkillChangeBundle,
-    bounds: crate::services::WorkspaceBounds,
+    reach: runx_contracts::Reach,
 ) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
     let target = display_relative(&normalize_child_path(target_dir)?);
     let under = |path: &str| format!("{target}/{path}");
@@ -162,7 +162,7 @@ pub(crate) fn skill_change_effect(
         },
         _ => crate::filesystem::TextBundle::default(),
     };
-    crate::filesystem::text_bundle_effect("runx.skill.apply", repo_root, &bundle, bounds)
+    crate::filesystem::text_bundle_effect("runx.skill.apply", repo_root, &bundle, reach)
 }
 
 struct ApplyTarget {
@@ -318,7 +318,7 @@ fn commit_candidate(
         "runx.skill.apply",
         &target.repo_root,
         &admitted.bundle,
-        crate::services::WorkspaceBounds::Operator,
+        runx_contracts::Reach::Inputs,
         journal,
         || {
             let applied = package_snapshot(&target.path)?;

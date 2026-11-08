@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{
-    JsonObject, JsonValue, ResolutionRequest, RunCallOutcome, RunEventFact, TurnCallOutcome,
-    TurnCallResult, TurnStatus,
+    Effects, JsonObject, JsonValue, Reach, ResolutionRequest, RunCallOutcome, RunEventFact,
+    TurnCallOutcome, TurnCallResult, TurnStatus,
 };
 use runx_runtime::{
     LocalOrchestrator, ManagedAgentPolicy, PackageTestRequest, ResumeRequest, RunResult,
@@ -1169,9 +1169,9 @@ fn bounded(fanout: Option<u32>, depth: Option<u32>) -> runx_runtime::RunAuthorit
         delegations: Vec::new(),
         max_fanout: fanout,
         max_child_depth: depth,
-        agent_bounds: false,
         standing_approvals: Vec::new(),
         max_cost_micro: None,
+        ..runx_runtime::RunAuthority::default()
     }
 }
 
@@ -1354,18 +1354,18 @@ methods:
     Ok(dir)
 }
 
-fn run_paged_read(root: &Path, skill: PathBuf, path: &str, agent: bool) -> TestResult<RunResult> {
-    run_page_fixture(root, skill, input(serde_json::json!({"path":path}))?, agent)
+fn run_paged_read(root: &Path, skill: PathBuf, path: &str, reach: Reach) -> TestResult<RunResult> {
+    run_page_fixture(root, skill, input(serde_json::json!({"path":path}))?, reach)
 }
 
 fn run_page_fixture(
     root: &Path,
     skill: PathBuf,
     inputs: JsonObject,
-    agent: bool,
+    reach: Reach,
 ) -> TestResult<RunResult> {
     let mut authority = bounded(None, None);
-    authority.agent_bounds = agent;
+    authority.reach = reach;
     Ok(LocalOrchestrator::default().run_skill_with_binding(
         &SkillRunRequest {
             current_context: Vec::new(),
@@ -1438,13 +1438,13 @@ methods:
         .map(|id| serde_json::json!({"id":id,"text":"日本語 😀"}))
         .collect::<Vec<_>>();
     let values = input(serde_json::json!({"records":records}))?;
-    let allowed = run_page_fixture(temp.path(), parent.clone(), values.clone(), false)?;
+    let allowed = run_page_fixture(temp.path(), parent.clone(), values.clone(), Reach::Inputs)?;
     assert!(allowed.succeeded(), "{allowed:?}");
     assert_eq!(
         serde_json::to_value(&allowed.output)?["result"]["record_count"],
         5_000
     );
-    let denied = run_page_fixture(temp.path(), parent, values, true)?;
+    let denied = run_page_fixture(temp.path(), parent, values, Reach::Workspace)?;
     assert!(!denied.succeeded(), "{denied:?}");
     assert!(
         format!("{:?}", denied.output).contains("protected operator state"),
@@ -1454,16 +1454,24 @@ methods:
 }
 
 #[test]
-fn paged_file_reads_keep_the_real_workflow_callers_bounds() -> TestResult {
+fn paged_file_reads_keep_the_real_workflow_callers_reach() -> TestResult {
     let temp = tempdir()?;
     std::fs::write(temp.path().join("ordinary.json"), "[{}]")?;
     std::fs::write(temp.path().join(".env.page-proof"), "[{}]")?;
     std::fs::create_dir_all(temp.path().join(".runx"))?;
     std::fs::write(temp.path().join(".runx/page-proof.json"), "[{}]")?;
     let skill = write_paged_read_skill(temp.path())?;
-    assert!(run_paged_read(temp.path(), skill.clone(), "ordinary.json", true)?.succeeded());
+    assert!(
+        run_paged_read(
+            temp.path(),
+            skill.clone(),
+            "ordinary.json",
+            Reach::Workspace
+        )?
+        .succeeded()
+    );
     for path in [".env.page-proof", ".runx/page-proof.json"] {
-        let denied = run_paged_read(temp.path(), skill.clone(), path, true)?;
+        let denied = run_paged_read(temp.path(), skill.clone(), path, Reach::Workspace)?;
         assert!(
             !denied.succeeded(),
             "protected page source was admitted: {denied:?}"
@@ -1472,12 +1480,12 @@ fn paged_file_reads_keep_the_real_workflow_callers_bounds() -> TestResult {
             format!("{:?}", denied.output).contains("secret"),
             "{denied:?}"
         );
-        assert!(run_paged_read(temp.path(), skill.clone(), path, false)?.succeeded());
+        assert!(run_paged_read(temp.path(), skill.clone(), path, Reach::Inputs)?.succeeded());
     }
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(".env.page-proof", temp.path().join("alias.json"))?;
-        let denied = run_paged_read(temp.path(), skill, "alias.json", true)?;
+        let denied = run_paged_read(temp.path(), skill, "alias.json", Reach::Workspace)?;
         assert!(!denied.succeeded(), "{denied:?}");
         assert!(
             format!("{:?}", denied.output).contains("secret"),
@@ -1488,7 +1496,7 @@ fn paged_file_reads_keep_the_real_workflow_callers_bounds() -> TestResult {
 }
 
 #[test]
-fn paged_file_reads_keep_bounds_when_an_agent_calls_a_child_skill() -> TestResult {
+fn paged_file_reads_keep_reach_workspace_when_an_agent_calls_a_child_skill() -> TestResult {
     let temp = tempdir()?;
     std::fs::write(temp.path().join("ordinary.json"), "[{}]")?;
     std::fs::write(temp.path().join(".env.page-proof"), "[{}]")?;
@@ -1500,7 +1508,7 @@ fn paged_file_reads_keep_bounds_when_an_agent_calls_a_child_skill() -> TestResul
         "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          skills: [../paged-child]\n        inputs: $input\n        outputs: {answer: {type: string}}\n",
     )?;
     let mut authority = bounded(None, None);
-    authority.agent_bounds = true;
+    authority.reach = Reach::Workspace;
     let started = start_bounded(temp.path(), parent, authority)?;
     let turn = opened(temp.path(), &started)?;
     let denied = turn.call(
@@ -1574,7 +1582,7 @@ methods:
 }
 
 #[test]
-fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -> TestResult {
+fn reach_workspace_keeps_a_turns_file_calls_inside_the_workspace_and_off_secrets() -> TestResult {
     let temp = tempdir()?;
     let elsewhere = tempdir()?;
     std::fs::write(temp.path().join("README.md"), "# Project\n")?;
@@ -1582,7 +1590,7 @@ fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -
     std::fs::write(elsewhere.path().join("notes.md"), "elsewhere\n")?;
     let skill_dir = write_file_turn_skill(temp.path())?;
     let mut authority = bounded(None, None);
-    authority.agent_bounds = true;
+    authority.reach = Reach::Workspace;
     let started = start_bounded(temp.path(), skill_dir.clone(), authority)?;
     let turn = opened(temp.path(), &started)?;
     let read = |inputs: serde_json::Value| -> TestResult<TurnCallResult> {
@@ -1614,10 +1622,10 @@ fn agent_bounds_keep_a_turns_file_calls_inside_the_workspace_and_off_secrets() -
         "TOKEN=1\n"
     );
 
-    // An operator's run of the same skill reads what its inputs name.
-    let operator = start_bounded(temp.path(), skill_dir, bounded(None, None))?;
-    let operator = opened(temp.path(), &operator)?;
-    let read = operator.call(
+    // A run of the same skill that reaches its inputs reads what they name.
+    let inputs = start_bounded(temp.path(), skill_dir, bounded(None, None))?;
+    let inputs = opened(temp.path(), &inputs)?;
+    let read = inputs.call(
         TURN,
         "fs_read",
         None,
@@ -1651,9 +1659,12 @@ methods:
     Ok(skill_dir)
 }
 
-fn agents(standing: serde_json::Value) -> TestResult<runx_runtime::RunAuthority> {
+/// What a host gives its agent: `effects: ask` and `reach: workspace`, with
+/// the person's standing approvals.
+fn asking(standing: serde_json::Value) -> TestResult<runx_runtime::RunAuthority> {
     let mut authority = bounded(None, None);
-    authority.agent_bounds = true;
+    authority.effects = Effects::Ask;
+    authority.reach = Reach::Workspace;
     authority.standing_approvals = serde_json::from_value(standing)?;
     Ok(authority)
 }
@@ -1696,7 +1707,7 @@ fn the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff() -> 
     let started = start_bounded(
         root,
         write_develop_skill(root)?,
-        agents(serde_json::json!([]))?,
+        asking(serde_json::json!([]))?,
     )?;
     let run_id = text(object(&started.output)?, "run_id")
         .ok_or("missing run_id")?
@@ -1776,7 +1787,7 @@ fn the_floor_holds_a_process_start_on_its_exact_argv_and_reads_run_free() -> Tes
         "---\nname: serve-demo\ndescription: Serves the project.\n---\n# Serve demo\n\n## Agent task: answer\n\nServe it.\n",
         "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [process.start, process.list]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
     )?;
-    let started = start_bounded(root, skill_dir, agents(serde_json::json!([]))?)?;
+    let started = start_bounded(root, skill_dir, asking(serde_json::json!([]))?)?;
     let turn = opened(root, &started)?;
 
     let held = turn.call(
@@ -1807,7 +1818,7 @@ fn a_standing_approval_admits_what_it_covers_and_the_record_names_it() -> TestRe
         {"edits": {"paths": ["docs"]}},
         {"commands": {"argv_prefix": ["echo"]}}
     ]);
-    let started = start_bounded(root, write_develop_skill(root)?, agents(standing)?)?;
+    let started = start_bounded(root, write_develop_skill(root)?, asking(standing)?)?;
     let run_id = text(object(&started.output)?, "run_id")
         .ok_or("missing run_id")?
         .to_owned();
@@ -1970,7 +1981,7 @@ methods:
           contents: hello
 "#,
     )?;
-    let started = start_bounded(root, skill_dir, agents(serde_json::json!([]))?)?;
+    let started = start_bounded(root, skill_dir, asking(serde_json::json!([]))?)?;
     assert_eq!(requests(&started)?, ["write/tool"]);
     let run_id = text(object(&started.output)?, "run_id")
         .ok_or("missing run_id")?

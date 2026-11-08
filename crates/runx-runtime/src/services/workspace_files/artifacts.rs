@@ -85,9 +85,9 @@ impl LocalArtifactService {
         root: &Path,
         requested: &Path,
         media_type: &str,
-        bounds: super::WorkspaceBounds,
+        reach: super::Reach,
     ) -> Result<LocalArtifact, WorkspaceFileError> {
-        let source = WorkspaceFile::resolve(root, requested, bounds)?;
+        let source = WorkspaceFile::resolve(root, requested, reach)?;
         self.store.capture(source, media_type, None)
     }
 

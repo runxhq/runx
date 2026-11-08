@@ -11,6 +11,61 @@ pub enum AuthorityResourceFamily {
     Connector,
 }
 
+/// What a run may change, and whether a change waits (D25). A host sets it
+/// on a run, and a method or step only narrows it: `none` is narrower than
+/// `ask`, and `ask` than `allow`.
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RunxSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Effects {
+    /// Nothing changes in the workspace or at a provider, at any depth: every
+    /// local effect, every provider write and every `store` write is
+    /// refused, even with a term.
+    None,
+    /// Every write with no approval of its own waits on a person or a
+    /// standing approval, at any depth, local or provider. A package's own
+    /// `store` state is exempt.
+    Ask,
+    /// Nothing waits. The default with no host.
+    #[default]
+    Allow,
+}
+
+impl Effects {
+    /// These effects, narrowed by `by` where it is narrower. A narrowing never
+    /// widens.
+    #[must_use]
+    pub fn narrowed(self, by: Option<Self>) -> Self {
+        by.map_or(self, |by| self.min(by))
+    }
+}
+
+/// Where a run's file, git and command tools may go (D25). A host sets it on
+/// a run, and a method or step only narrows it: `workspace` is narrower than
+/// `inputs`.
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RunxSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum Reach {
+    /// Inside the workspace, and off secret files and runx's own state.
+    Workspace,
+    /// The roots a run's inputs name, another repository by its absolute path
+    /// included. The default with no host.
+    #[default]
+    Inputs,
+}
+
+impl Reach {
+    /// This reach, narrowed by `by` where it is narrower. A narrowing never
+    /// widens.
+    #[must_use]
+    pub fn narrowed(self, by: Option<Self>) -> Self {
+        by.map_or(self, |by| self.min(by))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthorityVerb {
@@ -226,4 +281,44 @@ pub struct AuthorityDerivation {
     pub evidence: Vec<AuthorityEvidence>,
     pub proofs: Vec<AuthoritySubsetProof>,
     pub derived_at: IsoDateTime,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Effects, Reach};
+
+    #[test]
+    fn effects_and_reach_only_narrow() {
+        assert!(Effects::None < Effects::Ask && Effects::Ask < Effects::Allow);
+        assert!(Reach::Workspace < Reach::Inputs);
+        assert_eq!(Effects::default(), Effects::Allow);
+        assert_eq!(Reach::default(), Reach::Inputs);
+
+        assert_eq!(Effects::Ask.narrowed(Some(Effects::None)), Effects::None);
+        assert_eq!(Effects::Ask.narrowed(Some(Effects::Allow)), Effects::Ask);
+        assert_eq!(Effects::None.narrowed(Some(Effects::Ask)), Effects::None);
+        assert_eq!(Effects::Allow.narrowed(None), Effects::Allow);
+        assert_eq!(
+            Reach::Workspace.narrowed(Some(Reach::Inputs)),
+            Reach::Workspace
+        );
+        assert_eq!(
+            Reach::Inputs.narrowed(Some(Reach::Workspace)),
+            Reach::Workspace
+        );
+    }
+
+    #[test]
+    fn effects_and_reach_read_only_their_words() -> Result<(), serde_json::Error> {
+        assert_eq!(serde_json::from_str::<Effects>("\"ask\"")?, Effects::Ask);
+        assert_eq!(
+            serde_json::from_str::<Reach>("\"workspace\"")?,
+            Reach::Workspace
+        );
+        for word in ["\"free\"", "\"read_only\"", "true"] {
+            assert!(serde_json::from_str::<Effects>(word).is_err(), "{word}");
+        }
+        assert!(serde_json::from_str::<Reach>("\"agent\"").is_err());
+        Ok(())
+    }
 }

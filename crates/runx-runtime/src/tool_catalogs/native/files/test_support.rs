@@ -8,8 +8,8 @@ use runx_contracts::JsonObject;
 use crate::RuntimeEffectRegistry;
 use crate::credentials::CredentialDelivery;
 use crate::paths::RUNX_CWD_ENV;
-use crate::services::WorkspaceBounds;
 use crate::tool_catalogs::native::{NativeInvocation, fixture_input};
+use runx_contracts::Reach;
 
 pub(super) type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -17,7 +17,7 @@ pub(super) type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 pub(super) fn invoke<I, O>(
     workspace: &Path,
     inputs: serde_json::Value,
-    bounds: WorkspaceBounds,
+    reach: Reach,
     handler: fn(&NativeInvocation<'_, I>) -> Result<O, crate::RuntimeError>,
 ) -> Result<O, String>
 where
@@ -39,7 +39,7 @@ where
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
-        bounds,
+        reach,
         call: None,
     })
     .map_err(|error| error.to_string())

@@ -87,7 +87,7 @@ impl ToolRunner for SetupTools<'_> {
                 skill_name: tool,
                 allow_explicit_manifest_path: false,
                 effect_admission: None,
-                bounds: crate::services::WorkspaceBounds::of(None),
+                reach: runx_contracts::Reach::Inputs,
                 call: None,
             },
             Instant::now(),

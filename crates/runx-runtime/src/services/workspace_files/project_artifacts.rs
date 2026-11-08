@@ -145,7 +145,7 @@ pub(super) fn project_artifact_source(
     {
         return Err("project artifact source is a symlink".to_owned());
     }
-    let source = super::WorkspaceFile::resolve(&root, relative, super::WorkspaceBounds::Operator)
+    let source = super::WorkspaceFile::resolve(&root, relative, super::Reach::Inputs)
         .map_err(|error| error.to_string())?;
     if source.bytes() != artifact.bytes {
         return Err("project artifact byte count differs from its descriptor".to_owned());

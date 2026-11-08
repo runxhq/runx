@@ -37,9 +37,9 @@ by guessing string prefixes.
 Use `receipt.read` only when the question needs a retained declared output. It
 requires `receipt.claim.read` and verifies the signed binding before returning
 current-workspace data. Follow a graph's verified child references to the
-relevant step; `not_a_step` is not an output body. `not_retained`, a denied
-`agent_bounds` read or an exceeded byte budget is an evidence gap. Narrow a
-JSON pointer or obtain an operator read when appropriate. Never replay the
+relevant step; `not_a_step` is not an output body. `not_retained`, a read
+that `reach: workspace` refuses or an exceeded byte budget is an evidence gap.
+Narrow a JSON pointer or obtain an operator read when appropriate. Never replay the
 operation to reconstruct evidence. A local signature is valid local provenance,
 not independent provider truth; hosted/CI labels alone do not establish independence.
 

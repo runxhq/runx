@@ -47,16 +47,11 @@ pub(super) fn invoke(
                 &path_scope,
                 &request.env,
                 &request.skill_directory,
-                request.workspace_bounds,
+                request.reach,
             )
             .map_err(|error| page_error(error.to_string()))?;
             artifacts
-                .admit(
-                    &root,
-                    Path::new(&requested_path),
-                    media_type,
-                    request.workspace_bounds,
-                )
+                .admit(&root, Path::new(&requested_path), media_type, request.reach)
                 .map_err(|error| page_error(error.to_string()))?
         }
         ArtifactPageInput::Artifact { artifact } => {

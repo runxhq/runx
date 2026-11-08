@@ -79,7 +79,7 @@ fn process_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn
 {
     let delivery = allowed_delivery()?;
     let output = ProcessToolAdapter.invoke(SkillInvocation {
-        workspace_bounds: runx_runtime::WorkspaceBounds::Operator,
+        reach: runx_contracts::Reach::Inputs,
         historical_context: Vec::new(),
         skill_name: "credential.echo".to_owned(),
         step_id: None,
@@ -109,7 +109,7 @@ fn process_tool_delivers_and_redacts_declared_credential() -> Result<(), Box<dyn
 fn process_tool_omits_truncated_output_before_redaction() -> Result<(), Box<dyn std::error::Error>>
 {
     let output = ProcessToolAdapter.invoke(SkillInvocation {
-        workspace_bounds: runx_runtime::WorkspaceBounds::Operator,
+        reach: runx_contracts::Reach::Inputs,
         historical_context: Vec::new(),
         skill_name: "credential.large-output".to_owned(),
         step_id: None,

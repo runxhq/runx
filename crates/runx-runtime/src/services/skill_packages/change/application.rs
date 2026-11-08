@@ -300,7 +300,7 @@ pub(super) fn record_application(
             deletes: Vec::new(),
             expected: Default::default(),
         },
-        crate::services::WorkspaceBounds::Operator,
+        runx_contracts::Reach::Inputs,
         None,
     )?;
     Ok(())

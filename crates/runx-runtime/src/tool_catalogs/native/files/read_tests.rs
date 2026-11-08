@@ -5,7 +5,7 @@ use std::fs;
 use super::capability::{FileReadBundleInput, FileReadInput};
 use super::test_support::{TestResult, digest, invoke};
 use super::{read, read_bundle};
-use crate::services::WorkspaceBounds;
+use runx_contracts::Reach;
 
 /// A file of `count` numbered lines.
 fn numbered(count: usize) -> String {
@@ -18,7 +18,7 @@ fn a_read_returns_the_lines_it_asks_for_with_the_whole_files_lines_and_digest() 
     let text = numbered(10);
     fs::write(workspace.path().join("notes.md"), &text)?;
     let read_lines = |inputs: serde_json::Value| {
-        invoke::<FileReadInput, _>(workspace.path(), inputs, WorkspaceBounds::Agent, read)
+        invoke::<FileReadInput, _>(workspace.path(), inputs, Reach::Workspace, read)
     };
 
     let whole = read_lines(serde_json::json!({"path": "notes.md"}))?;
@@ -62,7 +62,7 @@ fn a_read_over_its_byte_bound_returns_the_whole_lines_within_it_never_nothing() 
     let bounded = invoke::<FileReadInput, _>(
         workspace.path(),
         serde_json::json!({"path": "notes.md", "max_bytes": 20}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         read,
     )?;
     assert_eq!(bounded.contents, "line 1\nline 2\n");
@@ -77,7 +77,7 @@ fn a_read_over_its_byte_bound_returns_the_whole_lines_within_it_never_nothing() 
     let cut = invoke::<FileReadInput, _>(
         workspace.path(),
         serde_json::json!({"path": "minified.js", "max_bytes": 5}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         read,
     )?;
     assert_eq!(cut.contents, "éé");
@@ -93,7 +93,7 @@ fn a_bundle_reads_each_file_whole() -> TestResult {
     let bundle = invoke::<FileReadBundleInput, _>(
         workspace.path(),
         serde_json::json!({"paths": ["a.md", "b.md"]}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         read_bundle,
     )?;
     let lines: Vec<_> = bundle

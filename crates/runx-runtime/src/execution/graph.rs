@@ -498,6 +498,8 @@ pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) 
         name: format!("purchase {skill}#{runner}"),
         result_from: vec![PURCHASE_STEP.to_owned()],
         outputs: None,
+        effects: None,
+        reach: None,
         steps: vec![WorkflowStep {
             id: PURCHASE_STEP.to_owned(),
             kind: StepKind::Skill(SkillTarget {
@@ -513,6 +515,8 @@ pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) 
             when: None,
             guard: Vec::new(),
             retry_unknown_outcomes: false,
+            effects: None,
+            reach: None,
         }],
         raw: runx_parser::RawWorkflowIr {
             document: JsonObject::new(),
@@ -545,6 +549,8 @@ pub(crate) fn child_skill_steps(step: &WorkflowStep) -> Vec<Cow<'_, WorkflowStep
                     when: None,
                     guard: Vec::new(),
                     retry_unknown_outcomes: false,
+                    effects: step.effects,
+                    reach: step.reach,
                 })
             })
             .collect(),

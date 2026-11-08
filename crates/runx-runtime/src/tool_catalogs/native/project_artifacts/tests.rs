@@ -1,8 +1,9 @@
 use super::super::{NativeToolInvocation, invoke};
 use crate::credentials::CredentialDelivery;
 use crate::effects::RuntimeEffectRegistry;
-use crate::services::{ArtifactPageEncoding, LocalArtifactService, WorkspaceBounds};
+use crate::services::{ArtifactPageEncoding, LocalArtifactService};
 use crate::tool_catalogs::ToolCall;
+use runx_contracts::Reach;
 use runx_contracts::{JsonObject, JsonValue, ProjectArtifact};
 use std::collections::BTreeMap;
 
@@ -11,7 +12,7 @@ fn call(
     inputs: serde_json::Value,
     env: &BTreeMap<String, String>,
     artifacts: &LocalArtifactService,
-    bounds: WorkspaceBounds,
+    reach: Reach,
     identity: Option<&ToolCall>,
     scopes: &[String],
 ) -> Result<JsonValue, Box<dyn std::error::Error>> {
@@ -26,7 +27,7 @@ fn call(
         credential_delivery: &CredentialDelivery::none(),
         local_artifacts: artifacts,
         effects: &RuntimeEffectRegistry::default(),
-        bounds,
+        reach,
         call: identity,
         effect_admission: None,
     })
@@ -57,7 +58,7 @@ fn store(
         serde_json::json!({"value":value}),
         &env,
         &LocalArtifactService::default(),
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         Some(&ToolCall::new("artifact-run", "store", 1, None)),
         &["artifact.write".to_owned()],
     )?
@@ -90,7 +91,7 @@ fn project_artifact_store_reopens_in_a_fresh_snapshot_service_and_pages_exact_by
         serde_json::json!({"artifact":artifact}),
         &env,
         &snapshots,
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         None,
         &["artifact.read".to_owned()],
     )?
@@ -123,7 +124,7 @@ fn project_artifact_store_reopens_in_a_fresh_snapshot_service_and_pages_exact_by
             serde_json::json!({"artifact":artifact}),
             &env,
             &LocalArtifactService::default(),
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
             &["artifact.read".to_owned()]
         )
@@ -133,7 +134,7 @@ fn project_artifact_store_reopens_in_a_fresh_snapshot_service_and_pages_exact_by
 }
 
 #[test]
-fn project_artifact_ports_require_scope_identity_and_operator_bounds_before_io()
+fn project_artifact_ports_require_scope_identity_and_reach_inputs_before_io()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
     let project = workspace.path().join("not-created");
@@ -146,7 +147,7 @@ fn project_artifact_ports_require_scope_identity_and_operator_bounds_before_io()
             serde_json::json!({"value":{"secret":"already supplied"}}),
             &env,
             &snapshots,
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             Some(&identity),
             &[]
         )
@@ -158,7 +159,7 @@ fn project_artifact_ports_require_scope_identity_and_operator_bounds_before_io()
             serde_json::json!({"value":1}),
             &env,
             &snapshots,
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
             &["artifact.write".to_owned()]
         )
@@ -170,7 +171,7 @@ fn project_artifact_ports_require_scope_identity_and_operator_bounds_before_io()
             serde_json::json!({"value":1}),
             &env,
             &snapshots,
-            WorkspaceBounds::Agent,
+            Reach::Workspace,
             Some(&identity),
             &["artifact.write".to_owned()]
         )
@@ -182,7 +183,7 @@ fn project_artifact_ports_require_scope_identity_and_operator_bounds_before_io()
         serde_json::json!({"artifact":fake}),
         &env,
         &snapshots,
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         None,
         &["artifact.read".to_owned()],
     );
@@ -211,7 +212,7 @@ fn project_artifact_open_refuses_tampering_foreign_roots_and_oversized_descripto
             serde_json::json!({"artifact":artifact}),
             &foreign,
             &fresh,
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
             &["artifact.read".to_owned()]
         )
@@ -231,7 +232,7 @@ fn project_artifact_open_refuses_tampering_foreign_roots_and_oversized_descripto
                 serde_json::json!({"artifact":value}),
                 &env,
                 &fresh,
-                WorkspaceBounds::Operator,
+                Reach::Inputs,
                 None,
                 &["artifact.read".to_owned()]
             )
@@ -248,7 +249,7 @@ fn project_artifact_open_refuses_tampering_foreign_roots_and_oversized_descripto
             serde_json::json!({"artifact":artifact}),
             &env,
             &fresh,
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
             &["artifact.read".to_owned()]
         )
@@ -279,7 +280,7 @@ fn project_artifact_open_refuses_file_symlinks_and_nonregular_sources()
             serde_json::json!({"artifact":artifact}),
             &env,
             &LocalArtifactService::default(),
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
             &["artifact.read".to_owned()]
         )
@@ -293,7 +294,7 @@ fn project_artifact_open_refuses_file_symlinks_and_nonregular_sources()
             serde_json::json!({"artifact":artifact}),
             &env,
             &LocalArtifactService::default(),
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
             &["artifact.read".to_owned()]
         )
@@ -323,7 +324,7 @@ fn project_artifact_open_preserves_large_record_paging_without_a_control_blob()
         serde_json::json!({"artifact":artifact}),
         &env,
         &snapshots,
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         None,
         &["artifact.read".to_owned()],
     )?

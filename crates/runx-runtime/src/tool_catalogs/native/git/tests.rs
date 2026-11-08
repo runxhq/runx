@@ -148,7 +148,7 @@ fn invoke_tool<I, O: serde::Serialize>(
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
-        bounds: crate::services::WorkspaceBounds::Operator,
+        reach: runx_contracts::Reach::Inputs,
         call: None,
     })?;
     let value: JsonValue = serde_json::from_value(serde_json::to_value(output)?)?;

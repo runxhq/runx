@@ -11,8 +11,8 @@ use super::{list, search};
 use crate::RuntimeEffectRegistry;
 use crate::credentials::CredentialDelivery;
 use crate::paths::RUNX_CWD_ENV;
-use crate::services::WorkspaceBounds;
 use crate::tool_catalogs::native::{NativeInvocation, fixture_input};
+use runx_contracts::Reach;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -42,7 +42,7 @@ fn project() -> TestResult<tempfile::TempDir> {
 fn invoke<I, O>(
     workspace: &Path,
     inputs: JsonObject,
-    bounds: WorkspaceBounds,
+    reach: Reach,
     handler: fn(&NativeInvocation<'_, I>) -> Result<O, crate::RuntimeError>,
 ) -> TestResult<JsonObject>
 where
@@ -64,7 +64,7 @@ where
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
-        bounds,
+        reach,
         call: None,
     })?;
     let value: JsonValue = serde_json::from_value(serde_json::to_value(output)?)?;
@@ -99,7 +99,7 @@ fn a_listing_honours_ignore_files_and_skips_protected_directories_and_worktrees(
     let output = invoke::<FileListInput, _>(
         workspace.path(),
         JsonObject::from([("depth".to_owned(), number(16))]),
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         list,
     )?;
     let listed = paths(&output, "entries", "path");
@@ -123,7 +123,7 @@ fn a_listing_honours_ignore_files_and_skips_protected_directories_and_worktrees(
     let bounded = invoke::<FileListInput, _>(
         workspace.path(),
         JsonObject::from([("depth".to_owned(), number(16))]),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         list,
     )?;
     assert!(!paths(&bounded, "entries", "path").contains(&".env".to_owned()));
@@ -136,7 +136,7 @@ fn a_listing_is_bounded_by_depth_and_count() -> TestResult {
     let shallow = invoke::<FileListInput, _>(
         workspace.path(),
         JsonObject::from([("depth".to_owned(), number(1))]),
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         list,
     )?;
     let listed = paths(&shallow, "entries", "path");
@@ -148,7 +148,7 @@ fn a_listing_is_bounded_by_depth_and_count() -> TestResult {
             ("depth".to_owned(), number(16)),
             ("max_entries".to_owned(), number(2)),
         ]),
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         list,
     )?;
     assert_eq!(paths(&capped, "entries", "path").len(), 2);
@@ -168,7 +168,7 @@ fn a_listing_inside_a_worktree_lists_it() -> TestResult {
             ),
             ("depth".to_owned(), number(4)),
         ]),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         list,
     )?;
     assert!(
@@ -183,7 +183,7 @@ fn a_search_finds_text_with_context_and_digests_and_skips_what_a_listing_skips()
     let output = invoke::<FileSearchInput, _>(
         workspace.path(),
         JsonObject::from([("pattern".to_owned(), JsonValue::String("run".to_owned()))]),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         search,
     )?;
     let found = paths(&output, "matches", "path");
@@ -241,7 +241,7 @@ fn a_search_takes_a_regex_a_glob_and_a_limit() -> TestResult {
             ("regex".to_owned(), JsonValue::Bool(true)),
             ("glob".to_owned(), JsonValue::String("**/*.rs".to_owned())),
         ]),
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         search,
     )?;
     assert_eq!(
@@ -255,7 +255,7 @@ fn a_search_takes_a_regex_a_glob_and_a_limit() -> TestResult {
             ("case_sensitive".to_owned(), JsonValue::Bool(false)),
             ("max_results".to_owned(), number(1)),
         ]),
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         search,
     )?;
     assert_eq!(paths(&limited, "matches", "path").len(), 1);
@@ -275,7 +275,7 @@ fn a_search_of_one_file_finds_its_lines_and_a_listing_of_one_is_refused() -> Tes
                 JsonValue::String("src/main.rs".to_owned()),
             ),
         ]),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         search,
     )?;
     assert_eq!(
@@ -289,7 +289,7 @@ fn a_search_of_one_file_finds_its_lines_and_a_listing_of_one_is_refused() -> Tes
             "path".to_owned(),
             JsonValue::String("src/main.rs".to_owned()),
         )]),
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         list,
     );
     assert!(listed.is_err(), "a listing names a directory");
@@ -297,7 +297,7 @@ fn a_search_of_one_file_finds_its_lines_and_a_listing_of_one_is_refused() -> Tes
 }
 
 #[test]
-fn agent_bounds_refuse_a_secret_file_named_or_reached_through_a_link() -> TestResult {
+fn reach_workspace_refuses_a_secret_file_named_or_reached_through_a_link() -> TestResult {
     let workspace = project()?;
     #[cfg(unix)]
     std::os::unix::fs::symlink(".env", workspace.path().join("settings"))?;
@@ -313,7 +313,7 @@ fn agent_bounds_refuse_a_secret_file_named_or_reached_through_a_link() -> TestRe
                 ("pattern".to_owned(), JsonValue::String("RUN".to_owned())),
                 ("path".to_owned(), JsonValue::String(path.to_owned())),
             ]),
-            WorkspaceBounds::Agent,
+            Reach::Workspace,
             search,
         );
         assert!(searched.is_err(), "{path} is refused");
@@ -322,13 +322,13 @@ fn agent_bounds_refuse_a_secret_file_named_or_reached_through_a_link() -> TestRe
 }
 
 #[test]
-fn agent_bounds_refuse_a_start_outside_or_protected() -> TestResult {
+fn reach_workspace_refuses_a_start_outside_or_protected() -> TestResult {
     let workspace = project()?;
     for path in ["..", ".git", ".runx"] {
         let refused = invoke::<FileListInput, _>(
             workspace.path(),
             JsonObject::from([("path".to_owned(), JsonValue::String(path.to_owned()))]),
-            WorkspaceBounds::Agent,
+            Reach::Workspace,
             list,
         );
         assert!(refused.is_err(), "{path} is refused");

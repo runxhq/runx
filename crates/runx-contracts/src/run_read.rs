@@ -156,7 +156,7 @@ pub enum RunEventFact {
         /// The standing approval that admitted it on the approval floor,
         /// when one did.
         #[serde(skip_serializing_if = "Option::is_none")]
-        standing: Option<crate::StandingApproval>,
+        standing: Option<Box<crate::StandingApproval>>,
         outcome: Box<RunCallOutcome>,
     },
     Sealed {

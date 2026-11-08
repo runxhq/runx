@@ -175,6 +175,9 @@ impl BoundRun {
             }
             authority
         });
+        // The run holds what its host gave it, narrowed by its method's own
+        // effects and reach.
+        let run_authority = RunAuthority::of_method(run_authority, &self.runner.graph);
         let runtime = self.runtime(
             &log,
             run_context,
@@ -986,7 +989,7 @@ mod tests {
     #[test]
     fn the_executable_adapter_refuses_an_turn() {
         let invocation = SkillInvocation {
-            workspace_bounds: crate::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             historical_context: Vec::new(),
             skill_name: "fixture".to_owned(),
             step_id: None,
@@ -1206,7 +1209,7 @@ steps:
             ),
         ])))?;
         let invocation = SkillInvocation {
-            workspace_bounds: crate::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             historical_context: Vec::new(),
             skill_name: "credential-observation".to_owned(),
             step_id: None,

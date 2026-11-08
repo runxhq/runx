@@ -128,7 +128,7 @@ fn capability_registry_dispatch_projects_only_declared_inputs() {
         local_artifacts: super::fixture_local_artifacts(),
         effect_admission: None,
         effects: &RuntimeEffectRegistry::default(),
-        bounds: crate::services::WorkspaceBounds::Operator,
+        reach: runx_contracts::Reach::Inputs,
         call: None,
     })
     .expect("capability should resolve");

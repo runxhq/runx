@@ -63,7 +63,7 @@ impl TwitterFixture {
             twitter_archive(record_count),
         )?;
         let invocation = SkillInvocation {
-            workspace_bounds: runx_runtime::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             historical_context: Vec::new(),
             skill_name: "twitter".to_owned(),
             step_id: None,

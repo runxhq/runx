@@ -88,7 +88,7 @@ pub use authority::{
     AuthorityApproval, AuthorityBounds, AuthorityDerivation, AuthorityEvidence,
     AuthorityEvidenceKind, AuthorityResourceFamily, AuthoritySubsetComparison,
     AuthoritySubsetProof, AuthoritySubsetRelation, AuthoritySubsetResult, AuthorityTerm,
-    AuthorityUseLimit, AuthorityVerb, TermLegitimacy,
+    AuthorityUseLimit, AuthorityVerb, Effects, Reach, TermLegitimacy,
 };
 pub use canonical_json::{
     CanonicalJsonError, STABLE_JSON_CANONICALIZATION, canonical_digest, canonical_stable_json,
@@ -268,7 +268,7 @@ pub use registry_version::{
 };
 pub use resume::{
     BoundAnswer, BoundApproval, CloseOutcome, ResumeDocument, RunClose, StandingApproval,
-    StandingCommands, StandingEdits,
+    StandingCommands, StandingEdits, StandingOperations,
 };
 pub use run_read::{
     RunCallOutcome, RunCallOutput, RunDriver, RunEventFact, RunEventRecord, RunHold, RunRead,

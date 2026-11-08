@@ -5,7 +5,7 @@ use std::fs;
 use super::capability::{FileApplyBundleInput, FileEditInput, FileWriteInput};
 use super::test_support::{TestResult, digest, invoke};
 use super::{apply_files, edit, write};
-use crate::services::WorkspaceBounds;
+use runx_contracts::Reach;
 
 #[test]
 fn an_edit_replaces_exact_text_once_or_everywhere_and_says_why_it_cannot() -> TestResult {
@@ -15,7 +15,7 @@ fn an_edit_replaces_exact_text_once_or_everywhere_and_says_why_it_cannot() -> Te
     let edited = invoke::<FileEditInput, _>(
         root,
         serde_json::json!({"path": "lib.rs", "edits": [{"old": "fn one", "new": "fn first"}]}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         edit,
     )?;
     assert_eq!(edited.replacements.get(), 1);
@@ -33,7 +33,7 @@ fn an_edit_replaces_exact_text_once_or_everywhere_and_says_why_it_cannot() -> Te
         invoke::<FileEditInput, _>(
             root,
             serde_json::json!({"path": "lib.rs", "edits": edits}),
-            WorkspaceBounds::Agent,
+            Reach::Workspace,
             edit,
         )
         .err()
@@ -52,7 +52,7 @@ fn an_edit_replaces_exact_text_once_or_everywhere_and_says_why_it_cannot() -> Te
     let all = invoke::<FileEditInput, _>(
         root,
         serde_json::json!({"path": "lib.rs", "edits": [{"old": "() {}", "new": "() -> u8 { 0 }", "replace_all": true}]}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         edit,
     )?;
     assert_eq!(all.replacements.get(), 2);
@@ -60,7 +60,7 @@ fn an_edit_replaces_exact_text_once_or_everywhere_and_says_why_it_cannot() -> Te
         invoke::<FileEditInput, _>(
             root,
             serde_json::json!({"path": "missing.rs", "edits": [{"old": "a", "new": "b"}]}),
-            WorkspaceBounds::Agent,
+            Reach::Workspace,
             edit,
         )
         .is_err(),
@@ -74,15 +74,15 @@ fn an_agents_write_names_what_it_replaces_and_a_stale_one_is_refused() -> TestRe
     let workspace = tempfile::tempdir()?;
     let root = workspace.path();
     fs::write(root.join("notes.md"), "read\n")?;
-    let write_with = |extra: serde_json::Value, bounds| {
+    let write_with = |extra: serde_json::Value, reach| {
         let mut inputs = serde_json::json!({"path": "notes.md", "contents": "next\n"});
         if let (Some(inputs), Some(extra)) = (inputs.as_object_mut(), extra.as_object()) {
             inputs.extend(extra.clone());
         }
-        invoke::<FileWriteInput, _>(root, inputs, bounds, write)
+        invoke::<FileWriteInput, _>(root, inputs, reach, write)
     };
 
-    let unnamed = write_with(serde_json::json!({}), WorkspaceBounds::Agent)
+    let unnamed = write_with(serde_json::json!({}), Reach::Workspace)
         .err()
         .unwrap_or_default();
     // A change that names no digest is told so, and what to name.
@@ -92,12 +92,12 @@ fn an_agents_write_names_what_it_replaces_and_a_stale_one_is_refused() -> TestRe
     );
     let stale = write_with(
         serde_json::json!({"expected_digest": digest("other\n")}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
     )
     .err()
     .unwrap_or_default();
     assert!(stale.contains("changed since it was read"), "{stale}");
-    let created = write_with(serde_json::json!({"create": true}), WorkspaceBounds::Agent)
+    let created = write_with(serde_json::json!({"create": true}), Reach::Workspace)
         .err()
         .unwrap_or_default();
     assert!(created.contains("exists"), "{created}");
@@ -105,16 +105,16 @@ fn an_agents_write_names_what_it_replaces_and_a_stale_one_is_refused() -> TestRe
 
     write_with(
         serde_json::json!({"expected_digest": digest("read\n")}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
     )?;
     assert_eq!(fs::read_to_string(root.join("notes.md"))?, "next\n");
     // An operator's write names nothing, as before.
-    write_with(serde_json::json!({}), WorkspaceBounds::Operator)?;
+    write_with(serde_json::json!({}), Reach::Inputs)?;
 
     let fresh = invoke::<FileWriteInput, _>(
         root,
         serde_json::json!({"path": "fresh.md", "contents": "new\n", "create": true}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         write,
     );
     assert!(fresh.is_ok(), "{fresh:?}");
@@ -130,7 +130,7 @@ fn a_bundle_binds_its_writes_and_deletes() -> TestResult {
     let unbound_delete = invoke::<FileApplyBundleInput, _>(
         root,
         serde_json::json!({"deletes": ["gone.md"]}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         apply_files,
     );
     assert!(unbound_delete.is_err());
@@ -140,7 +140,7 @@ fn a_bundle_binds_its_writes_and_deletes() -> TestResult {
             "writes": [{"path": "keep.md", "contents": "kept\n", "expected_digest": digest("keep\n")}],
             "deletes": [{"path": "gone.md", "expected_digest": digest("gone\n")}],
         }),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         apply_files,
     );
     assert!(applied.is_ok(), "{applied:?}");
@@ -157,7 +157,7 @@ fn every_change_returns_the_diff_it_made() -> TestResult {
     let edited = invoke::<FileEditInput, _>(
         root,
         serde_json::json!({"path": "lib.rs", "edits": [{"old": "one", "new": "first"}]}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         edit,
     )?;
     assert_eq!(
@@ -168,7 +168,7 @@ fn every_change_returns_the_diff_it_made() -> TestResult {
     let created = invoke::<FileWriteInput, _>(
         root,
         serde_json::json!({"path": "new.md", "contents": "hello\n", "create": true}),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         write,
     )?;
     assert!(
@@ -183,7 +183,7 @@ fn every_change_returns_the_diff_it_made() -> TestResult {
             "writes": [{"path": "new.md", "contents": "hello there\n", "expected_digest": digest("hello\n")}],
             "deletes": [{"path": "lib.rs", "expected_digest": digest("fn first() {}\n")}],
         }),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         apply_files,
     )?;
     let [write] = bundle.writes.as_slice() else {

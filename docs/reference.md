@@ -280,9 +280,10 @@ and the run continues; an act that cannot be done ends with
 `{"failure": {"reason": ...}}` instead, which fails its step with that reason,
 and a skill call whose child act failed settles failed with it. A run whose host authority sets `max_fanout` or
 `max_child_depth` refuses a skill call that would start more child runs in one
-turn, or nest them deeper, than it allows. A host whose own agent works the run
-sets `agent_bounds`, which keeps the run's file, git, command and authoring
-tools inside its workspace and away from secrets (see Agent bounds, below).
+turn, or nest them deeper, than it allows. A host sets what the run may change
+with `effects` and where its tools may go with `reach` (see Effects and reach,
+below); a host whose own agent works the run sets `effects: ask` and
+`reach: workspace`.
 
 A run's authority may also set `max_cost_micro`, the most the run may spend in
 integer micro-USD (1 = $0.000001); `runx skill --max-cost <usd>` sets it for a
@@ -530,9 +531,9 @@ was written against: `fs.write` and each `fs.apply_bundle` write take the
 or `create: true` for a file that must not exist, and a delete may be `{path,
 expected_digest}`; `fs.edit` is bound to the content it read. A change whose
 file differs from what it names is refused, naming it, and each file is checked
-again immediately before its atomic rename. Within agent bounds a change to a
-file that exists must name its digest, so an agent never replaces content it
-did not read.
+again immediately before its atomic rename. Within `reach: workspace` a change
+to a file that exists must name its digest, so an agent never replaces content
+it did not read.
 
 Every change a run makes through these tools is journaled in the run's kernel
 state: before a bundle's first rename runx records what each file held and the
@@ -541,40 +542,62 @@ begun is rolled back by the run's next driver, or by its close, so a bundle is
 applied whole or not at all. Each tool's output names its `journal` entry and
 each file's `before_digest`.
 
-**Agent bounds.** A run whose authority sets `agent_bounds`, as a host does for
-a run its own agent works in, keeps every native file, git, command and
-authoring tool inside its workspace. A root outside it, or inside `.git` or
-`.runx`, is refused, and no tool reads, writes, lists, searches or shows a
-secret: an environment file other than a template (`.env.example`), a private
-key or certificate bundle, `.npmrc`, `.netrc`, `.pgpass`, or anything under
-`.git` or `.runx`. A patch or commit leaves such files out and names them. An
-operator's run is unchanged and reaches the roots its inputs name, another
-repository included. A process the run starts is not confined by this; it runs
-with its user's rights.
+**Effects and reach.** A run's authority says what the run may change,
+`effects`, and where its tools may go, `reach`. A host sets both on a run, and a
+method or step in `run.yaml` can only narrow them: `none` is narrower than
+`ask`, and `ask` than `allow`; `workspace` is narrower than `inputs`. What
+applies to a step is the narrowest of its host's, its method's and its own, a
+turn's calls run under their agent step's, and a child run holds what the step
+that started it holds. A value wider than the host's narrows nothing. With no
+host, a run takes `effects: allow` and `reach: inputs`; that means only that no
+host set them, never that a person ran the command.
 
-**The approval floor.** In the same run, at any depth, every step that changes
-the workspace or runs a process waits on an approval of gate type `tool`
-before it is claimed: a native tool that changes something (`fs.edit`,
-`fs.write`, `fs.apply_bundle`, `runx.skill.apply`, `command.execute`,
-`process.start`), a catalog tool runx runs as a process, and a graph's process
-step, whether an agent's turn call
-made it or a skill's graph reached it. Its gate carries exactly what executes:
-for an edit each file with its unified diff and the digests of what it replaces
-and becomes, for a command its argv, directory and digest. A person who
-declines it refuses the call. A connector operation is governed by its own
-declared approval, whatever implements it, and the floor never holds one.
+`reach: workspace` keeps every native file, git, command and authoring tool
+inside the workspace. A root outside it, or inside `.git` or `.runx`, is
+refused, and no tool reads, writes, lists, searches or shows a secret: an
+environment file other than a template (`.env.example`), a private key or
+certificate bundle, `.npmrc`, `.netrc`, `.pgpass`, or anything under `.git` or
+`.runx`. A patch or commit leaves such files out and names them.
+`reach: inputs` reaches the roots the run's inputs name, another repository
+included. A process the run starts is not confined by either; it runs with its
+user's rights.
+
+**The approval floor.** `effects` is decided on the floor, at any depth, before
+a step or call is claimed, so nothing waiting on the person is ever "may have
+run". Under `effects: allow` nothing waits. Under `effects: ask` every change
+with no approval of its own waits on a person: a step that changes the
+workspace or runs a process waits on an approval of gate type `tool` (a native
+tool that changes something, `fs.edit`, `fs.write`, `fs.apply_bundle`,
+`runx.skill.apply`, `command.execute` or `process.start`, a catalog tool runx
+runs as a process, and a graph's process step), and a connector operation that
+writes waits on one of gate type `write`, whether an agent's turn call made it
+or a skill's fixed step reached it. Its gate carries exactly what executes: for
+an edit each file with its unified diff and the digests of what it replaces and
+becomes, for a command its argv, directory and digest, for a write its
+connector, operation and call. A write that carries an approval of its own, its
+operation's declared one or its step's `approval`, keeps that one and the floor
+adds none. A package's own `store` state is exempt, unless its step carries an
+`approval`. A person who declines it refuses the call. Under `effects: none`
+every change is refused, at any depth: every local effect, every provider write
+even with its own approval, every `store` write, and every purchase.
+
+A turn's own call never writes to `store`, at any `effects`: a stream is
+written by a package's deterministic step, and a turn's call to a `store`
+write is refused saying so.
 
 `standing_approvals` on the run's authority are a person's bounded
 confirmation, each exactly one of `{"edits": {"paths": [...]}}` (changes to
 files under those workspace-relative paths, by whole components; `""` is the
 whole workspace), `{"commands": {"argv_prefix": [...]}}` (a command whose argv
 begins with those exact tokens; argv has no shell, so a prefix admits nothing
-beyond it) and `{"local": true}` (every step the floor holds). A covered step
-runs without pausing, and its record and receipt name the entry that admitted
-it. A `runx resume` document may carry `standing_approvals` in the person's
-lane: runx records the new set, runs every later step under it, and approves
-each open floor approval it covers. Standing approvals never cover an
-operation's own declared approval.
+beyond it), `{"operations": {"names": [...]}}` (a write by a connector
+operation named `<connector>/<operation>`, or any operation of exactly one
+connector, `<connector>/*`) and `{"local": true}` (every local effect the floor
+holds). A covered step runs without pausing, and its record and receipt name
+the entry that admitted it. A `runx resume` document may carry
+`standing_approvals` in the person's lane: runx records the new set, runs every
+later step under it, and approves each open floor approval it covers. Standing
+approvals never cover a write's own approval.
 
 **What an approval executes.** Every approval gate carries what executes once it
 is approved: an operation its input, a local effect what the floor shows, an ask
@@ -645,7 +668,7 @@ amounts as strings. Floating-point inputs retain IEEE 754 semantics.
 `artifact.store` retains a selected canonical JSON result as the existing
 ProjectArtifact descriptor. `artifact.open` checks its current-project root,
 size and digest, then returns a local artifact URI for `artifact.read` pages.
-Store and open require operator bounds and `artifact.write` / `artifact.read`
+Store and open require `reach: inputs` and `artifact.write` / `artifact.read`
 scopes respectively. The existing `artifact.read` page tool requires `fs.read`;
 it accepts logical-run-scoped URIs admitted by either source. References do not
 grant permission. Use immutable result parts and a
@@ -1072,8 +1095,8 @@ without a redaction that would change their signed meaning.
 A graph receipt returns `not_a_step` with its verified child references; it
 does not directly sign an assembled result. A valid step receipt imported
 without its matching local run record returns `not_retained`. The reader
-neither replays the run nor searches another workspace. Runs confined by
-`agent_bounds` cannot access these protected claim bodies. A verified claim
+neither replays the run nor searches another workspace. A run with
+`reach: workspace` cannot access these protected claim bodies. A verified claim
 establishes what its signer recorded, not independent truth about a provider
 or the absence of secrets in data that was not inspected. A child receipt of
 an open turn becomes readable through the receipt store when the existing turn

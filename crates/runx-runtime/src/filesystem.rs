@@ -5,7 +5,7 @@ use runx_contracts::JsonObject;
 
 use crate::RuntimeError;
 use crate::capability::LocalEffect;
-use crate::services::WorkspaceBounds;
+use runx_contracts::Reach;
 
 mod admission;
 mod apply;
@@ -88,8 +88,7 @@ pub(crate) fn resolve_contained_file_target(
             "file target root must be a directory",
         ));
     }
-    admit_file_target(operation, &root, requested, WorkspaceBounds::Operator)
-        .map(|(_, absolute)| absolute)
+    admit_file_target(operation, &root, requested, Reach::Inputs).map(|(_, absolute)| absolute)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -129,10 +128,10 @@ pub(crate) fn apply_text_bundle(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
-    bounds: WorkspaceBounds,
+    reach: Reach,
     journal: Option<&Journal>,
 ) -> Result<JsonObject, RuntimeError> {
-    apply_text_bundle_verified(operation, root, bundle, bounds, journal, || Ok(()))
+    apply_text_bundle_verified(operation, root, bundle, reach, journal, || Ok(()))
         .map(|(report, ())| report)
 }
 
@@ -145,11 +144,11 @@ pub(crate) fn apply_text_bundle_verified<T>(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
-    bounds: WorkspaceBounds,
+    reach: Reach,
     journal: Option<&Journal>,
     verify: impl FnOnce() -> Result<T, RuntimeError>,
 ) -> Result<(JsonObject, T), RuntimeError> {
-    let admitted = admit_text_bundle(operation, root, bundle, bounds)?;
+    let admitted = admit_text_bundle(operation, root, bundle, reach)?;
     let snapshots = snapshot_paths(&admitted)?;
     let created_directories = missing_parent_directories(&admitted)?;
     let journaled = journal
@@ -211,9 +210,7 @@ fn invalid_bundle(operation: &str, message: impl Into<String>) -> RuntimeError {
 mod bundle_tests {
     use std::fs;
 
-    use super::{
-        TextBundle, TextFileWrite, WorkspaceBounds, apply_text_bundle, apply_text_bundle_verified,
-    };
+    use super::{Reach, TextBundle, TextFileWrite, apply_text_bundle, apply_text_bundle_verified};
 
     #[test]
     fn bounded_bundle_writes_and_deletes_files() -> Result<(), Box<dyn std::error::Error>> {
@@ -230,7 +227,7 @@ mod bundle_tests {
                 deletes: vec!["old.txt".to_owned()],
                 expected: Default::default(),
             },
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
         )?;
 
@@ -267,7 +264,7 @@ mod bundle_tests {
                 deletes: Vec::new(),
                 expected: Default::default(),
             },
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
         )?;
 
@@ -294,7 +291,7 @@ mod bundle_tests {
                 deletes: Vec::new(),
                 expected: Default::default(),
             },
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
         );
 
@@ -333,7 +330,7 @@ mod bundle_tests {
                 deletes: Vec::new(),
                 expected: Default::default(),
             },
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
         );
 
@@ -368,7 +365,7 @@ mod bundle_tests {
                 deletes: Vec::new(),
                 expected: Default::default(),
             },
-            WorkspaceBounds::Operator,
+            Reach::Inputs,
             None,
             || {
                 Err::<(), _>(super::invalid_bundle(
@@ -385,8 +382,8 @@ mod bundle_tests {
     }
 
     #[test]
-    fn agent_bounds_refuse_writing_a_secret_or_runx_state() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn reach_workspace_refuses_writing_a_secret_or_runx_state()
+    -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir()?;
         fs::create_dir(temp.path().join(".git"))?;
         for path in [
@@ -406,7 +403,7 @@ mod bundle_tests {
                     deletes: Vec::new(),
                     expected: Default::default(),
                 },
-                WorkspaceBounds::Agent,
+                Reach::Workspace,
                 None,
             );
             assert!(result.is_err(), "{path} is refused");
@@ -420,7 +417,7 @@ mod bundle_tests {
                 deletes: vec![".git/config".to_owned()],
                 expected: Default::default(),
             },
-            WorkspaceBounds::Agent,
+            Reach::Workspace,
             None,
         );
         assert!(deleted.is_err(), "deleting runx or git state is refused");
@@ -435,7 +432,7 @@ mod bundle_tests {
                 deletes: Vec::new(),
                 expected: Default::default(),
             },
-            WorkspaceBounds::Agent,
+            Reach::Workspace,
             None,
         )?;
         Ok(())

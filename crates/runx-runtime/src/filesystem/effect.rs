@@ -9,7 +9,7 @@ use runx_contracts::{JsonObject, JsonValue, sha256_prefixed};
 use super::admission::admit_text_bundle;
 use super::{LocalEffect, TextBundle};
 use crate::RuntimeError;
-use crate::services::WorkspaceBounds;
+use runx_contracts::Reach;
 
 /// What applying `bundle` beneath `root` would change, its paths admitted
 /// exactly as applying it admits them: each file with the digest of what it
@@ -20,12 +20,12 @@ pub(crate) fn text_bundle_effect(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
-    bounds: WorkspaceBounds,
+    reach: Reach,
 ) -> Result<Option<LocalEffect>, RuntimeError> {
     if bundle.writes.is_empty() && bundle.deletes.is_empty() {
         return Ok(None);
     }
-    let admitted = admit_text_bundle(operation, root, bundle, bounds)?;
+    let admitted = admit_text_bundle(operation, root, bundle, reach)?;
     let mut files = Vec::new();
     let mut paths = Vec::new();
     let changes = admitted

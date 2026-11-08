@@ -9,9 +9,9 @@ pub(crate) fn resolve_repo_root_for(
     requested: &str,
     env: &std::collections::BTreeMap<String, String>,
     skill_directory: &Path,
-    bounds: crate::services::WorkspaceBounds,
+    reach: runx_contracts::Reach,
 ) -> Result<PathBuf, RuntimeError> {
-    crate::services::resolve_scoped_root(requested, "workspace", env, skill_directory, bounds)
+    crate::services::resolve_scoped_root(requested, "workspace", env, skill_directory, reach)
         .map_err(|error| invalid_input(tool, error.to_string()))
 }
 
@@ -20,9 +20,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn an_operators_roots_accept_workspace_relative_and_explicit_absolute_paths()
+    fn reach_inputs_roots_accept_workspace_relative_and_explicit_absolute_paths()
     -> Result<(), Box<dyn std::error::Error>> {
-        let operator = crate::services::WorkspaceBounds::Operator;
+        let inputs = runx_contracts::Reach::Inputs;
         let workspace = tempfile::tempdir()?;
         let external = tempfile::tempdir()?;
         let env = std::collections::BTreeMap::from([(
@@ -31,7 +31,7 @@ mod tests {
         )]);
 
         assert_eq!(
-            resolve_repo_root_for("fs.read", ".", &env, workspace.path(), operator)?,
+            resolve_repo_root_for("fs.read", ".", &env, workspace.path(), inputs)?,
             workspace.path().canonicalize()?
         );
         assert_eq!(
@@ -40,7 +40,7 @@ mod tests {
                 &external.path().to_string_lossy(),
                 &env,
                 workspace.path(),
-                operator,
+                inputs,
             )?,
             external.path().canonicalize()?
         );

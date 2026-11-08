@@ -16,7 +16,7 @@ pub(super) fn inspect_skill(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let authoring_context = crate::services::inspect_skill_workspace(
         &repo_root,
@@ -34,7 +34,7 @@ pub(super) fn validate_skill(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let candidate_files = invocation.inputs.candidate_files.as_deref();
     let requested_path = requested_skill_path(invocation, candidate_files)?;
@@ -157,13 +157,13 @@ pub(super) fn apply_skill_effect(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     crate::services::skill_change_effect(
         &repo_root,
         &invocation.inputs.target_dir,
         &invocation.inputs.change_bundle,
-        invocation.bounds,
+        invocation.reach,
     )
 }
 
@@ -175,7 +175,7 @@ pub(super) fn apply_skill(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let report = crate::services::apply_skill_change(
         &repo_root,

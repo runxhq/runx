@@ -993,9 +993,9 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         delegations: Vec::new(),
         max_fanout: None,
         max_child_depth: None,
-        agent_bounds: false,
         standing_approvals: Vec::new(),
         max_cost_micro: None,
+        ..crate::RunAuthority::default()
     };
     assert!(fixture.admit_as("read", &read, Some(&authority)).is_err());
 
@@ -1235,9 +1235,9 @@ fn limited(max_cost_micro: u64) -> crate::RunAuthority {
         delegations: Vec::new(),
         max_fanout: None,
         max_child_depth: None,
-        agent_bounds: false,
         standing_approvals: Vec::new(),
         max_cost_micro: Some(max_cost_micro),
+        ..crate::RunAuthority::default()
     }
 }
 
@@ -1955,9 +1955,9 @@ fn a_request_whose_path_changes_when_parsed_is_never_sent() {
             }],
             max_fanout: None,
             max_child_depth: None,
-            agent_bounds: false,
             standing_approvals: Vec::new(),
             max_cost_micro: None,
+            ..crate::RunAuthority::default()
         };
         let read = |repository: &str| -> JsonObject {
             serde_json::from_value(serde_json::json!({

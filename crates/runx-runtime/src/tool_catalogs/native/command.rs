@@ -257,7 +257,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         })?)?;
         let execution = output
@@ -323,7 +323,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         })?)?;
         let env_names = output
@@ -360,7 +360,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         })?;
 
@@ -373,7 +373,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         })
         .expect_err("timeouts above one hour must remain bounded");
@@ -409,7 +409,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         })
         .expect_err("generic command execution must reject delivered credentials");
@@ -440,7 +440,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         })?)?;
         let digest = planned
@@ -461,7 +461,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         })
         .expect_err("drifted execution must be rejected before spawning");

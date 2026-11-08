@@ -189,7 +189,7 @@ pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[&QUERY, &PROVE, &REA
 fn read_receipt(
     invocation: &NativeInvocation<'_, ReceiptReadInput>,
 ) -> Result<ReceiptReadOutput, RuntimeError> {
-    if invocation.bounds == crate::services::WorkspaceBounds::Agent {
+    if invocation.reach == runx_contracts::Reach::Workspace {
         return Err(super::invalid_input(
             "receipt.read",
             "retained receipt claims are protected operator state; this host's agent can read redacted receipt metadata instead",
@@ -248,7 +248,8 @@ mod tests {
     use super::*;
     use crate::credentials::CredentialDelivery;
     use crate::effects::RuntimeEffectRegistry;
-    use crate::services::{LocalArtifactService, WorkspaceBounds};
+    use crate::services::LocalArtifactService;
+    use runx_contracts::Reach;
 
     #[test]
     fn receipt_read_requires_claim_authority_and_preserves_the_host_agent_state_boundary()
@@ -261,15 +262,15 @@ mod tests {
         let effects = RuntimeEffectRegistry::default();
         let artifacts = LocalArtifactService::default();
         let delivery = CredentialDelivery::none();
-        for (scopes, bounds, reason) in [
+        for (scopes, reach, reason) in [
             (
                 vec!["receipt.read".to_owned()],
-                WorkspaceBounds::Operator,
+                Reach::Inputs,
                 "receipt.claim.read",
             ),
             (
                 vec!["receipt.claim.read".to_owned()],
-                WorkspaceBounds::Agent,
+                Reach::Workspace,
                 "protected operator state",
             ),
         ] {
@@ -293,7 +294,7 @@ mod tests {
                     credential_delivery: &delivery,
                     local_artifacts: &artifacts,
                     effects: &effects,
-                    bounds,
+                    reach,
                     call: None,
                     effect_admission: None,
                 },

@@ -2,11 +2,11 @@
 //! CLI results and bounded caller turns. No application state or new backend.
 use super::capability::{NativeCapability, TypedNativeCapability};
 use super::{NativeInvocation, invalid_input};
-use crate::services::WorkspaceBounds;
 use crate::{
     CapabilityApproval, CapabilityArtifacts, CapabilityDefinition, CapabilityEffect,
     CapabilityField, CapabilityInput, CapabilityOutput, RuntimeError,
 };
+use runx_contracts::Reach;
 use runx_contracts::{JsonValue, LocalArtifact, ProjectArtifact};
 use serde::{Deserialize, Serialize};
 
@@ -25,11 +25,11 @@ struct OpenInput {
 }
 impl CapabilityInput for OpenInput {}
 
-fn require_operator(tool: &str, bounds: WorkspaceBounds) -> Result<(), RuntimeError> {
-    if bounds == WorkspaceBounds::Agent {
+fn require_inputs_reach(tool: &str, reach: Reach) -> Result<(), RuntimeError> {
+    if reach == Reach::Workspace {
         return Err(invalid_input(
             tool,
-            "retained project artifacts are protected operator state; select operator bounds and the declared artifact scope",
+            "retained project artifacts are protected operator state; a run with reach: inputs and the declared artifact scope reaches them",
         ));
     }
     Ok(())
@@ -37,7 +37,7 @@ fn require_operator(tool: &str, bounds: WorkspaceBounds) -> Result<(), RuntimeEr
 
 fn store(invocation: &NativeInvocation<'_, StoreInput>) -> Result<ProjectArtifact, RuntimeError> {
     const TOOL: &str = "artifact.store";
-    require_operator(TOOL, invocation.bounds)?;
+    require_inputs_reach(TOOL, invocation.reach)?;
     let call = invocation
         .call
         .ok_or_else(|| invalid_input(TOOL, "storage requires the native call identity"))?;
@@ -65,7 +65,7 @@ fn store(invocation: &NativeInvocation<'_, StoreInput>) -> Result<ProjectArtifac
 
 fn open(invocation: &NativeInvocation<'_, OpenInput>) -> Result<LocalArtifact, RuntimeError> {
     const TOOL: &str = "artifact.open";
-    require_operator(TOOL, invocation.bounds)?;
+    require_inputs_reach(TOOL, invocation.reach)?;
     if invocation.inputs.artifact.bytes > crate::services::MAX_ARTIFACT_BYTES {
         return Err(invalid_input(
             TOOL,

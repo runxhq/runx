@@ -106,19 +106,7 @@ fn limit_run(
     let Some(limit) = max_cost_micro else {
         return Ok(authority);
     };
-    let mut authority = authority.unwrap_or_else(|| {
-        Box::new(runx_runtime::RunAuthority {
-            grants: std::collections::BTreeMap::new(),
-            actor_ref: None,
-            mandate_ref: None,
-            delegations: Vec::new(),
-            max_fanout: None,
-            max_child_depth: None,
-            agent_bounds: false,
-            standing_approvals: Vec::new(),
-            max_cost_micro: None,
-        })
-    });
+    let mut authority = authority.unwrap_or_default();
     if authority
         .max_cost_micro
         .is_some_and(|stated| stated != limit)

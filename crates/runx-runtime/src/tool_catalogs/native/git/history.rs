@@ -1,7 +1,7 @@
 //! Native bounded Git history: commits, a commit or a file at a revision, and
-//! patches. Within agent bounds no patch or file shows a secret: changed paths
-//! are listed first, filtered by the one secret-path rule, and only the paths
-//! it allows are shown, the rest named as omitted.
+//! patches. Within `reach: workspace` no patch or file shows a secret: changed
+//! paths are listed first, filtered by the one secret-path rule, and only the
+//! paths it allows are shown, the rest named as omitted.
 
 use std::path::Path;
 
@@ -110,9 +110,7 @@ pub(super) fn show(
     validate_revision(SHOW, "revision", &inputs.revision)?;
     if let Some(path) = &inputs.path {
         validate_paths(SHOW, std::slice::from_ref(path))?;
-        invocation
-            .bounds
-            .admit(Path::new(path))
+        crate::services::admit_within(invocation.reach, Path::new(path))
             .map_err(|error| invalid_input(SHOW, error.to_string()))?;
         let object = format!("{}:{path}", inputs.revision);
         let (text, truncated) = run(SHOW, &root, &["show", "--no-color", &object], invocation)?;
@@ -247,7 +245,7 @@ fn repo_root<I>(
         requested,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )
 }
 
@@ -275,7 +273,7 @@ fn split_allowed<I>(
 ) -> (Vec<NonEmptyString>, Vec<NonEmptyString>) {
     let (mut files, mut omitted) = (Vec::new(), Vec::new());
     for name in names.lines().map(str::trim).filter_map(NonEmptyString::new) {
-        if invocation.bounds.admit(Path::new(name.as_str())).is_ok() {
+        if crate::services::admit_within(invocation.reach, Path::new(name.as_str())).is_ok() {
             files.push(name);
         } else {
             omitted.push(name);

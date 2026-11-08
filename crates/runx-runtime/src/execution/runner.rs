@@ -1810,6 +1810,8 @@ mod tests {
                 name: name.clone(),
                 result_from: result_from.into_iter().map(str::to_owned).collect(),
                 outputs: None,
+                effects: None,
+                reach: None,
                 steps: Vec::new(),
                 raw: RawWorkflowIr {
                     document: JsonObject::new(),

@@ -713,10 +713,11 @@ where
         fixture.host.act.as_ref(),
         &run_id,
     )?;
-    let runtime = Runtime::new(
-        adapter,
-        options.runtime(&run_id, fixture, &target.skill_dir)?,
-    );
+    let mut options = options.runtime(&run_id, fixture, &target.skill_dir)?;
+    // The run holds its method's effects and reach, as any run of it does.
+    options.run_authority =
+        crate::RunAuthority::of_method(options.run_authority.take(), &target.runner.graph);
+    let runtime = Runtime::new(adapter, options);
     let mut host = FixtureHost::new(fixture);
     let workflow_run = runtime.run_workflow_for_test(&target.skill_dir, graph, &mut host)?;
     let (replayed_answers, unanswered) = host.finish();

@@ -11,8 +11,8 @@ use super::{diff, log, show};
 use crate::RuntimeEffectRegistry;
 use crate::credentials::CredentialDelivery;
 use crate::paths::RUNX_CWD_ENV;
-use crate::services::WorkspaceBounds;
 use crate::tool_catalogs::native::{NativeInvocation, fixture_input};
+use runx_contracts::Reach;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -46,7 +46,7 @@ fn repository() -> TestResult<tempfile::TempDir> {
 fn invoke<I, O>(
     workspace: &Path,
     inputs: JsonObject,
-    bounds: WorkspaceBounds,
+    reach: Reach,
     handler: fn(&NativeInvocation<'_, I>) -> Result<O, crate::RuntimeError>,
 ) -> TestResult<JsonObject>
 where
@@ -68,7 +68,7 @@ where
         credential_delivery: &delivery,
         local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
         effects: &effects,
-        bounds,
+        reach,
         call: None,
     })?;
     let value: JsonValue = serde_json::from_value(serde_json::to_value(output)?)?;
@@ -99,12 +99,7 @@ fn text<'a>(output: &'a JsonObject, field: &str) -> &'a str {
 #[test]
 fn a_log_lists_commits_newest_first_with_their_files() -> TestResult {
     let workspace = repository()?;
-    let output = invoke::<GitLogInput, _>(
-        workspace.path(),
-        JsonObject::new(),
-        WorkspaceBounds::Operator,
-        log,
-    )?;
+    let output = invoke::<GitLogInput, _>(workspace.path(), JsonObject::new(), Reach::Inputs, log)?;
     let commits = output
         .get("commits")
         .and_then(JsonValue::as_array)
@@ -125,7 +120,7 @@ fn a_log_lists_commits_newest_first_with_their_files() -> TestResult {
             "max_count".to_owned(),
             JsonValue::Number(JsonNumber::U64(1)),
         )]),
-        WorkspaceBounds::Operator,
+        Reach::Inputs,
         log,
     )?;
     assert_eq!(
@@ -138,26 +133,18 @@ fn a_log_lists_commits_newest_first_with_their_files() -> TestResult {
 }
 
 #[test]
-fn a_commit_shown_within_agent_bounds_leaves_its_secret_out() -> TestResult {
+fn a_commit_shown_within_reach_workspace_leaves_its_secret_out() -> TestResult {
     let workspace = repository()?;
-    let operator = invoke::<GitShowInput, _>(
-        workspace.path(),
-        JsonObject::new(),
-        WorkspaceBounds::Operator,
-        show,
-    )?;
-    assert!(text(&operator, "text").contains("hunter2"));
+    let inputs =
+        invoke::<GitShowInput, _>(workspace.path(), JsonObject::new(), Reach::Inputs, show)?;
+    assert!(text(&inputs, "text").contains("hunter2"));
 
-    let agent = invoke::<GitShowInput, _>(
-        workspace.path(),
-        JsonObject::new(),
-        WorkspaceBounds::Agent,
-        show,
-    )?;
-    assert!(!text(&agent, "text").contains("hunter2"));
-    assert!(text(&agent, "text").contains("pub fn two()"));
-    assert_eq!(strings(&agent, "files"), vec!["src/lib.rs".to_owned()]);
-    assert_eq!(strings(&agent, "omitted"), vec![".env".to_owned()]);
+    let workspace =
+        invoke::<GitShowInput, _>(workspace.path(), JsonObject::new(), Reach::Workspace, show)?;
+    assert!(!text(&workspace, "text").contains("hunter2"));
+    assert!(text(&workspace, "text").contains("pub fn two()"));
+    assert_eq!(strings(&workspace, "files"), vec!["src/lib.rs".to_owned()]);
+    assert_eq!(strings(&workspace, "omitted"), vec![".env".to_owned()]);
     Ok(())
 }
 
@@ -176,14 +163,14 @@ fn a_file_at_a_revision_is_shown_unless_it_is_a_secret() -> TestResult {
                 JsonValue::String("src/lib.rs".to_owned()),
             ),
         ]),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         show,
     )?;
     assert_eq!(text(&earlier, "text"), "pub fn one() {}\n");
     let secret = invoke::<GitShowInput, _>(
         workspace.path(),
         JsonObject::from([("path".to_owned(), JsonValue::String(".env".to_owned()))]),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         show,
     );
     assert!(secret.is_err());
@@ -195,12 +182,8 @@ fn a_patch_against_the_working_tree_or_a_revision_leaves_secrets_out() -> TestRe
     let workspace = repository()?;
     std::fs::write(workspace.path().join("src/lib.rs"), "pub fn three() {}\n")?;
     std::fs::write(workspace.path().join(".env"), "TOKEN=changed\n")?;
-    let working = invoke::<GitPatchInput, _>(
-        workspace.path(),
-        JsonObject::new(),
-        WorkspaceBounds::Agent,
-        diff,
-    )?;
+    let working =
+        invoke::<GitPatchInput, _>(workspace.path(), JsonObject::new(), Reach::Workspace, diff)?;
     assert!(text(&working, "patch").contains("+pub fn three() {}"));
     assert!(!text(&working, "patch").contains("TOKEN"));
     assert_eq!(strings(&working, "omitted"), vec![".env".to_owned()]);
@@ -212,7 +195,7 @@ fn a_patch_against_the_working_tree_or_a_revision_leaves_secrets_out() -> TestRe
             ("head".to_owned(), JsonValue::String("HEAD".to_owned())),
             ("stat".to_owned(), JsonValue::Bool(true)),
         ]),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         diff,
     )?;
     assert!(text(&between, "patch").contains("src/lib.rs"));
@@ -227,7 +210,7 @@ fn an_option_or_a_path_outside_the_repository_is_refused() -> TestResult {
         let refused = invoke::<GitLogInput, _>(
             workspace.path(),
             JsonObject::from([(field.to_owned(), JsonValue::String(value.to_owned()))]),
-            WorkspaceBounds::Agent,
+            Reach::Workspace,
             log,
         );
         assert!(refused.is_err(), "{field}={value} is refused");
@@ -238,7 +221,7 @@ fn an_option_or_a_path_outside_the_repository_is_refused() -> TestResult {
             "paths".to_owned(),
             JsonValue::Array(vec![JsonValue::String("../elsewhere".to_owned())]),
         )]),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         diff,
     );
     assert!(outside.is_err());

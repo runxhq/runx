@@ -23,12 +23,11 @@ pub(crate) use skill_packages::{
 pub use verified_receipts::VerifiedReceiptStore;
 pub(crate) use workspace_files::{
     ArtifactPageEncoding, ArtifactRecordPage, DEFAULT_ARTIFACT_PAGE_BYTES, LocalArtifact,
-    LocalArtifactService, MAX_ARTIFACT_BYTES, WorkspaceFile, is_secret_path,
+    LocalArtifactService, MAX_ARTIFACT_BYTES, WorkspaceFile, admit_within, is_secret_path,
     persist_canonical_json_artifact, persist_json_bytes, resolve_scoped_root,
 };
 pub use workspace_files::{
-    WorkspaceBounds, WorkspaceFileError, persist_json_artifact, read_json_artifact,
-    read_workspace_text,
+    WorkspaceFileError, persist_json_artifact, read_json_artifact, read_workspace_text,
 };
 
 #[cfg(test)]

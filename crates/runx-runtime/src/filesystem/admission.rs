@@ -6,7 +6,7 @@ use super::{
     MAX_BUNDLE_OPERATIONS, MAX_FILESYSTEM_MUTATION_BUNDLE_BYTES, TextBundle, invalid_bundle,
 };
 use crate::RuntimeError;
-use crate::services::WorkspaceBounds;
+use runx_contracts::Reach;
 
 pub(super) struct AdmittedWrite {
     pub(super) relative: String,
@@ -23,15 +23,15 @@ pub(super) struct AdmittedBundle {
 
 /// Each change is bound to what it was written against: a named digest is
 /// the content now there, and a file that must not exist does not. Within
-/// agent bounds a change to a file that exists names the digest it read, so
-/// an agent never replaces content it did not see.
+/// `reach: workspace` a change to a file that exists names the digest it
+/// read, so an agent never replaces content it did not see.
 fn admit_expected(
     operation: &str,
     named: &str,
     relative: &str,
     absolute: &Path,
     expected: Option<&super::Expected>,
-    bounds: WorkspaceBounds,
+    reach: Reach,
 ) -> Result<(), RuntimeError> {
     let current = match fs::read(absolute) {
         Ok(bytes) => Some(runx_contracts::sha256_prefixed(&bytes)),
@@ -54,7 +54,7 @@ fn admit_expected(
             "{relative} exists; read it and name the digest it replaces"
         )),
         (Some(super::Expected::Absent), None) | (None, None) => Ok(()),
-        (None, Some(_)) if bounds == WorkspaceBounds::Agent => refused(format!(
+        (None, Some(_)) if reach == Reach::Workspace => refused(format!(
             "{named} exists and this change names no expected_digest: read it, then name the content_digest the read returned"
         )),
         (None, Some(_)) => Ok(()),
@@ -73,7 +73,7 @@ pub(super) fn admit_text_bundle(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
-    bounds: WorkspaceBounds,
+    reach: Reach,
 ) -> Result<AdmittedBundle, RuntimeError> {
     let operation_count = bundle.writes.len() + bundle.deletes.len();
     if operation_count > MAX_BUNDLE_OPERATIONS {
@@ -105,8 +105,8 @@ pub(super) fn admit_text_bundle(
         ));
     }
     let mut seen = std::collections::BTreeSet::new();
-    let writes = admit_writes(operation, &root, bundle, bounds, &mut seen)?;
-    let deletes = admit_deletes(operation, &root, bundle, bounds, &mut seen)?;
+    let writes = admit_writes(operation, &root, bundle, reach, &mut seen)?;
+    let deletes = admit_deletes(operation, &root, bundle, reach, &mut seen)?;
     Ok(AdmittedBundle {
         operation: operation.to_owned(),
         root,
@@ -119,13 +119,13 @@ fn admit_writes(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
-    bounds: WorkspaceBounds,
+    reach: Reach,
     seen: &mut std::collections::BTreeSet<String>,
 ) -> Result<Vec<AdmittedWrite>, RuntimeError> {
     let mut total_bytes = 0usize;
     let mut writes = Vec::with_capacity(bundle.writes.len());
     for write in &bundle.writes {
-        let (relative, absolute) = admit_file_target(operation, root, &write.path, bounds)?;
+        let (relative, absolute) = admit_file_target(operation, root, &write.path, reach)?;
         admit_unique_path(operation, seen, &relative)?;
         total_bytes = total_bytes
             .checked_add(write.contents.len())
@@ -143,7 +143,7 @@ fn admit_writes(
             &relative,
             &absolute,
             bundle.expected.get(&write.path),
-            bounds,
+            reach,
         )?;
         writes.push(AdmittedWrite {
             relative,
@@ -158,12 +158,12 @@ fn admit_deletes(
     operation: &str,
     root: &Path,
     bundle: &TextBundle,
-    bounds: WorkspaceBounds,
+    reach: Reach,
     seen: &mut std::collections::BTreeSet<String>,
 ) -> Result<Vec<(String, PathBuf)>, RuntimeError> {
     let mut deletes = Vec::with_capacity(bundle.deletes.len());
     for delete in &bundle.deletes {
-        let (relative, absolute) = admit_file_target(operation, root, delete, bounds)?;
+        let (relative, absolute) = admit_file_target(operation, root, delete, reach)?;
         admit_unique_path(operation, seen, &relative)?;
         reject_directory_target(operation, &absolute, &relative)?;
         admit_expected(
@@ -172,7 +172,7 @@ fn admit_deletes(
             &relative,
             &absolute,
             bundle.expected.get(delete),
-            bounds,
+            reach,
         )?;
         deletes.push((relative, absolute));
     }
@@ -198,7 +198,7 @@ pub(super) fn admit_file_target(
     operation: &str,
     root: &Path,
     value: &str,
-    bounds: WorkspaceBounds,
+    reach: Reach,
 ) -> Result<(String, PathBuf), RuntimeError> {
     if value.trim() != value || value.is_empty() || value.contains('\\') {
         return Err(invalid_bundle(
@@ -225,8 +225,7 @@ pub(super) fn admit_file_target(
     if normalized.as_os_str().is_empty() {
         return Err(invalid_bundle(operation, "bundle path must name a file"));
     }
-    bounds
-        .admit(&normalized)
+    crate::services::admit_within(reach, &normalized)
         .map_err(|error| invalid_bundle(operation, error.to_string()))?;
     if normalized.file_name().is_some_and(|name| {
         let name = name.to_string_lossy().to_ascii_lowercase();

@@ -17,7 +17,7 @@ declared claim. When that claim must belong to an original composed run, also
 pass `root_receipt_id`: the native owner verifies that complete signed tree and
 admits only its root or a descendant. The response preserves this root binding.
 An unrelated valid receipt is insufficient. Claim access still requires
-`receipt.claim.read`, operator bounds and the current workspace's retained state;
+`receipt.claim.read`, `reach: inputs` and the current workspace's retained state;
 it does not expose raw inputs or transport diagnostics. Membership and signatures
 do not themselves establish provider truth or successful payment.
 

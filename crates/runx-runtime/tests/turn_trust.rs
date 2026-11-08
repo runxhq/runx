@@ -3,9 +3,9 @@
 //!
 //! The probe of 6 November, as regression tests: a session started as
 //! Fieldwork starts one, the bundled agent skill's `read` method with
-//! `agent_bounds` and no standing approval, in a workspace holding a
-//! connector whose `read` is a process that writes a marker, and a skill that
-//! reaches it. No network, no credential, no model.
+//! `effects: ask`, `reach: workspace` and no standing approval, in a
+//! workspace holding a connector whose `read` is a process that writes a
+//! marker, and a skill that reaches it. No network, no credential, no model.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -148,7 +148,7 @@ impl Workspace {
                 current_context: Vec::new(),
                 historical_context: Vec::new(),
                 run_authority: Some(serde_json::from_value(
-                    serde_json::json!({"agent_bounds": true}),
+                    serde_json::json!({"effects": "ask", "reach": "workspace"}),
                 )?),
                 act: Some(serde_json::from_value(serde_json::json!({
                     "purpose": "Answer the person's question about the project."

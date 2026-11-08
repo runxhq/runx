@@ -198,9 +198,9 @@ local snapshot service. `artifact.read` then supplies the same bounded UTF-8
 or JSON-array pages used for source files. There is no second store or reader.
 
 Store and open require `artifact.write` or `artifact.read` respectively and
-operator bounds. The existing `artifact.read` page tool requires `fs.read` and
-reads invocation-scoped snapshots from either admission path. Agent-bounded runs
-cannot read or write retained operator
+`reach: inputs`. The existing `artifact.read` page tool requires `fs.read` and
+reads invocation-scoped snapshots from either admission path. Runs with
+`reach: workspace` cannot read or write retained operator
 state through them; that refusal occurs before filesystem access. The
 existing ProjectArtifact descriptor is a locator and digest, not authority or
 proof of who produced its contents. Custom project roots follow RunxPaths;

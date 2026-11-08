@@ -134,7 +134,7 @@ impl JavaScriptPackage {
             environment: worker.environment.clone(),
         };
         self.adapter.invoke(SkillInvocation {
-            workspace_bounds: runx_runtime::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             historical_context: Vec::new(),
             skill_name: "deterministic-module".to_owned(),
             step_id: None,

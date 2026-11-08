@@ -107,7 +107,7 @@ fn run(
         }
     };
     let invocation = SkillInvocation {
-        workspace_bounds: request.bounds,
+        reach: request.reach,
         historical_context: Vec::new(),
         skill_name: resolution.tool.name,
         step_id: None,

@@ -11,7 +11,8 @@ use sha2::{Digest as _, Sha256};
 
 use super::reader::SnapshotReader;
 use super::{LocalArtifact, MAX_ARTIFACT_BYTES};
-use crate::services::{WorkspaceBounds, WorkspaceFile, WorkspaceFileError};
+use crate::services::{WorkspaceFile, WorkspaceFileError};
+use runx_contracts::Reach;
 
 pub(super) const SNAPSHOT_CHUNK_BYTES: usize = 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
@@ -297,7 +298,7 @@ fn checked_file(root: &Path, name: &str) -> Result<File, WorkspaceFileError> {
     if !metadata.is_file() || metadata.file_type().is_symlink() {
         return Err(WorkspaceFileError::ArtifactStoreUnavailable);
     }
-    let source = WorkspaceFile::resolve(root, Path::new(name), WorkspaceBounds::Operator)?;
+    let source = WorkspaceFile::resolve(root, Path::new(name), Reach::Inputs)?;
     File::open(source.path).map_err(WorkspaceFileError::SnapshotUnavailable)
 }
 

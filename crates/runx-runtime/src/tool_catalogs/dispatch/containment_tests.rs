@@ -47,7 +47,7 @@ fn invoke_with_scopes(
             skill_name: "architecture-containment",
             allow_explicit_manifest_path: false,
             effect_admission: None,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         },
         &RuntimeEffectRegistry::default(),

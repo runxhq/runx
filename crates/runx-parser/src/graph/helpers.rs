@@ -88,6 +88,53 @@ pub fn optional_string(
     }
 }
 
+/// What a method or step narrows: its `effects`, one of `none`, `ask` and
+/// `allow`, and its `reach`, one of `workspace` and `inputs`. A value wider
+/// than its run's is valid and narrows nothing.
+pub fn narrowing(
+    record: &JsonObject,
+    field: &str,
+) -> Result<
+    (
+        Option<runx_contracts::Effects>,
+        Option<runx_contracts::Reach>,
+    ),
+    ValidationError,
+> {
+    fn one_of<T: serde::de::DeserializeOwned>(
+        value: Option<&JsonValue>,
+        field: &str,
+        values: &str,
+    ) -> Result<Option<T>, ValidationError> {
+        value
+            .map(|value| {
+                serde_json::to_value(value)
+                    .and_then(serde_json::from_value)
+                    .map_err(|_| validation_error(format!("{field} must be one of {values}.")))
+            })
+            .transpose()
+    }
+    let qualified = |key: &str| {
+        if field.is_empty() {
+            key.to_owned()
+        } else {
+            format!("{field}.{key}")
+        }
+    };
+    Ok((
+        one_of(
+            record.get("effects"),
+            &qualified("effects"),
+            "none, ask and allow",
+        )?,
+        one_of(
+            record.get("reach"),
+            &qualified("reach"),
+            "workspace and inputs",
+        )?,
+    ))
+}
+
 pub fn optional_non_empty_string(
     value: Option<&JsonValue>,
     field: &str,

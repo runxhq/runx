@@ -3,7 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use runx_contracts::JsonObject;
 
 use super::helpers::{
-    optional_string_array, required_array, required_object, required_string, validation_error,
+    narrowing, optional_string_array, required_array, required_object, required_string,
+    validation_error,
 };
 use super::step::validate_step;
 use super::types::{RawWorkflowIr, Workflow};
@@ -32,6 +33,7 @@ pub fn validate_workflow_document(
     let name = required_string(document.get("name"), "name")?;
     let result_from =
         optional_string_array(document.get("result_from"), "result_from")?.unwrap_or_default();
+    let (effects, reach) = narrowing(&document, "")?;
     let raw_steps = required_array(document.get("steps"), "steps")?;
     // Each earlier step, and whether it is an operation, which a read may
     // confirm.
@@ -59,6 +61,8 @@ pub fn validate_workflow_document(
         name,
         result_from,
         outputs,
+        effects,
+        reach,
         steps,
         raw: raw.unwrap_or(RawWorkflowIr { document }),
     })
@@ -200,7 +204,14 @@ fn validate_gated_context(steps: &[crate::WorkflowStep]) -> Result<(), Validatio
 
 /// The fields of a workflow document: a method's steps, under its skill's
 /// name.
-const WORKFLOW_FIELDS: &[&str] = &["name", "result_from", "outputs", "steps"];
+const WORKFLOW_FIELDS: &[&str] = &[
+    "name",
+    "result_from",
+    "outputs",
+    "effects",
+    "reach",
+    "steps",
+];
 
 fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationError> {
     match document
@@ -585,6 +596,57 @@ steps:
 "#,
         )?;
         assert!(message.contains("contxt does not apply to this tool step"));
+        Ok(())
+    }
+
+    #[test]
+    fn a_method_and_its_steps_read_effects_and_reach_as_written() -> Result<(), String> {
+        let graph = validate_yaml(
+            r#"
+name: narrow
+effects: ask
+reach: workspace
+steps:
+  - id: quiet
+    tool: data.digest
+    effects: none
+    inputs: {value: 1}
+  - id: wide
+    tool: data.digest
+    effects: allow
+    reach: inputs
+    inputs: {value: 2}
+  - id: plain
+    tool: data.digest
+    inputs: {value: 3}
+"#,
+        )?;
+        assert_eq!(graph.effects, Some(runx_contracts::Effects::Ask));
+        assert_eq!(graph.reach, Some(runx_contracts::Reach::Workspace));
+        assert_eq!(graph.steps[0].effects, Some(runx_contracts::Effects::None));
+        assert_eq!(graph.steps[0].reach, None);
+        // A value wider than its run's parses; it only never widens.
+        assert_eq!(graph.steps[1].effects, Some(runx_contracts::Effects::Allow));
+        assert_eq!(graph.steps[1].reach, Some(runx_contracts::Reach::Inputs));
+        assert_eq!((graph.steps[2].effects, graph.steps[2].reach), (None, None));
+
+        for (source, expected) in [
+            (
+                "name: n\neffects: free\nsteps:\n  - {id: a, tool: data.digest}\n",
+                "effects must be one of none, ask and allow.",
+            ),
+            (
+                "name: n\nsteps:\n  - {id: a, tool: data.digest, effects: read_only}\n",
+                "steps.0.effects must be one of none, ask and allow.",
+            ),
+            (
+                "name: n\nsteps:\n  - {id: a, tool: data.digest, reach: agent}\n",
+                "steps.0.reach must be one of workspace and inputs.",
+            ),
+        ] {
+            let message = validate_err(source)?;
+            assert!(message.contains(expected), "{message}");
+        }
         Ok(())
     }
 }

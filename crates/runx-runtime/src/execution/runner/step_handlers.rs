@@ -247,6 +247,22 @@ where
             skill.offer.as_ref(),
         )
     }) {
+        // A purchase moves money at a provider, which `effects: none` never
+        // lets a run do.
+        if crate::kernel::authority::step_effects(
+            request.runtime.options.run_authority.as_ref(),
+            request.step,
+        ) == runx_contracts::Effects::None
+        {
+            return Err(RuntimeError::AuthorityDenied {
+                verb: runx_contracts::AuthorityVerb::Write,
+                step_id: request.step.id.clone(),
+                reason: format!(
+                    "the run's effects are none, so it changes nothing: buying {}#{} is refused",
+                    paid.skill_id, paid.runner
+                ),
+            });
+        }
         return run_purchase_step(paid, StepHandlerCtx { inputs, ..request });
     }
     let mut env = request.runtime.options.env.clone();
@@ -363,7 +379,7 @@ where
         request.runtime,
         request.host,
         NestedWorkflow {
-            step_id: &request.step.id,
+            step: request.step,
             skill: &skill_name,
             graph: skill.runner.graph,
             inputs: &request.inputs,
@@ -439,7 +455,7 @@ where
 /// A child skill's graph and what it runs with.
 struct NestedWorkflow<'a> {
     /// The parent step the child runs as.
-    step_id: &'a str,
+    step: &'a WorkflowStep,
     skill: &'a str,
     graph: runx_parser::Workflow,
     inputs: &'a JsonObject,
@@ -468,20 +484,20 @@ where
 {
     let inherited =
         crate::execution::graph::inherited_step_provenance(&nested.graph, nested.provenance);
-    let log = runtime.options.run.child(nested.step_id)?;
+    let log = runtime.options.run.child(&nested.step.id)?;
     let graph = bind_run_inputs(nested.graph, nested.inputs, nested.act, log.run_id())?;
     if log.load()?.is_none()
         && let Some(reason) = super::child_depth_refusal(&runtime.options)
     {
         return Err(RuntimeError::AuthorityDenied {
             verb: runx_contracts::AuthorityVerb::Execute,
-            step_id: nested.step_id.to_owned(),
+            step_id: nested.step.id.clone(),
             reason,
         });
     }
     let existing = log.start_child(
         runtime.options.run.run_id(),
-        nested.step_id,
+        &nested.step.id,
         nested.skill,
         nested.inputs,
         nested.act,
@@ -491,6 +507,11 @@ where
         return super::sealed_workflow_run(graph, record);
     }
     let mut child_options = runtime.options.as_ref().clone();
+    // A child holds what its parent step does, narrowed by its own method.
+    child_options.run_authority = crate::RunAuthority::of_method(
+        crate::RunAuthority::of_step(child_options.run_authority.take(), nested.step),
+        &graph,
+    );
     child_options.env = nested.env.clone();
     child_options.run = log.clone();
     if let Some(admitted) = nested.admitted {
@@ -790,7 +811,7 @@ where
     };
     let requirements = step_requirements(&executable);
     let invocation = SkillInvocation {
-        workspace_bounds: crate::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
+        reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
         historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
@@ -944,7 +965,7 @@ where
         None => runtime.options.clock.now(),
     };
     let invocation = SkillInvocation {
-        workspace_bounds: crate::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
+        reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
         historical_context: Vec::new(),
         skill_name: step.id.clone(),
         step_id: Some(step.id.clone()),
@@ -991,6 +1012,8 @@ where
             step_id: &step.id,
             attempt,
             agent,
+            effects: step.effects,
+            reach: step.reach,
         },
         &request,
     )?;
@@ -1122,7 +1145,7 @@ where
         skill_name: tool,
         allow_explicit_manifest_path: true,
         effect_admission: authority.as_ref().map(StepAuthorityContext::admission),
-        bounds: crate::services::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
+        reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
         call: Some(&call),
     };
     // Source the tool manifest's artifact contract so the wrapped packet the
@@ -1287,6 +1310,8 @@ where
 struct StepTools<'a, A> {
     runtime: &'a Runtime<A>,
     workflow_dir: &'a Path,
+    /// Where the step's tools may go.
+    reach: runx_contracts::Reach,
     observed: std::cell::RefCell<crate::observations::Observations>,
 }
 
@@ -1317,9 +1342,7 @@ where
                 skill_name: tool,
                 allow_explicit_manifest_path: false,
                 effect_admission: None,
-                bounds: crate::services::WorkspaceBounds::of(
-                    self.runtime.options.run_authority.as_ref(),
-                ),
+                reach: self.reach,
                 call: None,
             },
             Instant::now(),
@@ -1372,6 +1395,7 @@ where
     let tools = StepTools {
         runtime,
         workflow_dir,
+        reach: crate::kernel::authority::step_reach(runtime.options.run_authority.as_ref(), step),
         observed: Default::default(),
     };
     let started = Instant::now();

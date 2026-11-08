@@ -524,8 +524,8 @@ impl WorkflowExecution {
         self.commit_step_run(context.runtime, context.host, context.plan, run, &answers)
     }
 
-    /// The floor's decision for a tool step of a run worked by an agent,
-    /// over the inputs it would run with.
+    /// The floor's decision for a tool or operation step, under the run's
+    /// `effects`, over the inputs it would run with.
     fn floor<A>(
         &self,
         runtime: &Runtime<A>,
@@ -536,12 +536,11 @@ impl WorkflowExecution {
     where
         A: SkillAdapter,
     {
-        let bounded = runtime
-            .options
-            .run_authority
-            .as_ref()
-            .is_some_and(|authority| authority.agent_bounds);
-        if !bounded || !matches!(step.kind, StepKind::Tool(_)) {
+        let effects =
+            crate::kernel::authority::step_effects(runtime.options.run_authority.as_ref(), step);
+        if effects == runx_contracts::Effects::Allow
+            || !matches!(step.kind, StepKind::Tool(_) | StepKind::Operation(_))
+        {
             return Ok(super::floor::Admitted::Free);
         }
         let inputs = super::super::graph::materialize_step_invocation_inputs_with_index(

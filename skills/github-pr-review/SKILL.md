@@ -77,9 +77,9 @@ Keep the original observation time, source identities, budget and selected head
 when handing work between phases. Reusing a snapshot does not revalidate the
 current PR head. Request a fresh default review when fresh provider state is
 needed. The local evidence store is protected operator state: capture and generic
-artifact opening require operator bounds and their declared scopes. A host using
-agent bounds can instead supply the admitted context to acquisition-free
-`analyze`; no phase implicitly widens its authority.
+artifact opening require `reach: inputs` and their declared scopes. A host
+using `reach: workspace` can instead supply the admitted context to
+acquisition-free `analyze`; no phase implicitly widens its authority.
 
 ## Result and limits
 

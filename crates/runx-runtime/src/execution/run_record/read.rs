@@ -304,7 +304,7 @@ fn project(
                 target: call.target,
                 input_digest: input_digest(&input)?.into(),
                 call_id: call.call_id.map(Into::into),
-                standing: call.standing,
+                standing: call.standing.map(Box::new),
                 outcome: Box::new(outcome),
             }
         }

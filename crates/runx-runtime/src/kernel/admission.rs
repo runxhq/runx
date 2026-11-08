@@ -255,10 +255,11 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     let call = evaluation.call;
 
     // Requirement: the connector the step may use, and the operation on it.
-    let (connector, operation) = match requirement(evaluation) {
-        Ok(found) => found,
-        Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
-    };
+    let (connector, operation) =
+        match requirement(evaluation.step, evaluation.call, evaluation.context.scope) {
+            Ok(found) => found,
+            Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
+        };
     let manifest = &connector.manifest;
     let (operation_name, operation_spec, operation_digest) = connector
         .operation(operation.as_str())
@@ -1045,17 +1046,19 @@ fn delegated_terms(
     Ok(terms)
 }
 
-fn requirement(
-    evaluation: &Evaluation<'_>,
+/// The connector `step`'s requirement resolves to in `scope` for `call`,
+/// and the operation the call makes on it.
+pub(crate) fn requirement(
+    step: &OperationStepTarget,
+    call: &OperationCall,
+    scope: &ConnectorScope,
 ) -> Result<(Arc<LoadedConnector>, OperationName), String> {
-    let step = evaluation.step;
     let declared = step.declared.as_ref().ok_or_else(|| {
         format!(
             "the step's requirement {} is not declared by an enclosing skill's connectors block",
             step.requirement
         )
     })?;
-    let call = evaluation.call;
     let connector_id: &str = match &declared.choose {
         None => {
             if call.connector.is_some() {
@@ -1091,9 +1094,7 @@ fn requirement(
             step.requirement
         ));
     }
-    let connector = evaluation
-        .context
-        .scope
+    let connector = scope
         .requirement(connector_id, declared)
         .map_err(|error| error.to_string())?;
     // A connector a load bound runs only as it was loaded, the person's

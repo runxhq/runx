@@ -451,7 +451,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         };
         prepare(&invocation).expect("business token field remains valid");
@@ -466,7 +466,7 @@ mod tests {
             credential_delivery: &delivery,
             local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
             effects: &effects,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         };
         let error = prepare(&invocation).expect_err("delivered credential value refused");

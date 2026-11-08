@@ -455,7 +455,8 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         use crate::credentials::CredentialDelivery;
         use crate::effects::RuntimeEffectRegistry;
-        use crate::services::{LocalArtifactService, WorkspaceBounds};
+        use crate::services::LocalArtifactService;
+        use runx_contracts::Reach;
         use std::collections::BTreeMap;
 
         let directory = tempfile::tempdir()?;
@@ -473,7 +474,7 @@ mod tests {
                 credential_delivery: &delivery,
                 local_artifacts: &artifacts,
                 effects: &effects,
-                bounds: WorkspaceBounds::Agent,
+                reach: Reach::Workspace,
                 call: None,
                 effect_admission: None,
             },

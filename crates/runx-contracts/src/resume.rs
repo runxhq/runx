@@ -22,7 +22,7 @@ pub struct ResumeDocument {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub approvals: BTreeMap<String, BoundApproval>,
     /// The person's new standing approvals, which replace the run's set for
-    /// every later step and answer any open approval of a local effect they
+    /// every later step and answer any open approval of the floor they
     /// cover.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standing_approvals: Option<Vec<StandingApproval>>,
@@ -30,9 +30,10 @@ pub struct ResumeDocument {
     pub close: Option<RunClose>,
 }
 
-/// A person's bounded confirmation of the local effects a run worked by an
-/// agent would otherwise hold for them: exactly one of `edits`, `commands`
-/// and `local`. It never covers an operation's own declared approval.
+/// A person's bounded confirmation of the writes a run under `effects: ask`
+/// would otherwise hold for them: exactly one of `edits`, `commands`,
+/// `operations` and `local`. It never covers a write's own approval, an
+/// operation's declared one or a step's.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StandingApproval {
@@ -42,6 +43,9 @@ pub struct StandingApproval {
     /// A command or process whose argv begins with these tokens.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commands: Option<StandingCommands>,
+    /// A connector operation's write that these names cover.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operations: Option<StandingOperations>,
     /// Every local effect.
     #[serde(default, skip_serializing_if = "crate::schema::is_default")]
     pub local: bool,
@@ -63,17 +67,68 @@ pub struct StandingCommands {
     pub argv_prefix: Vec<NonEmptyString>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StandingOperations {
+    /// Connector operations as `<connector>/<operation>`, or every operation
+    /// of exactly one connector as `<connector>/*`.
+    pub names: Vec<NonEmptyString>,
+}
+
+impl StandingOperations {
+    /// Whether these names cover `operation` on `connector`.
+    #[must_use]
+    pub fn cover(&self, connector: &str, operation: &str) -> bool {
+        self.names
+            .iter()
+            .any(|name| match name.as_str().strip_suffix("/*") {
+                Some(every) => every == connector,
+                None => {
+                    name.as_str()
+                        .strip_prefix(connector)
+                        .and_then(|rest| rest.strip_prefix('/'))
+                        == Some(operation)
+                }
+            })
+    }
+}
+
 impl StandingApproval {
     /// One kind of confirmation, each in its bounds: relative paths that
-    /// stay inside the workspace, and a prefix of at least one token.
+    /// stay inside the workspace, a prefix of at least one token, and
+    /// operations each named on its connector.
     pub fn check(&self) -> Result<(), String> {
         let kinds = usize::from(self.edits.is_some())
             + usize::from(self.commands.is_some())
+            + usize::from(self.operations.is_some())
             + usize::from(self.local);
         if kinds != 1 {
             return Err(
-                "a standing approval is exactly one of edits, commands and local".to_owned(),
+                "a standing approval is exactly one of edits, commands, operations and local"
+                    .to_owned(),
             );
+        }
+        if let Some(operations) = &self.operations {
+            if operations.names.is_empty() {
+                return Err("standing operations name at least one operation".to_owned());
+            }
+            for name in &operations.names {
+                let named = match name.as_str().strip_suffix("/*") {
+                    Some(connector) => crate::connector::is_connector_name(connector),
+                    None => name
+                        .as_str()
+                        .rsplit_once('/')
+                        .is_some_and(|(connector, operation)| {
+                            crate::connector::is_connector_name(connector)
+                                && crate::connector::is_operation_name(operation)
+                        }),
+                };
+                if !named {
+                    return Err(format!(
+                        "standing operations name {name:?} is not <connector>/<operation> or <connector>/*"
+                    ));
+                }
+            }
         }
         if let Some(edits) = &self.edits {
             if edits.paths.is_empty() {
@@ -157,7 +212,7 @@ impl From<CloseOutcome> for RunOutcome {
 
 #[cfg(test)]
 mod tests {
-    use super::ResumeDocument;
+    use super::{ResumeDocument, StandingApproval, StandingOperations};
 
     #[test]
     fn a_document_binds_each_entry_and_refuses_an_unbound_one() -> Result<(), serde_json::Error> {
@@ -178,6 +233,44 @@ mod tests {
         ] {
             assert!(serde_json::from_value::<ResumeDocument>(unbound).is_err());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn standing_operations_name_each_operation_on_its_connector()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let standing = |names: serde_json::Value| -> Result<StandingApproval, serde_json::Error> {
+            serde_json::from_value(serde_json::json!({"operations": {"names": names}}))
+        };
+        for names in [
+            serde_json::json!(["slack/thread.reply"]),
+            serde_json::json!(["github/*", "google/search-console/sitemaps.submit"]),
+        ] {
+            assert_eq!(standing(names.clone())?.check(), Ok(()), "{names}");
+        }
+        for names in [
+            serde_json::json!([]),
+            serde_json::json!(["thread.reply"]),
+            serde_json::json!(["slack/"]),
+            serde_json::json!(["slack/Thread"]),
+            serde_json::json!(["*"]),
+            serde_json::json!(["/*"]),
+        ] {
+            assert!(standing(names.clone())?.check().is_err(), "{names}");
+        }
+        let both: StandingApproval = serde_json::from_value(serde_json::json!({
+            "operations": {"names": ["slack/*"]}, "local": true
+        }))?;
+        assert!(both.check().is_err(), "a standing approval is one kind");
+
+        let operations = StandingOperations {
+            names: vec!["slack/thread.reply".into(), "github/*".into()],
+        };
+        assert!(operations.cover("slack", "thread.reply"));
+        assert!(!operations.cover("slack", "channel.post"));
+        assert!(operations.cover("github", "branch.push"));
+        assert!(!operations.cover("github/enterprise", "branch.push"));
+        assert!(!operations.cover("slackx", "thread.reply"));
         Ok(())
     }
 }

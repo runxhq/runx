@@ -363,6 +363,8 @@ mod tests {
             when: None,
             guard: Vec::new(),
             retry_unknown_outcomes: false,
+            effects: None,
+            reach: None,
         }
     }
 }

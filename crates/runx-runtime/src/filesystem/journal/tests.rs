@@ -6,7 +6,7 @@ use crate::filesystem::admission::{admit_text_bundle, missing_parent_directories
 use crate::filesystem::apply::apply_admitted_bundle;
 use crate::filesystem::{Expected, TextBundle, TextFileWrite, apply_text_bundle};
 use crate::paths::{RUNX_CWD_ENV, RunxPaths};
-use crate::services::WorkspaceBounds;
+use runx_contracts::Reach;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -49,7 +49,7 @@ fn a_bundle_a_crash_left_begun_is_rolled_back_by_the_next_driver() -> TestResult
     let journal = Journal::of_run(&env, root)?.ok_or("the run has a journal")?;
 
     // A driver journaled the bundle, applied it, and died before it ended.
-    let admitted = admit_text_bundle("fs.apply_bundle", root, &bundle(), WorkspaceBounds::Agent)?;
+    let admitted = admit_text_bundle("fs.apply_bundle", root, &bundle(), Reach::Workspace)?;
     let snapshots = snapshot_paths(&admitted)?;
     let created = missing_parent_directories(&admitted)?;
     journal.begin(&admitted.operation, &admitted.root, &snapshots, &created)?;
@@ -78,7 +78,7 @@ fn a_bundle_a_crash_left_begun_is_rolled_back_by_the_next_driver() -> TestResult
         "fs.apply_bundle",
         root,
         &bundle(),
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
         Some(&journal),
     )?;
     assert!(report.contains_key("journal"));

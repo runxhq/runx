@@ -893,7 +893,7 @@ mod tests {
                 current_context: Vec::new(),
                 historical_context: Vec::new(),
                 run_authority: Some(serde_json::from_value(
-                    serde_json::json!({"agent_bounds": true}),
+                    serde_json::json!({"effects": "ask", "reach": "workspace"}),
                 )?),
                 act: None,
                 skill_path: skill,

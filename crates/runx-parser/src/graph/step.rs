@@ -8,8 +8,8 @@ use runx_contracts::{
 
 use super::binding::{parse_act, parse_call, parse_literal, parse_operand, parse_whole};
 use super::helpers::{
-    gate_id, optional_non_empty_string, optional_object, required_array, required_object,
-    required_string, step_id, validation_error,
+    gate_id, narrowing, optional_non_empty_string, optional_object, required_array,
+    required_object, required_string, step_id, validation_error,
 };
 use super::tool::validate_tool_target;
 use super::types::{
@@ -24,7 +24,7 @@ use runx_contracts::connector::{OperationName, is_connector_name, is_operation_n
 const KIND_FIELDS: &[&str] = &["agent", "tool", "operation", "ask", "skill"];
 
 /// Keys every step may carry.
-const COMMON_FIELDS: &[&str] = &["id", "when", "guard"];
+const COMMON_FIELDS: &[&str] = &["id", "when", "guard", "effects", "reach"];
 
 /// What an agent step's `calls` may name.
 const CALLS_FIELDS: &[&str] = &["tools", "operations", "skills", "load", "ask"];
@@ -154,6 +154,8 @@ pub fn validate_step(
         }
     };
 
+    let (effects, reach) = narrowing(raw_step, field)?;
+
     Ok(WorkflowStep {
         id,
         kind,
@@ -180,6 +182,8 @@ pub fn validate_step(
                 )));
             }
         },
+        effects,
+        reach,
     })
 }
 

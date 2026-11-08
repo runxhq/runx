@@ -60,14 +60,21 @@ export interface RunAuthority {
   readonly max_fanout?: number;
   readonly max_child_depth?: number;
   /**
-   * The run is worked by a host's agent: its file, git, command and authoring
-   * tools stay inside the workspace and never touch a secret file or runx's
-   * own state.
+   * What the run may change: `none` refuses every change, `ask` holds every
+   * write with no approval of its own for a person, and `allow`, the default,
+   * holds nothing. A method or step only narrows it.
    */
-  readonly agent_bounds?: boolean;
+  readonly effects?: "none" | "ask" | "allow";
   /**
-   * The person's standing approvals of the local effects the run's approval
-   * floor holds; the person replaces them through `runx resume`.
+   * Where the run's file, git, command and authoring tools may go:
+   * `workspace` keeps them inside the workspace and off every secret file and
+   * runx's own state, and `inputs`, the default, reaches the roots the run's
+   * inputs name. A method or step only narrows it.
+   */
+  readonly reach?: "workspace" | "inputs";
+  /**
+   * The person's standing approvals of the writes the run's approval floor
+   * holds under `effects: ask`; the person replaces them through `runx resume`.
    */
   readonly standing_approvals?: readonly StandingApprovalContract[];
   /**

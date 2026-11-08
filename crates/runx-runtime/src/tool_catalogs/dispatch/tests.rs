@@ -272,7 +272,7 @@ fn invoke_with_declared_scopes_in_directory(
             skill_name: "tool-dispatch-test",
             allow_explicit_manifest_path: true,
             effect_admission: None,
-            bounds: crate::services::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             call: None,
         },
         &effects,

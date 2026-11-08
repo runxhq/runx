@@ -208,7 +208,7 @@ mod tests {
             tempfile::tempdir().map_err(|source| RuntimeError::io("creating workspace", source))?;
         DEFAULT_TIMEOUT_OVERRIDE_SECONDS.store(1, std::sync::atomic::Ordering::SeqCst);
         let output = ProcessToolAdapter.invoke(SkillInvocation {
-            workspace_bounds: crate::WorkspaceBounds::Operator,
+            reach: runx_contracts::Reach::Inputs,
             historical_context: Vec::new(),
             skill_name: "default-timeout".to_owned(),
             step_id: None,

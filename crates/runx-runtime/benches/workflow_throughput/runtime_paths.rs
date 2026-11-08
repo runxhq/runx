@@ -564,7 +564,7 @@ fn write_modules(root: &Path) -> Result<(), std::io::Error> {
 
 fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
     SkillInvocation {
-        workspace_bounds: runx_runtime::WorkspaceBounds::Operator,
+        reach: runx_contracts::Reach::Inputs,
         historical_context: Vec::new(),
         skill_name: "runtime-perf-module".to_owned(),
         step_id: None,

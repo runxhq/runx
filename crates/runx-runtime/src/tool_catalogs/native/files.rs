@@ -18,7 +18,7 @@ use crate::capability::LocalEffect;
 use crate::filesystem::{
     Expected, Journal, TextBundle, TextFileWrite, apply_text_bundle, text_bundle_effect,
 };
-use crate::services::WorkspaceBounds;
+use runx_contracts::Reach;
 
 mod capability;
 #[cfg(test)]
@@ -62,7 +62,7 @@ fn read(invocation: &NativeInvocation<'_, FileReadInput>) -> Result<FileRead, Ru
             line_count: inputs.line_count,
         },
         max_bytes(READ_TOOL, inputs.max_bytes)?,
-        invocation.bounds,
+        invocation.reach,
     )
 }
 
@@ -125,7 +125,7 @@ fn read_bundle(
     let max_bytes = max_bytes(READ_BUNDLE_TOOL, invocation.inputs.max_bytes)?;
     let report_missing = report_missing(&invocation.inputs.on_missing)?;
     let (files, missing, total_bytes) =
-        read_bundle_files(&root, paths, max_bytes, report_missing, invocation.bounds)?;
+        read_bundle_files(&root, paths, max_bytes, report_missing, invocation.reach)?;
     let over = || invalid_input(READ_BUNDLE_TOOL, "bundle exceeded its bounds");
     Ok(FileReadBundle {
         repo_root: root_name(READ_BUNDLE_TOOL, &root)?,
@@ -162,7 +162,7 @@ fn read_bundle_files(
     paths: &[String],
     max_bytes: usize,
     report_missing: bool,
-    bounds: WorkspaceBounds,
+    reach: Reach,
 ) -> Result<(Vec<FileRead>, Vec<MissingFile>, u64), RuntimeError> {
     let mut seen = std::collections::BTreeSet::new();
     let mut total_bytes = 0u64;
@@ -181,7 +181,7 @@ fn read_bundle_files(
             path,
             LineRange::WHOLE,
             max_bytes,
-            bounds,
+            reach,
         ) {
             Ok(file) => file,
             Err(_) if report_missing => {
@@ -221,9 +221,9 @@ fn read_one(
     requested: &str,
     range: LineRange,
     max_bytes: usize,
-    bounds: WorkspaceBounds,
+    reach: Reach,
 ) -> Result<FileRead, RuntimeError> {
-    let file = crate::services::WorkspaceFile::resolve(root, Path::new(requested), bounds)
+    let file = crate::services::WorkspaceFile::resolve(root, Path::new(requested), reach)
         .map_err(|error| invalid_input(tool, error.to_string()))?;
     let file = file
         .read_text(MAX_FILE_READ_BYTES as u64)
@@ -259,13 +259,13 @@ fn write(invocation: &NativeInvocation<'_, FileWriteInput>) -> Result<FileWrite,
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let report = apply_text_bundle(
         WRITE_TOOL,
         &root,
         &write_bundle(invocation.inputs)?,
-        invocation.bounds,
+        invocation.reach,
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
     let write = first_write(WRITE_TOOL, &report)?;
@@ -351,13 +351,13 @@ fn write_effect(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     text_bundle_effect(
         WRITE_TOOL,
         &root,
         &write_bundle(invocation.inputs)?,
-        invocation.bounds,
+        invocation.reach,
     )
 }
 
@@ -379,7 +379,7 @@ fn edited(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<Edited, Ru
         &inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let file = read_one(
         EDIT_TOOL,
@@ -387,7 +387,7 @@ fn edited(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<Edited, Ru
         &inputs.path,
         LineRange::WHOLE,
         MAX_FILE_READ_BYTES,
-        invocation.bounds,
+        invocation.reach,
     )?;
     if inputs.edits.is_empty() {
         return Err(invalid_input(EDIT_TOOL, "edits names at least one edit"));
@@ -458,7 +458,7 @@ fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEdit, Ru
         EDIT_TOOL,
         &edited.root,
         &edit_bundle(&edited),
-        invocation.bounds,
+        invocation.reach,
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
     Ok(FileEdit {
@@ -483,7 +483,7 @@ fn edit_effect(
         EDIT_TOOL,
         &edited.root,
         &edit_bundle(&edited),
-        invocation.bounds,
+        invocation.reach,
     )
 }
 
@@ -535,13 +535,13 @@ fn apply_files(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let report = apply_text_bundle(
         APPLY_BUNDLE_TOOL,
         &repo_root,
         &files_bundle(invocation.inputs)?,
-        invocation.bounds,
+        invocation.reach,
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
     decode_typed_output(APPLY_BUNDLE_TOOL, JsonValue::Object(report))
@@ -556,13 +556,13 @@ fn files_effect(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     text_bundle_effect(
         APPLY_BUNDLE_TOOL,
         &repo_root,
         &files_bundle(invocation.inputs)?,
-        invocation.bounds,
+        invocation.reach,
     )
 }
 
@@ -577,7 +577,7 @@ pub(super) fn root<I: ?Sized>(
         path_scope,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )
     .map_err(|error| invalid_input(tool, error.to_string()))
 }

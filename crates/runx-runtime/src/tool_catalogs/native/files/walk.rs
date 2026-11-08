@@ -5,8 +5,8 @@
 //! Git does, never descend into `.git` or `.runx`, and skip a nested Git
 //! worktree (a directory whose `.git` is a file) unless the request names a
 //! path inside it, so agents that keep worktrees under the project do not see
-//! every file twice. Within agent bounds a secret file is never listed or
-//! searched.
+//! every file twice. Within `reach: workspace` a secret file is never listed
+//! or searched.
 
 use std::io::Read as _;
 use std::num::NonZeroU64;
@@ -24,7 +24,8 @@ use runx_contracts::{
 use super::super::{NativeInvocation, invalid_input, non_empty, root_name};
 use super::capability::{FileListInput, FileSearchInput};
 use crate::RuntimeError;
-use crate::services::{WorkspaceBounds, is_secret_path};
+use crate::services::is_secret_path;
+use runx_contracts::Reach;
 
 pub(super) const LIST_TOOL: &str = "fs.list";
 pub(super) const SEARCH_TOOL: &str = "fs.search";
@@ -48,14 +49,14 @@ pub(super) fn list(
         inputs.max_entries,
         MAX_LIST_ENTRIES,
     )?;
-    let start = walk_start(LIST_TOOL, &root, &inputs.path, invocation.bounds)?;
+    let start = walk_start(LIST_TOOL, &root, &inputs.path, invocation.reach)?;
     if !start.is_dir() {
         return Err(invalid_input(LIST_TOOL, "path must be a directory"));
     }
     let mut entries = Vec::new();
     let mut truncated = false;
     let depth = usize::try_from(depth).unwrap_or(usize::MAX);
-    for entry in walker(&root, &start, Some(depth), invocation.bounds) {
+    for entry in walker(&root, &start, Some(depth), invocation.reach) {
         let entry = entry.map_err(|error| invalid_input(LIST_TOOL, error.to_string()))?;
         if entry.depth() == 0 {
             continue;
@@ -127,11 +128,11 @@ pub(super) fn search(
                 .map_err(|error| invalid_input(SEARCH_TOOL, format!("glob is invalid: {error}")))
         })
         .transpose()?;
-    let start = walk_start(SEARCH_TOOL, &root, &inputs.path, invocation.bounds)?;
+    let start = walk_start(SEARCH_TOOL, &root, &inputs.path, invocation.reach)?;
     let mut matches = Vec::new();
     let mut files_searched = 0_u64;
     let mut truncated = false;
-    'files: for entry in walker(&root, &start, None, invocation.bounds) {
+    'files: for entry in walker(&root, &start, None, invocation.reach) {
         let entry = entry.map_err(|error| invalid_input(SEARCH_TOOL, error.to_string()))?;
         if !entry.file_type().is_some_and(|kind| kind.is_file()) {
             continue;
@@ -198,7 +199,7 @@ fn walk_start(
     tool: &str,
     root: &Path,
     requested: &str,
-    bounds: WorkspaceBounds,
+    reach: Reach,
 ) -> Result<PathBuf, RuntimeError> {
     let requested = Path::new(requested);
     if requested.is_absolute()
@@ -212,8 +213,7 @@ fn walk_start(
         ));
     }
     let admit = |path: &Path| {
-        bounds
-            .admit(path)
+        crate::services::admit_within(reach, path)
             .map_err(|error| invalid_input(tool, error.to_string()))
     };
     admit(requested)?;
@@ -228,14 +228,9 @@ fn walk_start(
 }
 
 /// One walk under `start`: ignore files honoured, hidden entries included, and
-/// `.git`, `.runx`, nested worktrees and (within agent bounds) secrets left
-/// out.
-fn walker(
-    root: &Path,
-    start: &Path,
-    depth: Option<usize>,
-    bounds: WorkspaceBounds,
-) -> ignore::Walk {
+/// `.git`, `.runx`, nested worktrees and (within `reach: workspace`) secrets
+/// left out.
+fn walker(root: &Path, start: &Path, depth: Option<usize>, reach: Reach) -> ignore::Walk {
     let root = root.to_path_buf();
     let start_owned = start.to_path_buf();
     let mut builder = WalkBuilder::new(start);
@@ -263,7 +258,7 @@ fn walker(
             return false;
         }
         let inside = path.strip_prefix(&root).unwrap_or(path);
-        !(bounds == WorkspaceBounds::Agent && is_secret_path(inside))
+        !(reach == Reach::Workspace && is_secret_path(inside))
     });
     builder.build()
 }

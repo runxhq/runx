@@ -289,6 +289,46 @@ fn mutation_resends_safely(
     ) || retry_unknown_outcomes
 }
 
+/// A connector operation's write, as a run's `effects` decides it: the
+/// connector and operation a standing approval names it by.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct OperationWrite {
+    pub(crate) connector: String,
+    pub(crate) operation: String,
+    /// It carries an approval of its own: its operation's declared one, or
+    /// its step's.
+    pub(crate) approved: bool,
+    /// It writes `store`'s streams.
+    pub(crate) store: bool,
+}
+
+/// The write the operation step `target` would make with `inputs`, when its
+/// operation writes. A call that names no operation its requirement resolves
+/// to names no write here: admission refuses it, with its own reason.
+pub(crate) fn operation_write(
+    target: &runx_parser::OperationStepTarget,
+    inputs: &JsonObject,
+    env: &BTreeMap<String, String>,
+    workflow_dir: &Path,
+) -> Option<OperationWrite> {
+    let call = OperationCall::decode(inputs).ok()?;
+    let scope = ConnectorScope::of_operation(
+        target,
+        workflow_dir,
+        &crate::paths::RunxPaths::resolve(env, workflow_dir),
+    )
+    .ok()?;
+    let (connector, operation) = admission::requirement(target, &call, &scope).ok()?;
+    let (_, declared, _) = connector.operation(operation.as_str())?;
+    (declared.access() == OperationAccess::Mutate).then(|| OperationWrite {
+        connector: connector.name.as_str().to_owned(),
+        operation: operation.as_str().to_owned(),
+        approved: call.approval.is_some()
+            || declared.approval == runx_contracts::connector::ApprovalFloor::Required,
+        store: matches!(declared.implementation, Some(Implementation::Store(_))),
+    })
+}
+
 /// Whether a call that may have reached its provider can be sent again.
 /// Read access and state idempotency do not establish charge idempotency.
 pub(crate) fn resends_safely(

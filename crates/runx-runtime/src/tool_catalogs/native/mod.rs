@@ -101,7 +101,7 @@ pub(super) struct NativeInvocation<'a, I: ?Sized = JsonObject> {
     pub local_artifacts: &'a crate::services::LocalArtifactService,
     pub effects: &'a RuntimeEffectRegistry,
     /// How far the run's file, git, command and authoring tools reach.
-    pub bounds: crate::services::WorkspaceBounds,
+    pub reach: runx_contracts::Reach,
     /// The call the tool is invoked for, when a run makes it.
     pub call: Option<&'a crate::tool_catalogs::ToolCall>,
 }
@@ -117,7 +117,7 @@ pub(crate) struct NativeToolInvocation<'a> {
     pub local_artifacts: &'a crate::services::LocalArtifactService,
     pub effect_admission: Option<&'a crate::effects::EffectAdmission>,
     pub effects: &'a RuntimeEffectRegistry,
-    pub bounds: crate::services::WorkspaceBounds,
+    pub reach: runx_contracts::Reach,
     pub call: Option<&'a crate::tool_catalogs::ToolCall>,
 }
 
@@ -138,7 +138,7 @@ pub(crate) fn invoke(request: NativeToolInvocation<'_>) -> Option<NativeToolInvo
             credential_delivery: request.credential_delivery,
             local_artifacts: request.local_artifacts,
             effects: request.effects,
-            bounds: request.bounds,
+            reach: request.reach,
             call: request.call,
         };
         return Some(NativeToolInvocationResult {
@@ -210,7 +210,7 @@ pub(crate) fn local_effect(
     env: &BTreeMap<String, String>,
     skill_directory: &Path,
     effects: &RuntimeEffectRegistry,
-    bounds: crate::services::WorkspaceBounds,
+    reach: runx_contracts::Reach,
 ) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
     let Some(tool) = definition(tool) else {
         return Ok(None);
@@ -224,7 +224,7 @@ pub(crate) fn local_effect(
         credential_delivery: &CredentialDelivery::none(),
         local_artifacts: &crate::services::LocalArtifactService::default(),
         effects,
-        bounds,
+        reach,
         call: None,
     })
 }

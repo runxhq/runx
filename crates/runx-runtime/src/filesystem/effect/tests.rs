@@ -6,7 +6,7 @@ use super::text_bundle_effect;
 use runx_contracts::sha256_prefixed;
 
 use crate::filesystem::{Expected, TextBundle, TextFileWrite};
-use crate::services::WorkspaceBounds;
+use runx_contracts::Reach;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -43,7 +43,7 @@ fn an_edit_shows_each_file_it_changes_creates_and_deletes() -> TestResult {
             ]
             .into(),
         },
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
     )?
     .ok_or("the bundle changes files")?;
     assert_eq!(effect.paths, ["kept.rs", "new/made.rs", "gone.rs"]);
@@ -88,7 +88,7 @@ fn an_edit_shows_each_file_it_changes_creates_and_deletes() -> TestResult {
             deletes: Vec::new(),
             expected: Default::default(),
         },
-        WorkspaceBounds::Agent,
+        Reach::Workspace,
     );
     assert!(
         secret.is_err(),
@@ -99,7 +99,7 @@ fn an_edit_shows_each_file_it_changes_creates_and_deletes() -> TestResult {
             "fs.apply_bundle",
             root,
             &TextBundle::default(),
-            WorkspaceBounds::Agent
+            Reach::Workspace
         )?
         .is_none(),
         "an empty bundle changes nothing"

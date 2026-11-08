@@ -43,7 +43,7 @@ fn current_branch(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitBran
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let env = git_env(invocation)?;
     let symbolic = run_git(&root, &env, &["symbolic-ref", "--short", "HEAD"])?;
@@ -79,7 +79,7 @@ fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatus, Runt
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let env = git_env(invocation)?;
     let outcome = run_git(&root, &env, &["status", "--short", "--branch"])?;
@@ -121,7 +121,7 @@ fn diff_name_only(
         &invocation.inputs.repo_root,
         invocation.env,
         invocation.skill_directory,
-        invocation.bounds,
+        invocation.reach,
     )?;
     let base = &invocation.inputs.base;
     validate_base(base)?;

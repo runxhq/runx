@@ -45,7 +45,7 @@ impl InlineCandidateStage {
                 deletes: Vec::new(),
                 expected: Default::default(),
             },
-            crate::services::WorkspaceBounds::Operator,
+            runx_contracts::Reach::Inputs,
             None,
         )?;
         Ok(stage)
@@ -230,7 +230,7 @@ impl CandidateStage {
             "runx.skill.apply",
             &stage.skill_dir,
             &staged,
-            crate::services::WorkspaceBounds::Operator,
+            runx_contracts::Reach::Inputs,
             None,
         )?;
         Ok(stage)

@@ -15,6 +15,8 @@ const METHOD_FIELDS: &[&str] = &[
     "examples",
     "steps",
     "result_from",
+    "effects",
+    "reach",
     "offer",
 ];
 
@@ -34,7 +36,7 @@ const INPUT_CONSTRAINT_KEYS: &[&str] = &[
 ];
 
 /// The workflow keys a method carries for its steps.
-const WORKFLOW_FIELDS: &[&str] = &["result_from", "outputs", "steps"];
+const WORKFLOW_FIELDS: &[&str] = &["result_from", "outputs", "effects", "reach", "steps"];
 
 /// Validate one method. `inputs` are its inputs as written, each shared input
 /// it names already taken from `shared_inputs`.
@@ -351,4 +353,50 @@ pub fn validate_input_examples(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use runx_contracts::{Effects, JsonObject, Reach};
+
+    use super::validate_method_definition;
+
+    fn method(value: serde_json::Value) -> Result<JsonObject, String> {
+        serde_json::from_value(value).map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn a_methods_effects_and_reach_are_its_runs_narrowing() -> Result<(), String> {
+        let definition = validate_method_definition(
+            "demo",
+            "read",
+            method(serde_json::json!({
+                "effects": "none",
+                "reach": "workspace",
+                "steps": [{"id": "digest", "tool": "data.digest", "inputs": {"value": 1}}],
+            }))?,
+            &JsonObject::new(),
+        )
+        .map_err(|error| error.to_string())?;
+        assert_eq!(definition.graph.effects, Some(Effects::None));
+        assert_eq!(definition.graph.reach, Some(Reach::Workspace));
+
+        let refused = validate_method_definition(
+            "demo",
+            "read",
+            method(serde_json::json!({
+                "effects": "free",
+                "steps": [{"id": "digest", "tool": "data.digest"}],
+            }))?,
+            &JsonObject::new(),
+        )
+        .err()
+        .map(|error| error.to_string())
+        .ok_or("effects: free is not a value")?;
+        assert!(
+            refused.contains("effects must be one of none, ask and allow."),
+            "{refused}"
+        );
+        Ok(())
+    }
 }

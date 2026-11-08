@@ -74,7 +74,7 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
             root,
             std::path::Path::new("records.json"),
             "application/json",
-            crate::WorkspaceBounds::Operator,
+            runx_contracts::Reach::Inputs,
         )?;
         for page_bytes in [65_536, 524_288] {
             let mut by_path = page_invocation(
@@ -86,7 +86,7 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
                 },
                 page_bytes,
             );
-            by_path.workspace_bounds = crate::WorkspaceBounds::Agent;
+            by_path.reach = runx_contracts::Reach::Workspace;
             by_path.inputs = JsonObject::from([
                 (
                     "source_path".to_owned(),
@@ -141,7 +141,7 @@ fn admitted_artifact_pages_use_the_snapshot_and_require_native_scope_and_lifetim
         root,
         std::path::Path::new("records.json"),
         "application/json",
-        crate::WorkspaceBounds::Operator,
+        runx_contracts::Reach::Inputs,
     )?;
     fs::write(root.join("records.json"), "[]")?;
     let adapter = JavaScriptAdapter::new_session();
@@ -227,7 +227,7 @@ fn rejects_credentials_before_loading_a_module() -> Result<(), Box<dyn std::erro
 fn invocation(skill_directory: &std::path::Path) -> SkillInvocation {
     let _ = fs::create_dir_all(skill_directory);
     SkillInvocation {
-        workspace_bounds: crate::WorkspaceBounds::Operator,
+        reach: runx_contracts::Reach::Inputs,
         historical_context: Vec::new(),
         skill_name: "javascript-test".to_owned(),
         step_id: None,

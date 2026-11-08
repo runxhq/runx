@@ -275,12 +275,13 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
         json_string(&next_done["runx"], "receipt_id")?,
     )?;
 
-    // Listing the tool cannot let a bounded host agent read protected state.
+    // Listing the tool cannot let a run whose reach is the workspace read
+    // protected state.
     let bounded = assert_json(
         &command(&root)
             .arg("skill")
             .arg(&skill)
-            .args(["--run-authority", r#"{"agent_bounds":true}"#, "--json"])
+            .args(["--run-authority", r#"{"reach":"workspace"}"#, "--json"])
             .output()?,
         2,
     )?;

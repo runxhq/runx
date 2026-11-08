@@ -223,6 +223,10 @@ pub(super) struct TurnScope<'a, A> {
     pub(super) step_id: &'a str,
     pub(super) attempt: u32,
     pub(super) agent: &'a AgentTask,
+    /// The agent step's own `effects` and `reach`, which each call it makes
+    /// runs under.
+    pub(super) effects: Option<runx_contracts::Effects>,
+    pub(super) reach: Option<runx_contracts::Reach>,
 }
 
 /// The open turn of one agent step: where it runs, the act it answers, and
@@ -1017,6 +1021,8 @@ where
             when: None,
             guard: Vec::new(),
             retry_unknown_outcomes: false,
+            effects: self.scope.effects,
+            reach: self.scope.reach,
         };
         let fed = self.admit_references(&mut step, target)?;
         Ok(CallStep { step, act, fed })

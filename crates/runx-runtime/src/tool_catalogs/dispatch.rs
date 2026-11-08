@@ -33,7 +33,7 @@ pub(crate) struct ToolDispatchRequest<'a> {
     pub allow_explicit_manifest_path: bool,
     pub effect_admission: Option<&'a EffectAdmission>,
     /// How far the run's native file, git, command and authoring tools reach.
-    pub bounds: crate::services::WorkspaceBounds,
+    pub reach: runx_contracts::Reach,
     /// The call the tool is invoked for, when a run makes it.
     pub call: Option<&'a crate::tool_catalogs::ToolCall>,
 }
@@ -158,7 +158,7 @@ fn invoke_native_tool(
             local_artifacts: request.local_artifacts,
             effect_admission: request.effect_admission,
             effects,
-            bounds: request.bounds,
+            reach: request.reach,
             call: request.call,
         })
     else {

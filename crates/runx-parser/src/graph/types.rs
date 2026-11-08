@@ -213,6 +213,14 @@ pub struct WorkflowStep {
     /// accepting that it may happen twice.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub retry_unknown_outcomes: bool,
+    /// What the step may change: its `effects`, which only narrows its
+    /// method's. A turn's calls run under their agent step's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<runx_contracts::Effects>,
+    /// Where the step's tools may go: its `reach`, which only narrows its
+    /// method's. A turn's calls run under their agent step's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reach: Option<runx_contracts::Reach>,
 }
 
 impl WorkflowStep {
@@ -310,6 +318,14 @@ pub struct Workflow {
     /// none, it returns its result producers' outputs whole.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outputs: Option<JsonObject>,
+    /// What the method's run may change: its `effects`, which only narrows
+    /// its host's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<runx_contracts::Effects>,
+    /// Where the method's tools may go: its `reach`, which only narrows its
+    /// host's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reach: Option<runx_contracts::Reach>,
     pub steps: Vec<WorkflowStep>,
     pub raw: RawWorkflowIr,
 }
