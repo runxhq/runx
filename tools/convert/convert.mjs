@@ -176,6 +176,7 @@ function convertStep(doc, step, scope, notes) {
       only(agent, ["role", "task"], `${where}.agent`);
       pairOf(step, "agent").value = new Scalar(read(agent, "task"));
     }
+    scope.tasks.add(read(step, "agent"));
     const contextSkills = take(step, "context_skills");
     if (contextSkills !== undefined) {
       const context = new YAMLMap();
@@ -402,11 +403,11 @@ function convertMethod(doc, name, method, context, notes) {
     steps = new YAMLSeq();
     steps.items.push(turn);
     insertAt(method, method.items.length, "steps", steps);
-    notes.push(`${where} had no steps: it's now one agent step, and SKILL.md needs a "## Agent task: ${name}" section`);
+    notes.push(`${where} had no steps: it's now one agent step, the task "${name}"`);
   }
   convertFields(doc, node(method, "outputs"), "output", `${where}.outputs`);
   if (!isSeq(steps)) refuse(`${where}.steps is not a list`);
-  const scope = { where, calls: allowanceCalls(allowance), requirementOperations: context.requirementOperations };
+  const scope = { where, calls: allowanceCalls(allowance), requirementOperations: context.requirementOperations, tasks: context.tasks };
   let agents = 0;
   for (const step of steps.items) {
     if (isMap(step) && has(step, "agent")) agents += 1;
@@ -514,8 +515,9 @@ function convertGraph(file, into, skillName, notes) {
   out.contents = out.createNode({ minimum_runx: MINIMUM_RUNX, catalog: { visibility: "internal" }, methods: { run: {} } });
   const method = node(node(out.contents, "methods"), "run");
   method.items.push(new Pair(new Scalar("steps"), steps));
-  const scope = { where: `${path.basename(file)}`, calls: () => undefined, requirementOperations: new Map() };
+  const scope = { where: `${path.basename(file)}`, calls: () => undefined, requirementOperations: new Map(), tasks: new Set() };
   for (const step of steps.items) convertStep(out, step, scope, notes);
+  if (scope.tasks.size) refuse(`${path.basename(file)} has agent steps, whose fixture package needs their task sections written by hand`);
   // A process runs in its package's directory, which is now `into`, so a
   // relative path naming a file beside the graph is rewritten to name the
   // same file from there.
@@ -540,6 +542,81 @@ function convertGraph(file, into, skillName, notes) {
   }
   const skill = `---\nname: ${graphName}\ndescription: A test fixture that composes ${skillName} with the packages it calls.\n---\n\nUsed only by ${skillName}'s tests.\n`;
   return { runYaml: out.toString(styleOf(graphText)), skill, graphName };
+}
+
+
+// ---- SKILL.md: one `## Agent task: <name>` section per agent task
+
+const TASK_HEADING = /^## Agent task(?: contracts?)?(?::\s*(.+?))?\s*$/;
+const unquote = (text) => text.trim().replace(/^`(.*)`$/, "$1").trim();
+
+// Each agent step's task is a `## Agent task: <name>` section of SKILL.md,
+// carrying its instructions. Today's manuals write them three ways: one
+// unnamed `## Agent task contract`, a plural `## Agent task contracts` with a
+// `### <task>` per task, or already `## Agent task: <name>`, some with the
+// name in backticks. A `### <task>` heading elsewhere is promoted the same
+// way. Each promoted task's own subheadings rise one level. A heading that
+// matches no single task, or a task with no section, is a note for its owner.
+function agentTaskSections(markdown, tasks, notes) {
+  const lines = markdown.split("\n");
+  let fence = null;
+  const headings = [];
+  lines.forEach((line, index) => {
+    const marker = /^(```|~~~)/.exec(line);
+    if (marker) fence = fence === null ? marker[1] : fence === marker[1] ? null : fence;
+    else if (fence === null) {
+      const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+      if (heading) headings.push({ index, level: heading[1].length, text: heading[2] });
+    }
+  });
+  const sectioned = new Set();
+  const named = new Map(); // line index -> task name
+  const raise = new Set();
+  const drop = new Set();
+  const end = (from, level) => headings.find((heading) => heading.index > from && heading.level <= level)?.index ?? lines.length;
+  const promote = (heading, task) => {
+    named.set(heading.index, task);
+    sectioned.add(task);
+    for (const inner of headings) if (inner.index > heading.index && inner.index < end(heading.index, heading.level) && inner.level > heading.level) raise.add(inner.index);
+  };
+  for (const heading of headings.filter((heading) => heading.level === 2)) {
+    const match = TASK_HEADING.exec(lines[heading.index]);
+    if (!match) continue;
+    if (match[1] !== undefined) {
+      const task = unquote(match[1]);
+      if (!tasks.has(task)) notes.push(`SKILL.md's "${lines[heading.index]}" names ${task}, which no agent step runs`);
+      named.set(heading.index, task);
+      sectioned.add(task);
+      continue;
+    }
+    const inner = headings.filter((sub) => sub.index > heading.index && sub.index < end(heading.index, 2) && sub.level === 3 && tasks.has(unquote(sub.text)));
+    if (inner.length) {
+      drop.add(heading.index);
+      for (const sub of inner) promote(sub, unquote(sub.text));
+      continue;
+    }
+    const open = [...tasks].filter((task) => !sectioned.has(task));
+    if (lines[heading.index].trim() === "## Agent task contract" && tasks.size === 1 && open.length === 1) {
+      named.set(heading.index, open[0]);
+      sectioned.add(open[0]);
+    } else notes.push(`SKILL.md's "${lines[heading.index]}" matches no single agent task`);
+  }
+  for (const heading of headings.filter((heading) => heading.level === 3 && !named.has(heading.index))) {
+    const task = unquote(heading.text);
+    if (tasks.has(task) && !sectioned.has(task)) promote(heading, task);
+  }
+  for (const task of tasks) if (!sectioned.has(task)) notes.push(`agent task ${task} has no "## Agent task: ${task}" section in SKILL.md`);
+  const out = [];
+  lines.forEach((line, index) => {
+    if (drop.has(index)) {
+      if (lines[index + 1] === "") drop.add(index + 1);
+      return;
+    }
+    if (named.has(index)) out.push(`## Agent task: ${named.get(index)}`);
+    else if (raise.has(index)) out.push(line.slice(1));
+    else out.push(line);
+  });
+  return out.join("\n");
 }
 
 // ---- A package
@@ -630,8 +707,9 @@ function convertPackage(dir) {
   if (defaults.length === 1 && node(root, "methods").items.length > 1) {
     insertAt(root, indexOf(root, "minimum_runx") + 1, "default_method", new Scalar(defaults[0]));
   }
+  const tasks = new Set();
   for (const pair of node(root, "methods").items) {
-    convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations }, notes);
+    convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations, tasks }, notes);
   }
   for (const [method, offer] of offers) {
     const target = node(node(root, "methods"), method);
@@ -695,6 +773,10 @@ function convertPackage(dir) {
   }
   writeEvals(name, evals, files, dir, notes);
   files.set(runPath, doc.toString(style));
+  const manualPath = path.join(dir, "SKILL.md");
+  const manual = readFileSync(manualPath, "utf8");
+  const sectioned = agentTaskSections(manual, tasks, notes);
+  if (sectioned !== manual) files.set(manualPath, sectioned);
   return { files, notes, tests: tests.size, graphs: graphPackages.size };
 }
 
