@@ -18,7 +18,7 @@ The curated proof set is also machine-checked in
 
 | Example | Front | Run |
 | --- | --- | --- |
-| `hello-world` | process tool (one-step runner) | `runx harness examples/hello-world` |
+| `hello-world` | process tool (one-step method) | `runx test examples/hello-world` |
 | `loop-orchestration` | outer loop over governed runx runs, with receipts, refusal, and agent context preview | `sh examples/loop-orchestration/run.sh` |
 
 ## Runnable previews
@@ -28,5 +28,5 @@ set.
 
 | Example | Front | Run |
 | --- | --- | --- |
-| `managed-agent` | agent (host-drives default; yields `needs_agent` to the calling agent) | `runx harness examples/managed-agent` |
-| `hello-graph` | graph harness baseline | `runx harness examples/hello-graph/harness.yaml` |
+| `managed-agent` | agent (host-drives default; yields `needs_agent` to the calling agent) | `runx test examples/managed-agent` |
+| `hello-workflow` | a method of two skill steps | `runx test examples/hello-workflow` |

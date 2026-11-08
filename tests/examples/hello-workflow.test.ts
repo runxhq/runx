@@ -13,12 +13,12 @@ const nativeRunx = process.env.RUNX_RUST_CLI_BIN
   : path.resolve("crates", "target", "debug", process.platform === "win32" ? "runx.exe" : "runx");
 
 describe("hello-workflow example", () => {
-  it("runs through the native graph harness", async () => {
+  it("runs its two-step method through the native test runner", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-hello-workflow-example-"));
     try {
       const { stdout, stderr } = await execFileAsync(
         requireNativeRunx(),
-        ["harness", "examples/hello-workflow/harness.yaml", "--json"],
+        ["test", "examples/hello-workflow", "--json"],
         {
           env: {
             ...process.env,
@@ -30,14 +30,18 @@ describe("hello-workflow example", () => {
       );
 
       expect(stderr).toBe("");
-      const receipt = JSON.parse(stdout) as {
-        readonly schema?: string;
-        readonly lineage?: { readonly children?: readonly unknown[] };
-        readonly seal?: { readonly outcome?: string };
+      // The test asserts the sealed receipt itself: completed, with a child
+      // for each of the two steps.
+      const report = JSON.parse(stdout) as {
+        readonly status?: string;
+        readonly case_names?: readonly string[];
+        readonly assertion_errors?: readonly string[];
+        readonly receipt_ids?: readonly string[];
       };
-      expect(receipt.schema).toBe("runx.receipt.v1");
-      expect(receipt.seal?.outcome).toBe("completed");
-      expect(receipt.lineage?.children?.length).toBe(2);
+      expect(report.status).toBe("passed");
+      expect(report.case_names).toEqual(["hello-workflow"]);
+      expect(report.assertion_errors).toEqual([]);
+      expect(report.receipt_ids).toHaveLength(1);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
