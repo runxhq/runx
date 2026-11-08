@@ -11,6 +11,7 @@ const METHOD_FIELDS: &[&str] = &[
     "description",
     "inputs",
     "input_constraints",
+    "outputs",
     "examples",
     "steps",
     "result_from",
@@ -33,7 +34,7 @@ const INPUT_CONSTRAINT_KEYS: &[&str] = &[
 ];
 
 /// The workflow keys a method carries for its steps.
-const WORKFLOW_FIELDS: &[&str] = &["result_from", "steps"];
+const WORKFLOW_FIELDS: &[&str] = &["result_from", "outputs", "steps"];
 
 /// Validate one method. `inputs` are its inputs as written, each shared input
 /// it names already taken from `shared_inputs`.

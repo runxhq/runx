@@ -335,27 +335,6 @@ fn a_turns_operations_each_name_a_connector_and_an_operation() -> Result<(), Str
 }
 
 #[test]
-fn a_composed_method_returns_its_steps_not_method_outputs() -> Result<(), String> {
-    let error = refusal(
-        "demo",
-        r#"
-minimum_runx: 0.12.0
-methods:
-  default:
-    outputs: {answer: {type: string}}
-    steps:
-      - id: decide
-        agent: decide
-"#,
-    )?;
-    assert!(
-        error.contains("methods.default.outputs is not supported"),
-        "{error}"
-    );
-    Ok(())
-}
-
-#[test]
 fn a_tool_limit_must_be_an_admissible_catalog_ref() -> Result<(), String> {
     let error = refusal(
         "demo",

@@ -497,6 +497,7 @@ pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) 
     Workflow {
         name: format!("purchase {skill}#{runner}"),
         result_from: vec![PURCHASE_STEP.to_owned()],
+        outputs: None,
         steps: vec![WorkflowStep {
             id: PURCHASE_STEP.to_owned(),
             kind: StepKind::Skill(SkillTarget {

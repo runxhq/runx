@@ -303,6 +303,11 @@ pub struct Workflow {
     /// mutually exclusive terminal branches and methods that intentionally
     /// return both an act result and its durable readback.
     pub result_from: Vec<String>,
+    /// What the method returns, when it says: its result producers' outputs
+    /// narrowed to these fields, each checked against its declaration. With
+    /// none, it returns its result producers' outputs whole.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outputs: Option<JsonObject>,
     pub steps: Vec<WorkflowStep>,
     pub raw: RawWorkflowIr,
 }

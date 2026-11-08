@@ -124,10 +124,21 @@ impl SkillMethodDefinition {
         constrained_input_schema(&self.inputs, &self.input_constraints)
     }
 
-    /// The method's output schema: its result step's outputs, or one of
-    /// them, when the method returns the first of several that ran.
+    /// The method's output schema: its declared `outputs`, else its result
+    /// step's outputs, or one of them, when the method returns the first of
+    /// several that ran.
     #[must_use]
     pub fn output_schema(&self) -> JsonObject {
+        if let Some(fields) = self
+            .graph
+            .outputs
+            .as_ref()
+            .and_then(|outputs| runx_contracts::parse_output_contract(outputs).ok())
+            && let runx_contracts::JsonValue::Object(schema) =
+                runx_contracts::output_value_schema(Some(&fields))
+        {
+            return schema;
+        }
         let mut results = self
             .graph
             .steps

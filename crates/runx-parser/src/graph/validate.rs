@@ -53,13 +53,70 @@ pub fn validate_workflow_document(
     validate_result_producers(&result_from, &seen_step_ids)?;
     validate_gated_context(&steps)?;
     validate_ask_addresses(&steps, &seen_step_ids)?;
+    let outputs = validate_method_outputs(document.get("outputs"), &result_from, &steps)?;
 
     Ok(Workflow {
         name,
         result_from,
+        outputs,
         steps,
         raw: raw.unwrap_or(RawWorkflowIr { document }),
     })
+}
+
+/// A method's declared `outputs`: a valid output contract, each of whose
+/// required fields one of its result producers can emit. A producer that
+/// declares no outputs, such as a skill step returning its child's result,
+/// can emit any.
+fn validate_method_outputs(
+    value: Option<&runx_contracts::JsonValue>,
+    result_from: &[String],
+    steps: &[crate::WorkflowStep],
+) -> Result<Option<JsonObject>, ValidationError> {
+    let Some(outputs) = super::helpers::optional_object(value, "outputs")? else {
+        return Ok(None);
+    };
+    let fields = runx_contracts::parse_output_contract(&outputs)
+        .map_err(|error| validation_error(format!("outputs is invalid: {error}")))?;
+    if fields.is_empty() {
+        return Err(validation_error("outputs lists nothing."));
+    }
+    let producers = steps
+        .iter()
+        .filter(|step| result_from.contains(&step.id))
+        .map(|step| step.outputs.as_ref())
+        .collect::<Vec<_>>();
+    for (name, field) in &fields {
+        let emitted = producers
+            .iter()
+            .flatten()
+            .filter_map(|declared| declared.get(name))
+            .collect::<Vec<_>>();
+        if emitted.is_empty() && !field.optional && producers.iter().all(Option::is_some) {
+            return Err(validation_error(format!(
+                "outputs.{name} is emitted by none of the steps in result_from ({}).",
+                result_from.join(", ")
+            )));
+        }
+        if let Some(packet) = &field.packet {
+            let same_packet = |declared: &&runx_contracts::JsonValue| {
+                declared
+                    .as_object()
+                    .and_then(|declared| declared.get("packet"))
+                    .and_then(runx_contracts::JsonValue::as_str)
+                    == Some(packet.as_str())
+            };
+            if let Some(other) = emitted.iter().find(|declared| !same_packet(declared)) {
+                return Err(validation_error(format!(
+                    "outputs.{name} is packet {}, and a step in result_from emits it as {}.",
+                    packet.as_str(),
+                    runx_contracts::canonical_json::canonical_stable_json(other)
+                        .unwrap_or_default()
+                )));
+            }
+        }
+    }
+    Ok(Some(outputs))
 }
 
 fn validate_result_producers(
@@ -143,7 +200,7 @@ fn validate_gated_context(steps: &[crate::WorkflowStep]) -> Result<(), Validatio
 
 /// The fields of a workflow document: a method's steps, under its skill's
 /// name.
-const WORKFLOW_FIELDS: &[&str] = &["name", "result_from", "steps"];
+const WORKFLOW_FIELDS: &[&str] = &["name", "result_from", "outputs", "steps"];
 
 fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationError> {
     match document

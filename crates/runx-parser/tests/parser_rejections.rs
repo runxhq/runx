@@ -563,3 +563,66 @@ fn input_constraints_relate_declared_inputs_and_nothing_else() -> Result<(), Str
     }
     Ok(())
 }
+
+/// A method whose one step emits a transcript and a debug trace.
+fn method_with_outputs(outputs: &str) -> String {
+    format!(
+        "minimum_runx: 0.12.0\nmethods:\n  main:\n{outputs}    steps:\n      - id: transcribe\n        tool: data.digest\n        outputs:\n          transcript: {{type: string}}\n          debug: {{type: object, optional: true}}\n          audio: {{packet: acme/outputs.audio.v1, optional: true}}\n"
+    )
+}
+
+#[test]
+fn a_methods_outputs_are_its_output_schema() -> Result<(), String> {
+    let validate = |source: String| {
+        parse_method_manifest_yaml(&source)
+            .map_err(|error| error.to_string())
+            .and_then(|raw| {
+                runx_parser::validate_method_manifest("outputs", raw)
+                    .map_err(|error| error.to_string())
+            })
+    };
+    let declared = validate(method_with_outputs(
+        "    outputs:\n      transcript: {type: string}\n",
+    ))?;
+    let schema = declared.methods["main"].output_schema();
+    let properties = schema
+        .get("properties")
+        .and_then(|value| value.as_object())
+        .ok_or("no properties")?;
+    assert_eq!(
+        properties.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["transcript"],
+        "{schema:?}"
+    );
+    let open = validate(method_with_outputs(""))?;
+    let open_schema = open.methods["main"].output_schema();
+    assert!(
+        open_schema
+            .get("properties")
+            .and_then(|value| value.as_object())
+            .is_some_and(|properties| properties.contains_key("debug")),
+        "{open_schema:?}"
+    );
+
+    for (outputs, expected) in [
+        (
+            "    outputs:\n      summary: {type: string}\n",
+            "outputs.summary is emitted by none of the steps in result_from (transcribe)",
+        ),
+        (
+            "    outputs:\n      audio: {packet: acme/outputs.video.v1}\n",
+            "outputs.audio is packet acme/outputs.video.v1, and a step in result_from emits it as",
+        ),
+        ("    outputs: {}\n", "outputs lists nothing"),
+        (
+            "    outputs:\n      transcript: {type: wrong}\n",
+            "outputs is invalid",
+        ),
+    ] {
+        let error = validate(method_with_outputs(outputs))
+            .err()
+            .ok_or_else(|| format!("outputs validated: {outputs}"))?;
+        assert!(error.contains(expected), "{outputs}: {error}");
+    }
+    Ok(())
+}

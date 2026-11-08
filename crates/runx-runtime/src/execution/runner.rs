@@ -1067,6 +1067,52 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
         });
     }
 
+    match &run.graph.outputs {
+        Some(outputs) => declared_method_result(run, outputs, result),
+        None => Ok(JsonValue::Object(result)),
+    }
+}
+
+/// What a method that declares `outputs` returns: its result producers'
+/// outputs narrowed to those fields. Once the method has succeeded, each is
+/// checked against its declaration, a packet's by the data its artifact
+/// carries, so the method returns exactly what its output schema describes.
+fn declared_method_result(
+    run: &WorkflowRun,
+    outputs: &JsonObject,
+    produced: JsonObject,
+) -> Result<JsonValue, RuntimeError> {
+    let failure = |message: String| RuntimeError::SkillFailed {
+        skill_name: run.graph.name.clone(),
+        message,
+    };
+    let fields = runx_contracts::parse_output_contract(outputs)
+        .map_err(|error| failure(format!("the method's outputs are invalid: {error}")))?;
+    let result = produced
+        .into_iter()
+        .filter(|(name, _)| fields.contains_key(name))
+        .collect::<JsonObject>();
+    if run.progress.state == WorkflowState::Succeeded {
+        let checked = result
+            .iter()
+            .map(|(name, value)| {
+                let value = match fields.get(name).and_then(|field| field.packet.as_ref()) {
+                    Some(_) => crate::output_contract::artifact_data(value)
+                        .cloned()
+                        .unwrap_or(JsonValue::Null),
+                    None => value.clone(),
+                };
+                (name.clone(), value)
+            })
+            .collect::<JsonObject>();
+        runx_contracts::validate_output_value(Some(&fields), &JsonValue::Object(checked)).map_err(
+            |error| {
+                failure(format!(
+                    "the method's result breaks its declared outputs at {error}"
+                ))
+            },
+        )?;
+    }
     Ok(JsonValue::Object(result))
 }
 
@@ -1530,6 +1576,66 @@ mod tests {
     }
 
     #[test]
+    fn a_method_returns_exactly_the_outputs_it_declares() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let produced = || {
+            test_step(
+                "declared-outputs",
+                "transcribe",
+                JsonObject::from([
+                    (
+                        "transcript".to_owned(),
+                        JsonValue::String("hello".to_owned()),
+                    ),
+                    ("debug".to_owned(), JsonValue::Bool(true)),
+                ]),
+            )
+        };
+        let declare = |run: &mut WorkflowRun, outputs: &str| -> Result<(), serde_json::Error> {
+            run.graph.outputs = Some(serde_json::from_str(outputs)?);
+            Ok(())
+        };
+
+        let mut run = test_workflow_run(
+            vec!["transcribe"],
+            vec![produced()?],
+            WorkflowState::Succeeded,
+        )?;
+        declare(&mut run, r#"{"transcript": {"type": "string"}}"#)?;
+        assert_eq!(
+            workflow_run_result(&run)?,
+            JsonValue::Object(JsonObject::from([(
+                "transcript".to_owned(),
+                JsonValue::String("hello".to_owned()),
+            )]))
+        );
+
+        declare(&mut run, r#"{"transcript": {"type": "integer"}}"#)?;
+        let error = workflow_run_result(&run)
+            .err()
+            .ok_or("a result breaking its declared outputs was returned")?;
+        assert!(
+            error
+                .to_string()
+                .contains("the method's result breaks its declared outputs"),
+            "{error}"
+        );
+
+        declare(&mut run, r#"{"summary": {"type": "string"}}"#)?;
+        assert!(
+            workflow_run_result(&run).is_err(),
+            "a required output was missing"
+        );
+        run.progress.state = WorkflowState::Running;
+        assert_eq!(
+            workflow_run_result(&run)?,
+            JsonValue::Object(JsonObject::new()),
+            "an unfinished method is narrowed, not judged"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn succeeded_workflow_requires_a_contributing_result_producer()
     -> Result<(), Box<dyn std::error::Error>> {
         let run = test_workflow_run(
@@ -1703,6 +1809,7 @@ mod tests {
             graph: Workflow {
                 name: name.clone(),
                 result_from: result_from.into_iter().map(str::to_owned).collect(),
+                outputs: None,
                 steps: Vec::new(),
                 raw: RawWorkflowIr {
                     document: JsonObject::new(),
