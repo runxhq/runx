@@ -8,7 +8,7 @@ mod transport;
 mod turns;
 
 pub use package::PackageTestReport;
-pub(crate) use package::run_package_test_with_effects;
+pub(crate) use package::{run_package_case_with_effects, run_package_test_with_effects};
 
 use std::collections::{BTreeMap, BTreeSet};
 

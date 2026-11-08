@@ -391,76 +391,19 @@ impl LocalOrchestrator {
         )?)
     }
 
+    /// Run one test file, `<package>/tests/<name>.yaml`, in the workspace a
+    /// run of its package's tests gives each case.
     pub fn run_test_fixture(
         &self,
         request: &TestRunRequest,
     ) -> Result<TestReplayOutput, OrchestratorError> {
-        let (mut options, receipt_dir) = standalone_test_options(request, &self.environment)?;
-        options.effects = self.effects.clone();
-        // The case writes its receipts into a scratch root; they are kept
-        // where the caller asked once the case passes.
-        let scratch = tempfile::Builder::new()
-            .prefix("runx-test-receipts-")
-            .tempdir()
-            .map_err(|source| crate::RuntimeError::io("creating a harness case scratch", source))?;
-        let mut case = options.clone();
-        case.env.insert(
-            crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
-            scratch
-                .path()
-                .join("receipts")
-                .to_string_lossy()
-                .into_owned(),
-        );
-        let output = super::harness::run_test_fixture_with_adapter(
+        Ok(super::harness::run_package_case_with_effects(
             &request.fixture_path,
-            super::skill_front::ExecutableAdapter,
-            case,
-        )?;
-        persist_test_receipts(&output, &options, &receipt_dir)?;
-        Ok(output)
+            request.receipt_dir.as_deref(),
+            &self.environment,
+            &self.effects,
+        )??)
     }
-}
-
-fn standalone_test_options(
-    request: &TestRunRequest,
-    environment: &BTreeMap<String, String>,
-) -> Result<(super::harness::TestOptions, PathBuf), OrchestratorError> {
-    use crate::paths::RUNX_RECEIPT_DIR_ENV;
-
-    let workspace = crate::WorkspaceEnv::from_admitted(environment.clone())
-        .map_err(crate::RuntimeError::from)?;
-    let mut env = workspace.env().clone();
-    let receipt_dir = workspace
-        .paths()
-        .test_receipts(request.receipt_dir.as_deref());
-    env.insert(
-        RUNX_RECEIPT_DIR_ENV.to_owned(),
-        receipt_dir.to_string_lossy().into_owned(),
-    );
-    let options = super::harness::TestOptions::new(env)?;
-    Ok((options, receipt_dir))
-}
-
-fn persist_test_receipts(
-    output: &TestReplayOutput,
-    options: &super::harness::TestOptions,
-    receipt_dir: &std::path::Path,
-) -> Result<(), OrchestratorError> {
-    crate::services::ReceiptServices::from_signature_config(options.receipt_signature.clone())
-        .write_local_receipts(
-            output
-                .steps
-                .iter()
-                .flat_map(|step| {
-                    step.nested_receipts
-                        .iter()
-                        .chain(std::iter::once(&step.receipt))
-                })
-                .chain(std::iter::once(&output.receipt)),
-            receipt_dir,
-        )?;
-    Ok(())
 }
 
 fn child_receipt_uris(receipt: &Receipt) -> Vec<String> {

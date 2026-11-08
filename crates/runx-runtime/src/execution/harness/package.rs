@@ -59,6 +59,72 @@ pub(crate) fn run_package_test_with_effects(
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<PackageTestReport, SkillRunError> {
+    let (loaded, harness) = prepare_package_tests(skill_path, receipt_dir, env)?;
+    let mut report = PackageTestReport::not_declared();
+    let cases = test_paths(&loaded.directory)?
+        .into_iter()
+        .map(|path| load_test_case(&path).map_err(|error| format!("{}: {error}", path.display())))
+        .collect();
+    replay_cases(cases, &harness, effects, &mut report)?;
+    finalize_report(&mut report);
+    Ok(report)
+}
+
+/// Run one of a package's tests, `<package>/tests/<name>.yaml`, as a run of
+/// all of them runs each: in a workspace of its own, with the package's
+/// `fixtures/` staged whole and its installed connectors and skills. The
+/// outer error is the workspace's; the inner one is the case's.
+pub(crate) fn run_package_case_with_effects(
+    test_path: &Path,
+    receipt_dir: Option<&Path>,
+    env: &BTreeMap<String, String>,
+    effects: &RuntimeEffectRegistry,
+) -> Result<Result<super::TestReplayOutput, TestReplayError>, SkillRunError> {
+    let test_path = match fs::canonicalize(test_path) {
+        Ok(path) => path,
+        Err(source) => {
+            return Ok(Err(RuntimeError::io(
+                format!("resolving the test {}", test_path.display()),
+                source,
+            )
+            .into()));
+        }
+    };
+    let Some(package) = test_path.parent().and_then(Path::parent) else {
+        return Ok(Err(TestReplayError::TargetWithoutParent {
+            target: test_path,
+        }));
+    };
+    let (_loaded, harness) = prepare_package_tests(package, receipt_dir, env)?;
+    let mut options = TestOptions::new(harness.env.clone())?;
+    options.effects = effects.clone();
+    options.env.insert(
+        RUNX_RECEIPT_DIR_ENV.to_owned(),
+        harness
+            .fixture_receipt_dir(0)
+            .to_string_lossy()
+            .into_owned(),
+    );
+    let receipt_services =
+        ReceiptServices::from_signature_config(options.receipt_signature.clone());
+    let output = match load_test_case(&test_path).and_then(|(fixture, target)| {
+        run_test_case_with_adapter(fixture, target, ExecutableAdapter, options)
+    }) {
+        Ok(output) => output,
+        Err(error) => return Ok(Err(error)),
+    };
+    persist_fixture_receipts(&receipt_services, &harness.receipt_dir, &output)?;
+    Ok(Ok(output))
+}
+
+/// The package at `skill_path`, and the workspace its tests run in: the
+/// environment without ambient authority or the package's credentials, its
+/// `fixtures/`, and its installed connectors and skills.
+fn prepare_package_tests(
+    skill_path: &Path,
+    receipt_dir: Option<&Path>,
+    env: &BTreeMap<String, String>,
+) -> Result<(crate::LoadedSkillPackage, PackageTestEnvironment), SkillRunError> {
     let loaded = crate::load_validated_skill_package(skill_path)?;
     let workspace = crate::WorkspaceEnv::from_admitted(env.clone()).map_err(RuntimeError::from)?;
     let mut base_env = workspace.env().clone();
