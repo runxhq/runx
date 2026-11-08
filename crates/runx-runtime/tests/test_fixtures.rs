@@ -242,7 +242,7 @@ fn a_case_whose_run_errors_still_proves_only_the_requests_it_made()
         matches!(
             &error,
             runx_runtime::TestReplayError::Mismatch { field, actual, .. }
-                if field == "caller.http_exchanges"
+                if field == "providers.http"
                     && actual == "never requested: PATCH https://fixture.runx.invalid/item"
         ),
         "{error}"

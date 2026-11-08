@@ -1126,7 +1126,7 @@ fn a_scripted_call_that_returns_something_else_fails_its_case() -> TestResult {
         report
             .assertion_errors
             .iter()
-            .any(|error| error.contains("caller.turns.answer.calls[0].expect")),
+            .any(|error| error.contains("host.turns.answer.calls[0].expect")),
         "{:?}",
         report.assertion_errors
     );

@@ -50,7 +50,7 @@ pub(super) fn work_scripted_turn(
             assert_json_expectation(
                 expect,
                 &actual,
-                &format!("caller.turns.{id}.calls[{index}].expect"),
+                &format!("host.turns.{id}.calls[{index}].expect"),
             )
             .map_err(|error| RuntimeError::InvalidRunStep {
                 step_id: turn.step_id().to_owned(),

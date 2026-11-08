@@ -86,7 +86,7 @@ pub(crate) fn assert_exchanges_requested(unrequested: &[String]) -> Result<(), T
         return Ok(());
     }
     Err(TestReplayError::Mismatch {
-        field: "caller.http_exchanges".to_owned(),
+        field: "providers.http".to_owned(),
         expected: "every declared exchange requested".to_owned(),
         actual: format!("never requested: {}", unrequested.join(", ")),
     })
