@@ -956,6 +956,10 @@ fn serialize_closure(closure: ClosureAccumulator) -> Result<JsonValue, SkillInsp
     })
 }
 
+/// The digest of what a closure binds: each package and runner, each
+/// connector's manifest and implementation, and each edge left unresolved.
+/// runx's version is left out, so a person's trust in a closure and a closure
+/// pinned elsewhere survive an upgrade.
 fn execution_closure_digest(
     package_bindings: &[ExecutionPackageBinding],
     connector_bindings: &[ExecutionConnectorBinding],
@@ -963,7 +967,6 @@ fn execution_closure_digest(
 ) -> String {
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"runx.execution-closure.v1\0");
-    append_digest_field(&mut canonical, crate::RUNX_VERSION.as_bytes());
     for binding in package_bindings {
         append_digest_field(&mut canonical, binding.skill.as_bytes());
         append_digest_field(&mut canonical, binding.runner.as_bytes());
@@ -1046,5 +1049,38 @@ fn execution_summary(components: &[String], agent_acts: usize, declared_artifact
         (false, Some(agent)) => format!("{}; {agent}", components.join(", ")),
         (false, None) => components.join(", "),
         (true, None) => "none".to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The digest is exactly its length-prefixed fields, and no version of
+    /// runx is one of them.
+    #[test]
+    fn a_closure_digest_leaves_runx_version_out() -> Result<(), &'static str> {
+        let digest =
+            |hex: &str| Digest::new(format!("sha256:{}", hex.repeat(64))).ok_or("a valid digest");
+        let package = digest("a")?;
+        let packages = [ExecutionPackageBinding {
+            skill: "notes".to_owned(),
+            runner: "jot".to_owned(),
+            package_digest: package.as_str().to_owned(),
+            source_kind: ExecutionPackageSourceKind::SourceRoot,
+            input_packet_schemas: Vec::new(),
+            source_path: "skills/notes".to_owned(),
+            source_files: vec!["SKILL.md".to_owned(), "run.yaml".to_owned()],
+        }];
+        let connectors = [ExecutionConnectorBinding {
+            connector: ConnectorName::new("marker").ok_or("a valid name")?,
+            manifest_digest: digest("b")?,
+            connector_digest: digest("c")?,
+        }];
+        assert_eq!(
+            execution_closure_digest(&packages, &connectors, &[]),
+            "sha256:35d3a1537190dcd745b59333128a84b045510f7b112e69e3c6694e6c723597ad"
+        );
+        Ok(())
     }
 }
