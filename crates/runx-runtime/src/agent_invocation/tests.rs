@@ -26,7 +26,7 @@ fn temp_skill(body: &str) -> Result<tempfile::TempDir, std::io::Error> {
     fs::write(
         directory.path().join("SKILL.md"),
         format!(
-            "---\nname: contract-test\ndescription: Contract test\n---\n\n# Contract test\n\n{body}\n"
+            "---\nname: contract-test\ndescription: Contract test\n---\n\n# Contract test\n\n## Agent task: plan\n\n{body}\n"
         ),
     )?;
     Ok(directory)
@@ -313,11 +313,17 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
 }
 
 #[test]
-fn agent_step_instructions_are_the_complete_canonical_skill_document()
+fn agent_step_instructions_are_the_manual_with_only_its_own_task()
 -> Result<(), Box<dyn std::error::Error>> {
     let skill_rule = "Keep domain policy in the skill.";
-    let skill = temp_skill(skill_rule)?;
-    let manual = fs::read_to_string(skill.path().join("SKILL.md"))?;
+    let skill = temp_skill(&format!(
+        "{skill_rule}\n\n## Agent task: publish\n\nPublish what the plan approved."
+    ))?;
+    let manual = fs::read_to_string(skill.path().join("SKILL.md"))?.replace(
+        "## Agent task: publish\n\nPublish what the plan approved.\n",
+        "",
+    );
+    assert!(manual.contains(skill_rule) && manual.contains("## Agent task: plan"));
     let mut request = invocation(skill.path().to_path_buf(), Some(outputs()));
     request.step_id = Some("review".to_owned());
     request.provenance = vec![ProvenanceEntry {
@@ -341,6 +347,27 @@ fn agent_step_instructions_are_the_complete_canonical_skill_document()
         Some("review")
     );
     assert_eq!(resolved.envelope.provenance, request.provenance);
+    Ok(())
+}
+
+#[test]
+fn an_agent_step_refuses_a_manual_with_no_section_for_its_task()
+-> Result<(), Box<dyn std::error::Error>> {
+    let skill = temp_skill("Plan carefully.")?;
+    fs::write(
+        skill.path().join("SKILL.md"),
+        "---\nname: contract-test\ndescription: Contract test\n---\n\n# Contract test\n\n## Agent task: review\n\nReview.\n",
+    )?;
+    let request = invocation(skill.path().to_path_buf(), Some(outputs()));
+    let error = build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())
+        .err()
+        .ok_or("a turn was given a manual with no section for its task")?;
+    assert!(
+        error
+            .to_string()
+            .contains("agent task plan has no \"## Agent task: plan\" section"),
+        "{error}"
+    );
     Ok(())
 }
 

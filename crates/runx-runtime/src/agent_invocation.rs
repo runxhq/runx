@@ -84,6 +84,7 @@ fn envelope(
         request.artifacts.as_ref(),
         &request.skill_directory,
     )?;
+    let instructions = task_instructions(request, package)?;
     Ok(AgentContextEnvelope {
         run_id: request
             .env
@@ -93,8 +94,9 @@ fn envelope(
         step_id: optional_non_empty(request.step_id.as_deref()),
         skill: skill_name(request).into(),
         act: act.cloned(),
-        instructions_digest: package.package.manual_digest.clone().into(),
-        instructions: envelope_instructions(request, &package.package.manual_markdown)?.into(),
+        instructions_digest: runx_contracts::digest::sha256_prefixed(instructions.as_bytes())
+            .into(),
+        instructions: instructions.into(),
         inputs: request.inputs.clone(),
         requirements: AgentExecutionRequirements {
             declaration: request.requirements.clone(),
@@ -118,17 +120,22 @@ fn envelope(
     })
 }
 
-fn envelope_instructions(
+/// The instructions a turn is given: its skill's manual with only its own
+/// task's section, every other task's left out. Another skill's
+/// instructions reach a turn only through its `context.skills`.
+fn task_instructions(
     request: &SkillInvocation,
-    skill_instructions: &str,
+    package: &crate::LoadedSkillPackage,
 ) -> Result<String, RuntimeError> {
-    if skill_instructions.trim().is_empty() {
-        return Err(invalid_agent_invocation(
-            request,
-            "an agent step requires operating instructions in SKILL.md",
-        ));
-    }
-    Ok(skill_instructions.to_owned())
+    let task = agent_task(request)?.task.as_str();
+    runx_parser::agent_task_manual(&package.package.manual_markdown, task)
+        .map_err(|message| invalid_agent_invocation(request, message))?
+        .ok_or_else(|| {
+            invalid_agent_invocation(
+                request,
+                format!("agent task {task} has no \"## Agent task: {task}\" section in SKILL.md, which carries its instructions"),
+            )
+        })
 }
 
 fn invalid_agent_invocation(request: &SkillInvocation, message: impl Into<String>) -> RuntimeError {

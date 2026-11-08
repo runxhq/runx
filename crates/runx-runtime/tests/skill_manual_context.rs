@@ -83,7 +83,7 @@ fn workflow_execution_binds_managed_failure_to_the_owning_step()
     let temp = tempfile::tempdir()?;
     fs::write(
         temp.path().join("SKILL.md"),
-        "---\nname: owner\ndescription: Failure identity fixture.\n---\n\n# Owner\n",
+        "---\nname: owner\ndescription: Failure identity fixture.\n---\n\n# Owner\n\n## Agent task: work\n\nDo the work.\n",
     )?;
     let workflow = validate_workflow(parse_workflow_yaml(
         "name: owner\nsteps:\n  - id: owning-step\n    agent: work\n    outputs:\n      result: {type: object}\n",
@@ -118,7 +118,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     let temp = tempfile::tempdir()?;
     let adjacent_dir = temp.path().join("context/adjacent");
     fs::create_dir_all(&adjacent_dir)?;
-    let root_manual = "---\nname: root-operator\ndescription: Root operating model\n---\n\n# Root operator\n\nKeep this exact line and trailing blank.\n\n";
+    let root_manual = "---\nname: root-operator\ndescription: Root operating model\n---\n\n# Root operator\n\nKeep this exact line and trailing blank.\n\n## Agent task: judge\n\nJudge what the adjacent skill reports.\n\n";
     let adjacent_manual = "---\nname: adjacent\ndescription: Adjacent specialist\n---\n\n# Adjacent specialist\n\n## Agent task: operate\n\nLoad this only when invoked.\n";
     fs::write(temp.path().join("SKILL.md"), root_manual)?;
     fs::write(adjacent_dir.join("SKILL.md"), adjacent_manual)?;

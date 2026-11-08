@@ -163,7 +163,7 @@ pub struct AgentContextEnvelope {
     /// steps read `$run.act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<crate::CallAct>,
-    /// Digest of the exact owning `SKILL.md` bytes carried in `instructions`.
+    /// Digest of the exact bytes carried in `instructions`.
     pub instructions_digest: NonEmptyString,
     pub instructions: NonEmptyString,
     pub inputs: JsonObject,

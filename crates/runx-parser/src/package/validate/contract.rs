@@ -104,19 +104,21 @@ fn validate_manifest(
 }
 
 /// Every agent step's task is a `## Agent task: <name>` section of the
-/// package's `SKILL.md`, which carries its instructions.
+/// package's `SKILL.md`, which carries its instructions, and each task has
+/// one.
 pub(super) fn validate_agent_task_sections(
     skill: &ValidatedSkill,
     manifest: Option<&SkillMethodManifest>,
 ) -> Result<(), SkillPackageError> {
+    let sections = crate::agent_task_sections(&skill.body)
+        .map_err(|message| SkillPackageError::invalid("SKILL.md", message))?;
     let Some(manifest) = manifest else {
         return Ok(());
     };
-    let sections = agent_task_sections(&skill.body);
     for (name, method) in &manifest.methods {
         for step in &method.graph.steps {
             if let crate::StepKind::Agent(agent) = &step.kind
-                && !sections.contains(agent.task.as_str())
+                && !sections.contains_key(agent.task.as_str())
             {
                 return Err(SkillPackageError::invalid(
                     format!("run.yaml.methods.{name}.steps.{}", step.id),
@@ -129,26 +131,4 @@ pub(super) fn validate_agent_task_sections(
         }
     }
     Ok(())
-}
-
-/// The names of a manual's `## Agent task: <name>` sections, outside code.
-fn agent_task_sections(markdown: &str) -> std::collections::BTreeSet<&str> {
-    let mut fence: Option<&str> = None;
-    let mut sections = std::collections::BTreeSet::new();
-    for line in markdown.lines() {
-        let marker = ["```", "~~~"]
-            .into_iter()
-            .find(|marker| line.starts_with(marker));
-        match (marker, fence) {
-            (Some(marker), None) => fence = Some(marker),
-            (Some(marker), Some(open)) if marker == open => fence = None,
-            (_, None) => {
-                if let Some(name) = line.strip_prefix("## Agent task: ") {
-                    sections.insert(name.trim());
-                }
-            }
-            _ => {}
-        }
-    }
-    sections
 }
