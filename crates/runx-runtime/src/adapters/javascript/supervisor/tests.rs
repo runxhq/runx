@@ -130,36 +130,22 @@ fn pooled_worker_never_reuses_a_session_for_a_different_runtime_path()
 fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std::error::Error>> {
     let supervisor = Arc::new(JavaScriptWorkerSupervisor::new(2));
     let barrier = Arc::new(Barrier::new(3));
-    let slow = {
-        let supervisor = supervisor.clone();
-        let barrier = barrier.clone();
-        thread::spawn(move || {
-            supervisor.invoke_after_acquire(
-                invocation(
-                    "export default () => { let value = 0; for (let index = 0; index < 9000000; index += 1) value = (value + index) % 1000003; return { value }; };",
-                    1,
-                ),
-                || {
-                    barrier.wait();
-                },
-            )
-        })
-    };
-    let healthy = {
-        let supervisor = supervisor.clone();
-        let barrier = barrier.clone();
-        thread::spawn(move || {
-            supervisor.invoke_after_acquire(
-                invocation(
-                    "export default () => { let value = 0; for (let index = 0; index < 100000; index += 1) value = (value + index) % 1000003; return { healthy: true }; };",
-                    InvocationLimits::default().wall_milliseconds,
-                ),
-                || {
-                    barrier.wait();
-                },
-            )
-        })
-    };
+    let slow = invoke_at(
+        &supervisor,
+        &barrier,
+        invocation(
+            "export default () => { let value = 0; for (let index = 0; index < 9000000; index += 1) value = (value + index) % 1000003; return { value }; };",
+            1,
+        ),
+    );
+    let healthy = invoke_at(
+        &supervisor,
+        &barrier,
+        invocation(
+            "export default () => { let value = 0; for (let index = 0; index < 100000; index += 1) value = (value + index) % 1000003; return { healthy: true }; };",
+            InvocationLimits::default().wall_milliseconds,
+        ),
+    );
     barrier.wait();
 
     let slow = slow
@@ -189,19 +175,14 @@ fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std:
     let barrier = Arc::new(Barrier::new(3));
     let recovered = (0..2)
         .map(|_| {
-            let supervisor = supervisor.clone();
-            let barrier = barrier.clone();
-            thread::spawn(move || {
-                supervisor.invoke_after_acquire(
-                    invocation(
-                        "export default () => { let value = 0; for (let index = 0; index < 100000; index += 1) value = (value + index) % 1000003; return { recovered: true }; };",
-                        InvocationLimits::default().wall_milliseconds,
-                    ),
-                    || {
-                        barrier.wait();
-                    },
-                )
-            })
+            invoke_at(
+                &supervisor,
+                &barrier,
+                invocation(
+                    "export default () => { let value = 0; for (let index = 0; index < 100000; index += 1) value = (value + index) % 1000003; return { recovered: true }; };",
+                    InvocationLimits::default().wall_milliseconds,
+                ),
+            )
         })
         .collect::<Vec<_>>();
     barrier.wait();
@@ -217,6 +198,30 @@ fn timed_out_worker_does_not_fail_a_healthy_sibling() -> Result<(), Box<dyn std:
     }
     assert_eq!(supervisor.spawn_count(), 3);
     Ok(())
+}
+
+/// Run `invocation` on its own thread, arriving at `barrier` once it holds a
+/// worker, or at once when it couldn't get one. So a worker that can't start
+/// fails the test with its own error, rather than leaving the barrier waiting
+/// for a thread that will never arrive.
+fn invoke_at(
+    supervisor: &Arc<JavaScriptWorkerSupervisor>,
+    barrier: &Arc<Barrier>,
+    invocation: WorkerInvocation,
+) -> thread::JoinHandle<Result<super::WorkerInvocationOutcome, crate::RuntimeError>> {
+    let supervisor = Arc::clone(supervisor);
+    let barrier = Arc::clone(barrier);
+    thread::spawn(move || {
+        let mut arrived = false;
+        let outcome = supervisor.invoke_after_acquire(invocation, || {
+            arrived = true;
+            barrier.wait();
+        });
+        if !arrived {
+            barrier.wait();
+        }
+        outcome
+    })
 }
 
 fn invocation(source: &str, wall_milliseconds: u64) -> WorkerInvocation {
