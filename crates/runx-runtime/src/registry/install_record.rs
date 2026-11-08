@@ -1,8 +1,6 @@
 //! What the project records beside the packages it holds: each package a
 //! registry added, with its registry identity and trust tier, so the copy on
-//! disk is never taken for the project's own (agent-sessions §4.1); and each
-//! execution closure a person trusted, so a later load of that exact closure
-//! does not ask again.
+//! disk is never taken for the project's own (agent-sessions §4.1).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,16 +16,6 @@ use crate::RunxPaths;
 pub struct InstallRecord {
     /// `<publisher>/<name>@<version>` of a skill, `<name>@<version>` of a
     /// connector.
-    pub package: String,
-    pub trust_tier: TrustTier,
-}
-
-/// An execution closure a person trusted, by digest.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct TrustRecord {
-    pub closure_digest: String,
-    /// The package it is the closure of, as the load named it.
     pub package: String,
     pub trust_tier: TrustTier,
 }
@@ -133,20 +121,6 @@ pub(crate) fn installed_origin(
     }))
 }
 
-/// Whether a person trusted the execution closure `closure_digest` in this
-/// project.
-pub(crate) fn trusted(paths: &RunxPaths, closure_digest: &str) -> Result<bool, String> {
-    Ok(
-        read_json::<TrustRecord>(&trust_path(paths, closure_digest))?
-            .is_some_and(|record| record.closure_digest == closure_digest),
-    )
-}
-
-/// Record that a person trusted `record`'s closure.
-pub(crate) fn record_trust(paths: &RunxPaths, record: &TrustRecord) -> Result<(), String> {
-    write_json(&trust_path(paths, &record.closure_digest), record)
-}
-
 /// `<records>/<skills|connectors>/<path under the root>.json`.
 fn record_path(records: &Path, packages_root: &Path, package_dir: &Path) -> Option<PathBuf> {
     let kind = packages_root.file_name()?;
@@ -157,13 +131,6 @@ fn record_path(records: &Path, packages_root: &Path, package_dir: &Path) -> Opti
     let mut path = records.join(kind).join(relative);
     path.as_mut_os_string().push(".json");
     Some(path)
-}
-
-fn trust_path(paths: &RunxPaths, closure_digest: &str) -> PathBuf {
-    paths.trust_records().join(format!(
-        "{}.json",
-        closure_digest.trim_start_matches("sha256:")
-    ))
 }
 
 fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {

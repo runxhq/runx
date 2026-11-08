@@ -2,7 +2,7 @@
 //! `runx skill` and `runx connector` resolve it; the turn's catalog rules
 //! admit it by where it comes from and its tier; what it binds must agree with
 //! the connectors the turn already reaches; and a package below its rule's
-//! tier waits on the person's trust, which the project records for that exact
+//! tier waits on the person's trust, which their home records for that exact
 //! closure. Its output carries a skill's manual and runners, what it bound and
 //! the calls the turn offers from then on. A skill's load binds the runner it
 //! names or the skill's only runner; one that binds none binds no closure, so
@@ -104,7 +104,8 @@ where
     if let Some(reason) = revision_refusal(&bound, &load.held) {
         return Err(refused(reason));
     }
-    match ruling(&bound.origin, &load.rules, &describe(&bound.package)) {
+    let what = describe(&bound.package);
+    match ruling(&bound.origin, &load.rules, &what) {
         Ruling::Admitted => {}
         Ruling::Refused(reason) => return Err(refused(reason)),
         Ruling::AsksTrust { minimum } => {
@@ -113,7 +114,11 @@ where
                 .iter()
                 .map(|closure| crate::registry::trusted(&paths, closure))
                 .collect::<Result<Vec<_>, _>>()
-                .map_err(|message| RuntimeError::effect_state("reading trust", message))?;
+                .map_err(|why| {
+                    refused(format!(
+                        "{what} waits on the person's trust, which can't be read: {why}"
+                    ))
+                })?;
             if !trusted.iter().all(|trusted| *trusted) {
                 ask_trust(runtime, workflow_dir, step, &bound, minimum, &paths, host)?;
             }
@@ -518,7 +523,8 @@ fn revision_refusal(bound: &Bound, held: &BTreeMap<String, String>) -> Option<St
     })
 }
 
-/// Ask the person to trust `bound`; record their trust for its closures.
+/// Ask the person to trust `bound`; record their trust for its closures in
+/// their home.
 fn ask_trust<A>(
     runtime: &super::Runtime<A>,
     workflow_dir: &Path,
@@ -569,16 +575,23 @@ fn ask_trust<A>(
         .map_err(|error| RuntimeError::effect_state("asking for trust", error.to_string()))?;
     match resolution {
         ApprovalResolution::Approved { .. } => {
+            let (tier, _) = tier_and_publisher(&bound.origin);
             for closure in &bound.closures {
                 crate::registry::record_trust(
                     paths,
                     &crate::registry::TrustRecord {
                         closure_digest: closure.clone(),
                         package: what.clone(),
-                        trust_tier: tier,
+                        tier,
                     },
                 )
-                .map_err(|message| RuntimeError::effect_state("recording trust", message))?;
+                .map_err(|why| RuntimeError::AuthorityDenied {
+                    verb: AuthorityVerb::Execute,
+                    step_id: step.id.clone(),
+                    reason: format!(
+                        "the person trusted {what}, and their trust can't be recorded: {why}"
+                    ),
+                })?;
             }
             Ok(())
         }

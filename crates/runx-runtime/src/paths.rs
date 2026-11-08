@@ -172,6 +172,13 @@ impl RunxPaths {
         self.home.join("install.json")
     }
 
+    /// The execution closures a person trusted, in their home, which holds
+    /// none when it fell back ([`Self::home_fell_back`]).
+    #[must_use]
+    pub fn trust_records(&self) -> PathBuf {
+        self.home.join("trust")
+    }
+
     /// Where a registry package read for inspection is kept, its skills,
     /// connectors and install records apart from any project's (N6).
     #[must_use]
@@ -281,12 +288,6 @@ impl RunxPaths {
     #[must_use]
     pub fn install_records(&self) -> PathBuf {
         self.project.join("installs")
-    }
-
-    /// The execution closures a person trusted in this project.
-    #[must_use]
-    pub fn trust_records(&self) -> PathBuf {
-        self.project.join("trust")
     }
 
     #[must_use]

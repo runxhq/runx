@@ -1,6 +1,7 @@
 //! A turn's loads (agent-sessions §4.1): a catalog rule admits what a load
 //! finds, a package below its tier waits on the person's trust once per
-//! closure, and what a load bound is what its tools run.
+//! closure, recorded in their home, and what a load bound is what its tools
+//! run.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -126,6 +127,12 @@ impl Project {
             self.root.to_string_lossy().into_owned(),
         );
         env.insert("RUNX_REGISTRY_URL".to_owned(), self.registry.url.clone());
+        // The person's trust lives in their home, which a home that fell back
+        // to the workspace is not.
+        env.insert(
+            "RUNX_HOME".to_owned(),
+            self.root.join("home").to_string_lossy().into_owned(),
+        );
         crate::support::insert_test_signing_env(&mut env);
         Ok(env)
     }
@@ -386,7 +393,7 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
     loaded(status.calls.first().ok_or("the load is recorded")?)?;
     drop(turn);
 
-    // The project trusts that closure now: a later session loads it at once.
+    // The person trusts that closure now: a later session loads it at once.
     let again = project.start(session.clone())?;
     let turn = project.open(&again)?;
     loaded(&turn.call(

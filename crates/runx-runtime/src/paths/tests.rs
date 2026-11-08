@@ -33,6 +33,7 @@ fn every_location_follows_from_three_roots() {
         paths.authoring_applications(),
         Path::new("/work/app/.runx/authoring/applications")
     );
+    assert_eq!(paths.trust_records(), Path::new("/home/kam/.runx/trust"));
     assert_eq!(paths.bundled_skills(), Path::new("/home/kam/.runx/bundled"));
     assert_eq!(paths.tier_statements(), Path::new("/home/kam/.runx/tiers"));
     assert_eq!(

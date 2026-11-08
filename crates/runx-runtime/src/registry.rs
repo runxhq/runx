@@ -15,6 +15,7 @@ mod refs;
 pub mod resolve;
 mod source_authority;
 mod trust_anchor;
+mod trust_record;
 mod types;
 
 pub(crate) use bundled::bundled_skills;
@@ -31,9 +32,7 @@ pub use install::{
 };
 pub(crate) use install::{copy_installed_skill, copy_installed_skills};
 pub use install_record::{InstallRecord, read_install_record};
-pub(crate) use install_record::{
-    InstalledOrigin, TrustRecord, installed_origin, record_trust, trusted,
-};
+pub(crate) use install_record::{InstalledOrigin, installed_origin};
 pub use package_metadata::{
     RegistryConnectorMetadata, RegistryPackageMetadata, RegistryTestCaseMetadata,
 };
@@ -66,6 +65,7 @@ pub use trust_anchor::{
     default_trusted_registry_manifest_keys, registry_manifest_key_allows,
     trusted_registry_manifest_keys_from_env, verify_registry_signed_manifest,
 };
+pub(crate) use trust_record::{TrustRecord, record_trust, trusted};
 pub use types::{
     AcquiredRegistrySkill, ProfileMode, RegistryAttestation, RegistryConnectorDetail,
     RegistryConnectorOperation, RegistryConnectorSearchResult, RegistryManifestSignature,
