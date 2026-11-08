@@ -83,7 +83,6 @@ fn requested_kind(kind: ListKind) -> RunxListRequestedKind {
         ListKind::All => RunxListRequestedKind::All,
         ListKind::Tools => RunxListRequestedKind::Tools,
         ListKind::Skills => RunxListRequestedKind::Skills,
-        ListKind::Graphs => RunxListRequestedKind::Graphs,
         ListKind::Packets => RunxListRequestedKind::Packets,
     }
 }
@@ -123,7 +122,6 @@ fn kind_label(kind: RunxListItemKind) -> &'static str {
     match kind {
         RunxListItemKind::Tool => "tool",
         RunxListItemKind::Skill => "skill",
-        RunxListItemKind::Graph => "graph",
         RunxListItemKind::Packet => "packet",
     }
 }

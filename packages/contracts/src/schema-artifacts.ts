@@ -17279,7 +17279,6 @@ export const runxSchemaArtifacts = {
               "enum": [
                 "tool",
                 "skill",
-                "graph",
                 "packet"
               ],
               "title": "RunxListItemKind",
@@ -17372,7 +17371,6 @@ export const runxSchemaArtifacts = {
           "all",
           "tools",
           "skills",
-          "graphs",
           "packets"
         ],
         "title": "RunxListRequestedKind",
@@ -36960,7 +36958,6 @@ export const runxSchemaArtifacts = {
               "enum": [
                 "tool",
                 "skill",
-                "graph",
                 "packet"
               ],
               "title": "RunxListItemKind",
@@ -37023,7 +37020,6 @@ export const runxSchemaArtifacts = {
               "enum": [
                 "tool",
                 "skill",
-                "graph",
                 "packet"
               ],
               "title": "RunxListItemKind",

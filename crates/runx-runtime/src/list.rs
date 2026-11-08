@@ -1,5 +1,5 @@
-// Module rationale: native list discovery keeps tool, skill,
-// graph and packet projection in one audited surface.
+// Module rationale: native list discovery keeps tool, skill and
+// packet projection in one audited surface.
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -53,20 +53,9 @@ fn discover_list_items(
     }
     if matches!(
         requested_kind,
-        RunxListRequestedKind::All | RunxListRequestedKind::Skills | RunxListRequestedKind::Graphs
+        RunxListRequestedKind::All | RunxListRequestedKind::Skills
     ) {
-        items.extend(
-            discover_skill_and_workflow_list_items(root)?
-                .into_iter()
-                .filter(|item| match requested_kind {
-                    RunxListRequestedKind::All => true,
-                    RunxListRequestedKind::Skills => {
-                        matches!(item.kind, RunxListItemKind::Skill | RunxListItemKind::Graph)
-                    }
-                    RunxListRequestedKind::Graphs => item.kind == RunxListItemKind::Graph,
-                    _ => false,
-                }),
-        );
+        items.extend(discover_skill_list_items(root)?);
     }
     if matches!(
         requested_kind,
@@ -162,7 +151,7 @@ fn tool_emits(artifacts: &runx_parser::SkillArtifactContract) -> Vec<RunxListEmi
         .collect()
 }
 
-fn discover_skill_and_workflow_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
+fn discover_skill_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
     let mut items = Vec::new();
     for skill in crate::registry::bundled_skills().map_err(|message| RuntimeError::SkillFailed {
         skill_name: "runx core".to_owned(),
@@ -404,8 +393,7 @@ fn kind_order(kind: RunxListItemKind) -> u8 {
     match kind {
         RunxListItemKind::Tool => 0,
         RunxListItemKind::Skill => 1,
-        RunxListItemKind::Graph => 2,
-        RunxListItemKind::Packet => 3,
+        RunxListItemKind::Packet => 2,
     }
 }
 

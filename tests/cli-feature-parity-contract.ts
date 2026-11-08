@@ -102,7 +102,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("authority", "runx-core/policy", "schema-exact", "Grant, scope, and authority-kind policy remains machine-checkable without OSS brokerage."),
   surface("caller-mediated-resolution", "runx-runtime", "fixture-backed", "Required input, approvals, and agent work keep the same continuation contract."),
   surface("skill-authoring", "runx-runtime + skill-build", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, test, and transactional apply lane."),
-  surface("list", "runx-cli", "semantic", "Inventory output for tools, skills, graphs and packets stays represented."),
+  surface("list", "runx-cli", "semantic", "Inventory output for tools, skills and packets stays represented."),
 ];
 
 export interface CliFeatureParityContract {

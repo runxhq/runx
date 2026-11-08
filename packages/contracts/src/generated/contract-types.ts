@@ -3369,7 +3369,7 @@ export type RunxListItemContract = {
   readonly visibility?: RunxListVisibilityContract;
 };
 
-export type RunxListItemKindContract = "tool" | "skill" | "graph" | "packet";
+export type RunxListItemKindContract = "tool" | "skill" | "packet";
 
 export type RunxListReportContract = {
   readonly items: readonly RunxListItemContract[];
@@ -3378,7 +3378,7 @@ export type RunxListReportContract = {
   readonly schema: RunxListSchemaContract;
 };
 
-export type RunxListRequestedKindContract = "all" | "tools" | "skills" | "graphs" | "packets";
+export type RunxListRequestedKindContract = "all" | "tools" | "skills" | "packets";
 
 export type RunxListSchemaContract = "runx.list.v1";
 

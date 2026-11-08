@@ -21,7 +21,6 @@ pub enum RunxListRequestedKind {
     All,
     Tools,
     Skills,
-    Graphs,
     Packets,
 }
 
@@ -30,7 +29,6 @@ pub enum RunxListRequestedKind {
 pub enum RunxListItemKind {
     Tool,
     Skill,
-    Graph,
     Packet,
 }
 

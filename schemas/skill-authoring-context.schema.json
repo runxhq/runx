@@ -32,7 +32,6 @@
             "enum": [
               "tool",
               "skill",
-              "graph",
               "packet"
             ],
             "title": "RunxListItemKind",
@@ -95,7 +94,6 @@
             "enum": [
               "tool",
               "skill",
-              "graph",
               "packet"
             ],
             "title": "RunxListItemKind",

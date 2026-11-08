@@ -272,7 +272,7 @@ fn documented_command_help_is_native() -> Result<(), Box<dyn std::error::Error>>
     );
     assert_help_line(
         &help("list"),
-        "runx list [tools|skills|graphs|packets] [--ok-only|--invalid-only] [-j|--json]",
+        "runx list [tools|skills|packets] [--ok-only|--invalid-only] [-j|--json]",
     );
     assert_help_line(
         &help("login"),

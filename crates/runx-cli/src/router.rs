@@ -110,7 +110,6 @@ pub enum ListKind {
     All,
     Tools,
     Skills,
-    Graphs,
     Packets,
 }
 
@@ -497,9 +496,8 @@ fn parse_list_plan(args: &[OsString]) -> Result<ListPlan, String> {
             if saw_kind {
                 return Err("runx list accepts at most one kind".to_owned());
             }
-            kind = parse_list_kind(token).ok_or_else(|| {
-                "runx list kind must be tools, skills, graphs, or packets".to_owned()
-            })?;
+            kind = parse_list_kind(token)
+                .ok_or_else(|| "runx list kind must be tools, skills, or packets".to_owned())?;
             saw_kind = true;
             index += 1;
             continue;
@@ -533,7 +531,6 @@ fn parse_list_kind(value: &str) -> Option<ListKind> {
     match value {
         "tools" => Some(ListKind::Tools),
         "skills" => Some(ListKind::Skills),
-        "graphs" => Some(ListKind::Graphs),
         "packets" => Some(ListKind::Packets),
         _ => None,
     }
