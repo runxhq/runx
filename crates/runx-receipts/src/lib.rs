@@ -26,10 +26,7 @@ pub use runx_contracts::{
 pub use tree::{
     MAX_RECEIPT_TREE_DEPTH, MAX_RECEIPT_TREE_RECEIPTS, ReceiptProofContextProvider,
     ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig, ReceiptTreeGroup, ResolvedReceipt,
-    group_receipt_trees, receipt_edge_references, validate_receipt_tree,
-    validate_receipt_tree_proof, validate_receipt_tree_proof_with_resolver,
-    validate_receipt_tree_with_resolver, verify_receipt_tree, verify_receipt_tree_proof,
-    verify_receipt_tree_proof_with_resolver, verify_receipt_tree_with_resolver,
+    group_receipt_trees, receipt_edge_references, verify_receipt_tree_proof_with_resolver,
 };
 pub use verify::{
     ReceiptError, ReceiptFinding, ReceiptFindingCode, ReceiptProofContext,

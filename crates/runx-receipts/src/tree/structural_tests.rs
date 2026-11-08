@@ -1,48 +1,30 @@
-use runx_contracts::ReferenceType;
-
-use super::{
-    ReceiptTreeConfig, SliceReceiptResolver, verify_receipt_tree, verify_receipt_tree_with_resolver,
-};
+use super::ReceiptTreeConfig;
 use crate::ReceiptFindingCode;
 
 use super::test_support::{
-    AmbiguousResolver, ResolverErrorResolver, SUCCESS_RECEIPT, assert_finding, child,
-    child_refs_mut, fixture, reference,
+    AmbiguousResolver, FixtureResolver, assert_finding, child_link, child_refs_mut,
+    link_child_digest, proof_child, proof_root, refresh_proof_digest_and_signature, verify_tree,
+    verify_tree_with,
 };
 
 #[test]
-fn slice_adapter_accepts_only_typed_receipt_uri() -> Result<(), serde_json::Error> {
-    let mut root = fixture(SUCCESS_RECEIPT)?;
-    let child = child("rcpt_child_1")?;
-
-    child_refs_mut(&mut root)[0].uri = "rcpt_child_1".to_owned().into();
-    let verification = verify_receipt_tree(&root, std::slice::from_ref(&child));
-    assert_finding(
-        &verification,
-        ReceiptFindingCode::ChildReceiptRefMalformed,
-        "lineage.children[0]",
-    );
-
-    child_refs_mut(&mut root)[0].uri = "runx:receipt:rcpt_child_1".to_owned().into();
-    assert!(verify_receipt_tree(&root, &[child]).valid);
-    Ok(())
-}
-
-#[test]
 fn malformed_and_wrong_namespace_refs_are_stable_findings() -> Result<(), serde_json::Error> {
-    let mut root = fixture(SUCCESS_RECEIPT)?;
-    let child = child("rcpt_child_1")?;
+    let mut root = proof_root()?;
+    let child = proof_child("rcpt_child_1")?;
+    link_child_digest(&mut root, 0, &child)?;
 
-    child_refs_mut(&mut root)[0].uri = "runx:graph_receipt:rcpt_child_1".to_owned().into();
-    let verification = verify_receipt_tree(&root, std::slice::from_ref(&child));
+    child_refs_mut(&mut root)[0].uri = format!("runx:graph_receipt:{}", child.id).into();
+    refresh_proof_digest_and_signature(&mut root)?;
+    let verification = verify_tree(&root, std::slice::from_ref(&child));
     assert_finding(
         &verification,
         ReceiptFindingCode::ChildReceiptRefMalformed,
         "lineage.children[0]",
     );
 
-    child_refs_mut(&mut root)[0].uri = ":rcpt_child_1".to_owned().into();
-    let verification = verify_receipt_tree(&root, &[child]);
+    child_refs_mut(&mut root)[0].uri = format!(":{}", child.id).into();
+    refresh_proof_digest_and_signature(&mut root)?;
+    let verification = verify_tree(&root, &[child]);
     assert_finding(
         &verification,
         ReceiptFindingCode::ChildReceiptRefMalformed,
@@ -53,11 +35,14 @@ fn malformed_and_wrong_namespace_refs_are_stable_findings() -> Result<(), serde_
 
 #[test]
 fn suffix_only_refs_are_malformed_not_aliases() -> Result<(), serde_json::Error> {
-    let mut root = fixture(SUCCESS_RECEIPT)?;
-    child_refs_mut(&mut root)[0].uri = "child_1".to_owned().into();
-    let child = child("rcpt_child_1")?;
+    let mut root = proof_root()?;
+    let child = proof_child("rcpt_child_1")?;
+    link_child_digest(&mut root, 0, &child)?;
+    let suffix = child.id.trim_start_matches("sha256:").to_owned();
+    child_refs_mut(&mut root)[0].uri = suffix.into();
+    refresh_proof_digest_and_signature(&mut root)?;
 
-    let verification = verify_receipt_tree(&root, &[child]);
+    let verification = verify_tree(&root, &[child]);
 
     assert_finding(
         &verification,
@@ -68,12 +53,12 @@ fn suffix_only_refs_are_malformed_not_aliases() -> Result<(), serde_json::Error>
 }
 
 #[test]
-fn duplicate_ids_make_slice_resolution_ambiguous() -> Result<(), serde_json::Error> {
-    let root = fixture(SUCCESS_RECEIPT)?;
-    let first = child("rcpt_child_1")?;
-    let second = child("rcpt_child_1")?;
+fn duplicate_ids_make_resolution_ambiguous() -> Result<(), serde_json::Error> {
+    let mut root = proof_root()?;
+    let child = proof_child("rcpt_child_1")?;
+    link_child_digest(&mut root, 0, &child)?;
 
-    let verification = verify_receipt_tree(&root, &[first, second]);
+    let verification = verify_tree(&root, &[child.clone(), child]);
 
     assert_finding(
         &verification,
@@ -90,10 +75,9 @@ fn duplicate_ids_make_slice_resolution_ambiguous() -> Result<(), serde_json::Err
 
 #[test]
 fn resolver_ambiguous_result_is_a_stable_finding() -> Result<(), serde_json::Error> {
-    let root = fixture(SUCCESS_RECEIPT)?;
+    let root = proof_root()?;
 
-    let verification =
-        verify_receipt_tree_with_resolver(&root, &AmbiguousResolver, ReceiptTreeConfig::default());
+    let verification = verify_tree_with(&root, &AmbiguousResolver, ReceiptTreeConfig::default());
 
     assert_finding(
         &verification,
@@ -104,34 +88,18 @@ fn resolver_ambiguous_result_is_a_stable_finding() -> Result<(), serde_json::Err
 }
 
 #[test]
-fn resolver_error_result_is_a_stable_finding() -> Result<(), serde_json::Error> {
-    let root = fixture(SUCCESS_RECEIPT)?;
-
-    let verification = verify_receipt_tree_with_resolver(
-        &root,
-        &ResolverErrorResolver,
-        ReceiptTreeConfig::default(),
-    );
-
-    assert_finding(
-        &verification,
-        ReceiptFindingCode::ChildReceiptResolverError,
-        "lineage.children[0]",
-    );
-    Ok(())
-}
-
-#[test]
 fn depth_limit_blocks_hostile_nested_tree() -> Result<(), serde_json::Error> {
-    let root = fixture(SUCCESS_RECEIPT)?;
-    let mut child_receipt = child("rcpt_child_1")?;
-    child_refs_mut(&mut child_receipt).push(reference(ReferenceType::Receipt, "grandchild"));
-    let grandchild = child("grandchild")?;
+    let mut root = proof_root()?;
+    let grandchild = proof_child("grandchild")?;
+    let mut child = proof_child("rcpt_child_1")?;
+    child_refs_mut(&mut child).push(child_link(&grandchild));
+    refresh_proof_digest_and_signature(&mut child)?;
+    link_child_digest(&mut root, 0, &child)?;
 
-    let verification = verify_receipt_tree_with_resolver(
+    let verification = verify_tree_with(
         &root,
-        &SliceReceiptResolver {
-            children: &[child_receipt, grandchild],
+        &FixtureResolver {
+            children: &[child, grandchild],
         },
         ReceiptTreeConfig {
             max_depth: 1,
@@ -149,14 +117,15 @@ fn depth_limit_blocks_hostile_nested_tree() -> Result<(), serde_json::Error> {
 
 #[test]
 fn a_tree_holds_at_most_its_receipt_count() -> Result<(), serde_json::Error> {
-    let mut root = fixture(SUCCESS_RECEIPT)?;
-    child_refs_mut(&mut root).push(reference(ReferenceType::Receipt, "second"));
-    let first = child("rcpt_child_1")?;
-    let second = child("second")?;
+    let mut root = proof_root()?;
+    let first = proof_child("rcpt_child_1")?;
+    let second = proof_child("second")?;
+    *child_refs_mut(&mut root) = vec![child_link(&first), child_link(&second)];
+    refresh_proof_digest_and_signature(&mut root)?;
 
-    let verification = verify_receipt_tree_with_resolver(
+    let verification = verify_tree_with(
         &root,
-        &SliceReceiptResolver {
+        &FixtureResolver {
             children: &[first, second],
         },
         ReceiptTreeConfig {
@@ -175,22 +144,29 @@ fn a_tree_holds_at_most_its_receipt_count() -> Result<(), serde_json::Error> {
 
 #[test]
 fn positive_nested_tree_verifies() -> Result<(), serde_json::Error> {
-    let root = fixture(SUCCESS_RECEIPT)?;
-    let mut child_receipt = child("rcpt_child_1")?;
-    child_refs_mut(&mut child_receipt).push(reference(ReferenceType::Receipt, "grandchild"));
-    let grandchild = child("grandchild")?;
+    let mut root = proof_root()?;
+    let grandchild = proof_child("grandchild")?;
+    let mut child = proof_child("rcpt_child_1")?;
+    child_refs_mut(&mut child).push(child_link(&grandchild));
+    refresh_proof_digest_and_signature(&mut child)?;
+    link_child_digest(&mut root, 0, &child)?;
 
-    assert!(verify_receipt_tree(&root, &[child_receipt, grandchild]).valid);
+    let verification = verify_tree(&root, &[child, grandchild]);
+
+    assert!(verification.valid, "{:?}", verification.findings);
     Ok(())
 }
 
 #[test]
 fn positive_fanout_tree_verifies() -> Result<(), serde_json::Error> {
-    let mut root = fixture(SUCCESS_RECEIPT)?;
-    child_refs_mut(&mut root).push(reference(ReferenceType::Receipt, "second"));
-    let first = child("rcpt_child_1")?;
-    let second = child("second")?;
+    let mut root = proof_root()?;
+    let first = proof_child("rcpt_child_1")?;
+    let second = proof_child("second")?;
+    *child_refs_mut(&mut root) = vec![child_link(&first), child_link(&second)];
+    refresh_proof_digest_and_signature(&mut root)?;
 
-    assert!(verify_receipt_tree(&root, &[first, second]).valid);
+    let verification = verify_tree(&root, &[first, second]);
+
+    assert!(verification.valid, "{:?}", verification.findings);
     Ok(())
 }

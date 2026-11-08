@@ -2,22 +2,24 @@ use std::collections::BTreeSet;
 
 use runx_contracts::{Receipt, Reference, ReferenceType};
 
-use super::{ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig};
+use super::{
+    ReceiptProofContextProvider, ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig,
+};
 use crate::tree::findings::{
     ambiguous_child, join, malformed_child_ref, missing_child, resolver_error,
 };
 use crate::tree::proof::ChildProofPolicy;
 use crate::{ReceiptFinding, ReceiptFindingCode};
 
-pub(super) struct TreeTraversal<'a, R: ReceiptResolver, P: ChildProofPolicy> {
+pub(super) struct TreeTraversal<'a, R: ReceiptResolver, P: ReceiptProofContextProvider> {
     pub(super) resolver: &'a R,
     pub(super) config: ReceiptTreeConfig,
-    pub(super) proof_policy: P,
+    pub(super) proof_policy: ChildProofPolicy<'a, P>,
     pub(super) visiting: BTreeSet<String>,
     pub(super) reached: BTreeSet<String>,
 }
 
-impl<R: ReceiptResolver, P: ChildProofPolicy> TreeTraversal<'_, R, P> {
+impl<R: ReceiptResolver, P: ReceiptProofContextProvider> TreeTraversal<'_, R, P> {
     pub(super) fn subtree_findings(
         &mut self,
         path: &str,

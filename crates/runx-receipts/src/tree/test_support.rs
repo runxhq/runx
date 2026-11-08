@@ -1,7 +1,11 @@
 use runx_contracts::{Receipt, Reference, ReferenceType};
 use serde::Deserialize;
 
-use super::{ReceiptProofContextProvider, ReceiptResolveResult, ReceiptResolver, ResolvedReceipt};
+use super::findings::referenced_receipt_id;
+use super::{
+    ReceiptProofContextProvider, ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig,
+    ResolvedReceipt, verify_receipt_tree_proof_with_resolver,
+};
 use crate::{ReceiptFindingCode, ReceiptProofContext, ReceiptVerification};
 
 #[path = "../../tests/fixture_key.rs"]
@@ -56,16 +60,21 @@ pub(super) fn proof_child(label: &str) -> Result<Receipt, serde_json::Error> {
     Ok(receipt)
 }
 
+/// The ref a parent signs for `child`: its id and its digest.
+pub(super) fn child_link(child: &Receipt) -> Reference {
+    Reference {
+        locator: Some(child.digest.clone()),
+        ..Reference::runx(ReferenceType::Receipt, &child.id)
+    }
+}
+
 /// Point the root's child ref at `child` by its id and digest, and reseal.
 pub(super) fn link_child_digest(
     root: &mut Receipt,
     index: usize,
     child: &Receipt,
 ) -> Result<(), serde_json::Error> {
-    child_refs_mut(root)[index] = Reference {
-        locator: Some(child.digest.clone()),
-        ..Reference::runx(ReferenceType::Receipt, &child.id)
-    };
+    child_refs_mut(root)[index] = child_link(child);
     refresh_proof_digest_and_signature(root)
 }
 
@@ -91,6 +100,31 @@ pub(super) fn reference(reference_type: ReferenceType, id: &str) -> Reference {
     Reference::runx(reference_type, id)
 }
 
+/// Verify the tree `root` heads over the supplied `children`, under the
+/// fixture key and the default tree rule.
+pub(super) fn verify_tree(root: &Receipt, children: &[Receipt]) -> ReceiptVerification {
+    verify_tree_with(
+        root,
+        &FixtureResolver { children },
+        ReceiptTreeConfig::default(),
+    )
+}
+
+/// Verify the tree `root` heads through `resolver` under `config`, with the
+/// fixture key as the trusted signer.
+pub(super) fn verify_tree_with(
+    root: &Receipt,
+    resolver: &impl ReceiptResolver,
+    config: ReceiptTreeConfig,
+) -> ReceiptVerification {
+    verify_receipt_tree_proof_with_resolver(
+        root,
+        resolver,
+        config,
+        &FixtureProofContexts::default(),
+    )
+}
+
 pub(super) fn assert_finding(
     verification: &ReceiptVerification,
     code: ReceiptFindingCode,
@@ -106,7 +140,7 @@ pub(super) fn assert_finding(
     );
 }
 
-pub(super) struct FixtureProofContexts {
+struct FixtureProofContexts {
     verifier: FixtureKey,
 }
 
@@ -123,6 +157,47 @@ impl ReceiptProofContextProvider for FixtureProofContexts {
         ReceiptProofContext {
             signature_verifier: Some(&self.verifier),
         }
+    }
+}
+
+/// The supplied receipts, each at `children[index]`, resolved by the typed
+/// `runx:receipt:` id a ref names: two supplied receipts with one id are
+/// ambiguous.
+pub(super) struct FixtureResolver<'a> {
+    pub(super) children: &'a [Receipt],
+}
+
+impl ReceiptResolver for FixtureResolver<'_> {
+    fn resolve_child<'a>(&'a self, reference: &Reference) -> ReceiptResolveResult<'a> {
+        let Some(receipt_id) = referenced_receipt_id(reference) else {
+            return ReceiptResolveResult::Malformed;
+        };
+        let mut matches = self
+            .children
+            .iter()
+            .enumerate()
+            .filter(|(_, child)| child.id == receipt_id);
+        let Some((index, receipt)) = matches.next() else {
+            return ReceiptResolveResult::Missing;
+        };
+        if matches.next().is_some() {
+            return ReceiptResolveResult::Ambiguous;
+        }
+        ReceiptResolveResult::Found(ResolvedReceipt {
+            path: format!("children[{index}]"),
+            receipt,
+        })
+    }
+
+    fn supplied_receipts<'a>(&'a self) -> Vec<ResolvedReceipt<'a>> {
+        self.children
+            .iter()
+            .enumerate()
+            .map(|(index, receipt)| ResolvedReceipt {
+                path: format!("children[{index}]"),
+                receipt,
+            })
+            .collect()
     }
 }
 

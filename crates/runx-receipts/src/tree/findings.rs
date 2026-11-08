@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use runx_contracts::{Receipt, Reference, ReferenceType};
 
 use super::ResolvedReceipt;
-use crate::{ReceiptFinding, ReceiptFindingCode, validate_receipt};
+use crate::{ReceiptFinding, ReceiptFindingCode};
 
 pub(super) fn duplicate_child_findings(children: &[ResolvedReceipt<'_>]) -> Vec<ReceiptFinding> {
     let mut seen = BTreeMap::new();
@@ -22,23 +22,6 @@ pub(super) fn duplicate_child_findings(children: &[ResolvedReceipt<'_>]) -> Vec<
             } else {
                 None
             }
-        })
-        .collect()
-}
-
-pub(super) fn child_receipt_findings(children: &[ResolvedReceipt<'_>]) -> Vec<ReceiptFinding> {
-    children
-        .iter()
-        .flat_map(|child| {
-            validate_receipt(child.receipt)
-                .err()
-                .map_or_else(Vec::new, |verification| {
-                    verification
-                        .findings
-                        .into_iter()
-                        .map(|finding| child_finding(&child.path, finding))
-                        .collect()
-                })
         })
         .collect()
 }

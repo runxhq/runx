@@ -2,10 +2,13 @@ use std::collections::BTreeMap;
 
 use runx_contracts::{Receipt, Reference, ReferenceType};
 use runx_receipts::{
-    ReceiptResolveResult, ReceiptResolver, ReceiptTreeConfig, ReceiptVerification, ResolvedReceipt,
-    verify_receipt_tree_with_resolver,
+    ReceiptProofContext, ReceiptProofContextProvider, ReceiptResolveResult, ReceiptResolver,
+    ReceiptTreeConfig, ReceiptVerification, ResolvedReceipt,
+    verify_receipt_tree_proof_with_resolver,
 };
 use serde::Deserialize;
+
+use crate::fixture_key::{FIXTURE_SEED, FixtureKey};
 
 const ORACLE: &str = include_str!("../../../fixtures/runtime/receipt-tree/oracle.json");
 
@@ -56,6 +59,7 @@ struct ExpectedFinding {
 #[test]
 fn receipt_tree_fixture_oracle_matches_ordered_findings() -> Result<(), String> {
     let oracle: Oracle = serde_json::from_str(ORACLE).map_err(|error| error.to_string())?;
+    let proof_contexts = FixtureProofContexts(FixtureKey::local(FIXTURE_SEED));
 
     for case in &oracle.cases {
         let root = oracle.receipt(&case.root_receipt)?;
@@ -65,8 +69,12 @@ fn receipt_tree_fixture_oracle_matches_ordered_findings() -> Result<(), String> 
             resolver_error_receipt_ids: &case.resolver_error_receipt_ids,
         };
 
-        let verification =
-            verify_receipt_tree_with_resolver(root, &resolver, case.config.to_receipt_config());
+        let verification = verify_receipt_tree_proof_with_resolver(
+            root,
+            &resolver,
+            case.config.to_receipt_config(),
+            &proof_contexts,
+        );
 
         assert_eq!(
             verification.valid, case.expected.valid,
@@ -96,6 +104,17 @@ impl Oracle {
             .iter()
             .map(|name| self.receipt(name).cloned())
             .collect()
+    }
+}
+
+/// The oracle's receipts are sealed under the public fixture key.
+struct FixtureProofContexts(FixtureKey);
+
+impl ReceiptProofContextProvider for FixtureProofContexts {
+    fn proof_context<'a>(&'a self, _receipt: &Receipt) -> ReceiptProofContext<'a> {
+        ReceiptProofContext {
+            signature_verifier: Some(&self.0),
+        }
     }
 }
 

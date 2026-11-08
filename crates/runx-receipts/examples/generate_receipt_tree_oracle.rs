@@ -1,4 +1,7 @@
-//! Regenerates the flat `runx.receipt.v1` receipt-tree oracle. Run with:
+//! Regenerates the flat `runx.receipt.v1` receipt-tree oracle. Every receipt
+//! is sealed under the public fixture key, and every parent names each child
+//! by its content address and digest, so a case fails only where it means to.
+//! Run with:
 //!   cargo run --manifest-path crates/Cargo.toml -p runx-receipts \
 //!     --example generate_receipt_tree_oracle
 
@@ -16,6 +19,11 @@ use runx_contracts::{
 };
 use serde_json::{Value, json};
 
+#[path = "../tests/fixture_key.rs"]
+mod fixture_key;
+
+use fixture_key::{FIXTURE_SEED, FixtureKey};
+
 fn main() {
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -23,27 +31,88 @@ fn main() {
         .parent()
         .unwrap();
     let path = root_dir.join("fixtures/runtime/receipt-tree/oracle.json");
+    let key = FixtureKey::local(FIXTURE_SEED);
 
-    let receipts = json!({
-        "child_a": rec("rcpt_child_a", &[]),
-        "child_b": rec("rcpt_child_b", &[]),
-        "child_a_to_b": rec("rcpt_child_a", &["rcpt_child_b"]),
-        "child_a_duplicate": rec("rcpt_child_a", &[]),
-        "child_a_self_cycle": rec("rcpt_child_a", &["rcpt_child_a"]),
-        "root_empty": rec("rcpt_root", &[]),
-        "root_to_a": rec("rcpt_root", &["rcpt_child_a"]),
-        "root_to_a_b": rec("rcpt_root", &["rcpt_child_a", "rcpt_child_b"]),
-        "child_a_to_c": rec("rcpt_child_a", &["rcpt_child_c"]),
-        "child_b_to_c": rec("rcpt_child_b", &["rcpt_child_c"]),
-        "child_c": rec("rcpt_child_c", &[]),
-        "root_malformed_uri": rec_raw_child("rcpt_root", "rcpt_child_a"),
-        "root_wrong_namespace": rec_wrong_ns_child("rcpt_root", "rcpt_child_a"),
-    });
+    let child_a = sealed(&key, "child_a", Vec::new());
+    let child_b = sealed(&key, "child_b", Vec::new());
+    let child_c = sealed(&key, "child_c", Vec::new());
+    let child_a_to_b = sealed(&key, "child_a_to_b", vec![link(&child_b)]);
+    let child_a_to_c = sealed(&key, "child_a_to_c", vec![link(&child_c)]);
+    let child_b_to_c = sealed(&key, "child_b_to_c", vec![link(&child_c)]);
+    let child_cycle = self_cycle(&key);
+    let receipts = [
+        ("child_a", child_a.clone()),
+        ("child_b", child_b.clone()),
+        ("child_c", child_c),
+        ("child_a_to_b", child_a_to_b.clone()),
+        ("child_a_to_c", child_a_to_c.clone()),
+        ("child_b_to_c", child_b_to_c.clone()),
+        ("child_cycle", child_cycle.clone()),
+        ("root_empty", sealed(&key, "root_empty", Vec::new())),
+        ("root_to_a", sealed(&key, "root_to_a", vec![link(&child_a)])),
+        (
+            "root_to_a_b",
+            sealed(&key, "root_to_a_b", vec![link(&child_a), link(&child_b)]),
+        ),
+        (
+            "root_to_a_to_b",
+            sealed(&key, "root_to_a_to_b", vec![link(&child_a_to_b)]),
+        ),
+        (
+            "root_to_shared",
+            sealed(
+                &key,
+                "root_to_shared",
+                vec![link(&child_a_to_c), link(&child_b_to_c)],
+            ),
+        ),
+        (
+            "root_to_cycle",
+            sealed(&key, "root_to_cycle", vec![link(&child_cycle)]),
+        ),
+        (
+            "root_malformed_uri",
+            sealed(
+                &key,
+                "root_malformed_uri",
+                // The child's bare id: a typed receipt ref without the
+                // canonical runx:receipt: scheme.
+                vec![Reference::with_uri(
+                    ReferenceType::Receipt,
+                    child_a.id.as_str(),
+                )],
+            ),
+        ),
+        (
+            "root_wrong_namespace",
+            sealed(
+                &key,
+                "root_wrong_namespace",
+                vec![Reference::with_uri(
+                    ReferenceType::Receipt,
+                    format!("runx:run:{}", child_a.id),
+                )],
+            ),
+        ),
+    ];
+    let receipts = receipts
+        .into_iter()
+        .map(|(name, receipt)| (name.to_owned(), serde_json::to_value(receipt).unwrap()))
+        .collect::<serde_json::Map<_, _>>();
 
     let cases = json!([
         case(
+            "positive-leaf",
+            "root_empty",
+            &[],
+            &[],
+            cfg(64, 1024),
+            true,
+            &[]
+        ),
+        case(
             "positive-nested",
-            "root_to_a",
+            "root_to_a_to_b",
             &["child_a_to_b", "child_b"],
             &[],
             cfg(64, 1024),
@@ -62,7 +131,7 @@ fn main() {
         case(
             "duplicate-id",
             "root_empty",
-            &["child_a", "child_a_duplicate"],
+            &["child_a", "child_a"],
             &[],
             cfg(64, 1024),
             false,
@@ -85,7 +154,7 @@ fn main() {
             "resolver-error",
             "root_to_a",
             &[],
-            &["rcpt_child_a"],
+            &[child_a.id.as_str()],
             cfg(64, 1024),
             false,
             &[("ChildReceiptResolverError", "lineage.children[0]"),]
@@ -117,7 +186,7 @@ fn main() {
         case(
             "ambiguous-id",
             "root_to_a",
-            &["child_a", "child_a_duplicate"],
+            &["child_a", "child_a"],
             &[],
             cfg(64, 1024),
             false,
@@ -130,12 +199,17 @@ fn main() {
         ),
         case(
             "cycle",
-            "root_to_a",
-            &["child_a_self_cycle"],
+            "root_to_cycle",
+            &["child_cycle"],
             &[],
             cfg(64, 1024),
             false,
-            &[("ChildReceiptCycle", "children[0].lineage.children[0]"),]
+            &[
+                // A receipt naming itself cannot carry its own content
+                // address, so the cycle comes with a forged id.
+                ("ContentAddressMismatch", "children[0].id"),
+                ("ChildReceiptCycle", "children[0].lineage.children[0]"),
+            ]
         ),
         case(
             "orphan",
@@ -148,7 +222,7 @@ fn main() {
         ),
         case(
             "depth-limit",
-            "root_to_a",
+            "root_to_a_to_b",
             &["child_a_to_b", "child_b"],
             &[],
             cfg(1, 1024),
@@ -172,7 +246,7 @@ fn main() {
         ),
         case(
             "shared-child",
-            "root_to_a_b",
+            "root_to_shared",
             &["child_a_to_c", "child_b_to_c", "child_c"],
             &[],
             cfg(64, 1024),
@@ -227,37 +301,35 @@ fn case(
     })
 }
 
-fn rec(id: &str, child_ids: &[&str]) -> Value {
-    let mut receipt = base(id);
-    receipt.lineage.children = child_ids
-        .iter()
-        .map(|cid| Reference::runx(ReferenceType::Receipt, cid))
-        .collect();
-    serde_json::to_value(receipt).unwrap()
+/// The ref a parent signs for `child`: its content address and its digest.
+fn link(child: &Receipt) -> Reference {
+    Reference {
+        locator: Some(child.digest.clone()),
+        ..Reference::runx(ReferenceType::Receipt, &child.id)
+    }
 }
 
-fn rec_raw_child(id: &str, child_id: &str) -> Value {
-    let mut receipt = base(id);
-    receipt.lineage.children = vec![Reference {
-        // Suffix-only uri: typed receipt ref but not the canonical runx:receipt: scheme.
-        ..Reference::with_uri(ReferenceType::Receipt, child_id)
-    }];
-    serde_json::to_value(receipt).unwrap()
+/// A receipt, distinct by `label`, sealed with `children` in its lineage.
+fn sealed(key: &FixtureKey, label: &str, children: Vec<Reference>) -> Receipt {
+    let mut receipt = base(label);
+    receipt.lineage.children = children;
+    key.seal(&mut receipt).unwrap();
+    receipt
 }
 
-fn rec_wrong_ns_child(id: &str, child_id: &str) -> Value {
-    let mut receipt = base(id);
-    receipt.lineage.children = vec![Reference::with_uri(
-        ReferenceType::Receipt,
-        format!("runx:run:{child_id}"),
-    )];
-    serde_json::to_value(receipt).unwrap()
+/// A receipt whose lineage names its own id. Its id is the content address
+/// of the body before the self-reference, re-signed as a forger would.
+fn self_cycle(key: &FixtureKey) -> Receipt {
+    let mut receipt = sealed(key, "child_cycle", Vec::new());
+    receipt.lineage.children = vec![Reference::runx(ReferenceType::Receipt, &receipt.id)];
+    key.sign_keeping_id(&mut receipt).unwrap();
+    receipt
 }
 
-fn base(id: &str) -> Receipt {
+fn base(label: &str) -> Receipt {
     Receipt {
         schema: ReceiptSchema::V1,
-        id: id.into(),
+        id: label.into(),
         created_at: "2026-05-22T00:00:00Z".into(),
         canonicalization: ReceiptCanonicalization::C14nV1,
         issuer: ReceiptIssuer {
@@ -273,8 +345,8 @@ fn base(id: &str) -> Receipt {
         digest: format!("sha256:{}", "9".repeat(64)).into(),
         subject: Subject {
             kind: SubjectKind::Step,
-            reference: Reference::runx(ReferenceType::Run, id),
-            outcome_digest: runx_contracts::connector::Digest::of(id.as_bytes()),
+            reference: Reference::runx(ReferenceType::Run, label),
+            outcome_digest: runx_contracts::connector::Digest::of(label.as_bytes()),
         },
         authority: ReceiptAuthority {
             actor_ref: None,

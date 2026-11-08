@@ -9,9 +9,23 @@
         "findings": [],
         "valid": true
       },
+      "name": "positive-leaf",
+      "resolver_error_receipt_ids": [],
+      "root_receipt": "root_empty",
+      "supplied_child_receipts": []
+    },
+    {
+      "config": {
+        "max_depth": 64,
+        "max_receipts": 1024
+      },
+      "expected": {
+        "findings": [],
+        "valid": true
+      },
       "name": "positive-nested",
       "resolver_error_receipt_ids": [],
-      "root_receipt": "root_to_a",
+      "root_receipt": "root_to_a_to_b",
       "supplied_child_receipts": [
         "child_a_to_b",
         "child_b"
@@ -61,7 +75,7 @@
       "root_receipt": "root_empty",
       "supplied_child_receipts": [
         "child_a",
-        "child_a_duplicate"
+        "child_a"
       ]
     },
     {
@@ -99,7 +113,7 @@
       },
       "name": "resolver-error",
       "resolver_error_receipt_ids": [
-        "rcpt_child_a"
+        "sha256:788c2fe0e01a37fedcef66fb005cbc0229ed7413067942f75e02946a1813a304"
       ],
       "root_receipt": "root_to_a",
       "supplied_child_receipts": []
@@ -185,7 +199,7 @@
       "root_receipt": "root_to_a",
       "supplied_child_receipts": [
         "child_a",
-        "child_a_duplicate"
+        "child_a"
       ]
     },
     {
@@ -196,6 +210,10 @@
       "expected": {
         "findings": [
           {
+            "code": "ContentAddressMismatch",
+            "path": "children[0].id"
+          },
+          {
             "code": "ChildReceiptCycle",
             "path": "children[0].lineage.children[0]"
           }
@@ -204,9 +222,9 @@
       },
       "name": "cycle",
       "resolver_error_receipt_ids": [],
-      "root_receipt": "root_to_a",
+      "root_receipt": "root_to_cycle",
       "supplied_child_receipts": [
-        "child_a_self_cycle"
+        "child_cycle"
       ]
     },
     {
@@ -250,7 +268,7 @@
       },
       "name": "depth-limit",
       "resolver_error_receipt_ids": [],
-      "root_receipt": "root_to_a",
+      "root_receipt": "root_to_a_to_b",
       "supplied_child_receipts": [
         "child_a_to_b",
         "child_b"
@@ -298,7 +316,7 @@
       },
       "name": "shared-child",
       "resolver_error_receipt_ids": [],
-      "root_receipt": "root_to_a_b",
+      "root_receipt": "root_to_shared",
       "supplied_child_receipts": [
         "child_a_to_c",
         "child_b_to_c",
@@ -319,11 +337,11 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_a",
+      "digest": "sha256:f7883a37e00ada67039edadbb2392ff20d2dbdc6dad6c2749d4dd07c7f592468",
+      "id": "sha256:788c2fe0e01a37fedcef66fb005cbc0229ed7413067942f75e02946a1813a304",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
@@ -337,101 +355,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:3xzw45sPVcNyr6zid14iki3wh-5xI5r9SABmmbYGCMh_665UXBQJ3cjMsluU3xJplSEPB3p7IEeDtw3dHzIsBA"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
+        "outcome_digest": "sha256:96cc42538200b2555d081f5b2b432d24b6c4f1d42c759e83b4e10aea88deed86",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_child_a"
-        }
-      }
-    },
-    "child_a_duplicate": {
-      "acts": [],
-      "authority": {
-        "derivations": [],
-        "enforcement": {},
-        "grant_refs": [],
-        "scope_refs": [],
-        "terms": []
-      },
-      "canonicalization": "runx.receipt.c14n.v1",
-      "created_at": "2026-05-22T00:00:00Z",
-      "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_a",
-      "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-        "runx_version": "0.11.0",
-        "type": "local"
-      },
-      "lineage": {
-        "children": []
-      },
-      "schema": "runx.receipt.v1",
-      "seal": {
-        "criteria": [],
-        "outcome": "completed"
-      },
-      "signature": {
-        "alg": "Ed25519",
-        "value": "unsealed"
-      },
-      "subject": {
-        "kind": "step",
-        "outcome_digest": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
-        "ref": {
-          "type": "run",
-          "uri": "runx:run:rcpt_child_a"
-        }
-      }
-    },
-    "child_a_self_cycle": {
-      "acts": [],
-      "authority": {
-        "derivations": [],
-        "enforcement": {},
-        "grant_refs": [],
-        "scope_refs": [],
-        "terms": []
-      },
-      "canonicalization": "runx.receipt.c14n.v1",
-      "created_at": "2026-05-22T00:00:00Z",
-      "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_a",
-      "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-        "runx_version": "0.11.0",
-        "type": "local"
-      },
-      "lineage": {
-        "children": [
-          {
-            "type": "receipt",
-            "uri": "runx:receipt:rcpt_child_a"
-          }
-        ]
-      },
-      "schema": "runx.receipt.v1",
-      "seal": {
-        "criteria": [],
-        "outcome": "completed"
-      },
-      "signature": {
-        "alg": "Ed25519",
-        "value": "unsealed"
-      },
-      "subject": {
-        "kind": "step",
-        "outcome_digest": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
-        "ref": {
-          "type": "run",
-          "uri": "runx:run:rcpt_child_a"
+          "uri": "runx:run:child_a"
         }
       }
     },
@@ -447,19 +378,20 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_a",
+      "digest": "sha256:b70b54bb893ed260e9a2eabf636357977149208358ee86dc01139e7f1f3a9714",
+      "id": "sha256:b26360128181bd03facfabb99af2ecde601de71cb09f13696bb14b163acfe1d7",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
       "lineage": {
         "children": [
           {
+            "locator": "sha256:213461fc7b28febe331e1d353448e4f35a0eb31fc87b59b92574745d02050627",
             "type": "receipt",
-            "uri": "runx:receipt:rcpt_child_b"
+            "uri": "runx:receipt:sha256:981fdf72d1a20960e44752274c21018e61f7a4118846db6e787cb4d81cdf9126"
           }
         ]
       },
@@ -470,14 +402,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:Uzk5rTJfb4gW7K5MfQgBcQCSRllHhBQJcEBlk0YV9neqbA00djDcv9iMHe9Z7Svlf0kye-3oZfGv6NXG5s39CQ"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
+        "outcome_digest": "sha256:dc0a2c7641f54f951c81a17216a1e9535f2f48ba975e23066ff368b822398c5a",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_child_a"
+          "uri": "runx:run:child_a_to_b"
         }
       }
     },
@@ -493,19 +425,20 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_a",
+      "digest": "sha256:2621cabc5dfecc0a6adcfdaccb9d566d894080278ecda054f0c26e5d886f94f3",
+      "id": "sha256:248930ba0661c5df0a46acff7730223b1b8e64c4c566c0886c0f39e81d976607",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
       "lineage": {
         "children": [
           {
+            "locator": "sha256:159e297ed361b916982c556110dee3b36e34a19d7eb365a8f954b171b24ec096",
             "type": "receipt",
-            "uri": "runx:receipt:rcpt_child_c"
+            "uri": "runx:receipt:sha256:335c126ad00524734c702341fbf6a885460a89bc54eb48b4922d8ed84f894473"
           }
         ]
       },
@@ -516,14 +449,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:ebFCnRUXMziA1tkMqqnrmzXVIaX6NxKiFBBmcM6C_3k2LNM58MWNy3j0H7kjAAKlUedgainphUzuQTpX1ZGoBQ"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:fe0580554c4b4bc7db2c36a7a7eea592858a4c83ec2f7ebe93dcb4fada1b0bfd",
+        "outcome_digest": "sha256:005e72632e9bea445adfda1c7a2f7d710872eff1ea3d7e3f4843c433be009852",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_child_a"
+          "uri": "runx:run:child_a_to_c"
         }
       }
     },
@@ -539,11 +472,11 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_b",
+      "digest": "sha256:213461fc7b28febe331e1d353448e4f35a0eb31fc87b59b92574745d02050627",
+      "id": "sha256:981fdf72d1a20960e44752274c21018e61f7a4118846db6e787cb4d81cdf9126",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
@@ -557,14 +490,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:5uwpkyg_X1kCjhFRSxvV8f0G663trdsa8hcMVMHdcUzw9T1cLVCRHkmGi1lLO6EXuG7Xc1vGg_0FTxcWbj78Dw"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:14644dbfff3e029d8732c55b513d67563fec83a1dfb3b1c707a0511a0bebe0f3",
+        "outcome_digest": "sha256:0544d9f25e73f491220dcf2ad671e0be92fdc161de4ab6eca208e888b1d02767",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_child_b"
+          "uri": "runx:run:child_b"
         }
       }
     },
@@ -580,19 +513,20 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_b",
+      "digest": "sha256:5a8e6f0abb0ded372a6b6e498ebba5bdcee57e6a8a7aa02b8be11f7a62a1fe9c",
+      "id": "sha256:4edcab7de37f5812d18113e4f0ba72ba088ae407dfaf91884767b828401f0c6b",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
       "lineage": {
         "children": [
           {
+            "locator": "sha256:159e297ed361b916982c556110dee3b36e34a19d7eb365a8f954b171b24ec096",
             "type": "receipt",
-            "uri": "runx:receipt:rcpt_child_c"
+            "uri": "runx:receipt:sha256:335c126ad00524734c702341fbf6a885460a89bc54eb48b4922d8ed84f894473"
           }
         ]
       },
@@ -603,14 +537,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:vJZCG55N6oyWHyIKWDAqK8d61Nf9qUxugfi7pnk-x3M67U0b--Vg0aIMsRaoeBYNZ2q4cmXAfCYrLLGyvXVpDg"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:14644dbfff3e029d8732c55b513d67563fec83a1dfb3b1c707a0511a0bebe0f3",
+        "outcome_digest": "sha256:95be731637c9d2c3a98498ee9db8bb4bf5b681e0f209fda8acbc2f8df3d64c4d",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_child_b"
+          "uri": "runx:run:child_b_to_c"
         }
       }
     },
@@ -626,11 +560,11 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_child_c",
+      "digest": "sha256:159e297ed361b916982c556110dee3b36e34a19d7eb365a8f954b171b24ec096",
+      "id": "sha256:335c126ad00524734c702341fbf6a885460a89bc54eb48b4922d8ed84f894473",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
@@ -644,14 +578,60 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:EXzVxG6cuhmlAJ2XOMxKlKEsE9nPC6I0d_8NFLNxr9U9AW8Tu-OziLCs56b3b4tHwIpI-tO8WnUURVl3OpTLDw"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:9c75b3f6539127d32bc4de56437a884faea861df76ba57f55587d18eb41415ef",
+        "outcome_digest": "sha256:7fe0da95cca936bcb8670b4a486ab44a6b6ffafd9f9a3dd68ea369ec1e2512bb",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_child_c"
+          "uri": "runx:run:child_c"
+        }
+      }
+    },
+    "child_cycle": {
+      "acts": [],
+      "authority": {
+        "derivations": [],
+        "enforcement": {},
+        "grant_refs": [],
+        "scope_refs": [],
+        "terms": []
+      },
+      "canonicalization": "runx.receipt.c14n.v1",
+      "created_at": "2026-05-22T00:00:00Z",
+      "decisions": [],
+      "digest": "sha256:2344fea01ccf3d4914ad6850862edde7d74c912d250bf0d450fbc4d5585c80b6",
+      "id": "sha256:b1e7a1342088d8fd8f56fef54fca36184183abad4661310a383fdd2d8f5cfcd7",
+      "issuer": {
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "runx_version": "0.11.0",
+        "type": "local"
+      },
+      "lineage": {
+        "children": [
+          {
+            "type": "receipt",
+            "uri": "runx:receipt:sha256:b1e7a1342088d8fd8f56fef54fca36184183abad4661310a383fdd2d8f5cfcd7"
+          }
+        ]
+      },
+      "schema": "runx.receipt.v1",
+      "seal": {
+        "criteria": [],
+        "outcome": "completed"
+      },
+      "signature": {
+        "alg": "Ed25519",
+        "value": "base64:gFyKBnAIytMf5XP7H0SNY9E3CzZfefm50QiRkC_59Q9k_lOGw8NZQqgEsIeOZB01PMWv-cqMnUJadZFjDLAfDQ"
+      },
+      "subject": {
+        "kind": "step",
+        "outcome_digest": "sha256:4eadcdefdcbce4e36ac847992d4be1a3cbfd4c28537f50a47d0ca3e33966b02c",
+        "ref": {
+          "type": "run",
+          "uri": "runx:run:child_cycle"
         }
       }
     },
@@ -667,11 +647,11 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_root",
+      "digest": "sha256:31f9c25d4e8e2cf0c174d3d55bf164f71c347bceff61bebed714c7f78ada4e01",
+      "id": "sha256:399ef55f542f9245bbf5446911130e6784b7ec390eb7675175cfbfc440f41a24",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
@@ -685,14 +665,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:gVM3jHb0WZSuBEhgNs30UX5z1G_ZzN4BSKKGtafbWcG9m-WNFPqRJOcQb9Xd0nCPlcRPN6MpMzL-hVqAsRcnBQ"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
+        "outcome_digest": "sha256:6a85d1b3a11bd776f893381ed0e0961445b63616482220d64e5597665e3509bf",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_root"
+          "uri": "runx:run:root_empty"
         }
       }
     },
@@ -708,11 +688,11 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_root",
+      "digest": "sha256:432294bc1a3aa6de18bdc8192cb3410b1258b1f013a35146020f26e52d58e528",
+      "id": "sha256:f393fbf376607ca5639cf03e660162c952437514323adfbfcd21aa20209baee0",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
@@ -720,7 +700,7 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "rcpt_child_a"
+            "uri": "sha256:788c2fe0e01a37fedcef66fb005cbc0229ed7413067942f75e02946a1813a304"
           }
         ]
       },
@@ -731,14 +711,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:C-hG6fGmOc8cq32vjqelHQhDhMpfTTRx3LMwviZ_9tlILvAW6TgowedmErf-nVoBXffOPXnTcL5hx3Q1mI-3BQ"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
+        "outcome_digest": "sha256:81f02c9257c6d36df5d27bcc73f37d58b2ddc762a81b19ce32a58b32491a498d",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_root"
+          "uri": "runx:run:root_malformed_uri"
         }
       }
     },
@@ -754,19 +734,20 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_root",
+      "digest": "sha256:dff7ea5de7d5c052cfc641ed77e2c5b1e0430eb92381742c1ced16946b6d63f0",
+      "id": "sha256:f7089a9751d0f359d5cefc764ea63453aa649c59945e82648ab5d5972cc294ae",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
       "lineage": {
         "children": [
           {
+            "locator": "sha256:f7883a37e00ada67039edadbb2392ff20d2dbdc6dad6c2749d4dd07c7f592468",
             "type": "receipt",
-            "uri": "runx:receipt:rcpt_child_a"
+            "uri": "runx:receipt:sha256:788c2fe0e01a37fedcef66fb005cbc0229ed7413067942f75e02946a1813a304"
           }
         ]
       },
@@ -777,14 +758,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:P7grc4TluY0mnqyEs7wOUXNRB2ezUL_NdJp1xHFImGCVk61t1-Qh89V33LvCjS04l6SYfzpLPNBE9ePdNCiZBQ"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
+        "outcome_digest": "sha256:d35ddd5e34196aba36106d386b2d0ae47d711de7ac36e23fb8ac2464e9f70592",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_root"
+          "uri": "runx:run:root_to_a"
         }
       }
     },
@@ -800,23 +781,25 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_root",
+      "digest": "sha256:8faf522ab4a31dcb4bb2cefb93ef63c2d6837cf3d015fa76dbdf4dca7199803a",
+      "id": "sha256:4a9ad81fb1fc0d636fb02f1f61b610fe28d6691e635deffacf1202af30c00a84",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
       "lineage": {
         "children": [
           {
+            "locator": "sha256:f7883a37e00ada67039edadbb2392ff20d2dbdc6dad6c2749d4dd07c7f592468",
             "type": "receipt",
-            "uri": "runx:receipt:rcpt_child_a"
+            "uri": "runx:receipt:sha256:788c2fe0e01a37fedcef66fb005cbc0229ed7413067942f75e02946a1813a304"
           },
           {
+            "locator": "sha256:213461fc7b28febe331e1d353448e4f35a0eb31fc87b59b92574745d02050627",
             "type": "receipt",
-            "uri": "runx:receipt:rcpt_child_b"
+            "uri": "runx:receipt:sha256:981fdf72d1a20960e44752274c21018e61f7a4118846db6e787cb4d81cdf9126"
           }
         ]
       },
@@ -827,14 +810,160 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:d52g2iGk-EoTxUd3UkNJ4MvAvo8v0itHYBTMXNbw5cqQ_V6Sy2iNqhRCkv0aDb0taeXm11iHLYXSEhKKXwtUBg"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
+        "outcome_digest": "sha256:e4d4b3870a90e66ce632a5e81e5b7c6e459b7a503c49b8f22679b449dad46aec",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_root"
+          "uri": "runx:run:root_to_a_b"
+        }
+      }
+    },
+    "root_to_a_to_b": {
+      "acts": [],
+      "authority": {
+        "derivations": [],
+        "enforcement": {},
+        "grant_refs": [],
+        "scope_refs": [],
+        "terms": []
+      },
+      "canonicalization": "runx.receipt.c14n.v1",
+      "created_at": "2026-05-22T00:00:00Z",
+      "decisions": [],
+      "digest": "sha256:0932216b8aef99a8b76471ab07c607e2ca2f17c9746e0ba2188ef87497493fbb",
+      "id": "sha256:d44bf3c056f5ed980b0a3ae2de6fd43898e50d48e15707376383cf1c10153034",
+      "issuer": {
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "runx_version": "0.11.0",
+        "type": "local"
+      },
+      "lineage": {
+        "children": [
+          {
+            "locator": "sha256:b70b54bb893ed260e9a2eabf636357977149208358ee86dc01139e7f1f3a9714",
+            "type": "receipt",
+            "uri": "runx:receipt:sha256:b26360128181bd03facfabb99af2ecde601de71cb09f13696bb14b163acfe1d7"
+          }
+        ]
+      },
+      "schema": "runx.receipt.v1",
+      "seal": {
+        "criteria": [],
+        "outcome": "completed"
+      },
+      "signature": {
+        "alg": "Ed25519",
+        "value": "base64:rdNVnivgnPtelrWiXfNPaS_eL1iiywHFIDNhPQeAFI2oT3TUqTzrs8hnB4jOgAQBhUI1n0QPYv6nIlGNErxrCA"
+      },
+      "subject": {
+        "kind": "step",
+        "outcome_digest": "sha256:9650179704b2de2112d69f86c99769a7cec49d3ced280c13e27062367a11ef73",
+        "ref": {
+          "type": "run",
+          "uri": "runx:run:root_to_a_to_b"
+        }
+      }
+    },
+    "root_to_cycle": {
+      "acts": [],
+      "authority": {
+        "derivations": [],
+        "enforcement": {},
+        "grant_refs": [],
+        "scope_refs": [],
+        "terms": []
+      },
+      "canonicalization": "runx.receipt.c14n.v1",
+      "created_at": "2026-05-22T00:00:00Z",
+      "decisions": [],
+      "digest": "sha256:5f017ea7929be8905e7fafab48b52bb0e5f591fb7ae450e39696802cc67de326",
+      "id": "sha256:5c07136059157cec3240d49ef3c5ac51a9d35fb8b8653386141ea04a585eb7fe",
+      "issuer": {
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "runx_version": "0.11.0",
+        "type": "local"
+      },
+      "lineage": {
+        "children": [
+          {
+            "locator": "sha256:2344fea01ccf3d4914ad6850862edde7d74c912d250bf0d450fbc4d5585c80b6",
+            "type": "receipt",
+            "uri": "runx:receipt:sha256:b1e7a1342088d8fd8f56fef54fca36184183abad4661310a383fdd2d8f5cfcd7"
+          }
+        ]
+      },
+      "schema": "runx.receipt.v1",
+      "seal": {
+        "criteria": [],
+        "outcome": "completed"
+      },
+      "signature": {
+        "alg": "Ed25519",
+        "value": "base64:fYTAbXZkbmZ6IA9Cavh-VLRvWdBDbZB6tt2o8WH9aTRctizuaeaW7b7-1dab_a_o7BMAZ6U5liM2iR0VHg5oCg"
+      },
+      "subject": {
+        "kind": "step",
+        "outcome_digest": "sha256:3304572d87be3ad5c05370d6333ee86920b340e6ed8d3470f3e4a6bfb7801c8c",
+        "ref": {
+          "type": "run",
+          "uri": "runx:run:root_to_cycle"
+        }
+      }
+    },
+    "root_to_shared": {
+      "acts": [],
+      "authority": {
+        "derivations": [],
+        "enforcement": {},
+        "grant_refs": [],
+        "scope_refs": [],
+        "terms": []
+      },
+      "canonicalization": "runx.receipt.c14n.v1",
+      "created_at": "2026-05-22T00:00:00Z",
+      "decisions": [],
+      "digest": "sha256:c26ea29951cfd844b18f6e457b87f928f612b7a8fa3d33a757722c883b13ff02",
+      "id": "sha256:971849fce1b9db4bacbf8d8e7404c359c8534040ac231e36e062adf74a6fdfae",
+      "issuer": {
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "runx_version": "0.11.0",
+        "type": "local"
+      },
+      "lineage": {
+        "children": [
+          {
+            "locator": "sha256:2621cabc5dfecc0a6adcfdaccb9d566d894080278ecda054f0c26e5d886f94f3",
+            "type": "receipt",
+            "uri": "runx:receipt:sha256:248930ba0661c5df0a46acff7730223b1b8e64c4c566c0886c0f39e81d976607"
+          },
+          {
+            "locator": "sha256:5a8e6f0abb0ded372a6b6e498ebba5bdcee57e6a8a7aa02b8be11f7a62a1fe9c",
+            "type": "receipt",
+            "uri": "runx:receipt:sha256:4edcab7de37f5812d18113e4f0ba72ba088ae407dfaf91884767b828401f0c6b"
+          }
+        ]
+      },
+      "schema": "runx.receipt.v1",
+      "seal": {
+        "criteria": [],
+        "outcome": "completed"
+      },
+      "signature": {
+        "alg": "Ed25519",
+        "value": "base64:Ck_X8UtYqyl_d0_2NLjkxSp1Iq0jrw61FFPHuXk9B_1aLtCSO50gNg11eDe7ky74bPNLE5iL_JdUXVCVNsIiCQ"
+      },
+      "subject": {
+        "kind": "step",
+        "outcome_digest": "sha256:9e9bee5305517a769e8898936f134fe5dc751226680b0af04994683e5df7a79e",
+        "ref": {
+          "type": "run",
+          "uri": "runx:run:root_to_shared"
         }
       }
     },
@@ -850,11 +979,11 @@
       "canonicalization": "runx.receipt.c14n.v1",
       "created_at": "2026-05-22T00:00:00Z",
       "decisions": [],
-      "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "id": "rcpt_root",
+      "digest": "sha256:00e06993d5058d7f37d5bc566bb70208bbcbd79b8c63fdf2ae4740725e48a522",
+      "id": "sha256:046c14b6d9dd13d7caf59bc2c68f6c433fd48e57a93cf88e99f11587a422ff52",
       "issuer": {
-        "kid": "fixture-key",
-        "public_key_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "kid": "local-3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
+        "public_key_digest": "sha256:3097e2dee2cb4a34b53840cdb705aed71067c36f68db0e0f559c3f3fa043315f",
         "runx_version": "0.11.0",
         "type": "local"
       },
@@ -862,7 +991,7 @@
         "children": [
           {
             "type": "receipt",
-            "uri": "runx:run:rcpt_child_a"
+            "uri": "runx:run:sha256:788c2fe0e01a37fedcef66fb005cbc0229ed7413067942f75e02946a1813a304"
           }
         ]
       },
@@ -873,14 +1002,14 @@
       },
       "signature": {
         "alg": "Ed25519",
-        "value": "unsealed"
+        "value": "base64:tyawN3A8rCyAOVR1yxNCtzoRoyt-qtgHXA5fiUJpjCcsfS1bfej1riVvWYizsBVGnqBYsCMk3JW7udcdEzdxBQ"
       },
       "subject": {
         "kind": "step",
-        "outcome_digest": "sha256:b214b615d26287a286876edceb5dca4917e46b9a0a6621a08be21952d4219b60",
+        "outcome_digest": "sha256:897646a0f071125b8e118464d0d931f187a152213ce3d43e1e8e73e0da47bb3c",
         "ref": {
           "type": "run",
-          "uri": "runx:run:rcpt_root"
+          "uri": "runx:run:root_wrong_namespace"
         }
       }
     }

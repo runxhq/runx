@@ -13,7 +13,7 @@ use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContext, ReceiptProofStatusKind, ReceiptVerification,
     SignatureVerificationFailure, SignatureVerifier, canonical_receipt_digest,
     canonical_receipt_json, receipt_proof_status, validate_receipt, validate_receipt_proof,
-    validate_receipt_tree, verify_receipt, verify_receipt_proof, verify_receipt_tree,
+    verify_receipt, verify_receipt_proof,
 };
 
 const SUCCESS_RECEIPT: &str =
@@ -170,69 +170,6 @@ fn effect_evidence_accepts_authority_grant_refs() -> Result<(), serde_json::Erro
         .push(Reference::runx(ReferenceType::Grant, "operator-grant-1"));
 
     assert!(validate_receipt(&receipt).is_ok());
-    Ok(())
-}
-
-#[test]
-fn receipt_tree_requires_supplied_child_receipts() -> Result<(), serde_json::Error> {
-    let receipt = with_child(fixture(SUCCESS_RECEIPT)?);
-
-    let verification = verify_receipt_tree(&receipt, &[]);
-
-    assert_finding(&verification, ReceiptFindingCode::ChildReceiptMissing);
-    Ok(())
-}
-
-#[test]
-fn receipt_tree_accepts_matching_child_receipts() -> Result<(), serde_json::Error> {
-    let mut receipt = with_child(fixture(SUCCESS_RECEIPT)?);
-    let mut child = fixture(ABNORMAL_RECEIPT)?;
-    child.id = "rcpt_child_1".into();
-
-    assert!(validate_receipt_tree(&receipt, &[child]).is_ok());
-    receipt.lineage.children.clear();
-    assert!(validate_receipt_tree(&receipt, &[]).is_ok());
-    Ok(())
-}
-
-#[test]
-fn receipt_tree_rejects_child_receipt_cycles() -> Result<(), serde_json::Error> {
-    let receipt = with_child(fixture(SUCCESS_RECEIPT)?);
-    let mut child = fixture(ABNORMAL_RECEIPT)?;
-    child.id = "rcpt_child_1".into();
-    child
-        .lineage
-        .children
-        .push(Reference::runx(ReferenceType::Receipt, "rcpt_child_1"));
-
-    let verification = verify_receipt_tree(&receipt, &[child]);
-
-    assert_finding(&verification, ReceiptFindingCode::ChildReceiptCycle);
-    Ok(())
-}
-
-#[test]
-fn receipt_tree_rejects_orphan_supplied_children() -> Result<(), serde_json::Error> {
-    let receipt = fixture(SUCCESS_RECEIPT)?;
-    let mut child = fixture(ABNORMAL_RECEIPT)?;
-    child.id = "rcpt_orphan".into();
-
-    let verification = verify_receipt_tree(&receipt, &[child]);
-
-    assert_finding(&verification, ReceiptFindingCode::OrphanChildReceipt);
-    Ok(())
-}
-
-#[test]
-fn receipt_tree_rejects_duplicate_child_receipt_ids() -> Result<(), serde_json::Error> {
-    let receipt = with_child(fixture(SUCCESS_RECEIPT)?);
-    let mut first = fixture(ABNORMAL_RECEIPT)?;
-    first.id = "rcpt_child_1".into();
-    let second = first.clone();
-
-    let verification = verify_receipt_tree(&receipt, &[first, second]);
-
-    assert_finding(&verification, ReceiptFindingCode::DuplicateChildReceipt);
     Ok(())
 }
 

@@ -1,15 +1,12 @@
 use runx_contracts::ReferenceType;
 
-use super::{
-    ReceiptTreeConfig, validate_receipt_tree_proof, verify_receipt_tree, verify_receipt_tree_proof,
-    verify_receipt_tree_proof_with_resolver, verify_receipt_tree_with_resolver,
-};
+use super::ReceiptTreeConfig;
 use crate::ReceiptFindingCode;
 
 use super::test_support::{
-    DuplicateIdResolver, FixtureProofContexts, HiddenChildResolver, ResolverErrorResolver,
-    assert_finding, child_refs_mut, link_child_digest, proof_child, proof_root, reference,
-    refresh_proof_digest_and_signature, sign_keeping_id,
+    DuplicateIdResolver, HiddenChildResolver, ResolverErrorResolver, assert_finding,
+    child_refs_mut, link_child_digest, proof_child, proof_root, reference,
+    refresh_proof_digest_and_signature, sign_keeping_id, verify_tree, verify_tree_with,
 };
 
 #[test]
@@ -17,9 +14,10 @@ fn strict_tree_proof_accepts_root_and_child() -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
     let child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
-    let proof_contexts = FixtureProofContexts::default();
 
-    assert!(validate_receipt_tree_proof(&root, &[child], &proof_contexts).is_ok());
+    let verification = verify_tree(&root, &[child]);
+
+    assert!(verification.valid, "{:?}", verification.findings);
     Ok(())
 }
 
@@ -28,9 +26,8 @@ fn strict_tree_proof_rejects_missing_child() -> Result<(), serde_json::Error> {
     let mut root = proof_root()?;
     let child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
-    let proof_contexts = FixtureProofContexts::default();
 
-    let verification = verify_receipt_tree_proof(&root, &[], &proof_contexts);
+    let verification = verify_tree(&root, &[]);
 
     assert_finding(
         &verification,
@@ -46,9 +43,8 @@ fn strict_tree_proof_rejects_extra_child() -> Result<(), serde_json::Error> {
     let child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
     let extra = proof_child("rcpt_extra")?;
-    let proof_contexts = FixtureProofContexts::default();
 
-    let verification = verify_receipt_tree_proof(&root, &[child, extra], &proof_contexts);
+    let verification = verify_tree(&root, &[child, extra]);
 
     assert_finding(
         &verification,
@@ -65,9 +61,8 @@ fn strict_tree_proof_rejects_untyped_exact_id_child_ref() -> Result<(), serde_js
     link_child_digest(&mut root, 0, &child)?;
     child_refs_mut(&mut root)[0].uri = child.id.clone();
     refresh_proof_digest_and_signature(&mut root)?;
-    let proof_contexts = FixtureProofContexts::default();
 
-    let verification = verify_receipt_tree_proof(&root, &[child], &proof_contexts);
+    let verification = verify_tree(&root, &[child]);
 
     assert_finding(
         &verification,
@@ -84,10 +79,8 @@ fn strict_tree_proof_rejects_structurally_valid_child_proof_mismatch()
     let mut child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
     child.acts[0].intent.purpose = "tampered child proof body".into();
-    let proof_contexts = FixtureProofContexts::default();
 
-    assert!(verify_receipt_tree(&root, std::slice::from_ref(&child)).valid);
-    let verification = verify_receipt_tree_proof(&root, &[child], &proof_contexts);
+    let verification = verify_tree(&root, &[child]);
 
     assert_finding(
         &verification,
@@ -110,9 +103,8 @@ fn strict_tree_proof_rejects_valid_alternate_child_with_same_id() -> Result<(), 
     let mut alternate = original.clone();
     alternate.acts[0].intent.purpose = "valid alternate child body".into();
     sign_keeping_id(&mut alternate)?;
-    let proof_contexts = FixtureProofContexts::default();
 
-    let verification = verify_receipt_tree_proof(&root, &[alternate], &proof_contexts);
+    let verification = verify_tree(&root, &[alternate]);
 
     assert_finding(
         &verification,
@@ -136,17 +128,8 @@ fn strict_tree_proof_rejects_custom_resolver_child_not_in_supplied_receipts()
     link_child_digest(&mut root, 0, &child)?;
     child.acts[0].intent.purpose = "hidden tampered child".into();
     let resolver = HiddenChildResolver { child: &child };
-    let proof_contexts = FixtureProofContexts::default();
 
-    assert!(
-        verify_receipt_tree_with_resolver(&root, &resolver, ReceiptTreeConfig::default()).valid
-    );
-    let verification = verify_receipt_tree_proof_with_resolver(
-        &root,
-        &resolver,
-        ReceiptTreeConfig::default(),
-        &proof_contexts,
-    );
+    let verification = verify_tree_with(&root, &resolver, ReceiptTreeConfig::default());
 
     assert_finding(
         &verification,
@@ -164,14 +147,9 @@ fn strict_tree_proof_rejects_custom_resolver_child_not_in_supplied_receipts()
 #[test]
 fn strict_tree_proof_rejects_resolver_error() -> Result<(), serde_json::Error> {
     let root = proof_root()?;
-    let proof_contexts = FixtureProofContexts::default();
 
-    let verification = verify_receipt_tree_proof_with_resolver(
-        &root,
-        &ResolverErrorResolver,
-        ReceiptTreeConfig::default(),
-        &proof_contexts,
-    );
+    let verification =
+        verify_tree_with(&root, &ResolverErrorResolver, ReceiptTreeConfig::default());
 
     assert_finding(
         &verification,
@@ -199,14 +177,8 @@ fn strict_tree_proof_rejects_custom_resolver_duplicate_id_child_after_reached()
         first: &first,
         second: &second,
     };
-    let proof_contexts = FixtureProofContexts::default();
 
-    let verification = verify_receipt_tree_proof_with_resolver(
-        &root,
-        &resolver,
-        ReceiptTreeConfig::default(),
-        &proof_contexts,
-    );
+    let verification = verify_tree_with(&root, &resolver, ReceiptTreeConfig::default());
 
     assert_finding(
         &verification,

@@ -57,14 +57,6 @@ fn runtime_resolver_verifies_graph_receipt_with_children() -> Result<(), Box<dyn
 
     assert_eq!(resolver.receipts().len(), 2);
     assert!(
-        runx_receipts::validate_receipt_tree_with_resolver(
-            &root,
-            &resolver,
-            ReceiptTreeConfig::default()
-        )
-        .is_ok()
-    );
-    assert!(
         validate_runtime_receipt_tree(
             &root,
             children,
@@ -197,7 +189,6 @@ fn runtime_tree_rejects_structurally_valid_child_proof_tamper()
     let (root, mut children) = graph_with_steps("tree_runtime_child_tamper", &["child"])?;
     children[0].seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
 
-    assert!(runx_receipts::verify_receipt_tree(&root, &children).valid);
     let verification = verify_runtime_receipt_tree(
         &root,
         children,
@@ -248,7 +239,6 @@ fn runtime_tree_rejects_child_ref_without_digest_locator() -> Result<(), Box<dyn
     root.lineage.children[0].locator = None;
     refresh_local_digest_and_signature(&mut root)?;
 
-    assert!(runx_receipts::verify_receipt_tree(&root, &children).valid);
     let verification = verify_runtime_receipt_tree(
         &root,
         children,
@@ -269,7 +259,6 @@ fn runtime_tree_accepts_reusable_child_without_parent_link()
 -> Result<(), Box<dyn std::error::Error>> {
     let (root, children) = graph_with_steps("tree_runtime_reusable_child", &["child"])?;
 
-    assert!(runx_receipts::verify_receipt_tree(&root, &children).valid);
     assert!(
         verify_runtime_receipt_tree(
             &root,

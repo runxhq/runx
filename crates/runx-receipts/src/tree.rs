@@ -1,7 +1,6 @@
 mod findings;
 mod groups;
 mod proof;
-mod resolver;
 mod traversal;
 
 #[cfg(test)]
@@ -15,12 +14,9 @@ use std::collections::BTreeSet;
 
 use runx_contracts::{Receipt, Reference};
 
-use crate::{
-    ReceiptFinding, ReceiptProofContext, ReceiptVerification, verify_receipt, verify_receipt_proof,
-};
-use findings::{child_receipt_findings, duplicate_child_findings, orphan_child_findings};
-use proof::{StrictChildProofPolicy, StructuralChildProofPolicy, child_receipt_proof_findings};
-use resolver::SliceReceiptResolver;
+use crate::{ReceiptProofContext, ReceiptVerification, verify_receipt_proof};
+use findings::{duplicate_child_findings, orphan_child_findings};
+use proof::{ChildProofPolicy, child_receipt_proof_findings};
 use traversal::TreeTraversal;
 
 pub use groups::{ReceiptTreeGroup, group_receipt_trees};
@@ -79,90 +75,6 @@ pub enum ReceiptResolveResult<'a> {
     ResolverError,
 }
 
-pub fn validate_receipt_tree(
-    root: &Receipt,
-    children: &[Receipt],
-) -> Result<(), ReceiptVerification> {
-    let resolver = SliceReceiptResolver { children };
-    validate_receipt_tree_with_resolver(root, &resolver, ReceiptTreeConfig::default())
-}
-
-#[must_use]
-pub fn verify_receipt_tree(root: &Receipt, children: &[Receipt]) -> ReceiptVerification {
-    let resolver = SliceReceiptResolver { children };
-    verify_receipt_tree_with_resolver(root, &resolver, ReceiptTreeConfig::default())
-}
-
-pub fn validate_receipt_tree_proof(
-    root: &Receipt,
-    children: &[Receipt],
-    proof_contexts: &impl ReceiptProofContextProvider,
-) -> Result<(), ReceiptVerification> {
-    let resolver = SliceReceiptResolver { children };
-    validate_receipt_tree_proof_with_resolver(
-        root,
-        &resolver,
-        ReceiptTreeConfig::default(),
-        proof_contexts,
-    )
-}
-
-#[must_use]
-pub fn verify_receipt_tree_proof(
-    root: &Receipt,
-    children: &[Receipt],
-    proof_contexts: &impl ReceiptProofContextProvider,
-) -> ReceiptVerification {
-    let resolver = SliceReceiptResolver { children };
-    verify_receipt_tree_proof_with_resolver(
-        root,
-        &resolver,
-        ReceiptTreeConfig::default(),
-        proof_contexts,
-    )
-}
-
-pub fn validate_receipt_tree_with_resolver(
-    root: &Receipt,
-    resolver: &impl ReceiptResolver,
-    config: ReceiptTreeConfig,
-) -> Result<(), ReceiptVerification> {
-    let verification = verify_receipt_tree_with_resolver(root, resolver, config);
-    if verification.valid {
-        Ok(())
-    } else {
-        Err(verification)
-    }
-}
-
-#[must_use]
-pub fn verify_receipt_tree_with_resolver(
-    root: &Receipt,
-    resolver: &impl ReceiptResolver,
-    config: ReceiptTreeConfig,
-) -> ReceiptVerification {
-    let mut findings = verify_receipt(root).findings;
-    let supplied = resolver.supplied_receipts();
-    findings.extend(duplicate_child_findings(&supplied));
-    findings.extend(child_receipt_findings(&supplied));
-    verify_tree_relationships(root, resolver, config, &supplied, findings)
-}
-
-pub fn validate_receipt_tree_proof_with_resolver(
-    root: &Receipt,
-    resolver: &impl ReceiptResolver,
-    config: ReceiptTreeConfig,
-    proof_contexts: &impl ReceiptProofContextProvider,
-) -> Result<(), ReceiptVerification> {
-    let verification =
-        verify_receipt_tree_proof_with_resolver(root, resolver, config, proof_contexts);
-    if verification.valid {
-        Ok(())
-    } else {
-        Err(verification)
-    }
-}
-
 #[must_use]
 pub fn verify_receipt_tree_proof_with_resolver(
     root: &Receipt,
@@ -175,51 +87,14 @@ pub fn verify_receipt_tree_proof_with_resolver(
     let supplied = resolver.supplied_receipts();
     findings.extend(duplicate_child_findings(&supplied));
     findings.extend(child_receipt_proof_findings(&supplied, proof_contexts));
-    verify_tree_relationships_with_proof(
-        root,
-        resolver,
-        config,
-        &supplied,
-        findings,
-        proof_contexts,
-    )
-}
-
-fn verify_tree_relationships<R: ReceiptResolver>(
-    root: &Receipt,
-    resolver: &R,
-    config: ReceiptTreeConfig,
-    supplied: &[ResolvedReceipt<'_>],
-    mut findings: Vec<ReceiptFinding>,
-) -> ReceiptVerification {
     let mut traversal = TreeTraversal {
         resolver,
         config,
-        proof_policy: StructuralChildProofPolicy,
+        proof_policy: ChildProofPolicy::new(&supplied, proof_contexts),
         visiting: BTreeSet::new(),
         reached: BTreeSet::new(),
     };
     findings.extend(traversal.subtree_findings("", root, 0));
-    findings.extend(orphan_child_findings(supplied, &traversal.reached));
-    ReceiptVerification::from_findings(findings)
-}
-
-fn verify_tree_relationships_with_proof<R: ReceiptResolver>(
-    root: &Receipt,
-    resolver: &R,
-    config: ReceiptTreeConfig,
-    supplied: &[ResolvedReceipt<'_>],
-    mut findings: Vec<ReceiptFinding>,
-    proof_contexts: &impl ReceiptProofContextProvider,
-) -> ReceiptVerification {
-    let mut traversal = TreeTraversal {
-        resolver,
-        config,
-        proof_policy: StrictChildProofPolicy::new(supplied, proof_contexts),
-        visiting: BTreeSet::new(),
-        reached: BTreeSet::new(),
-    };
-    findings.extend(traversal.subtree_findings("", root, 0));
-    findings.extend(orphan_child_findings(supplied, &traversal.reached));
+    findings.extend(orphan_child_findings(&supplied, &traversal.reached));
     ReceiptVerification::from_findings(findings)
 }

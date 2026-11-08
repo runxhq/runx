@@ -23,34 +23,14 @@ pub(super) fn child_receipt_proof_findings(
         .collect()
 }
 
-pub(super) trait ChildProofPolicy {
-    fn findings(
-        &mut self,
-        path: &str,
-        reference: &Reference,
-        receipt: &Receipt,
-    ) -> Vec<ReceiptFinding>;
-}
-
-pub(super) struct StructuralChildProofPolicy;
-
-impl ChildProofPolicy for StructuralChildProofPolicy {
-    fn findings(
-        &mut self,
-        _path: &str,
-        _reference: &Reference,
-        _receipt: &Receipt,
-    ) -> Vec<ReceiptFinding> {
-        Vec::new()
-    }
-}
-
-pub(super) struct StrictChildProofPolicy<'a, P: ReceiptProofContextProvider> {
+/// What a child edge must prove: the parent's ref carries the child's exact
+/// digest, and the child, once, its own proof.
+pub(super) struct ChildProofPolicy<'a, P: ReceiptProofContextProvider> {
     proof_contexts: &'a P,
     verified_receipts: BTreeSet<usize>,
 }
 
-impl<'a, P: ReceiptProofContextProvider> StrictChildProofPolicy<'a, P> {
+impl<'a, P: ReceiptProofContextProvider> ChildProofPolicy<'a, P> {
     pub(super) fn new(supplied: &[ResolvedReceipt<'_>], proof_contexts: &'a P) -> Self {
         Self {
             proof_contexts,
@@ -60,10 +40,8 @@ impl<'a, P: ReceiptProofContextProvider> StrictChildProofPolicy<'a, P> {
                 .collect(),
         }
     }
-}
 
-impl<P: ReceiptProofContextProvider> ChildProofPolicy for StrictChildProofPolicy<'_, P> {
-    fn findings(
+    pub(super) fn findings(
         &mut self,
         path: &str,
         reference: &Reference,
