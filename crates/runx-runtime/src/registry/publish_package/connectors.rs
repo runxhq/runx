@@ -61,6 +61,15 @@ pub fn prepare_registry_connector_package(
             directory.display()
         ))
     })?;
+    // An installed version carries the registry's signature, whose name is
+    // the registry's: it is never published again (D30).
+    if crate::registry::carries_signature(&directory) {
+        return Err(RegistryPublishPackageError::invalid(format!(
+            "{} holds a {}, the registry's signature over a version it published; publish the connector's source instead",
+            directory.display(),
+            crate::registry::SIGNATURE_FILE
+        )));
+    }
     // A connector names itself; it loads as its plugin's, or as its own
     // package root when it is in none.
     let root = plugin_root(&directory)

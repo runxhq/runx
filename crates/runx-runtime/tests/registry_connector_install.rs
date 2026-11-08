@@ -74,6 +74,28 @@ fn a_signed_connector_version_installs_into_the_package_cache_once()
     let again = install_registry_connector(&published, &options)?;
     assert_eq!(again.status, InstallStatus::Unchanged);
     assert_eq!(again.content_digest, package.content_digest);
+
+    // The installed version keeps the registry's signed manifest as its
+    // signature.json, which verifies against its exact files; publishing
+    // the installed copy is refused, since the name is the registry's.
+    let kept: RegistrySignedManifest =
+        serde_json::from_str(&fs::read_to_string(destination.join("signature.json"))?)?;
+    assert_eq!(kept, published.signed_manifest);
+    let signed = runx_runtime::registry::verify_package_signature(
+        &destination,
+        RegistrySubjectKind::Connector,
+        &options.registry_keys,
+    )?
+    .ok_or("the installed version carries its signature")?;
+    assert_eq!(
+        (signed.name.as_str(), signed.version.as_str()),
+        ("acme/ops", "1.0.0")
+    );
+    assert_eq!(
+        fs::read_to_string(temp.path().join("connectors/.gitattributes"))?,
+        "* -text\n"
+    );
+    assert!(prepare_registry_connector_package(&destination).is_err());
     Ok(())
 }
 
