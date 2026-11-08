@@ -507,7 +507,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
     start(&log, &JsonObject::new());
     log.record_request("answer", 1, &agent_act("answer"))
         .unwrap();
-    let turn = waiting_requests(&store, "run_tree_1").unwrap().remove(0);
+    let root_turn = waiting_requests(&store, "run_tree_1").unwrap().remove(0);
 
     // Call 0 runs a child skill: its own turn is open, and its ask waits.
     let child = log.child("answer/0").unwrap();
@@ -551,7 +551,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
     log.record_call(&CallRecord {
         step_id: "answer",
         attempt: 1,
-        turn: &turn,
+        turn: &root_turn,
         index: 0,
         call_id: None,
         target: &TurnTarget::Skill {
