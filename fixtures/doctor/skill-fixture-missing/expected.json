@@ -9,25 +9,23 @@
   "diagnostics": [
     {
       "id": "runx.skill.fixture.missing",
-      "instance_id": "sha256:2be836cc8f9504071f50b4ac2644acdcd48ecb31be584c89851bb16494fac39e",
+      "instance_id": "sha256:ea4bb6d7519114945755b6e2d3753cb26499a128cc4c3feb1be564c0c2199e2f",
       "severity": "error",
-      "title": "Skill has no harness coverage",
-      "message": "Skill uncovered declares an execution profile but has no fixtures or inline harness.cases.",
+      "title": "Skill has no tests",
+      "message": "Skill uncovered declares a run.yaml but has no tests: add one as tests/<name>.yaml.",
       "target": {
         "id": "uncovered",
         "kind": "skill"
       },
       "location": {
-        "path": "skills/uncovered/run.yaml",
-        "json_pointer": "/harness"
+        "path": "skills/uncovered/run.yaml"
       },
       "evidence": {
-        "fixture_count": 0,
-        "test_case_count": 0
+        "test_count": 0
       },
       "repairs": [
         {
-          "id": "add_inline_test_case",
+          "id": "add_test",
           "kind": "manual",
           "confidence": "medium",
           "risk": "low",

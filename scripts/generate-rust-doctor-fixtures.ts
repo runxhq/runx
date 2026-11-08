@@ -64,15 +64,14 @@ description: Doctor fixture with an execution profile and no harness proof.
 
 Exercise the missing-test diagnostic for a valid skill package.
 `),
-      file("skills/uncovered/run.yaml", `skill: uncovered
-runners:
+      file("skills/uncovered/run.yaml", `minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     steps:
       - id: default
-        tool: { command: node, args: [-e, "process.stdout.write(JSON.stringify({ ok: true }))"] }
+        tool: {command: node, args: [-e, "process.stdout.write(JSON.stringify({ ok: true }))"]}
         outputs:
-          ok: boolean
+          ok: {type: boolean}
 `),
     ],
   },
