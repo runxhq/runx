@@ -48,6 +48,7 @@ pub mod reference;
 pub mod registry_binding;
 pub mod registry_signed_manifest;
 pub mod registry_taxonomy;
+pub mod registry_tier_statement;
 pub mod registry_version;
 pub mod resume;
 pub mod run_read;
@@ -262,6 +263,7 @@ pub use registry_taxonomy::{
     Category as RegistryCategory, TaxonomySubject, UNCATEGORIZED, registry_category,
     validate_registry_category,
 };
+pub use registry_tier_statement::{REGISTRY_TIER_STATEMENT_SCHEMA, RegistryTierStatement};
 pub use registry_version::{
     REGISTRY_VERSION_MAX_LENGTH, REGISTRY_VERSION_PATTERN, is_registry_version,
     validate_registry_version,
