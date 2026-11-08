@@ -72,7 +72,7 @@ rusqlite = { version = "0.40.1", default-features = false, features = ["backup",
 postgres = { version = "0.19.14", default-features = false, optional = true }
 tokio-postgres-rustls = { version = "0.14.0", optional = true }
 redis = { version = "1.7.1", default-features = false, features = ["script", "tls-rustls"], optional = true }
-jsonschema = { version = "0.56.0", default-features = false }
+jsonschema = { version = "0.60.2", default-features = false }
 # Drive rustls with the ring provider (already linked via `ring`) instead of
 # reqwest's default aws-lc-rs, so the vendored aws-lc-sys C crypto blob is not
 # compiled in. ring is then the single, unambiguous process-default provider.
