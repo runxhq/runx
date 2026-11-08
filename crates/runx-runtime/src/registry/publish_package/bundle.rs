@@ -83,7 +83,7 @@ fn collect_source_bundle_files(
         .map(|file| (file.path.clone(), file))
         .collect::<BTreeMap<_, _>>();
     for (package_root, packet_ids) in &closure.packages {
-        if package_root == root {
+        if package_root == root || own_fixture_package(root, package_root).is_some() {
             continue;
         }
         let metadata = append_dependency_package(
@@ -148,7 +148,7 @@ fn collect_materialized_bundle_files(
         .map(|file| (file.path.clone(), file))
         .collect::<BTreeMap<_, _>>();
     for (package_root, packet_ids) in &closure.packages {
-        if package_root == root {
+        if package_root == root || own_fixture_package(root, package_root).is_some() {
             continue;
         }
         let relative = package_root.strip_prefix(root).map_err(|_| {
@@ -304,6 +304,15 @@ fn portable_package_paths(
 ) -> Result<BTreeMap<PathBuf, String>, RegistryPublishPackageError> {
     let mut paths = BTreeMap::from([(root.to_path_buf(), ".".to_owned())]);
     let mut pending = VecDeque::from([root.to_path_buf()]);
+    // A fixture package a test runs publishes as the package's own fixture
+    // files, at its own path; what it calls is bundled as the package's
+    // methods' calls are.
+    for package_root in closure.packages.keys() {
+        if let Some(path) = own_fixture_package(root, package_root) {
+            paths.insert(package_root.clone(), path);
+            pending.push_back(package_root.clone());
+        }
+    }
     while let Some(source) = pending.pop_front() {
         let mut edges = closure
             .skill_edges
@@ -337,6 +346,15 @@ fn portable_package_paths(
         ));
     }
     Ok(paths)
+}
+
+/// The path inside the package at `root` of a fixture package of its own,
+/// one below its `fixtures/`.
+fn own_fixture_package(root: &Path, package_root: &Path) -> Option<String> {
+    let relative = package_root.strip_prefix(root).ok()?;
+    relative
+        .starts_with("fixtures")
+        .then(|| relative.to_string_lossy().replace('\\', "/"))
 }
 
 fn canonical_directory(path: &Path, label: &str) -> Result<PathBuf, RegistryPublishPackageError> {
