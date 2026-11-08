@@ -144,7 +144,7 @@ pub fn run_export_command(
         source_roots: runx_runtime::RunxPaths::resolve(env, cwd).skill_roots(env),
         execution_env: Some(env),
     })?;
-    let skill_dir = target_skill_dir(plan.target, plan.project, cwd, env);
+    let skill_dir = target_skill_dir(plan.target, plan.project, cwd, env)?;
     let files = shim::plan_files(
         plan.target,
         plan.project,
@@ -163,7 +163,7 @@ pub fn run_export_command(
     };
     let rules_file = if plan.target == Target::Codex && !plan.project {
         Some(managed::merge_codex_rules(
-            &codex_rules_file(env, cwd),
+            &codex_rules_file(env)?,
             &runx_bin,
         )?)
     } else {
@@ -252,25 +252,25 @@ fn target_skill_dir(
     project: bool,
     cwd: &Path,
     env: &BTreeMap<String, String>,
-) -> PathBuf {
+) -> Result<PathBuf, ExportError> {
     if project {
-        return match target {
+        return Ok(match target {
             Target::Claude => cwd.join(".claude").join("skills"),
             Target::Codex => cwd.join(".agents").join("skills"),
-        };
+        });
     }
-    let home = home_dir(env, cwd);
-    match target {
+    let home = home_dir(env)?;
+    Ok(match target {
         Target::Claude => home.join(".claude").join("skills"),
         Target::Codex => home.join(".agents").join("skills"),
-    }
+    })
 }
 
-fn codex_rules_file(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    home_dir(env, cwd)
+fn codex_rules_file(env: &BTreeMap<String, String>) -> Result<PathBuf, ExportError> {
+    Ok(home_dir(env)?
         .join(".codex")
         .join("rules")
-        .join("default.rules")
+        .join("default.rules"))
 }
 
 fn canonicalize(path: &Path, context: &str) -> Result<PathBuf, ExportError> {
@@ -280,10 +280,14 @@ fn canonicalize(path: &Path, context: &str) -> Result<PathBuf, ExportError> {
     })
 }
 
-fn home_dir(env: &BTreeMap<String, String>, cwd: &Path) -> PathBuf {
-    env.get("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| cwd.to_path_buf())
+/// The home a global export writes under. Without a rooted one there is no
+/// global place to write: what it wrote would land wherever runx runs.
+fn home_dir(env: &BTreeMap<String, String>) -> Result<PathBuf, ExportError> {
+    runx_runtime::rooted_user_home(env).ok_or_else(|| {
+        ExportError::InvalidArgs(
+            "a global export writes under the user's home, and HOME (or USERPROFILE) is unset, empty or relative; set it, or export with --project".to_owned(),
+        )
+    })
 }
 
 fn scope_name(project: bool) -> &'static str {

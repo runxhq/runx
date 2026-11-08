@@ -49,7 +49,7 @@ pub(super) fn register(export: &ServerExport<'_>) -> Result<Option<ExportedServe
     let registered = match export.target {
         Target::Claude => register_with_claude(export, &refs, &args),
         Target::Codex => {
-            write_codex_config(&codex_config_file(export), export.runx_bin, &refs, &args)?;
+            write_codex_config(&codex_config_file(export)?, export.runx_bin, &refs, &args)?;
             true
         }
     };
@@ -138,18 +138,22 @@ fn on_path(env: &BTreeMap<String, String>, program: &str) -> Option<PathBuf> {
         .find(|path| path.is_file())
 }
 
-fn codex_config_file(export: &ServerExport<'_>) -> PathBuf {
+/// Codex's config: the project's, else `CODEX_HOME`'s when it is rooted, else
+/// the one under the user's home.
+fn codex_config_file(export: &ServerExport<'_>) -> Result<PathBuf, ExportError> {
     if export.project {
-        return export.cwd.join(".codex").join("config.toml");
+        return Ok(export.cwd.join(".codex").join("config.toml"));
     }
-    export
+    let codex_home = match export
         .env
         .get("CODEX_HOME")
-        .map_or_else(
-            || home_dir(export.env, export.cwd).join(".codex"),
-            PathBuf::from,
-        )
-        .join("config.toml")
+        .map(PathBuf::from)
+        .filter(|codex_home| codex_home.has_root())
+    {
+        Some(codex_home) => codex_home,
+        None => home_dir(export.env)?.join(".codex"),
+    };
+    Ok(codex_home.join("config.toml"))
 }
 
 /// Set or clear this server's entry. Runx owns its command and args; whatever

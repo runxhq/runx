@@ -137,6 +137,7 @@ pub use orchestrator::{
 };
 pub use paths::{
     RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,
+    rooted_user_home,
 };
 pub use provider_operations::{
     HostedProviderGrant, ProviderOperationError, ProviderOperationRequest, list_provider_grants,

@@ -400,6 +400,53 @@ fn codex_global_initializes_missing_codex_home() -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
+/// A global export writes under the user's home. An empty or relative HOME is
+/// none, so the export is refused before it writes anything, rather than
+/// writing wherever runx runs; an empty CODEX_HOME is no Codex home either,
+/// so Codex's config stays under the user's.
+#[test]
+fn a_global_export_needs_a_rooted_home() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-rooted-home")?;
+    fixture.write_calling_skill("caller")?;
+    let global = |target, env: &BTreeMap<String, String>| {
+        run_export_command(
+            &ExportPlan {
+                target,
+                refs: Vec::new(),
+                project: false,
+                json: false,
+            },
+            &fixture.project,
+            env,
+        )
+    };
+    for home in ["", "home"] {
+        let mut env = fixture.env.clone();
+        env.insert("HOME".to_owned(), home.to_owned());
+        for target in [Target::Claude, Target::Codex] {
+            let Err(refused) = global(target, &env) else {
+                return Err(format!("{target:?} with HOME={home:?} is refused").into());
+            };
+            assert!(
+                refused
+                    .to_string()
+                    .contains("a global export writes under the user's home"),
+                "{refused}"
+            );
+        }
+    }
+    for written in [".claude", ".agents", ".codex", "home"] {
+        assert!(!fixture.project.join(written).exists(), "{written}");
+    }
+
+    let mut env = fixture.env.clone();
+    env.insert("CODEX_HOME".to_owned(), String::new());
+    global(Target::Codex, &env)?;
+    let config = fixture.read_home_file(".codex/config.toml")?;
+    assert!(config.contains("[mcp_servers.runx-local]"), "{config}");
+    Ok(())
+}
+
 #[test]
 fn exports_default_runner_inputs_when_skill_frontmatter_has_none()
 -> Result<(), Box<dyn std::error::Error>> {

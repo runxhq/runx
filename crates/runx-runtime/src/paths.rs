@@ -341,9 +341,9 @@ fn user_home(env: &BTreeMap<String, String>, workspace: &Path) -> PathBuf {
 }
 
 /// The user's home, `HOME` else `USERPROFILE`, when it is rooted. An empty or
-/// relative one is none: it would put the home wherever runx happens to run,
-/// so the home falls back to the workspace as it does with none.
-pub(crate) fn rooted_user_home(env: &BTreeMap<String, String>) -> Option<PathBuf> {
+/// relative one is none: it would put what lives in the home wherever runx
+/// happens to run.
+pub fn rooted_user_home(env: &BTreeMap<String, String>) -> Option<PathBuf> {
     ["HOME", "USERPROFILE"]
         .into_iter()
         .filter_map(|key| env.get(key))
