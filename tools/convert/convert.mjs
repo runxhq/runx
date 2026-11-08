@@ -6,7 +6,10 @@
 //
 //   node tools/convert/convert.mjs [--write] <package-or-connector-dir>...
 //
-// Without --write it changes nothing and reports what it would do.
+// Without --write it changes nothing and reports what it would do. A package
+// or connector already in the 0.12 shape converts again to itself, changed
+// only where a rule also holds in that shape, so the program can rerun over
+// a tree it has converted.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -760,6 +763,7 @@ function convertPackage(dir) {
   const doc = YAML.parseDocument(runText);
   if (doc.errors.length) refuse(`run.yaml doesn't parse: ${doc.errors[0].message}`);
   const root = doc.contents;
+  if (isMap(root) && has(root, "minimum_runx")) return settlePackage(dir, doc, style);
   only(root, ROOT_KEYS, "run.yaml");
 
   const declared = read(root, "skill");
@@ -903,9 +907,35 @@ function convertPackage(dir) {
   return { files, notes, tests: tests.size, graphs: graphPackages.size };
 }
 
+// A package already in the 0.12 shape: the conversion has run, so converting
+// it again changes only what a rule above says in the 0.12 shape too, and
+// writes nothing else.
+const ROOT_KEYS_012 = ["version", "minimum_runx", "default_method", "catalog", "shared_inputs", "connectors", "methods"];
+
+function settlePackage(dir, doc, style) {
+  const notes = [];
+  const files = new Map();
+  only(doc.contents, ROOT_KEYS_012, "run.yaml, which says minimum_runx,");
+  if (settleSharedInputs(doc.contents, notes)) files.set(path.join(dir, "run.yaml"), doc.toString(style));
+  const testsDir = path.join(dir, "tests");
+  let tests = 0;
+  for (const entry of existsSync(testsDir) ? readdirSync(testsDir).sort() : []) {
+    if (!/\.ya?ml$/.test(entry)) continue;
+    tests += 1;
+    const file = path.join(testsDir, entry);
+    const text = readFileSync(file, "utf8");
+    const testDoc = YAML.parseDocument(text);
+    if (testDoc.errors.length) refuse(`tests/${entry} doesn't parse: ${testDoc.errors[0].message}`);
+    if (!isMap(testDoc.contents)) refuse(`tests/${entry} is not a map`);
+    if (settleTestEnv(testDoc.contents, dir, `tests/${entry}`, notes)) files.set(file, testDoc.toString(styleOf(text)));
+  }
+  return { files, notes, tests, graphs: 0, settled: true };
+}
+
 // ---- A connector (plans/0.12/contracts/connector-yaml.md)
 
 const CONNECTOR_ROOT_KEYS = ["schema", "id", "name", "description", "category", "auth", "parameters", "placements", "operations", "references", "pays", "runtime_capability"];
+const CONNECTOR_ROOT_KEYS_012 = ["schema", "name", "title", "description", "category", "auth", "parameters", "placements", "operations", "references", "payment"];
 const OPERATION_KEYS = ["description", "verb", "scopes", "credentials", "target", "approval", "idempotency_key_format", "guarantees", "amount", "cost", "input_schema", "result_fields", "effect", "implementation", "holds", "hosted"];
 const VERBS = { read: "read", write: "write", execute: "execute", revoke: "revoke", create: "write", comment: "write", delete: "write", merge: "write", update: "write", review: "write" };
 const PAGE_KEYS = ["param", "in", "cursor", "items", "limit"];
@@ -955,8 +985,14 @@ function convertConnector(dir) {
   const doc = YAML.parseDocument(text);
   if (doc.errors.length) refuse(`connector.yaml doesn't parse: ${doc.errors[0].message}`);
   const root = doc.contents;
-  only(root, CONNECTOR_ROOT_KEYS, "connector.yaml");
   if (read(root, "schema") !== "runx.connector.v1") refuse(`connector.yaml's schema is ${read(root, "schema")}`);
+  // Today every connector says `id`, which 0.12 calls `name`, so one with no
+  // `id` is already in the 0.12 shape, and nothing in it changes again.
+  if (!has(root, "id")) {
+    only(root, CONNECTOR_ROOT_KEYS_012, "connector.yaml, which says no id,");
+    return { files: new Map(), notes, settled: true };
+  }
+  only(root, CONNECTOR_ROOT_KEYS, "connector.yaml");
   rename(root, "name", "title");
   rename(root, "id", "name");
   take(root, "runtime_capability");
@@ -1034,14 +1070,16 @@ function main(argv) {
       if (!existsSync(path.join(dir, "connector.yaml")) && !existsSync(path.join(dir, "run.yaml"))) {
         refuse("holds neither a run.yaml nor a connector.yaml, so it's not a package or a connector");
       }
+      const dry = write ? "" : " (dry run)";
+      const settled = (files) => `already in the 0.12 shape, ${files.size} files changed${dry}`;
       if (existsSync(path.join(dir, "connector.yaml"))) {
-        const { files, notes } = convertConnector(dir);
+        const { files, notes, settled: was } = convertConnector(dir);
         if (write) for (const [file, content] of files) writeFileSync(file, content);
-        process.stdout.write(`converted ${dir}: connector${write ? "" : " (dry run)"}\n`);
+        process.stdout.write(`converted ${dir}: connector${was ? `, ${settled(files)}` : dry}\n`);
         for (const note of notes) process.stdout.write(`  note: ${note}\n`);
         continue;
       }
-      const { files, notes, tests, graphs } = convertPackage(dir);
+      const { files, notes, tests, graphs, settled: was } = convertPackage(dir);
       if (write) {
         for (const [file, content] of files) {
           if (content === null) rmSync(file);
@@ -1053,7 +1091,7 @@ function main(argv) {
         const support = path.join(dir, "fixtures", "support");
         if (existsSync(support) && readdirSync(support).length === 0) rmSync(support, { recursive: true });
       }
-      process.stdout.write(`converted ${dir}: ${tests} tests, ${graphs} fixture packages${write ? "" : " (dry run)"}\n`);
+      process.stdout.write(`converted ${dir}: ${was ? `${tests} tests, ${settled(files)}` : `${tests} tests, ${graphs} fixture packages${dry}`}\n`);
       for (const note of notes) process.stdout.write(`  note: ${note}\n`);
     } catch (error) {
       if (!(error instanceof Refusal)) throw error;

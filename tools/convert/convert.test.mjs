@@ -181,3 +181,30 @@ test("a test whose RUNX_CWD reached more than fixtures/ is refused", (t) => {
   assert.equal(refusedElsewhere.status, 1);
   assert.match(refusedElsewhere.out, /env\.RUNX_CWD is "\.\.\/\.\.": a test runs in the workspace the runtime makes/);
 });
+
+test("a converted package and connector convert again to themselves", (t) => {
+  const dir = tree(t, payPackage({ "fixtures/reads-invoice.yaml": invoiceCase("  RUNX_CWD: .", "fixtures/support/invoice.txt") }));
+  const connector = tree(t, {
+    "connector.yaml": "schema: runx.connector.v1\nid: demo\nname: Demo\ndescription: A test connector.\noperations:\n  thing.read:\n    description: Read a thing.\n    verb: read\n",
+  });
+  assert.equal(convert("--write", dir, connector).status, 0);
+  const converted = { package: snapshot(dir), connector: snapshot(connector) };
+  assert.match(converted.connector["connector.yaml"], /^schema: runx\.connector\.v1\nname: demo\ntitle: Demo\n/);
+
+  const again = convert("--write", dir, connector);
+  assert.equal(again.status, 0, again.out);
+  assert.match(again.out, new RegExp(`converted ${dir}: 1 tests, already in the 0\\.12 shape, 0 files changed`));
+  assert.match(again.out, new RegExp(`converted ${connector}: connector, already in the 0\\.12 shape, 0 files changed`));
+  assert.deepEqual({ package: snapshot(dir), connector: snapshot(connector) }, converted);
+});
+
+test("a converted package's test still loses RUNX_CWD, as converting it from the old shape does", (t) => {
+  const dir = tree(t, payPackage({}));
+  assert.equal(convert("--write", dir).status, 0);
+  mkdirSync(path.join(dir, "tests"));
+  writeFileSync(path.join(dir, "tests/reads-invoice.yaml"), "name: reads-invoice\nmethod: pay\ninputs:\n  path: fixtures/support/invoice.txt\nenv:\n  RUNX_CWD: .\nexpect:\n  status: sealed\n");
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.match(out, /already in the 0\.12 shape, 1 files changed/);
+  assert.equal(read(dir, "tests/reads-invoice.yaml"), "name: reads-invoice\nmethod: pay\ninputs:\n  path: fixtures/support/invoice.txt\nexpect:\n  status: sealed\n");
+});
