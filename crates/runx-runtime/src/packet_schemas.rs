@@ -441,6 +441,10 @@ impl PacketSchemaCatalog {
 /// Where one package looks for the packets other packages own.
 struct PacketLookup {
     package_root: PathBuf,
+    /// Each package enclosing this one whose bytes cover it, nearest first:
+    /// a stage with its own manual, composed by relative path, reads the
+    /// packets the packages carrying it own.
+    enclosing: Vec<PathBuf>,
     /// The workspace and project-added packages, for a package outside any
     /// installed bundle. An installed package resolves only what its bundle
     /// carries.
@@ -458,14 +462,16 @@ impl PacketLookup {
         let paths = crate::RunxPaths::resolve(&BTreeMap::new(), package_root);
         Ok(Self {
             package_root: package_root.to_path_buf(),
+            enclosing: enclosing_packages(package_root),
             owners: (!bundled).then(|| (paths.skills(), paths.added_skills())),
         })
     }
 
     /// Candidate paths in precedence order, each group a source that settles
     /// the id when any of its paths declares it: the package's own packet
-    /// and its pinned copy, then the owning package in the workspace, then
-    /// every version of the owning package added to the project.
+    /// and its pinned copy, then each enclosing package's own packet, nearest
+    /// first, then the owning package in the workspace, then every version
+    /// of the owning package added to the project.
     fn candidates(
         &self,
         packet_id: &PacketId,
@@ -479,6 +485,11 @@ impl PacketLookup {
         };
         let packets = self.package_root.join("packets");
         let mut candidates = vec![vec![packets.join(&file_name), packets.join(pinned)]];
+        candidates.extend(
+            self.enclosing
+                .iter()
+                .map(|package| vec![package.join("packets").join(&file_name)]),
+        );
         if let Some((skills, added_skills)) = &self.owners {
             candidates.push(vec![skills.join(package).join("packets").join(&file_name)]);
             let versions = added_skills.join(publisher).join(package);
@@ -492,6 +503,42 @@ impl PacketLookup {
         }
         Ok(candidates)
     }
+}
+
+/// The packages enclosing the one at `package_root` whose bytes cover it,
+/// nearest first. An ancestor with a manual is one, unless it is a catalog
+/// root's manual, which wraps no package (`discover_workspace_skill_package_dirs`);
+/// the walk stops where a directory between them is one a package leaves out
+/// of its bytes, at a catalog root, and past a published bundle's root, which
+/// owns the packages it carries and is the outermost.
+fn enclosing_packages(package_root: &Path) -> Vec<PathBuf> {
+    let mut enclosing = Vec::new();
+    let mut directory = package_root;
+    while let Some(parent) = directory.parent() {
+        let left_out = directory
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_none_or(crate::skill_package::ignored_package_entry);
+        if left_out {
+            break;
+        }
+        if parent.join("SKILL.md").is_file() {
+            let catalog_root =
+                parent.join("skills").is_dir() && !parent.join(runx_parser::PROFILE_FILE).is_file();
+            if catalog_root {
+                break;
+            }
+            enclosing.push(parent.to_path_buf());
+            if parent
+                .join(crate::registry::package_bundle::PACKAGE_BUNDLE_FILE)
+                .is_file()
+            {
+                break;
+            }
+        }
+        directory = parent;
+    }
+    enclosing
 }
 
 pub(crate) fn read_packet_schema(
@@ -686,6 +733,68 @@ mod tests {
         );
         assert!(catalog.get(&stale).is_none());
         assert!(catalog.not_found(&stale).contains("lead-qualify"));
+        Ok(())
+    }
+
+    /// A stage with its own manual, composed by relative path, is a package
+    /// of its own, and reads the packets its enclosing packages own: in the
+    /// workspace and inside an installed bundle, whose bytes cover it. A
+    /// packet beyond the outermost package's bytes is never read.
+    #[test]
+    fn a_nested_package_reads_the_packets_its_enclosing_packages_own()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let workspace = tempfile::tempdir()?;
+        let id = PacketId::new("acme/nitro.provider_evidence.v1").ok_or("id")?;
+        let evidence = packet("acme/nitro.provider_evidence.v1", "object")?;
+        let nested = |root: &Path| -> Result<PathBuf, std::io::Error> {
+            let stage = root.join("graph/provider-operation");
+            fs::create_dir_all(&stage)?;
+            fs::write(
+                stage.join("SKILL.md"),
+                "---\nname: provider-operation\ndescription: Test.\n---\n",
+            )?;
+            Ok(stage)
+        };
+
+        let source = workspace.path().join("skills/nitro");
+        fs::create_dir_all(source.join("packets"))?;
+        fs::write(
+            source.join("SKILL.md"),
+            "---\nname: nitro\ndescription: Test.\n---\n",
+        )?;
+        fs::write(
+            source.join("packets/provider_evidence.v1.schema.json"),
+            &evidence,
+        )?;
+        let stage = nested(&source)?;
+        let catalog = PacketSchemaCatalog::for_package(&stage, [&id])?;
+        assert_eq!(catalog.get(&id).map(|entry| &entry.source), Some(&evidence));
+
+        let installed = workspace.path().join(".runx/added-skills/acme/nitro/1.0.0");
+        fs::create_dir_all(installed.join("packets"))?;
+        fs::write(
+            installed.join("SKILL.md"),
+            "---\nname: nitro\ndescription: Test.\n---\n",
+        )?;
+        fs::write(
+            installed.join("runx.package.json"),
+            r#"{"schema":"runx.registry.package_bundle.v1","dependencies":[],"connectors":[]}"#,
+        )?;
+        fs::write(
+            installed.join("packets/provider_evidence.v1.schema.json"),
+            &evidence,
+        )?;
+        let stage = nested(&installed)?;
+        let catalog = PacketSchemaCatalog::for_package(&stage, [&id])?;
+        assert_eq!(catalog.get(&id).map(|entry| &entry.source), Some(&evidence));
+
+        // Under a directory a package leaves out of its bytes, the bundle
+        // above covers nothing, and a bundle reads nothing else.
+        let left_out = installed.join("node_modules/vendor");
+        fs::create_dir_all(&left_out)?;
+        let stage = nested(&left_out)?;
+        let catalog = PacketSchemaCatalog::for_package(&stage, [&id])?;
+        assert!(catalog.get(&id).is_none(), "{}", catalog.not_found(&id));
         Ok(())
     }
 
