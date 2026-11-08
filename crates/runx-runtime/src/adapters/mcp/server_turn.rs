@@ -262,13 +262,14 @@ pub(super) fn execute_mcp_turn_tool(
 /// `turn_status`, and everything else the run waits on whole.
 #[derive(Serialize)]
 struct Waiting {
-    turns: Vec<OpenTurn>,
+    turns: Vec<ListedTurn>,
     requests: Vec<ResolutionRequest>,
 }
 
-/// One open turn: its address, and what kind of act it answers.
+/// One open turn as `turn_list` lists it: its address, and what kind of act
+/// it answers.
 #[derive(Serialize)]
-struct OpenTurn {
+struct ListedTurn {
     turn: String,
     skill: String,
     task: String,
@@ -280,7 +281,7 @@ impl Waiting {
         let mut requests = Vec::new();
         for request in waiting {
             match request {
-                ResolutionRequest::Turn { id, invocation } => turns.push(OpenTurn {
+                ResolutionRequest::Turn { id, invocation } => turns.push(ListedTurn {
                     turn: id.to_string(),
                     skill: invocation.envelope.skill.to_string(),
                     task: invocation.task.to_string(),
