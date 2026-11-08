@@ -15,11 +15,8 @@ use runx_receipts::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::paths::{
-    ReceiptStoreLabel, ReceiptStorePublicProjection, safe_receipt_store_projection,
-};
+use super::paths::ReceiptStoreLabel;
 use super::seal::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignaturePolicy};
-use crate::paths::RunxPaths;
 
 const RECEIPT_STORE_INDEX_SCHEMA: &str = "runx.receipt_store_index.v1";
 const INDEX_FILE_NAME: &str = "index.json";
@@ -41,11 +38,6 @@ impl LocalReceiptStore {
     #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
-    }
-
-    #[must_use]
-    pub fn public_projection(&self, paths: &RunxPaths) -> ReceiptStorePublicProjection {
-        safe_receipt_store_projection(&self.root, paths)
     }
 
     pub fn receipt_path(&self, receipt_id: &str) -> Result<PathBuf, ReceiptStoreError> {
@@ -225,30 +217,6 @@ impl LocalReceiptStore {
         read_receipt_file_without_proof(&file_path, receipt_id)
     }
 
-    pub fn load_index(
-        &self,
-        signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-    ) -> Result<ReceiptStoreIndex, ReceiptStoreError> {
-        self.ensure_store_dir()?;
-        let _lock = self.lock_mutations()?;
-        let index_path = self.index_path();
-        let contents = match fs::read_to_string(&index_path) {
-            Ok(contents) => contents,
-            Err(source) if source.kind() == ErrorKind::NotFound => {
-                return self.rebuild_index_from_receipts(self.list(signature_policy)?);
-            }
-            Err(source) => {
-                return Err(ReceiptStoreError::StoreUnreadable {
-                    path: index_path,
-                    source,
-                });
-            }
-        };
-        let index = parse_index(&contents, &index_path)?;
-        self.verify_index(&index, signature_policy)?;
-        Ok(index)
-    }
-
     pub fn rebuild_index(
         &self,
         signature_policy: RuntimeReceiptSignaturePolicy<'_>,
@@ -279,25 +247,6 @@ impl LocalReceiptStore {
         Ok(index)
     }
 
-    fn verify_index(
-        &self,
-        index: &ReceiptStoreIndex,
-        signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-    ) -> Result<(), ReceiptStoreError> {
-        let listed = self.list(signature_policy)?;
-        let listed_entries = listed
-            .iter()
-            .map(index_entry)
-            .collect::<Result<Vec<_>, ReceiptStoreError>>()?;
-        if listed_entries != index.entries {
-            return Err(ReceiptStoreError::ReceiptIndexStale {
-                path: self.index_path(),
-                message: "index entries do not match receipt JSON files".to_owned(),
-            });
-        }
-        Ok(())
-    }
-
     fn update_index_after_write(&self, receipt: &Receipt) -> Result<(), ReceiptStoreError> {
         self.update_index_after_writes(&[index_entry(receipt)?])
     }
@@ -312,7 +261,7 @@ impl LocalReceiptStore {
             // every historical receipt verifies under the caller's current
             // keyring. The new receipt was verified before it was written;
             // unrelated historical proof remains fail-closed on exact reads,
-            // listings, index loads, and audits.
+            // listings, index rebuilds, and audits.
             Err(_) => match self.rebuild_index_projection() {
                 Ok(_) => Ok(()),
                 Err(error) => Err(ReceiptStoreError::ReceiptIndexStale {

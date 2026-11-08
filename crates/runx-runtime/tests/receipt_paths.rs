@@ -147,7 +147,7 @@ fn external_safe_label_is_stable_and_redacted() {
 }
 
 #[test]
-fn public_projection_redacts_absolute_external_receipt_path_input() {
+fn resolved_label_redacts_absolute_external_receipt_path_input() {
     let workspace = workspace();
     let project_runx_dir = workspace.join(".runx");
     let env = BTreeMap::new();
@@ -158,9 +158,7 @@ fn public_projection_redacts_absolute_external_receipt_path_input() {
         runtime_config: None,
         paths: &RunxPaths::resolve(&env, &workspace),
     });
-    let projection = resolved.public_projection();
-    let summary = projection.summary();
-    let label = projection.label().as_str();
+    let label = resolved.label.as_str();
     let label_parts = label.split(':').collect::<Vec<_>>();
 
     assert_eq!(resolved.path, external);
@@ -172,31 +170,27 @@ fn public_projection_redacts_absolute_external_receipt_path_input() {
             .chars()
             .all(|character| character.is_ascii_hexdigit())
     );
-    assert!(summary.contains(label));
-    assert_redacts_external_path(&summary);
+    assert_redacts_external_path(label);
 
-    let direct_projection = runx_runtime::receipts::paths::safe_receipt_store_projection(
-        &resolved.path,
-        &project_at(&workspace, &project_runx_dir),
-    );
-    assert_eq!(direct_projection.summary(), summary);
+    let direct_label =
+        safe_receipt_store_label(&resolved.path, &project_at(&workspace, &project_runx_dir));
+    assert_eq!(direct_label, resolved.label);
 }
 
 #[test]
-fn public_projection_uses_project_relative_label_for_run_state() {
+fn store_label_is_project_relative_for_run_state() {
     let workspace = workspace();
     let project_runx_dir = workspace.join(".runx");
     let receipt_dir = project_runx_dir.join("receipts");
 
-    let projection = runx_runtime::receipts::paths::safe_receipt_store_projection(
-        &receipt_dir,
-        &project_at(&workspace, &project_runx_dir),
-    );
-    let summary = projection.summary();
+    let label = safe_receipt_store_label(&receipt_dir, &project_at(&workspace, &project_runx_dir));
 
-    assert_eq!(projection.label().as_str(), ".runx/receipts");
-    assert_eq!(summary, "receipt store: .runx/receipts");
-    assert!(!summary.contains(workspace.to_string_lossy().as_ref()));
+    assert_eq!(label.as_str(), ".runx/receipts");
+    assert!(
+        !label
+            .as_str()
+            .contains(workspace.to_string_lossy().as_ref())
+    );
 }
 
 fn workspace() -> PathBuf {
@@ -218,9 +212,9 @@ fn env_with(key: &str, value: &str) -> BTreeMap<String, String> {
     env
 }
 
-fn assert_redacts_external_path(summary: &str) {
-    assert!(!summary.contains("/Users"));
-    assert!(!summary.contains("kam"));
-    assert!(!summary.contains("private"));
-    assert!(!summary.contains("runx-receipts"));
+fn assert_redacts_external_path(label: &str) {
+    assert!(!label.contains("/Users"));
+    assert!(!label.contains("kam"));
+    assert!(!label.contains("private"));
+    assert!(!label.contains("runx-receipts"));
 }

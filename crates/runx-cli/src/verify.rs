@@ -1474,20 +1474,22 @@ mod tests {
         assert!(untrusted.failed);
         assert!(untrusted.output.contains("signature_key_missing"));
 
-        // Its public key, configured explicitly, does.
-        let public_key = runx_runtime::receipt_trust(
-            &source,
-            &runx_runtime::RunxPaths::resolve(&source, &temp),
-            ReceiptTrust::HomeAndConfigured,
-        )
-        .map_err(io::Error::other)?
-        .pop()
-        .ok_or_else(|| io::Error::other("the source home has no key"))?
-        .key;
+        // Its public key, as the source home's key file states it,
+        // configured explicitly, does.
+        let key_file: test_json::Value = test_json::from_slice(&fs::read(
+            runx_runtime::RunxPaths::resolve(&source, &temp).local_receipt_key(),
+        )?)
+        .map_err(io::Error::other)?;
+        let public_key =
+            base64::engine::general_purpose::STANDARD
+                .decode(key_file["public_key"].as_str().ok_or_else(|| {
+                    io::Error::other("the source home's key file has no public key")
+                })?)
+                .map_err(io::Error::other)?;
         destination.extend(trust_env(
             "local",
-            public_key.kid(),
-            public_key.public_key(),
+            &runx_runtime::local_receipt_kid(&public_key),
+            &public_key,
         ));
         let trusted = verify_receipt_file(&receipt_file, &destination, &temp, &[])
             .map_err(|error| io::Error::other(error.to_string()))?;

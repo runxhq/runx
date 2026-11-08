@@ -123,11 +123,6 @@ impl TrustedReceiptKey {
     }
 
     #[must_use]
-    pub fn public_key(&self) -> &[u8] {
-        &self.public_key
-    }
-
-    #[must_use]
     pub fn public_key_digest(&self) -> String {
         sha256_prefixed(&self.public_key)
     }
@@ -340,18 +335,8 @@ impl RuntimeReceiptSignatureConfig {
     }
 
     #[must_use]
-    pub fn issuer(&self) -> ReceiptIssuer {
-        self.material.signer.issuer()
-    }
-
-    #[must_use]
     pub fn signature_policy(&self) -> RuntimeReceiptSignaturePolicy<'_> {
         RuntimeReceiptSignaturePolicy::signing(&self.material.signer, &self.material.verifier)
-    }
-
-    #[must_use]
-    pub fn verifier(&self) -> &Ed25519ReceiptVerifier {
-        &self.material.verifier
     }
 }
 

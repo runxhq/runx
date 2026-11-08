@@ -268,7 +268,6 @@ fn configured_signing_requires_a_complete_non_local_identity() -> Result<(), Box
 
     let env_with_hosted = signing_env(Some("hosted"));
     let config = RuntimeReceiptSignatureConfig::resolve(&env_with_hosted, &paths)?;
-    assert_eq!(config.issuer(), fixture_signer()?.issuer());
     let receipt = step_receipt(
         scope("prod_env"),
         "seal",
@@ -278,6 +277,7 @@ fn configured_signing_requires_a_complete_non_local_identity() -> Result<(), Box
         CREATED_AT,
         config.signature_policy(),
     )?;
+    assert_eq!(receipt.issuer, fixture_signer()?.issuer());
     assert_eq!(receipt.issuer.issuer_type, ReceiptIssuerType::Hosted);
     assert!(!paths.local_receipt_key().exists());
     Ok(())

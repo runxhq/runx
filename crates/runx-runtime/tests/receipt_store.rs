@@ -12,7 +12,7 @@ use runx_contracts::{JsonObject, Receipt};
 use runx_runtime::receipts::{RuntimeReceiptSignaturePolicy, step_receipt};
 use runx_runtime::{
     Ed25519ReceiptSigner, Ed25519ReceiptVerifier, InvocationOutput, InvocationStatus,
-    LocalReceiptStore, ReceiptStoreError,
+    LocalReceiptStore, ReceiptStoreError, ReceiptStoreIndex, safe_receipt_store_label,
 };
 use serde_json::json;
 
@@ -160,7 +160,7 @@ fn exact_read_list_and_rebuild_index_succeed() -> Result<(), Box<dyn std::error:
     let receipt = store.read_exact(&success.id, crate::support::fixture_policy()?)?;
     let listed = store.list(crate::support::fixture_policy()?)?;
     let index = store.rebuild_index(crate::support::fixture_policy()?)?;
-    let loaded_index = store.load_index(crate::support::fixture_policy()?)?;
+    let written = written_index(store.root())?;
 
     let mut expected_ids = vec![success.id.clone(), abnormal.id.clone()];
     expected_ids.sort();
@@ -185,8 +185,7 @@ fn exact_read_list_and_rebuild_index_succeed() -> Result<(), Box<dyn std::error:
         index.entries[0].file_name,
         receipt_file_name(&expected_ids[0])
     );
-    assert_eq!(loaded_index.entries, index.entries);
-    assert!(temp.path().join("index.json").exists());
+    assert_eq!(written.entries, index.entries);
     Ok(())
 }
 
@@ -243,10 +242,6 @@ fn valid_runtime_generated_receipt_is_accepted_by_read_list_and_index()
             .rebuild_index(crate::support::fixture_policy()?)?
             .entries[0]
             .receipt_id,
-        receipt.id
-    );
-    assert_eq!(
-        store.load_index(crate::support::fixture_policy()?)?.entries[0].receipt_id,
         receipt.id
     );
     Ok(())
@@ -316,37 +311,6 @@ fn list_rejects_structural_receipt_with_tampered_digest() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn load_index_rejects_indexed_structural_receipt_with_invalid_proof()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = TestDir::new()?;
-    let mut receipt = success_receipt()?;
-    receipt.signature.value = format!("base64:{}", "A".repeat(86)).into();
-    write_json(temp.path(), &receipt_file_name(&receipt.id), &receipt)?;
-    write_json(
-        temp.path(),
-        "index.json",
-        &json!({
-            "schema": "runx.receipt_store_index.v1",
-            "generated_at": "1",
-            "entries": [{
-                "receipt_id": receipt.id,
-                "file_name": receipt_file_name(&receipt.id),
-                "created_at": receipt.created_at
-            }]
-        }),
-    )?;
-    let store = LocalReceiptStore::new(temp.path());
-
-    let result = store.load_index(crate::support::fixture_policy()?);
-
-    assert!(matches!(
-        result,
-        Err(ReceiptStoreError::ReceiptProofInvalid { .. })
-    ));
-    Ok(())
-}
-
-#[test]
 fn write_receipt_commits_readable_receipt_and_index() -> Result<(), Box<dyn std::error::Error>> {
     let temp = TestDir::new()?;
     let store = LocalReceiptStore::new(temp.path().join("receipts"));
@@ -355,12 +319,11 @@ fn write_receipt_commits_readable_receipt_and_index() -> Result<(), Box<dyn std:
     store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
 
     let stored = store.read_exact(&receipt.id, crate::support::fixture_policy()?)?;
-    let index = store.load_index(crate::support::fixture_policy()?)?;
+    let index = written_index(store.root())?;
     assert_eq!(stored.id, receipt.id);
     assert_eq!(index.entries.len(), 1);
     assert_eq!(index.entries[0].receipt_id, receipt.id);
     assert!(store.root().join(receipt_file_name(&receipt.id)).exists());
-    assert!(store.root().join("index.json").exists());
     Ok(())
 }
 
@@ -372,7 +335,7 @@ fn write_receipts_commits_one_durable_batch_and_index() -> Result<(), Box<dyn st
 
     store.write_receipts(&receipts, crate::support::fixture_policy()?)?;
 
-    let index = store.load_index(crate::support::fixture_policy()?)?;
+    let index = written_index(store.root())?;
     assert_eq!(index.entries.len(), receipts.len());
     for receipt in receipts {
         assert_eq!(
@@ -420,7 +383,7 @@ fn concurrent_writers_commit_one_complete_index() -> Result<(), Box<dyn std::err
     }
 
     let store = LocalReceiptStore::new(root.as_ref());
-    let index = store.load_index(crate::support::fixture_policy()?)?;
+    let index = written_index(store.root())?;
     assert_eq!(index.entries.len(), receipts.len());
     assert_eq!(
         store.list(crate::support::fixture_policy()?)?.len(),
@@ -514,13 +477,7 @@ fn write_receipts_coalesces_identical_ids_and_rejects_divergent_content()
         crate::support::fixture_policy()?,
     )?;
     assert_eq!(store.list(crate::support::fixture_policy()?)?.len(), 1);
-    assert_eq!(
-        store
-            .load_index(crate::support::fixture_policy()?)?
-            .entries
-            .len(),
-        1
-    );
+    assert_eq!(written_index(store.root())?.entries.len(), 1);
 
     let mut changed = receipt.clone();
     changed.signature.value = format!("base64:{}", "B".repeat(86)).into();
@@ -545,7 +502,7 @@ fn identical_receipt_retry_repairs_a_missing_index_projection()
 
     store.write_receipt(&receipt, crate::support::fixture_policy()?)?;
 
-    let index = store.load_index(crate::support::fixture_policy()?)?;
+    let index = written_index(store.root())?;
     assert_eq!(index.entries.len(), 1);
     assert_eq!(index.entries[0].receipt_id, receipt.id);
     Ok(())
@@ -592,56 +549,7 @@ fn unrelated_historical_proof_does_not_block_a_new_receipt_write()
             .id,
         receipt.id
     );
-    let index: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(temp.path().join("index.json"))?)?;
-    assert_eq!(index["entries"].as_array().map(Vec::len), Some(2));
-    assert!(matches!(
-        store.load_index(crate::support::fixture_policy()?),
-        Err(ReceiptStoreError::ReceiptProofInvalid { .. })
-    ));
-    Ok(())
-}
-
-#[test]
-fn malformed_index_is_typed_error() -> Result<(), Box<dyn std::error::Error>> {
-    let temp = TestDir::new()?;
-    fs::write(temp.path().join("index.json"), "{")?;
-    let store = LocalReceiptStore::new(temp.path());
-
-    let result = store.load_index(crate::support::fixture_policy()?);
-
-    assert!(matches!(
-        result,
-        Err(ReceiptStoreError::MalformedIndex { .. })
-    ));
-    Ok(())
-}
-
-#[test]
-fn stale_index_is_typed_error() -> Result<(), Box<dyn std::error::Error>> {
-    let temp = TestDir::new()?;
-    write_json(
-        temp.path(),
-        &receipt_file_name(&success_receipt_id()),
-        &success_receipt()?,
-    )?;
-    write_json(
-        temp.path(),
-        "index.json",
-        &json!({
-            "schema": "runx.receipt_store_index.v1",
-            "generated_at": "1",
-            "entries": []
-        }),
-    )?;
-    let store = LocalReceiptStore::new(temp.path());
-
-    let result = store.load_index(crate::support::fixture_policy()?);
-
-    assert!(matches!(
-        result,
-        Err(ReceiptStoreError::ReceiptIndexStale { .. })
-    ));
+    assert_eq!(written_index(store.root())?.entries.len(), 2);
     Ok(())
 }
 
@@ -674,29 +582,25 @@ fn receipt_store_error_display_does_not_leak_absolute_paths()
 }
 
 #[test]
-fn store_public_projection_redacts_external_absolute_root() {
+fn store_label_redacts_external_absolute_root() {
     let workspace = PathBuf::from("/workspace/runx");
     let external = PathBuf::from("/Users/kam/private/runx-receipts");
     let store = LocalReceiptStore::new(&external);
 
-    let projection = store.public_projection(&project_paths(&workspace));
-    let summary = projection.summary();
-    let label = projection.label().as_str();
+    let label = safe_receipt_store_label(store.root(), &project_paths(&workspace));
 
-    assert!(label.starts_with("external-receipt-store:"));
-    assert!(summary.contains(label));
-    assert_redacts_external_path(&summary);
+    assert!(label.as_str().starts_with("external-receipt-store:"));
+    assert_redacts_external_path(label.as_str());
 }
 
 #[test]
-fn store_public_projection_uses_project_relative_root() {
+fn store_label_uses_project_relative_root() {
     let workspace = PathBuf::from("/workspace/runx");
     let store = LocalReceiptStore::new(project_paths(&workspace).receipts());
 
-    let projection = store.public_projection(&project_paths(&workspace));
+    let label = safe_receipt_store_label(store.root(), &project_paths(&workspace));
 
-    assert_eq!(projection.label().as_str(), ".runx/receipts");
-    assert_eq!(projection.summary(), "receipt store: .runx/receipts");
+    assert_eq!(label.as_str(), ".runx/receipts");
 }
 
 #[test]
@@ -704,12 +608,12 @@ fn receipt_store_error_public_message_uses_safe_label() {
     let workspace = PathBuf::from("/workspace/runx");
     let external = PathBuf::from("/Users/kam/private/runx-receipts");
     let store = LocalReceiptStore::new(&external);
-    let projection = store.public_projection(&project_paths(&workspace));
+    let label = safe_receipt_store_label(store.root(), &project_paths(&workspace));
     let error = ReceiptStoreError::MissingStore { path: external };
 
-    let message = error.public_message(projection.label());
+    let message = error.public_message(&label);
 
-    assert!(message.contains(projection.label().as_str()));
+    assert!(message.contains(label.as_str()));
     assert_redacts_external_path(&message);
 }
 
@@ -718,7 +622,7 @@ fn receipt_store_error_public_message_redacts_path_like_fields() {
     let workspace = PathBuf::from("/workspace/runx");
     let external = PathBuf::from("/Users/kam/private/runx-receipts");
     let store = LocalReceiptStore::new(&external);
-    let projection = store.public_projection(&project_paths(&workspace));
+    let label = safe_receipt_store_label(store.root(), &project_paths(&workspace));
     let invalid_id = ReceiptStoreError::InvalidReceiptId {
         receipt_id: external.to_string_lossy().into_owned(),
     };
@@ -728,8 +632,8 @@ fn receipt_store_error_public_message_redacts_path_like_fields() {
         file_stem: "runx-receipts".to_owned(),
     };
 
-    let invalid_id_message = invalid_id.public_message(projection.label());
-    let mismatch_message = mismatch.public_message(projection.label());
+    let invalid_id_message = invalid_id.public_message(&label);
+    let mismatch_message = mismatch.public_message(&label);
 
     assert_redacts_external_path(&invalid_id_message);
     assert_redacts_external_path(&mismatch_message);
@@ -811,6 +715,13 @@ impl Drop for TestDir {
     fn drop(&mut self) {
         let _ignored = fs::remove_dir_all(&self.path);
     }
+}
+
+/// The index the store keeps beside its receipts, as written.
+fn written_index(root: &Path) -> Result<ReceiptStoreIndex, Box<dyn std::error::Error>> {
+    Ok(serde_json::from_str(&fs::read_to_string(
+        root.join("index.json"),
+    )?)?)
 }
 
 fn assert_redacts_external_path(text: &str) {

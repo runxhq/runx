@@ -789,11 +789,6 @@ impl<'a> RuntimeReceiptSignaturePolicy<'a> {
         }
     }
 
-    #[must_use]
-    pub fn verifier(self) -> &'a dyn SignatureVerifier {
-        self.verifier
-    }
-
     fn signer(self) -> Result<&'a dyn RuntimeReceiptSigner, RuntimeError> {
         self.signer
             .ok_or_else(|| signing_error(RuntimeReceiptSigningError::MissingSigner))

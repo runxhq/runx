@@ -28,11 +28,6 @@ impl RuntimeReceiptResolver {
             positions,
         }
     }
-
-    #[must_use]
-    pub fn receipts(&self) -> &[Receipt] {
-        &self.receipts
-    }
 }
 
 impl ReceiptResolver for RuntimeReceiptResolver {

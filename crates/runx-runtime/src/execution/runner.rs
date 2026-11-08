@@ -1242,6 +1242,25 @@ mod tests {
         Ok(RuntimeOptions::new(env, receipt_signature, run))
     }
 
+    /// The issuer a receipt sealed under `options` names.
+    fn sealed_issuer(
+        options: &RuntimeOptions,
+    ) -> Result<runx_contracts::ReceiptIssuer, crate::RuntimeError> {
+        let receipt = step_receipt(
+            RunScope {
+                run_id: "run_options",
+                graph_name: "options",
+            },
+            "seal",
+            1,
+            &InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 1),
+            &JsonObject::new(),
+            TEST_CREATED_AT,
+            options.signature_policy(),
+        )?;
+        Ok(receipt.issuer)
+    }
+
     /// Paths whose home is a fresh directory of its own.
     fn fresh_home() -> Result<(tempfile::TempDir, RunxPaths), std::io::Error> {
         let home = tempfile::tempdir()?;
@@ -1277,13 +1296,13 @@ mod tests {
         let (_root, run) = scratch_log("run_options");
         let options = resolved_options(BTreeMap::new(), &paths, run)?;
 
-        let issuer = options.receipt_signature.issuer();
+        let issuer = sealed_issuer(&options)?;
         assert_eq!(issuer.issuer_type, ReceiptIssuerType::Local);
         assert!(issuer.kid.starts_with("local-"));
         assert!(paths.local_receipt_key().is_file());
         let (_root, run) = scratch_log("run_options_again");
         let again = resolved_options(BTreeMap::new(), &paths, run)?;
-        assert_eq!(again.receipt_signature.issuer(), issuer);
+        assert_eq!(sealed_issuer(&again)?, issuer);
         Ok(())
     }
 
@@ -1339,7 +1358,7 @@ mod tests {
         let options = resolved_options(env, &paths, run)?;
 
         assert_eq!(
-            options.receipt_signature.issuer().issuer_type,
+            sealed_issuer(&options)?.issuer_type,
             ReceiptIssuerType::Hosted
         );
         assert!(!options.env.contains_key(RUNX_RECEIPT_SIGN_KID_ENV));

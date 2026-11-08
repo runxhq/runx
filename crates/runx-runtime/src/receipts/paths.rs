@@ -36,42 +36,10 @@ impl fmt::Display for ReceiptStoreLabel {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ReceiptStorePublicProjection {
-    label: ReceiptStoreLabel,
-}
-
-impl ReceiptStorePublicProjection {
-    #[must_use]
-    pub fn label(&self) -> &ReceiptStoreLabel {
-        &self.label
-    }
-
-    #[must_use]
-    pub fn summary(&self) -> String {
-        format!("receipt store: {}", self.label)
-    }
-}
-
-impl fmt::Display for ReceiptStorePublicProjection {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "receipt store: {}", self.label)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedReceiptPath {
     pub path: PathBuf,
     pub source: ReceiptPathSource,
     pub label: ReceiptStoreLabel,
-}
-
-impl ResolvedReceiptPath {
-    #[must_use]
-    pub fn public_projection(&self) -> ReceiptStorePublicProjection {
-        ReceiptStorePublicProjection {
-            label: self.label.clone(),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -117,16 +85,6 @@ pub fn safe_receipt_store_label(receipt_dir: &Path, paths: &RunxPaths) -> Receip
         "external-receipt-store:{}",
         stable_path_hash(&receipt_dir)
     ))
-}
-
-#[must_use]
-pub fn safe_receipt_store_projection(
-    receipt_dir: &Path,
-    paths: &RunxPaths,
-) -> ReceiptStorePublicProjection {
-    ReceiptStorePublicProjection {
-        label: safe_receipt_store_label(receipt_dir, paths),
-    }
 }
 
 fn path_label(path: &Path) -> String {

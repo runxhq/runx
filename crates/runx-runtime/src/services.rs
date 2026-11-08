@@ -91,6 +91,28 @@ mod tests {
         Ok(())
     }
 
+    /// The issuer a receipt sealed by `receipts` names.
+    fn sealed_issuer(
+        receipts: &ReceiptServices,
+    ) -> Result<runx_contracts::ReceiptIssuer, crate::RuntimeError> {
+        let receipt = crate::receipts::step_receipt(
+            crate::receipts::RunScope {
+                run_id: "run_services",
+                graph_name: "services",
+            },
+            "seal",
+            1,
+            &crate::adapter::InvocationOutput::runtime_success(
+                runx_contracts::JsonValue::Object(runx_contracts::JsonObject::new()),
+                1,
+            ),
+            &runx_contracts::JsonObject::new(),
+            "2026-07-24T00:00:00Z",
+            receipts.signature_config().signature_policy(),
+        )?;
+        Ok(receipt.issuer)
+    }
+
     #[cfg(unix)]
     #[test]
     fn receipt_services_seal_under_the_workspace_home_key() -> Result<(), Box<dyn std::error::Error>>
@@ -104,13 +126,11 @@ mod tests {
 
         let receipts = ReceiptServices::resolve(&workspace)?;
 
-        let issuer = receipts.signature_config().issuer();
+        let issuer = sealed_issuer(&receipts)?;
         assert_eq!(issuer.issuer_type, runx_contracts::ReceiptIssuerType::Local);
         assert!(workspace.paths().local_receipt_key().is_file());
         assert_eq!(
-            ReceiptServices::resolve(&workspace)?
-                .signature_config()
-                .issuer(),
+            sealed_issuer(&ReceiptServices::resolve(&workspace)?)?,
             issuer
         );
 
