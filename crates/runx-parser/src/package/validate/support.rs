@@ -80,7 +80,7 @@ fn nested_package_source(source: &SkillPackageSource, prefix: &str) -> SkillPack
 }
 
 /// What a package's tests read, staged whole for each test: every file
-/// under `fixtures/` outside a nested package's own.
+/// under `fixtures/`, a fixture package's included.
 pub(super) fn validate_test_support_files(
     source: &SkillPackageSource,
 ) -> Result<BTreeSet<String>, SkillPackageError> {
@@ -88,7 +88,6 @@ pub(super) fn validate_test_support_files(
         .files
         .keys()
         .filter(|path| path.starts_with("fixtures/"))
-        .filter(|path| !has_nested_manual_boundary(path, source))
         .cloned()
         .collect())
 }
