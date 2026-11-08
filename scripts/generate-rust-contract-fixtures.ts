@@ -655,7 +655,6 @@ function turnResolutionRequest(): Readonly<Record<string, unknown>> {
     kind: "turn",
     invocation: {
       id: "act_1",
-      role: "analyst",
       task: "summarize-receipt",
       envelope: {
         current_context: [],
