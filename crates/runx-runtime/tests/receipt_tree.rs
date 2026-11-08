@@ -8,7 +8,7 @@ use runx_receipts::{ReceiptFindingCode, ReceiptTreeConfig, canonical_receipt_bod
 use runx_runtime::receipts::{RuntimeReceiptSignaturePolicy, graph_receipt, step_receipt};
 use runx_runtime::{
     Ed25519ReceiptSigner, Ed25519ReceiptVerifier, EphemeralValue, FIXTURE_RECEIPT_SEED,
-    InvocationOutput, InvocationStatus, RuntimeReceiptResolver, RuntimeReceiptSigner, StepRun,
+    InvocationOutput, InvocationStatus, RuntimeReceiptSigner, StepRun,
     validate_runtime_receipt_tree, verify_runtime_receipt_tree,
 };
 
@@ -50,10 +50,8 @@ fn selected_tree_scopes_unreadable_files_without_ignoring_a_corrupt_child()
 }
 
 #[test]
-fn runtime_resolver_verifies_graph_receipt_with_children() -> Result<(), Box<dyn std::error::Error>>
-{
+fn runtime_tree_verifies_graph_receipt_with_children() -> Result<(), Box<dyn std::error::Error>> {
     let (root, children) = graph_with_steps("tree_runtime_graph", &["plan", "apply"])?;
-    let resolver = RuntimeReceiptResolver::new(children.clone());
 
     assert!(
         validate_runtime_receipt_tree(
