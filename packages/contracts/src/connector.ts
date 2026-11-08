@@ -304,18 +304,42 @@ export function operationAccess(operation: ConnectorOperation): "read" | "mutate
   return operation.verb === "read" ? "read" : "mutate";
 }
 
+/** Where a connector's operation runs: on the caller's machine, or hosted by runx. */
+export type ConnectorPlacementName = "local" | "hosted";
+
 /**
- * The declared requests the hosted placement sends, when it runs the
- * operation: an `http` implementation, and under delegated auth only one
- * naming the provider's scopes its grant asks for.
+ * Whether a placement implements an operation, as runx-contracts'
+ * `ConnectorManifest::implements` decides it, against the same shared cases
+ * (`fixtures/contracts/connector-placement.json`). The local placement runs
+ * any implementation, and an operation with none is unavailable there. The
+ * hosted placement runs an `http` implementation through the provider
+ * gateway, and one the connector leaves to the host through a private
+ * driver, never a process, an MCP tool or the runtime's own capabilities;
+ * under delegated auth only an operation naming the provider's scopes it
+ * needs can run, since the grant asks for them.
+ */
+export function connectorImplements(
+  connector: Pick<ConnectorManifest, "placements">,
+  operation: ConnectorOperation,
+  placement: ConnectorPlacementName,
+): boolean {
+  const implementation = operation.implementation;
+  if (placement === "local") return implementation !== undefined;
+  const hosted = connector.placements.hosted;
+  if (!hosted) return false;
+  const gatewayOrDriver = implementation === undefined || implementation.http !== undefined;
+  return gatewayOrDriver && (hosted.auth !== "delegated" || (operation.provider_scopes?.length ?? 0) > 0);
+}
+
+/**
+ * The declared requests the hosted placement sends through the provider
+ * gateway, when it runs the operation and the implementation is `http`.
  */
 export function hostedHttp(
   connector: Pick<ConnectorManifest, "placements">,
   operation: ConnectorOperation,
 ): HttpImplementation | undefined {
-  const hosted = connector.placements.hosted;
-  if (!hosted || (hosted.auth === "delegated" && !operation.provider_scopes?.length)) return undefined;
-  return operation.implementation?.http;
+  return connectorImplements(connector, operation, "hosted") ? operation.implementation?.http : undefined;
 }
 
 const inputValidators = new WeakMap<JsonObject, ValidateFunction>();

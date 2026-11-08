@@ -39,6 +39,38 @@ fn slack() -> ConnectorManifest {
     serde_json::from_str(SLACK).expect("slack manifest parses")
 }
 
+/// Where an operation runs, against the cases `@runxhq/contracts`'
+/// `connectorImplements` also runs, so the two never decide it apart.
+#[test]
+fn placements_implement_operations_as_the_shared_corpus_says() {
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../fixtures/contracts/connector-placement.json"
+    ))
+    .unwrap();
+    for case in corpus["cases"].as_array().unwrap() {
+        let mut manifest: serde_json::Value = serde_json::from_str(SLACK).unwrap();
+        manifest["placements"] = case["placements"].clone();
+        manifest["operations"] = json!({ "item.read": case["operation"].clone() });
+        let manifest: ConnectorManifest = serde_json::from_value(manifest).unwrap();
+        let operation = manifest.operations.values().next().unwrap();
+        for (placement, name) in [(Placement::Local, "local"), (Placement::Hosted, "hosted")] {
+            assert_eq!(
+                manifest.implements(operation, placement),
+                case["expected"][name] == true,
+                "{}: {name}",
+                case["name"]
+            );
+        }
+        assert_eq!(
+            manifest.hosted_http(operation).is_some(),
+            case["expected"]["hosted"] == true
+                && case["operation"]["implementation"]["http"].is_object(),
+            "{}: hosted http",
+            case["name"]
+        );
+    }
+}
+
 #[test]
 fn financial_amounts_bind_provider_inputs_and_match_the_shared_corpus() {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(

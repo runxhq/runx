@@ -8,7 +8,9 @@ import {
   type JsonObject,
   type JsonValue,
   referenceKind,
+  connectorImplements,
   connectorPays,
+  hostedHttp,
   operationAmount,
   renderDeclaredRequest,
   renderOAuth2TokenEndpoint,
@@ -36,6 +38,23 @@ describe("connector payment compatibility", () => {
     expect(connectorPays({}, { family: "x402" })).toBe(false);
     expect(connectorPays({ payment: {} }, { family: "constructor" })).toBe(false);
     expect(connectorPays({ payment: {} }, { family: "toString" })).toBe(false);
+  });
+});
+
+describe("where an operation runs", () => {
+  const placements = JSON.parse(readFileSync(new URL("../../../fixtures/contracts/connector-placement.json", import.meta.url), "utf8")) as {
+    cases: Array<{
+      name: string;
+      placements: ConnectorManifest["placements"];
+      operation: ConnectorManifest["operations"][string];
+      expected: { hosted: boolean; local: boolean };
+    }>;
+  };
+  for (const entry of placements.cases) it(entry.name, () => {
+    const connector = { placements: entry.placements };
+    expect(connectorImplements(connector, entry.operation, "local")).toBe(entry.expected.local);
+    expect(connectorImplements(connector, entry.operation, "hosted")).toBe(entry.expected.hosted);
+    expect(hostedHttp(connector, entry.operation)).toBe(entry.expected.hosted ? entry.operation.implementation?.http : undefined);
   });
 });
 
