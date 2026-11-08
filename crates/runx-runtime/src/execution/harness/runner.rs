@@ -973,9 +973,9 @@ fn overlay_test_env(options: &mut TestOptions, env: &BTreeMap<String, String>) {
     options.env.extend(env.clone());
 }
 
-/// A harness case's run id: fixed by its fixture, so its receipts reproduce.
+/// A test's run id: fixed by its name, so its receipts reproduce.
 fn test_run_id(name: &str) -> String {
-    format!("harness-{name}")
+    format!("test-{name}")
 }
 
 fn resolve_fixture_path(
