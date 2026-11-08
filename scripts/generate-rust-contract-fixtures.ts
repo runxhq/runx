@@ -52,12 +52,7 @@ interface ActAssignmentFixtureExpected {
 }
 
 type JsonRecord = Readonly<Record<string, unknown>>;
-type HostFixtureKind =
-  | "event"
-  | "resolution_request"
-  | "resolution_response"
-  | "run_result"
-  | "run_state";
+type HostFixtureKind = "event" | "resolution_request" | "resolution_response";
 type ContractFixtureKind = HostFixtureKind;
 type ContractScope =
   | "act-assignment"
@@ -573,8 +568,6 @@ function reference(type: string, uri: string): Readonly<Record<string, string>> 
 
 function buildHostProtocolFixtures(): readonly ContractFixture[] {
   const fixtures: ContractFixture[] = [
-    ...hostResultFixtures(),
-    ...hostStateFixtures(),
     ...eventFixtures(),
     hostFixture("resolution-input-request", "resolution_request", inputResolutionRequest()),
     hostFixture("resolution-approval-request", "resolution_request", approvalResolutionRequest()),
@@ -587,69 +580,6 @@ function buildHostProtocolFixtures(): readonly ContractFixture[] {
     }),
   ];
   return fixtures.sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function hostResultFixtures(): readonly ContractFixture[] {
-  return [
-    hostFixture("result-host-run-needs-agent", "run_result", {
-      status: "needs_agent",
-      skillName: "diagnose-skill-run",
-      runId: "run_needs_agent",
-      requests: [inputResolutionRequest()],
-      stepIds: ["collect"],
-      stepLabels: ["Collect context"],
-      events: [event("resolution_requested")],
-    }),
-    hostFixture("result-host-run-completed", "run_result", {
-      status: "completed",
-      skillName: "diagnose-skill-run",
-      receiptId: "rx_completed",
-      output: "done",
-      events: [event("completed")],
-    }),
-    hostFixture("result-host-run-failed", "run_result", {
-      status: "failed",
-      skillName: "diagnose-skill-run",
-      receiptId: "rx_failed",
-      error: "adapter failed",
-      events: [event("warning")],
-    }),
-    hostFixture("result-host-run-escalated", "run_result", {
-      status: "escalated",
-      skillName: "diagnose-skill-run",
-      receiptId: "rx_escalated",
-      error: "needs human review",
-      events: [event("step_waiting_resolution")],
-    }),
-    hostFixture("result-host-run-denied", "run_result", {
-      status: "denied",
-      skillName: "diagnose-skill-run",
-      receiptId: "rx_denied",
-      reasons: ["authority denied"],
-      events: [event("admitted")],
-    }),
-  ];
-}
-
-function hostStateFixtures(): readonly ContractFixture[] {
-  return [
-    hostFixture("inspect-host-state-needs-agent", "run_state", {
-      status: "needs_agent",
-      skillName: "diagnose-skill-run",
-      runId: "run_needs_agent",
-      requestedPath: "skills/review.md",
-      resolvedPath: "/workspace/skills/review.md",
-      selectedRunner: "runx",
-      requests: [approvalResolutionRequest()],
-      stepIds: ["approve"],
-      stepLabels: ["Approve write"],
-      lineage: lineage(),
-    }),
-    hostFixture("inspect-host-state-completed", "run_state", terminalState("completed", "verified")),
-    hostFixture("inspect-host-state-failed", "run_state", terminalState("failed", "invalid")),
-    hostFixture("inspect-host-state-escalated", "run_state", terminalState("escalated", "unverified")),
-    hostFixture("inspect-host-state-denied", "run_state", terminalState("denied", "verified")),
-  ];
 }
 
 function eventFixtures(): readonly ContractFixture[] {
@@ -748,41 +678,6 @@ function agentActResolutionRequest(): Readonly<Record<string, unknown>> {
         tools: ["fs.read"],
       },
     },
-  };
-}
-
-function terminalState(status: string, verificationStatus: string): Readonly<Record<string, unknown>> {
-  return {
-    status,
-    kind: "harness",
-    skillName: "diagnose-skill-run",
-    runId: `run_${status}`,
-    receiptId: `rx_${status}`,
-    verification: {
-      status: verificationStatus,
-      reason: verificationStatus === "verified" ? undefined : "fixture verification state",
-    },
-    sourceType: "agent-task",
-    startedAt: "2026-04-25T14:00:00Z",
-    completedAt: "2026-04-25T14:01:00Z",
-    actors: ["agent"],
-    artifactTypes: ["receipt"],
-    runnerProvider: "runx",
-    approval: {
-      gateId: "workspace-write",
-      gateType: "mutation",
-      decision: status === "denied" ? "denied" : "approved",
-      reason: status === "denied" ? "authority denied" : undefined,
-    },
-    lineage: lineage(),
-  };
-}
-
-function lineage(): Readonly<Record<string, unknown>> {
-  return {
-    kind: "rerun",
-    sourceRunId: "run_source",
-    sourceReceiptId: "rx_source",
   };
 }
 

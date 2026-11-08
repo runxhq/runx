@@ -1,8 +1,6 @@
 use serde::Deserialize;
 
-use runx_contracts::{
-    ExecutionEvent, HostRunResult, HostRunState, ResolutionRequest, ResolutionResponse,
-};
+use runx_contracts::{ExecutionEvent, ResolutionRequest, ResolutionResponse};
 
 use crate::fixture_support::roundtrip;
 
@@ -19,20 +17,10 @@ const FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/contracts/host-protocol/event-step_started.json"),
     include_str!("../../../fixtures/contracts/host-protocol/event-step_waiting_resolution.json"),
     include_str!("../../../fixtures/contracts/host-protocol/event-warning.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/inspect-host-state-completed.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/inspect-host-state-denied.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/inspect-host-state-escalated.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/inspect-host-state-failed.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/inspect-host-state-needs-agent.json"),
     include_str!("../../../fixtures/contracts/host-protocol/resolution-approval-request.json"),
     include_str!("../../../fixtures/contracts/host-protocol/resolution-agent-act-request.json"),
     include_str!("../../../fixtures/contracts/host-protocol/resolution-input-request.json"),
     include_str!("../../../fixtures/contracts/host-protocol/resolution-response.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/result-host-run-completed.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/result-host-run-denied.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/result-host-run-escalated.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/result-host-run-failed.json"),
-    include_str!("../../../fixtures/contracts/host-protocol/result-host-run-needs-agent.json"),
 ];
 
 #[derive(Debug, Deserialize)]
@@ -47,8 +35,6 @@ enum FixtureKind {
     Event,
     ResolutionRequest,
     ResolutionResponse,
-    RunResult,
-    RunState,
 }
 
 #[test]
@@ -65,7 +51,5 @@ fn assert_roundtrip(fixture: Fixture) -> Result<(), serde_json::Error> {
         FixtureKind::Event => roundtrip::<ExecutionEvent>(fixture.expected),
         FixtureKind::ResolutionRequest => roundtrip::<ResolutionRequest>(fixture.expected),
         FixtureKind::ResolutionResponse => roundtrip::<ResolutionResponse>(fixture.expected),
-        FixtureKind::RunResult => roundtrip::<HostRunResult>(fixture.expected),
-        FixtureKind::RunState => roundtrip::<HostRunState>(fixture.expected),
     }
 }
