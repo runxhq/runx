@@ -62,11 +62,33 @@ impl Project {
         note: &str,
         methods: &str,
     ) -> TestResult {
+        self.publish_stated(
+            name,
+            version,
+            tier,
+            note,
+            runners,
+            Some(crate::registry_fixture::FRESH),
+        )
+    }
+
+    /// As [`Self::publish_methods`], with the registry's statement of its
+    /// tier held over `held`, or none served.
+    fn publish_stated(
+        &self,
+        name: &str,
+        version: &str,
+        tier: TrustTier,
+        note: &str,
+        runners: &str,
+        held: Option<(&str, &str)>,
+    ) -> TestResult {
         let markdown =
             format!("---\nname: {name}\ndescription: Says it, digested. {note}\n---\n# {name}\n");
         let profile = format!("minimum_runx: 0.12.0\n{methods}");
         self.registry.publish(Publication {
             trust_tier: tier,
+            tier_held: held,
             ..Publication::new("acme", version, &markdown, Some(&profile))
         })?;
         Ok(())
@@ -421,6 +443,76 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
     let turn = project.open(&again)?;
     let status = turn.status(TURN)?;
     refused(status.calls.get(1).ok_or("the second load is recorded")?)?;
+    Ok(())
+}
+
+/// A signed package's tier is the registry's fresh statement, read only
+/// when a rule asks more than community (D30). A version whose statement has
+/// expired, or whose registry states none, as for one withdrawn, reads
+/// community and waits on the person's trust under a verified rule; under a
+/// community rule no statement is read at all.
+#[test]
+fn a_tier_is_read_from_a_fresh_statement_only_when_a_rule_needs_it() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    let say = format!("  say:\n    default: true\n{DIGEST_METHOD}");
+    project.publish_stated(
+        "lapsed",
+        "1.0.0",
+        TrustTier::Verified,
+        "",
+        &say,
+        Some(crate::registry_fixture::EXPIRED),
+    )?;
+    project.publish_stated("withdrawn", "1.0.0", TrustTier::Verified, "", &say, None)?;
+    project.publish("echo", "1.0.0", TrustTier::Verified, "")?;
+
+    let verified =
+        project.start(project.session(serde_json::json!([{"catalog": {"trust": "verified"}}]))?)?;
+    let turn = project.open(&verified)?;
+    for (index, skill) in ["acme/lapsed@1.0.0", "acme/withdrawn@1.0.0"]
+        .into_iter()
+        .enumerate()
+    {
+        let held = turn.call(
+            TURN,
+            "load",
+            None,
+            input(serde_json::json!({"skill": skill}))?,
+        )?;
+        let gate = trust_gate(&held, &format!("work/{index}/trust"))?;
+        let payload = serde_json::to_value(gate.payload.as_ref().ok_or("the gate's payload")?)?;
+        assert_eq!(payload["package"]["trust_tier"], "community", "{skill}");
+    }
+    drop(turn);
+
+    let community = project
+        .start(project.session(serde_json::json!([{"catalog": {"trust": "community"}}]))?)?;
+    let turn = project.open(&community)?;
+    let asked = project.registry.asked().len();
+    let bound = loaded(&turn.call(
+        TURN,
+        "load",
+        None,
+        input(serde_json::json!({"skill": "acme/echo@1.0.0"}))?,
+    )?)?;
+    assert!(
+        matches!(
+            &bound.package,
+            LoadedPackage::Skill {
+                trust_tier: Some(TrustTier::Community),
+                ..
+            }
+        ),
+        "a community rule reads no statement: {bound:?}"
+    );
+    assert!(
+        project.registry.asked()[asked..]
+            .iter()
+            .all(|line| !line.contains("/record")),
+        "{:?}",
+        project.registry.asked()
+    );
     Ok(())
 }
 

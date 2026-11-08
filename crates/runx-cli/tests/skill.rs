@@ -855,11 +855,12 @@ fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn st
         .iter()
         .find(|entry| entry["data"]["skill"] == "registry:acme/echo@1.0.0")
         .ok_or("the turn's context omits the registry skill")?;
-    // It keeps the registry provenance its install recorded.
+    // It keeps the registry provenance its signature states; its tier is a
+    // statement apart, read only when a decision needs it (D30).
     assert_eq!(echo["data"]["source"], "runx-registry", "{echo}");
     assert_eq!(echo["data"]["skill_id"], "acme/echo", "{echo}");
     assert_eq!(echo["data"]["version"], "1.0.0", "{echo}");
-    assert_eq!(echo["data"]["trust_tier"], "community", "{echo}");
+    assert!(echo["data"].get("trust_tier").is_none(), "{echo}");
     assert!(
         echo["data"]["digest"]
             .as_str()
