@@ -112,11 +112,11 @@ runx history <receipt-id> --json
 
 ## Next
 
-- Use `runx new docs-demo --objective "Create a bounded
-  documentation decision skill"` to enter the canonical `skill-build` lane.
-  Runx inspects the catalog, returns an exact agent/resume handoff unless
-  `--managed-agent` was explicitly authorized, and writes only the validated
-  package. It never generates a placeholder module. Like every package runx
+- Use `runx skill runx/skill-build build -i objective="Create a bounded
+  documentation decision skill" -i target_dir=skills/docs-demo` to author a
+  skill. Runx inspects the catalog, returns an exact agent/resume handoff
+  unless `--managed-agent` was explicitly authorized, and writes only the
+  validated package. It never generates a placeholder module. Like every package runx
   adds, the `skill-build` it uses is added to the project directory under
   `.runx/added-skills/runx/skill-build/<version>/`. To cold-start without installing Runx
   first, use the same command through `npx @runxhq/cli`.

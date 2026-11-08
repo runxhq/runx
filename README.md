@@ -516,13 +516,14 @@ Keep a skill in your project, adapt an existing package, or publish it for
 others to compose. Start an authoring run with:
 
 ```bash
-runx new launch-review \
-  --objective "Review a release and prepare its customer announcement"
+runx skill runx/skill-build build \
+  -i objective="Review a release and prepare its customer announcement" \
+  -i target_dir=skills/launch-review
 ```
 
-This enters the `skill-build` workflow. Your agent works the authoring turns;
-the package is written after validation. Without a managed agent, the command
-returns the pending work and resume instructions.
+Your agent works the authoring turns; the package is written after
+validation. Without a managed agent, the run returns the pending work and
+resume instructions.
 
 A finished package should include harness cases for its successful path,
 refusals, and composition with other skills. The harness replays declared

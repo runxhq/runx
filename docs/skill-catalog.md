@@ -101,7 +101,7 @@ runs instead.
 Every package a project runs is added under
 `.runx/added-skills/<publisher>/<name>/<version>/`: a registry skill when it is
 first run or installed, the registry skills a graph names, and a bundled runx
-skill the first time the project uses it (`runx new` uses `runx/skill-build`).
+skill the first time the project uses it.
 Commit them or ignore them as you would any other dependency.
 
 ## Operator-first package contract
@@ -251,7 +251,7 @@ package, harness, and evidence without separating it from repo history.
 Most new skills should start outside the first-party repo:
 
 ```bash
-runx new <skill-name> --objective "Describe the bounded operator outcome"
+runx skill runx/skill-build build -i objective="Describe the bounded operator outcome" -i target_dir=<skill-name>
 runx harness ./<skill-name> --json
 runx login --for publish
 runx registry publish ./<skill-name>/SKILL.md

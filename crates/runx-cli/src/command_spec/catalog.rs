@@ -14,26 +14,6 @@ pub const ROOT_COMMAND_SPEC: CommandSpec = CommandSpec {
 
 pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
-        name: "new",
-        top_level_usage: &[],
-        usage: &[
-            "runx new <name> --objective text [--project-context text] [--directory dir] [-R dir] [--managed-agent [--managed-agent-rounds n]] [-j|--json]",
-        ],
-        notes: &[
-            "Starts a skill: runs the skill-build skill, exactly as runx skill runx/skill-build would, and writes the package to skills/<name> once it validates. The skills/ directory marks the project; nothing needs initializing.",
-            "Without --managed-agent, returns a needs_agent envelope and an exact runx resume command.",
-        ],
-        options: &[
-            "--objective text  Required capability and outcome",
-            "--project-context text  Product, repository, and operator constraints",
-            "--directory dir  Where in the workspace the package goes (default skills/<name>)",
-            "-R, --receipt-dir dir",
-            "--managed-agent  Explicitly allow an in-process model loop for this run",
-            "--managed-agent-rounds n  Bound each managed act to 1-32 rounds (default 4)",
-            "-j, --json",
-        ],
-    },
-    CommandSpec {
         name: "verify",
         top_level_usage: &[],
         usage: &[

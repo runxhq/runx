@@ -5,7 +5,6 @@ import {
   checkRegistryOwnership,
 } from "./runtime-architecture/delivery.mjs";
 import {
-  checkAuthoringOwnership,
   checkContractBindingOwnership,
   checkGeneratedMirrorOwnership,
 } from "./runtime-architecture/extensions.mjs";
@@ -42,7 +41,6 @@ for (const check of [
   checkCliCommandOwnership,
   checkRegistryOwnership,
   checkHttpTransportOwnership,
-  checkAuthoringOwnership,
   checkContractBindingOwnership,
   checkGeneratedMirrorOwnership,
   checkCanonicalToolManifestOwnership,

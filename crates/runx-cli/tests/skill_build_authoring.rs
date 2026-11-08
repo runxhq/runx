@@ -7,23 +7,26 @@ use serde_json::Value;
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 #[test]
-fn new_skill_authoring_waits_for_agent_then_applies_one_validated_package() -> TestResult {
+fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResult {
     let repo = crate::support::repo_root()?;
-    let root = crate::support::isolated_target_temp_root("new-skill-authoring")?;
+    let root = crate::support::isolated_target_temp_root("skill-build-authoring")?;
     let target = root.join("digest-note");
     let receipts = root.join("receipts");
 
     let pending = command(&repo, &root)
-        .arg("new")
-        .arg("digest-note")
         .args([
-            "--objective",
-            "Create a bounded digest-note skill using the native digest capability",
-            "--project-context",
-            "Keep the package declarative and useful to a cold operator",
-            "--directory",
+            "skill",
+            "runx/skill-build",
+            "build",
+            "-i",
+            "objective=Create a bounded digest-note skill using the native digest capability",
+            "-i",
+            "package_name=digest-note",
+            "-i",
+            "project_context=Keep the package declarative and useful to a cold operator",
+            "-i",
+            "target_dir=digest-note",
         ])
-        .arg(&target)
         .arg("--receipt-dir")
         .arg(&receipts)
         .output()?;
@@ -39,7 +42,7 @@ fn new_skill_authoring_waits_for_agent_then_applies_one_validated_package() -> T
     )));
     assert!(
         !target.exists(),
-        "runx new wrote before authoring completed"
+        "skill-build wrote before authoring completed"
     );
 
     // Each act is answered when the run asks it: the architect, then the
@@ -79,23 +82,35 @@ fn new_skill_authoring_waits_for_agent_then_applies_one_validated_package() -> T
 }
 
 #[test]
-fn new_skill_authoring_rejects_outside_workspace_without_writing() -> TestResult {
+fn skill_build_refuses_a_target_outside_the_workspace_without_writing() -> TestResult {
     let repo = crate::support::repo_root()?;
-    let root = crate::support::isolated_target_temp_root("new-skill-containment")?;
-    let outside = std::env::temp_dir().join(format!("runx-new-outside-{}", std::process::id()));
+    let root = crate::support::isolated_target_temp_root("skill-build-containment")?;
+    let outside = std::env::temp_dir().join(format!(
+        "runx-skill-build-outside-{}",
+        std::process::id()
+    ));
     fs::remove_dir_all(&outside).ok();
 
     let output = command(&repo, &root)
-        .arg("new")
-        .arg("outside-skill")
-        .args(["--objective", "Create a bounded skill", "--directory"])
-        .arg(&outside)
+        .args([
+            "skill",
+            "runx/skill-build",
+            "build",
+            "-i",
+            "objective=Create a bounded skill",
+            "-i",
+        ])
+        .arg(format!("target_dir={}", outside.display()))
         .arg("--json")
         .output()?;
     let output = assert_json(&output, 1)?;
 
-    assert_eq!(output["status"], "failure");
-    assert_eq!(output["error"]["code"], "invalid_target");
+    assert_eq!(output["outcome"], "failed");
+    assert!(
+        output["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("target_dir must stay inside repo_root"))
+    );
     assert!(!outside.exists());
 
     fs::remove_dir_all(root)?;

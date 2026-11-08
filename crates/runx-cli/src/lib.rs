@@ -14,7 +14,6 @@ mod managed_agent;
 pub mod mcp;
 pub mod notarize;
 pub mod process;
-mod project;
 pub mod registry;
 pub mod resume;
 pub mod router;
@@ -24,7 +23,6 @@ pub mod skill;
 pub mod tool;
 pub mod verify;
 
-pub use project::run_native_new_with_workspace;
 
 #[cfg(test)]
 mod release_identity_tests {

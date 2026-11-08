@@ -7,7 +7,6 @@ use crate::config::ConfigPlan;
 use crate::connector::ConnectorPlan;
 use crate::export::ExportPlan;
 use crate::login::LoginPlan;
-use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 use crate::mcp::McpPlan;
 use crate::notarize::NotarizePlan;
 use crate::registry::{RegistryAction, RegistryPlan};
@@ -16,7 +15,7 @@ use crate::secret::SecretPlan;
 use crate::skill::SkillPlan;
 use runx_contracts::validate_registry_version;
 use runx_runtime::registry::parse_registry_ref;
-use runx_runtime::{ManagedAgentPolicy, WorkspaceEnv};
+use runx_runtime::WorkspaceEnv;
 
 #[derive(Debug, PartialEq)]
 pub enum RouterAction {
@@ -27,7 +26,6 @@ pub enum RouterAction {
     RunList(ListPlan),
     RunLogin(LoginPlan),
     RunMcp(McpPlan),
-    RunNew(NewPlan),
     RunHistory(HistoryPlan),
     RunProcess(ProcessPlan),
     RunVerify(VerifyPlan),
@@ -115,17 +113,6 @@ pub enum ListKind {
     Graphs,
     Packets,
     Overlays,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct NewPlan {
-    pub name: String,
-    pub objective: String,
-    pub project_context: Option<String>,
-    pub directory: Option<PathBuf>,
-    pub receipt_dir: Option<PathBuf>,
-    pub json: bool,
-    pub managed_agent: ManagedAgentPolicy,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -237,10 +224,6 @@ fn route_args_with_optional_workspace(
 
     if first_arg_is(&args, "list") {
         return route_parse(&args, parse_list_plan(&args), RouterAction::RunList);
-    }
-
-    if first_arg_is(&args, "new") {
-        return route_parse(&args, parse_new_plan(&args), RouterAction::RunNew);
     }
 
     if first_arg_is(&args, "history") {
@@ -484,119 +467,6 @@ fn native_harness_plan(args: &[OsString]) -> RouterAction {
         fixture_paths,
         receipt_dir,
     })
-}
-
-fn parse_new_plan(args: &[OsString]) -> Result<NewPlan, String> {
-    let parsed = parse_new_args(args)?;
-    Ok(NewPlan {
-        name: parsed
-            .name
-            .ok_or_else(|| "runx new requires a package name".to_owned())?,
-        objective: parsed
-            .objective
-            .ok_or_else(|| "runx new requires --objective".to_owned())?,
-        project_context: parsed.project_context,
-        directory: parsed.directory,
-        receipt_dir: parsed.receipt_dir,
-        json: parsed.json,
-        managed_agent: managed_agent_policy(
-            "new",
-            parsed.managed_agent,
-            parsed.managed_agent_rounds,
-        )?,
-    })
-}
-
-#[derive(Default)]
-struct NewParseState {
-    name: Option<String>,
-    objective: Option<String>,
-    project_context: Option<String>,
-    directory: Option<PathBuf>,
-    receipt_dir: Option<PathBuf>,
-    json: bool,
-    managed_agent: bool,
-    managed_agent_rounds: Option<u32>,
-}
-
-fn parse_new_args(args: &[OsString]) -> Result<NewParseState, String> {
-    let mut parsed = NewParseState::default();
-    let mut index = 1;
-    while index < args.len() {
-        let Some(token) = args[index].to_str() else {
-            return Err("runx new package name and option values must be UTF-8".to_owned());
-        };
-        if !token.starts_with('-') {
-            if parsed.name.is_none() {
-                parsed.name = Some(token.to_owned());
-            } else {
-                return Err(format!("unexpected runx new argument {token}"));
-            }
-            index += 1;
-            continue;
-        }
-        index = parse_new_flag(args, index, token, &mut parsed)?;
-    }
-    Ok(parsed)
-}
-
-fn parse_new_flag(
-    args: &[OsString],
-    index: usize,
-    token: &str,
-    parsed: &mut NewParseState,
-) -> Result<usize, String> {
-    let (flag, inline_value) = split_flag(token);
-    match flag {
-        "--json" | "-j" => {
-            if inline_value.is_some() {
-                return Err(format!("{flag} does not take a value"));
-            }
-            parsed.json = true;
-            Ok(index + 1)
-        }
-        "--objective" => {
-            let (value, next_index) = flag_value(args, index, flag, inline_value, "runx new")?;
-            parsed.objective = Some(non_empty_new_value(flag, value)?);
-            Ok(next_index)
-        }
-        "--project-context" => {
-            let (value, next_index) = flag_value(args, index, flag, inline_value, "runx new")?;
-            parsed.project_context = Some(non_empty_new_value(flag, value)?);
-            Ok(next_index)
-        }
-        "--directory" => {
-            let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
-            parsed.directory = Some(PathBuf::from(value));
-            Ok(next_index)
-        }
-        "--receipt-dir" | "-R" => {
-            let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
-            parsed.receipt_dir = Some(PathBuf::from(value));
-            Ok(next_index)
-        }
-        "--managed-agent" => {
-            parsed.managed_agent = match inline_value {
-                Some(value) => parse_boolean_flag("new", flag, value)?,
-                None => true,
-            };
-            Ok(index + 1)
-        }
-        "--managed-agent-rounds" => {
-            let (value, next_index) = flag_value(args, index, flag, inline_value, "runx new")?;
-            parsed.managed_agent_rounds = Some(parse_managed_agent_rounds("new", &value)?);
-            Ok(next_index)
-        }
-        _ => Err(format!("unknown new flag {flag}")),
-    }
-}
-
-fn non_empty_new_value(flag: &str, value: String) -> Result<String, String> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(format!("runx new {flag} requires a non-empty value"));
-    }
-    Ok(value.to_owned())
 }
 
 // Function rationale: doctor parsing keeps mode selection and native path handling in one fail-closed pass.

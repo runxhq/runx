@@ -90,7 +90,7 @@ runx skill ./skills/skill-build design -i objective="build sourcey docs skill" -
 Recommended flows:
 
 ```bash
-runx new docs-demo --objective "Create a bounded documentation decision skill"
+runx skill runx/skill-build build -i objective="Create a bounded documentation decision skill" -i target_dir=skills/docs-demo
 runx list skills
 runx registry search weather --json
 runx skill acme/weather@1.0.0 --registry https://runx.example.test --json
@@ -488,7 +488,7 @@ Command-surface ownership:
 | policy, authority, payment, x402 | Rust core/runtime policy | published type mirrors and product UX |
 | governed data operations | the store connector's native driver | generated types, helper SDKs |
 | non-execution extension protocols | lane-specific Rust/cloud owners | generated types, helper SDKs, provider glue |
-| skill authoring and `runx new` | `runx-runtime` authoring service plus `skill-build` | npm launcher only |
+| skill authoring | `runx-runtime` authoring service plus `skill-build` | npm launcher only |
 | marketplace and docs projection | Rust-owned catalog/contracts | generated docs and client views |
 
 Stateful product work should use the governed data-plane shape in
@@ -674,20 +674,21 @@ publish policy. See [docs/github-issue-to-pr.md](github-issue-to-pr.md).
 
 ## Standalone Skill Packages
 
-`runx new <name> --objective <outcome>` is a thin client of the canonical
-`skill-build` lane. It inspects the target and catalog, requests a closed
-architecture decision and change draft, binds both to the inspected package
-digest in native code, stages and harnesses the exact candidate, then applies
-the same bytes transactionally, by default to `skills/<name>`. It runs exactly
-as `runx skill runx/skill-build` would. The command owns no templates and never
-adds a placeholder JavaScript module. Nothing needs initializing first: a
-repository or the `skills/` directory marks the project.
+The `skill-build` skill authors a package. It inspects the target and catalog,
+requests a closed architecture decision and change draft, binds both to the
+inspected package digest in native code, stages and harnesses the exact
+candidate, then applies the same bytes transactionally to `target_dir`, which
+must stay inside the workspace. It owns no templates and never adds a
+placeholder JavaScript module. Nothing needs initializing first: a repository
+or the `skills/` directory marks the project.
 
 ```bash
-runx new docs-demo --objective "Create a bounded documentation decision skill"
+runx skill runx/skill-build build \
+  -i objective="Create a bounded documentation decision skill" \
+  -i target_dir=skills/docs-demo
 ```
 
-Without `--managed-agent`, the command stops at `needs_agent`, prints an answers
+Without `--managed-agent`, the run stops at `needs_agent`, prints an answers
 template and exact `runx resume` command, and leaves the target untouched. Add
 `--managed-agent` only when this run should use the configured in-process model
 loop. To cold-start without installing Runx first, invoke the same command

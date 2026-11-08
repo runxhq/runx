@@ -83,7 +83,6 @@ fn dispatch(action: RouterAction, workspace: Option<&runx_runtime::WorkspaceEnv>
 
 fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
     match action {
-        RouterAction::RunNew(plan) => runx_cli::run_native_new_with_workspace(plan, workspace),
         RouterAction::RunHistory(plan) => run_native_history(plan.args, workspace),
         RouterAction::RunProcess(plan) => run_native_process(plan.args, workspace),
         RouterAction::RunVerify(plan) => run_native_verify(plan.args, workspace),

@@ -132,12 +132,14 @@ Re-run `pnpm build` after source changes that affect compiled package output.
 
 ## Skill authoring paths
 
-Use `runx new <name> --objective <outcome>` when you already have the Runx CLI
-available locally and want a standalone skill package. The command enters Skill
-Lab and leaves the target untouched until the exact package validates:
+Run the `skill-build` skill when you already have the Runx CLI available
+locally and want a standalone skill package. It leaves the target untouched
+until the exact package validates:
 
 ```bash
-runx new docs-demo --objective "Create a bounded documentation decision skill"
+runx skill runx/skill-build build \
+  -i objective="Create a bounded documentation decision skill" \
+  -i target_dir=skills/docs-demo
 ```
 
 Community skills should be authored as standalone packages; the runx repo itself is the lane for runx-maintained skills, runtime code, tests, and examples.

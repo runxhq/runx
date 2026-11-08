@@ -321,8 +321,8 @@ another registered family.
 
 ## Authoring and extension boundary
 
-`skill-build` and `runx new` call one authoring service and one closed,
-digest-bound change contract. Design is judgment; inspect, validate, diff,
+`skill-build` calls one authoring service and one closed, digest-bound
+change contract. Design is judgment; inspect, validate, diff,
 write, and harness execution are native mechanics. No template generator creates a
 placeholder `.mjs`. No package writes outside its declared target. A no-op
 design produces no file churn.

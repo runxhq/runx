@@ -58,7 +58,6 @@ export interface OracleCase {
 
 const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   "cli.help": annotation("none", ["cli-presentation"], ["help.top-level", "usage.unsupported"]),
-  new: annotation("local-runtime", ["skill-authoring", "graph-runtime", "caller-mediated-resolution", "receipts", "cli-presentation"], ["new.validate"]),
   verify: annotation("none", ["receipts", "cli-presentation"], ["verify.validate"]),
   history: annotation("none", ["history", "ledger", "receipts"], ["history.execute"]),
   process: annotation("local-runtime", ["processes", "cli-presentation"], ["process.list.execute"]),
@@ -72,7 +71,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   doctor: annotation("filesystem", ["doctor", "cli-presentation"], ["doctor.validate"]),
   export: annotation("filesystem", ["skill-export", "cli-presentation"], ["export.validate"]),
   mcp: annotation("adapter", ["mcp", "caller-mediated-resolution", "graph-runtime", "receipts"], ["mcp.skills.validate", "mcp.run.validate"], "none"),
-  skill: annotation("local-runtime", ["skill-resolution", "graph-runtime", "receipts", "execution-boundary", "authority", "caller-mediated-resolution", "adapter-process-tool", "adapter-agent", "cli-presentation"], ["skill.run.validate", "skill.inspect.validate"]),
+  skill: annotation("local-runtime", ["skill-resolution", "skill-authoring", "graph-runtime", "receipts", "execution-boundary", "authority", "caller-mediated-resolution", "adapter-process-tool", "adapter-agent", "cli-presentation"], ["skill.run.validate", "skill.inspect.validate"]),
   harness: annotation("local-runtime", ["harness", "receipts", "execution-boundary"], ["harness.execute"]),
   tool: annotation("external-stub", ["tool-catalog"], ["tool.build.validate", "tool.search.validate", "tool.inspect.validate"]),
   registry: annotation("external-stub", ["registry", "cli-presentation"], ["registry.validate"]),

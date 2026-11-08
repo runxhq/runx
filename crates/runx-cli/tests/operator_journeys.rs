@@ -315,11 +315,11 @@ fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() ->
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        crate::new_skill_authoring::digest_note_manual(),
+        crate::skill_build_authoring::digest_note_manual(),
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        crate::new_skill_authoring::digest_note_manifest(),
+        crate::skill_build_authoring::digest_note_manifest(),
     )?;
 
     let list = command(&root)

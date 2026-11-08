@@ -6,7 +6,7 @@ use runx_cli::mcp::McpPlan;
 use runx_cli::registry::{RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
-    DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, ListKind, ListPlan, NewPlan,
+    DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, ListKind, ListPlan,
     RouterAction, ToolAction, ToolPlan, command_help_text, harness_help_text, help_text,
     history_help_text, list_help_text, login_help_text, notarize_help_text, registry_help_text,
     route_args, skill_help_text, verify_help_text,
@@ -40,10 +40,6 @@ fn top_level_help_and_version_are_native() {
     assert_help_line(
         &help,
         "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
-    );
-    assert_help_line(
-        &help,
-        "runx new <name> --objective text [--project-context text] [--directory dir] [-R dir] [--managed-agent [--managed-agent-rounds n]] [-j|--json]",
     );
     assert_help_line(
         &help,
@@ -186,7 +182,6 @@ fn json_flags_make_argument_failures_machine_readable() {
     for args in [
         &["config", "set", "--json"][..],
         &["tool", "build", "--json"][..],
-        &["new", "--json"][..],
         &["export", "nope", "--json"][..],
         &["doctor", "registry", "extra", "-j"][..],
     ] {
@@ -742,30 +737,6 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
             json: true,
         })
     );
-    assert_eq!(
-        plan(&[
-            "new",
-            "docs-demo",
-            "--objective",
-            "Create a bounded documentation decision skill",
-            "--project-context",
-            "Keep the package declarative",
-            "--directory",
-            "tmp/docs-demo",
-            "--receipt-dir",
-            "tmp/receipts",
-            "--json",
-        ]),
-        RouterAction::RunNew(NewPlan {
-            name: "docs-demo".to_owned(),
-            objective: "Create a bounded documentation decision skill".to_owned(),
-            project_context: Some("Keep the package declarative".to_owned()),
-            directory: Some(PathBuf::from("tmp/docs-demo")),
-            receipt_dir: Some(PathBuf::from("tmp/receipts")),
-            json: true,
-            managed_agent: runx_runtime::ManagedAgentPolicy::HostDriven,
-        })
-    );
     // A repository or a skills/ directory marks a project; nothing is
     // initialized to mark one.
     assert_eq!(
@@ -775,42 +746,25 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
 }
 
 #[test]
-fn new_requires_an_objective_and_explicit_managed_agent_consent() {
+fn managed_agent_rounds_need_explicit_managed_agent_consent() {
     assert_eq!(
-        plan(&["new", "docs-demo"]),
-        RouterAction::Error("runx new requires --objective".to_owned())
+        plan(&["skill", "skills/docs-demo", "--managed-agent-rounds", "2"]),
+        RouterAction::Error("runx skill --managed-agent-rounds requires --managed-agent".to_owned())
     );
-    assert_eq!(
-        plan(&[
-            "new",
-            "docs-demo",
-            "--objective",
-            "Create a docs skill",
-            "--managed-agent-rounds",
-            "2",
-        ]),
-        RouterAction::Error("runx new --managed-agent-rounds requires --managed-agent".to_owned())
-    );
-    assert_eq!(
-        plan(&[
-            "new",
-            "docs-demo",
-            "--objective",
-            "Create a docs skill",
-            "--managed-agent",
-            "--managed-agent-rounds",
-            "2",
-        ]),
-        RouterAction::RunNew(NewPlan {
-            name: "docs-demo".to_owned(),
-            objective: "Create a docs skill".to_owned(),
-            project_context: None,
-            directory: None,
-            receipt_dir: None,
-            json: false,
-            managed_agent: runx_runtime::ManagedAgentPolicy::Inline { max_rounds: 2 },
-        })
-    );
+    let action = plan(&[
+        "skill",
+        "skills/docs-demo",
+        "--managed-agent",
+        "--managed-agent-rounds",
+        "2",
+    ]);
+    assert!(matches!(action, RouterAction::RunSkill(_)));
+    if let RouterAction::RunSkill(skill) = action {
+        assert_eq!(
+            skill.managed_agent,
+            runx_runtime::ManagedAgentPolicy::Inline { max_rounds: 2 }
+        );
+    }
 }
 
 /// `runx harness` runs every fixture; there is no second fixture loop.
