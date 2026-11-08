@@ -2,7 +2,7 @@
 //! to `store` (D19), and under `effects: ask` every write with no approval of
 //! its own waits on a person, at any depth (D25).
 //!
-//! Each runs as a host runs its agent: the bundled `agent-session` skill,
+//! Each runs as a host runs its agent: the bundled `agent` skill,
 //! started with `effects: ask` and `reach: workspace` and no standing
 //! approvals unless the test gives one, in a scratch project with its own runx
 //! home and no credentials, its turn driven over `runx mcp --run`. A provider
@@ -24,12 +24,12 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 /// tools stay inside the workspace.
 const ASKING: &str = r#"{"effects":"ask","reach":"workspace"}"#;
 
-/// Start the bundled `agent-session` at `method` under `authority`, and stop
+/// Start the bundled `agent` at `method` under `authority`, and stop
 /// at its turn, which is named for the method.
 fn start_session(mut runx: Command, method: &str, authority: &str) -> TestResult<String> {
     let started = assert_json(
         &runx
-            .args(["skill", &format!("agent-session#{method}")])
+            .args(["skill", &format!("agent#{method}")])
             .args(["--run-authority", authority, "--json"])
             .output()?,
         2,
