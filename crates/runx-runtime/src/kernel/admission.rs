@@ -61,6 +61,9 @@ pub(crate) struct Evaluation<'a> {
     /// missing hosted implementation.
     pub fixture_stand_in: bool,
     pub run_authority: Option<&'a RunAuthority>,
+    /// The run's `effects: ask` holds the call's write for a person, as the
+    /// floor decided: the call's one gate carries that reason.
+    pub held_by_effects: bool,
     /// Where the act's custody and its evidence uses are kept.
     pub store: &'a Arc<KernelStore>,
     /// The run the call belongs to: a read's custody, and the run a new use
@@ -117,8 +120,11 @@ pub(crate) struct Admitted {
     pub spend: Option<Spending>,
     pub target: String,
     pub request_key: Option<String>,
-    /// What a person is shown, when the call is gated.
+    /// What a person is shown, when the call is gated: one gate, bound to
+    /// the call's intent, carrying every reason it waits.
     pub approval: Option<ApprovalText>,
+    /// Each reason the gate carries, when it carries more than one.
+    pub waits_for: Vec<ApprovalText>,
     term_request: AttenuationRequest,
 }
 
@@ -312,6 +318,18 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         Err(detail) => return Err(reasons.refuse(AdmissionCheck::Requirement, detail)),
     };
     let mut approval = approval_text(call, operation_spec);
+    // A write the floor holds under `effects: ask` has no approval of its
+    // own: the call's one gate carries the floor's reason.
+    if evaluation.held_by_effects && approval.is_none() {
+        approval = Some(ApprovalText {
+            reason: format!(
+                "Call {}/{operation_name}: the run's effects ask a person before a write with no approval of its own.",
+                manifest.name
+            ),
+            gate_type: Some(WRITE_GATE.to_owned()),
+        });
+    }
+    let mut waits_for = Vec::new();
     // What the call spends, counted only under a money limit.
     let limit = evaluation
         .run_authority
@@ -355,10 +373,20 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         // A scoped use bound is standing authority for provider usage. Without
         // one, one exact native approval authorizes this unpriced call; no
         // caller boolean or invented USD conversion can substitute for it.
-        approval.get_or_insert_with(|| ApprovalText {
+        let usage = ApprovalText {
             reason: "This call may consume provider-account credits; no USD quote or bounded-use authority is available. Approve this exact call.".to_owned(),
             gate_type: Some("provider_usage".to_owned()),
-        });
+        };
+        match approval.as_mut() {
+            None => approval = Some(usage),
+            // The call already waits on a gate, which carries this reason
+            // too, so the person's one approval is informed of both and
+            // answers each.
+            Some(gate) => {
+                waits_for = vec![gate.clone(), usage.clone()];
+                gate.reason = format!("{} {}", gate.reason, usage.reason);
+            }
+        }
     }
     let digests = digest(&call.inputs).and_then(|payload_digest| {
         let approval_digest = approval.as_ref().map(digest).transpose()?;
@@ -558,6 +586,8 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
                 CheckOutcome::Required,
                 if operation_spec.approval == ApprovalFloor::Required {
                     "the operation requires approval of this exact intent"
+                } else if evaluation.held_by_effects {
+                    "the run's effects ask a person to approve this exact intent"
                 } else {
                     "the step requires approval of this exact intent"
                 },
@@ -619,6 +649,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         target,
         request_key,
         approval,
+        waits_for,
         term_request,
     })
 }
@@ -995,6 +1026,9 @@ fn readiness(
     }
     finish(readiness, reasons)
 }
+
+/// The gate type of a write the floor holds under `effects: ask`.
+pub(crate) const WRITE_GATE: &str = "write";
 
 fn usage_approval_required(
     operation: &ConnectorOperation,

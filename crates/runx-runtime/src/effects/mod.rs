@@ -130,6 +130,7 @@ mod tests {
             workflow_dir: Path::new("."),
             run_id: "run-1",
             run_authority: None,
+            held_by_effects: false,
         });
         assert!(
             matches!(
@@ -172,6 +173,7 @@ mod tests {
             workflow_dir: Path::new("."),
             run_id: "run-1",
             run_authority: None,
+            held_by_effects: false,
         });
 
         assert!(
@@ -213,6 +215,7 @@ mod tests {
             workflow_dir: Path::new("."),
             run_id: "run-1",
             run_authority: None,
+            held_by_effects: false,
         });
 
         assert!(

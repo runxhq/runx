@@ -560,6 +560,7 @@ impl RuntimeEffect for OperationEffect {
             retry_unknown_outcomes: request.step.retry_unknown_outcomes,
             fixture_stand_in: self.fixture_stand_in,
             run_authority: request.run_authority,
+            held_by_effects: request.held_by_effects,
             store: &store,
             run_id: &lanes.run_id,
             context: Context {
@@ -2276,6 +2277,22 @@ fn human(
         summary.insert(
             "amount".to_owned(),
             JsonValue::from_serialize(amount).map_err(|error| state(error.to_string()))?,
+        );
+    }
+    // A gate that carries more than one reason names each, so the person's
+    // one approval is informed of all of them.
+    if !admitted.waits_for.is_empty() {
+        summary.insert(
+            "reasons".to_owned(),
+            JsonValue::Array(
+                admitted
+                    .waits_for
+                    .iter()
+                    .map(|reason| {
+                        JsonValue::from_serialize(reason).map_err(|error| state(error.to_string()))
+                    })
+                    .collect::<Result<_, _>>()?,
+            ),
         );
     }
     // A person approves the act with the call: the intent binds its digest.

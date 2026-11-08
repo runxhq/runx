@@ -470,6 +470,7 @@ impl WorkflowExecution {
                 }
                 let mut admission_refs = admission_refs;
                 admission_refs.extend(admitted.reference()?);
+                let held_by_effects = admitted == super::floor::Admitted::Held;
                 self.execute_step_plan(
                     StepPlanTarget {
                         runtime: context.runtime,
@@ -481,6 +482,7 @@ impl WorkflowExecution {
                     &mut answering,
                     loaded_skill,
                     admission_refs,
+                    held_by_effects,
                 )
             }
         };
@@ -556,6 +558,7 @@ impl WorkflowExecution {
         host: &mut dyn Host,
         loaded_skill: Result<Option<LoadedStepSkill>, RuntimeError>,
         admission_refs: Vec<Reference>,
+        held_by_effects: bool,
     ) -> Result<StepRun, RuntimeError>
     where
         A: SkillAdapter,
@@ -570,6 +573,7 @@ impl WorkflowExecution {
                 attempt: context.plan.attempt,
                 loaded_skill: loaded_skill?,
                 admission_refs,
+                held_by_effects,
                 host,
             },
             &prior_run_index,

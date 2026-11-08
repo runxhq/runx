@@ -569,14 +569,17 @@ with no approval of its own waits on a person: a step that changes the
 workspace or runs a process waits on an approval of gate type `tool` (a native
 tool that changes something, `fs.edit`, `fs.write`, `fs.apply_bundle`,
 `runx.skill.apply`, `command.execute` or `process.start`, a catalog tool runx
-runs as a process, and a graph's process step), and a connector operation that
-writes waits on one of gate type `write`, whether an agent's turn call made it
-or a skill's fixed step reached it. Its gate carries exactly what executes: for
-an edit each file with its unified diff and the digests of what it replaces and
-becomes, for a command its argv, directory and digest, for a write its
-connector, operation and call. A write that carries an approval of its own, its
-operation's declared one or its step's `approval`, keeps that one and the floor
-adds none. A package's own `store` state is exempt, unless its step carries an
+runs as a process, and a graph's process step), which carries exactly what
+executes: for an edit each file with its unified diff and the digests of what
+it replaces and becomes, for a command its argv, directory and digest. A
+connector operation that writes, whether an agent's turn call made it or a
+skill's fixed step reached it, waits on its call's one gate, of gate type
+`write`: admission opens it bound to the call's exact intent, carrying the
+call's input, and lists every reason the call waits, so a call that may also
+consume provider credits with no quote names that reason on the same gate and
+the person's one approval answers both. A write that carries an approval of its
+own, its operation's declared one or its step's `approval`, keeps that one and
+the floor adds none. A package's own `store` state is exempt, unless its step carries an
 `approval`. A person who declines it refuses the call. Under `effects: none`
 every change is refused, at any depth: every local effect, every provider write
 even with its own approval, every `store` write, and every purchase.

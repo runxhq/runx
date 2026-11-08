@@ -296,6 +296,8 @@ pub struct AdmittedCall {
     claim: CallOutcome,
     /// What admitted it on the floor, for its receipt.
     admitted_by: Vec<Reference>,
+    /// The floor holds its write under `effects: ask`.
+    held_by_effects: bool,
 }
 
 impl AdmittedCall {
@@ -536,6 +538,7 @@ where
             ..made
         };
         let admitted_by = admitted.reference()?.into_iter().collect::<Vec<_>>();
+        let held_by_effects = admitted == super::floor::Admitted::Held;
         let claim = match &made.target {
             _ if super::reaches_world(&call.step.kind) => {
                 CallOutcome::Claimed(self.retry(made.index, &call.step)?)
@@ -549,7 +552,8 @@ where
             | TurnTarget::Operation { .. }
             | TurnTarget::Ask
             | TurnTarget::Load => {
-                let ran = self.run_call_step(&call, &made.target, admitted_by, host)?;
+                let ran =
+                    self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?;
                 return match ran {
                     Ran::Settled(outcome) => {
                         let answers = host.answers.clone();
@@ -574,6 +578,7 @@ where
             call,
             claim,
             admitted_by,
+            held_by_effects,
         })))
     }
 
@@ -589,8 +594,9 @@ where
             call,
             claim,
             admitted_by,
+            held_by_effects,
         } = admitted;
-        let ran = self.run_call_step(&call, &made.target, admitted_by, host)?;
+        let ran = self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?;
         Ok(ExecutedCall {
             made,
             claim,
@@ -645,7 +651,7 @@ where
                 message: reason,
             })?;
         let mut answering = AnsweringHost::new(host, None);
-        match self.run_call_step(&step, &made.target, Vec::new(), &mut answering)? {
+        match self.run_call_step(&step, &made.target, Vec::new(), false, &mut answering)? {
             Ran::Settled(outcome) => {
                 let answers = answering.answers;
                 self.settled(made, outcome, &answers)
@@ -858,6 +864,7 @@ where
         call: &CallStep,
         target: &TurnTarget,
         admitted_by: Vec<Reference>,
+        held_by_effects: bool,
         host: &mut dyn Host,
     ) -> Result<Ran, RuntimeError> {
         let scope = &self.scope;
@@ -874,6 +881,7 @@ where
             child_act: call.act.clone(),
             provenance: call.fed.iter().filter_map(|fed| fed.edge.clone()).collect(),
             admission_refs,
+            held_by_effects,
             host,
         };
         let result = match target {

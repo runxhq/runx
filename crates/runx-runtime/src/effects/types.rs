@@ -148,6 +148,9 @@ pub struct EffectStepRequest<'a> {
     /// The run the step belongs to.
     pub run_id: &'a str,
     pub run_authority: Option<&'a crate::RunAuthority>,
+    /// The run's `effects: ask` holds the step's write for a person, as the
+    /// floor decided: the call's one gate carries that reason.
+    pub held_by_effects: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

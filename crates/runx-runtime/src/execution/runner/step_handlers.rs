@@ -110,6 +110,9 @@ pub(super) struct StepRunRequest<'a, A> {
     pub(super) child_act: Option<CallAct>,
     pub(super) provenance: Vec<ProvenanceEntry>,
     pub(super) admission_refs: Vec<Reference>,
+    /// The floor holds the step's write under `effects: ask`: its one gate
+    /// carries that reason.
+    pub(super) held_by_effects: bool,
     pub(super) host: &'a mut dyn Host,
 }
 
@@ -191,6 +194,7 @@ where
         child_act,
         provenance,
         admission_refs,
+        held_by_effects,
         host,
     } = request;
     let effect_request = EffectStepRequest {
@@ -203,6 +207,7 @@ where
         workflow_dir,
         run_id: runtime.options.run.run_id(),
         run_authority: runtime.options.run_authority.as_ref(),
+        held_by_effects,
     };
     let authority = enforce_step_authority_admission(effect_request, &runtime.options.effects)?;
     let authority =

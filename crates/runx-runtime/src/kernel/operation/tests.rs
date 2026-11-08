@@ -542,6 +542,18 @@ impl Fixture {
         inputs: &JsonObject,
         run_authority: Option<&crate::RunAuthority>,
     ) -> Result<EffectAdmission, RuntimeEffectError> {
+        self.admit_held(step, inputs, run_authority, false)
+    }
+
+    /// [`Self::admit_as`], with whether the floor holds the step's write
+    /// under `effects: ask`.
+    fn admit_held(
+        &self,
+        step: &str,
+        inputs: &JsonObject,
+        run_authority: Option<&crate::RunAuthority>,
+        held_by_effects: bool,
+    ) -> Result<EffectAdmission, RuntimeEffectError> {
         let step = &self.steps[step];
         self.effect
             .admit(EffectStepRequest {
@@ -552,6 +564,7 @@ impl Fixture {
                 workflow_dir: self.root.path(),
                 run_id: self.run_id,
                 run_authority,
+                held_by_effects,
             })
             .map(|admission| admission.expect("an operation step is owned by the effect"))
     }
@@ -2232,6 +2245,7 @@ methods:
                 workflow_dir: &skill_dir,
                 run_id: "run-1",
                 run_authority: None,
+                held_by_effects: false,
             })
             .unwrap()
             .unwrap();
@@ -2884,4 +2898,293 @@ fn a_managed_cli_session_is_pinned_and_checked_before_each_process_call() {
         1,
         "the changed session never reaches the process"
     );
+}
+
+/// A hosted connector with a write that may consume provider credits with
+/// no quote, and one that may not.
+const CREDITS: &str = r#"schema: runx.connector.v1
+name: fixture/credits
+title: Fixture Credits
+description: Spend provider credits on a hosted fixture.
+auth:
+  delegated: {principal: {url: "https://credits.fixture.invalid/me", id: id, login: login}}
+placements:
+  hosted:
+    auth: delegated
+operations:
+  credits.spend:
+    description: Spend credits on one job.
+    verb: write
+    scopes: [credits.spend]
+    target:
+      template: {"$argument": "/job"}
+    cost: {per: request, source: docs}
+    result_fields: [job]
+    provider_scopes: ["credits:write"]
+  credits.note:
+    description: Note one job.
+    verb: write
+    scopes: [credits.note]
+    target:
+      template: {"$argument": "/job"}
+    result_fields: [job]
+    provider_scopes: ["credits:write"]
+"#;
+
+impl Fixture {
+    /// A project holding [`CREDITS`] under the grant `grant_a`, with a step
+    /// for each of its operations.
+    fn credits() -> Self {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("connectors/fixture/credits");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("connector.yaml"), CREDITS).unwrap();
+        let declared = runx_parser::ConnectorRequirement {
+            operations: ["credits.spend", "credits.note"]
+                .into_iter()
+                .filter_map(|name| runx_contracts::connector::OperationName::new(name.to_owned()))
+                .collect(),
+            manifest_digest: None,
+            choose: None,
+            from: Vec::new(),
+        };
+        let steps = ["spend", "note"]
+            .into_iter()
+            .map(|id| {
+                let step = WorkflowStep {
+                    id: id.to_owned(),
+                    kind: runx_parser::StepKind::Operation(runx_parser::OperationStepTarget {
+                        requirement: "fixture/credits".to_owned(),
+                        operation: runx_contracts::connector::OperationName::new(format!(
+                            "credits.{id}"
+                        )),
+                        from: Vec::new(),
+                        declared: Some(declared.clone()),
+                        loaded: None,
+                    }),
+                    artifacts: None,
+                    outputs: None,
+                    inputs: JsonObject::new(),
+                    bindings: Vec::new(),
+                    act: None,
+                    context_skills: Vec::new(),
+                    when: None,
+                    guard: Vec::new(),
+                    retry_unknown_outcomes: false,
+                    effects: None,
+                    reach: None,
+                };
+                (id.to_owned(), step)
+            })
+            .collect();
+        let env = BTreeMap::from([
+            (
+                crate::HOSTED_API_BASE_URL_ENV.to_owned(),
+                BASE_URL.to_owned(),
+            ),
+            (
+                crate::HOSTED_API_TOKEN_ENV.to_owned(),
+                "rxk_test".to_owned(),
+            ),
+            (
+                crate::paths::RUNX_HOME_ENV.to_owned(),
+                root.path().join("home").to_string_lossy().into_owned(),
+            ),
+            (
+                crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
+                root.path().join("receipts").to_string_lossy().into_owned(),
+            ),
+        ]);
+        let provider = Provider::new(Answer::Succeed);
+        let effect = OperationEffect::with_http_transport(provider.clone());
+        let fixture = Self {
+            root,
+            steps,
+            env,
+            run_id: "run-1",
+            provider,
+            effect,
+        };
+        let connector = crate::kernel::connectors::ConnectorScope::at(fixture.root.path())
+            .unwrap()
+            .connector("fixture/credits")
+            .unwrap();
+        fixture.provider.grant(
+            "grant_a",
+            &connector,
+            &["credits.spend".to_owned(), "credits.note".to_owned()],
+        );
+        crate::kernel::setup::confirm_grant_over(
+            &Instances::new(
+                KernelStore::for_project(&crate::paths::RunxPaths::resolve(
+                    &fixture.env,
+                    fixture.root.path(),
+                ))
+                .unwrap(),
+            ),
+            &connector,
+            Arc::new(fixture.provider.clone()),
+            "grant_a",
+            &fixture.env,
+            fixture.root.path(),
+        )
+        .unwrap();
+        fixture
+    }
+
+    /// Admit the step `step` and prepare it under a person who answers as
+    /// `actor`: the gates the person was shown, and whether it may run.
+    fn gated(
+        &self,
+        step: &str,
+        run_authority: Option<&crate::RunAuthority>,
+        held_by_effects: bool,
+        actor: Option<ResolutionResponseActor>,
+    ) -> (Vec<runx_contracts::ApprovalGate>, bool) {
+        let inputs: JsonObject = serde_json::from_value(serde_json::json!({
+            "idempotency_key": "job-1-call",
+            "input": {"job": "job-1"},
+        }))
+        .unwrap();
+        let admission = self
+            .admit_held(step, &inputs, run_authority, held_by_effects)
+            .unwrap();
+        let mut host = Approver::new(actor);
+        let ready = matches!(
+            self.prepare(step, admission, &mut host).unwrap(),
+            EffectPreparationOutcome::Ready(_)
+        );
+        let gates = host
+            .requests
+            .into_iter()
+            .filter_map(|request| match request {
+                ResolutionRequest::Approval { gate, .. } => Some(*gate),
+                _ => None,
+            })
+            .collect();
+        (gates, ready)
+    }
+}
+
+/// The type of each reason a gate carries, when it carries more than one.
+fn reasons(gate: &runx_contracts::ApprovalGate) -> Vec<String> {
+    gate.summary
+        .as_ref()
+        .and_then(|summary| summary.get("reasons"))
+        .and_then(JsonValue::as_array)
+        .map(|reasons| {
+            reasons
+                .iter()
+                .filter_map(|reason| reason.as_object()?.get("type")?.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_held_write_that_may_consume_credits_waits_once_on_a_gate_naming_both_reasons() {
+    let fixture = Fixture::credits();
+
+    let (gates, ready) = fixture.gated("spend", None, true, None);
+    assert!(!ready);
+    assert_eq!(gates.len(), 1, "one gate: {gates:?}");
+    let gate = &gates[0];
+    assert_eq!(gate.gate_type.as_deref(), Some("write"));
+    assert_eq!(reasons(gate), ["write", "provider_usage"]);
+    assert!(
+        gate.reason.as_str().contains("effects ask a person"),
+        "{gate:?}"
+    );
+    assert!(
+        gate.reason.as_str().contains("provider-account credits"),
+        "{gate:?}"
+    );
+    assert!(
+        gate.id.as_str().starts_with("operation:sha256:"),
+        "the gate is bound to the call's intent: {gate:?}"
+    );
+
+    // One approval answers each reason the gate carries.
+    let (gates, ready) = fixture.gated("spend", None, true, Some(ResolutionResponseActor::Human));
+    assert!(ready);
+    assert_eq!(gates.len(), 1, "{gates:?}");
+}
+
+#[test]
+fn a_write_with_only_the_floors_reason_or_only_admissions_still_waits() {
+    let fixture = Fixture::credits();
+
+    // The floor's reason alone: a write with no approval of its own.
+    let (gates, ready) = fixture.gated("note", None, true, None);
+    assert!(!ready);
+    assert_eq!(gates.len(), 1, "one gate: {gates:?}");
+    let gate = &gates[0];
+    assert_eq!(gate.gate_type.as_deref(), Some("write"));
+    assert!(
+        reasons(gate).is_empty(),
+        "one reason, named by the gate: {gate:?}"
+    );
+
+    // Admission's alone: the floor did not hold the call.
+    let (gates, ready) = fixture.gated("spend", None, false, None);
+    assert!(!ready);
+    assert_eq!(gates.len(), 1, "one gate: {gates:?}");
+    let gate = &gates[0];
+    assert_eq!(gate.gate_type.as_deref(), Some("provider_usage"));
+    assert!(reasons(gate).is_empty(), "{gate:?}");
+
+    // Neither: nothing waits.
+    let (gates, ready) = fixture.gated("note", None, false, None);
+    assert!(ready);
+    assert!(gates.is_empty(), "{gates:?}");
+}
+
+#[test]
+fn a_use_bound_on_another_instance_leaves_one_gate_naming_both_reasons() {
+    let fixture = Fixture::credits();
+    let actor_ref = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
+    let delegation = |grant: &str, uses: Option<u64>| AttenuationRequest {
+        principal_ref: actor_ref.clone(),
+        resource_ref: Reference::runx(
+            ReferenceType::ConnectorInstance,
+            crate::kernel::instances::instance_id(&["hosted", "fixture/credits", grant])
+                .unwrap()
+                .as_str(),
+        ),
+        resource_family: AuthorityResourceFamily::Connector,
+        verbs: vec![AuthorityVerb::Write],
+        bounds: AuthorityBounds {
+            operations: vec!["fixture/credits/credits.spend".into()],
+            scopes: vec!["credits.spend".into()],
+            targets: vec!["*".into()],
+            uses: uses.map(|total| runx_contracts::AuthorityUseLimit {
+                total: Some(total),
+                per_day: None,
+            }),
+        },
+        expires_at: None,
+    };
+    // The call runs on grant_a's instance, delegated without a use bound;
+    // another instance's delegation bounds its uses.
+    let authority = crate::RunAuthority {
+        actor_ref: Some(actor_ref.clone()),
+        mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
+        delegations: vec![delegation("grant_a", None), delegation("grant_b", Some(3))],
+        ..crate::RunAuthority::default()
+    };
+
+    let (gates, ready) = fixture.gated("spend", Some(&authority), true, None);
+    assert!(!ready);
+    assert_eq!(gates.len(), 1, "one gate: {gates:?}");
+    let gate = &gates[0];
+    assert_eq!(reasons(gate), ["write", "provider_usage"]);
+
+    let (gates, ready) = fixture.gated(
+        "spend",
+        Some(&authority),
+        true,
+        Some(ResolutionResponseActor::Human),
+    );
+    assert!(ready);
+    assert_eq!(gates.len(), 1, "{gates:?}");
 }

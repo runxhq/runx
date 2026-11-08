@@ -25,6 +25,8 @@ pub(super) struct LoadedStepExecutionRequest<'a, A: SkillAdapter> {
     pub(super) attempt: u32,
     pub(super) loaded_skill: Option<LoadedStepSkill>,
     pub(super) admission_refs: Vec<Reference>,
+    /// The floor holds the step's write under `effects: ask`.
+    pub(super) held_by_effects: bool,
     pub(super) host: &'a mut dyn Host,
 }
 
@@ -74,6 +76,7 @@ where
         attempt,
         loaded_skill,
         admission_refs,
+        held_by_effects,
         host,
     } = request;
     let request = StepRunRequest {
@@ -86,6 +89,7 @@ where
         child_act,
         provenance,
         admission_refs,
+        held_by_effects,
         host,
     };
     match loaded_skill {

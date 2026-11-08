@@ -24,15 +24,12 @@ fn command(argv: &[&str]) -> Change {
 }
 
 fn write(connector: &str, operation: &str) -> Change {
-    Change::Write {
-        write: OperationWrite {
-            connector: connector.to_owned(),
-            operation: operation.to_owned(),
-            approved: false,
-            store: false,
-        },
-        payload: JsonValue::Null,
-    }
+    Change::Write(OperationWrite {
+        connector: connector.to_owned(),
+        operation: operation.to_owned(),
+        approved: false,
+        store: false,
+    })
 }
 
 fn edits(paths: &[&str]) -> StandingApproval {
@@ -132,16 +129,20 @@ fn operations_cover_a_write_by_its_name_or_its_connector_and_nothing_local() {
     );
 }
 
-/// An open approval of the floor, as the run records it.
-fn open(gate_type: &str, payload: JsonValue) -> ResolutionRequest {
+/// An open approval of the floor's, as the run records it.
+fn open(
+    gate_type: &str,
+    summary: serde_json::Value,
+    payload: serde_json::Value,
+) -> ResolutionRequest {
     ResolutionRequest::Approval {
-        id: "run/develop/1/gate".into(),
+        id: "run/develop/1".into(),
         gate: Box::new(ApprovalGate {
             id: "develop/1/gate".into(),
             reason: "Approve it".into(),
             gate_type: Some(gate_type.to_owned()),
-            summary: None,
-            payload: Some(payload),
+            summary: serde_json::from_value(summary).ok(),
+            payload: Some(object(payload)),
             payload_artifact: None,
         }),
     }
@@ -156,11 +157,16 @@ fn new_standing_approvals_answer_only_the_floors_open_gates_they_cover()
 -> Result<(), Box<dyn std::error::Error>> {
     let artifacts = tempfile::tempdir()?;
     let reply = [operations(&["slack/thread.reply"])];
+    let local = [StandingApproval {
+        local: true,
+        ..StandingApproval::default()
+    }];
+    // A write the floor holds waits on its call's one gate, of gate type
+    // `write`, naming its connector and operation.
     let held = open(
         "write",
-        object(serde_json::json!({
-            "kind": "operation", "connector": "slack", "operation": "thread.reply", "call": {}
-        })),
+        serde_json::json!({"provider": "slack", "operation": "thread.reply"}),
+        serde_json::json!({"thread_locator": "slack://T123/C456/1", "text": "hi"}),
     );
     assert!(covers(&held, &reply, artifacts.path())?);
     assert!(!covers(
@@ -169,29 +175,34 @@ fn new_standing_approvals_answer_only_the_floors_open_gates_they_cover()
         artifacts.path()
     )?);
     assert!(
-        !covers(
-            &held,
-            &[StandingApproval {
-                local: true,
-                ..StandingApproval::default()
-            }],
-            artifacts.path()
-        )?,
+        !covers(&held, &local, artifacts.path())?,
         "local never answers a held write"
     );
+
+    // A gate that also carries a reason of admission's own is never a
+    // standing approval's.
+    let usage = open(
+        "write",
+        serde_json::json!({
+            "provider": "slack", "operation": "thread.reply",
+            "reasons": [{"type": "write", "reason": "a"}, {"type": "provider_usage", "reason": "b"}],
+        }),
+        serde_json::json!({}),
+    );
+    assert!(!covers(&usage, &reply, artifacts.path())?);
 
     // An operation's own declared approval is never a standing approval's.
     let declared = open(
         "operation",
-        object(serde_json::json!({
-            "kind": "operation", "connector": "slack", "operation": "thread.reply"
-        })),
+        serde_json::json!({"provider": "slack", "operation": "thread.reply"}),
+        serde_json::json!({}),
     );
     assert!(!covers(&declared, &reply, artifacts.path())?);
 
     let edit = open(
         "tool",
-        object(serde_json::json!({"kind": "edit", "files": [{"path": "src/lib.rs"}]})),
+        serde_json::json!({}),
+        serde_json::json!({"kind": "edit", "files": [{"path": "src/lib.rs"}]}),
     );
     assert!(covers(&edit, &[edits(&["src"])], artifacts.path())?);
     assert!(!covers(&edit, &reply, artifacts.path())?);
@@ -213,91 +224,109 @@ fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()>
     Ok(())
 }
 
-#[test]
-fn a_write_is_named_with_whether_it_carries_its_own_approval_or_writes_store()
--> Result<(), Box<dyn std::error::Error>> {
-    let root = tempfile::tempdir()?;
-    copy_dir(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../fixtures/plugins/kernel/connectors/fixture/chat"),
-        &root.path().join("connectors/fixture/chat"),
-    )?;
-    let skill = root.path().join("skill");
-    std::fs::create_dir_all(&skill)?;
-    let env = std::collections::BTreeMap::from([
-        (
-            crate::paths::RUNX_CWD_ENV.to_owned(),
-            root.path().display().to_string(),
-        ),
-        (
-            crate::paths::RUNX_HOME_ENV.to_owned(),
-            root.path().join("home").display().to_string(),
-        ),
-    ]);
-    let target = |requirement: &str, operation: &str| runx_parser::OperationStepTarget {
-        requirement: requirement.to_owned(),
-        operation: runx_contracts::connector::OperationName::new(operation.to_owned()),
-        from: Vec::new(),
-        declared: Some(runx_parser::ConnectorRequirement {
-            operations: runx_contracts::connector::OperationName::new(operation.to_owned())
-                .into_iter()
-                .collect(),
-            manifest_digest: None,
-            choose: None,
+/// A plugin holding the fixture chat connector, and a skill in it.
+struct Plugin {
+    root: tempfile::TempDir,
+    env: std::collections::BTreeMap<String, String>,
+}
+
+impl Plugin {
+    fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        copy_dir(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures/plugins/kernel/connectors/fixture/chat"),
+            &root.path().join("connectors/fixture/chat"),
+        )?;
+        std::fs::create_dir_all(root.path().join("skill"))?;
+        let env = std::collections::BTreeMap::from([
+            (
+                crate::paths::RUNX_CWD_ENV.to_owned(),
+                root.path().display().to_string(),
+            ),
+            (
+                crate::paths::RUNX_HOME_ENV.to_owned(),
+                root.path().join("home").display().to_string(),
+            ),
+        ]);
+        Ok(Self { root, env })
+    }
+
+    /// The write a call of `operation` on `requirement` makes, with `extra`
+    /// call fields.
+    fn write(
+        &self,
+        requirement: &str,
+        operation: &str,
+        extra: serde_json::Value,
+    ) -> Result<Option<OperationWrite>, serde_json::Error> {
+        let name = runx_contracts::connector::OperationName::new(operation.to_owned());
+        let target = runx_parser::OperationStepTarget {
+            requirement: requirement.to_owned(),
+            operation: name.clone(),
             from: Vec::new(),
-        }),
-        loaded: None,
-    };
-    let call = |extra: serde_json::Value| -> Result<JsonObject, serde_json::Error> {
+            declared: Some(runx_parser::ConnectorRequirement {
+                operations: name.into_iter().collect(),
+                manifest_digest: None,
+                choose: None,
+                from: Vec::new(),
+            }),
+            loaded: None,
+        };
         let mut call = serde_json::json!({"idempotency_key": "call-1", "input": {}});
         if let (Some(call), Some(extra)) = (call.as_object_mut(), extra.as_object()) {
             call.extend(extra.clone());
         }
-        serde_json::from_value(call)
-    };
-    let write = |requirement: &str, operation: &str, extra: serde_json::Value| {
-        Ok::<_, serde_json::Error>(crate::kernel::operation::operation_write(
-            &target(requirement, operation),
-            &call(extra)?,
-            &env,
-            &skill,
+        Ok(crate::kernel::operation::operation_write(
+            &target,
+            &serde_json::from_value(call)?,
+            &self.env,
+            &self.root.path().join("skill"),
         ))
-    };
-    let named = |connector: &str, operation: &str, approved: bool, store: bool| {
-        Some(OperationWrite {
-            connector: connector.to_owned(),
-            operation: operation.to_owned(),
-            approved,
-            store,
-        })
-    };
+    }
+}
+
+fn named(connector: &str, operation: &str, approved: bool, store: bool) -> Option<OperationWrite> {
+    Some(OperationWrite {
+        connector: connector.to_owned(),
+        operation: operation.to_owned(),
+        approved,
+        store,
+    })
+}
+
+#[test]
+fn a_write_is_named_with_whether_it_carries_its_own_approval_or_writes_store()
+-> Result<(), Box<dyn std::error::Error>> {
+    let plugin = Plugin::new()?;
+    let none = serde_json::json!({});
 
     // A write with no approval of its own is what `ask` holds.
     assert_eq!(
-        write("fixture/chat", "thread.reply", serde_json::json!({}))?,
+        plugin.write("fixture/chat", "thread.reply", none.clone())?,
         named("fixture/chat", "thread.reply", false, false)
     );
     // An operation's declared approval, or a step's, is its own.
     assert_eq!(
-        write("fixture/chat", "channel.post", serde_json::json!({}))?,
+        plugin.write("fixture/chat", "channel.post", none.clone())?,
         named("fixture/chat", "channel.post", true, false)
     );
     assert_eq!(
-        write(
+        plugin.write(
             "fixture/chat",
             "thread.reply",
-            serde_json::json!({"approval": {"reason": "Approve this reply."}})
+            serde_json::json!({"approval": {"reason": "Approve this reply."}}),
         )?,
         named("fixture/chat", "thread.reply", true, false)
     );
     // A read is no write.
     assert_eq!(
-        write("fixture/chat", "thread.read", serde_json::json!({}))?,
+        plugin.write("fixture/chat", "thread.read", none.clone())?,
         None
     );
     // A store append writes store's streams.
     assert_eq!(
-        write("store", "events.append", serde_json::json!({}))?,
+        plugin.write("store", "events.append", none)?,
         named("store", "events.append", false, true)
     );
     Ok(())

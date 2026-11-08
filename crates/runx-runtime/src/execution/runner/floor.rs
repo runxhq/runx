@@ -4,13 +4,15 @@
 //! run". A change is a step that changes the workspace or runs a process, or
 //! a connector operation that writes.
 //!
-//! Under `effects: allow` nothing waits. Under `ask` a change waits on an
-//! approval carrying exactly what it would do, of gate type `tool` for a
-//! local effect and `write` for an operation's write, unless a standing
-//! approval the person granted covers it. A write that carries an approval
-//! of its own, its operation's or its step's, keeps that one, and a package's
-//! own `store` state is exempt. Under `none` every change is refused, a write
-//! with its own approval and a `store` write included.
+//! Under `effects: allow` nothing waits. Under `ask` a change waits on a
+//! person unless a standing approval the person granted covers it: a local
+//! effect on an approval of gate type `tool` carrying exactly what it would
+//! do, and an operation's write on its call's one gate, which admission opens
+//! bound to the call's intent, of gate type `write`, carrying every reason the
+//! call waits. A write that carries an approval of its own, its operation's
+//! or its step's, keeps that one, and a package's own `store` state is
+//! exempt. Under `none` every change is refused, a write with its own
+//! approval and a `store` write included.
 
 use std::path::Path;
 
@@ -36,6 +38,10 @@ pub(super) enum Admitted {
     Person,
     /// A standing approval the person granted covers it.
     Standing(StandingApproval),
+    /// A write that waits on a person: its call's one gate, which admission
+    /// opens bound to the call's intent, carries the floor's reason with any
+    /// of admission's own.
+    Held,
 }
 
 impl Admitted {
@@ -43,7 +49,7 @@ impl Admitted {
     /// run.
     pub(super) fn reference(&self) -> Result<Option<Reference>, RuntimeError> {
         let mut reference = match self {
-            Self::Free => return Ok(None),
+            Self::Free | Self::Held => return Ok(None),
             Self::Person => Reference::runx(ReferenceType::ScopeAdmission, "approval:person"),
             Self::Standing(entry) => Reference::runx(
                 ReferenceType::ScopeAdmission,
@@ -72,7 +78,7 @@ impl Admitted {
     pub(super) fn standing(&self) -> Option<&StandingApproval> {
         match self {
             Self::Standing(entry) => Some(entry),
-            Self::Free | Self::Person => None,
+            Self::Free | Self::Person | Self::Held => None,
         }
     }
 }
@@ -82,36 +88,11 @@ impl Admitted {
 pub(super) enum Change {
     /// A change to the workspace, or a process runx runs.
     Local(LocalEffect),
-    /// A connector operation's write, with the call it makes.
-    Write {
-        write: OperationWrite,
-        payload: JsonValue,
-    },
+    /// A connector operation's write.
+    Write(OperationWrite),
 }
 
 impl Change {
-    /// The gate a person answers for it.
-    fn gate_type(&self) -> &'static str {
-        match self {
-            Self::Local(_) => "tool",
-            Self::Write { .. } => "write",
-        }
-    }
-
-    /// What the person is asked: the command it runs, the files it changes,
-    /// or the operation it calls.
-    fn reason(&self) -> String {
-        match self {
-            Self::Local(effect) => match &effect.argv {
-                Some(argv) => format!("Run {}", argv.join(" ")),
-                None => format!("Change {}", effect.paths.join(", ")),
-            },
-            Self::Write { write, .. } => {
-                format!("Call {}/{}", write.connector, write.operation)
-            }
-        }
-    }
-
     /// Why the run refuses it under `effects: none`.
     fn refused(&self) -> String {
         let what = match self {
@@ -119,38 +100,39 @@ impl Change {
                 Some(argv) => format!("running {}", argv.join(" ")),
                 None => format!("changing {}", effect.paths.join(", ")),
             },
-            Self::Write { write, .. } => {
-                format!("the {}/{} write", write.connector, write.operation)
-            }
+            Self::Write(write) => format!("the {}/{} write", write.connector, write.operation),
         };
         format!("the run's effects are none, so it changes nothing: {what} is refused")
-    }
-
-    /// Why a change the person was asked about no longer runs.
-    fn changed(&self) -> String {
-        match self {
-            Self::Local(effect) => match &effect.argv {
-                Some(argv) => format!(
-                    "{} changed after the person was asked to approve it",
-                    argv.join(" ")
-                ),
-                None => format!(
-                    "{} changed after the person was asked to approve the change; read it again",
-                    effect.paths.join(", ")
-                ),
-            },
-            Self::Write { write, .. } => format!(
-                "the {}/{} call changed after the person was asked to approve it",
-                write.connector, write.operation
-            ),
-        }
     }
 
     fn verb(&self) -> AuthorityVerb {
         match self {
             Self::Local(_) => AuthorityVerb::Execute,
-            Self::Write { .. } => AuthorityVerb::Write,
+            Self::Write(_) => AuthorityVerb::Write,
         }
+    }
+}
+
+/// What the person is asked of a local effect: the command it runs, or the
+/// files it changes.
+fn reason(effect: &LocalEffect) -> String {
+    match &effect.argv {
+        Some(argv) => format!("Run {}", argv.join(" ")),
+        None => format!("Change {}", effect.paths.join(", ")),
+    }
+}
+
+/// Why a local effect the person was asked about no longer runs.
+fn changed(effect: &LocalEffect) -> String {
+    match &effect.argv {
+        Some(argv) => format!(
+            "{} changed after the person was asked to approve it",
+            argv.join(" ")
+        ),
+        None => format!(
+            "{} changed after the person was asked to approve the change; read it again",
+            effect.paths.join(", ")
+        ),
     }
 }
 
@@ -185,13 +167,16 @@ pub(super) fn hold<A>(
     if let Some(entry) = covering(&change, standing) {
         return Ok(Admitted::Standing(entry.clone()));
     }
-    let gate_type = change.gate_type();
-    let gate_id = format!("{}/{gate_type}", step.id);
+    let effect = match change {
+        Change::Local(effect) => effect,
+        Change::Write(_) => return Ok(Admitted::Held),
+    };
+    let gate_id = format!("{}/tool", step.id);
     let request_id = options.run.address(&gate_id);
     let mut gate = ApprovalGate {
         id: gate_id.into(),
-        reason: change.reason().into(),
-        gate_type: Some(gate_type.to_owned()),
+        reason: reason(&effect).into(),
+        gate_type: Some("tool".to_owned()),
         summary: Some(JsonObject::from([(
             "step".to_owned(),
             JsonValue::String(step.id.clone()),
@@ -199,34 +184,30 @@ pub(super) fn hold<A>(
         payload: None,
         payload_artifact: None,
     };
-    let stale = change.changed();
-    let payload = match &change {
-        Change::Local(effect) => effect.payload.clone(),
-        Change::Write { payload, .. } => payload.clone(),
-    };
+    let stale = changed(&effect);
     crate::approval::carry_payload(
         &mut gate,
-        payload,
+        effect.payload,
         &crate::paths::RunxPaths::resolve(&options.env, workflow_dir).artifacts(),
         options.run.run_id(),
     )
-    .map_err(|message| RuntimeError::effect_state("carrying a change", message))?;
+    .map_err(|message| RuntimeError::effect_state("carrying a local effect", message))?;
     let resolution = match crate::approval::request_approval(host, request_id.clone(), gate.clone())
     {
         Ok(resolution) => resolution,
-        // The change is not the one the person was asked about: a file it
+        // The effect is not the one the person was asked about: a file it
         // changes changed since. What they approved never runs; the call is
         // refused, naming what changed, and its agent reads it again.
         Err(ApprovalError::Runtime(RuntimeError::ContinuationRejected { .. })) => {
             return Err(RuntimeError::AuthorityDenied {
-                verb: change.verb(),
+                verb: AuthorityVerb::Execute,
                 step_id: step.id.clone(),
                 reason: stale,
             });
         }
         Err(error) => {
             return Err(RuntimeError::effect_state(
-                "asking for a change",
+                "asking for a local effect",
                 error.to_string(),
             ));
         }
@@ -234,7 +215,7 @@ pub(super) fn hold<A>(
     match resolution {
         ApprovalResolution::Approved { .. } => Ok(Admitted::Person),
         ApprovalResolution::Denied { reason, .. } => Err(RuntimeError::AuthorityDenied {
-            verb: change.verb(),
+            verb: AuthorityVerb::Execute,
             step_id: step.id.clone(),
             reason: reason.unwrap_or_else(|| format!("the person declined {}", gate.reason)),
         }),
@@ -276,19 +257,7 @@ fn change<A>(
     if effects == Effects::Ask && (write.approved || write.store) {
         return Ok(None);
     }
-    let payload = JsonValue::Object(JsonObject::from([
-        ("kind".to_owned(), JsonValue::String("operation".to_owned())),
-        (
-            "connector".to_owned(),
-            JsonValue::String(write.connector.clone()),
-        ),
-        (
-            "operation".to_owned(),
-            JsonValue::String(write.operation.clone()),
-        ),
-        ("call".to_owned(), JsonValue::Object(inputs.clone())),
-    ]));
-    Ok(Some(Change::Write { write, payload }))
+    Ok(Some(Change::Write(write)))
 }
 
 /// What `step` with `inputs` would change or run, when it is a local effect:
@@ -388,7 +357,7 @@ pub(super) fn covering<'a>(
     approvals: &'a [StandingApproval],
 ) -> Option<&'a StandingApproval> {
     approvals.iter().find(|entry| match change {
-        Change::Write { write, .. } => entry
+        Change::Write(write) => entry
             .operations
             .as_ref()
             .is_some_and(|operations| operations.cover(&write.connector, &write.operation)),
@@ -420,9 +389,11 @@ pub(super) fn covering<'a>(
     })
 }
 
-/// Whether `approvals` cover `request`, an open approval of the floor (gate
-/// type `tool` or `write`), judged by what its payload says the step changes,
-/// runs or calls.
+/// Whether `approvals` cover `request`, an open approval of the floor's: a
+/// local effect's (gate type `tool`), judged by what its payload says the
+/// step changes or runs, or a write's call gate (gate type `write`), judged by
+/// the connector and operation it names, when the floor's is the only reason
+/// it carries. A reason of admission's own is never a standing approval's.
 pub(crate) fn covers(
     request: &ResolutionRequest,
     approvals: &[StandingApproval],
@@ -431,82 +402,83 @@ pub(crate) fn covers(
     let ResolutionRequest::Approval { gate, .. } = request else {
         return Ok(false);
     };
-    if !matches!(gate.gate_type.as_deref(), Some("tool" | "write")) {
-        return Ok(false);
-    }
-    let payload = match (&gate.payload, &gate.payload_artifact) {
-        (Some(payload), _) => payload.clone(),
-        (None, Some(reference)) => crate::services::read_json_artifact(
-            artifacts,
-            &JsonValue::from_serialize(reference).map_err(|error| {
-                RuntimeError::effect_state("reading a change", error.to_string())
-            })?,
-        )
-        .map_err(|message| RuntimeError::effect_state("reading a change", message))?,
-        (None, None) => return Ok(false),
-    };
-    let strings = |value: Option<&JsonValue>| -> Vec<String> {
-        value
-            .and_then(JsonValue::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(JsonValue::as_str)
-                    .map(str::to_owned)
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    let text = |payload: &JsonObject, key: &str| {
-        payload
-            .get(key)
+    let text = |object: Option<&JsonObject>, key: &str| {
+        object
+            .and_then(|object| object.get(key))
             .and_then(JsonValue::as_str)
             .map(str::to_owned)
     };
-    let payload = payload.as_object().cloned().unwrap_or_default();
-    let change = match (
-        gate.gate_type.as_deref(),
-        payload.get("kind").and_then(JsonValue::as_str),
-    ) {
-        (Some("tool"), Some("edit")) => Change::Local(LocalEffect {
-            payload: JsonValue::Null,
-            paths: payload
-                .get("files")
-                .and_then(JsonValue::as_array)
-                .map(|files| {
-                    files
-                        .iter()
-                        .filter_map(|file| file.as_object()?.get("path")?.as_str())
-                        .map(str::to_owned)
-                        .collect()
-                })
-                .unwrap_or_default(),
-            argv: None,
-        }),
-        (Some("tool"), Some("command" | "process")) => Change::Local(LocalEffect {
-            payload: JsonValue::Null,
-            paths: Vec::new(),
-            argv: Some(strings(payload.get("argv"))),
-        }),
-        (Some("write"), Some("operation")) => {
+    match gate.gate_type.as_deref() {
+        Some(crate::kernel::admission::WRITE_GATE) => {
+            let summary = gate.summary.as_ref();
             let (Some(connector), Some(operation)) =
-                (text(&payload, "connector"), text(&payload, "operation"))
+                (text(summary, "provider"), text(summary, "operation"))
             else {
                 return Ok(false);
             };
-            Change::Write {
-                write: OperationWrite {
-                    connector,
-                    operation,
-                    approved: false,
-                    store: false,
-                },
-                payload: JsonValue::Null,
+            if summary.is_some_and(|summary| summary.contains_key("reasons")) {
+                return Ok(false);
             }
+            let write = OperationWrite {
+                connector,
+                operation,
+                approved: false,
+                store: false,
+            };
+            Ok(covering(&Change::Write(write), approvals).is_some())
         }
-        _ => return Ok(false),
-    };
-    Ok(covering(&change, approvals).is_some())
+        Some("tool") => {
+            let payload = match (&gate.payload, &gate.payload_artifact) {
+                (Some(payload), _) => payload.clone(),
+                (None, Some(reference)) => crate::services::read_json_artifact(
+                    artifacts,
+                    &JsonValue::from_serialize(reference).map_err(|error| {
+                        RuntimeError::effect_state("reading a local effect", error.to_string())
+                    })?,
+                )
+                .map_err(|message| RuntimeError::effect_state("reading a local effect", message))?,
+                (None, None) => return Ok(false),
+            };
+            let payload = payload.as_object().cloned().unwrap_or_default();
+            let strings = |value: Option<&JsonValue>| -> Vec<String> {
+                value
+                    .and_then(JsonValue::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(JsonValue::as_str)
+                            .map(str::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            };
+            let effect = match payload.get("kind").and_then(JsonValue::as_str) {
+                Some("edit") => LocalEffect {
+                    payload: JsonValue::Null,
+                    paths: payload
+                        .get("files")
+                        .and_then(JsonValue::as_array)
+                        .map(|files| {
+                            files
+                                .iter()
+                                .filter_map(|file| file.as_object()?.get("path")?.as_str())
+                                .map(str::to_owned)
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    argv: None,
+                },
+                Some("command" | "process") => LocalEffect {
+                    payload: JsonValue::Null,
+                    paths: Vec::new(),
+                    argv: Some(strings(payload.get("argv"))),
+                },
+                _ => return Ok(false),
+            };
+            Ok(covering(&Change::Local(effect), approvals).is_some())
+        }
+        _ => Ok(false),
+    }
 }
 
 #[cfg(test)]

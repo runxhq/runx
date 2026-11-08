@@ -287,7 +287,11 @@ fn a_provider_write_with_no_approval_of_its_own_waits_on_a_person_under_ask() ->
     })?;
     assert_eq!(approval["gate"]["type"], "write", "{replied}");
     assert_eq!(
-        approval["gate"]["payload"]["operation"], "thread.reply",
+        approval["gate"]["summary"]["operation"], "thread.reply",
+        "{replied}"
+    );
+    assert_eq!(
+        approval["gate"]["payload"]["text"], "No approval of its own.",
         "the person sees the exact call: {replied}"
     );
     assert_eq!(sent, Vec::<String>::new(), "{replied}");
