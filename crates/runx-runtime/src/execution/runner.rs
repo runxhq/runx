@@ -282,22 +282,6 @@ impl RuntimeOptions {
 }
 
 impl RuntimeOptions {
-    /// Options for a run in `paths`, sealing under a configured signer, else
-    /// the selected home's own key.
-    pub fn resolve(
-        env: BTreeMap<String, String>,
-        paths: &crate::paths::RunxPaths,
-        run: RunLog,
-    ) -> Result<Self, RuntimeError> {
-        let receipt_signature =
-            RuntimeReceiptSignatureConfig::resolve(&env, paths).map_err(|error| {
-                RuntimeError::ReceiptInvalid {
-                    message: error.to_string(),
-                }
-            })?;
-        Ok(Self::new(env, receipt_signature, run))
-    }
-
     /// Options sealing under `receipt_signature`. The environment's signing
     /// variables are dropped: no step sees the key a run seals under.
     #[must_use]
@@ -1247,6 +1231,17 @@ mod tests {
 
     const TEST_CREATED_AT: &str = "2026-07-24T00:00:00Z";
 
+    /// Options for a run in `paths`, sealing under a configured signer, else
+    /// the selected home's own key.
+    fn resolved_options(
+        env: BTreeMap<String, String>,
+        paths: &RunxPaths,
+        run: crate::execution::run_record::RunLog,
+    ) -> Result<RuntimeOptions, crate::receipts::RuntimeReceiptSigningError> {
+        let receipt_signature = RuntimeReceiptSignatureConfig::resolve(&env, paths)?;
+        Ok(RuntimeOptions::new(env, receipt_signature, run))
+    }
+
     /// Paths whose home is a fresh directory of its own.
     fn fresh_home() -> Result<(tempfile::TempDir, RunxPaths), std::io::Error> {
         let home = tempfile::tempdir()?;
@@ -1265,7 +1260,7 @@ mod tests {
         let (_home, paths) = fresh_home()?;
 
         let (_root, run) = scratch_log("run_options");
-        let error = RuntimeOptions::resolve(env, &paths, run)
+        let error = resolved_options(env, &paths, run)
             .err()
             .ok_or("incomplete signing env unexpectedly succeeded")?;
         assert!(error.to_string().contains("to be set together"));
@@ -1280,14 +1275,14 @@ mod tests {
         let (_home, paths) = fresh_home()?;
 
         let (_root, run) = scratch_log("run_options");
-        let options = RuntimeOptions::resolve(BTreeMap::new(), &paths, run)?;
+        let options = resolved_options(BTreeMap::new(), &paths, run)?;
 
         let issuer = options.receipt_signature.issuer();
         assert_eq!(issuer.issuer_type, ReceiptIssuerType::Local);
         assert!(issuer.kid.starts_with("local-"));
         assert!(paths.local_receipt_key().is_file());
         let (_root, run) = scratch_log("run_options_again");
-        let again = RuntimeOptions::resolve(BTreeMap::new(), &paths, run)?;
+        let again = resolved_options(BTreeMap::new(), &paths, run)?;
         assert_eq!(again.receipt_signature.issuer(), issuer);
         Ok(())
     }
@@ -1310,7 +1305,7 @@ mod tests {
         let (_home, paths) = fresh_home()?;
 
         let (_root, run) = scratch_log("run_options");
-        let error = RuntimeOptions::resolve(env, &paths, run)
+        let error = resolved_options(env, &paths, run)
             .err()
             .ok_or("malformed signing env unexpectedly succeeded")?;
         assert!(
@@ -1341,7 +1336,7 @@ mod tests {
         let (_home, paths) = fresh_home()?;
 
         let (_root, run) = scratch_log("run_options");
-        let options = RuntimeOptions::resolve(env, &paths, run)?;
+        let options = resolved_options(env, &paths, run)?;
 
         assert_eq!(
             options.receipt_signature.issuer().issuer_type,

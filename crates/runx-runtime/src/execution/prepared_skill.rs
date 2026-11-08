@@ -201,11 +201,6 @@ impl PreparedSkillRun {
     }
 
     #[must_use]
-    pub fn digest(&self) -> &str {
-        &self.report.digest
-    }
-
-    #[must_use]
     pub(crate) fn package_digest(&self) -> &str {
         &self.package_digest
     }
@@ -348,19 +343,6 @@ struct PreparedContextPreimage<'a> {
     entry: &'a PreparedEntryProvenance,
     chain: Option<&'a SkillOperatorContextChain>,
     blocked_reason: Option<&'a str>,
-}
-
-pub fn prepare_skill_run(
-    request: SkillRunRequest,
-    selected_runner_name: Option<&str>,
-    entry: PreparedEntryProvenance,
-) -> Result<PreparedSkillRun, SkillRunError> {
-    prepare_skill_run_with_effects(
-        request,
-        selected_runner_name,
-        entry,
-        &crate::RuntimeEffectRegistry::default(),
-    )
 }
 
 pub(crate) fn prepare_skill_run_with_effects(
@@ -835,6 +817,7 @@ mod tests {
 
     use super::*;
     use crate::RunStatus;
+    use crate::execution::orchestrator::LocalOrchestrator;
 
     fn write_manual(directory: &Path, name: &str, body: &str) -> Result<(), Box<dyn Error>> {
         fs::create_dir_all(directory)?;
@@ -882,24 +865,28 @@ mod tests {
     fn prepared_skill_digest_is_deterministic_and_binds_inputs() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
-        let first = prepare_skill_run(
+        let first = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
         )?;
-        let second = prepare_skill_run(
+        let second = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
         )?;
         assert!(first.is_ready());
-        assert_eq!(first.digest(), second.digest());
+        assert_eq!(first.report().digest, second.report().digest);
         let mut changed = request(temp.path());
         changed
             .inputs
             .insert("prompt".to_owned(), JsonValue::String("changed".to_owned()));
-        let changed = prepare_skill_run(changed, None, PreparedEntryProvenance::default())?;
-        assert_ne!(first.digest(), changed.digest());
+        let changed = LocalOrchestrator::default().prepare_skill(
+            changed,
+            None,
+            PreparedEntryProvenance::default(),
+        )?;
+        assert_ne!(first.report().digest, changed.report().digest);
         Ok(())
     }
 
@@ -907,16 +894,17 @@ mod tests {
     fn prepared_skill_rejects_execution_package_drift() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
-        let error = prepare_skill_run(
-            request(temp.path()),
-            None,
-            PreparedEntryProvenance {
-                package_digest: Some("sha256:not-the-package".to_owned()),
-                ..PreparedEntryProvenance::default()
-            },
-        )
-        .err()
-        .ok_or("mismatched execution package digest did not fail closed")?;
+        let error = LocalOrchestrator::default()
+            .prepare_skill(
+                request(temp.path()),
+                None,
+                PreparedEntryProvenance {
+                    package_digest: Some("sha256:not-the-package".to_owned()),
+                    ..PreparedEntryProvenance::default()
+                },
+            )
+            .err()
+            .ok_or("mismatched execution package digest did not fail closed")?;
 
         assert!(error.to_string().contains("skill package digest mismatch"));
         Ok(())
@@ -926,16 +914,17 @@ mod tests {
     fn prepared_skill_rejects_execution_closure_drift() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
-        let error = prepare_skill_run(
-            request(temp.path()),
-            None,
-            PreparedEntryProvenance {
-                execution_closure_digest: Some("sha256:not-the-closure".to_owned()),
-                ..PreparedEntryProvenance::default()
-            },
-        )
-        .err()
-        .ok_or("mismatched execution closure digest did not fail closed")?;
+        let error = LocalOrchestrator::default()
+            .prepare_skill(
+                request(temp.path()),
+                None,
+                PreparedEntryProvenance {
+                    execution_closure_digest: Some("sha256:not-the-closure".to_owned()),
+                    ..PreparedEntryProvenance::default()
+                },
+            )
+            .err()
+            .ok_or("mismatched execution closure digest did not fail closed")?;
 
         assert!(
             error
@@ -971,7 +960,7 @@ mod tests {
             &BTreeMap::new(),
         )?;
         assert!(closure.fully_bound);
-        let prepared = prepare_skill_run(
+        let prepared = LocalOrchestrator::default().prepare_skill(
             request(&entry),
             Some("inspect"),
             PreparedEntryProvenance {
@@ -1004,8 +993,6 @@ mod tests {
     #[test]
     fn bound_continuation_rechecks_execution_closure_without_reapproval()
     -> Result<(), Box<dyn Error>> {
-        use crate::execution::orchestrator::LocalOrchestrator;
-
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
         let error = LocalOrchestrator::default()
@@ -1027,8 +1014,6 @@ mod tests {
 
     #[test]
     fn bound_continuation_persists_closure_for_resume() -> Result<(), Box<dyn Error>> {
-        use crate::execution::orchestrator::LocalOrchestrator;
-
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
         let loaded = crate::load_validated_skill_package(temp.path())?;
@@ -1069,16 +1054,20 @@ mod tests {
     fn prepared_skill_binds_and_reports_managed_agent_consent() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
-        let host_driven = prepare_skill_run(
+        let host_driven = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
         )?;
         let mut inline_request = request(temp.path());
         inline_request.managed_agent = ManagedAgentPolicy::inline(3)?;
-        let inline = prepare_skill_run(inline_request, None, PreparedEntryProvenance::default())?;
+        let inline = LocalOrchestrator::default().prepare_skill(
+            inline_request,
+            None,
+            PreparedEntryProvenance::default(),
+        )?;
 
-        assert_ne!(host_driven.digest(), inline.digest());
+        assert_ne!(host_driven.report().digest, inline.report().digest);
         assert_eq!(inline.report().governance.managed_agent_acts, 1);
         assert!(inline.report().governance.managed_agent_enabled);
         assert_eq!(inline.report().governance.managed_agent_max_rounds, Some(3));
@@ -1095,7 +1084,7 @@ mod tests {
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
 
-        let baseline = prepare_skill_run(
+        let baseline = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
@@ -1103,9 +1092,13 @@ mod tests {
         let mut relocated = request(temp.path());
         relocated.receipt_dir = Some(temp.path().join("other-receipts"));
         relocated.run_id = Some("rx_other".to_owned());
-        let relocated = prepare_skill_run(relocated, None, PreparedEntryProvenance::default())?;
+        let relocated = LocalOrchestrator::default().prepare_skill(
+            relocated,
+            None,
+            PreparedEntryProvenance::default(),
+        )?;
 
-        assert_eq!(baseline.digest(), relocated.digest());
+        assert_eq!(baseline.report().digest, relocated.report().digest);
         assert_ne!(
             baseline.report().request.receipt_dir,
             relocated.report().request.receipt_dir
@@ -1126,7 +1119,7 @@ mod tests {
             "# Prepared",
         )?;
 
-        let prepared = prepare_skill_run(
+        let prepared = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
@@ -1150,7 +1143,11 @@ mod tests {
         let receipt_dir = temp.path().join("receipts");
         let mut request = request(temp.path());
         request.receipt_dir = Some(receipt_dir.clone());
-        let prepared = prepare_skill_run(request, None, PreparedEntryProvenance::default())?;
+        let prepared = LocalOrchestrator::default().prepare_skill(
+            request,
+            None,
+            PreparedEntryProvenance::default(),
+        )?;
         assert_eq!(prepared.report().status, PreparedSkillRunStatus::Blocked);
         assert!(
             prepared
@@ -1206,7 +1203,11 @@ mod tests {
             JsonValue::String(sentinel.to_owned()),
         );
 
-        let prepared = prepare_skill_run(request, None, PreparedEntryProvenance::default())?;
+        let prepared = LocalOrchestrator::default().prepare_skill(
+            request,
+            None,
+            PreparedEntryProvenance::default(),
+        )?;
         assert_eq!(prepared.report().status, PreparedSkillRunStatus::Blocked);
         assert!(prepared.report().refusal_receipt_id.is_some());
         let services =
@@ -1231,7 +1232,7 @@ mod tests {
             temp.path().join("run.yaml"),
             "skill: prepared\nrunners:\n  main:\n    default: true\n    result_from: [call]\n    steps:\n      - id: call\n        tool: missing.tool\n",
         )?;
-        let prepared = prepare_skill_run(
+        let prepared = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
@@ -1273,7 +1274,7 @@ mod tests {
             "skill: prepared\nrunners:\n  main:\n    default: true\n    result_from: [record]\n    steps:\n      - id: record\n        tool: example.record\n",
         )?;
 
-        let prepared = prepare_skill_run(
+        let prepared = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
@@ -1325,7 +1326,7 @@ runners:
 "#,
         )?;
 
-        let prepared = prepare_skill_run(
+        let prepared = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
@@ -1360,7 +1361,7 @@ runners:
 "#,
         )?;
 
-        let prepared = prepare_skill_run(
+        let prepared = LocalOrchestrator::default().prepare_skill(
             request(temp.path()),
             None,
             PreparedEntryProvenance::default(),
@@ -1376,13 +1377,11 @@ runners:
     #[test]
     fn prepared_skill_execution_matches_unprepared_and_rejects_drift() -> Result<(), Box<dyn Error>>
     {
-        use crate::execution::orchestrator::LocalOrchestrator;
-
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
         let orchestrator = LocalOrchestrator::default();
         let baseline_request = request(temp.path());
-        let baseline = orchestrator.run_skill(&baseline_request)?;
+        let baseline = orchestrator.run_skill_with_binding(&baseline_request, None, None, None)?;
         let mut prepared = orchestrator.prepare_skill(
             request(temp.path()),
             None,
@@ -1406,8 +1405,6 @@ runners:
 
     #[test]
     fn prepared_context_binding_does_not_fabricate_human_approval() -> Result<(), Box<dyn Error>> {
-        use crate::execution::orchestrator::LocalOrchestrator;
-
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
         let orchestrator = LocalOrchestrator::default();
@@ -1459,8 +1456,11 @@ runners:
             entry.join("run.yaml"),
             "skill: entry\nrunners:\n  main:\n    default: true\n    result_from: [child]\n    steps:\n      - id: child\n        skill: ./child\n        artifacts:\n          wrap_as: child_result\n",
         )?;
-        let mut prepared =
-            prepare_skill_run(request(&entry), None, PreparedEntryProvenance::default())?;
+        let mut prepared = LocalOrchestrator::default().prepare_skill(
+            request(&entry),
+            None,
+            PreparedEntryProvenance::default(),
+        )?;
         prepared.bind_context()?;
         fs::write(
             child.join("run.yaml"),
@@ -1571,8 +1571,6 @@ runners:
     #[test]
     fn prepared_skill_unprepared_receipt_rejects_forged_internal_env() -> Result<(), Box<dyn Error>>
     {
-        use crate::execution::orchestrator::LocalOrchestrator;
-
         let temp = tempdir()?;
         write_manual(temp.path(), "unprepared", "# Unprepared")?;
         fs::write(
@@ -1584,7 +1582,8 @@ runners:
             PREPARED_CONTEXT_DIGEST_ENV.to_owned(),
             "sha256:forged".to_owned(),
         );
-        let result = LocalOrchestrator::default().run_skill(&request)?;
+        let result =
+            LocalOrchestrator::default().run_skill_with_binding(&request, None, None, None)?;
         let output = serde_json::to_string(&result.output)?;
         assert!(!output.contains("operator_context"));
         assert!(!output.contains("forged"));

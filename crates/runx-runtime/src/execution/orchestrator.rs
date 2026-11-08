@@ -131,12 +131,6 @@ pub struct PackageHarnessRequest {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum RunRequest {
-    Skill(Box<SkillRunRequest>),
-    Harness(HarnessRunRequest),
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct RunResult {
     pub status: RunStatus,
     pub outcome: Option<RunOutcome>,
@@ -226,18 +220,6 @@ impl LocalOrchestrator {
         }
     }
 
-    pub fn run(&self, request: RunRequest) -> Result<RunResult, OrchestratorError> {
-        match request {
-            RunRequest::Skill(request) => self.run_skill(&request),
-            RunRequest::Harness(request) => self.run_harness(&request),
-        }
-    }
-
-    pub fn run_skill(&self, request: &SkillRunRequest) -> Result<RunResult, OrchestratorError> {
-        let output = super::skill_front::execute_skill_run_with_effects(request, &self.effects)?;
-        Ok(output)
-    }
-
     /// Run a skill reached through the registry by `registry_ref`. A runner
     /// the registry sells is bought, not run here: the run is one step that
     /// calls it, and the kernel buys it as it buys any call (S10).
@@ -257,23 +239,6 @@ impl LocalOrchestrator {
             &overrides,
             &self.effects,
         )?)
-    }
-
-    pub fn run_skill_with_runner(
-        &self,
-        request: &SkillRunRequest,
-        runner: &str,
-    ) -> Result<RunResult, OrchestratorError> {
-        let overrides = super::skill_front::SkillRunOverrides {
-            runner: Some(runner.to_owned()),
-            ..Default::default()
-        };
-        let output = super::skill_front::execute_skill_run_with_overrides(
-            request,
-            &overrides,
-            &self.effects,
-        )?;
-        Ok(output)
     }
 
     #[cfg(feature = "mcp")]
@@ -414,10 +379,6 @@ impl LocalOrchestrator {
         Ok(output)
     }
 
-    pub fn run_harness(&self, request: &HarnessRunRequest) -> Result<RunResult, OrchestratorError> {
-        harness_result(self.run_harness_fixture(request)?)
-    }
-
     pub fn run_package_harness(
         &self,
         request: &PackageHarnessRequest,
@@ -500,35 +461,6 @@ fn persist_harness_receipts(
             receipt_dir,
         )?;
     Ok(())
-}
-
-fn harness_result(output: HarnessReplayOutput) -> Result<RunResult, OrchestratorError> {
-    let status = status_from_receipt(&output.receipt);
-    let value = receipt_json(&output.receipt)?;
-    Ok(RunResult {
-        status,
-        outcome: Some(output.receipt.seal.outcome),
-        output: value,
-        receipt_ids: vec![output.receipt.id.to_string()],
-        child_receipt_uris: child_receipt_uris(&output.receipt),
-        pending_requests: Vec::new(),
-        diagnostics: Vec::new(),
-    })
-}
-
-fn status_from_receipt(receipt: &Receipt) -> RunStatus {
-    match receipt.seal.outcome {
-        RunOutcome::Completed => RunStatus::Sealed,
-        _ => RunStatus::Failed,
-    }
-}
-
-fn receipt_json(receipt: &Receipt) -> Result<JsonValue, OrchestratorError> {
-    let value = serde_json::to_value(receipt)
-        .map_err(|source| crate::RuntimeError::json("serializing orchestrated receipt", source))?;
-    serde_json::from_value(value)
-        .map_err(|source| crate::RuntimeError::json("normalizing orchestrated receipt", source))
-        .map_err(Into::into)
 }
 
 fn child_receipt_uris(receipt: &Receipt) -> Vec<String> {

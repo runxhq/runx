@@ -134,7 +134,7 @@ pub use observations::Observations;
 pub use orchestrator::{
     DEFAULT_MANAGED_AGENT_MAX_ROUNDS, HarnessRunRequest, LocalOrchestrator,
     MANAGED_AGENT_MAX_ROUNDS_LIMIT, ManagedAgentPolicy, OrchestratorError, PackageHarnessRequest,
-    ResumeRequest, RunRequest, RunResult, RunStatus, SkillRunRequest, TurnRequest,
+    ResumeRequest, RunResult, RunStatus, SkillRunRequest, TurnRequest,
 };
 pub use paths::{
     RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,

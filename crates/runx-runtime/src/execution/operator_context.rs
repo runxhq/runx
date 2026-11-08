@@ -181,16 +181,6 @@ pub struct SkillOperatorContextTool {
     pub execution_boundary: ExecutionBoundaryObservation,
 }
 
-pub fn load_skill_operator_context_chain(
-    skill_path: &Path,
-    selected_runner_name: Option<&str>,
-    options: SkillOperatorContextOptions,
-) -> Result<SkillOperatorContextChain, SkillRunError> {
-    let loaded = crate::load_validated_skill_package(skill_path)?;
-    load_skill_operator_context_chain_from_package(&loaded, selected_runner_name, options)
-        .map_err(|blocked| blocked.error)
-}
-
 /// A chain that could not be expanded, and the node it stopped at.
 #[derive(Debug)]
 pub(crate) struct BlockedChain {
@@ -839,6 +829,75 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+
+    fn load_skill_operator_context_chain(
+        skill_path: &Path,
+        selected_runner_name: Option<&str>,
+        options: SkillOperatorContextOptions,
+    ) -> Result<SkillOperatorContextChain, SkillRunError> {
+        let loaded = crate::load_validated_skill_package(skill_path)?;
+        load_skill_operator_context_chain_from_package(&loaded, selected_runner_name, options)
+            .map_err(|blocked| blocked.error)
+    }
+
+    /// Every runner of every bundled core skill expands its operator context
+    /// under the effects the CLI runs with, as a run prepares it.
+    #[test]
+    fn every_bundled_core_runner_expands_its_operator_context() -> Result<(), Box<dyn Error>> {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let bundle: serde_json::Value = serde_json::from_str(&fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("bundled-skills.json"),
+        )?)?;
+        let skills = bundle["skills"].as_array().ok_or("bundle omitted skills")?;
+        let effects = RuntimeEffectRegistry::local()?;
+        let mut failures = Vec::new();
+        for entry in skills {
+            let skill_id = entry["skill_id"]
+                .as_str()
+                .ok_or("bundle skill omitted id")?;
+            let name = skill_id
+                .strip_prefix("runx/")
+                .ok_or("bundle skill has foreign publisher")?;
+            let directory = repo_root.join("skills").join(name);
+            let loaded = match crate::load_validated_skill_package(&directory) {
+                Ok(loaded) => loaded,
+                Err(error) => {
+                    failures.push(format!("{name}: {error}"));
+                    continue;
+                }
+            };
+            let Some(manifest) = loaded.manifest() else {
+                continue;
+            };
+            let roots = [repo_root.join("tools"), directory.join("tools")]
+                .into_iter()
+                .filter(|path| path.is_dir())
+                .collect::<Vec<_>>();
+            let mut env = BTreeMap::new();
+            if !roots.is_empty() {
+                env.insert(
+                    "RUNX_TOOL_ROOTS".to_owned(),
+                    std::env::join_paths(roots)?.to_string_lossy().into_owned(),
+                );
+            }
+            for runner_name in manifest.runners.keys() {
+                if let Err(blocked) = load_skill_operator_context_chain_from_package(
+                    &loaded,
+                    Some(runner_name),
+                    SkillOperatorContextOptions::new(env.clone(), repo_root.clone())
+                        .with_effects(effects.clone()),
+                ) {
+                    failures.push(format!("{name}#{runner_name}: {}", blocked.error));
+                }
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "every bundled core runner must expand its operator context:\n{}",
+            failures.join("\n")
+        );
+        Ok(())
+    }
 
     #[test]
     fn operator_context_expands_local_child_agent_runner() -> Result<(), Box<dyn Error>> {

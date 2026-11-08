@@ -25,7 +25,6 @@ mod operator_journeys;
 mod process;
 mod registry;
 mod router;
-mod runx_maintained_skill_admission;
 mod skill;
 mod skill_build_authoring;
 mod support;

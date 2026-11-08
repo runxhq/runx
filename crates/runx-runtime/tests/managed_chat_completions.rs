@@ -280,20 +280,25 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
     ]);
     crate::support::insert_test_signing_env(&mut env);
-    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(3)?,
-    })?;
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
     let output = serde_json::to_value(&result.output)?;
     assert_eq!(output["status"], "sealed", "{output}");
     assert_eq!(output["result"]["status"], "done", "{output}");
@@ -377,20 +382,25 @@ fn the_managed_agent_calls_the_runner_it_loads_and_reads_its_manual_as_guidance(
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
     ]);
     crate::support::insert_test_signing_env(&mut env);
-    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(4)?,
-    })?;
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(4)?,
+        },
+        None,
+        None,
+        None,
+    )?;
     let output = serde_json::to_value(&result.output)?;
     assert_eq!(output["status"], "sealed", "{output}");
     let requests = finish_server(server)?;
@@ -509,20 +519,25 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
     ]);
     crate::support::insert_test_signing_env(&mut env);
-    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: vec![memory],
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(3)?,
-    })?;
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: vec![memory],
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
     let output = serde_json::to_value(&result.output)?;
     assert_eq!(output["status"], "sealed", "{output}");
     let requests = finish_server(server)?;
@@ -598,20 +613,25 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
     ]);
     crate::support::insert_test_signing_env(&mut env);
-    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(3)?,
-    })?;
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
     finish_server(server)?;
     let output = serde_json::to_value(&result.output)?;
     assert_eq!(output["outcome"], "failed", "{output}");
@@ -675,20 +695,25 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
     ]);
     crate::support::insert_test_signing_env(&mut env);
-    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: parent_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(3)?,
-    })?;
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: parent_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
     finish_server(server)?;
     let output = serde_json::to_value(&result.output)?;
     assert_eq!(output["outcome"], "failed", "{output}");
@@ -762,20 +787,25 @@ fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
     ]);
     crate::support::insert_test_signing_env(&mut env);
-    let result = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(temp.path().join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env,
-        cwd: temp.path().to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(3)?,
-    })?;
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env,
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
     let output = serde_json::to_value(&result.output)?;
     assert_eq!(output["status"], "sealed", "{output}");
     assert_eq!(output["result"]["status"], "done", "{output}");
@@ -855,20 +885,25 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
     ]);
     crate::support::insert_test_signing_env(&mut env);
     let receipts = temp.path().join("receipts");
-    let paused = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(receipts.clone()),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::new(),
-        env: env.clone(),
-        cwd: temp.path().to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(3)?,
-    })?;
+    let paused = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(receipts.clone()),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env.clone(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(3)?,
+        },
+        None,
+        None,
+        None,
+    )?;
     let ids = |result: &runx_runtime::RunResult| -> Vec<String> {
         result
             .pending_requests

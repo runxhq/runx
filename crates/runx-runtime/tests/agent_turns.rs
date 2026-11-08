@@ -187,23 +187,28 @@ impl Paused {
         managed_agent: ManagedAgentPolicy,
     ) -> TestResult<Self> {
         let receipts = root.join("receipts");
-        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: None,
-            skill_path: skill_dir,
-            receipt_dir: Some(receipts.clone()),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::from([(
-                "question".to_owned(),
-                JsonValue::String("what digests?".to_owned()),
-            )]),
-            env: env(root),
-            cwd: root.to_path_buf(),
-            managed_agent,
-        })?;
+        let started = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill_dir,
+                receipt_dir: Some(receipts.clone()),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::from([(
+                    "question".to_owned(),
+                    JsonValue::String("what digests?".to_owned()),
+                )]),
+                env: env(root),
+                cwd: root.to_path_buf(),
+                managed_agent,
+            },
+            None,
+            None,
+            None,
+        )?;
         assert_eq!(requests(&started)?, [turn]);
         Ok(Self {
             root: root.to_path_buf(),
@@ -1045,23 +1050,28 @@ fn start_bounded(
     skill_dir: PathBuf,
     authority: runx_runtime::RunAuthority,
 ) -> TestResult<RunResult> {
-    Ok(LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: Some(authority),
-        act: None,
-        skill_path: skill_dir,
-        receipt_dir: Some(root.join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::from([(
-            "question".to_owned(),
-            JsonValue::String("what digests?".to_owned()),
-        )]),
-        env: env(root),
-        cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
-    })?)
+    Ok(LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: Some(authority),
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([(
+                "question".to_owned(),
+                JsonValue::String("what digests?".to_owned()),
+            )]),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?)
 }
 
 fn opened(root: &Path, started: &RunResult) -> TestResult<TurnSession> {
@@ -1228,20 +1238,25 @@ fn run_page_fixture(
 ) -> TestResult<RunResult> {
     let mut authority = bounded(None, None);
     authority.agent_bounds = agent;
-    Ok(LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: Some(authority),
-        act: None,
-        skill_path: skill,
-        receipt_dir: Some(root.join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs,
-        env: env(root),
-        cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
-    })?)
+    Ok(LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: Some(authority),
+            act: None,
+            skill_path: skill,
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs,
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?)
 }
 
 #[test]

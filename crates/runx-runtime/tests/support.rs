@@ -201,12 +201,12 @@ pub(crate) fn bind_resume(
     run_id: &str,
     unbound: serde_json::Value,
 ) -> Result<runx_contracts::ResumeDocument, Box<dyn std::error::Error>> {
-    let waiting = runx_runtime::run_record::paused_requests(env, cwd, run_id)?;
+    let waiting = runx_runtime::run_record::read_run(env, cwd, run_id, None)?.waiting;
     let digest = |address: &str| {
         waiting
             .iter()
-            .find(|request| request.id == address)
-            .map(|request| serde_json::Value::String(request.digest.clone()))
+            .find(|request| request.address.as_str() == address)
+            .map(|request| serde_json::Value::String(request.request_digest.to_string()))
             .ok_or_else(|| format!("run {run_id} waits on no request {address}"))
     };
     let mut bound = serde_json::Map::new();

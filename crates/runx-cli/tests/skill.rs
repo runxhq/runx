@@ -342,7 +342,7 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
         runx_runtime::LocalReceiptStore::new(&receipt_dir).receipt_path(receipt_id)?;
     fs::remove_file(&receipt_path)?;
     assert!(!receipt_path.exists());
-    let replay = runx_runtime::orchestrator::LocalOrchestrator::default().run_skill_with_runner(
+    let replay = runx_runtime::orchestrator::LocalOrchestrator::default().run_skill_with_binding(
         &runx_runtime::orchestrator::SkillRunRequest {
             current_context: Vec::new(),
             historical_context: Vec::new(),
@@ -360,7 +360,9 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
             cwd: root,
             managed_agent: runx_runtime::ManagedAgentPolicy::HostDriven,
         },
-        "approval-graph",
+        Some("approval-graph"),
+        None,
+        None,
     )?;
     assert!(!replay.succeeded());
     assert_eq!(

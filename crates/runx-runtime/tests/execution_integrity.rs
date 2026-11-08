@@ -19,20 +19,25 @@ fn env(root: &Path) -> BTreeMap<String, String> {
 }
 
 fn run(root: &Path, skill: &Path, run_id: Option<&str>) -> TestResult<RunResult> {
-    Ok(LocalOrchestrator::default().run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill.to_path_buf(),
-        receipt_dir: Some(root.join("receipts")),
-        run_id: run_id.map(str::to_owned),
-        answers: None,
-        inputs: BTreeMap::new(),
-        env: env(root),
-        cwd: root.to_path_buf(),
-        managed_agent: Default::default(),
-    })?)
+    Ok(LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill.to_path_buf(),
+            receipt_dir: Some(root.join("receipts")),
+            run_id: run_id.map(str::to_owned),
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env(root),
+            cwd: root.to_path_buf(),
+            managed_agent: Default::default(),
+        },
+        None,
+        None,
+        None,
+    )?)
 }
 
 fn manual(name: &str) -> String {

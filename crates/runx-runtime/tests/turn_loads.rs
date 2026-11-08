@@ -134,22 +134,27 @@ impl Project {
 
     /// Start the session and stop at its turn.
     fn start(&self, skill_dir: PathBuf) -> TestResult<String> {
-        let started = self.orchestrator()?.run_skill(&SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: Some(serde_json::from_value(serde_json::json!({
-                "purpose": "Answer the person's question about the project."
-            }))?),
-            skill_path: skill_dir,
-            receipt_dir: Some(self.root.join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::new(),
-            env: self.env()?,
-            cwd: self.root.clone(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
-        })?;
+        let started = self.orchestrator()?.run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: Some(serde_json::from_value(serde_json::json!({
+                    "purpose": "Answer the person's question about the project."
+                }))?),
+                skill_path: skill_dir,
+                receipt_dir: Some(self.root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: self.env()?,
+                cwd: self.root.clone(),
+                managed_agent: ManagedAgentPolicy::HostDriven,
+            },
+            None,
+            None,
+            None,
+        )?;
         started
             .output
             .as_object()
@@ -750,26 +755,31 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
 /// Run the runx-maintained `revert` skill over `call_ids` of run `run_id`.
 fn revert(project: &Project, run_id: &str, call_ids: &[&str]) -> TestResult<RunResult> {
     let skill = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/revert");
-    Ok(project.orchestrator()?.run_skill(&SkillRunRequest {
-        current_context: Vec::new(),
-        historical_context: Vec::new(),
-        run_authority: None,
-        act: None,
-        skill_path: skill,
-        receipt_dir: Some(project.root.join("receipts")),
-        run_id: None,
-        answers: None,
-        inputs: BTreeMap::from([
-            ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
-            (
-                "call_ids".to_owned(),
-                serde_json::from_value(serde_json::json!(call_ids))?,
-            ),
-        ]),
-        env: project.env()?,
-        cwd: project.root.clone(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
-    })?)
+    Ok(project.orchestrator()?.run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill,
+            receipt_dir: Some(project.root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::from([
+                ("run_id".to_owned(), JsonValue::String(run_id.to_owned())),
+                (
+                    "call_ids".to_owned(),
+                    serde_json::from_value(serde_json::json!(call_ids))?,
+                ),
+            ]),
+            env: project.env()?,
+            cwd: project.root.clone(),
+            managed_agent: ManagedAgentPolicy::HostDriven,
+        },
+        None,
+        None,
+        None,
+    )?)
 }
 
 /// How the run came out: `completed`, or `failed`.

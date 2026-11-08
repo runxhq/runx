@@ -38,12 +38,12 @@ pub use super::operator_context::{
     SkillOperatorContextChain, SkillOperatorContextContextSkill, SkillOperatorContextDocument,
     SkillOperatorContextNode, SkillOperatorContextOptions, SkillOperatorContextPackage,
     SkillOperatorContextRegistry, SkillOperatorContextRunner, SkillOperatorContextStep,
-    SkillOperatorContextTool, load_skill_operator_context_chain,
+    SkillOperatorContextTool,
 };
 pub use super::prepared_skill::{
     PREPARED_SKILL_REPORT_SCHEMA, PreparedEntryProvenance, PreparedGovernanceSummary,
     PreparedInputSummary, PreparedRequestSummary, PreparedSkillRun, PreparedSkillRunReport,
-    PreparedSkillRunStatus, PreparedTraceEntry, prepare_skill_run,
+    PreparedSkillRunStatus, PreparedTraceEntry,
 };
 
 // The canonical public boundary is a bounded result envelope. Full receipts
@@ -121,13 +121,6 @@ pub(crate) struct BoundRun {
     runner: SkillRunnerDefinition,
     package_digest: String,
     execution_closure_digest: Option<String>,
-}
-
-pub(crate) fn execute_skill_run_with_effects(
-    request: &SkillRunRequest,
-    effects: &RuntimeEffectRegistry,
-) -> Result<RunResult, SkillRunError> {
-    execute_skill_run_with_overrides(request, &SkillRunOverrides::default(), effects)
 }
 
 pub(crate) fn execute_skill_run_with_overrides(

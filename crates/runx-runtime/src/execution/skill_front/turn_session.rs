@@ -446,20 +446,25 @@ mod tests {
             skill.join("run.yaml"),
             "skill: turn-demo\ntools: [data.digest]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
         )?;
-        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: None,
-            skill_path: skill,
-            receipt_dir: Some(root.join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::new(),
-            env: env(root),
-            cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
-        })?;
+        let started = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill,
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: env(root),
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::HostDriven,
+            },
+            None,
+            None,
+            None,
+        )?;
         let run_id = started
             .output
             .as_object()
@@ -619,20 +624,25 @@ mod tests {
             skill.join("run.yaml"),
             "skill: asks\nasks: true\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
         )?;
-        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: None,
-            skill_path: skill,
-            receipt_dir: Some(root.join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::new(),
-            env: env(root),
-            cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
-        })?;
+        let started = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill,
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: env(root),
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::HostDriven,
+            },
+            None,
+            None,
+            None,
+        )?;
         let run_id = started
             .output
             .as_object()
@@ -739,20 +749,25 @@ mod tests {
             skill.join("run.yaml"),
             "skill: parent\nskills: [../child]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
         )?;
-        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: None,
-            skill_path: skill,
-            receipt_dir: Some(root.join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::new(),
-            env: env(root),
-            cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
-        })?;
+        let started = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill,
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: env(root),
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::HostDriven,
+            },
+            None,
+            None,
+            None,
+        )?;
         let run_id = started
             .output
             .as_object()
@@ -813,20 +828,25 @@ mod tests {
             skill.join("run.yaml"),
             "skill: files-demo\ntools: [fs.read, fs.write]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
         )?;
-        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: None,
-            skill_path: skill,
-            receipt_dir: Some(root.join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::new(),
-            env: env(root),
-            cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
-        })?;
+        let started = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill,
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: env(root),
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::HostDriven,
+            },
+            None,
+            None,
+            None,
+        )?;
         let run_id = started
             .output
             .as_object()
@@ -868,22 +888,27 @@ mod tests {
             skill.join("run.yaml"),
             "skill: edits-demo\ntools: [fs.edit]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
         )?;
-        let started = LocalOrchestrator::default().run_skill(&SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: Some(serde_json::from_value(
-                serde_json::json!({"agent_bounds": true}),
-            )?),
-            act: None,
-            skill_path: skill,
-            receipt_dir: Some(root.join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: BTreeMap::new(),
-            env: env(root),
-            cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
-        })?;
+        let started = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: Some(serde_json::from_value(
+                    serde_json::json!({"agent_bounds": true}),
+                )?),
+                act: None,
+                skill_path: skill,
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env: env(root),
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::HostDriven,
+            },
+            None,
+            None,
+            None,
+        )?;
         let run_id = started
             .output
             .as_object()

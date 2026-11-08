@@ -1918,16 +1918,6 @@ fn listing(runs: Vec<RunListEntry>) -> RunListing {
     }
 }
 
-/// Every request a paused run in this workspace waits on, by address.
-pub fn paused_requests(
-    env: &std::collections::BTreeMap<String, String>,
-    cwd: &std::path::Path,
-    run_id: &str,
-) -> Result<Vec<PendingRequest>, RunRecordError> {
-    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))?;
-    waiting_requests(&store, validate_run_id(run_id)?)
-}
-
 /// A paused run: what `runx resume` reloads, and what it waits on.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PausedRun {
@@ -1972,36 +1962,6 @@ pub fn paused_run(
         execution_closure_digest: started.execution_closure_digest,
         purchase: started.purchase,
         waiting: waiting_requests(&store, run_id)?,
-    }))
-}
-
-/// A sealed run in this workspace: what ran, under which inputs, and the
-/// graph receipt it sealed.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SealedRun {
-    pub runner: String,
-    pub package_digest: String,
-    pub inputs: JsonObject,
-    pub receipt: Receipt,
-}
-
-pub fn sealed_run(
-    env: &std::collections::BTreeMap<String, String>,
-    cwd: &std::path::Path,
-    run_id: &str,
-) -> Result<Option<SealedRun>, RunRecordError> {
-    let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(env, cwd))?;
-    let Some(record) = RunLog::open(store, validate_run_id(run_id)?)?.load()? else {
-        return Ok(None);
-    };
-    let (Origin::Run(started), Some(sealed)) = (record.origin, record.sealed) else {
-        return Ok(None);
-    };
-    Ok(Some(SealedRun {
-        runner: started.runner,
-        package_digest: started.package_digest,
-        inputs: record.inputs,
-        receipt: sealed.receipt,
     }))
 }
 

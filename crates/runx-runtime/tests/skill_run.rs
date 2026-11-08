@@ -1157,11 +1157,11 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
         string_field(declared_result, "summary"),
         Some("Graph fix authored.")
     );
-    let sealed = runx_runtime::run_record::sealed_run(&BTreeMap::new(), temp.path(), run_id)?
-        .ok_or("the resumed run has no seal in its record")?;
+    let record = runx_runtime::run_record::read_run(&BTreeMap::new(), temp.path(), run_id, None)?;
+    assert_eq!(record.run.state, runx_contracts::RunState::Sealed);
     assert_eq!(
-        sealed.receipt.seal.outcome,
-        runx_contracts::RunOutcome::Completed,
+        record.run.outcome,
+        Some(runx_contracts::RunOutcome::Completed),
         "the run record must agree with the sealed graph receipt"
     );
 
@@ -2143,7 +2143,7 @@ fn native_graph_skill_run_requires_declared_graph_inputs() -> Result<(), Box<dyn
         managed_agent: Default::default(),
     });
     let error = LocalOrchestrator::default()
-        .run_skill(&request)
+        .run_skill_with_binding(&request, None, None, None)
         .err()
         .ok_or("missing required input must refuse before execution")?;
     let runx_runtime::OrchestratorError::SkillRun(
@@ -2257,16 +2257,16 @@ fn native_graph_skill_resume_approves_only_what_the_run_waits_on()
     };
     let pending = run_skill(start.clone())?;
     assert_eq!(pending.status, runx_runtime::RunStatus::NeedsAgent);
-    let request =
-        runx_runtime::run_record::paused_requests(&BTreeMap::new(), temp.path(), &run_id)?
-            .pop()
-            .ok_or("the paused run's approval request is missing")?;
+    let request = runx_runtime::run_record::read_run(&BTreeMap::new(), temp.path(), &run_id, None)?
+        .waiting
+        .pop()
+        .ok_or("the paused run's approval request is missing")?;
     // A person approves only what the run waits on: an approval of any other
     // request, such as one the resume would ask next, is refused.
     let mut resume = start;
     resume.answers = Some(serde_json::from_value(serde_json::json!({
         "approvals": {
-            request.id.clone(): { "request_digest": request.digest.clone(), "approved": true },
+            request.address.as_str(): { "request_digest": request.request_digest.as_str(), "approved": true },
             "a-later-step": { "request_digest": "sha256:not-shown", "approved": true }
         }
     }))?);
@@ -2281,7 +2281,7 @@ fn native_graph_skill_resume_approves_only_what_the_run_waits_on()
     );
     resume.answers = Some(serde_json::from_value(serde_json::json!({
         "approvals": {
-            request.id.clone(): { "request_digest": request.digest.clone(), "approved": true }
+            request.address.as_str(): { "request_digest": request.request_digest.as_str(), "approved": true }
         }
     }))?);
     let resumed = run_skill(resume)?;
@@ -3145,7 +3145,8 @@ fn complete_agent_fixture(
     mut request: SkillRunRequest,
     answers: serde_json::Value,
 ) -> Result<RunResult, Box<dyn std::error::Error>> {
-    let pending = LocalOrchestrator::default().run_skill(&request)?;
+    let pending =
+        LocalOrchestrator::default().run_skill_with_binding(&request, None, None, None)?;
     assert!(!pending.pending_requests.is_empty());
     let pending = serde_json::to_value(&pending.output)?;
     assert_eq!(pending["status"], "needs_agent");
@@ -3158,14 +3159,14 @@ fn complete_agent_fixture(
         answers,
     )?);
     LocalOrchestrator::default()
-        .run_skill(&request)
+        .run_skill_with_binding(&request, None, None, None)
         .map_err(Into::into)
 }
 
 fn run_skill(request: SkillRunRequest) -> Result<RunResult, Box<dyn std::error::Error>> {
     let request = with_test_signing_env(request);
     LocalOrchestrator::default()
-        .run_skill(&request)
+        .run_skill_with_binding(&request, None, None, None)
         .map_err(|error| error.into())
 }
 
@@ -4355,7 +4356,7 @@ fn a_second_driver_of_a_run_never_runs_its_step_again() -> Result<(), Box<dyn st
     let first_request = request.clone();
     let first = std::thread::spawn(move || {
         LocalOrchestrator::default()
-            .run_skill(&first_request)
+            .run_skill_with_binding(&first_request, None, None, None)
             .map(|result| result.succeeded())
             .map_err(|error| error.to_string())
     });
@@ -4366,7 +4367,7 @@ fn a_second_driver_of_a_run_never_runs_its_step_again() -> Result<(), Box<dyn st
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    let second = LocalOrchestrator::default().run_skill(&request);
+    let second = LocalOrchestrator::default().run_skill_with_binding(&request, None, None, None);
     let first = first.join().map_err(|_| "the first driver panicked")?;
 
     assert_eq!(first, Ok(true));
