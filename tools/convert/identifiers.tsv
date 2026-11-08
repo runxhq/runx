@@ -653,6 +653,7 @@ oss	start_sequential_graph_step_indexed	9	graph	start_sequential_workflow_step_i
 oss	succeed_sequential_graph_step_indexed	9	graph	succeed_sequential_workflow_step_indexed		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
 oss	capture_harness_context	8	harness	capture_run_context	the run sense	crates/runx-contracts/src/native_packets/control.rs crates/runx-runtime/src/tool_catalogs/native/data.rs
 oss	child_graph	8	graph	child_workflow		crates/runx-runtime/tests/execution_integrity.rs crates/runx-runtime/tests/policy_approval.rs
+oss	CLOSURE	8	closure	?	a bare word: code or prose, read in place	crates/runx-runtime/src/registry/trust_record.rs
 oss	ExecutionClosureInspector	8	closure	ExecutionClosureInspector	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	graph_run_context	8	graph	workflow_run_context		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/skill_front/graph.rs
 oss	HarnessHttpResponseFixture	8	harness	TestHttpResponseFixture	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/lib.rs
@@ -1231,6 +1232,7 @@ oss	a_case_grant_refuses_a_connector_its_closure_carries_twice	1	closure	a_case_
 oss	a_changed_act_is_held_by_the_unsettled_attempt_of_another	1	hold	a_changed_act_is_held_by_the_unsettled_attempt_of_another	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	a_child_run_holds_the_request_its_parent_step_waits_on	1	hold	a_child_run_holds_the_request_its_parent_step_waits_on	a run waiting: stays	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	a_child_skill_runs_the_runner_its_parent_admitted	1	runner	a_child_skill_runs_the_method_its_parent_admitted		crates/runx-runtime/tests/execution_integrity.rs
+oss	a_closure_digest_leaves_runx_version_out	1	closure	a_closure_digest_leaves_runx_version_out	a package's closure, or English: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	a_composed_runner_returns_its_steps_not_runner_outputs	1	runner	a_composed_method_returns_its_steps_not_method_outputs		crates/runx-parser/tests/parser_turn_limits.rs
 oss	a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement	1	hold	a_connector_whose_credential_only_connect_leases_takes_its_hosted_placement	the lease family	crates/runx-runtime/src/kernel/connector_setup/tests.rs
 oss	a_credential_with_a_local_home_stays_local_though_connect_could_hold_it	1	hold	a_credential_with_a_local_home_stays_local_though_connect_could_lease_it	the lease family	crates/runx-runtime/src/kernel/connector_setup/tests.rs
@@ -1253,6 +1255,7 @@ oss	a_one_turn_runner_hands_its_agent_the_run_inputs	1	runner	a_one_turn_method_
 oss	a_package_below_the_rule_waits_on_trust_once_per_closure	1	closure	a_package_below_the_rule_waits_on_trust_once_per_closure	a package's closure, or English: stays	crates/runx-runtime/tests/turn_loads.rs
 oss	a_packages_tests_read_the_registry_children_its_project_holds	1	hold	a_packages_tests_read_the_registry_children_its_project_holds	English, or a skill's own word: stays	crates/runx-cli/tests/registry.rs
 oss	a_paused_graph_reads_its_original_snapshot_after_process_exit	1	graph	a_paused_workflow_reads_its_original_snapshot_after_process_exit		crates/runx-cli/tests/operator_journeys.rs
+oss	a_project_skill_reaching_only_what_the_turn_reaches_loads_and_the_floor_holds_its_process	1	hold	a_project_skill_reaching_only_what_the_turn_reaches_loads_and_the_floor_holds_its_process	English, or a skill's own word: stays	crates/runx-runtime/tests/turn_trust.rs
 oss	a_publish_refuses_a_closure_record_its_registry_did_not_sign	1	closure	a_publish_refuses_a_closure_record_its_registry_did_not_sign	a package's closure, or English: stays	crates/runx-runtime/tests/skill_run.rs
 oss	a_purchase_credential_is_held_by_runx_alone	1	hold	a_purchase_credential_is_leased_by_runx_alone	the lease family	crates/runx-parser/src/connector/tests.rs
 oss	a_purchase_credential_is_taken_from_the_answer_and_held_per_resource	1	hold	a_purchase_credential_is_taken_from_the_answer_and_leased_per_resource	the lease family	crates/runx-parser/src/connector/tests.rs
@@ -1632,6 +1635,7 @@ oss	the_isolated_harness_carries_the_registry_selection_and_nothing_else	1	harne
 oss	the_managed_agent_calls_the_runner_it_loads_and_reads_its_manual_as_guidance	1	runner	the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance		crates/runx-runtime/tests/managed_chat_completions.rs
 oss	the_run_record_holds_each_step_contract_and_never_its_ephemeral_overlay	1	hold	the_run_record_holds_each_step_contract_and_never_its_ephemeral_overlay	English, or a skill's own word: stays	crates/runx-runtime/src/execution/runner.rs
 oss	tree_runtime_graph	1	graph	tree_runtime_workflow		crates/runx-runtime/tests/receipt_tree.rs
+oss	trust_recorded_in_a_home_holds_for_the_same_closure_from_another_workspace	1	hold,closure	trust_recorded_in_a_home_holds_for_the_same_closure_from_another_workspace	English, or a skill's own word: stays; a package's closure, or English: stays	crates/runx-runtime/tests/turn_trust.rs
 oss	twitter-composes-in-graph	1	graph	twitter-composes-in-workflow		skills/twitter/tests/composes-in-workflow.yaml
 oss	typed_graph_ir_preserves_step_output_contracts	1	graph	typed_workflow_ir_preserves_step_output_contracts		crates/runx-parser/src/graph/validate.rs
 oss	version_listings_page_by_cursor_and_hold_to_their_contract	1	hold	version_listings_page_by_cursor_and_hold_to_their_contract	English, or a skill's own word: stays	crates/runx-runtime/tests/registry_client.rs
