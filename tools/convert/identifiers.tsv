@@ -5,6 +5,7 @@ ausca	harness	32	harness	?	a bare word: code or prose, read in place	contracts/v
 ausca	graph	17	graph	?	a bare word: code or prose, read in place	deploy/resource-release-common.sh runx/skills/agent-inbox/fixtures/create-composes-in-graph.yaml
 ausca	hold	12	hold	?	a bare word: code or prose, read in place	deploy/origin-slots.test.mjs deploy/site-release-common.sh
 ausca	__harness	9	harness	__test	the test sense	services/browser-session/tests/support/worker-entry.ts services/browser-session/tests/worker.test.ts
+ausca	closure	8	closure	closure	a schema or Go dependency closure: stays	catalog/history/README.md deploy/README.md
 ausca	holding	5	hold	?	a bare word: code or prose, read in place	runx/skills/document-ocr/schemas/ocr.output.schema.json scripts/test-resource-release-live-proof.sh
 ausca	stage_runner	5	runner	stage_runner	another runner: stays	runx/skills/async-packages.test.mjs runx/skills/document-analysis/async.mjs
 ausca	BrowserWorkerHarness	4	harness	BrowserWorkerTest	the test sense	services/browser-session/tests/support/workerd.ts services/browser-session/tests/worker.test.ts
@@ -16,10 +17,26 @@ ausca	RUNNER_TEMP	3	runner	RUNNER_TEMP	GitHub Actions' variable: stays	.github/w
 ausca	Harness	2	harness	?	a bare word: code or prose, read in place	services/browser-session/tests/support/provider.ts services/browser-session/tests/worker.test.ts
 ausca	Harness-only	2	harness	Test-only	the test sense	services/browser-session/tests/support/provider.ts services/browser-session/tests/support/worker-entry.ts
 ausca	harness-spine	2	harness	run-spine	the run sense	contracts/vendor/runx/canonical-json/runx-receipt-c14n-v1.oracles.json
+ausca	harnesses	2	harness	tests	the test sense: BUILD.md's skill harnesses and the plans index's link label	BUILD.md docs/plans/README.md
+ausca	held-out	2	hold	held-out	English, or a skill's own word: stays	BUILD.md docs/plans/structured-extraction.md
+ausca	Hold	2	hold	Hold	English: STRATEGY.md:541's 'Hold the account'; ARCHITECTURE.md:92 is the lease sense, rewritten to Lease by hand, not by a row	ARCHITECTURE.md STRATEGY.md
+ausca	agent-inbox-create-composes-in-graph	1	graph	agent-inbox-create-composes-in-workflow		runx/skills/agent-inbox/tests/create-composes-in-graph.yaml
+ausca	agent-inbox-delete-ends-the-held-inbox	1	hold	agent-inbox-delete-ends-the-held-inbox	English, or a skill's own word: stays	runx/skills/agent-inbox/tests/delete.yaml
+ausca	agent-inbox-messages-lists-the-inbox-its-caller-holds	1	hold	agent-inbox-messages-lists-the-inbox-its-caller-holds	English, or a skill's own word: stays	runx/skills/agent-inbox/tests/messages.yaml
+ausca	agent-inbox-messages-refuses-an-inbox-its-caller-does-not-hold	1	hold	agent-inbox-messages-refuses-an-inbox-its-caller-does-not-hold	English, or a skill's own word: stays	runx/skills/agent-inbox/tests/messages-not-held.yaml
+ausca	agent-inbox-read-reads-a-message-the-held-inbox-received	1	hold	agent-inbox-read-reads-a-message-the-held-inbox-received	English, or a skill's own word: stays	runx/skills/agent-inbox/tests/read.yaml
+ausca	browser-session-close-ends-the-held-session	1	hold	browser-session-close-ends-the-held-session	English, or a skill's own word: stays	runx/skills/browser-session/tests/close.yaml
+ausca	browser-session-create-composes-in-graph	1	graph	browser-session-create-composes-in-workflow		runx/skills/browser-session/tests/create-composes-in-graph.yaml
+ausca	document-analysis-analysis-composes-in-graph	1	graph	document-analysis-analysis-composes-in-workflow		runx/skills/document-analysis/tests/analysis-composes-in-graph.yaml
+ausca	document-ocr-ocr-composes-in-graph	1	graph	document-ocr-ocr-composes-in-workflow		runx/skills/document-ocr/tests/ocr-composes-in-graph.yaml
 ausca	execution_closure_digest	1	closure	execution_closure_digest	a package's closure, or English: stays	web/tests/artifact.spec.ts
 ausca	executor_runner	1	runner	executor_method		web/tests/artifact.spec.ts
+ausca	graphs	1	graph	graphs	a dependency graph: stays	CONTRACTS.md
 ausca	held	1	hold	?	a bare word: code or prose, read in place	scripts/buyer-canary.test.mjs
+ausca	Holding	1	hold	Holding	the buyer holds its own capability: English, stays	runx/skills/agent-inbox/SKILL.md
+ausca	media-transcription-transcription-composes-in-graph	1	graph	media-transcription-transcription-composes-in-workflow		runx/skills/media-transcription/tests/transcription-composes-in-graph.yaml
 ausca	runners	1	runner	?	a bare word: code or prose, read in place	.github/workflows/buyer-canary.yml
+ausca	wallet-holding	1	hold	wallet-holding	English, or a skill's own word: stays	DISTRIBUTION.md
 ausca	workerd-harness	1	harness	workerd-test	the test sense	services/browser-session/tests/support/workerd.ts
 cloud	harness	1326	harness	?	a bare word: code or prose, read in place	apps/public-read/src/index.test.ts apps/public-read/src/index.ts
 cloud	runner	813	runner	?	a bare word: code or prose, read in place	apps/web/src/components/skills/SkillExecution.astro apps/web/src/components/skills/SkillOverview.astro
@@ -106,6 +123,7 @@ cloud	BoundClosure	6	closure	BoundClosure	a package's closure, or English: stays
 cloud	graph_blocked	6	graph	workflow_blocked	the plan's name	apps/web/src/content/release/schemas/schemas/skill-output.schema.json packages/api/src/receipts/projection-feed.test.ts
 cloud	heldValueDigest	6	hold	leasedValueDigest	the lease family	packages/api/src/payments/holdings-postgres.ts packages/api/src/payments/holdings.test-support.ts
 cloud	inboxHarness	6	harness	inboxTest	the test sense	packages/auth/src/provider-credential/declared-requests.private.test.ts
+cloud	installRegistryClosure	6	closure	installRegistryClosure	a package's closure, or English: stays	packages/api/src/registry/native-registry.ts packages/registry/src/closure.ts
 cloud	materializeRegistryClosure	6	closure	materializeRegistryClosure	a package's closure, or English: stays	packages/api/src/registry/native-registry.ts packages/registry/src/closure.ts
 cloud	not_held	6	hold	not_held	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts packages/api/src/payments/skills/run-admission.ts
 cloud	PublicSkillHarnessResponse	6	harness	PublicSkillTestResponse	the test sense	packages/api/src/generated/public-protocol-schemas.ts packages/api/src/protocol-artifacts.test.ts
@@ -148,6 +166,8 @@ cloud	runner_ids	4	runner	method_ids		apps/web/src/content/release/schemas/schem
 cloud	runner_inspections	4	runner	method_inspections		apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
 cloud	RunnerInspection	4	runner	MethodInspection		apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
 cloud	runnerNames	4	runner	methodNames		packages/api/src/testing/native-skill-package-materializer.ts packages/registry/src/ingest.ts
+cloud	rx_research_harness_1	4	harness	rx_research_test_1	the test sense	spec/spec.md
+cloud	rx_research_harness_2	4	harness	rx_research_test_2	the test sense	spec/spec.md
 cloud	skill_harness_incomplete	4	harness	skill_test_incomplete	the test sense	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.ts
 cloud	skill_harness_not_declared	4	harness	skill_test_not_declared	the test sense	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.ts
 cloud	user_runner	4	runner	user_method		packages/api/src/registry/verified-runs.test.ts packages/db/src/skill-verified-runs.test.ts
@@ -169,6 +189,8 @@ cloud	harnessCalled	3	harness	testCalled	the test sense	packages/api/src/registr
 cloud	harnessCalls	3	harness	testCalls	the test sense	packages/api/src/registry/publish-routes.test.ts
 cloud	harnessLimit	3	harness	testLimit	the test sense	packages/api/src/public/evidence.ts
 cloud	HELD_DIGEST	3	hold	HELD_DIGEST	English, or a skill's own word: stays	packages/auth/src/provider-credential/declared-requests.private.test.ts
+cloud	hello-graph	3	graph	hello-workflow		spec/spec.md
+cloud	installRegistryClosureFor	3	closure	installRegistryClosureFor	a package's closure, or English: stays	packages/worker/src/native-runtime-service-client.ts
 cloud	keyboardFocusHeld	3	hold	keyboardFocusHeld	English, or a skill's own word: stays	apps/web/src/lib/home/presentation.ts
 cloud	listingRunner	3	runner	listingMethod		packages/api/src/runs/submission.ts
 cloud	MAX_CLOSURE_DEPTH	3	closure	MAX_CLOSURE_DEPTH	a package's closure, or English: stays	packages/registry/src/closure.ts
@@ -204,6 +226,8 @@ cloud	Graphs	2	graph	?	a bare word: code or prose, read in place	apps/web/src/pa
 cloud	harness_context	2	harness	run_context	the run sense	apps/web/src/content/release/schemas/dist/packets/runx/code-plan/work_plan.v1.schema.json apps/web/src/content/release/schemas/schemas/harness-context.schema.json
 cloud	HARNESS_RECORDSET	2	harness	TEST_RECORDSET	the test sense	packages/api/src/public/evidence.ts
 cloud	harness_verified	2	harness	test_verified	the test sense	apps/web/src/content/release/schemas/schemas/registry-binding.schema.json
+cloud	harness-graph	2	harness,graph	test-workflow	the test sense	spec/spec.md
+cloud	harness-sha256	2	harness	test-sha256	the test sense	spec/spec.md
 cloud	harnessCaller	2	harness	testCaller	the test sense	spec/core/run.schema.json
 cloud	harnessCase	2	harness	testCase	the test sense	spec/core/run.schema.json
 cloud	harnessCountsFromMetadata	2	harness	testCountsFromMetadata	the test sense	packages/api/src/public/evidence.ts
@@ -271,6 +295,7 @@ cloud	graph_step_failed	1	graph	workflow_step_failed	the plan's name	apps/web/sr
 cloud	GraphQL	1	graph	GraphQL	another graph: stays	packages/registry/src/fixtures/connectors.json
 cloud	Harness-derived	1	harness	Test-derived	the test sense	packages/registry/src/maturity.ts
 cloud	harness-state	1	harness	test-state	the test sense	apps/web/src/components/skills/SkillEvidence.astro
+cloud	harness-stated	1	harness	test-stated	the test sense	spec/spec.md
 cloud	HarnessContext	1	harness	RunContext	the run sense	apps/web/src/content/release/schemas/schemas/harness-context.schema.json
 cloud	held-1	1	hold	held-1	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts
 cloud	held-2	1	hold	held-2	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts
@@ -367,10 +392,12 @@ frantic	Harness	74	harness	?	a bare word: code or prose, read in place	packages/
 frantic	graph	44	graph	?	a bare word: code or prose, read in place	.github/workflows/ci.yml packages/verifier/src/checks/review-floor.test.ts
 frantic	heldUntil	44	hold	heldUntil	English, or a skill's own word: stays	apps/api/src/review-write-routes.ts packages/db/src/claim-expiry.ts
 frantic	holding	31	hold	?	a bare word: code or prose, read in place	apps/api/src/internal-read-routes.ts packages/core/src/runx-marketplace.ts
+frantic	GRAPH	18	graph	GRAPH	stays for the program: the three sentences name retired runner kinds (GRAPH runner, cli-tool, agent-task), so the consumers lane rewrites them in 0.12 words by hand	docs/agency-skills-bounties.md
 frantic	held_until	18	hold	held_until	English, or a skill's own word: stays	apps/api/src/review-write-routes.ts packages/core/src/effects/board.ts
 frantic	emailVerificationHold	14	hold	emailVerificationHold	English, or a skill's own word: stays	packages/db/src/email-verification-resend.pg.test.ts packages/db/src/signup.test.ts
 frantic	harnessUrl	14	harness	testUrl	the test sense	packages/verifier/src/checks/runx-skill.ts
 frantic	deterministic_holds	12	hold	deterministic_holds	English, or a skill's own word: stays	runx/skills/frantic-operator/tools/frantic/auto-review-context/context.mjs runx/skills/frantic-operator/tools/frantic/auto-review-context/context.test.mjs
+frantic	retention_hold	11	hold	retention_hold	English, or a skill's own word: stays	docs/agency-skills-bounties.md
 frantic	graph-runner	10	graph,runner	workflow-method		runx/skills/frantic-operator/tools/frantic/bounty-batch/batches/agency-skills-wave2.mjs runx/skills/frantic-operator/tools/frantic/bounty-batch/batches/agency-skills-wave3.mjs
 frantic	harness_url	9	harness	test_url	the test sense	packages/verifier/src/checks/runx-skill.ts
 frantic	held_for_human_review	9	hold	held_for_human_review	English, or a skill's own word: stays	apps/api/src/ops-notify.ts packages/db/src/read-models/delivery-review-summary.ts
@@ -396,9 +423,12 @@ frantic	$RUNNER_TEMP	3	runner	$RUNNER_TEMP	another runner: stays	.github/workflo
 frantic	GraphStep	3	graph	WorkflowStep	the plan's name	packages/verifier/src/checks/runx-skill-effects.ts
 frantic	harnesses	3	harness	?	a bare word: code or prose, read in place	runx/skills/frantic-operator/tools/frantic/bounty-batch/batches/agency-skills-wave0.mjs runx/skills/frantic-operator/tools/frantic/bounty-batch/batches/runx-skills-v3.mjs
 frantic	harnessPath	3	harness	testPath	the test sense	packages/verifier/src/checks/runx-skill.ts
+frantic	hold-and-forward	3	hold	hold-and-forward	English, or a skill's own word: stays	.plans/archive/handoffs/v0-launch-readiness.md docs/archive/handoffs/codex-handoff-claims-payments.md
+frantic	Runners	3	runner	Methods	the manifest sense: the broadcast and mirror manuals' '## Runners' list their methods	runx/skills/frantic-broadcast/SKILL.md runx/skills/frantic-mirror/SKILL.md
 frantic	runxSkillHarnessCheck	3	harness	runxSkillTestCheck	the test sense	packages/verifier/src/checks/index.ts packages/verifier/src/checks/runx-skill.ts
 frantic	_claim_held_until	2	hold	_claim_held_until	English, or a skill's own word: stays	packages/db/drizzle/meta/_journal.json packages/db/src/migrations.generated.ts
 frantic	agentHoldsListingBadge	2	hold	agentHoldsListingBadge	English, or a skill's own word: stays	packages/db/src/listing-reward.ts
+frantic	allowed_runners	2	runner	allowed_methods		runx/skills/frantic-broadcast/SKILL.md runx/skills/frantic-broadcast/tests/phase-gate-returns-the-agent-gate.yaml
 frantic	canonicalVendorOperatorDbHarness	2	harness	canonicalVendorOperatorDbTest	the test sense	packages/db/src/vendor-intake.test.ts
 frantic	dependency-advisory-graph	2	graph	dependency-advisory-graph	another graph: stays	runx/skills/frantic-operator/tools/frantic/bounty-batch/batches/runx-skills-v1.mjs
 frantic	graph_receipt	2	graph	workflow_receipt		runx/skills/frantic-operator/tools/frantic/bounty-batch/batches/runx-skills-v1.mjs
@@ -415,17 +445,26 @@ frantic	runnerBlock	2	runner	methodBlock		scripts/run-frantic-operator.mjs
 frantic	signupVerificationHold	2	hold	signupVerificationHold	English, or a skill's own word: stays	packages/db/src/signup.ts
 frantic	venueHomeHolds	2	hold	venueHomeHolds	English, or a skill's own word: stays	runx/skills/frantic-operator/tools/frantic/auto-review-context/context.mjs
 frantic	verifyHarnessUrl	2	harness	verifyTestUrl	the test sense	packages/verifier/src/checks/runx-skill.ts
+frantic	wallet-holding	2	hold	wallet-holding	English, or a skill's own word: stays	.plans/growth-opportunities.md
 frantic	changed-closure	1	closure	changed-closure	a package's closure, or English: stays	packages/db/src/vendor-intake.test.ts
 frantic	closure	1	closure	?	a bare word: code or prose, read in place	runx/skills/frantic-operator/tools/frantic/auto-review-context/context.mjs
+frantic	frantic-operator-pay-holds-an-unready-claim	1	hold	frantic-operator-pay-holds-an-unready-claim	English, or a skill's own word: stays	runx/skills/frantic-operator/tests/pay-holds-an-unready-claim.yaml
 frantic	Graph	1	graph	?	a bare word: code or prose, read in place	scripts/build-og.mjs
 frantic	graphs	1	graph	?	a bare word: code or prose, read in place	packages/verifier/src/checks/runx-skill-effects.ts
 frantic	harness_urls	1	harness	test_urls	the test sense	packages/verifier/src/checks/runx-skill.ts
+frantic	harness-comparability	1	harness	test-comparability	the test sense	.plans/active/demand-strategy-2026-07.md
 frantic	HELD	1	hold	?	a bare word: code or prose, read in place	apps/api/src/ops-notify.ts
+frantic	held-client-funds	1	hold	held-client-funds	English, or a skill's own word: stays	docs/archive/handoffs/codex-handoff-claims-payments.md
 frantic	held-funds	1	hold	held-funds	English, or a skill's own word: stays	packages/db/src/projections/payment-effects.test.ts
 frantic	Hold	1	hold	?	a bare word: code or prose, read in place	apps/api/src/review-write-routes.ts
+frantic	HOLD	1	hold	HOLD	an archived handoff's English: stays	.plans/archive/handoffs/review-onboarding-handoff.md
+frantic	hold-passes	1	hold	hold-passes	English, or a skill's own word: stays	.plans/archive/handoffs/review-onboarding-handoff.md
 frantic	HOLDS	1	hold	?	a bare word: code or prose, read in place	packages/seed/src/cast.ts
+frantic	LangGraph	1	graph	LangGraph	another graph: stays	.plans/growth-opportunities.md
 frantic	mcp-runner	1	runner	mcp-runner	a GitHub handle in test data: stays	packages/db/src/signup.test.ts
+frantic	next_runner	1	runner	next_method		runx/skills/frantic-broadcast/SKILL.md
 frantic	operator-runner	1	runner	operator-method		apps/api/src/internal-read-routes.test.ts
+frantic	plausible-graph	1	graph	plausible-workflow		runx/skills/frantic-operator/references/archive/bounty-board-v0-live.md
 frantic	Runner	1	runner	?	a bare word: code or prose, read in place	packages/db/src/signup.test.ts
 frantic	runner_id	1	runner	method_id		config/runx-frantic-policy.json
 frantic	runner_ids	1	runner	method_ids		config/runx-frantic-policy.json
@@ -434,15 +473,22 @@ frantic	runx-skill-harness	1	harness	runx-skill-test	the test sense	packages/ver
 frantic	verifier-runner	1	runner	verifier-runner	Frantic's verifier job runner: stays	apps/api/src/scheduled.ts
 frantic	why123-harness-fail	1	harness	why123-test-fail	the test sense	packages/db/src/launch-board.ts
 nitrosend	runner	30	runner	?	a bare word: code or prose, read in place	dogfood/inbound-email/bin/run.mjs dogfood/inbound-email/tests/audit-runner.test.ts
+nitrosend	harness-nitrosend-token	17	harness	test-nitrosend-token	the test sense	skills/nitrosend/nitrosend/graph/provider-operation/tests/inbox-read.yaml skills/nitrosend/nitrosend/tests/apply-draft-refuses-intent.yaml
 nitrosend	harness	9	harness	?	a bare word: code or prose, read in place	scripts/editor-battery/support.rb skills/nitrosend/issue-intake/X.yaml
+nitrosend	holds	7	hold	holds	English: stays	AGENTS.md artifacts/aws-marketplace/submission-packet.md
 nitrosend	runners	7	runner	?	a bare word: code or prose, read in place	.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
 nitrosend	sentryRunner	7	runner	sentryMethod		scripts/runx-issue-flow.test.mjs
 nitrosend	agent_act_closed	3	agent_act	turn_closed		skills/nitrosend/issue-intake/X.yaml skills/nitrosend/team-slack/X.yaml
 nitrosend	runner_id	3	runner	method_id		.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
 nitrosend	runner_ids	3	runner	method_ids		.runx/runx-issue-flow.json
 nitrosend	RUNNER_TEMP	3	runner	RUNNER_TEMP	GitHub Actions' variable: stays	scripts/scafld-verify.sh
+nitrosend	Graph	2	graph	Graph	Microsoft Graph, and the flow editor's graph utilities: stays	CONVENTIONS.md artifacts/releases/outreach-sending-2026-10-19.md
+nitrosend	hold	2	hold	hold	English: stays	AGENTS.md artifacts/aws-marketplace/submission-packet.md
+nitrosend	closure	1	closure	closure	English: stays	artifacts/aws-marketplace/buyer-guide.md
 nitrosend	graph	1	graph	?	a bare word: code or prose, read in place	connectors/nitrosend/tools/nitrosend/bulk_import/run.mjs
+nitrosend	harness-authored	1	harness	harness-authored	mcp-authoring-quality's evaluation harness, which drives candidate models: the agent-host sense the plan keeps, so it stays	skills/nitrosend/mcp-authoring-quality/SKILL.md
 nitrosend	held	1	hold	?	a bare word: code or prose, read in place	skills/nitrosend/load-drill/tools/nitrosend/lib/sends.mjs
+nitrosend	nskey_test_harness	1	harness	nskey_test_key	the test sense, but nskey_test_test reads as a typo; it is load-drill's fake API key	skills/nitrosend/load-drill/tests/check-reads-readiness.yaml
 oss	runner	2114	runner	?	a bare word: code or prose, read in place	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
 oss	harness	1143	harness	?	a bare word: code or prose, read in place	.github/workflows/ci.yml .github/workflows/runtime-quality.yml
 oss	graph	1056	graph	?	a bare word: code or prose, read in place	.github/workflows/ci.yml connectors/link/tools/link/payment/link.mjs
