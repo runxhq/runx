@@ -4,7 +4,9 @@
 //! publish included), keeps what is
 //! published, and signs each version with a fixture key the runtime is told
 //! to trust through `RUNX_REGISTRY_KEYS`, scoped to one publisher from this
-//! registry. Cloud's own contract test holds the service side.
+//! registry, and states each version's tier in a signed tier statement
+//! served beside its manifest. Cloud's own contract test holds the service
+//! side.
 //!
 //! Each connection is served on its own thread and read to the end of its
 //! request, with no timeout: a client that stalls stalls only itself.
@@ -23,8 +25,9 @@ use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::signature::KeyPair;
 use runx_contracts::{
-    CopyableCommand, RegistryManifestSignature, RegistryManifestSigner, RegistrySignedManifest,
-    RegistrySubject, RegistrySubjectKind, TrustTier, sha256_prefixed,
+    CopyableCommand, REGISTRY_TIER_STATEMENT_SCHEMA, RegistryManifestSignature,
+    RegistryManifestSigner, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind,
+    RegistryTierStatement, TrustTier, sha256_prefixed,
 };
 use runx_runtime::registry::{RUNX_REGISTRY_KEYS_ENV, RegistryPackageFile};
 use serde_json::{Value, json};
@@ -42,14 +45,21 @@ pub const PUBLISHER: &str = "acme";
 pub const PRINCIPAL_ID: &str = "rxp_fixture_publisher";
 /// The token a publish authenticates with.
 pub const TOKEN: &str = "rxk_fixture_publisher";
+/// When a statement the fixture issues holds: from before any test runs
+/// until long after.
+pub const FRESH: (&str, &str) = ("2026-11-01T00:00:00Z", "2099-01-01T00:00:00Z");
+/// A statement that held once and has expired.
+pub const EXPIRED: (&str, &str) = ("2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z");
 
 /// One version to publish: a package's documents, under a publisher, at a
-/// version and the tier the registry grants it.
+/// version and the tier the registry states for it, and when that statement
+/// holds; none serves no statement, as for a withdrawn version.
 #[derive(Clone, Debug)]
 pub struct Publication<'a> {
     pub publisher: &'a str,
     pub version: &'a str,
     pub trust_tier: TrustTier,
+    pub tier_held: Option<(&'a str, &'a str)>,
     pub markdown: &'a str,
     pub profile: Option<&'a str>,
     pub files: Vec<RegistryPackageFile>,
@@ -69,6 +79,7 @@ impl<'a> Publication<'a> {
             publisher,
             version,
             trust_tier: TrustTier::Community,
+            tier_held: Some(FRESH),
             markdown,
             profile,
             files: Vec::new(),
@@ -247,6 +258,14 @@ impl LoopbackRegistry {
             version,
             package.content_digest.as_str().to_owned(),
         )?;
+        let tier_statement = state(
+            RegistrySubjectKind::Connector,
+            &name,
+            version,
+            package.content_digest.as_str(),
+            trust_tier,
+            FRESH,
+        )?;
         let install_command =
             command(&["runx", "registry", "install", &format!("{name}@{version}")])?;
         let detail = json!({
@@ -280,6 +299,7 @@ impl LoopbackRegistry {
                 "trust_tier": trust_tier,
                 "files": package.files,
                 "signed_manifest": signed_manifest,
+                "tier_statement": tier_statement,
             }),
             detail: detail.clone(),
         };
@@ -358,6 +378,19 @@ fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
         &files,
     )?;
     let reference = format!("{skill_id}@{}", publication.version);
+    let tier_statement = publication
+        .tier_held
+        .map(|held| {
+            state(
+                RegistrySubjectKind::Skill,
+                &skill_id,
+                publication.version,
+                &content_digest,
+                publication.trust_tier,
+                held,
+            )
+        })
+        .transpose()?;
     Ok(json!({
         "skill_id": skill_id,
         "name": name,
@@ -368,8 +401,9 @@ fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
             RegistrySubjectKind::Skill,
             &skill_id,
             publication.version,
-            content_digest,
+            content_digest.clone(),
         )?,
+        "tier_statement": tier_statement,
         "markdown": publication.markdown,
         "profile_document": publication.profile,
         "profile_digest": publication.profile.map(|profile| sha256_prefixed(profile.as_bytes())),
@@ -447,6 +481,45 @@ pub fn sign(
     let signature = key_pair()?.sign(&manifest.signing_payload()?);
     manifest.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
     Ok(manifest)
+}
+
+/// The tier statement the registry serves for one subject's version and
+/// content, held from `held.0` until `held.1`, signed with the fixture key.
+///
+/// # Errors
+///
+/// Returns an error when the statement does not encode.
+pub fn state(
+    kind: RegistrySubjectKind,
+    name: &str,
+    version: &str,
+    content_digest: &str,
+    tier: TrustTier,
+    held: (&str, &str),
+) -> Result<RegistryTierStatement, Error> {
+    let mut statement = RegistryTierStatement {
+        schema: REGISTRY_TIER_STATEMENT_SCHEMA.to_owned(),
+        subject: RegistrySubject {
+            kind,
+            name: name.to_owned(),
+        },
+        version: version.to_owned(),
+        content_digest: content_digest.to_owned(),
+        tier,
+        issued_at: held.0.to_owned(),
+        expires_at: held.1.to_owned(),
+        signer: RegistryManifestSigner {
+            id: SIGNER_ID.to_owned(),
+            key_id: KEY_ID.to_owned(),
+        },
+        signature: RegistryManifestSignature {
+            alg: "ed25519".to_owned(),
+            value: "base64:".to_owned(),
+        },
+    };
+    let signature = key_pair()?.sign(&statement.signing_payload()?);
+    statement.signature.value = format!("base64:{}", URL_SAFE_NO_PAD.encode(signature.as_ref()));
+    Ok(statement)
 }
 
 /// The fixture key's public half, as the trust environment names it.
@@ -892,6 +965,7 @@ fn acquisition(record: &Value) -> Value {
             "version",
             "digest",
             "signed_manifest",
+            "tier_statement",
             "markdown",
             "profile_document",
             "profile_digest",

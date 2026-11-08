@@ -15,6 +15,8 @@ mod publish_package;
 mod refs;
 pub mod resolve;
 pub(crate) mod signature;
+pub(crate) mod tiers;
+pub use tiers::tier_cache;
 mod source_authority;
 mod trust_record;
 mod types;

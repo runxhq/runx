@@ -132,6 +132,10 @@ pub struct RegistrySkillVersion {
     pub digest: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signed_manifest: Option<RegistrySignedManifest>,
+    /// The version's tier, as the registry states it now: signed apart
+    /// from the manifest, and held only until it expires.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier_statement: Option<runx_contracts::RegistryTierStatement>,
     pub markdown: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_document: Option<String>,
@@ -225,6 +229,10 @@ pub struct AcquiredRegistrySkill {
     pub digest: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signed_manifest: Option<RegistrySignedManifest>,
+    /// The version's tier, as the registry states it now: signed apart
+    /// from the manifest, and held only until it expires.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier_statement: Option<runx_contracts::RegistryTierStatement>,
     pub markdown: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_document: Option<String>,

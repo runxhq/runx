@@ -40,7 +40,9 @@ pub struct InstallCandidate {
     pub signed_manifest: Option<RegistrySignedManifest>,
     pub profile_digest: Option<String>,
     pub method_names: Vec<String>,
-    pub trust_tier: Option<TrustTier>,
+    /// The registry's statement of the version's tier, served beside its
+    /// signed manifest.
+    pub tier_statement: Option<runx_contracts::RegistryTierStatement>,
     pub manifest_source_authority: Option<RegistryManifestSourceAuthority>,
 }
 
@@ -54,6 +56,9 @@ pub struct InstallLocalSkillOptions {
     /// The registry keys a signed manifest must verify under
     /// (`registry_keys`).
     pub registry_keys: Vec<RegistryKey>,
+    /// Where a tier statement that holds is kept (`tiers::tier_cache`): the
+    /// home's, and none in a home that fell back.
+    pub tier_statements: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -75,6 +80,8 @@ pub struct InstallLocalSkillResult {
     pub digest: String,
     pub profile_digest: Option<String>,
     pub method_names: Vec<String>,
+    /// The tier the registry's statement gives the version now: `community`
+    /// when none holds. None for the bytes this runtime bundles.
     pub trust_tier: Option<TrustTier>,
     /// The newest published version, when this runx does not read it and
     /// installed this one in its place.
@@ -213,7 +220,7 @@ fn install_skill(
         digest: validated.actual_digest,
         profile_digest: validated.profile_digest,
         method_names: validated.method_names,
-        trust_tier: candidate.trust_tier,
+        trust_tier: validated.trust_tier,
         newest_unread: None,
     })
 }
@@ -362,6 +369,7 @@ fn add_carried_connectors(package_root: &Path, connectors_root: &Path) -> Result
 
 struct ValidatedLocalInstall {
     actual_digest: String,
+    trust_tier: Option<TrustTier>,
     profile_digest: Option<String>,
     method_names: Vec<String>,
     install: ValidatedSkillInstall,
@@ -504,7 +512,7 @@ fn validate_install_candidate(
     options: &InstallLocalSkillOptions,
     bundled: bool,
 ) -> Result<ValidatedLocalInstall, InstallError> {
-    let actual_digest = verify_signed_manifest_anchor(candidate, options, bundled)?;
+    let (actual_digest, trust_tier) = verify_signed_manifest_anchor(candidate, options, bundled)?;
     let profile_digest = validate_candidate_profile_digest(candidate, bundled)?;
     validate_candidate_bundle_digest(candidate)?;
     // The bytes are the ones published; what remains is whether this runx
@@ -513,7 +521,12 @@ fn validate_install_candidate(
         ref_name: exact_package(candidate),
         reason,
     };
-    let origin = install_origin(candidate, &actual_digest, profile_digest.as_deref());
+    let origin = install_origin(
+        candidate,
+        &actual_digest,
+        profile_digest.as_deref(),
+        trust_tier,
+    );
     let install = validate_skill_install(&candidate.markdown, origin)
         .map_err(|error| unreadable(error.to_string()))?;
     let package = validate_registry_skill_package(
@@ -529,6 +542,7 @@ fn validate_install_candidate(
     )?;
     Ok(ValidatedLocalInstall {
         actual_digest,
+        trust_tier,
         profile_digest,
         method_names,
         install,
@@ -537,14 +551,15 @@ fn validate_install_candidate(
 
 /// Checks the candidate's content against the registry's signed envelope (or,
 /// for the bytes this runtime bundles, against nothing but an expected
-/// digest) and returns its manual digest for the install origin. The
-/// envelope signs one digest over every file, so the manual, profile and
-/// package files are all bound by it.
+/// digest) and returns its manual digest for the install origin, with the
+/// tier its served statement gives it, kept when it holds. The envelope
+/// signs one digest over every file, so the manual, profile and package files
+/// are all bound by it.
 fn verify_signed_manifest_anchor(
     candidate: &InstallCandidate,
     options: &InstallLocalSkillOptions,
     bundled: bool,
-) -> Result<String, InstallError> {
+) -> Result<(String, Option<TrustTier>), InstallError> {
     let content_digest = skill_content_digest(
         &candidate.markdown,
         candidate.profile_document.as_deref(),
@@ -568,7 +583,7 @@ fn verify_signed_manifest_anchor(
     let actual_digest = sha256_prefixed(candidate.markdown.as_bytes());
     let Some(manifest) = candidate.signed_manifest.as_ref() else {
         if bundled {
-            return Ok(actual_digest);
+            return Ok((actual_digest, None));
         }
         return Err(InstallError::UnsignedManifest(candidate.package.clone()));
     };
@@ -585,7 +600,24 @@ fn verify_signed_manifest_anchor(
             actual: content_digest,
         });
     }
-    Ok(actual_digest)
+    let tier =
+        candidate
+            .manifest_source_authority
+            .as_ref()
+            .map_or(TrustTier::Community, |source| {
+                super::tiers::accept_served(
+                    candidate.tier_statement.as_ref(),
+                    super::tiers::StatedPackage {
+                        subject: &manifest.subject,
+                        version: &manifest.version,
+                        content_digest: &manifest.content_digest,
+                    },
+                    &options.registry_keys,
+                    source,
+                    options.tier_statements.as_deref(),
+                )
+            });
+    Ok((actual_digest, Some(tier)))
 }
 
 /// The key must be scoped to sign this skill's publisher from the registry
@@ -779,6 +811,7 @@ fn install_origin(
     candidate: &InstallCandidate,
     actual_digest: &str,
     profile_digest: Option<&str>,
+    trust_tier: Option<TrustTier>,
 ) -> SkillInstallOrigin {
     SkillInstallOrigin {
         source: candidate.source.clone(),
@@ -789,7 +822,7 @@ fn install_origin(
         digest: Some(actual_digest.to_owned()),
         profile_digest: profile_digest.map(ToOwned::to_owned),
         method_names: Some(candidate.method_names.clone()),
-        trust_tier: candidate.trust_tier.as_ref().map(trust_tier_string),
+        trust_tier: trust_tier.map(|tier| tier.as_str().to_owned()),
     }
 }
 
@@ -1012,15 +1045,6 @@ fn digest_matches(expected: &str, actual_prefixed: &str) -> bool {
         || actual_prefixed
             .strip_prefix("sha256:")
             .is_some_and(|actual_hex| expected == actual_hex)
-}
-
-fn trust_tier_string(value: &TrustTier) -> String {
-    match value {
-        TrustTier::FirstParty => "first_party",
-        TrustTier::Verified => "verified",
-        TrustTier::Community => "community",
-    }
-    .to_owned()
 }
 
 pub(super) fn unique_suffix() -> String {

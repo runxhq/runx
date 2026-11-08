@@ -387,6 +387,7 @@ fn resolve_registry_skill(
         connectors_root,
         expected_digest: options.expected_digest.map(ToOwned::to_owned),
         registry_keys: crate::registry::registry_keys(env, &paths).map_err(ResolveError::from)?,
+        tier_statements: crate::registry::tiers::tier_cache(&paths),
     };
     let super::Installed {
         package: (candidate, acquisition),

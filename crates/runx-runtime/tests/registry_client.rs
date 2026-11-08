@@ -306,6 +306,7 @@ fn local_install_is_idempotent_and_rejects_conflicts() -> Result<(), Box<dyn std
         connectors_root: temp.path().join("connectors"),
         expected_digest: None,
         registry_keys: registry_keys()?,
+        tier_statements: None,
     };
 
     let first = install_local_skill(&candidate, &options)?;
@@ -343,6 +344,7 @@ fn local_install_accepts_signed_registry_manifest() -> Result<(), Box<dyn std::e
         // A pinned digest is the content digest the registry signs.
         expected_digest: Some(candidate_content_digest(&candidate)?),
         registry_keys: registry_keys()?,
+        tier_statements: None,
     };
 
     let install = install_local_skill(&candidate, &options)?;
@@ -363,6 +365,7 @@ fn non_local_install_requires_signed_registry_manifest() -> Result<(), Box<dyn s
         connectors_root: temp.path().join("connectors"),
         expected_digest: None,
         registry_keys: registry_keys()?,
+        tier_statements: None,
     };
 
     let error = match install_local_skill(&candidate, &options) {
@@ -383,6 +386,7 @@ fn local_install_rejects_bad_expected_digest() -> Result<(), Box<dyn std::error:
         connectors_root: temp.path().join("connectors"),
         expected_digest: Some("sha256:wrong".to_owned()),
         registry_keys: registry_keys()?,
+        tier_statements: None,
     };
 
     let error = match install_local_skill(&candidate, &options) {
@@ -409,6 +413,7 @@ fn a_profile_changed_after_signing_leaves_no_partial_install()
         connectors_root: temp.path().join("connectors"),
         expected_digest: None,
         registry_keys: registry_keys()?,
+        tier_statements: None,
     };
 
     let error = match install_local_skill(&candidate, &options) {
@@ -478,7 +483,7 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
         signed_manifest: None,
         profile_digest: None,
         method_names: vec!["default".to_owned()],
-        trust_tier: Some(TrustTier::Community),
+        tier_statement: None,
         manifest_source_authority: Some(RegistryManifestSourceAuthority::RegistrySource(
             "test-registry".to_owned(),
         )),

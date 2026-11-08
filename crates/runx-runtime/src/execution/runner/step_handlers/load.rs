@@ -100,7 +100,9 @@ where
     if let Some(reason) = revision_refusal(&bound, &load.held) {
         return Err(refused(reason));
     }
-    let tier = bound.identity.tier(None);
+    let tier = bound
+        .identity
+        .tier(stated_tier(&bound.identity, &load.rules, env, &paths));
     let mut bound = bound;
     report_tier(&mut bound.package, tier);
     let what = describe(&bound.package);
@@ -620,6 +622,27 @@ fn agree(
         connectors.push(binding);
     }
     Ok(())
+}
+
+/// A signed package's tier, as its fresh statement gives it, read only when a
+/// rule asks for more than `community` (D30); otherwise none is read, and the
+/// package reads `community`.
+fn stated_tier(
+    identity: &PackageIdentity,
+    rules: &[CatalogRule],
+    env: &BTreeMap<String, String>,
+    paths: &RunxPaths,
+) -> Option<TrustTier> {
+    let PackageIdentity::Signed(signed) = identity else {
+        return None;
+    };
+    rules
+        .iter()
+        .any(|rule| {
+            rule.catalog
+                .is_some_and(|catalog| catalog.trust != TrustTier::Community)
+        })
+        .then(|| crate::registry::tiers::stated_tier(signed, env, paths))
 }
 
 /// Report the tier the load's decision read.

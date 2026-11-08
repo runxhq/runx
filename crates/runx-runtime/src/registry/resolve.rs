@@ -292,6 +292,7 @@ pub fn install_connector(
         connectors_root: paths.added_connectors(),
         expected_content_digest: expected_content_digest.map(ToOwned::to_owned),
         registry_keys: super::registry_keys(env, &paths)?,
+        tier_statements: super::tiers::tier_cache(&paths),
         manifest_source_authority: source_authority,
     };
     let package = |version: &str| -> Result<Option<RegistryConnectorVersion>, ResolveError> {
@@ -402,7 +403,7 @@ fn candidate_from_acquired(
         signed_manifest: acquired.signed_manifest.clone(),
         profile_digest: acquired.profile_digest.clone(),
         method_names: acquired.method_names.clone(),
-        trust_tier: Some(acquired.trust_tier),
+        tier_statement: acquired.tier_statement.clone(),
         manifest_source_authority: Some(source_authority),
     }
 }

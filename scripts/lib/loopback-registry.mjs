@@ -2,8 +2,9 @@
 // built runx: one stateful service speaking the hosted registry's wire
 // contract (the routes runx reads, and the publish route it writes), which
 // keeps what is published and signs each version with a key the runtime is
-// told to trust. It is the Node twin of
-// crates/runx-runtime/tests/registry_fixture.rs, which serves the Rust tests;
+// told to trust, stating each version's tier in a signed tier statement. It
+// is the Node twin of crates/runx-runtime/tests/registry_fixture.rs, which
+// serves the Rust tests;
 // Cloud's own contract test holds the service side.
 //
 // The server runs on a worker thread, so a caller that drives runx with
@@ -14,6 +15,9 @@ import http from "node:http";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 
 const SIGNED_MANIFEST_SCHEMA = "runx.registry.signed_manifest.v1";
+const TIER_STATEMENT_SCHEMA = "runx.registry.tier_statement.v1";
+/** When a statement the registry issues holds: before any run, until long after. */
+const HELD = { issued_at: "2026-11-01T00:00:00Z", expires_at: "2099-01-01T00:00:00Z" };
 const KEY_ID = "runx-loopback-registry-ed25519";
 const SIGNER_ID = "runx-loopback-registry";
 const PRINCIPAL_ID = "rxp_loopback_publisher";
@@ -165,6 +169,7 @@ function serve(defaultPublisher) {
       version,
       digest: sha256Prefixed(request.markdown),
       signed_manifest: signManifest(skillId, version, contentDigest),
+      tier_statement: stateTier(skillId, version, contentDigest, "community"),
       markdown: request.markdown,
       ...(typeof request.profile_document === "string"
         ? {
@@ -254,6 +259,33 @@ function serve(defaultPublisher) {
     };
   }
 
+  function stateTier(name, version, contentDigest, tier) {
+    const unsigned = {
+      content_digest: contentDigest,
+      expires_at: HELD.expires_at,
+      issued_at: HELD.issued_at,
+      schema: TIER_STATEMENT_SCHEMA,
+      signer: { id: SIGNER_ID, key_id: KEY_ID },
+      subject: { kind: "skill", name },
+      tier,
+      version,
+    };
+    // The canonical JSON of the statement without its signature, as the
+    // manifest's: keys in byte order at every level, as written above.
+    const signature = sign(null, Buffer.from(JSON.stringify(unsigned), "utf8"), privateKey);
+    return {
+      schema: TIER_STATEMENT_SCHEMA,
+      subject: unsigned.subject,
+      version,
+      content_digest: contentDigest,
+      tier,
+      issued_at: HELD.issued_at,
+      expires_at: HELD.expires_at,
+      signer: unsigned.signer,
+      signature: { alg: "ed25519", value: `base64:${signature.toString("base64url")}` },
+    };
+  }
+
   server.listen(0, "127.0.0.1", () => {
     parentPort.postMessage({ url: `http://127.0.0.1:${server.address().port}`, publicKeyBase64 });
   });
@@ -266,7 +298,7 @@ const DETAIL_FIELDS = [
 ];
 
 const ACQUISITION_FIELDS = [
-  "skill_id", "name", "version", "digest", "signed_manifest", "markdown", "profile_document",
+  "skill_id", "name", "version", "digest", "signed_manifest", "tier_statement", "markdown", "profile_document",
   "profile_digest", "package_files", "bundle_digest", "method_names", "trust_tier", "publisher",
 ];
 

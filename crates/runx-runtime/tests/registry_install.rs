@@ -67,6 +67,7 @@ fn trusted_signed_manifest_installs() -> Result<(), Box<dyn std::error::Error>> 
             connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             registry_keys: registry_keys()?,
+            tier_statements: None,
         },
     )?;
 
@@ -329,6 +330,7 @@ fn options(root: &std::path::Path) -> Result<InstallLocalSkillOptions, Box<dyn s
         connectors_root: root.join("connectors"),
         expected_digest: None,
         registry_keys: registry_keys()?,
+        tier_statements: None,
     })
 }
 
@@ -347,6 +349,7 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
             connectors_root: temp.path().join("connectors"),
             expected_digest: None,
             registry_keys: registry_keys()?,
+            tier_statements: None,
         },
     )?;
 
@@ -562,6 +565,7 @@ fn registry_install_rejects_out_of_scope_manifest_key() -> Result<(), Box<dyn st
                 &public_key,
                 RegistryKeyScope::Official,
             )?],
+            tier_statements: None,
         },
     ) {
         Ok(_) => return Err("install should fail".into()),
@@ -583,7 +587,6 @@ fn registry_install_rejects_official_key_from_non_official_source()
     let mut candidate = install_candidate()?;
     candidate.package = "runx/echo@1.0.0".to_owned();
     candidate.skill_id = Some("runx/echo".to_owned());
-    candidate.trust_tier = Some(TrustTier::FirstParty);
     candidate.signed_manifest = Some(signed_for(&candidate, "runx/echo")?);
     let error = match install_local_skill(
         &candidate,
@@ -596,6 +599,7 @@ fn registry_install_rejects_official_key_from_non_official_source()
                 &crate::registry_fixture::public_key_base64()?,
                 RegistryKeyScope::Official,
             )?],
+            tier_statements: None,
         },
     ) {
         Ok(_) => return Err("install should fail".into()),
@@ -630,6 +634,7 @@ fn registry_install_accepts_official_source_signature_for_community_skill()
                 &crate::registry_fixture::public_key_base64()?,
                 RegistryKeyScope::Official,
             )?],
+            tier_statements: None,
         },
     )?;
 
@@ -660,6 +665,7 @@ fn registry_install_rejects_third_party_key_outside_publisher_namespace()
                     ),
                 },
             )?],
+            tier_statements: None,
         },
     ) {
         Ok(_) => return Err("install should fail".into()),
@@ -703,6 +709,87 @@ fn an_operator_key_cannot_name_the_official_registry() -> Result<(), Box<dyn std
     Ok(())
 }
 
+/// A version's tier is the registry's statement, verified as its manifest
+/// is: a fresh one is kept in the home and gives the tier; an expired one, one
+/// over other bytes, and one in which an operator key states first_party
+/// give none, so the version reads community.
+#[test]
+fn an_install_reads_its_tier_from_the_statement_served_with_it()
+-> Result<(), Box<dyn std::error::Error>> {
+    let candidate = install_candidate()?;
+    let manifest = candidate.signed_manifest.clone().ok_or("signed")?;
+    let statement = |tier: TrustTier, held: (&str, &str), digest: &str| {
+        crate::registry_fixture::state(
+            RegistrySubjectKind::Skill,
+            "acme/echo",
+            "1.0.0",
+            digest,
+            tier,
+            held,
+        )
+    };
+    let other = format!("sha256:{}", "e".repeat(64));
+    for (served, expected) in [
+        (
+            Some(statement(
+                TrustTier::Verified,
+                crate::registry_fixture::FRESH,
+                &manifest.content_digest,
+            )?),
+            TrustTier::Verified,
+        ),
+        (
+            Some(statement(
+                TrustTier::Verified,
+                crate::registry_fixture::EXPIRED,
+                &manifest.content_digest,
+            )?),
+            TrustTier::Community,
+        ),
+        (
+            Some(statement(
+                TrustTier::Verified,
+                crate::registry_fixture::FRESH,
+                &other,
+            )?),
+            TrustTier::Community,
+        ),
+        (
+            Some(statement(
+                TrustTier::FirstParty,
+                crate::registry_fixture::FRESH,
+                &manifest.content_digest,
+            )?),
+            TrustTier::Community,
+        ),
+        (None, TrustTier::Community),
+    ] {
+        let temp = tempdir()?;
+        let tiers = temp.path().join("home/tiers");
+        let install = install_local_skill(
+            &InstallCandidate {
+                tier_statement: served.clone(),
+                ..candidate.clone()
+            },
+            &InstallLocalSkillOptions {
+                tier_statements: Some(tiers.clone()),
+                ..options(temp.path())?
+            },
+        )?;
+        assert_eq!(install.trust_tier, Some(expected), "{served:?}");
+        let kept = tiers.join(format!(
+            "{}.json",
+            manifest.content_digest.trim_start_matches("sha256:")
+        ));
+        assert_eq!(
+            kept.is_file(),
+            expected == TrustTier::Verified,
+            "{served:?}"
+        );
+    }
+    Ok(())
+}
+
 #[test]
 fn registry_install_rejects_an_unsigned_version() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
@@ -725,6 +812,7 @@ fn install_error(
             connectors_root: temp_path.join("connectors"),
             expected_digest: None,
             registry_keys: registry_keys()?,
+            tier_statements: None,
         },
     ) {
         Ok(_) => Err("install should fail".into()),
@@ -748,7 +836,7 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
         signed_manifest: None,
         profile_digest: None,
         method_names: vec!["default".to_owned()],
-        trust_tier: Some(TrustTier::Community),
+        tier_statement: None,
         manifest_source_authority: Some(RegistryManifestSourceAuthority::RegistrySource(
             "test-registry".to_owned(),
         )),

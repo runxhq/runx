@@ -190,7 +190,7 @@ impl BundledSkill {
             signed_manifest: None,
             profile_digest,
             method_names: self.package.metadata.method_names.clone(),
-            trust_tier: None,
+            tier_statement: None,
             manifest_source_authority: None,
         };
         install_bundled_skill(
@@ -203,6 +203,7 @@ impl BundledSkill {
                 expected_digest: expected_digest.map(str::to_owned),
                 // Bundled bytes are the runtime's own, signed by nothing.
                 registry_keys: Vec::new(),
+                tier_statements: None,
             },
         )
         .map_err(|error| error.to_string())

@@ -215,6 +215,8 @@ pub(crate) mod testing {
     };
 
     pub(crate) const KEY_ID: &str = "runx-test-registry-key";
+    /// The registry the test key signs from.
+    pub(crate) const TEST_REGISTRY: &str = "http://127.0.0.1:9";
     const SEED: [u8; 32] = [11; 32];
 
     fn key_pair() -> Result<ring::signature::Ed25519KeyPair, String> {
@@ -222,7 +224,14 @@ pub(crate) mod testing {
             .map_err(|error| format!("{error:?}"))
     }
 
-    /// `RUNX_REGISTRY_KEYS`, trusting the test key for `publisher`.
+    /// The test key's signature over `payload`.
+    pub(crate) fn sign_bytes(payload: &[u8]) -> Result<Vec<u8>, String> {
+        Ok(key_pair()?.sign(payload).as_ref().to_vec())
+    }
+
+    /// `RUNX_REGISTRY_KEYS`, trusting the test key for `publisher` from a
+    /// loopback registry that no test reaches: a refresh from it is refused
+    /// before anything leaves the machine.
     pub(crate) fn trusting(publisher: &str) -> Result<BTreeMap<String, String>, String> {
         let public_key =
             base64::engine::general_purpose::STANDARD.encode(key_pair()?.public_key().as_ref());
@@ -232,7 +241,7 @@ pub(crate) mod testing {
                 "key_id": KEY_ID,
                 "public_key": public_key,
                 "publisher": publisher,
-                "source": "https://registry.runx-test.invalid",
+                "source": TEST_REGISTRY,
             }])
             .to_string(),
         )]))

@@ -38,6 +38,9 @@ pub struct RegistryConnectorVersion {
     pub trust_tier: TrustTier,
     pub files: Vec<RegistryPackageFile>,
     pub signed_manifest: RegistrySignedManifest,
+    /// The version's tier, as the registry states it now.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier_statement: Option<runx_contracts::RegistryTierStatement>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,6 +52,8 @@ pub struct InstallRegistryConnectorOptions {
     /// The registry keys its signed manifest must verify under
     /// (`registry_keys`).
     pub registry_keys: Vec<RegistryKey>,
+    /// Where a tier statement that holds is kept (`tiers::tier_cache`).
+    pub tier_statements: Option<PathBuf>,
     pub manifest_source_authority: RegistryManifestSourceAuthority,
 }
 
@@ -60,6 +65,8 @@ pub struct InstalledRegistryConnector {
     pub content_digest: Digest,
     pub manifest_digest: Digest,
     pub connector_digest: Digest,
+    /// The tier the registry's statement gives the version now: `community`
+    /// when none holds.
     pub trust_tier: TrustTier,
     pub destination: PathBuf,
     /// The newest published version, when this runx does not read it and
@@ -202,6 +209,17 @@ pub fn install_registry_connector(
         });
     }
     verify_signed_manifest(published, &content_digest, options)?;
+    let tier = super::tiers::accept_served(
+        published.tier_statement.as_ref(),
+        super::tiers::StatedPackage {
+            subject: &published.signed_manifest.subject,
+            version: &published.version,
+            content_digest: content_digest.as_str(),
+        },
+        &options.registry_keys,
+        &options.manifest_source_authority,
+        options.tier_statements.as_deref(),
+    );
     let signature = signature_document(&published.signed_manifest)
         .map_err(|reason| invalid_package(connector_ref, reason))?;
     let marked = |installed: InstalledRegistryConnector| {
@@ -214,7 +232,7 @@ pub fn install_registry_connector(
         crate::kernel::connectors::name_directory(&options.connectors_root, connector_ref);
     let destination = versions.join(&published.version);
     if destination.exists() {
-        return existing_version(published, &content_digest, destination)
+        return existing_version(published, &content_digest, tier, destination)
             .and_then(|installed| signed(installed, published, &signature))
             .and_then(marked);
     }
@@ -225,13 +243,14 @@ pub fn install_registry_connector(
             Ok(()) => Ok(installed(
                 published,
                 content_digest.clone(),
+                tier,
                 loaded,
                 InstallStatus::Installed,
                 &destination,
             )),
             // Another install placed this version first: it must be these files.
             Err(_) if destination.exists() => {
-                existing_version(published, &content_digest, destination.clone())
+                existing_version(published, &content_digest, tier, destination.clone())
                     .and_then(|installed| signed(installed, published, &signature))
             }
             Err(source) => Err(io_error(&destination, source)),
@@ -348,12 +367,14 @@ fn stage(
 fn existing_version(
     published: &RegistryConnectorVersion,
     content_digest: &Digest,
+    tier: TrustTier,
     destination: PathBuf,
 ) -> Result<InstalledRegistryConnector, ConnectorInstallError> {
     match load(published, content_digest, &destination) {
         Ok(loaded) => Ok(installed(
             published,
             content_digest.clone(),
+            tier,
             loaded,
             InstallStatus::Unchanged,
             &destination,
@@ -418,6 +439,7 @@ fn load(
 fn installed(
     published: &RegistryConnectorVersion,
     content_digest: Digest,
+    tier: TrustTier,
     loaded: Loaded,
     status: InstallStatus,
     destination: &Path,
@@ -429,7 +451,7 @@ fn installed(
         content_digest,
         manifest_digest: loaded.manifest_digest,
         connector_digest: loaded.connector_digest,
-        trust_tier: published.trust_tier,
+        trust_tier: tier,
         destination: destination.to_path_buf(),
         newest_unread: None,
     }

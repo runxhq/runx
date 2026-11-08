@@ -267,6 +267,7 @@ fn a_newer_connector_version_installs_beside_its_source() -> Result<(), Box<dyn 
             .ok_or("connector")?,
         version: "9.0.0".to_owned(),
         trust_tier: TrustTier::Verified,
+        tier_statement: None,
         signed_manifest: sign(
             RegistrySubjectKind::Connector,
             "fixture/forge",
@@ -283,6 +284,7 @@ fn a_newer_connector_version_installs_beside_its_source() -> Result<(), Box<dyn 
             &crate::registry_fixture::public_key_base64()?,
             RegistryKeyScope::Official,
         )?],
+        tier_statements: None,
         manifest_source_authority: RegistryManifestSourceAuthority::OfficialRunx,
     };
 
@@ -326,6 +328,7 @@ fn published_version(
         connector: package.connector.clone(),
         version: "1.0.0".to_owned(),
         trust_tier: TrustTier::Community,
+        tier_statement: None,
         signed_manifest: sign(
             RegistrySubjectKind::Connector,
             package.connector.as_str(),
@@ -365,6 +368,7 @@ fn options(
                 source: RegistryManifestSourceAuthority::RegistrySource(SOURCE.to_owned()),
             },
         )?],
+        tier_statements: None,
         manifest_source_authority: RegistryManifestSourceAuthority::RegistrySource(
             SOURCE.to_owned(),
         ),

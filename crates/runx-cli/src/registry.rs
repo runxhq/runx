@@ -244,6 +244,7 @@ fn run_install(
         connectors_root: paths.added_connectors(),
         expected_digest: plan.expected_digest.clone(),
         registry_keys: runx_runtime::registry::registry_keys(env, &paths)?,
+        tier_statements: runx_runtime::registry::tier_cache(&paths),
     };
     let Some(Installed {
         package: (candidate, acquisition),

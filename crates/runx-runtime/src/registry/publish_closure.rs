@@ -188,6 +188,7 @@ impl RecordInstaller {
             connectors_root: paths.added_connectors(),
             expected_digest: None,
             registry_keys: registry_keys(env, &paths)?,
+            tier_statements: super::tiers::tier_cache(&paths),
         };
         Ok(Self {
             source_authority,
@@ -231,7 +232,7 @@ fn candidate_from_record(
         signed_manifest: record.signed_manifest,
         profile_digest: record.profile_digest,
         method_names: record.method_names,
-        trust_tier: Some(record.trust_tier),
+        tier_statement: record.tier_statement,
         manifest_source_authority: Some(source_authority),
     }
 }
