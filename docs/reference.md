@@ -2,7 +2,7 @@
 
 Architecture and contributor reference for the runx OSS repo: the CLI surface,
 the trusted Rust local runtime, generated contracts, extension protocols, SDKs,
-harness, local receipts, registry, runx-maintained skills, and packaging. For the
+tests, local receipts, registry, runx-maintained skills, and packaging. For the
 overview and quickstart, start at the [README](../README.md).
 
 The npm CLI package is `@runxhq/cli` and exposes the `runx` binary.
@@ -24,8 +24,8 @@ On macOS 26, complete the
 if the initial build stalls.
 
 When no signer is configured, local `runx skill` runs sign with the runx home's
-own key. Every `runx harness` case, inline or fixture file, signs with the public
-fixture key whatever signer is configured, so its receipts stay deterministic.
+own key. Every `runx test` test signs with the public fixture key whatever
+signer is configured, so its receipts stay deterministic.
 Publishing and hosted verification require a hosted issuer.
 
 Then inspect the emitted receipt. The full walkthrough is in
@@ -35,8 +35,8 @@ For governed code changes, see [github-issue-to-pr.md](github-issue-to-pr.md).
 
 ## Payment Boundary Proof
 
-Run `runx harness fixtures/skills/mock-pay` for deterministic local simulation and
-`runx harness skills/pay/fixtures/hosted-contract.yaml` for the public hosted
+Run `runx test fixtures/skills/mock-pay` for deterministic local simulation and
+`runx test skills/pay/tests/hosted-contract.yaml` for the public hosted
 contract. The former always records `money_moved: false`; the latter uses
 fixture provider responses and does not prove live settlement. Real rail
 dogfood, credentials, ledger state, recovery, and finality live in Runx Hosted.
@@ -109,7 +109,7 @@ runx history <run-id> --json
 runx verify <receipt-id> --json
 runx mcp ./fixtures/skills/echo
 runx skill ./skills/skill-build#design -i objective="build github review skill"
-runx harness ./examples/hello-graph/harness.yaml
+runx test ./examples/hello-world
 runx config set agent.provider openai
 runx config set agent.model gpt-6-sol
 runx secret set openai
@@ -223,19 +223,20 @@ not hold is refused. A turn's address is the id of the step
 that asks it, as an approval's is its gate. A turn that a call opens in a child
 skill is addressed by the child's place in the run, as in `answer/0#report`,
 and is worked on the same connection. `turn_status` lists the calls a turn may make, one per entry of
-its selected runner's limits (`tools:`, `skills:`, explicit connector operations, and
-`ask_human` when the skill declares `asks: true`), with their input schemas.
-A runner grants direct provider calls with `operations: [posthog/insight.read]`;
-every entry must be an exact requirement/operation declared by the package's
-`connectors:` block. Omitting the field or declaring `operations: []`
-offers and admits no package-declared connector operation in those turns. Namespaced requirements
-use the same syntax as graph operations, such as `fixture/forge/issue.read`.
-This limits agent calls, as `tools:` and `skills:` do; explicit operation steps
-remain part of the runner's declared graph. Narrowing never changes a connector's
-credential, approval, scope or provider semantics.
-Explicit catalog-loading grants remain separate authority. A phase that should
-only interpret supplied inputs also declares `skills: []`, `tools: []` and
-`asks: false` to remove inherited loading, tool and human-question capabilities.
+its agent step's `calls` (`tools`, `operations`, `skills`, and `ask_human` when
+the step says `ask: true`), with their input schemas. An agent step grants
+direct provider calls with `calls: { operations: [posthog/insight.read] }`,
+each as `<connector>/<operation>`, and the package's connector requirements
+are derived from those entries and from its operation steps. Omitting the
+field or listing none offers and admits no connector operation in that turn.
+Namespaced connectors use the same syntax as operation steps, such as
+`fixture/forge/issue.read`. This limits agent calls, as `calls.tools` and
+`calls.skills` do; operation steps remain part of the method's declared steps.
+Narrowing never changes a connector's credential, approval, scope or provider
+semantics. The catalog rules a turn may load packages under are its
+`calls.load`, separate authority. Writing an entry grants nothing, and a turn
+is given only what its `calls` names, so a step that should only interpret
+supplied inputs names no calls.
 `ask_human` takes `{reason}`, a yes or no, or `{questions}`: one to three, each
 `{id, prompt, options?: [{label, detail?}], free_text?, required?}` with at most
 four options, the recommended first; a question without options takes text.
@@ -391,8 +392,8 @@ inspection:
 }
 ```
 
-`result` is the selected runner's normalized output or the declared contract of
-a graph's terminal successful producer. When a guard or an authority refused a
+`result` is the selected method's normalized output: the declared contract of
+its successful result step. When a guard or an authority refused a
 step, `refusal` carries why (`code` and `message`) beside what the steps
 produced; a failed run's `result` is its failure. Neither is part of the signed
 receipt, whose seal records the typed `outcome` and, when the outcome alone
@@ -433,15 +434,6 @@ caller inputs to check concrete connector targets under `--run-authority`;
 values produced by later steps remain unknown until execution. Every actual
 call rechecks its target and current grant before provider execution.
 
-A runner that schedules asynchronous work declares `continuations: [runner]`
-beside its `inputs` and `steps`. These are same-package runner names included
-in its immutable execution closure and connector readiness. The declaration
-does not run or schedule anything. A runner emitting the external-job schedule
-packet must declare its continuations to pass readiness under seller authority;
-structural inspection keeps retained packages readable for settled purchase
-recovery. The hosted continuation service refuses a stage the source runner did
-not declare.
-
 The global link points at `packages/cli` in this checkout. Rebuild with
 `pnpm build`; do not reinstall.
 
@@ -453,11 +445,12 @@ boundary map:
 - `runx-contracts`: domain-neutral Rust contract types plus shared schema
   emission and reconciliation; domain crates contribute the contracts they own.
 - `runx-core`: pure state-machine and policy decisions.
-- `runx-parser`: pure skill, graph, runner, and tool manifest parsing.
+- `runx-parser`: pure skill, method, workflow step, test, and tool manifest
+  parsing.
 - `runx-receipts`: canonical receipt model, hashing, signatures, and tree
   verification.
 - `runx-runtime`: impure local runtime, adapters, exact process invocation and
-  supervision, harness replay, journals, registry clients, payment gates, MCP,
+  supervision, test replay, journals, registry clients, payment gates, MCP,
   and execution.
 - `runx-cli`: native `runx` binary over the runtime.
 
@@ -473,8 +466,8 @@ generated-contract layer:
 
 For the generated package export index, see [docs/api-surface.md](api-surface.md).
 
-`runx-runtime` is the canonical local runtime. It owns local skill, graph,
-harness, receipt, history, policy, authority, payment, typed
+`runx-runtime` is the canonical local runtime. It owns local skill, workflow,
+test, receipt, history, policy, authority, payment, typed
 execution-boundary evidence, MCP, and built-in adapter execution for the native
 CLI path.
 
@@ -491,7 +484,7 @@ Command-surface ownership:
 | Surface | Canonical owner | TypeScript role |
 | --- | --- | --- |
 | `runx skill` local execution | `runx-runtime::execution` via `runx-cli` | npm launcher/client wrapper |
-| `runx harness <fixture.yaml>` | Rust harness replay | tests and wrapper views |
+| `runx test <path>` | Rust test replay | tests and wrapper views |
 | receipts and history | Rust receipt store and journal | display/client views |
 | policy, authority, payment, x402 | Rust core/runtime policy | published type mirrors and product UX |
 | governed data operations | the store connector's native driver | generated types, helper SDKs |
@@ -661,7 +654,7 @@ compact continuation instead of growing history in CLI input.
 ## Capability Packs
 
 Runx is the generic execution engine. Product workflows stay outside the runx
-CLI and ship as local skills, runners, and tools in the consuming repo.
+CLI and ship as local skills, methods, and tools in the consuming repo.
 
 The intended extension model is:
 
@@ -684,8 +677,8 @@ publish policy. See [docs/github-issue-to-pr.md](github-issue-to-pr.md).
 
 The `skill-build` skill authors a package. It inspects the target and catalog,
 requests a closed architecture decision and change draft, binds both to the
-inspected package digest in native code, stages and harnesses the exact
-candidate, then applies the same bytes transactionally to `target_dir`, which
+inspected package digest in native code, stages the exact candidate and
+replays its tests, then applies the same bytes transactionally to `target_dir`, which
 must stay inside the workspace. It owns no templates and never adds a
 placeholder JavaScript module. Nothing needs initializing first: a repository
 or the `skills/` directory marks the project.
@@ -815,17 +808,17 @@ boundary around the repository. Executable package discovery starts at
 
 Execution profiles use a strict YAML subset: no anchors, aliases, merge keys,
 custom tags, multi-document markers, duplicate mapping keys, or unknown profile
-fields. Keep capability and receipt mappings explicit in the runner that uses
-them.
+fields. `minimum_runx` is required and read before anything else, so a package
+that needs a newer runx is refused by name. Keep capability and receipt
+mappings explicit in the method that uses them.
 
-A runner's result comes from its last step unless `result_from` names its
-intentional public result producers:
+A method's result comes from its last step unless `result_from` names its
+intentional public result producers. A connector requirement is derived from
+the steps that call it, so this package declares no `connectors:` block:
 
 ```yaml
-connectors:
-  moltbook:
-    operations: [post.create]
-runners:
+minimum_runx: 0.12.0
+methods:
   publish:
     description: Publish one post to a submolt, once its exact text is approved.
     result_from: [publish]
@@ -836,19 +829,20 @@ runners:
         approval:
           reason: Approve publishing this exact post.
           type: moltbook_post
-        result_fields: [post]
-        input:
+        result:
+          required: [post]
+        inputs:
           submolt_name: $input.submolt
           title: $input.title
           content: $input.body
 ```
 
-A runner states its purpose in `description`: what it does and when to use it
-rather than the skill's other runners, in a sentence or two. A model chooses a
-runner by it: the tool a turn offers for the runner carries it, a load lists
-it, and `registry.search` and `runx list skills` show it. A runner without one
-is described by its skill's description, so a skill's only runner needs none;
-each runner of a runx-maintained skill with several declares one.
+A method states its purpose in `description`: what it does and when to use it
+rather than the skill's other methods, in a sentence or two. A model chooses a
+method by it: the tool a turn offers for the method carries it, a load lists
+it, and `registry.search` and `runx list skills` show it. A method without one
+is described by its skill's description, so a skill's only method needs none;
+each method of a runx-maintained skill with several declares one.
 
 The verb, scopes, target and readbacks come from the connector operation, and
 the kernel confirms a write by its declared readbacks before the step
@@ -863,7 +857,7 @@ not place an `ask` step next to the same operation; one effect has one approval
 owner.
 
 For generic native `fs.write`, `fs.apply_bundle`, and `command.execute` calls,
-the runner's exact scopes and containment are sufficient by default. Add an explicit `ask` step only when the domain action
+the tool's exact scopes and containment are sufficient by default. Add an explicit `ask` step only when the domain action
 itself requires a human decision, such as publishing a release. Runx does not
 infer that requirement from the capability's write-shaped effect.
 
@@ -873,10 +867,10 @@ only of approval requests to `needs_approval`; mixed or model-authored request
 sets remain `needs_agent`. Both resume the same sealed checkpoint through
 `runx resume` and neither opens an interactive prompt.
 
-Payment capabilities also set the typed `amount: {units, unit}` input. It is
-part of the plan digest and appears in the operator summary; it is not copied
-into the provider payload or inferred from provider-specific JSON. Under a
-money limit, `USDC` units count as micro-USD and `USD` units as cents. The
+The money a payment call moves is derived from its operation's inputs, which
+the connector declares, so a step never states an amount. It is part of the
+plan digest and appears in the operator summary. Under a money limit, `USDC`
+units count as micro-USD and `USD` units as cents. The
 provider operation also needs a declared USD quote, including an explicitly
 documented zero when it charges no call fee. A known transfer amount does not
 establish an unknown provider fee, and a missing quote is refused under the
@@ -906,23 +900,23 @@ the result, or admit a new separately bounded call while preserving the original
 uncertain attempt. A provider's enforced deduplication must cover the whole call
 and its charge, and its implementation must actually send the native key.
 
-`result_from` is not a list of graph leaves. It returns each selected successful
+`result_from` is not a list of workflow leaves. It returns each selected successful
 step's complete declared contract, including packet envelopes. Approvals and
 intermediate evidence remain in the separate operator context and signed
 receipts. Multiple names are for mutually exclusive result branches or
 deliberately combined, non-overlapping contracts; two successful producers may
 not emit the same key. Preparation resolves every result producer through its
-exact runner, tool manifest, or nested skill and rejects a missing semantic
-output contract before any step executes. Declare `run.outputs`,
-`artifacts.wrap_as`, or `artifacts.named_emits`; transport output is never an
-implicit graph result. `artifacts.wrap_as` names a step's whole result as one
-artifact, with `artifacts.packet` its packet; `artifacts.named_emits` names
-fields of the result as artifacts, with `artifacts.packets` theirs.
+exact method, tool manifest, or nested skill and rejects a missing semantic
+output contract before any step executes. Declare the step's `outputs`;
+transport output is never an implicit workflow result. An output with a
+`packet` is kept as an artifact of that packet, and `result_as` names the
+output a step's whole result becomes, with its packet on that output.
 
-Public catalog packages must keep examples in standalone fixtures, not inline
-manifest harness blocks. The package should contain only the files the skill
-uses at execution time: `SKILL.md`, `run.yaml`, deterministic runner files,
-schemas, fixtures, and narrowly scoped `context/` or `references/`. Do not add
+A package's tests live in `tests/<name>.yaml`, one test each, and the data they
+read under `fixtures/`. The package should contain only the files the skill
+uses at execution time: `SKILL.md`, `run.yaml`, deterministic method modules,
+schemas, `tests/`, `fixtures/`, its `evals/`, and narrowly scoped `context/` or
+`references/`. Do not add
 README/changelog/setup docs, generated state, logs, screenshots, private
 provider config, or broad project plans inside a public skill. The public docs
 for the package belong in `SKILL.md`; external guides belong under `docs/`.
@@ -958,11 +952,11 @@ Process code contains only the domain behavior the native catalog cannot
 express.
 
 ```bash
-runx harness ./skills/<skill-that-calls-the-tool> --json
+runx test ./skills/<skill-that-calls-the-tool> --json
 ```
 
-A tool is proved through the skill that calls it: that skill's harness
-fixtures run the tool on the path a user runs.
+A tool is proved through the skill that calls it: that skill's tests run the
+tool on the path a user runs.
 
 When a `run.mjs` entrypoint is needed, it is a thin process shim and owns no
 contract metadata. Loading the package validates the manifest and binds the
@@ -982,10 +976,9 @@ The runx-maintained catalog is explicit about why each package is public:
 - context skills: `brand-voice`, `taste-profile`
 
 Other bundled packages stay in the same `SKILL.md` + `run.yaml` shape, but are
-internal by default. Internal packages must declare why they remain bundled:
-`graph-stage`, `runtime-path`, `harness-fixture`, or `context`. Owned graph
-stages live below their public skill at `skills/<skill>/graph/<stage>/run.yaml`,
-not as root catalog packages.
+internal, with `catalog.visibility: internal`. Owned workflow stages live below
+their public skill at `skills/<skill>/graph/<stage>/run.yaml`, not as root
+catalog packages.
 
 For first-party skill proposal work, the core builder bar is explicit:
 proposal packets should name the real pain being solved, explain fit against
@@ -997,8 +990,8 @@ operate projects, workspaces, products, or accounts through the same governed
 lanes as the UI.
 
 Each ships as a portable `SKILL.md` plus a colocated execution profile at
-`skills/<skill>/run.yaml` when it exposes deterministic runners or inline harness
-coverage. Bare skill names resolve to the workspace's own skills or
+`skills/<skill>/run.yaml` when it exposes methods, with its tests beside it in
+`tests/`. Bare skill names resolve to the workspace's own skills or
 to the core skills this release carries, which are added under
 `.runx/added-skills/runx/<name>/<version>/` when first used. Every other
 package runs by its `publisher/name[@version]` ref, optionally with `--registry`
@@ -1010,19 +1003,20 @@ another runx, the newest older version this one reads is used instead, and the
 output's `newest_unread` names the version passed over and why. A version named
 outright is used as named, or refused when this runx does not read it.
 
-Agent graphs can also demand-load skills as context instead of executing them.
+Agent steps can also demand-load skills as context instead of executing them.
 Reference reusable judgement, operating procedure, or capability skills from an
-`agent` step with `context_skills`:
+`agent` step's `context.skills`:
 
 ```yaml
-context_skills:
-  - ../taste-profile
-  - registry:runx/taste-profile@1.0.0
+context:
+  skills:
+    - ../taste-profile
+    - registry:runx/taste-profile@1.0.0
 ```
 
 The runtime injects each referenced `SKILL.md` as a generic
 `runx.skill.context` artifact in the agent invocation `current_context`. Local
-path refs resolve relative to the graph; `runx skill` fetches each registry ref
+path refs resolve relative to the package; `runx skill` fetches each registry ref
 the project does not hold before the run, into the project's added skills, and
 the runtime reads it from there, never from a registry during execution. A
 registry skill is installed only as its registry signed it, and keeps the
@@ -1030,20 +1024,19 @@ registry provenance its install recorded: its skill id, version, trust tier and
 digests. Context skills are bounded, digest-labeled, and presented to managed
 agents as untrusted advisory data.
 
-Graph steps can execute registry skills too:
+Skill steps can execute registry skills too, naming the method with `#`:
 
 ```yaml
 steps:
   - id: build_docs
-    skill: registry:acme/docs-build
-    runner: build
+    skill: registry:acme/docs-build#build
 ```
 
 `runx skill` fetches each one the project does not hold before the run, from the
 runx catalog unless `--registry <url>` or `RUNX_REGISTRY_URL` names another
 hosted registry. A registry child is added to the project's
 `.runx/added-skills/<publisher>/<name>/<version>/` like any other added skill,
-and a package's harness reads the registry children its project holds.
+and a package's tests read the registry children its project holds.
 
 Any runnable skill package can also be exposed locally as an MCP tool with:
 
@@ -1056,7 +1049,7 @@ policy, approvals, and resolution requests still behave the same way.
 
 ## Receipts
 
-Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx verify <receipt-id>` shows what a receipt says, with its signature's `verified`, `unverified`, or `invalid` status, and verifies the tree it belongs to. Once a skill package and runner resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
+Local receipts are append-only JSON files under `.runx/receipts` unless `RUNX_RECEIPT_DIR` is set. `runx verify <receipt-id>` shows what a receipt says, with its signature's `verified`, `unverified`, or `invalid` status, and verifies the tree it belongs to. Once a skill package and method resolve, a blocked preparation also seals a `blocked` refusal receipt; the JSON failure returns its `receipt_id` and prepared-context digest so rejected input or context admission remains inspectable without echoing the rejected value.
 
 Graph receipt lineage is an immutable one-way tree. The parent commits each
 child receipt ID and exact signed-body digest; a child never names its parent,
@@ -1111,25 +1104,30 @@ RUNX_PUBLIC_API_TOKEN=dev-token runx notarize ./.runx/receipts/<receipt-id>.json
   --allow-local-api
 ```
 
-## Harness
+## Tests
 
-Run a whole skill package to execute its inline `run.yaml` cases and every
-conventional `fixtures/*.yaml` case through the native runtime:
-
-```bash
-runx harness ./skills/cve-audit --json
-```
-
-Pass a fixture YAML path instead when intentionally replaying one standalone
-case:
+Run a whole skill package to execute each of its `tests/<name>.yaml`, in name
+order, through the native runtime:
 
 ```bash
-runx harness ./examples/hello-graph/harness.yaml --json
+runx test ./skills/cve-audit --json
 ```
 
-Fixtures can assert the terminal status, receipt identity and lineage, exact or
-subset output, ordered graph steps, and exact or subset output for named graph
-steps. Prefer semantic subsets over complete snapshots:
+Pass a test's path instead when intentionally replaying one test:
+
+```bash
+runx test ./examples/hello-world/tests/hello-world-smoke.yaml --json
+```
+
+A test names the `method` it runs, the package's default when absent, and
+`package: fixtures/<dir>` when it runs a small fixture package under
+`fixtures/` instead, such as one composing this skill with others. Everything
+under `fixtures/` is staged whole into each test's workspace, with
+`fixtures/bin/` executable.
+
+Tests can assert the terminal status, receipt identity and lineage, exact or
+subset output, ordered steps, and exact or subset output for named steps.
+Prefer semantic subsets over complete snapshots:
 
 ```yaml
 expect:
@@ -1148,7 +1146,7 @@ expect:
         status: awaiting_approval
 ```
 
-A receipt-dependent fixture may seed a bounded set of existing receipts from
+A receipt-dependent test may seed a bounded set of existing receipts from
 its own package:
 
 ```yaml
@@ -1158,28 +1156,28 @@ setup:
 ```
 
 Each path must be a normalized package-relative `.json` path. Runx parses and
-verifies every seeded receipt under the fixture's configured signature policy
-before placing it in that case's isolated store. Seed data is evidence for the
-case, not proof of a provider action; the fixture must still assert only what
-the verified receipts and runner output establish.
+verifies every seeded receipt under the test's configured signature policy
+before placing it in that test's isolated store. Seed data is evidence for the
+test, not proof of a provider action; the test must still assert only what
+the verified receipts and method output establish.
 
-A case's `caller` stands in for the host and the world. It is one shape in
-fixture files and inline runner cases:
+A test's `host` stands in for what answers the run:
 
-- `act`: the act the caller states for the run, which its steps read as
+- `act`: the act the host states for the run, which its steps read as
   `$run.act`;
-- `answers`: agent act outputs, by the id of the step that asks;
-- `turns`: agent turns the caller works call by call, by the id of the step
-  that asks. An act is answered or worked, not both;
+- `answers`: agent turn outputs, by the id of the step that asks;
+- `turns`: agent turns the host works call by call, by the id of the step
+  that asks. A turn is answered or worked, not both;
 - `approvals`: approval decisions, `true` or `false`, by the address of the
   request each decides: an operation step's id or an ask's gate at the root,
   and `<path>#<id>` in a child run, `<path>` being its place under the root,
-  such as `send#post`;
-- `http_exchanges`, `mcp_calls`, `process_calls` and `provider_responses`: what the run's
-  requests reach, described below.
+  such as `send#post`.
+
+Its `providers` stand in for what the run reaches, exactly, with anything else
+refused: `http`, `mcp`, `processes` and `hosted`, described below.
 
 An answer or a turn script keyed by an id answers that request in every run of
-the case that asks it. A key may instead be an address, such as
+the test that asks it. A key may instead be an address, such as
 `answer/0#answer`, which answers only the request at that place
 in the run and wins over an id. An approval decides only the request it
 names.
@@ -1187,10 +1185,10 @@ names.
 A worked turn makes each call through the turn, as an attached agent would,
 then ends with its `output`. A call names a tool the turn offers, by the name
 its status lists, and may say what it must return; a call that returns
-something else fails the case and is named in its error:
+something else fails the test and is named in its error:
 
 ```yaml
-caller:
+host:
   turns:
     answer:
       calls:
@@ -1200,17 +1198,17 @@ caller:
       output: { answer: digested }
 ```
 
-Supplied `caller.answers` are semantic oracles, not inert model stubs. Native
+Supplied `host.answers` are semantic oracles, not inert model stubs. Native
 replay fails unless every supplied answer is observable in the root or step
-output. For stateful work, use one graph fixture to prove the transition and
-durable readback; do not depend on fixture filename order.
+output. For stateful work, use one test to prove the transition and durable
+readback; do not depend on test filename order.
 
-Native HTTP fixtures can bind exact response bytes without turning a semantic
-test into a live-network smoke test:
+A test's `providers.http` can bind exact response bytes without turning a
+semantic test into a live-network smoke test:
 
 ```yaml
-caller:
-  http_exchanges:
+providers:
+  http:
     - request: { method: GET, url: https://fixture.runx.invalid/source, body: none }
       response:
         status: 200
@@ -1226,44 +1224,44 @@ caller:
         body: '{"ok":true}'
 ```
 
-`http_exchanges` is matched on the exact method, final URL, and explicit body
+`providers.http` is matched on the exact method, final URL, and explicit body
 identity: `body: none` means no body, while `body: {json: ...}` means one
 structural JSON value, including literal null. An exchange URL is
 canonicalized like the native final URL and cannot contain credentials or a
-fragment. A request the case declares more than once is answered by those
+fragment. A request the test declares more than once is answered by those
 exchanges in the order they are declared, and the last answers every later
-repeat, so one case can read a resource, change it and read it back. A case
+repeat, so one test can read a resource, change it and read it back. A test
 declares only the exchanges its run makes: one no request asked for fails the
-case, so a declared write is a write the run sent. Any request no exchange
-matches is refused without reaching the network; a harness run has no live
+test, so a declared write is a write the run sent. Any request no exchange
+matches is refused without reaching the network; a test run has no live
 fallback. Connector operations still own their real admission, request
 rendering, authentication, decoding, custody and readbacks; only transport
-response bytes come from the harness. `mcp_calls` stands in for a connector's
+response bytes come from the test. `providers.mcp` stands in for a connector's
 MCP server the same way, matched on tool, arguments and session headers, and
 `setup.credentials` stores the one credential of a listed connector whose
-variable the case sets. `process_calls` stands in for a local connector's
+variable the test sets. `providers.processes` stands in for a local connector's
 process tool: each entry names its `tool`, exact `arguments` and `result`.
 At most 32 calls are admitted, with 64 KiB arguments and 2 MiB result per call;
 duplicate tool/argument tuples are refused. When these fixtures are present,
 an unmatched process call fails without starting the actual tool. Admission,
 credential binding and native result checks still run. This proves fixture
 replay, not actual driver behavior; run provider integration checks separately.
-The fixture does not relax the host's process policy or affect ordinary runs.
-`provider_responses` stands in for runx Connect: it
-holds the case's grant, renders a hosted operation's declared requests as
+The test does not relax the host's process policy or affect ordinary runs.
+`providers.hosted` stands in for runx Connect: it
+holds the test's grant, renders a hosted operation's declared requests as
 Connect does, with its `purchase_id` as the purchase, and sends them
-to the case's `http_exchanges`. Without a `purchase_id`, a request that
-sends the purchase fails closed. A case that stops on a request it did not answer names
-that request in its status mismatch. No caller fixture is available to
-skill inputs, environment configuration, or ordinary live runs.
+to the test's `providers.http`. Without a `purchase_id`, a request that
+sends the purchase fails closed. A test that stops on a request it did not answer names
+that request in its status mismatch. No test's `host` or `providers` is
+available to skill inputs, environment configuration, or ordinary live runs.
 
 Package replay uses a disposable project-owned workspace below `.runx/harness`
-and a separate receipt store for every case, then cleans that scratch state.
-Cases therefore cannot satisfy each other through filename order or ambient
-receipt history. Receipts produced by each case are verified and copied to the
+and a separate receipt store for every test, then cleans that scratch state.
+Tests therefore cannot satisfy each other through filename order or ambient
+receipt history. Receipts produced by each test are verified and copied to the
 durable `.runx/receipts` store, or to the directory selected by
 `--receipt-dir`. An explicit `RUNX_CWD` identifies the owning project but does
-not disable harness isolation.
+not disable test isolation.
 
 ## Doctor And Dogfood
 
@@ -1304,14 +1302,14 @@ the platform package that matches the machine.
 - `oss/` (this repository) must not import from `cloud/` (the private companion workspace, not part of this checkout).
 - State-machine and policy packages remain pure.
 - Rust owns trusted local runtime/execution, including exact process
-  supervision, receipts, policy, authority, payment, harness, and built-in
+  supervision, receipts, policy, authority, payment, tests, and built-in
   adapters.
 - No TypeScript package is a fallback executor for trusted local behavior.
 - Tools own their side effects behind language-neutral manifests and process
   contracts; non-execution extension lanes have their own protocol contracts.
 - External extension authors must not need Rust, a `runx-core` or
   `runx-runtime` dependency, or a core repository fork.
-- CLI, SDK, IDE plugin, host adapter, and MCP entrypoints delegate to runner
+- CLI, SDK, IDE plugin, host adapter, and MCP entrypoints delegate to method
   contracts or external protocols instead of duplicating the engine.
 
 ### Admitted observation time
