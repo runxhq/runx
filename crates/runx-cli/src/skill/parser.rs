@@ -1,12 +1,13 @@
 // Module rationale: skill CLI parsing keeps shared state and
 // option finalization in one module until the native parser surface stabilizes.
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use runx_contracts::JsonValue;
 use runx_runtime::WorkspaceEnv;
 
 use super::inputs::{CliInputs, parse_input_arg, parse_input_document_arg};
+use super::method_ref::MethodRef;
 use super::{SkillAction, SkillPlan};
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 
@@ -34,11 +35,11 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         return Err("runx skill --inputs cannot be combined with -i inputs".to_owned());
     }
 
-    let Some(skill_path) = state.skill_path.as_ref() else {
+    let Some(target) = state.target.as_ref() else {
         return Err("runx skill requires a skill package path".to_owned());
     };
-    reject_resolver_flags_for_skill_management_action(skill_path, &state)?;
-    let skill_path = skill_path.clone();
+    reject_resolver_flags_for_skill_management_action(&target.skill_path, &state)?;
+    let MethodRef { skill_path, method } = target.clone();
     let action = if state.inspect {
         SkillAction::Inspect
     } else {
@@ -77,7 +78,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
     Ok(SkillPlan {
         action,
         skill_path,
-        runner: state.runner,
+        method,
         receipt_dir: state.receipt_dir,
         run_id: state.run_id,
         registry: state.registry,
@@ -192,8 +193,7 @@ fn parse_act(value: &str) -> Result<runx_contracts::CallAct, String> {
 
 #[derive(Default)]
 struct SkillParseState {
-    skill_path: Option<PathBuf>,
-    runner: Option<String>,
+    target: Option<MethodRef>,
     receipt_dir: Option<PathBuf>,
     run_id: Option<String>,
     registry: Option<String>,
@@ -255,11 +255,11 @@ fn parse_skill_arg(
         .get(index)
         .is_some_and(|value| value.to_str().is_none())
     {
-        if state.skill_path.is_none() {
-            state.skill_path = Some(PathBuf::from(args[index].clone()));
+        if state.target.is_none() {
+            state.target = Some(MethodRef::parse(&args[index], "skill")?);
             return Ok(index);
         }
-        return Err("runx skill runner names and option values must be UTF-8".to_owned());
+        return Err("runx skill option values must be UTF-8".to_owned());
     }
     let token = string_arg(args, index)?;
     match token.as_str() {
@@ -412,14 +412,14 @@ fn parse_skill_arg(
             ));
         }
         value => {
-            if state.skill_path.is_none() && value == "inspect" {
+            if state.target.is_none() && value == "inspect" {
                 state.inspect = true;
-            } else if state.skill_path.is_none() {
-                state.skill_path = Some(PathBuf::from(value));
-            } else if state.runner.is_none() {
-                state.runner = Some(value.to_owned());
+            } else if state.target.is_none() {
+                state.target = Some(MethodRef::parse(OsStr::new(value), "skill")?);
             } else {
-                return Err(format!("unexpected runx skill argument {value}"));
+                return Err(format!(
+                    "unexpected runx skill argument {value}; name a method as <ref>#<method>"
+                ));
             }
         }
     }
@@ -596,26 +596,30 @@ mod tests {
             plan.skill_path,
             std::path::PathBuf::from("skills/nws-weather")
         );
-        assert_eq!(plan.runner, None);
+        assert_eq!(plan.method, None);
         Ok(())
     }
 
     #[test]
-    fn positional_method_without_inputs_executes_method() -> Result<(), String> {
-        let args = ["skill", "skills/nws-weather", "normalize"]
+    fn a_reference_names_its_method_after_hash() -> Result<(), String> {
+        let args = ["skill", "skills/nws-weather#normalize"]
             .into_iter()
             .map(std::ffi::OsString::from)
             .collect::<Vec<_>>();
         let plan = super::parse_skill_plan(&args)?;
 
         assert_eq!(plan.action, SkillAction::Run);
-        assert_eq!(plan.runner.as_deref(), Some("normalize"));
+        assert_eq!(
+            plan.skill_path,
+            std::path::PathBuf::from("skills/nws-weather")
+        );
+        assert_eq!(plan.method.as_deref(), Some("normalize"));
         Ok(())
     }
 
     #[test]
     fn explicit_inspect_returns_skill_card() -> Result<(), String> {
-        let args = ["skill", "inspect", "skills/nws-weather", "normalize"]
+        let args = ["skill", "inspect", "skills/nws-weather#normalize"]
             .into_iter()
             .map(std::ffi::OsString::from)
             .collect::<Vec<_>>();
@@ -626,16 +630,15 @@ mod tests {
             plan.skill_path,
             std::path::PathBuf::from("skills/nws-weather")
         );
-        assert_eq!(plan.runner.as_deref(), Some("normalize"));
+        assert_eq!(plan.method.as_deref(), Some("normalize"));
         Ok(())
     }
 
     #[test]
-    fn positional_method_with_inputs_executes_method() -> Result<(), String> {
+    fn a_method_reference_with_inputs_executes_method() -> Result<(), String> {
         let args = [
             "skill",
-            "skills/nws-weather",
-            "normalize",
+            "skills/nws-weather#normalize",
             "-i",
             "location=hello",
         ]
@@ -645,11 +648,33 @@ mod tests {
         let plan = super::parse_skill_plan(&args)?;
 
         assert_eq!(plan.action, SkillAction::Run);
-        assert_eq!(plan.runner.as_deref(), Some("normalize"));
+        assert_eq!(plan.method.as_deref(), Some("normalize"));
         assert_eq!(
             plan.inputs.texts.get("location").map(String::as_str),
             Some("hello")
         );
+        Ok(())
+    }
+
+    /// A method is named one way, `<ref>#<method>`: a second positional is
+    /// refused, never read as a method, for a run and an inspection alike.
+    #[test]
+    fn a_positional_method_is_refused() -> Result<(), String> {
+        for args in [
+            &["skill", "skills/nws-weather", "normalize"][..],
+            &["skill", "inspect", "skills/nws-weather", "normalize"][..],
+        ] {
+            let refused = plan(args)
+                .err()
+                .ok_or(format!("{args:?} parsed a positional method"))?;
+            assert!(refused.contains("<ref>#<method>"), "{refused}");
+        }
+        for refused in ["skills/nws-weather#", "#normalize"] {
+            let error = plan(&["skill", refused])
+                .err()
+                .ok_or(format!("{refused:?} parsed"))?;
+            assert!(error.contains("<ref>#<method>"), "{error}");
+        }
         Ok(())
     }
 
@@ -714,8 +739,7 @@ mod tests {
     fn execution_bindings_are_runtime_metadata_not_skill_inputs() -> Result<(), String> {
         let args = [
             "skill",
-            "skills/github-issue-to-pr",
-            "status",
+            "skills/github-issue-to-pr#status",
             "--package-digest",
             "sha256:package",
             "--execution-closure-digest",

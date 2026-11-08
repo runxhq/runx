@@ -228,16 +228,15 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "mcp",
         top_level_usage: &[],
         usage: &[
-            "runx mcp <skill-ref...> [--runner runner] [-R dir] [--http-listen [addr]] [--http-allow-non-loopback]",
+            "runx mcp <skill-ref[#method]...> [-R dir] [--http-listen [addr]] [--http-allow-non-loopback]",
             "runx mcp --run <run-id> [-R dir] [--http-listen [addr]] [--http-allow-non-loopback]",
         ],
         notes: &[
-            "The governed MCP server. Each skill is a tool; a skill call that pauses for agent work is worked on the same connection through turn_list, turn_status, turn_read, turn_call and turn_complete, naming its run. The server works only the runs its own calls opened.",
+            "The governed MCP server. Each skill is a tool: a ref with #method offers that method under the skill's name, and a ref without one offers its default method and each other method that makes calls. A skill call that pauses for agent work is worked on the same connection through turn_list, turn_status, turn_read, turn_call and turn_complete, naming its run. The server works only the runs its own calls opened.",
             "--run serves one paused run's open turns, for a host that hands its agent that run alone. Each call is admitted against the turn's allowance and the run's authority, executed and recorded; a call that needs approval stays pending until runx resume answers it; turn_complete ends the turn and the run continues.",
         ],
         options: &[
             "--run <run-id>  Serve this run's open turns",
-            "--runner runner  The runner every skill tool runs",
             "-R, --receipt-dir dir",
             "--http-listen [addr]",
             "--http-allow-non-loopback",
@@ -247,12 +246,14 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "skill",
         top_level_usage: &[],
         usage: &[
-            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
-            "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
+            "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+            "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
         ],
-        notes: &[],
+        notes: &[
+            "#method names the method to run or inspect. A ref with none runs the package's default_method, or its only method. A package directory or a file in one is that package, never a registry name.",
+        ],
         options: &[
-            "-i, --input name=value   Set an input, read by the type its runner declares: a string as written, any other type as JSON; repeat for each input",
+            "-i, --input name=value   Set an input, read by the type its method declares: a string as written, any other type as JSON; repeat for each input",
             "--inputs file|-          Read the complete JSON input object from a file or stdin; do not mix with -i",
             "--act json               State the act the run is invoked with, as a JSON act with its purpose",
             "--run-authority json     A trusted host's authority for the run: its actor, mandate, delegations, child-run bounds and money limit",

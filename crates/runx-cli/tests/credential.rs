@@ -307,8 +307,8 @@ fn a_process_operation_receives_its_credential_and_its_receipt_records_the_deliv
     let receipts = root.join("receipts");
     let read = command(&root, &home)?
         .arg("skill")
-        .arg(root.join("skills/notes"))
-        .args(["read", "--inputs", "inputs.json", "--receipt-dir"])
+        .arg(root.join("skills/notes#read"))
+        .args(["--inputs", "inputs.json", "--receipt-dir"])
         .arg(&receipts)
         .arg("--json")
         .output()?;
@@ -388,8 +388,8 @@ fn a_metered_process_failure_stays_open_and_cannot_be_repeated_by_empty_resume()
     assert_success_without_secret(&run_with_stdin(set, SECRET)?)?;
     let started = command(&root, &home)?
         .arg("skill")
-        .arg(root.join("skills/notes"))
-        .args(["lost", "--inputs", "inputs.json", "--json"])
+        .arg(root.join("skills/notes#lost"))
+        .args(["--inputs", "inputs.json", "--json"])
         .output()?;
     assert_eq!(started.status.code(), Some(2));
     let pending: serde_json::Value = serde_json::from_slice(&started.stdout)?;
@@ -448,8 +448,8 @@ fn a_failed_free_process_operation_still_records_the_credential_it_received()
     let receipts = root.join("receipts");
     let lost = command(&root, &home)?
         .arg("skill")
-        .arg(root.join("skills/notes"))
-        .args(["lost", "--inputs", "inputs.json", "--receipt-dir"])
+        .arg(root.join("skills/notes#lost"))
+        .args(["--inputs", "inputs.json", "--receipt-dir"])
         .arg(&receipts)
         .arg("--json")
         .output()?;
@@ -803,8 +803,8 @@ expect:
             r#"{"refuseHostProcesses":true}"#,
         )
         .arg("skill")
-        .arg(root.join("skills/notes"))
-        .args(["read", "--inputs", "inputs.json", "--json"])
+        .arg(root.join("skills/notes#read"))
+        .args(["--inputs", "inputs.json", "--json"])
         .output()?;
     assert!(!live.status.success());
     let refusal = format!(

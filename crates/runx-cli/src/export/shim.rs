@@ -68,7 +68,7 @@ fn render_shim(
     output.push_str("---\n");
     output.push_str(&format!("# {} - governed by runx\n\n", skill.name));
     output.push_str(
-        "Run the declared runner through runx; do not bypass work that the runner owns. Runx governs policy, approvals, provider effects, and the signed receipt. Report an external mutation only when the result contains provider evidence.\n\n",
+        "Run the declared method through runx; do not bypass work that the method owns. Runx governs policy, approvals, provider effects, and the signed receipt. Report an external mutation only when the result contains provider evidence.\n\n",
     );
     output.push_str(
         "Runx signs receipts with this home's own local key when no signer is configured. If any `RUNX_RECEIPT_SIGN_*` variable is present, the complete signer tuple must be present or runx fails closed. Never invent, copy, or print signing keys.\n\n",
@@ -78,7 +78,7 @@ fn render_shim(
     ));
     output.push_str(&render_source_manual(skill));
 
-    if let Some(default) = skill.runners.iter().find(|runner| runner.default) {
+    if let Some(default) = skill.runners.iter().find(|method| method.default) {
         if default.makes_calls {
             output.push_str(&render_server_method(target, skill, default));
         } else {
@@ -93,7 +93,7 @@ fn render_shim(
     let alternate_methods = skill
         .runners
         .iter()
-        .filter(|runner| !runner.default)
+        .filter(|method| !method.default)
         .collect::<Vec<_>>();
     if !alternate_methods.is_empty() {
         output.push_str(&render_method_index(
@@ -103,7 +103,7 @@ fn render_shim(
             &runx_bin,
         ));
     }
-    if skill.runners.iter().any(|runner| runner.makes_calls) {
+    if skill.runners.iter().any(|method| method.makes_calls) {
         output.push_str(MCP_SERVER_REF_MARKER);
         output.push('\n');
     }
@@ -119,17 +119,17 @@ fn render_shim(
 /// The server tools a Claude shim may use, leading space included, or nothing
 /// for a skill that runs entirely from the shell.
 fn claude_server_tools(skill: &RunxExportSkill) -> String {
-    let runners = skill
+    let methods = skill
         .runners
         .iter()
-        .filter(|runner| runner.makes_calls)
+        .filter(|method| method.makes_calls)
         .collect::<Vec<_>>();
-    if runners.is_empty() {
+    if methods.is_empty() {
         return String::new();
     }
-    let mut tools = runners
+    let mut tools = methods
         .iter()
-        .map(|runner| server_tool_name(skill, runner))
+        .map(|method| server_tool_name(skill, method))
         .collect::<Vec<_>>();
     tools.extend(TURN_TOOLS.iter().map(|tool| (*tool).to_owned()));
     tools
@@ -138,21 +138,21 @@ fn claude_server_tools(skill: &RunxExportSkill) -> String {
         .collect()
 }
 
-fn server_tool_name(skill: &RunxExportSkill, runner: &RunxExportMethod) -> String {
-    let alternate = runner.name.as_deref().filter(|_| !runner.default);
+fn server_tool_name(skill: &RunxExportSkill, method: &RunxExportMethod) -> String {
+    let alternate = method.name.as_deref().filter(|_| !method.default);
     runx_runtime::export::skill_tool_name(&skill.name, alternate)
 }
 
 fn render_server_method(
     target: Target,
     skill: &RunxExportSkill,
-    runner: &RunxExportMethod,
+    method: &RunxExportMethod,
 ) -> String {
-    let tool = server_tool_name(skill, runner);
-    let title = runner.name.as_deref().unwrap_or("default");
+    let tool = server_tool_name(skill, method);
+    let title = method.name.as_deref().unwrap_or("default");
     format!(
         "\
-## Default runner: `{title}`
+## Default method: `{title}`
 
 This skill's agent makes governed calls, so it runs on the `{MCP_SERVER_NAME}` MCP server rather than the shell. Call the `{tool}` tool with one object built from the user's actual task and admitted evidence, matching the tool's input schema, and state the requested purpose in `act`. Do not copy example values unless the user's job supplies them.
 
@@ -213,32 +213,32 @@ fn render_source_manual(skill: &RunxExportSkill) -> String {
 
 fn render_default_method(
     command_target: &str,
-    runner: &RunxExportMethod,
+    method: &RunxExportMethod,
     package_digest: &str,
     runx_bin: &str,
 ) -> String {
     let mut output = String::new();
-    let title = runner.name.as_deref().unwrap_or("default");
-    output.push_str(&format!("## Default runner: `{title}`\n\n"));
+    let title = method.name.as_deref().unwrap_or("default");
+    output.push_str(&format!("## Default method: `{title}`\n\n"));
     output.push_str("Inspect the exact input and effect contract on demand:\n\n```bash\n");
-    output.push_str(&render_inspect_command(command_target, runner, runx_bin));
+    output.push_str(&render_inspect_command(command_target, method, runx_bin));
     output.push_str("\n```\n\n");
     output.push_str("Set `RUNX_ACT_JSON` to a JSON act with a short `purpose` describing this user's requested work, for example `{\"purpose\":\"Review the current project build configuration\"}`. This states the task; it grants no additional authority.\n\n");
-    if !runner.inputs.is_empty() {
+    if !method.inputs.is_empty() {
         output.push_str("Build `RUNX_INPUTS_JSON` as one JSON object from the user's actual task and admitted evidence, matching the inspected `input_schema`. Preserve nested JSON types and include required fields. Examples illustrate shapes; harness fixtures are test data, not user inputs. Never put credentials in inputs.\n\n");
     }
     output.push_str("Invoke from the user's working project, keeping the same working directory and Runx home throughout this run:\n\n");
     output.push_str("```bash\n");
     output.push_str(&render_command(
         command_target,
-        runner,
+        method,
         package_digest,
         runx_bin,
     ));
     output.push_str("\n```\n\n");
     output.push_str(&render_continuation(
         package_digest,
-        runner.execution_closure_digest.as_deref(),
+        method.execution_closure_digest.as_deref(),
         runx_bin,
     ));
     output
@@ -247,16 +247,16 @@ fn render_default_method(
 fn render_method_index(
     skill: &str,
     command_target: &str,
-    runners: &[&RunxExportMethod],
+    methods: &[&RunxExportMethod],
     runx_bin: &str,
 ) -> String {
     let mut output = String::from(
-        "## Other runners\n\nSelect a non-default runner only when the source manual calls for it. Inspect it for its input_schema and execution_closure.closure_digest. Replace the runner name and closure digest in both invocation and continuation commands; keep the package digest. Never resume another runner with the default runner's closure digest.\n\n",
+        "## Other methods\n\nSelect a non-default method only when the source manual calls for it. Inspect it for its input_schema and execution_closure.closure_digest. Replace the `#method` and closure digest in both invocation and continuation commands; keep the package digest. Never resume another method with the default method's closure digest.\n\n",
     );
-    for runner in runners {
-        let name = runner.name.as_deref().unwrap_or("default");
-        if runner.makes_calls {
-            let tool = runx_runtime::export::skill_tool_name(skill, runner.name.as_deref());
+    for method in methods {
+        let name = method.name.as_deref().unwrap_or("default");
+        if method.makes_calls {
+            let tool = runx_runtime::export::skill_tool_name(skill, method.name.as_deref());
             output.push_str(&format!(
                 "- `{name}`: the `{tool}` tool on the `{MCP_SERVER_NAME}` MCP server\n",
             ));
@@ -264,7 +264,7 @@ fn render_method_index(
         }
         output.push_str(&format!(
             "- `{name}`: `{}`\n",
-            render_inspect_command(command_target, runner, runx_bin)
+            render_inspect_command(command_target, method, runx_bin)
         ));
     }
     output.push('\n');
@@ -273,44 +273,42 @@ fn render_method_index(
 
 fn render_inspect_command(
     command_target: &str,
-    runner: &RunxExportMethod,
+    method: &RunxExportMethod,
     runx_bin: &str,
 ) -> String {
-    let mut command = format!(
-        "{} skill inspect {}",
+    format!(
+        "{} skill inspect {} --json",
         shell_quote(runx_bin),
-        shell_quote(command_target),
-    );
-    if let Some(name) = &runner.name {
-        command.push(' ');
-        command.push_str(&shell_quote(name));
+        shell_quote(&method_ref(command_target, method)),
+    )
+}
+
+/// The package and, when it's named, its method, as `<ref>#<method>`.
+fn method_ref(command_target: &str, method: &RunxExportMethod) -> String {
+    match &method.name {
+        Some(name) => format!("{command_target}#{name}"),
+        None => command_target.to_owned(),
     }
-    command.push_str(" --json");
-    command
 }
 
 fn render_command(
     command_target: &str,
-    runner: &RunxExportMethod,
+    method: &RunxExportMethod,
     package_digest: &str,
     runx_bin: &str,
 ) -> String {
-    let prefix = if runner.inputs.is_empty() {
+    let prefix = if method.inputs.is_empty() {
         ""
     } else {
         "printf '%s' \"$RUNX_INPUTS_JSON\" | "
     };
-    let mut command = format!(
+    let command = format!(
         "{prefix}{} skill {}",
         shell_quote(runx_bin),
-        shell_quote(command_target)
+        shell_quote(&method_ref(command_target, method))
     );
-    if let Some(name) = &runner.name {
-        command.push(' ');
-        command.push_str(&shell_quote(name));
-    }
     let mut lines = vec![command];
-    if !runner.inputs.is_empty() {
+    if !method.inputs.is_empty() {
         lines.push("  --inputs -".to_owned());
     }
     lines.push("  --act \"$RUNX_ACT_JSON\"".to_owned());
@@ -318,7 +316,7 @@ fn render_command(
         "  --package-digest {}",
         shell_quote(package_digest)
     ));
-    if let Some(closure_digest) = runner.execution_closure_digest.as_deref() {
+    if let Some(closure_digest) = method.execution_closure_digest.as_deref() {
         lines.push(format!(
             "  --execution-closure-digest {}",
             shell_quote(closure_digest)

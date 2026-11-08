@@ -1,21 +1,25 @@
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use runx_runtime::adapters::mcp::{
+    McpServerExecutionOptions, McpServerOptions, McpServerToolBehavior,
+};
 use runx_runtime::{TurnRequest, WorkspaceEnv};
 
 use crate::cli_args::{flag_value, optional_flag_value_or, os_flag_value, split_flag};
+use crate::skill::MethodRef;
 
 /// `runx mcp`: the one governed MCP server. It serves skills, and the turns
 /// their own calls open, or the open turns of one run (`--run`), for a host
 /// such as Fieldwork that hands its agent that run alone.
 #[derive(Debug, Eq, PartialEq)]
 pub struct McpPlan {
-    pub refs: Vec<PathBuf>,
+    /// The skills served, each `<ref>` or `<ref>#<method>`.
+    pub refs: Vec<MethodRef>,
     pub run: Option<String>,
     pub receipt_dir: Option<PathBuf>,
-    pub runner: Option<String>,
     /// When set, serve the governed MCP server over streamable HTTP at this
     /// address instead of over stdio.
     pub http_listen: Option<String>,
@@ -28,18 +32,17 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
     let mut refs = Vec::new();
     let mut run = None;
     let mut receipt_dir = None;
-    let mut runner = None;
     let mut http_listen = None;
     let mut http_allow_non_loopback = false;
     let mut index = 1;
     while index < args.len() {
         let Some(token) = args[index].to_str() else {
-            refs.push(PathBuf::from(args[index].clone()));
+            refs.push(MethodRef::parse(&args[index], "mcp")?);
             index += 1;
             continue;
         };
         if !token.starts_with('-') {
-            refs.push(PathBuf::from(token));
+            refs.push(MethodRef::parse(OsStr::new(token), "mcp")?);
             index += 1;
             continue;
         }
@@ -53,11 +56,6 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
             "--receipt-dir" | "-R" => {
                 let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
                 receipt_dir = Some(PathBuf::from(value));
-                index = next_index;
-            }
-            "--runner" => {
-                let (value, next_index) = flag_value(args, index, flag, inline_value, "mcp")?;
-                runner = Some(value);
                 index = next_index;
             }
             "--http-listen" => {
@@ -93,18 +91,12 @@ pub fn parse_mcp_plan(args: &[OsString]) -> Result<McpPlan, String> {
                 "runx mcp serves skill references or one run's turns, not both: a skill server already works the turns its own calls open".to_owned(),
             );
         }
-        (Some(_), true) if runner.is_some() => {
-            return Err(
-                "runx mcp --runner selects a skill's runner; --run serves a run".to_owned(),
-            );
-        }
         _ => {}
     }
     Ok(McpPlan {
         refs,
         run,
         receipt_dir,
-        runner,
         http_listen,
         http_allow_non_loopback,
     })
@@ -194,24 +186,42 @@ fn server_options(
     }
     let effects = crate::runtime::runtime_effect_registry().map_err(|error| error.to_string())?;
     // Each ref resolves as `runx skill` resolves it, so the server offers the
-    // same skill a run would.
-    let skill_paths = plan
-        .refs
-        .iter()
-        .map(|skill_ref| {
-            crate::skill::resolve_skill_package(skill_ref, workspace.env(), workspace.cwd())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    runx_runtime::adapters::mcp::McpServerOptions::from_skill_paths_with_execution(
-        &skill_paths,
-        "runx-cli",
-        env!("CARGO_PKG_VERSION"),
-        runx_runtime::adapters::mcp::McpServerExecutionOptions {
-            runner: plan.runner.clone(),
-            receipt_dir: plan.receipt_dir.clone(),
-            env: workspace.env().clone(),
-            effects,
-        },
-    )
-    .map_err(|error| error.to_string())
+    // same skill a run would. A ref with `#method` offers that method under
+    // the skill's own name; a ref without one offers its default method and
+    // each other method only a connection can work.
+    let mut served: Option<McpServerOptions> = None;
+    let mut skill_tools = Vec::new();
+    for skill_ref in &plan.refs {
+        let skill_path = crate::skill::resolve_skill_package(
+            &skill_ref.skill_path,
+            workspace.env(),
+            workspace.cwd(),
+        )?;
+        let mut options = McpServerOptions::from_skill_paths_with_execution(
+            &[skill_path],
+            "runx-cli",
+            env!("CARGO_PKG_VERSION"),
+            McpServerExecutionOptions {
+                runner: skill_ref.method.clone(),
+                receipt_dir: plan.receipt_dir.clone(),
+                env: workspace.env().clone(),
+                effects: effects.clone(),
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        let (skills, turns): (Vec<_>, Vec<_>) = std::mem::take(&mut options.tools)
+            .into_iter()
+            .partition(|tool| matches!(tool.result, McpServerToolBehavior::Skill(_)));
+        skill_tools.extend(skills);
+        // The turn tools work any run this server's calls opened, whichever
+        // skill opened it, so the server offers them once.
+        if served.is_none() {
+            options.tools = turns;
+            served = Some(options);
+        }
+    }
+    let mut served = served.ok_or("runx mcp serves skill references")?;
+    skill_tools.append(&mut served.tools);
+    served.tools = skill_tools;
+    Ok(served)
 }

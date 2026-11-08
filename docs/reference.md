@@ -80,17 +80,23 @@ Then invoke the linked `runx` binary from anywhere. Use explicit paths outside
 a runx workspace; bare skill names resolve from the current workspace's
 `skills/` directory.
 
+A reference names the method it runs after `#`, as in
+`runx skill ./skills/skill-build#design`, and `runx skill inspect` and
+`runx mcp` take the same form. A reference with no `#method` runs the
+package's `default_method`, or its only method. A package directory, or a file
+in one, is that package: it never falls through to a registry lookup.
+
 ```bash
 runx --help
 runx skill /path/to/runx/oss/fixtures/skills/echo -i message=hello --json
 cd /path/to/runx/oss
-runx skill ./skills/skill-build design -i objective="build sourcey docs skill" --json
+runx skill ./skills/skill-build#design -i objective="build sourcey docs skill" --json
 ```
 
 Recommended flows:
 
 ```bash
-runx skill runx/skill-build build -i objective="Create a bounded documentation decision skill" -i target_dir=skills/docs-demo
+runx skill runx/skill-build#build -i objective="Create a bounded documentation decision skill" -i target_dir=skills/docs-demo
 runx list skills
 runx registry search weather --json
 runx skill acme/weather@1.0.0 --registry https://runx.example.test --json
@@ -102,7 +108,7 @@ runx history
 runx history <run-id> --json
 runx verify <receipt-id> --json
 runx mcp ./fixtures/skills/echo
-runx skill ./skills/skill-build design -i objective="build github review skill"
+runx skill ./skills/skill-build#design -i objective="build github review skill"
 runx harness ./examples/hello-graph/harness.yaml
 runx config set agent.provider openai
 runx config set agent.model gpt-6-sol
@@ -201,7 +207,9 @@ once.
 
 `runx mcp --run <run-id>` serves the agent turns a paused run waits on as MCP
 tools over stdio, scoped to that run alone. `runx mcp <skill-ref...>` serves
-the same tools beside its skills, over the runs its own skill calls open. The tools are fixed and take a turn's address: `turn_list` shows
+the same tools beside its skills, over the runs its own skill calls open. A ref
+with `#method` offers that method under the skill's name; a ref without one
+offers its default method and each other method only a connection can work. The tools are fixed and take a turn's address: `turn_list` shows
 everything the run waits on, each open turn as a line, `turn_status` reads a
 turn, `turn_read` reads what a locator of it names, `turn_call` makes a call in
 it and `turn_complete` ends it. `turn_status` gives the act's instructions and
@@ -399,19 +407,19 @@ instructions.
 ### Structured input documents
 
 Use `-i name=value` for small interactive calls; each value is read by the type
-its runner declares, a string as written and any other type as JSON. For
-generated or reusable input, pass the complete runner input object through one
+its method declares, a string as written and any other type as JSON. For
+generated or reusable input, pass the complete method input object through one
 workspace-contained JSON document:
 
 ```bash
-runx skill ./skills/research research --inputs request.json --json
-cat request.json | runx skill ./skills/research research --inputs - --json
+runx skill ./skills/research#research --inputs request.json --json
+cat request.json | runx skill ./skills/research#research --inputs - --json
 ```
 
 `--inputs` is exclusive with `-i`. A file path is resolved
 relative to the invocation workspace and must identify one contained, regular,
 UTF-8 file. File and stdin input are capped at 64 MiB, must decode to exactly
-one JSON object, and then enter the same selected-runner defaulting and type
+one JSON object, and then enter the same selected-method defaulting and type
 validation as inline inputs. Runx does not echo a rejected document in its
 diagnostic.
 
@@ -663,7 +671,7 @@ The intended extension model is:
 - CLI, API, and GitHub-comment triggers all normalize into the same capability
   execution envelope, while the thread stays the review/control object
 
-From inside a product repository, `runx skill ./skills/<workflow> <runner> -i
+From inside a product repository, `runx skill ./skills/<workflow>#<method> -i
 name=value` resolves that repository's local capability pack. A workflow is
 never a privileged engine command: there is no `runx docs ...` or
 `runx outreach ...` path inside the engine.
@@ -683,7 +691,7 @@ placeholder JavaScript module. Nothing needs initializing first: a repository
 or the `skills/` directory marks the project.
 
 ```bash
-runx skill runx/skill-build build \
+runx skill runx/skill-build#build \
   -i objective="Create a bounded documentation decision skill" \
   -i target_dir=skills/docs-demo
 ```

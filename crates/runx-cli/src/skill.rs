@@ -10,6 +10,7 @@ use runx_runtime::{ManagedAgentPolicy, OrchestratorError, SkillRunRequest, Works
 
 mod environment_readiness;
 mod inputs;
+mod method_ref;
 mod operator_context;
 pub(crate) mod output;
 mod parser;
@@ -17,6 +18,7 @@ mod parser;
 use environment_readiness::append_text as append_environment_readiness_text;
 pub use inputs::CliInputs;
 use inputs::read_input_document;
+pub use method_ref::MethodRef;
 use operator_context::write_operator_context;
 use output::{ResumeHint, run_result_exit_code, write_skill_output};
 pub use parser::{CallerContext, parse_skill_plan, parse_skill_plan_with_workspace};
@@ -28,8 +30,11 @@ use runx_runtime::registry::resolve::{
 #[derive(Debug, PartialEq)]
 pub struct SkillPlan {
     pub action: SkillAction,
+    /// The reference, without its `#method`.
     pub skill_path: PathBuf,
-    pub runner: Option<String>,
+    /// The method its `#method` names; with none, the package's
+    /// `default_method` or its only method runs.
+    pub method: Option<String>,
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,
     pub registry: Option<String>,
@@ -127,7 +132,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
                 );
             }
         },
-        None => match plan.inputs.typed(&skill_path, plan.runner.as_deref()) {
+        None => match plan.inputs.typed(&skill_path, plan.method.as_deref()) {
             Ok(inputs) => inputs,
             Err(error) => {
                 return write_skill_failure(
@@ -150,7 +155,7 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
             &cwd,
         );
     }
-    // A runner the registry sells is bought, not run here (S10): the run is
+    // A method the registry sells is bought, not run here (S10): the run is
     // one step that calls it through the reference it was resolved by.
     let purchase = match (
         &resolved.paid_listing,
@@ -213,18 +218,18 @@ pub fn run_native_skill_with_workspace(plan: SkillPlan, workspace: &WorkspaceEnv
     let bound_execution =
         plan.expected_package_digest.is_some() && plan.expected_execution_closure_digest.is_some();
     let result = if let Some(purchase) = &purchase {
-        orchestrator.buy_skill(&request, purchase, plan.runner.as_deref())
+        orchestrator.buy_skill(&request, purchase, plan.method.as_deref())
     } else if bound_execution {
         orchestrator.run_skill_with_binding(
             &request,
-            plan.runner.as_deref(),
+            plan.method.as_deref(),
             plan.expected_package_digest.as_deref(),
             plan.expected_execution_closure_digest.as_deref(),
         )
     } else {
         let mut prepared = match orchestrator.prepare_skill(
             request,
-            plan.runner.as_deref(),
+            plan.method.as_deref(),
             prepared_entry_provenance(&resolved, plan.expected_execution_closure_digest.as_deref()),
         ) {
             Ok(prepared) => prepared,
@@ -387,7 +392,7 @@ fn write_skill_inspection(
 ) -> ExitCode {
     match inspect_skill(
         skill_path,
-        plan.runner.as_deref(),
+        plan.method.as_deref(),
         inputs,
         provenance,
         plan.run_authority.as_deref(),
@@ -401,7 +406,7 @@ fn write_skill_inspection(
             ),
             0,
         ),
-        Ok((value, readiness)) => write_inspection_text(&value, &readiness),
+        Ok((value, readiness)) => write_inspection_text(&value, &readiness, &plan.skill_path),
         Err(message) => write_skill_failure(&message, plan.json, "skill_error", 1, None),
     }
 }
@@ -432,10 +437,11 @@ fn inspect_skill(
 }
 
 // Function rationale: text rendering mirrors the inspect JSON shape and is kept adjacent to avoid presentation drift.
-fn write_inspection_text(value: &JsonValue, readiness: &[Readiness]) -> ExitCode {
+fn write_inspection_text(value: &JsonValue, readiness: &[Readiness], reference: &Path) -> ExitCode {
     let Some(object) = value.as_object() else {
         return crate::cli_io::write_stdout_code("{}\n", 0);
     };
+    let reference = reference.display();
     let mut out = String::new();
     out.push_str(&format!(
         "skill: {}\n",
@@ -447,14 +453,9 @@ fn write_inspection_text(value: &JsonValue, readiness: &[Readiness]) -> ExitCode
     if let Some(version) = object_string(object, "version") {
         out.push_str(&format!("version: {version}\n"));
     }
-    if let Some(runner) = object.get("runner").and_then(JsonValue::as_object) {
-        out.push_str(&format!(
-            "runner: {}\n",
-            object_string(runner, "name").unwrap_or("<unknown>")
-        ));
-        if let Some(kind) = object_string(runner, "type") {
-            out.push_str(&format!("type: {kind}\n"));
-        }
+    if let Some(method) = object.get("method").and_then(JsonValue::as_object) {
+        let name = object_string(method, "name").unwrap_or("<unknown>");
+        out.push_str(&format!("method: {name}\n"));
         if let Some(readiness) = object.get("readiness").and_then(JsonValue::as_object)
             && let Some(status) = object_string(readiness, "status")
         {
@@ -462,14 +463,7 @@ fn write_inspection_text(value: &JsonValue, readiness: &[Readiness]) -> ExitCode
         }
         out.extend(readiness.iter().map(readiness_line));
         append_environment_readiness_text(&mut out, object);
-        if let Some(capabilities) = object.get("capabilities").and_then(JsonValue::as_object) {
-            for key in ["execution", "completion", "approval"] {
-                if let Some(value) = capabilities.get(key) {
-                    out.push_str(&format!("{key}: {}\n", display_json_scalar(value)));
-                }
-            }
-        }
-        if let Some(inputs) = runner.get("inputs").and_then(JsonValue::as_array)
+        if let Some(inputs) = method.get("inputs").and_then(JsonValue::as_array)
             && !inputs.is_empty()
         {
             out.push_str("inputs:\n");
@@ -486,7 +480,7 @@ fn write_inspection_text(value: &JsonValue, readiness: &[Readiness]) -> ExitCode
                 }
             }
         }
-        if let Some(outputs) = runner.get("outputs").and_then(JsonValue::as_array)
+        if let Some(outputs) = method.get("outputs").and_then(JsonValue::as_array)
             && !outputs.is_empty()
         {
             out.push_str("outputs:\n");
@@ -519,24 +513,17 @@ fn write_inspection_text(value: &JsonValue, readiness: &[Readiness]) -> ExitCode
                 object_string(resume, "command").unwrap_or("runx resume <run-id> -")
             ));
         }
-        out.push_str("run: runx skill <skill> [runner]\n");
-    } else if let Some(runners) = object.get("runners").and_then(JsonValue::as_array) {
-        out.push_str("runners:\n");
-        for runner in runners {
-            if let Some(runner) = runner.as_str() {
-                out.push_str(&format!("  - {runner}\n"));
+        out.push_str(&format!("run: runx skill {reference}#{name}\n"));
+    } else if let Some(methods) = object.get("methods").and_then(JsonValue::as_array) {
+        out.push_str("methods:\n");
+        for method in methods {
+            if let Some(method) = method.as_str() {
+                out.push_str(&format!("  - {method}\n"));
             }
         }
-        out.push_str("next: runx skill <skill> <runner>\n");
+        out.push_str(&format!("next: runx skill {reference}#<method>\n"));
     }
     crate::cli_io::write_stdout_code(&out, 0)
-}
-
-fn display_json_scalar(value: &JsonValue) -> String {
-    value
-        .as_str()
-        .map(str::to_owned)
-        .unwrap_or_else(|| serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()))
 }
 
 fn object_string<'a>(object: &'a JsonObject, key: &str) -> Option<&'a str> {

@@ -346,7 +346,7 @@ fn skill_author_journey_discovers_tests_runs_verifies_and_reads_history() -> Tes
     assert_eq!(inspect["capabilities"]["execution"], "read");
     assert_eq!(inspect["capabilities"]["completion"], "runtime_receipt");
     assert!(
-        inspect["runner"]["inputs"]
+        inspect["method"]["inputs"]
             .as_array()
             .is_some_and(|inputs| inputs.iter().any(|input| input["name"] == "note"))
     );
@@ -958,8 +958,7 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
         let output = operator(&root)
             .arg("skill")
             .arg("inspect")
-            .arg(&skill_dir)
-            .arg("list")
+            .arg(method_ref(&skill_dir, "list"))
             .arg("--json")
             .output()?;
         assert_json(&output, 0)
@@ -999,8 +998,7 @@ fn provider_failure_is_not_success_and_readiness_is_actionable() -> TestResult {
     assert_json(&confirm("grant_records_wrong_scope")?, 0)?;
     let denied = operator(&root)
         .arg("skill")
-        .arg(&skill_dir)
-        .arg("list")
+        .arg(method_ref(&skill_dir, "list"))
         .arg("--receipt-dir")
         .arg(&receipt_dir)
         .args(["--json", "--diagnostics"])
@@ -1049,8 +1047,7 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
         let output = operator(&root)
             .arg("skill")
             .arg("inspect")
-            .arg(&skill_dir)
-            .arg("list")
+            .arg(method_ref(&skill_dir, "list"))
             .args(["--run-authority", authority, "--json"])
             .output()?;
         assert_json(&output, 0)
@@ -1083,8 +1080,7 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
     // A run under the stated grant is admitted and calls under that grant.
     let run = operator(&root)
         .arg("skill")
-        .arg(&skill_dir)
-        .arg("list")
+        .arg(method_ref(&skill_dir, "list"))
         .args(["--run-authority", &stated("grant_records_read")])
         .arg("--receipt-dir")
         .arg(&receipt_dir)
@@ -1178,6 +1174,14 @@ fn turn_tool(root: &Path, run: &str, tool: &str, arguments: Value) -> TestResult
     drop(stdin);
     server.wait()?;
     Ok(response["result"]["structuredContent"].clone())
+}
+
+/// `<package>#<method>`, as `runx skill` names a method.
+fn method_ref(package: &Path, method: &str) -> std::ffi::OsString {
+    let mut reference = package.as_os_str().to_owned();
+    reference.push("#");
+    reference.push(method);
+    reference
 }
 
 fn command(root: &Path) -> Command {

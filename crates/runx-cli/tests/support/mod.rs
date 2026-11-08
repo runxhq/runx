@@ -184,7 +184,7 @@ pub fn assert_json_stderr(stderr: &[u8]) -> Result<(), Box<dyn std::error::Error
     let mut cursor = 0;
     require_stderr_line(&lines, &mut cursor, "Prepared run")?;
     require_stderr_prefix(&lines, &mut cursor, "  Skill:  ")?;
-    require_stderr_prefix(&lines, &mut cursor, "  Runner: ")?;
+    require_stderr_prefix(&lines, &mut cursor, "  Method: ")?;
     require_stderr_prefix(&lines, &mut cursor, "  Source: ")?;
     if lines
         .get(cursor)

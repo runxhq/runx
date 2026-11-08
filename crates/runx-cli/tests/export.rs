@@ -189,7 +189,7 @@ fn exports_claude_project_scope_with_project_relative_skill_ref()
     )?;
 
     let shim = fixture.read_project_file(".claude/skills/visible/SKILL.md")?;
-    assert!(shim.contains("/opt/runx/bin/runx skill skills/visible"));
+    assert!(shim.contains("/opt/runx/bin/runx skill 'skills/visible#default'"));
     assert!(shim.contains("--inputs -"));
     assert!(!shim.contains("objective=fixture"));
     assert!(!shim.contains(&format!(
@@ -549,12 +549,14 @@ fn generated_shims_are_compact_digest_bound_and_detect_drift()
     let output = crate::support::unsigned_runx_command_at(&fixture.project)
         .args([
             "skill",
-            fixture
-                .project
-                .join("skills/visible")
-                .to_str()
-                .ok_or("skill path")?,
-            "default",
+            &format!(
+                "{}#default",
+                fixture
+                    .project
+                    .join("skills/visible")
+                    .to_str()
+                    .ok_or("skill path")?
+            ),
             "-i",
             "objective=prove stale export refusal",
             "--package-digest",
@@ -794,7 +796,7 @@ fn codex_project_scope_uses_agent_skills_without_approval_rules()
         &fixture.env,
     )?;
     let shim = fixture.read_project_file(".agents/skills/visible/SKILL.md")?;
-    assert!(shim.contains("skill skills/visible"));
+    assert!(shim.contains("skill 'skills/visible#default'"));
     assert!(!shim.contains(fixture.project.to_str().ok_or("project path")?));
     assert!(report.rules_file.is_none());
     assert!(!fixture.project.join(".codex/rules").exists());
@@ -982,25 +984,29 @@ fn exported_contract_drives_typed_inputs_bound_resume_and_verified_receipt()
     let exported_source = fixture.home.join(".agents/skills/compose");
     let package = flag_value(&shim, "--package-digest")?;
     let closure = flag_value(&shim, "--execution-closure-digest")?;
+    let exported_plan = {
+        let mut reference = exported_source.clone().into_os_string();
+        reference.push("#plan");
+        reference
+    };
     let inspected = crate::support::unsigned_runx_command_at(&fixture.project)
         .arg("skill")
         .arg("inspect")
-        .arg(&exported_source)
-        .args(["plan", "--json"])
+        .arg(&exported_plan)
+        .arg("--json")
         .output()?;
     let inspected: Value = serde_json::from_slice(&inspected.stdout)?;
     // Harness setup is not a public invocation example.
     assert!(
-        inspected["runner"]["input_schema"]["examples"].is_null(),
+        inspected["method"]["input_schema"]["examples"].is_null(),
         "{inspected}"
     );
     let inputs = json!({"objective": "review the user's actual task", "principal": "local operator",
         "provider_context": {"ready": false, "nested": [true, 3, "quotes \" and newline\n"]}});
     let mut child = crate::support::unsigned_runx_command_at(&fixture.project)
         .arg("skill")
-        .arg(&exported_source)
+        .arg(&exported_plan)
         .args([
-            "plan",
             "--inputs",
             "-",
             "--package-digest",

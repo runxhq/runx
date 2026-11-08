@@ -425,12 +425,15 @@ fn append(root: &Path, key: &str) -> Result<(bool, serde_json::Value), Box<dyn s
     )?;
     fs::write(skill.join("run.yaml"), LEDGER)?;
     let key = format!("idempotency_key={key}");
+    let method = format!(
+        "{}#append_event",
+        skill.to_str().ok_or("the skill path is not text")?
+    );
     runx(
         root,
         &[
             "skill",
-            skill.to_str().ok_or("the skill path is not text")?,
-            "append_event",
+            &method,
             "-i",
             "data_source_uri=local://board",
             "-i",

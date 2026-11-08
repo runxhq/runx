@@ -16,8 +16,7 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
     let pending = command(&repo, &root)
         .args([
             "skill",
-            "runx/skill-build",
-            "build",
+            "runx/skill-build#build",
             "-i",
             "objective=Create a bounded digest-note skill using the native digest capability",
             "-i",
@@ -92,8 +91,7 @@ fn skill_build_refuses_a_target_outside_the_workspace_without_writing() -> TestR
     let output = command(&repo, &root)
         .args([
             "skill",
-            "runx/skill-build",
-            "build",
+            "runx/skill-build#build",
             "-i",
             "objective=Create a bounded skill",
             "-i",

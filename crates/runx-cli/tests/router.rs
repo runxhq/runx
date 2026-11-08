@@ -9,7 +9,7 @@ use runx_cli::router::{
     DoctorMode, DoctorPlan, FilterMode, HistoryPlan, ListKind, ListPlan, RouterAction, TestPlan,
     ToolAction, ToolPlan, command_help_text, help_text, route_args,
 };
-use runx_cli::skill::{SkillAction, SkillPlan};
+use runx_cli::skill::{MethodRef, SkillAction, SkillPlan};
 use runx_runtime::HostedApiCredentialPurpose;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -41,11 +41,11 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &help,
-        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
     );
     assert_help_line(
         &help,
@@ -139,11 +139,11 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
 
     assert_help_line(
         &help("skill"),
-        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
+        "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
         &help("skill"),
-        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
+        "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md>[#method] [--inputs file|-] [--run-authority json] [-j] [--registry url] [--digest sha256]",
     );
     assert_help_line(
         &help("skill"),
@@ -210,9 +210,11 @@ fn filesystem_paths_do_not_require_utf8() {
         route_args(vec!["mcp".into(), path.clone()]),
         RouterAction::RunMcp(McpPlan {
             run: None,
-            refs: vec![path_buf.clone()],
+            refs: vec![MethodRef {
+                skill_path: path_buf.clone(),
+                method: None,
+            }],
             receipt_dir: None,
-            runner: None,
             http_listen: None,
             http_allow_non_loopback: false,
         })
@@ -380,20 +382,40 @@ fn routes_mcp_serve_to_native_plan() {
     assert_eq!(
         plan(&[
             "mcp",
-            "fixtures/skills/echo",
+            "fixtures/skills/echo#default",
+            "skills/research",
             "--receipt-dir=receipts",
-            "--runner",
-            "default",
         ]),
         RouterAction::RunMcp(McpPlan {
             run: None,
-            refs: vec![PathBuf::from("fixtures/skills/echo")],
+            refs: vec![
+                MethodRef {
+                    skill_path: PathBuf::from("fixtures/skills/echo"),
+                    method: Some("default".to_owned()),
+                },
+                bare_ref("skills/research"),
+            ],
             receipt_dir: Some(PathBuf::from("receipts")),
-            runner: Some("default".to_owned()),
             http_listen: None,
             http_allow_non_loopback: false,
         })
     );
+    // A method is named one way, `<ref>#<method>`.
+    assert_eq!(
+        plan(&["mcp", "fixtures/skills/echo", "--runner", "default"]),
+        RouterAction::Error("unknown mcp flag --runner".to_owned())
+    );
+    assert!(matches!(
+        plan(&["mcp", "fixtures/skills/echo#"]),
+        RouterAction::Error(message) if message.contains("<ref>#<method>")
+    ));
+}
+
+fn bare_ref(path: &str) -> MethodRef {
+    MethodRef {
+        skill_path: PathBuf::from(path),
+        method: None,
+    }
 }
 
 #[test]
@@ -402,9 +424,8 @@ fn mcp_http_listen_defaults_to_loopback_and_requires_explicit_non_loopback_opt_i
         plan(&["mcp", "fixtures/skills/echo", "--http-listen"]),
         RouterAction::RunMcp(McpPlan {
             run: None,
-            refs: vec![PathBuf::from("fixtures/skills/echo")],
+            refs: vec![bare_ref("fixtures/skills/echo")],
             receipt_dir: None,
-            runner: None,
             http_listen: Some("127.0.0.1:8080".to_owned()),
             http_allow_non_loopback: false,
         })
@@ -418,9 +439,8 @@ fn mcp_http_listen_defaults_to_loopback_and_requires_explicit_non_loopback_opt_i
         ]),
         RouterAction::RunMcp(McpPlan {
             run: None,
-            refs: vec![PathBuf::from("fixtures/skills/echo")],
+            refs: vec![bare_ref("fixtures/skills/echo")],
             receipt_dir: None,
-            runner: None,
             http_listen: Some("0.0.0.0:8080".to_owned()),
             http_allow_non_loopback: true,
         })
@@ -449,7 +469,6 @@ fn mcp_rejects_unknown_shapes_without_delegating() {
             run: Some("rx_1".to_owned()),
             refs: Vec::new(),
             receipt_dir: Some(PathBuf::from("receipts")),
-            runner: None,
             http_listen: None,
             http_allow_non_loopback: false,
         })
@@ -509,8 +528,7 @@ fn routes_canonical_skill_run_to_native_plan() {
     assert_eq!(
         plan(&[
             "skill",
-            "skills/code-intake",
-            "intake",
+            "skills/code-intake#intake",
             "--receipt-dir",
             ".runx/receipts",
             "--json",
@@ -522,7 +540,7 @@ fn routes_canonical_skill_run_to_native_plan() {
         RouterAction::RunSkill(Box::new(SkillPlan {
             action: SkillAction::Run,
             skill_path: PathBuf::from("skills/code-intake"),
-            runner: Some("intake".to_owned()),
+            method: Some("intake".to_owned()),
             receipt_dir: Some(PathBuf::from(".runx/receipts")),
             run_id: None,
             registry: None,

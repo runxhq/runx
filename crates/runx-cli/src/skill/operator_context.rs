@@ -14,7 +14,7 @@ pub(super) fn write_operator_context(
     let mut out = String::new();
     out.push_str("Prepared run\n");
     out.push_str(&format!(
-        "  Skill:  {}\n  Runner: {}\n  Source: {}\n",
+        "  Skill:  {}\n  Method: {}\n  Source: {}\n",
         report.request.skill_path.display(),
         report.request.runner,
         source_label(report),
@@ -181,10 +181,10 @@ fn append_node(
         "markdown",
     );
     let method_label = if entry {
-        format!("selected runner: {}", node.runner.name)
+        format!("selected method: {}", node.runner.name)
     } else {
         format!(
-            "selected runner: {} at {}",
+            "selected method: {} at {}",
             node.runner.name, node.node_path
         )
     };
@@ -241,7 +241,7 @@ fn append_context_skill(
 fn append_tools(out: &mut String, node_path: &str, tools: &[SkillOperatorContextTool]) {
     out.push_str(&format!("\n--- tool manifests: {node_path} ---\n"));
     if tools.is_empty() {
-        out.push_str("none declared by selected runner or graph steps\n");
+        out.push_str("none declared by selected method or graph steps\n");
         return;
     }
     for tool in tools {

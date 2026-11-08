@@ -369,25 +369,96 @@ fn workflow_action_approval_yields_one_operator_resolution()
 }
 
 #[test]
-fn native_skill_positional_method_selects_non_default_method()
--> Result<(), Box<dyn std::error::Error>> {
-    let root = crate::support::temp_root("runx-skill-positional-method");
+fn a_method_reference_selects_a_non_default_method() -> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-skill-method-ref");
     let skill_dir = write_multi_method_skill(&root)?;
     let receipt_dir = root.join("receipts");
+    let skill = skill_dir.to_str().ok_or("non-utf8 skill dir")?;
 
+    for reference in [
+        format!("{skill}#second"),
+        format!("{skill}/SKILL.md#second"),
+    ] {
+        let output = runx_command()
+            .args([
+                "skill",
+                &reference,
+                "--receipt-dir",
+                receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
+                "--json",
+            ])
+            .output()?;
+        let output_json = assert_json(&output, Some(2))?;
+        assert_eq!(output_json["requests"][0]["id"], "second", "{reference}");
+    }
+
+    // With no `#method`, the package's default_method runs.
     let output = runx_command()
         .args([
             "skill",
-            skill_dir.to_str().ok_or("non-utf8 skill dir")?,
-            "second",
+            skill,
             "--receipt-dir",
             receipt_dir.to_str().ok_or("non-utf8 receipt dir")?,
             "--json",
         ])
         .output()?;
-    let output_json = assert_json(&output, Some(2))?;
-    assert_eq!(output_json["requests"][0]["id"], "second");
+    assert_eq!(assert_json(&output, Some(2))?["requests"][0]["id"], "first");
 
+    // A method is named one way: a positional one is refused before anything runs.
+    let output = runx_command()
+        .args(["skill", skill, "second", "--json"])
+        .output()?;
+    let refused = assert_json(&output, Some(64))?;
+    assert!(
+        refused["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("<ref>#<method>")),
+        "{refused}"
+    );
+    Ok(())
+}
+
+/// A package directory named with `#method` is that directory: its method
+/// runs there and no registry is asked, even one holding a skill by the
+/// directory's name. The run reaches nothing but loopback, and the registry
+/// and API there record every request, so a lookup would show.
+#[test]
+fn a_package_directory_with_a_method_never_reaches_a_registry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = crate::support::temp_root("runx-skill-method-ref-local");
+    let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
+    registry.root("multi-method", "acme/echo");
+    let project = root.join("project");
+    let skill_dir = write_multi_method_skill(&project)?;
+    let run = || -> Result<std::process::Output, Box<dyn std::error::Error>> {
+        let mut command = crate::support::unsigned_runx_command_with_inherited_cwd();
+        crate::support::isolate_project(&mut command);
+        crate::support::apply_fixture_signing(&mut command, "skill-test-key");
+        Ok(command
+            .current_dir(&project)
+            .env("RUNX_HOME", root.join("home"))
+            .env("RUNX_CWD", &project)
+            .env("RUNX_REGISTRY_URL", &registry.url)
+            .env("RUNX_PUBLIC_API_BASE_URL", &registry.url)
+            .envs(registry.env()?)
+            .args(["skill", "multi-method#second", "--json"])
+            .output()?)
+    };
+
+    let output_json = assert_json(&run()?, Some(2))?;
+    assert_eq!(output_json["requests"][0]["id"], "second");
+    assert_eq!(
+        needs_agent_skill_directory(&output_json)?.canonicalize()?,
+        skill_dir.canonicalize()?
+    );
+    assert_eq!(registry.asked(), Vec::<String>::new());
+
+    // Without the directory, the same reference is a name, and the registry
+    // is asked for it.
+    fs::remove_dir_all(&skill_dir)?;
+    let output = run()?;
+    assert!(!output.status.success());
+    assert!(!registry.asked().is_empty());
     Ok(())
 }
 
@@ -653,8 +724,7 @@ fn native_skill_registry_run_reports_provenance_on_execution_error()
     let json_output = registry_runx_command(&root, &registry)?
         .args([
             "skill",
-            "acme/echo@1.0.0",
-            "missing-method",
+            "acme/echo@1.0.0#missing-method",
             "--registry",
             &registry.url,
             "--json",

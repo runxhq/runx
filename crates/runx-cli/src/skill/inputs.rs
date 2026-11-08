@@ -6,7 +6,7 @@ use runx_contracts::JsonValue;
 
 use crate::document_input::{DocumentInputSource, read_document_input};
 
-/// The inputs a command line gives a skill, each as text the runner reads by
+/// The inputs a command line gives a skill, each as text the method reads by
 /// its input's declared type. A name is given once.
 #[derive(Debug, Default, PartialEq)]
 pub struct CliInputs {
@@ -19,17 +19,17 @@ impl CliInputs {
         self.texts.is_empty()
     }
 
-    /// The inputs the runner `runner` of `skill_path` reads from these: each
+    /// The inputs the method `method` of `skill_path` reads from these: each
     /// text by its input's declared type, never guessed.
     pub(super) fn typed(
         &self,
         skill_path: &Path,
-        runner: Option<&str>,
+        method: Option<&str>,
     ) -> Result<BTreeMap<String, JsonValue>, String> {
         if self.texts.is_empty() {
             return Ok(BTreeMap::new());
         }
-        runx_runtime::skill_front::method_inputs_from_text(skill_path, runner, &self.texts)
+        runx_runtime::skill_front::method_inputs_from_text(skill_path, method, &self.texts)
             .map_err(|error| error.to_string())
     }
 
