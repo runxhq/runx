@@ -176,3 +176,17 @@ test("Go files and Makefiles are sources, and a generated Go file is its generat
   assert.equal(read(root, "Makefile"), "check:\n\trunx test . --json\n");
   assert.equal(read(root, "build/release.mk"), "test-skills:\n\trunx test skills --json\n");
 });
+
+test("Ausca's catalog history and run-through record are history, and its generated contracts their generator's", (t) => {
+  const kept = { runner: "check", harness_output: "stored" };
+  const files = {
+    "catalog/history/sha256-abc.json": `${JSON.stringify(kept)}\n`,
+    "docs/run-through-findings-2026-09.md": "The runner failed its harness_output check.\n",
+    "contracts/generated/types.ts": "export type Purchase = { runner: string };\n",
+  };
+  const root = tree(t, { ...files, "src/purchase.ts": "export type Purchase = { runner: string };\n" });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  for (const [file, text] of Object.entries(files)) assert.equal(read(root, file), text, file);
+  assert.equal(read(root, "src/purchase.ts"), "export type Purchase = { method: string };\n");
+});
