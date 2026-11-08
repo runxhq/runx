@@ -469,9 +469,9 @@ fn command(argv: &[&str]) -> serde_json::Value {
 
 fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
     let mut candidate = InstallCandidate {
-        markdown: include_str!("../../../fixtures/registry/install/echo-SKILL.md").to_owned(),
+        markdown: include_str!("../../../fixtures/registry/install/echo/SKILL.md").to_owned(),
         profile_document: Some(
-            include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
+            include_str!("../../../fixtures/registry/install/echo/run.yaml").to_owned(),
         ),
         package_files: Vec::new(),
         bundle_digest: None,

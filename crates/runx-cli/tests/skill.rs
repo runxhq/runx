@@ -1348,7 +1348,7 @@ fn publish_echo(
             version,
             &markdown,
             Some(include_str!(
-                "../../../fixtures/registry/install/echo-run.yaml"
+                "../../../fixtures/registry/install/echo/run.yaml"
             )),
         ))?;
     }

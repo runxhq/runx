@@ -15,12 +15,12 @@ fn registry_publish_search_install_json() -> Result<(), Box<dyn std::error::Erro
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo/SKILL.md"),
     )?;
     // A publish records the version its run.yaml states.
     fs::write(
         skill_dir.join("run.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-run.yaml").replacen(
+        include_str!("../../../fixtures/registry/install/echo/run.yaml").replacen(
             "skill: echo\n",
             "skill: echo\nversion: \"1.0.0\"\n",
             1,
@@ -322,11 +322,11 @@ fn registry_package_identity_covers_files_not_only_manual_and_profile()
     fs::create_dir_all(root.join("references"))?;
     fs::write(
         root.join("SKILL.md"),
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo/SKILL.md"),
     )?;
     fs::write(
         root.join("run.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo/run.yaml"),
     )?;
     let package = || -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let result = runx_command()?
@@ -647,9 +647,9 @@ fn a_root_name_installs_the_canonical_skill_it_addresses() -> Result<(), Box<dyn
     registry.publish(Publication::new(
         "acme",
         "1.0.0",
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo/SKILL.md"),
         Some(include_str!(
-            "../../../fixtures/registry/install/echo-run.yaml"
+            "../../../fixtures/registry/install/echo/run.yaml"
         )),
     ))?;
     // The registry resolves the root name `echo` to acme's skill.
@@ -879,11 +879,11 @@ fn an_operator_publish_goes_into_the_namespace_it_names() -> Result<(), Box<dyn 
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo/SKILL.md"),
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        include_str!("../../../fixtures/registry/install/echo-run.yaml"),
+        include_str!("../../../fixtures/registry/install/echo/run.yaml"),
     )?;
     let registry = LoopbackRegistry::serve()?;
     let skill = skill_dir.to_str().ok_or("non-utf8 skill dir")?;
@@ -1010,9 +1010,9 @@ fn records_a_host_holds_install_verified_and_a_run_reads_them()
     let record = registry.publish(Publication::new(
         "acme",
         "1.0.0",
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo/SKILL.md"),
         Some(include_str!(
-            "../../../fixtures/registry/install/echo-run.yaml"
+            "../../../fixtures/registry/install/echo/run.yaml"
         )),
     ))?;
     let trust = trust_env(&registry)?;
@@ -1111,9 +1111,9 @@ fn records_that_do_not_verify_install_nothing() -> Result<(), Box<dyn std::error
     let record = registry.publish(Publication::new(
         "acme",
         "1.0.0",
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo/SKILL.md"),
         Some(include_str!(
-            "../../../fixtures/registry/install/echo-run.yaml"
+            "../../../fixtures/registry/install/echo/run.yaml"
         )),
     ))?;
     let trust = trust_env(&registry)?;
@@ -1162,14 +1162,14 @@ fn publish_echo(
     version: &str,
     title: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let markdown = include_str!("../../../fixtures/registry/install/echo-SKILL.md")
+    let markdown = include_str!("../../../fixtures/registry/install/echo/SKILL.md")
         .replace("# Echo", &format!("# {title}"));
     registry.publish(Publication::new(
         "acme",
         version,
         &markdown,
         Some(include_str!(
-            "../../../fixtures/registry/install/echo-run.yaml"
+            "../../../fixtures/registry/install/echo/run.yaml"
         )),
     ))?;
     Ok(())

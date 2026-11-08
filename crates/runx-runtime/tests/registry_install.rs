@@ -87,7 +87,7 @@ fn a_package_this_runx_does_not_read_leaves_nothing() -> Result<(), Box<dyn std:
     let temp = tempdir()?;
     let mut candidate = install_candidate()?;
     candidate.profile_document = Some(
-        include_str!("../../../fixtures/registry/install/echo-run.yaml").replace(
+        include_str!("../../../fixtures/registry/install/echo/run.yaml").replace(
             "    default: true\n",
             "    default: true\n    colour: red\n",
         ),
@@ -147,8 +147,8 @@ fn a_bare_name_installs_the_newest_version_this_runx_reads()
     let temp = tempdir()?;
     let registry = LoopbackRegistry::serve()?;
     registry.page_size(1);
-    let markdown = include_str!("../../../fixtures/registry/install/echo-SKILL.md");
-    let profile = include_str!("../../../fixtures/registry/install/echo-run.yaml");
+    let markdown = include_str!("../../../fixtures/registry/install/echo/SKILL.md");
+    let profile = include_str!("../../../fixtures/registry/install/echo/run.yaml");
     registry.publish(Publication::new("acme", "1.0.0", markdown, Some(profile)))?;
     registry.publish(Publication {
         files: unreadable_connector_files(),
@@ -218,9 +218,9 @@ fn an_acquired_paid_listing_reaches_the_resolved_ref() -> Result<(), Box<dyn std
     registry.publish(Publication::new(
         "acme",
         "1.0.0",
-        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        include_str!("../../../fixtures/registry/install/echo/SKILL.md"),
         Some(include_str!(
-            "../../../fixtures/registry/install/echo-run.yaml"
+            "../../../fixtures/registry/install/echo/run.yaml"
         )),
     ))?;
     let listing = serde_json::json!({
@@ -738,9 +738,9 @@ fn install_error(
 
 fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
     let mut candidate = InstallCandidate {
-        markdown: include_str!("../../../fixtures/registry/install/echo-SKILL.md").to_owned(),
+        markdown: include_str!("../../../fixtures/registry/install/echo/SKILL.md").to_owned(),
         profile_document: Some(
-            include_str!("../../../fixtures/registry/install/echo-run.yaml").to_owned(),
+            include_str!("../../../fixtures/registry/install/echo/run.yaml").to_owned(),
         ),
         package_files: Vec::new(),
         bundle_digest: None,
@@ -762,11 +762,11 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
 }
 
 fn skill_digest() -> String {
-    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo-SKILL.md").as_bytes())
+    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo/SKILL.md").as_bytes())
 }
 
 fn profile_digest() -> String {
-    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo-run.yaml").as_bytes())
+    sha256_prefixed(include_str!("../../../fixtures/registry/install/echo/run.yaml").as_bytes())
 }
 
 fn package_files_fixture() -> Vec<RegistryPackageFile> {
