@@ -907,16 +907,33 @@ fn context_from(step: &WorkflowStep) -> Option<Vec<String>> {
     (!reads.is_empty()).then(|| reads.into_iter().map(str::to_owned).collect())
 }
 
+/// A test's workflow, written the one way a workflow is written: as a
+/// method's steps in a `run.yaml`.
+#[cfg(test)]
+pub(crate) mod testing {
+    use runx_parser::{Workflow, parse_method_manifest_yaml, validate_method_manifest};
+
+    /// The workflow of the one method `run_yaml` declares, read as the
+    /// `run.yaml` of the package `skill`.
+    pub(crate) fn method_workflow(skill: &str, run_yaml: &str) -> Result<Workflow, String> {
+        let raw = parse_method_manifest_yaml(run_yaml).map_err(|error| error.to_string())?;
+        let manifest = validate_method_manifest(skill, raw).map_err(|error| error.to_string())?;
+        manifest
+            .default_method()
+            .map(|method| method.graph.clone())
+            .ok_or_else(|| format!("{skill}'s run.yaml declares one method"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use runx_contracts::{JsonObject, JsonValue};
-    use runx_parser::{Operand, Workflow, parse_workflow_yaml, validate_workflow};
+    use runx_parser::{Operand, Workflow};
 
     use super::bind_run_inputs;
 
     fn graph(source: &str) -> Result<Workflow, String> {
-        validate_workflow(parse_workflow_yaml(source).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())
+        super::testing::method_workflow("bindings", source)
     }
 
     fn object(json: serde_json::Value) -> JsonObject {
@@ -990,19 +1007,21 @@ mod tests {
     }
 
     const BINDINGS: &str = r#"
-name: bindings
-steps:
-  - id: produce
-    tool: {module: produce.mjs}
-    outputs: {value: {type: string}}
-  - id: consume
-    tool: {module: consume.mjs}
-    when: {value: $input.mode, equals: apply}
-    inputs:
-      value: $steps.produce.value
-      key: $input.retry.key
-      label: $input.label
-      fixed: kept
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: produce
+        tool: {module: produce.mjs}
+        outputs: {value: {type: string}}
+      - id: consume
+        tool: {module: consume.mjs}
+        when: {value: $input.mode, equals: apply}
+        inputs:
+          value: $steps.produce.value
+          key: $input.retry.key
+          label: $input.label
+          fixed: kept
 "#;
 
     #[test]
@@ -1045,7 +1064,7 @@ steps:
     fn a_whole_input_must_be_an_object_and_an_absent_item_leaves_itself_out() -> Result<(), String>
     {
         let whole = graph(
-            "name: whole\nsteps:\n  - id: take\n    tool: {module: take.mjs}\n    inputs: $input.payload\n",
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: take\n        tool: {module: take.mjs}\n        inputs: $input.payload\n",
         )?;
         let error = bind_run_inputs(
             whole,
@@ -1058,7 +1077,7 @@ steps:
         assert!(error.to_string().contains("must be an object"), "{error}");
 
         let list = graph(
-            "name: list\nsteps:\n  - id: take\n    tool: {module: take.mjs}\n    inputs: {ids: [$input.first, $input.second, $input.third]}\n",
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: take\n        tool: {module: take.mjs}\n        inputs: {ids: [$input.first, $input.second, $input.third]}\n",
         )?;
         let bound = bind_run_inputs(
             list,
@@ -1077,7 +1096,7 @@ steps:
 
         // A step reference after an absent item still names its own item.
         let mixed = graph(
-            "name: mixed\nsteps:\n  - id: discover\n    tool: {module: discover.mjs}\n    outputs: {id: {type: string}}\n  - id: take\n    tool: {module: take.mjs}\n    inputs: {ids: [$input.optional, $steps.discover.id, {of: $steps.discover.id}]}\n",
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: discover\n        tool: {module: discover.mjs}\n        outputs: {id: {type: string}}\n      - id: take\n        tool: {module: take.mjs}\n        inputs: {ids: [$input.optional, $steps.discover.id, {of: $steps.discover.id}]}\n",
         )?;
         let bound = bind_run_inputs(mixed, &JsonObject::new(), None, "run")
             .map_err(|error| error.to_string())?;
@@ -1104,12 +1123,14 @@ steps:
     #[test]
     fn an_operation_key_on_the_run_id_is_the_run_that_binds_it() -> Result<(), String> {
         let source = r#"
-name: provision
-steps:
-  - id: provision
-    operation: acme/inbox.provision
-    inputs: {seconds: $input.seconds}
-    idempotency_key: $run.id
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: provision
+        operation: acme/inbox.provision
+        inputs: {seconds: $input.seconds}
+        idempotency_key: $run.id
 "#;
         let inputs = object(serde_json::json!({"seconds": 3600}));
         let key = |run_id: &str| -> Result<Option<JsonValue>, String> {

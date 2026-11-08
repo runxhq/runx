@@ -11,7 +11,9 @@ use runx_contracts::{
     ExecutionEvent, JsonObject, JsonValue, ProofKind, ResolutionRequest, ResolutionResponse,
     ResolutionResponseActor, RunOutcome,
 };
-use runx_parser::{PROFILE_FILE, WorkerTool, Workflow, parse_workflow_yaml, validate_workflow};
+use runx_parser::{
+    PROFILE_FILE, WorkerTool, Workflow, parse_method_manifest_yaml, validate_method_manifest,
+};
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
 use runx_runtime::{
     ConnectorScope, CredentialDelivery, Executable, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV,
@@ -158,12 +160,12 @@ impl RuntimePathFixtures {
             )
         };
 
-        let native_workflow = graph(NATIVE_WORKFLOW)?;
+        let native_workflow = method_workflow("runtime-native-dispatch", NATIVE_WORKFLOW)?;
         let context_runtime = Runtime::new(
             JavaScriptAdapter::default(),
             runtime_options(evaluation("run_context_smoke")?),
         );
-        let context_workflow = graph(CONTEXT_WORKFLOW)?;
+        let context_workflow = method_workflow("runtime-context-to-module", CONTEXT_WORKFLOW)?;
         let module_invocation = javascript_invocation(
             directory.path(),
             JsonObject::from([("payload".to_owned(), JsonValue::String("runx".to_owned()))]),
@@ -215,14 +217,7 @@ impl RuntimePathFixtures {
             directory.path(),
         )?;
         let provider_runtime = Runtime::new(JavaScriptAdapter::default(), provider_options);
-        let provider_workflow = runx_parser::validate_method_manifest(
-            "provider-effect",
-            runx_parser::parse_method_manifest_yaml(PROVIDER_EFFECT_SKILL)?,
-        )?
-        .methods
-        .remove("run")
-        .map(|runner| runner.graph)
-        .ok_or("the provider benchmark skill has no graph")?;
+        let provider_workflow = method_workflow("provider-effect", PROVIDER_EFFECT_SKILL)?;
 
         Ok(Self {
             directory,
@@ -316,8 +311,15 @@ fn runtime_options(run: RunLog) -> RuntimeOptions {
     options
 }
 
-fn graph(source: &str) -> Result<Workflow, Box<dyn Error>> {
-    Ok(validate_workflow(parse_workflow_yaml(source)?)?)
+/// The workflow of the one method `run_yaml` declares, read as the
+/// `run.yaml` of the package `skill`.
+fn method_workflow(skill: &str, run_yaml: &str) -> Result<Workflow, Box<dyn Error>> {
+    let manifest = validate_method_manifest(skill, parse_method_manifest_yaml(run_yaml)?)?;
+    Ok(manifest
+        .default_method()
+        .ok_or_else(|| format!("{skill}'s run.yaml declares one method"))?
+        .graph
+        .clone())
 }
 
 fn run_workflow<A: SkillAdapter>(
@@ -592,30 +594,34 @@ fn javascript_invocation(root: &Path, inputs: JsonObject) -> SkillInvocation {
 /// A native capability as every caller reaches it: one tool step, admitted,
 /// dispatched and sealed.
 const NATIVE_WORKFLOW: &str = r#"
-name: runtime-native-dispatch
-steps:
-  - id: digest
-    tool: data.digest
-    inputs:
-      value:
-        subject: native-dispatch
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value:
+            subject: native-dispatch
 "#;
 
 const CONTEXT_WORKFLOW: &str = r#"
-name: runtime-context-to-module
-steps:
-  - id: digest
-    tool: data.digest
-    inputs:
-      value:
-        subject: workflow-context
-  - id: project
-    tool: {module: domain.mjs, export: project}
-    inputs:
-      marker: baseline
-      digest_result: $steps.digest.digest_result
-    outputs:
-      projection: {type: object}
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: digest
+        tool: data.digest
+        inputs:
+          value:
+            subject: workflow-context
+      - id: project
+        tool: {module: domain.mjs, export: project}
+        inputs:
+          marker: baseline
+          digest_result: $steps.digest.digest_result
+        outputs:
+          projection: {type: object}
 "#;
 
 const PROVIDER_EFFECT_SKILL: &str = r#"

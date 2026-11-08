@@ -1,12 +1,14 @@
 use runx_parser::{
     ParseError, ValidationError, parse_method_manifest_yaml, parse_skill_markdown,
-    parse_tool_manifest_json, parse_tool_manifest_yaml, parse_workflow_yaml, validate_skill,
-    validate_tool_manifest, validate_workflow,
+    parse_tool_manifest_json, parse_tool_manifest_yaml, validate_method_manifest, validate_skill,
+    validate_tool_manifest,
 };
 
 #[test]
 fn parse_rejections_cover_every_error_kind() -> Result<(), String> {
-    let invalid_yaml = parse_rejection(parse_workflow_yaml("name: [unterminated\n"))?;
+    let invalid_yaml = parse_rejection(parse_method_manifest_yaml(
+        "minimum_runx: 0.12.0\nmethods: [unterminated\n",
+    ))?;
     assert!(
         matches!(invalid_yaml, ParseError::InvalidYaml { .. }),
         "{invalid_yaml:?}"
@@ -118,31 +120,35 @@ fn tool_manifests_require_the_canonical_schema_marker() -> Result<(), String> {
 
 #[test]
 fn validation_rejections_cover_every_error_kind() -> Result<(), String> {
-    let missing_step_id = parse_workflow_yaml(
+    let no_minimum_runx = parse_method_manifest_yaml(
         r#"
-name: bad
-steps:
-  - skill: ../../skills/echo
+methods:
+  echo:
+    steps:
+      - id: echo
+        skill: ../../skills/echo
 "#,
     )
     .map_err(|error| error.to_string())?;
-    let missing_field = validation_rejection(validate_workflow(missing_step_id))?;
+    let missing_field = validation_rejection(validate_method_manifest("bad", no_minimum_runx))?;
     assert!(
         matches!(missing_field, ValidationError::MissingField { .. }),
         "{missing_field:?}"
     );
 
-    let unknown_field = parse_workflow_yaml(
+    let unknown_field = parse_method_manifest_yaml(
         r#"
-name: bad
-schedule: daily
-steps:
-  - id: echo
-    skill: ../../skills/echo
+minimum_runx: 0.12.0
+methods:
+  echo:
+    schedule: daily
+    steps:
+      - id: echo
+        skill: ../../skills/echo
 "#,
     )
     .map_err(|error| error.to_string())?;
-    let invalid_field = validation_rejection(validate_workflow(unknown_field))?;
+    let invalid_field = validation_rejection(validate_method_manifest("bad", unknown_field))?;
     assert!(
         matches!(invalid_field, ValidationError::InvalidField { .. }),
         "{invalid_field:?}"
@@ -150,23 +156,31 @@ steps:
     Ok(())
 }
 
+/// The workflow of the one method `run_yaml` declares.
+fn workflow(run_yaml: &str) -> Result<runx_parser::Workflow, String> {
+    let raw = parse_method_manifest_yaml(run_yaml).map_err(|error| error.to_string())?;
+    let manifest = validate_method_manifest("workflow", raw).map_err(|error| error.to_string())?;
+    manifest
+        .default_method()
+        .map(|method| method.graph.clone())
+        .ok_or_else(|| "the run.yaml declares one method".to_owned())
+}
+
 #[test]
 fn workflow_agent_task_accepts_context_skills() -> Result<(), String> {
-    let graph = validate_workflow(
-        parse_workflow_yaml(
-            r#"
-name: context-skills
-steps:
-  - id: apply_taste
-    agent: apply taste
-    context:
-      skills:
-        - registry:runx/taste-profile@1.0.0
+    let graph = workflow(
+        r#"
+minimum_runx: 0.12.0
+methods:
+  apply:
+    steps:
+      - id: apply_taste
+        agent: apply taste
+        context:
+          skills:
+            - registry:runx/taste-profile@1.0.0
 "#,
-        )
-        .map_err(|error| error.to_string())?,
-    )
-    .map_err(|error| error.to_string())?;
+    )?;
 
     assert_eq!(
         graph.steps[0].context_skills,
@@ -287,25 +301,23 @@ fn workflow_step_rejects_malformed_artifact_contract() -> Result<(), String> {
     // step declares, and the result it becomes is one of its outputs.
     for (artifacts, expected) in [
         (
-            "    artifacts:\n      packets:\n        result: runx.test.result.v1\n",
+            "        artifacts:\n          packets:\n            result: runx.test.result.v1\n",
             "steps.0.artifacts does not apply to this tool step",
         ),
         (
-            "    result_as: result\n",
+            "        result_as: result\n",
             "steps.0.result_as names result, which the step's outputs don't declare",
         ),
         (
-            "    outputs:\n      result: {type: object, packet: not a packet}\n",
+            "        outputs:\n          result: {type: object, packet: not a packet}\n",
             "steps.0.outputs is invalid: output declaration is invalid: packet \"not a packet\" is not a packet id",
         ),
     ] {
-        let raw = parse_workflow_yaml(&format!(
-            "name: malformed-step-artifacts\nsteps:\n  - id: package\n    tool: {{ module: package.mjs }}\n{artifacts}"
+        let error = workflow(&format!(
+            "minimum_runx: 0.12.0\nmethods:\n  package:\n    steps:\n      - id: package\n        tool: {{ module: package.mjs }}\n{artifacts}"
         ))
-        .map_err(|error| error.to_string())?;
-        let error = validate_workflow(raw).err().ok_or_else(|| {
-            "expected malformed workflow-step artifacts to be rejected".to_owned()
-        })?;
+        .err()
+        .ok_or_else(|| "expected malformed workflow-step artifacts to be rejected".to_owned())?;
         assert!(error.to_string().contains(expected), "{error}");
     }
     Ok(())
@@ -313,19 +325,18 @@ fn workflow_step_rejects_malformed_artifact_contract() -> Result<(), String> {
 
 #[test]
 fn workflow_rejects_context_skills_on_non_agent_run_steps() -> Result<(), String> {
-    let error = validate_workflow(
-        parse_workflow_yaml(
-            r#"
-name: bad-context-skills
-steps:
-  - id: shell
-    tool: { command: echo }
-    context:
-      skills:
-        - ../taste-profile
+    let error = workflow(
+        r#"
+minimum_runx: 0.12.0
+methods:
+  shell:
+    steps:
+      - id: shell
+        tool: { command: echo }
+        context:
+          skills:
+            - ../taste-profile
 "#,
-        )
-        .map_err(|error| error.to_string())?,
     )
     .err()
     .ok_or_else(|| "expected context skills validation rejection".to_owned())?;

@@ -76,7 +76,7 @@ pub(super) fn build_ephemeral_step_output(
 #[cfg(test)]
 mod tests {
     use runx_contracts::{JsonObject, JsonValue};
-    use runx_parser::{WorkflowStep, parse_workflow_yaml, validate_workflow};
+    use runx_parser::WorkflowStep;
 
     use super::build_step_output_projection;
     use crate::RuntimeError;
@@ -127,18 +127,21 @@ mod tests {
     #[test]
     fn successful_invocation_may_omit_an_optional_declared_output()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = validate_workflow(parse_workflow_yaml(
+        let graph = crate::execution::graph::testing::method_workflow(
+            "optional-output-contract",
             r#"
-name: optional-output-contract
-steps:
-  - id: produce
-    tool: {module: produce.mjs, export: run}
-    outputs:
-      result:
-        type: object
-        optional: true
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: produce
+        tool: {module: produce.mjs, export: run}
+        outputs:
+          result:
+            type: object
+            optional: true
 "#,
-        )?)?;
+        )?;
         let step = graph
             .steps
             .into_iter()
@@ -153,16 +156,19 @@ steps:
     }
 
     fn declared_output_step() -> Result<WorkflowStep, Box<dyn std::error::Error>> {
-        let graph = validate_workflow(parse_workflow_yaml(
+        let graph = crate::execution::graph::testing::method_workflow(
+            "output-contract",
             r#"
-name: output-contract
-steps:
-  - id: produce
-    tool: {module: produce.mjs, export: run}
-    outputs:
-      result: {type: object}
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: produce
+        tool: {module: produce.mjs, export: run}
+        outputs:
+          result: {type: object}
 "#,
-        )?)?;
+        )?;
         graph
             .steps
             .into_iter()

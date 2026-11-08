@@ -8,9 +8,9 @@ involved.
 Fixture categories:
 
 - `skills`: `SKILL.md` markdown parsing and validated skill output.
-- `graphs`: graph YAML parsing and validated graph output.
 - `method-manifests`: `run.yaml` parsing and validation, read as the package
-  its `SKILL.md` names (`input.skill`).
+  its `SKILL.md` names (`input.skill`), each method with the workflow its
+  steps make.
 - `tool-manifests`: tool manifest YAML/JSON parsing and validation.
 - `installs`: skill-install parsing and validation.
 - `rejections`: shared parser rejection cases when a case is not tied to one

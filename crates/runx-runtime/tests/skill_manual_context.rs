@@ -3,7 +3,6 @@ use std::fs;
 use runx_contracts::{
     ExecutionEvent, JsonValue, ResolutionRequest, canonical_stable_json, sha256_prefixed,
 };
-use runx_parser::{parse_workflow_yaml, validate_workflow};
 #[cfg(feature = "agent")]
 use runx_runtime::adapters::agent::{AgentExecutionTelemetry, ManagedAgentError};
 use runx_runtime::{Host, InvocationOutput, Runtime, RuntimeError, SkillAdapter, SkillInvocation};
@@ -85,9 +84,10 @@ fn workflow_execution_binds_managed_failure_to_the_owning_step()
         temp.path().join("SKILL.md"),
         "---\nname: owner\ndescription: Failure identity fixture.\n---\n\n# Owner\n\n## Agent task: work\n\nDo the work.\n",
     )?;
-    let workflow = validate_workflow(parse_workflow_yaml(
-        "name: owner\nsteps:\n  - id: owning-step\n    agent: work\n    outputs:\n      result: {type: object}\n",
-    )?)?;
+    let workflow = crate::support::run_yaml_workflow(
+        "owner",
+        "minimum_runx: 0.12.0\nmethods:\n  work:\n    steps:\n      - id: owning-step\n        agent: work\n        outputs:\n          result: {type: object}\n",
+    )?;
     let runtime = Runtime::new(
         UnusedAdapter,
         crate::support::fixture_runtime_options(
@@ -126,12 +126,14 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
         adjacent_dir.join("run.yaml"),
         "minimum_runx: 0.12.0\ncatalog:\n  visibility: internal\nmethods:\n  operate:\n    steps:\n      - id: operate\n        agent: operate\n        outputs:\n          result: {type: object}\n",
     )?;
-    let context = validate_workflow(parse_workflow_yaml(
-        "name: context-summary\nsteps:\n  - id: judge\n    agent: judge\n    outputs:\n      result: {type: object}\n    context:\n      skills:\n        - ./context/adjacent\n",
-    )?)?;
-    let invoke = validate_workflow(parse_workflow_yaml(
-        "name: invoke-adjacent\nsteps:\n  - id: adjacent\n    skill: ./context/adjacent#operate\n",
-    )?)?;
+    let context = crate::support::run_yaml_workflow(
+        "context-summary",
+        "minimum_runx: 0.12.0\nmethods:\n  judge:\n    steps:\n      - id: judge\n        agent: judge\n        outputs:\n          result: {type: object}\n        context:\n          skills:\n            - ./context/adjacent\n",
+    )?;
+    let invoke = crate::support::run_yaml_workflow(
+        "invoke-adjacent",
+        "minimum_runx: 0.12.0\nmethods:\n  invoke:\n    steps:\n      - id: adjacent\n        skill: ./context/adjacent#operate\n",
+    )?;
     let runtime = Runtime::new(
         UnusedAdapter,
         crate::support::fixture_runtime_options(

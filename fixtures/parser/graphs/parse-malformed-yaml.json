@@ -1,1 +1,0 @@
-{"expected":{"rejection":{"kind":"parse","message":"graph: YAML parse failed: did not find expected ',' or ']' at line 2 column 1, while parsing a flow sequence at line 1 column 7"}},"input":{"yaml":"name: [unterminated\n"},"name":"parse-malformed-yaml","scope":"graphs"}

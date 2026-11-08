@@ -225,23 +225,23 @@ fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationE
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_workflow_yaml, validate_workflow};
-
     #[test]
     fn a_step_reads_earlier_steps_and_the_run_input_by_reference() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
-name: references
-steps:
-  - id: select
-    agent: review
-  - id: review
-    agent: review
-    inputs:
-      bounty: $steps.select.result
-      claim: $input.claim
-      literal: select.result
-      url: https://example.com/a.b
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: select
+        agent: review
+      - id: review
+        agent: review
+        inputs:
+          bounty: $steps.select.result
+          claim: $input.claim
+          literal: select.result
+          url: https://example.com/a.b
 "#,
         )?;
         let review = &graph.steps[1];
@@ -257,14 +257,16 @@ steps:
         );
         let message = validate_err(
             r#"
-name: forward
-steps:
-  - id: review
-    agent: review
-    inputs:
-      bounty: $steps.select.result
-  - id: select
-    agent: review
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: review
+        agent: review
+        inputs:
+          bounty: $steps.select.result
+      - id: select
+        agent: review
 "#,
         )?;
         assert!(
@@ -278,16 +280,16 @@ steps:
     fn a_step_has_no_context_or_key_outside_an_operation() -> Result<(), String> {
         for (fragment, expected) in [
             (
-                "    context: {readme: scan.result}\n",
+                "        context: {readme: scan.result}\n",
                 "context.readme is not a field here",
             ),
             (
-                "    idempotency_key: review-1\n",
+                "        idempotency_key: review-1\n",
                 "idempotency_key does not apply to this agent step",
             ),
         ] {
             let source = format!(
-                "name: review\nsteps:\n  - id: scan\n    tool: data.digest\n  - id: review\n    agent: review\n{fragment}"
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: scan\n        tool: data.digest\n      - id: review\n        agent: review\n{fragment}"
             );
             let message = validate_err(&source)?;
             assert!(message.contains(expected), "{fragment}: {message}");
@@ -299,14 +301,16 @@ steps:
     fn typed_workflow_ir_preserves_step_output_contracts() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
-name: typed-step-outputs
-steps:
-  - id: analyze
-    agent: review
-    outputs:
-      verdict:
-        type: string
-        enum: [ready, blocked]
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: analyze
+        agent: review
+        outputs:
+          verdict:
+            type: string
+            enum: [ready, blocked]
 "#,
         )?;
         let outputs = graph.steps[0]
@@ -338,12 +342,14 @@ steps:
     fn result_from_rejects_unknown_steps() -> Result<(), String> {
         let error = validate_err(
             r#"
-name: unknown-result
-result_from:
-  - missing
-steps:
-  - id: present
-    agent: review
+minimum_runx: 0.12.0
+methods:
+  run:
+    result_from:
+      - missing
+    steps:
+      - id: present
+        agent: review
 "#,
         )?;
         assert!(error.contains("result_from.0 references unknown step 'missing'"));
@@ -355,17 +361,19 @@ steps:
         let graph = |consumer_when: &str| {
             format!(
                 r#"
-name: gated
-steps:
-  - id: admit
-    agent: review
-  - id: draft
-    when: {{value: $steps.admit.result.decision, equals: ready}}
-    agent: review
-  - id: finalize{consumer_when}
-    inputs:
-      draft: $steps.draft.result
-    agent: review
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: admit
+        agent: review
+      - id: draft
+        when: {{value: $steps.admit.result.decision, equals: ready}}
+        agent: review
+      - id: finalize{consumer_when}
+        inputs:
+          draft: $steps.draft.result
+        agent: review
 "#
             )
         };
@@ -375,7 +383,7 @@ steps:
             "{error}"
         );
         validate_yaml(&graph(
-            "\n    when: {value: $steps.admit.result.decision, equals: ready}",
+            "\n        when: {value: $steps.admit.result.decision, equals: ready}",
         ))?;
         Ok(())
     }
@@ -384,13 +392,15 @@ steps:
     fn result_from_rejects_duplicate_steps() -> Result<(), String> {
         let error = validate_err(
             r#"
-name: duplicate-result
-result_from:
-  - result
-  - result
-steps:
-  - id: result
-    agent: review
+minimum_runx: 0.12.0
+methods:
+  run:
+    result_from:
+      - result
+      - result
+    steps:
+      - id: result
+        agent: review
 "#,
         )?;
         assert!(error.contains("result_from contains duplicate step 'result'"));
@@ -402,14 +412,16 @@ steps:
         let graph = |gate: &str| {
             format!(
                 r#"
-name: approved-send
-steps:
-  - id: confirm
-    ask: {{gate: {gate}, reason: Approve the send.}}
-  - id: send
-    operation: example/message.send
-    idempotency_key: send-1
-    inputs: {{text: hello}}
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: confirm
+        ask: {{gate: {gate}, reason: Approve the send.}}
+      - id: send
+        operation: example/message.send
+        idempotency_key: send-1
+        inputs: {{text: hello}}
 "#
             )
         };
@@ -426,7 +438,7 @@ steps:
     fn two_asks_cannot_share_a_gate() -> Result<(), String> {
         let graph = |second: &str| {
             format!(
-                "name: twice\nsteps:\n  - id: first\n    ask: {{gate: approve.send, reason: Send it?}}\n  - id: second\n    ask: {{gate: {second}, reason: Send it again?}}\n"
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: first\n        ask: {{gate: approve.send, reason: Send it?}}\n      - id: second\n        ask: {{gate: {second}, reason: Send it again?}}\n"
             )
         };
         let error = validate_err(&graph("approve.send"))?;
@@ -441,14 +453,14 @@ steps:
     #[test]
     fn an_ask_reason_is_text_and_its_values_are_its_inputs() -> Result<(), String> {
         let message = validate_err(
-            "name: ask\nsteps:\n  - id: approve\n    ask: {gate: approve.send, reason: $input.title}\n",
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: approve\n        ask: {gate: approve.send, reason: $input.title}\n",
         )?;
         assert!(
             message.contains("reason is text, not a reference"),
             "{message}"
         );
         let graph = validate_yaml(
-            "name: ask\nsteps:\n  - id: approve\n    ask: {gate: approve.send, reason: $$5 to send}\n    inputs: {title: $input.title}\n",
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: approve\n        ask: {gate: approve.send, reason: $$5 to send}\n        inputs: {title: $input.title}\n",
         )?;
         let crate::StepKind::Ask(ask) = &graph.steps[0].kind else {
             return Err("an ask step".to_owned());
@@ -458,17 +470,24 @@ steps:
         Ok(())
     }
 
-    fn validate_yaml(source: &str) -> Result<crate::Workflow, String> {
-        let raw = parse_workflow_yaml(source).map_err(|error| error.to_string())?;
-        validate_workflow(raw).map_err(|error| error.to_string())
+    /// The workflow of the one method `run_yaml` declares, read as the
+    /// `run.yaml` of a package named `demo`.
+    fn validate_yaml(run_yaml: &str) -> Result<crate::Workflow, String> {
+        let raw = crate::parse_method_manifest_yaml(run_yaml).map_err(|error| error.to_string())?;
+        let manifest =
+            crate::validate_method_manifest("demo", raw).map_err(|error| error.to_string())?;
+        manifest
+            .default_method()
+            .map(|method| method.graph.clone())
+            .ok_or_else(|| "the run.yaml declares one method".to_owned())
     }
 
-    fn validate_err(source: &str) -> Result<String, String> {
-        let raw = parse_workflow_yaml(source).map_err(|error| error.to_string())?;
-        validate_workflow(raw)
+    fn validate_err(run_yaml: &str) -> Result<String, String> {
+        let raw = crate::parse_method_manifest_yaml(run_yaml).map_err(|error| error.to_string())?;
+        crate::validate_method_manifest("demo", raw)
             .err()
             .map(|error| error.to_string())
-            .ok_or_else(|| "graph unexpectedly validated".to_owned())
+            .ok_or_else(|| "the method unexpectedly validated".to_owned())
     }
 
     #[test]
@@ -477,14 +496,16 @@ steps:
         // recovery never resends a write whose outcome is unknown unless the
         // step says `retry_unknown_outcomes: true`.
         let source = r#"
-name: deliver
-steps:
-  - id: post
-    operation: slack/channel.post
-    idempotency_key: notify-1
-    inputs:
-      channel_locator: slack://acme/C1
-      text: hello
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: post
+        operation: slack/channel.post
+        idempotency_key: notify-1
+        inputs:
+          channel_locator: slack://acme/C1
+          text: hello
 "#;
         let graph = validate_yaml(source)?;
         let step = &graph.steps[0];
@@ -496,8 +517,8 @@ steps:
         );
         assert!(!step.retry_unknown_outcomes);
         let visible = validate_yaml(&source.replace(
-            "    idempotency_key: notify-1\n",
-            "    retry_unknown_outcomes: true\n    idempotency_key: notify-1\n",
+            "        idempotency_key: notify-1\n",
+            "        retry_unknown_outcomes: true\n        idempotency_key: notify-1\n",
         ))?;
         assert!(visible.steps[0].retry_unknown_outcomes);
         Ok(())
@@ -507,15 +528,17 @@ steps:
     fn an_operation_chosen_at_run_time_is_its_choice() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
-name: sync
-steps:
-  - id: plan
-    tool: data.digest
-  - id: push
-    operation:
-      connector: github
-      choose: $steps.plan.sync_plan.provider_operation
-      from: [issues.list, issues.get]
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: plan
+        tool: data.digest
+      - id: push
+        operation:
+          connector: github
+          choose: $steps.plan.sync_plan.provider_operation
+          from: [issues.list, issues.get]
 "#,
         )?;
         assert_eq!(
@@ -527,10 +550,12 @@ steps:
         assert_eq!(graph.steps[1].reads(), ["plan"]);
         let message = validate_err(
             r#"
-name: sync
-steps:
-  - id: push
-    operation: github
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: push
+        operation: github
 "#,
         )?;
         assert!(
@@ -544,20 +569,20 @@ steps:
     fn operation_steps_reject_what_the_connector_owns() -> Result<(), String> {
         for (fragment, expected) in [
             (
-                "    scopes: [channel.post]\n",
+                "        scopes: [channel.post]\n",
                 "does not apply to this operation step",
             ),
             (
-                "    input: {}\n",
+                "        input: {}\n",
                 "input does not apply to this operation step",
             ),
             (
-                "    operation_name: $steps.plan.digest\n",
+                "        operation_name: $steps.plan.digest\n",
                 "operation_name does not apply to this operation step",
             ),
         ] {
             let source = format!(
-                "name: deliver\nsteps:\n  - id: plan\n    tool: data.digest\n  - id: post\n    operation: slack/channel.post\n{fragment}"
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: plan\n        tool: data.digest\n      - id: post\n        operation: slack/channel.post\n{fragment}"
             );
             let message = validate_err(&source)?;
             assert!(message.contains(expected), "{fragment}: {message}");
@@ -569,11 +594,13 @@ steps:
     fn tolerance_applies_only_to_operation_steps() -> Result<(), String> {
         let message = validate_err(
             r#"
-name: tool-step
-steps:
-  - id: digest
-    tool: data.digest
-    retry_unknown_outcomes: true
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: digest
+        tool: data.digest
+        retry_unknown_outcomes: true
 "#,
         )?;
         assert!(
@@ -587,12 +614,14 @@ steps:
     fn unknown_step_fields_fail_closed() -> Result<(), String> {
         let message = validate_err(
             r#"
-name: typo
-steps:
-  - id: digest
-    tool: data.digest
-    contxt:
-      value: input.x
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: digest
+        tool: data.digest
+        contxt:
+          value: input.x
 "#,
         )?;
         assert!(message.contains("contxt does not apply to this tool step"));
@@ -603,22 +632,24 @@ steps:
     fn a_method_and_its_steps_read_effects_and_reach_as_written() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
-name: narrow
-effects: ask
-reach: workspace
-steps:
-  - id: quiet
-    tool: data.digest
-    effects: none
-    inputs: {value: 1}
-  - id: wide
-    tool: data.digest
-    effects: allow
-    reach: inputs
-    inputs: {value: 2}
-  - id: plain
-    tool: data.digest
-    inputs: {value: 3}
+minimum_runx: 0.12.0
+methods:
+  run:
+    effects: ask
+    reach: workspace
+    steps:
+      - id: quiet
+        tool: data.digest
+        effects: none
+        inputs: {value: 1}
+      - id: wide
+        tool: data.digest
+        effects: allow
+        reach: inputs
+        inputs: {value: 2}
+      - id: plain
+        tool: data.digest
+        inputs: {value: 3}
 "#,
         )?;
         assert_eq!(graph.effects, Some(runx_contracts::Effects::Ask));
@@ -632,15 +663,15 @@ steps:
 
         for (source, expected) in [
             (
-                "name: n\neffects: free\nsteps:\n  - {id: a, tool: data.digest}\n",
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    effects: free\n    steps:\n      - {id: a, tool: data.digest}\n",
                 "effects must be one of none, ask and allow.",
             ),
             (
-                "name: n\nsteps:\n  - {id: a, tool: data.digest, effects: read_only}\n",
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - {id: a, tool: data.digest, effects: read_only}\n",
                 "steps.0.effects must be one of none, ask and allow.",
             ),
             (
-                "name: n\nsteps:\n  - {id: a, tool: data.digest, reach: agent}\n",
+                "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - {id: a, tool: data.digest, reach: agent}\n",
                 "steps.0.reach must be one of workspace and inputs.",
             ),
         ] {

@@ -51,6 +51,23 @@ pub(crate) fn method_workflow(
         .clone())
 }
 
+/// The workflow of the one method `run_yaml` declares, read as the
+/// `run.yaml` of the package `skill`.
+pub(crate) fn run_yaml_workflow(
+    skill: &str,
+    run_yaml: &str,
+) -> Result<runx_parser::Workflow, Box<dyn std::error::Error>> {
+    let manifest = runx_parser::validate_method_manifest(
+        skill,
+        runx_parser::parse_method_manifest_yaml(run_yaml)?,
+    )?;
+    Ok(manifest
+        .default_method()
+        .ok_or_else(|| format!("{skill}'s run.yaml declares one method"))?
+        .graph
+        .clone())
+}
+
 pub(crate) fn write_test_skill_package(
     dir: &Path,
     manual: &str,

@@ -1,0 +1,1 @@
+{"expected":{"rejection":{"kind":"validation","message":"methods.run: steps.0.id is required."}},"input":{"skill":"bad","yaml":"minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - skill: ../../skills/echo\n"},"name":"validation-missing-step-id","scope":"method-manifests"}

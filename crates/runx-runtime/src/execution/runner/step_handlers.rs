@@ -1974,25 +1974,28 @@ fn step_admission_witness(
 
 #[cfg(test)]
 mod step_requirements {
-    use runx_parser::{StepKind, ToolTarget, parse_workflow_yaml, validate_workflow};
+    use runx_parser::{StepKind, ToolTarget};
 
     use crate::adapter::Executable;
 
     #[test]
     fn a_worker_step_projects_its_environment_without_interpretation()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = validate_workflow(parse_workflow_yaml(
+        let graph = crate::execution::graph::testing::method_workflow(
+            "worker-requirements",
             r#"
-name: worker-requirements
-steps:
-  - id: compute
-    tool:
-      module: compute.mjs
-      environment:
-        required: [REGION]
-        optional: [TRACE_LABEL]
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: compute
+        tool:
+          module: compute.mjs
+          environment:
+            required: [REGION]
+            optional: [TRACE_LABEL]
 "#,
-        )?)?;
+        )?;
         let step = graph.steps.first().ok_or("missing step")?;
         let StepKind::Tool(ToolTarget::Worker(worker)) = &step.kind else {
             return Err("expected a worker step".into());

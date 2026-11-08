@@ -2,19 +2,10 @@ use serde::Deserialize;
 
 use runx_parser::{
     SkillInstallOrigin, SkillMethodManifest, ValidatedSkill, ValidatedSkillInstall, ValidatedTool,
-    Workflow, parse_method_manifest_yaml, parse_skill_markdown, parse_tool_manifest_json,
-    parse_tool_manifest_yaml, parse_workflow_yaml, validate_method_manifest, validate_skill,
-    validate_skill_install, validate_tool_manifest, validate_workflow,
+    parse_method_manifest_yaml, parse_skill_markdown, parse_tool_manifest_json,
+    parse_tool_manifest_yaml, validate_method_manifest, validate_skill, validate_skill_install,
+    validate_tool_manifest,
 };
-
-const WORKFLOW_FIXTURES: &[&str] = &[
-    include_str!("../../../fixtures/parser/graphs/parse-malformed-yaml.json"),
-    include_str!("../../../fixtures/parser/graphs/sequential-references.json"),
-    include_str!("../../../fixtures/parser/graphs/step-kinds.json"),
-    include_str!("../../../fixtures/parser/graphs/tool-and-guard.json"),
-    include_str!("../../../fixtures/parser/graphs/validation-missing-step-id.json"),
-    include_str!("../../../fixtures/parser/graphs/validation-two-step-kinds.json"),
-];
 
 const SKILL_FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/parser/skills/portable-manual.json"),
@@ -22,10 +13,16 @@ const SKILL_FIXTURES: &[&str] = &[
 ];
 
 const METHOD_MANIFEST_FIXTURES: &[&str] = &[
+    include_str!("../../../fixtures/parser/method-manifests/parse-malformed-yaml.json"),
+    include_str!("../../../fixtures/parser/method-manifests/sequential-references.json"),
+    include_str!("../../../fixtures/parser/method-manifests/step-kinds.json"),
     include_str!("../../../fixtures/parser/method-manifests/test-basic.json"),
+    include_str!("../../../fixtures/parser/method-manifests/tool-and-guard.json"),
     include_str!(
         "../../../fixtures/parser/method-manifests/validation-invalid-reflect-policy.json"
     ),
+    include_str!("../../../fixtures/parser/method-manifests/validation-missing-step-id.json"),
+    include_str!("../../../fixtures/parser/method-manifests/validation-two-step-kinds.json"),
 ];
 
 const TOOL_MANIFEST_FIXTURES: &[&str] = &[
@@ -36,12 +33,6 @@ const TOOL_MANIFEST_FIXTURES: &[&str] = &[
 const INSTALL_FIXTURES: &[&str] = &[include_str!(
     "../../../fixtures/parser/installs/installed-skill.json"
 )];
-
-#[derive(Debug, Deserialize)]
-struct WorkflowFixture {
-    input: YamlInput,
-    expected: WorkflowExpected,
-}
 
 #[derive(Debug, Deserialize)]
 struct SkillFixture {
@@ -67,11 +58,6 @@ struct InstallFixture {
     expected: InstallExpected,
 }
 
-#[derive(Debug, Deserialize)]
-struct YamlInput {
-    yaml: String,
-}
-
 /// A `run.yaml`, read as the package its `SKILL.md` names.
 #[derive(Debug, Deserialize)]
 struct MethodManifestInput {
@@ -94,12 +80,6 @@ struct ToolInput {
 struct InstallInput {
     markdown: String,
     origin: SkillInstallOrigin,
-}
-
-#[derive(Debug, Deserialize)]
-struct WorkflowExpected {
-    validated: Option<Workflow>,
-    rejection: Option<Rejection>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -136,16 +116,6 @@ struct Rejection {
 enum RejectionKind {
     Parse,
     Validation,
-}
-
-#[test]
-fn workflow_fixtures_match_expected() -> Result<(), String> {
-    for fixture_json in WORKFLOW_FIXTURES {
-        let fixture: WorkflowFixture =
-            serde_json::from_str(fixture_json).map_err(|error| error.to_string())?;
-        assert_workflow_fixture(fixture)?;
-    }
-    Ok(())
 }
 
 #[test]
@@ -264,23 +234,6 @@ fn install_fixtures_match_expected() -> Result<(), String> {
     Ok(())
 }
 
-fn assert_workflow_fixture(fixture: WorkflowFixture) -> Result<(), String> {
-    if let Some(expected) = fixture.expected.validated {
-        let actual = validate_workflow(
-            parse_workflow_yaml(&fixture.input.yaml).map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
-        assert_json_eq(actual, expected)?;
-        return Ok(());
-    }
-
-    let rejection = fixture
-        .expected
-        .rejection
-        .ok_or_else(|| "fixture must declare validated or rejection".to_owned())?;
-    assert_workflow_rejection(&fixture.input.yaml, rejection)
-}
-
 fn assert_skill_fixture(fixture: SkillFixture) -> Result<(), String> {
     if let Some(expected) = fixture.expected.validated {
         let actual = validate_skill(
@@ -339,26 +292,6 @@ fn assert_install_fixture(fixture: InstallFixture) -> Result<(), String> {
     let actual = validate_skill_install(&fixture.input.markdown, fixture.input.origin)
         .map_err(|error| error.to_string())?;
     assert_json_eq(actual, expected)
-}
-
-fn assert_workflow_rejection(yaml: &str, rejection: Rejection) -> Result<(), String> {
-    match rejection.kind {
-        RejectionKind::Parse => {
-            assert!(parse_workflow_yaml(yaml).is_err());
-            Ok(())
-        }
-        RejectionKind::Validation => {
-            let raw = parse_workflow_yaml(yaml).map_err(|error| error.to_string())?;
-            let error = validate_workflow(raw).err().ok_or_else(|| {
-                format!(
-                    "graph fixture unexpectedly passed; expected validation error: {}",
-                    rejection.message
-                )
-            })?;
-            assert_eq!(error.to_string(), rejection.message);
-            Ok(())
-        }
-    }
 }
 
 fn assert_skill_rejection(markdown: &str, rejection: Rejection) -> Result<(), String> {

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use criterion::Criterion;
 use runx_contracts::{JsonNumber, JsonObject, JsonValue};
-use runx_parser::{parse_workflow_yaml, validate_workflow};
+use runx_parser::{parse_method_manifest_yaml, validate_method_manifest};
 use runx_runtime::adapters::javascript::JavaScriptAdapter;
 use runx_runtime::{KernelStore, NoopHost, RunLog, Runtime, RuntimeOptions};
 use tempfile::TempDir;
@@ -186,13 +186,20 @@ impl ToolCalls {
     /// The step contract `tool` produced from `inputs`.
     fn call(&self, tool: &str, inputs: JsonObject) -> Result<JsonObject, Box<dyn Error>> {
         let run_id = format!("run_artifact_{}", self.runs.fetch_add(1, Ordering::Relaxed));
-        let graph = validate_workflow(parse_workflow_yaml(&serde_json::to_string(
-            &serde_json::json!({
-                "name": "artifact-io",
-                // Each artifact tool reads the files it admits or pages.
-                "steps": [{"id": "call", "tool": tool, "scopes": ["fs.read"], "inputs": inputs}],
-            }),
-        )?)?)?;
+        let graph = validate_method_manifest(
+            "artifact-io",
+            parse_method_manifest_yaml(&serde_json::to_string(&serde_json::json!({
+                "minimum_runx": "0.12.0",
+                "methods": {"call": {
+                    // Each artifact tool reads the files it admits or pages.
+                    "steps": [{"id": "call", "tool": tool, "scopes": ["fs.read"], "inputs": inputs}],
+                }},
+            }))?)?,
+        )?
+        .methods
+        .remove("call")
+        .map(|method| method.graph)
+        .ok_or("the artifact call has its method")?;
         let mut run = self
             .runtime
             .for_run(Self::evaluation(&self.store, &run_id)?)

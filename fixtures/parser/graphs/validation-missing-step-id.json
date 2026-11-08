@@ -1,1 +1,0 @@
-{"expected":{"rejection":{"kind":"validation","message":"steps.0.id is required."}},"input":{"yaml":"name: bad\nsteps:\n  - skill: ../../skills/echo\n"},"name":"validation-missing-step-id","scope":"graphs"}

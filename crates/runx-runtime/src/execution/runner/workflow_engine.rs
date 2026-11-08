@@ -1118,12 +1118,10 @@ pub(super) fn when_skipped_steps(
 mod tests {
     use std::collections::BTreeSet;
 
+    use super::{replay_planning_cursor, when_skipped_steps};
     use runx_core::state_machine::{
         SequentialWorkflowStepDefinition, WorkflowStepState, create_sequential_workflow,
     };
-    use runx_parser::{parse_workflow_yaml, validate_workflow};
-
-    use super::{replay_planning_cursor, when_skipped_steps};
 
     fn replay_state(
         statuses: &[WorkflowStepState],
@@ -1172,27 +1170,27 @@ mod tests {
 
     #[test]
     fn skipped_branch_predicates_propagate_to_unreachable_descendants() {
-        let graph = validate_workflow(
-            parse_workflow_yaml(
-                r#"
-name: conditional-propagation
-steps:
-  - id: source
-    agent: source
-    outputs: {decision: {type: string}}
-  - id: inspect
-    when: {value: $steps.source.decision, equals: ready}
-    agent: inspect
-    outputs: {decision: {type: string}}
-  - id: reject
-    when: {value: $steps.inspect.decision, equals: reject}
-    agent: reject
-    outputs: {decision: {type: string}}
+        let graph = crate::execution::graph::testing::method_workflow(
+            "conditional-propagation",
+            r#"
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: source
+        agent: source
+        outputs: {decision: {type: string}}
+      - id: inspect
+        when: {value: $steps.source.decision, equals: ready}
+        agent: inspect
+        outputs: {decision: {type: string}}
+      - id: reject
+        when: {value: $steps.inspect.decision, equals: reject}
+        agent: reject
+        outputs: {decision: {type: string}}
 "#,
-            )
-            .expect("fixture graph should parse"),
         )
-        .expect("fixture graph should validate");
+        .expect("fixture method should validate");
         let skipped = when_skipped_steps(&graph, &[], &BTreeSet::from(["inspect".to_owned()]));
 
         assert!(skipped.contains("reject"));
@@ -1200,24 +1198,24 @@ steps:
 
     #[test]
     fn a_step_that_reads_a_skipped_step_is_skipped_whatever_it_reads_it_through() {
-        let graph = validate_workflow(
-            parse_workflow_yaml(
-                r#"
-name: read-propagation
-steps:
-  - id: inspect
-    when: {value: $input.inspect, equals: true}
-    agent: inspect
-    outputs: {report: {type: object}}
-  - id: publish
-    when: {value: $input.publish, equals: true}
-    agent: publish
-    inputs: {report: $steps.inspect.report}
+        let graph = crate::execution::graph::testing::method_workflow(
+            "read-propagation",
+            r#"
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: inspect
+        when: {value: $input.inspect, equals: true}
+        agent: inspect
+        outputs: {report: {type: object}}
+      - id: publish
+        when: {value: $input.publish, equals: true}
+        agent: publish
+        inputs: {report: $steps.inspect.report}
 "#,
-            )
-            .expect("fixture graph should parse"),
         )
-        .expect("fixture graph should validate");
+        .expect("fixture method should validate");
         let skipped = when_skipped_steps(&graph, &[], &BTreeSet::from(["inspect".to_owned()]));
 
         assert!(skipped.contains("publish"));
@@ -1225,22 +1223,22 @@ steps:
 
     #[test]
     fn a_condition_that_reads_nothing_never_lets_its_step_run() {
-        let graph = validate_workflow(
-            parse_workflow_yaml(
-                r#"
-name: misspelled-condition
-steps:
-  - id: review
-    agent: review
-    outputs: {verdict: {type: string}}
-  - id: send
-    when: {value: $steps.review.verdcit, equals: approved}
-    agent: send
+        let graph = crate::execution::graph::testing::method_workflow(
+            "misspelled-condition",
+            r#"
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: review
+        agent: review
+        outputs: {verdict: {type: string}}
+      - id: send
+        when: {value: $steps.review.verdcit, equals: approved}
+        agent: send
 "#,
-            )
-            .expect("fixture graph should parse"),
         )
-        .expect("fixture graph should validate");
+        .expect("fixture method should validate");
         let send = &graph.steps[1];
         let error = super::enforce_condition(send, &[]).expect_err("unresolved");
         assert!(error.to_string().contains("resolves to nothing"), "{error}");
@@ -1248,22 +1246,22 @@ steps:
 
     #[test]
     fn a_branch_on_the_run_input_is_decided_before_any_step_runs() {
-        let graph = validate_workflow(
-            parse_workflow_yaml(
-                r#"
-name: input-branch
-steps:
-  - id: apply
-    when: {value: $input.mode, equals: apply}
-    agent: apply
-  - id: preview
-    when: {value: $input.mode, not_equals: apply}
-    agent: preview
+        let graph = crate::execution::graph::testing::method_workflow(
+            "input-branch",
+            r#"
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: apply
+        when: {value: $input.mode, equals: apply}
+        agent: apply
+      - id: preview
+        when: {value: $input.mode, not_equals: apply}
+        agent: preview
 "#,
-            )
-            .expect("fixture graph should parse"),
         )
-        .expect("fixture graph should validate");
+        .expect("fixture method should validate");
         let inputs = runx_contracts::JsonObject::from([(
             "mode".to_owned(),
             runx_contracts::JsonValue::String("preview".to_owned()),
@@ -1277,23 +1275,23 @@ steps:
 
     #[test]
     fn an_absent_input_satisfies_no_condition_and_passes_no_guard() {
-        let graph = validate_workflow(
-            parse_workflow_yaml(
-                r#"
-name: absent-input
-steps:
-  - id: preview
-    when: {value: $input.mode, not_equals: apply}
-    agent: preview
-  - id: send
-    guard:
-      - {value: $input.approved, not_equals: false}
-    agent: send
+        let graph = crate::execution::graph::testing::method_workflow(
+            "absent-input",
+            r#"
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: preview
+        when: {value: $input.mode, not_equals: apply}
+        agent: preview
+      - id: send
+        guard:
+          - {value: $input.approved, not_equals: false}
+        agent: send
 "#,
-            )
-            .expect("fixture graph should parse"),
         )
-        .expect("fixture graph should validate");
+        .expect("fixture method should validate");
         let graph = crate::execution::graph::bind_run_inputs(
             graph,
             &runx_contracts::JsonObject::new(),

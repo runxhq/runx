@@ -1,16 +1,29 @@
-use runx_parser::{parse_workflow_yaml, validate_workflow};
+use runx_parser::{parse_method_manifest_yaml, validate_method_manifest};
+
+/// The workflow of the one method `run_yaml` declares.
+fn workflow(run_yaml: &str) -> Result<runx_parser::Workflow, String> {
+    let raw = parse_method_manifest_yaml(run_yaml).map_err(|error| error.to_string())?;
+    let manifest =
+        validate_method_manifest("step-reference", raw).map_err(|error| error.to_string())?;
+    manifest
+        .default_method()
+        .map(|method| method.graph.clone())
+        .ok_or_else(|| "the run.yaml declares one method".to_owned())
+}
 
 fn workflow_with_reference(path: &str) -> String {
     format!(
         r#"
-name: step-reference
-steps:
-  - id: first
-    tool: {{ command: node, args: ["-e", "process.stdout.write('{{}}')"] }}
-  - id: second
-    skill: ../../skills/echo
-    inputs:
-      message: $steps.first.{path}
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: first
+        tool: {{ command: node, args: ["-e", "process.stdout.write('{{}}')"] }}
+      - id: second
+        skill: ../../skills/echo
+        inputs:
+          message: $steps.first.{path}
 "#
     )
 }
@@ -24,11 +37,7 @@ fn read_path(graph: &runx_parser::Workflow) -> Option<String> {
 
 #[test]
 fn a_step_reads_a_field_of_an_earlier_step() -> Result<(), String> {
-    let graph = validate_workflow(
-        parse_workflow_yaml(&workflow_with_reference("result.data.message"))
-            .map_err(|error| error.to_string())?,
-    )
-    .map_err(|error| error.to_string())?;
+    let graph = workflow(&workflow_with_reference("result.data.message"))?;
 
     assert_eq!(read_path(&graph).as_deref(), Some("result.data.message"));
     assert_eq!(graph.steps[1].reads(), ["first"]);
@@ -40,11 +49,7 @@ fn workflow_does_not_reserve_process_diagnostic_names() -> Result<(), String> {
     // Process diagnostics live outside the declared step contract. A producer
     // may therefore intentionally declare any of these ordinary field names.
     for name in ["stdout", "skill_claim", "status", "raw", "stderr"] {
-        let graph = validate_workflow(
-            parse_workflow_yaml(&workflow_with_reference(name))
-                .map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
+        let graph = workflow(&workflow_with_reference(name))?;
         assert_eq!(read_path(&graph).as_deref(), Some(name));
     }
     Ok(())
@@ -52,22 +57,20 @@ fn workflow_does_not_reserve_process_diagnostic_names() -> Result<(), String> {
 
 #[test]
 fn a_worker_step_preserves_exact_environment_requirements() -> Result<(), String> {
-    let graph = validate_workflow(
-        parse_workflow_yaml(
-            r#"
-name: worker-environment
-steps:
-  - id: compute
-    tool:
-      module: compute.mjs
-      environment:
-        required: [REGION, TENANT_LABEL]
-        optional: [TRACE_LABEL]
+    let graph = workflow(
+        r#"
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: compute
+        tool:
+          module: compute.mjs
+          environment:
+            required: [REGION, TENANT_LABEL]
+            optional: [TRACE_LABEL]
 "#,
-        )
-        .map_err(|error| error.to_string())?,
-    )
-    .map_err(|error| error.to_string())?;
+    )?;
 
     let runx_parser::StepKind::Tool(runx_parser::ToolTarget::Worker(worker)) = &graph.steps[0].kind
     else {

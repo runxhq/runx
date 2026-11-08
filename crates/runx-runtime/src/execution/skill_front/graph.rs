@@ -963,9 +963,10 @@ mod tests {
     #[test]
     fn terminal_skill_failure_uses_only_an_exact_workflow_step_identity()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = runx_parser::validate_workflow(runx_parser::parse_workflow_yaml(
-            "name: authoring\nsteps:\n  - id: apply\n    skill: ./apply\n",
-        )?)?;
+        let graph = crate::execution::graph::testing::method_workflow(
+            "authoring",
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: apply\n        skill: ./apply\n",
+        )?;
         let owned = RuntimeError::SkillFailed {
             skill_name: "apply".to_owned(),
             message: "candidate harness failed".to_owned(),
@@ -1031,7 +1032,6 @@ mod tests {
         use crate::execution::run_record::{RunFilter, RunState, list_runs};
         use crate::receipts::archive::{ReceiptFilter, list_receipts};
         use runx_core::state_machine::WorkflowState;
-        use runx_parser::{parse_workflow_yaml, validate_workflow};
 
         let signature = crate::receipts::RuntimeReceiptSignatureConfig::fixture()?;
         for suspended in [false, true] {
@@ -1041,14 +1041,17 @@ mod tests {
                 crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
                 temp.path().join(".runx").display().to_string(),
             )]);
-            let graph = validate_workflow(parse_workflow_yaml(
+            let graph = crate::execution::graph::testing::method_workflow(
+                "managed-agent-workflow-failure",
                 r#"
-name: managed-agent-workflow-failure
-steps:
-  - id: compose
-    skill: ./compose
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: compose
+        skill: ./compose
 "#,
-            )?)?;
+            )?;
             let store =
                 KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, temp.path()))?;
             let log = RunLog::open(store, "run_managed_agent_failure")?;

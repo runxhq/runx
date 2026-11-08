@@ -2,8 +2,7 @@ use runx_contracts::{
     AllowedOperation, CatalogRule, CatalogTrust, SkillAllowance, TrustTier, TurnAllowance,
 };
 use runx_parser::{
-    SkillMethodManifest, Source, StepKind, parse_method_manifest_yaml, parse_workflow_yaml,
-    validate_method_manifest, validate_workflow,
+    SkillMethodManifest, Source, StepKind, parse_method_manifest_yaml, validate_method_manifest,
 };
 
 fn manifest(skill: &str, yaml: &str) -> Result<SkillMethodManifest, String> {
@@ -402,46 +401,38 @@ methods:
 }
 
 #[test]
-fn a_workflow_outside_a_skill_allows_nothing() -> Result<(), String> {
-    let graph = validate_workflow(
-        parse_workflow_yaml(
-            r#"
-name: bare
-steps:
-  - id: review
-    agent: review
+fn an_agent_step_that_writes_no_calls_allows_nothing() -> Result<(), String> {
+    let manifest = manifest(
+        "bare",
+        r#"
+minimum_runx: 0.12.0
+methods:
+  review:
+    steps:
+      - id: review
+        agent: review
 "#,
-        )
-        .map_err(|error| error.to_string())?,
-    )
-    .map_err(|error| error.to_string())?;
-    let StepKind::Agent(agent) = &graph.steps[0].kind else {
-        return Err("expected an agent step".to_owned());
-    };
-    assert!(agent.allowance.is_empty());
+    )?;
+    assert!(allowance(&manifest, "review")?.is_empty());
     Ok(())
 }
 
 #[test]
 fn workflow_rejects_path_like_tool_refs() -> Result<(), String> {
-    let error = validate_workflow(
-        parse_workflow_yaml(
-            r#"
-name: bad-tool-ref
-steps:
-  - id: read
-    tool: ../tools/read/manifest.json
+    let error = refusal(
+        "bad-tool-ref",
+        r#"
+minimum_runx: 0.12.0
+methods:
+  read:
+    steps:
+      - id: read
+        tool: ../tools/read/manifest.json
 "#,
-        )
-        .map_err(|error| error.to_string())?,
-    )
-    .err()
-    .ok_or_else(|| "expected graph tool name rejection".to_owned())?;
+    )?;
 
     assert!(
-        error
-            .to_string()
-            .contains("not an admissible catalog tool name"),
+        error.contains("not an admissible catalog tool name"),
         "{error}"
     );
     Ok(())

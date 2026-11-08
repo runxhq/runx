@@ -1,21 +1,21 @@
-use runx_parser::{parse_workflow_yaml, validate_workflow};
-
 // The full hello-workflow run (names, statuses, stdout, receipt digests and ids)
 // is pinned against the golden fixture in parity/hello_workflow.rs, and its
 // continuation from a run record in the runner's own tests.
 
 #[test]
 fn unknown_step_kind_fails_closed_before_dispatch() -> Result<(), Box<dyn std::error::Error>> {
-    let parsed = parse_workflow_yaml(
+    let error = match crate::support::run_yaml_workflow(
+        "unknown-step-kind",
         r#"
-name: unknown-step-kind
-steps:
-  - id: custom
-    custom-effect: {}
-    inputs: {}
+minimum_runx: 0.12.0
+methods:
+  run:
+    steps:
+      - id: custom
+        custom-effect: {}
+        inputs: {}
 "#,
-    )?;
-    let error = match validate_workflow(parsed) {
+    ) {
         Err(error) => error,
         Ok(_) => {
             return Err(std::io::Error::other(

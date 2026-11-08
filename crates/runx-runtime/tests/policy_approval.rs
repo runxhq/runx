@@ -4,7 +4,6 @@ use runx_contracts::{
     ExecutionEvent, JsonValue, ReferenceType, ResolutionRequest, ResolutionResponse,
     ResolutionResponseActor,
 };
-use runx_parser::{parse_workflow_yaml, validate_workflow};
 use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::{Host, Runtime, RuntimeError};
 
@@ -88,35 +87,24 @@ fn parent_approval_binds_the_composite_step_without_becoming_child_authority()
         child.join("SKILL.md"),
         "---\nname: child-policy-write\ndescription: nested policy fixture\n---\n# Child\n",
     )?;
-    let child_workflow = child_policy_workflow(workspace.path());
-    let indented_workflow = child_workflow
-        .lines()
-        .filter(|line| !line.starts_with("name:"))
-        .map(|line| format!("    {line}"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    std::fs::write(
-        child.join("run.yaml"),
-        format!(
-            r#"minimum_runx: 0.12.0
+    let child_run_yaml = child_policy_run_yaml(workspace.path());
+    std::fs::write(child.join("run.yaml"), &child_run_yaml)?;
+    let parent = crate::support::run_yaml_workflow(
+        "parent-policy-write",
+        r#"
+minimum_runx: 0.12.0
 methods:
-  write:
-{indented_workflow}
+  run:
+    result_from: [child]
+    steps:
+      - id: approve
+        ask: {gate: parent.child.approval, reason: Approve the nested write.}
+      - id: child
+        guard:
+          - {value: $steps.approve.approval_decision.approved, equals: true}
+        skill: ./child#write
 "#,
-        ),
     )?;
-    let parent = validate_workflow(parse_workflow_yaml(
-        r#"name: parent-policy-write
-result_from: [child]
-steps:
-  - id: approve
-    ask: {gate: parent.child.approval, reason: Approve the nested write.}
-  - id: child
-    guard:
-      - {value: $steps.approve.approval_decision.approved, equals: true}
-    skill: ./child#write
-"#,
-    )?)?;
 
     let mut host = ApprovalHost::new(true);
     let run = runtime(workspace.path(), "run_nested_parent")?.run_workflow_with_host(
@@ -146,7 +134,7 @@ steps:
         })
     }));
 
-    let child_workflow = validate_workflow(parse_workflow_yaml(&child_workflow)?)?;
+    let child_workflow = crate::support::run_yaml_workflow("child-policy-write", &child_run_yaml)?;
     runtime(workspace.path(), "run_nested_child")?.run_workflow_with_host(
         &child,
         child_workflow,
@@ -155,17 +143,22 @@ steps:
     Ok(())
 }
 
-fn child_policy_workflow(workspace: &std::path::Path) -> String {
+/// The child package's `run.yaml`: one method, `write`, that writes
+/// `nested.txt` into `workspace`.
+fn child_policy_run_yaml(workspace: &std::path::Path) -> String {
     format!(
-        r#"name: child-policy-write
-result_from: [write]
-steps:
-  - id: write
-    tool: fs.write
-    inputs:
-      repo_root: {root:?}
-      path: nested.txt
-      contents: nested"#,
+        r#"minimum_runx: 0.12.0
+methods:
+  write:
+    result_from: [write]
+    steps:
+      - id: write
+        tool: fs.write
+        inputs:
+          repo_root: {root:?}
+          path: nested.txt
+          contents: nested
+"#,
         root = workspace.to_string_lossy()
     )
 }
@@ -175,25 +168,30 @@ fn policy_write_workflow(
     with_guard: bool,
 ) -> Result<runx_parser::Workflow, Box<dyn std::error::Error>> {
     let guard = if with_guard {
-        "    guard:\n      - {value: $steps.approve.approval_decision.approved, equals: true}\n"
+        "        guard:\n          - {value: $steps.approve.approval_decision.approved, equals: true}\n"
     } else {
         ""
     };
-    Ok(validate_workflow(parse_workflow_yaml(&format!(
-        r#"name: policy-write
-result_from: [write]
-steps:
-  - id: approve
-    ask: {{ gate: policy.write.approval, reason: Approve the exact fixture write. }}
-  - id: write
-{guard}    tool: fs.write
-    inputs:
-      repo_root: {root:?}
-      path: approved.txt
-      contents: approved
+    crate::support::run_yaml_workflow(
+        "policy-write",
+        &format!(
+            r#"minimum_runx: 0.12.0
+methods:
+  run:
+    result_from: [write]
+    steps:
+      - id: approve
+        ask: {{ gate: policy.write.approval, reason: Approve the exact fixture write. }}
+      - id: write
+{guard}        tool: fs.write
+        inputs:
+          repo_root: {root:?}
+          path: approved.txt
+          contents: approved
 "#,
-        root = workspace.to_string_lossy()
-    ))?)?)
+            root = workspace.to_string_lossy()
+        ),
+    )
 }
 
 fn runtime(
