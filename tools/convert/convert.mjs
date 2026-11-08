@@ -8,7 +8,7 @@
 //
 // Without --write it changes nothing and reports what it would do.
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import YAML, { isMap, isScalar, isSeq, Pair, Scalar, YAMLMap, YAMLSeq } from "yaml";
 
@@ -821,6 +821,14 @@ function main(argv) {
   let refused = 0;
   for (const dir of dirs) {
     try {
+      // A path that holds neither file, such as a namespace folder or a stray
+      // match of a glob, is refused by name, and the rest still convert.
+      const stat = statSync(dir, { throwIfNoEntry: false });
+      if (stat === undefined) refuse("doesn't exist");
+      if (!stat.isDirectory()) refuse("is not a directory");
+      if (!existsSync(path.join(dir, "connector.yaml")) && !existsSync(path.join(dir, "run.yaml"))) {
+        refuse("holds neither a run.yaml nor a connector.yaml, so it's not a package or a connector");
+      }
       if (existsSync(path.join(dir, "connector.yaml"))) {
         const { files, notes } = convertConnector(dir);
         if (write) for (const [file, content] of files) writeFileSync(file, content);
