@@ -29,17 +29,6 @@ pub fn javascript_module_imports(
     javascript::module_imports(path, source)
 }
 
-/// Extract the statically bound imports and CommonJS requires used by a
-/// process-backed JavaScript source. Process modules may use Node APIs, but
-/// dynamic dependencies are rejected because package/source hashing must bind
-/// the complete local closure.
-pub fn javascript_process_module_imports(
-    path: &str,
-    source: &str,
-) -> Result<Vec<String>, SkillPackageError> {
-    javascript::process_module_imports(path, source)
-}
-
 /// Resolve one relative ECMAScript import using the same portable path rules
 /// used by aggregate package admission and the deterministic worker.
 pub fn resolve_javascript_module_import(
@@ -168,11 +157,6 @@ impl ValidatedSkillPackage {
     }
 
     #[must_use]
-    pub fn runner(&self, name: &str) -> Option<&crate::SkillRunnerDefinition> {
-        self.root_manifest()?.runners.get(name)
-    }
-
-    #[must_use]
     pub fn root_manifest(&self) -> Option<&SkillRunnerManifest> {
         self.profiles.get(PROFILE_FILE)
     }
@@ -180,25 +164,6 @@ impl ValidatedSkillPackage {
     #[must_use]
     pub fn manifest_at(&self, path: &str) -> Option<&SkillRunnerManifest> {
         self.profiles.get(path)
-    }
-
-    #[must_use]
-    pub fn tool_at(&self, manifest_path: &str) -> Option<&ValidatedPackageTool> {
-        self.tools.get(manifest_path)
-    }
-
-    #[must_use]
-    pub fn default_runner(&self) -> Option<&crate::SkillRunnerDefinition> {
-        let manifest = self.root_manifest()?;
-        manifest
-            .runners
-            .values()
-            .find(|runner| runner.default)
-            .or_else(|| {
-                (manifest.runners.len() == 1)
-                    .then(|| manifest.runners.values().next())
-                    .flatten()
-            })
     }
 }
 

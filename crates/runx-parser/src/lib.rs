@@ -37,9 +37,8 @@ pub use install::{
 };
 pub use package::{
     PROFILE_FILE, PackagePacket, SkillPackageError, SkillPackageSource, ValidatedJavaScriptModule,
-    ValidatedPackageTool, ValidatedSkillPackage, javascript_module_imports,
-    javascript_process_module_imports, profile_directory, resolve_javascript_module_import,
-    validate_skill_package,
+    ValidatedPackageTool, ValidatedSkillPackage, javascript_module_imports, profile_directory,
+    resolve_javascript_module_import, validate_skill_package,
 };
 pub use packet::{
     PACKET_ID_FIELD, PacketSchemaError, ValidatedPacketSchema, parse_packet_schema_document,

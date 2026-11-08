@@ -1,5 +1,5 @@
 use runx_parser::{
-    AgentTask, AskGate, InputMode, StepKind, ToolTarget, ValidateSkillOptions,
+    AgentTask, AskGate, InputMode, StepKind, ToolTarget, ValidateSkillMode, ValidateSkillOptions,
     parse_runner_manifest_yaml, parse_skill_markdown, validate_runner_manifest, validate_skill,
     validate_skill_with_options,
 };
@@ -281,8 +281,13 @@ fn skill_markdown_carries_only_manual_fields() -> Result<(), String> {
         "---\nname: manual\ndescription: A manual.\nsource:\n  type: agent\n---\n# Manual\n";
     let raw = parse_skill_markdown(markdown).map_err(|error| error.to_string())?;
     assert!(validate_skill(raw.clone()).is_err());
-    let lenient = validate_skill_with_options(raw, ValidateSkillOptions::lenient())
-        .map_err(|error| error.to_string())?;
+    let lenient = validate_skill_with_options(
+        raw,
+        ValidateSkillOptions {
+            mode: ValidateSkillMode::Lenient,
+        },
+    )
+    .map_err(|error| error.to_string())?;
     assert_eq!(lenient.name, "manual");
     Ok(())
 }

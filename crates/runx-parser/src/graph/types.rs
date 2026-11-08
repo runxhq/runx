@@ -68,21 +68,6 @@ pub enum StepKind {
     Load(LoadStep),
 }
 
-impl StepKind {
-    /// The step kind's name, as authors write it.
-    #[must_use]
-    pub const fn name(&self) -> &'static str {
-        match self {
-            Self::Agent(_) => "agent",
-            Self::Tool(_) => "tool",
-            Self::Operation(_) => "operation",
-            Self::Ask(_) => "ask",
-            Self::Skill(_) => "skill",
-            Self::Load(_) => "load",
-        }
-    }
-}
-
 /// A load an agent's call makes: what it names, the rules that admit it,
 /// and what the turn already binds, which the load must agree with.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

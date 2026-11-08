@@ -55,16 +55,6 @@ pub enum ArtifactPageInput {
     },
 }
 
-impl InputMode {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            InputMode::Args => "args",
-            InputMode::Stdin => "stdin",
-            InputMode::None => "none",
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ValidateSkillMode {
     Strict,
@@ -80,22 +70,6 @@ impl Default for ValidateSkillOptions {
     fn default() -> Self {
         Self {
             mode: ValidateSkillMode::Strict,
-        }
-    }
-}
-
-impl ValidateSkillOptions {
-    #[must_use]
-    pub const fn strict() -> Self {
-        Self {
-            mode: ValidateSkillMode::Strict,
-        }
-    }
-
-    #[must_use]
-    pub const fn lenient() -> Self {
-        Self {
-            mode: ValidateSkillMode::Lenient,
         }
     }
 }

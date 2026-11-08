@@ -547,7 +547,8 @@ runners:
     let validated = validate_skill_package(source).expect("bundled tool package must validate");
     let manifest_path = "tools/example/echo/manifest.json";
     let tool = validated
-        .tool_at(manifest_path)
+        .tools
+        .get(manifest_path)
         .expect("bundled tool must be typed package truth");
 
     assert_eq!(tool.tool.name, "example.echo");
