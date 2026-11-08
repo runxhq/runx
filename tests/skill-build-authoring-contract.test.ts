@@ -44,12 +44,13 @@ describe("Skill Build authoring ownership", () => {
   });
 
   it("keeps hashes native and uses architect-plan-author-bind-apply", async () => {
-    const profile = validateMethodManifestYaml(
-      await readFile(path.join(root, "skills/skill-build/run.yaml"), "utf8"),
-    ).raw.document as Record<string, any>;
-    expect(stepIds(profile.runners.design)).toEqual(["inspect", "architect", "plan"]);
+    const profile = validateMethodManifestYaml({
+      skill: "skill-build",
+      yaml: await readFile(path.join(root, "skills/skill-build/run.yaml"), "utf8"),
+    }).raw.document as Record<string, any>;
+    expect(stepIds(profile.methods.design)).toEqual(["inspect", "architect", "plan"]);
     for (const methodName of ["build", "improve", "harness"]) {
-      expect(stepIds(profile.runners[methodName])).toEqual([
+      expect(stepIds(profile.methods[methodName])).toEqual([
         "inspect",
         "architect",
         "plan",
@@ -57,20 +58,23 @@ describe("Skill Build authoring ownership", () => {
         "bind",
         "apply",
       ]);
-      expect(step(profile.runners[methodName], "plan").tool).toBe("runx.skill.plan");
-      expect(step(profile.runners[methodName], "bind").tool).toBe("runx.skill.bind");
-      expect(step(profile.runners[methodName], "apply").tool).toBe("runx.skill.apply");
-      expect(step(profile.runners[methodName], "author").artifacts.packets.change_draft)
+      expect(step(profile.methods[methodName], "plan").tool).toBe("runx.skill.plan");
+      expect(step(profile.methods[methodName], "bind").tool).toBe("runx.skill.bind");
+      expect(step(profile.methods[methodName], "apply").tool).toBe("runx.skill.apply");
+      expect(step(profile.methods[methodName], "author").outputs.change_draft.packet)
         .toBe("runx.skill.change_draft.v1");
     }
 
-    const fixtureRoot = path.join(root, "skills/skill-build/fixtures");
-    const fixtureFiles = (await readdir(fixtureRoot)).filter((entry) => entry.endsWith(".yaml"));
-    const fixtures = validateTestFixtureYamlBatch(
-      await Promise.all(fixtureFiles.map((file) => readFile(path.join(fixtureRoot, file), "utf8"))),
+    const testRoot = path.join(root, "skills/skill-build/tests");
+    const testFiles = (await readdir(testRoot)).filter((entry) => entry.endsWith(".yaml"));
+    const tests = validateTestFixtureYamlBatch(
+      await Promise.all(testFiles.map((file) => readFile(path.join(testRoot, file), "utf8"))),
     ) as Array<Record<string, any>>;
-    for (const fixture of fixtures) {
-      const answers = fixture.caller.answers;
+    expect(tests.length).toBeGreaterThan(0);
+    for (const fixture of tests) {
+      const answers = fixture.host?.answers ?? {};
+      // A test refused before any turn answers none.
+      if (Object.keys(answers).length === 0) continue;
       expect(answers["architect"].architecture_decision.schema)
         .toBe("runx.skill.architecture_decision.v1");
       // A design run architects and plans; only an authoring run drafts.
@@ -88,7 +92,8 @@ describe("Skill Build authoring ownership", () => {
       .replace(/\s+/g, " ");
     for (const meaning of [
       "## Authoring rules",
-      "## Agent task contracts",
+      "## Agent task: skill-build-architecture",
+      "## Agent task: skill-build-author",
       "required evidence",
       "stop conditions",
       "resource ceilings",
@@ -100,12 +105,12 @@ describe("Skill Build authoring ownership", () => {
   });
 });
 
-function stepIds(runner: Record<string, any>): string[] {
-  return runner.steps.map((value: Record<string, any>) => value.id);
+function stepIds(method: Record<string, any>): string[] {
+  return method.steps.map((value: Record<string, any>) => value.id);
 }
 
-function step(runner: Record<string, any>, id: string): Record<string, any> {
-  return runner.steps.find((value: Record<string, any>) => value.id === id);
+function step(method: Record<string, any>, id: string): Record<string, any> {
+  return method.steps.find((value: Record<string, any>) => value.id === id);
 }
 
 async function json(file: string): Promise<Record<string, any>> {

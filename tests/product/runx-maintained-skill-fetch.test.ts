@@ -11,7 +11,7 @@ import { startLoopbackRegistry } from "../../scripts/lib/loopback-registry.mjs";
 /** A hosted registry on loopback: its URL, the environment that reaches it, and a publisher's. */
 type LoopbackRegistry = Awaited<ReturnType<typeof startLoopbackRegistry>>;
 
-/** One bounded source packet, as the research skill's default runner takes it. */
+/** One bounded source packet, as the research skill's default method takes it. */
 const SOURCE_PACKETS = JSON.stringify([{
   final_url: "https://example.com/api",
   status: 200,
@@ -150,7 +150,7 @@ describe("registry skill native fetch", () => {
 
     try {
       await mkdir(projectDir, { recursive: true });
-      // The cursor runner plans locally and persists through the store's own
+      // The cursor method plans locally and persists through the store's own
       // operations; it calls no GitHub operation.
       const result = runNativeSkill(env, [
         githubRef,

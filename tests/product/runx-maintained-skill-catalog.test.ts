@@ -13,24 +13,12 @@ import {
 
 type SkillMethod = {
   readonly name: string;
-  readonly default: boolean;
   readonly graph: { readonly steps: readonly unknown[] };
 };
 
 type SkillMethodManifest = {
   readonly catalog?: Record<string, unknown>;
-  readonly runners: Readonly<Record<string, SkillMethod>>;
-  readonly harness?: {
-    readonly cases: readonly {
-      readonly name: string;
-      readonly runner?: string;
-      readonly inputs?: unknown;
-      readonly env?: unknown;
-      readonly caller?: unknown;
-      readonly expect?: unknown;
-    }[];
-    readonly files?: readonly string[];
-  };
+  readonly methods: Readonly<Record<string, SkillMethod>>;
   readonly raw: { readonly document: Record<string, unknown> };
 };
 
@@ -54,27 +42,23 @@ describe("runx-maintained skill catalog", () => {
       readonly name: string;
     }>;
     const manifests = validateNativeMethodManifestYamlBatch(
-      packages.map((entry) => entry.profile),
+      packages.map((entry, index) => ({ skill: skills[index]!.name, yaml: entry.profile })),
     ) as SkillMethodManifest[];
     for (const [index, { skillName }] of packages.entries()) {
       const skill = skills[index];
       const manifest = manifests[index];
       expect(skill.name).toBe(skillName);
       expect(manifest.catalog).toBeDefined();
-      expect(Object.keys(manifest.runners).length).toBeGreaterThan(0);
+      expect(Object.keys(manifest.methods).length).toBeGreaterThan(0);
     }
   });
 
   it("keeps static agent instructions exclusively in SKILL.md", () => {
     for (const manifestPath of skillManifestPaths(path.resolve("skills"))) {
-      const manifest = validateMethodManifestYaml(readFileSync(manifestPath, "utf8")).raw.document;
-      expect(findObjectKeyPaths(manifest, "instructions"), manifestPath).toEqual([]);
-
-      if (findAgentTasks(manifest).length === 0) {
-        continue;
-      }
       const skillMarkdownPath = path.join(path.dirname(manifestPath), "SKILL.md");
       expect(existsSync(skillMarkdownPath), manifestPath).toBe(true);
+      const manifest = validateMethodManifestYaml(path.dirname(manifestPath)).raw.document;
+      expect(findObjectKeyPaths(manifest, "instructions"), manifestPath).toEqual([]);
     }
   });
 
@@ -83,36 +67,22 @@ describe("runx-maintained skill catalog", () => {
       if (catalogVisibility(skillName) !== "public") {
         continue;
       }
-      if (catalogRole(skillName) === "context") {
-        continue;
-      }
-      const manifest = validateMethodManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
-      const fixtures = publicSkillFixtureCases(skillName);
-      const inlineCases = manifest.harness?.cases ?? [];
+      const tests = publicSkillTests(skillName);
 
-      expect(fixtures.length + inlineCases.length, `${skillName} needs executable proof`).toBeGreaterThan(0);
+      expect(tests.length, `${skillName} needs executable proof`).toBeGreaterThan(0);
       expect(
-        fixtures.every((entry) => entry.kind === "skill" || entry.kind === "graph"),
-        `${skillName} fixtures must target a skill or operator journey`,
-      ).toBe(true);
-      expect(
-        fixtures
-          .filter((entry) => entry.kind === "skill")
-          .every((entry) => entry.target === ".." || entry.target?.startsWith("../graph/") === true),
-        `${skillName} skill fixtures must stay within their package`,
-      ).toBe(true);
-      expect(
-        fixtures
-          .filter((entry) => entry.kind === "graph")
+        tests
+          .filter((entry) => entry.package !== undefined && entry.package !== null)
           .every((entry) => {
-            // Journey graphs are declared harness support files under fixtures/.
-            const target = entry.target;
-            return typeof target === "string"
-              && !path.posix.isAbsolute(target)
+            // A test that composes skills runs a small package under fixtures/.
+            const target = entry.package!;
+            return !path.posix.isAbsolute(target)
+              && target.startsWith("fixtures/")
               && !target.split("/").some((part) => part === "." || part === ".." || part === "")
-              && (manifest.harness?.files ?? []).includes(`fixtures/${target}`);
+              && existsSync(path.resolve("skills", skillName, target, "SKILL.md"))
+              && existsSync(path.resolve("skills", skillName, target, "run.yaml"));
           }),
-        `${skillName} journey fixtures must target declared fixture support`,
+        `${skillName} tests must run this package or a fixture package inside it`,
       ).toBe(true);
     }
   });
@@ -154,51 +124,36 @@ function findObjectKeyPaths(value: unknown, key: string, prefix = "$"): readonly
   ]);
 }
 
-function findAgentTasks(value: unknown): readonly string[] {
-  if (Array.isArray(value)) {
-    return value.flatMap(findAgentTasks);
-  }
-  if (!value || typeof value !== "object") {
-    return [];
-  }
-  const record = value as Record<string, unknown>;
-  const agent = record.agent as Record<string, unknown> | undefined;
-  const current = agent && typeof agent === "object" && typeof agent.task === "string"
-    ? [agent.task]
-    : [];
-  return [...current, ...Object.values(record).flatMap(findAgentTasks)];
-}
-
 function catalogVisibility(skillName: string): "public" | "internal" {
-  const manifest = validateMethodManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
+  const manifest = validateMethodManifestYaml(path.resolve("skills", skillName));
   const catalog = manifest.catalog as { readonly visibility?: "public" | "internal" } | undefined;
   return catalog?.visibility ?? "public";
 }
 
-function catalogRole(skillName: string): string | undefined {
-  const manifest = validateMethodManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
-  const catalog = manifest.catalog as { readonly role?: string } | undefined;
-  return catalog?.role;
-}
-
-type PublicSkillFixtureCase = {
-  readonly kind?: string;
-  readonly target?: string;
-  readonly runner?: string;
+type PublicSkillTest = {
+  readonly name: string;
+  readonly package?: string | null;
 };
 
-function publicSkillFixtureCases(skillName: string): readonly PublicSkillFixtureCase[] {
-  const fixturesDir = path.resolve("skills", skillName, "fixtures");
-  if (!existsSync(fixturesDir)) {
+function publicSkillTests(skillName: string): readonly PublicSkillTest[] {
+  const testsDir = path.resolve("skills", skillName, "tests");
+  if (!existsSync(testsDir)) {
     return [];
   }
-  const documents = readdirSync(fixturesDir)
-    .filter((entry) => entry.endsWith(".yaml") || entry.endsWith(".yml"))
+  const documents = readdirSync(testsDir)
+    .filter((entry) => entry.endsWith(".yaml"))
     .sort()
-    .map((entry) => readFileSync(path.join(fixturesDir, entry), "utf8"));
-  return validateTestFixtureYamlBatch(documents) as PublicSkillFixtureCase[];
+    .map((entry) => readFileSync(path.join(testsDir, entry), "utf8"));
+  return validateTestFixtureYamlBatch(documents) as PublicSkillTest[];
 }
 
-function validateMethodManifestYaml(profileDocument: string): SkillMethodManifest {
-  return validateNativeMethodManifestYaml(profileDocument);
+/** A package directory's `run.yaml`, validated as the package its `SKILL.md` names. */
+function validateMethodManifestYaml(packageDir: string): SkillMethodManifest {
+  const [skill] = validateNativeSkillMarkdownBatch([readFileSync(path.join(packageDir, "SKILL.md"), "utf8")]) as Array<{
+    readonly name: string;
+  }>;
+  return validateNativeMethodManifestYaml({
+    skill: skill!.name,
+    yaml: readFileSync(path.join(packageDir, "run.yaml"), "utf8"),
+  }) as SkillMethodManifest;
 }

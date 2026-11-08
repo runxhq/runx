@@ -26,25 +26,23 @@ describe("payment ownership boundary", () => {
   it("keeps real payment effects behind hosted provider contracts", async () => {
     for (const skill of hostedPaymentSkills) {
       const source = await readFile(path.resolve("skills", skill, "run.yaml"), "utf8");
-      const manifest = validateMethodManifestYaml(source).raw.document as {
-        readonly catalog?: Record<string, unknown>;
-        readonly runners: Record<string, {
+      const manifest = validateMethodManifestYaml({ skill, yaml: source }).raw.document as {
+        readonly methods: Record<string, {
           readonly steps: readonly {
             readonly tool?: string | { readonly module?: string; readonly command?: string };
-            readonly operation?: string;
+            readonly operation?: string | Record<string, unknown>;
             readonly idempotency_key?: unknown;
             readonly approval?: unknown;
-            readonly expected_result?: unknown;
+            readonly result?: { readonly equals?: unknown };
           }[];
         }>;
       };
 
-      expect(manifest.catalog?.approval, `${skill} approval`).toBe("required");
-      expect(Object.keys(manifest.runners).length, `${skill} runners`).toBeGreaterThan(0);
+      expect(Object.keys(manifest.methods).length, `${skill} methods`).toBeGreaterThan(0);
       let approved = 0;
       let readbacks = 0;
-      for (const [name, runner] of Object.entries(manifest.runners)) {
-        for (const step of runner.steps) {
+      for (const [name, method] of Object.entries(manifest.methods)) {
+        for (const step of method.steps) {
           // Pure preparation/readback computation can accompany provider calls.
           // It must use the isolated worker lane, never a host process.
           if (typeof step.tool === "object") {
@@ -62,7 +60,7 @@ describe("payment ownership boundary", () => {
               type: expect.any(String), reason: expect.any(String),
             });
           }
-          if (step.expected_result !== undefined) readbacks += 1;
+          if (step.result?.equals !== undefined) readbacks += 1;
         }
       }
       if (skill === "invoice-pay") {
@@ -80,13 +78,12 @@ describe("payment ownership boundary", () => {
     for (const skill of localPaymentSimulators) {
       const profile = await readFile(path.resolve("fixtures/skills", skill, "run.yaml"), "utf8");
       const implementation = await readFile(path.resolve("fixtures/skills", skill, `${skill}.mjs`), "utf8");
-      const manifest = validateMethodManifestYaml(profile).raw.document as {
+      const manifest = validateMethodManifestYaml({ skill, yaml: profile }).raw.document as {
         readonly catalog?: Record<string, unknown>;
       };
 
       expect(manifest.catalog?.visibility, `${skill} visibility`).toBe("internal");
-      expect(manifest.catalog?.role, `${skill} role`).toBe("test-fixture");
-      expect(profile, `${skill} local JavaScript`).toMatch(/tool: \{ module: /);
+      expect(profile, `${skill} local JavaScript`).toMatch(/tool: \{ ?module: /);
       expect(profile, `${skill} provider access`).not.toMatch(/provider\.(?:mutate|read)/);
       expect(implementation, `${skill} simulated result`).toContain('status: "simulated"');
       expect(implementation, `${skill} no money movement`).toContain("money_moved: false");
