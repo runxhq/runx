@@ -138,6 +138,70 @@ runners:
   assert.match(out, /methods\.run\.steps\.child\.act\.decision removed: nothing in runx decides with it/);
 });
 
+test("text before a plural heading's first task stays under ## Agent tasks, where the heading was", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": `---
+name: planner
+description: A test package.
+---
+
+# Planner
+
+## Stop conditions
+
+Stop when the plan is empty.
+
+## Agent task contracts
+
+Every planning act cites its source and never invents a date.
+
+### draft
+
+Draft the plan.
+
+### review
+
+Review the plan.
+`,
+    "run.yaml": `skill: planner
+version: "0.1.0"
+runners:
+  draft:
+    default: true
+  review: {}
+`,
+  });
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.equal(
+    read(dir, "SKILL.md"),
+    `---
+name: planner
+description: A test package.
+---
+
+# Planner
+
+## Stop conditions
+
+Stop when the plan is empty.
+
+## Agent tasks
+
+Every planning act cites its source and never invents a date.
+
+## Agent task: draft
+
+Draft the plan.
+
+## Agent task: review
+
+Review the plan.
+`,
+  );
+  assert.match(out, /SKILL\.md's "## Agent task contracts" has text before its first task, kept under "## Agent tasks", which names no task/);
+});
+
 const invoiceCase = (env, path) => `name: reads-invoice
 runner: pay
 env:

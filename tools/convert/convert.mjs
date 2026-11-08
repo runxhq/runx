@@ -680,8 +680,10 @@ const unquote = (text) => text.trim().replace(/^`(.*)`$/, "$1").trim();
 // unnamed `## Agent task contract`, a plural `## Agent task contracts` with a
 // `### <task>` per task, or already `## Agent task: <name>`, some with the
 // name in backticks. A `### <task>` heading elsewhere is promoted the same
-// way. Each promoted task's own subheadings rise one level. A heading that
-// matches no single task, or a task with no section, is a note for its owner.
+// way. Each promoted task's own subheadings rise one level, and text a plural
+// heading holds before its first task stays under `## Agent tasks`. A heading
+// that matches no single task, or a task with no section, is a note for its
+// owner.
 function agentTaskSections(markdown, tasks, notes) {
   const lines = markdown.split("\n");
   let fence = null;
@@ -698,6 +700,7 @@ function agentTaskSections(markdown, tasks, notes) {
   const named = new Map(); // line index -> task name
   const raise = new Set();
   const drop = new Set();
+  const retitle = new Map(); // line index -> the heading it becomes
   const end = (from, level) => headings.find((heading) => heading.index > from && heading.level <= level)?.index ?? lines.length;
   const promote = (heading, task) => {
     named.set(heading.index, task);
@@ -716,7 +719,13 @@ function agentTaskSections(markdown, tasks, notes) {
     }
     const inner = headings.filter((sub) => sub.index > heading.index && sub.index < end(heading.index, 2) && sub.level === 3 && tasks.has(unquote(sub.text)));
     if (inner.length) {
-      drop.add(heading.index);
+      // Text before the first task belongs to every task, so it keeps a
+      // heading of its own, which names no task, where the old one stood.
+      // Dropping that heading would hand the text to the section above.
+      if (lines.slice(heading.index + 1, inner[0].index).some((line) => line.trim() !== "")) {
+        retitle.set(heading.index, "## Agent tasks");
+        notes.push(`SKILL.md's "${lines[heading.index]}" has text before its first task, kept under "## Agent tasks", which names no task`);
+      } else drop.add(heading.index);
       for (const sub of inner) promote(sub, unquote(sub.text));
       continue;
     }
@@ -738,6 +747,7 @@ function agentTaskSections(markdown, tasks, notes) {
       return;
     }
     if (named.has(index)) out.push(`## Agent task: ${named.get(index)}`);
+    else if (retitle.has(index)) out.push(retitle.get(index));
     else if (raise.has(index)) out.push(line.slice(1));
     else out.push(line);
   });
