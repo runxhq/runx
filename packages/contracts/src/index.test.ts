@@ -41,7 +41,6 @@ import {
   validateRegistryBindingContract,
   validateRunxListReportContract,
   validateOperationalPolicyContract,
-  validateOperationalPolicySemantics,
   validateOperationalProposalContract,
   validateSignalContract,
   validateReferenceContract,
@@ -390,9 +389,6 @@ describe("@runxhq/contracts", () => {
       },
     };
     expect(validateOperationalPolicyContract(policy)).toMatchObject({
-      policy_id: "example-dev-flow",
-    });
-    expect(validateOperationalPolicySemantics(policy)).toMatchObject({
       policy_id: "example-dev-flow",
       permissions: {
         auto_merge: false,

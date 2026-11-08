@@ -367,18 +367,7 @@ export {
 
 export {
   operationalPolicySchema,
-  operationalPolicySchemaVersion,
-  operationalPolicyActions,
-  operationalPolicyRunnerStates,
-  operationalPolicyDedupeStrategies,
-  operationalPolicyOutcomeCloseModes,
   validateOperationalPolicyContract,
-  admitOperationalPolicyRequest,
-  lintOperationalPolicyContract,
-  validateOperationalPolicySemantics,
-  projectOperationalPolicyReadback,
-  type OperationalPolicyAdmission,
-  type OperationalPolicyAdmissionRequest,
 } from "./schemas/operational-policy.js";
 
 export {

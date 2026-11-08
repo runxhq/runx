@@ -5,12 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   operationalPolicySchema,
-  operationalPolicySchemaVersion,
-  admitOperationalPolicyRequest,
-  lintOperationalPolicyContract,
-  projectOperationalPolicyReadback,
   validateOperationalPolicyContract,
-  validateOperationalPolicySemantics,
 } from "./operational-policy.js";
 import type { OperationalPolicyContract } from "../generated/contract-types.js";
 
@@ -18,7 +13,7 @@ const fixtureRoot = new URL("../../../../fixtures/operational-policy/", import.m
 
 const validPolicy: OperationalPolicyContract = {
   schema: "runx.operational_policy.v1",
-  schema_version: operationalPolicySchemaVersion,
+  schema_version: "runx.operational_policy.v1",
   policy_id: "provider-dev-flow",
   created_at: "2026-05-19T02:00:00Z",
   sources: [
@@ -124,10 +119,6 @@ describe("operational-policy schema", () => {
         require_human_merge_gate: true,
       },
     });
-    expect(lintOperationalPolicyContract(validPolicy)).toEqual([]);
-    expect(validateOperationalPolicySemantics(validPolicy)).toMatchObject({
-      policy_id: "provider-dev-flow",
-    });
   });
 
   it.each([
@@ -140,26 +131,6 @@ describe("operational-policy schema", () => {
       schema: "runx.operational_policy.v1",
       schema_version: "runx.operational_policy.v1",
     });
-    expect(lintOperationalPolicyContract(policy)).toEqual([]);
-    expect(projectOperationalPolicyReadback(policy).valid).toBe(true);
-  });
-
-  it.each([
-    ["invalid-unknown-runner.json", "unknown_runner"],
-    ["invalid-owner-route-mismatch.json", "owner_route_target_mismatch"],
-    ["invalid-source-thread-missing.json", "source_thread_required"],
-    ["invalid-no-available-runner.json", "target_action_without_runner"],
-    ["invalid-not-scafld-target.json", "mutation_without_scafld"],
-  ])("reports stable semantic finding for %s", (fixtureName, code) => {
-    const policy = readPolicyFixture(fixtureName);
-
-    expect(lintOperationalPolicyContract(policy)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code }),
-      ]),
-    );
-    expect(() => validateOperationalPolicySemantics(policy))
-      .toThrow(new RegExp(code));
   });
 
   it.each([
@@ -210,194 +181,6 @@ describe("operational-policy schema", () => {
       ...validPolicy,
       github_token: "ghp_123",
     })).toBe(false);
-  });
-
-  it("reports unknown target runners as semantic findings", () => {
-    const findings = lintOperationalPolicyContract({
-      ...validPolicy,
-      targets: [{
-        ...validPolicy.targets[0],
-        runner_ids: ["missing-runner"],
-      }],
-    });
-
-    expect(findings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "unknown_runner",
-          path: "/targets/0/runner_ids/0",
-        }),
-      ]),
-    );
-  });
-
-  it("reports owner routes that do not cover the target repo", () => {
-    const findings = lintOperationalPolicyContract({
-      ...validPolicy,
-      targets: [{
-        ...validPolicy.targets[0],
-        default_owner_route: "app-chong",
-      }],
-    });
-
-    expect(findings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "owner_route_target_mismatch",
-          path: "/targets/0/default_owner_route",
-        }),
-      ]),
-    );
-  });
-
-  it("reports target actions with no available runner support", () => {
-    const findings = lintOperationalPolicyContract({
-      ...validPolicy,
-      runners: [{
-        ...validPolicy.runners[0],
-        state: "maintenance",
-      }],
-    });
-
-    expect(findings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "target_action_without_runner",
-          path: "/targets/0/allowed_actions",
-        }),
-      ]),
-    );
-  });
-
-  it("throws a readable error for semantic validation failures", () => {
-    expect(() => validateOperationalPolicySemantics({
-      ...validPolicy,
-      outcomes: {
-        ...validPolicy.outcomes,
-        verification_required: false,
-      },
-    })).toThrow(/close_without_verification/);
-  });
-
-  it("projects an admin-safe readback without raw source locators", () => {
-    expect(projectOperationalPolicyReadback(validPolicy)).toMatchObject({
-      policy_id: "provider-dev-flow",
-      valid: true,
-      findings: [],
-      sources: [
-        {
-          source_id: "slack-bugs",
-          provider: "slack",
-          locator_count: 1,
-          source_thread_required: true,
-          publish_mode: "reply",
-        },
-        {
-          source_id: "sentry-production",
-          provider: "sentry",
-          locator_count: 1,
-          source_thread_required: true,
-          publish_mode: "reply",
-        },
-      ],
-      targets: [
-        {
-          repo: "example/api",
-          default_owner_route: "api-kam",
-          owner_count: 1,
-          available_runner_count: 1,
-        },
-        {
-          repo: "example/app",
-          default_owner_route: "app-chong",
-          owner_count: 1,
-          available_runner_count: 1,
-        },
-      ],
-    });
-    expect(JSON.stringify(projectOperationalPolicyReadback(validPolicy)))
-      .not.toContain("slack://team/T123/channel/CBUGS");
-  });
-
-  it("admits a concrete request against target, source, runner, dedupe, and outcome policy", () => {
-    expect(admitOperationalPolicyRequest(validPolicy, {
-      source_id: "slack-bugs",
-      target_repo: "example/api",
-      action: "issue-to-pr",
-      runner_id: "local-review",
-      source_thread_locator: "slack://team/T123/channel/CBUGS/thread/168",
-    })).toMatchObject({
-      status: "allow",
-      findings: [],
-      policy_id: "provider-dev-flow",
-      source_id: "slack-bugs",
-      target_repo: "example/api",
-      runner_id: "local-review",
-      owner_route_id: "api-kam",
-      owners: ["Ops"],
-      dedupe_strategy: "source_digest",
-      outcome_close_mode: "when_verified",
-      source_thread_required: true,
-      mutate_target_repo: true,
-      require_human_merge_gate: true,
-    });
-  });
-
-  it("denies request-time admission before unknown target or runner mutation boundaries", () => {
-    const admission = admitOperationalPolicyRequest(validPolicy, {
-      source_id: "slack-bugs",
-      target_repo: "example/unknown",
-      action: "issue-to-pr",
-      runner_id: "missing-runner",
-      source_thread_locator: "slack://team/T123/channel/CBUGS/thread/168",
-    });
-
-    expect(admission.status).toBe("deny");
-    expect(admission.findings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: "unknown_target_repo" }),
-        expect.objectContaining({ code: "unknown_runner" }),
-      ]),
-    );
-  });
-
-  it("denies PR-producing admission without recoverable source-thread routing", () => {
-    const admission = admitOperationalPolicyRequest(validPolicy, {
-      source_id: "slack-bugs",
-      target_repo: "example/api",
-      action: "issue-to-pr",
-      runner_id: "local-review",
-    });
-
-    expect(admission).toMatchObject({
-      status: "deny",
-      findings: expect.arrayContaining([
-        expect.objectContaining({ code: "source_thread_locator_required" }),
-      ]),
-    });
-  });
-
-  it("denies maintenance-only runner requests even when the runner id exists", () => {
-    const admission = admitOperationalPolicyRequest({
-      ...validPolicy,
-      runners: [{
-        ...validPolicy.runners[0],
-        state: "maintenance",
-      }],
-    }, {
-      source_id: "slack-bugs",
-      target_repo: "example/api",
-      action: "issue-to-pr",
-      runner_id: "local-review",
-      source_thread_locator: "slack://team/T123/channel/CBUGS/thread/168",
-    });
-
-    expect(admission).toMatchObject({
-      status: "deny",
-      findings: expect.arrayContaining([
-        expect.objectContaining({ code: "runner_unavailable" }),
-      ]),
-    });
   });
 });
 

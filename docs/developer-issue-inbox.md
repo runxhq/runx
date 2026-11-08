@@ -37,23 +37,20 @@ config, but the shape is shared: allowed sources, actions, target repos,
 runners, owner routes, dedupe, source-thread publishing, outcomes, and
 automation permissions are all explicit.
 
-Use `validateOperationalPolicySemantics` before enabling mutation. Schema
-validation proves the packet shape; semantic validation proves referenced
-runners and owner routes exist, target repos are covered, source-thread
-publishing fails closed, and available runners can perform the declared target
-actions.
-
-Use `projectOperationalPolicyReadback` for operator and admin displays. It exposes
-source ids, locator counts, runner state, target repos, owner coverage, outcome
-settings, permissions, and validation findings without echoing raw provider
-locators.
-
 Lint a policy before wiring it into a live runner. The `policy-draft` skill
 lints every policy it proposes with the native `policy.lint` tool, and any
-skill can call `policy.lint` itself. It returns a redacted readback shape for
-admin surfaces. It is safe to show to developers because it reports locator
-counts instead of raw Slack channels, Sentry projects, or provider thread
-locators.
+skill can call `policy.lint` itself. Parsing the policy proves the packet
+shape. Linting then checks that referenced runners and owner routes exist, that
+each target repo is covered by its owner route and runners, that source-thread
+publishing fails closed, and that an available runner can perform each action a
+target allows.
+
+`policy.lint` returns a `runx.policy.lint.v1` packet with a `pass` or `fail`
+status, the findings, and, when the policy parsed, a redacted readback for
+operator and admin displays. The readback shows source ids, locator counts,
+runner state, target repos, owner coverage, outcome settings and permissions.
+It is safe to show to developers because it reports locator counts instead of
+raw Slack channels, Sentry projects, or provider thread locators.
 
 Required policy fields:
 
@@ -73,11 +70,10 @@ Required policy fields:
 - `permissions`: mutation permission, required human merge gate, and explicit
   `auto_merge=false`
 
-Use `admitOperationalPolicyRequest` at mutation-adjacent boundaries. It
-evaluates a concrete `source_id`, `target_repo`, `action`, `runner_id`, and
-source-thread locator against one validated policy packet. Unknown targets,
-unknown or unavailable runners, disallowed actions, and missing source-thread
-routes deny before PR packaging or provider dispatch.
+A policy with any lint finding is not ready to wire in. When native lint
+fails, `policy-draft` returns `reject` with the findings, and it rejects a
+proposal that widens an existing policy before lint runs. The receipt of that
+run proves which draft was linted. It does not approve or install the policy.
 
 Terminal post-merge observation must seal a receipt with closure and
 verification proof before publishing the final source-thread update or closing
