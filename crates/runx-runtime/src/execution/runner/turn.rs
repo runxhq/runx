@@ -955,6 +955,21 @@ where
                         .map_err(|error| error.to_string())?,
                     declared,
                 };
+                // A turn's own call never writes to store (D19): a stream is
+                // written by a package's deterministic step.
+                if let Some(write) = crate::kernel::operation::operation_write(
+                    &target,
+                    &inputs,
+                    &self.scope.runtime.options.env,
+                    self.scope.workflow_dir,
+                )
+                .filter(|write| write.store)
+                {
+                    return Err(format!(
+                        "{}/{} writes to store, and a turn's own call never does: writes to store go through a package's deterministic step",
+                        write.connector, write.operation
+                    ));
+                }
                 StepKind::Operation(target)
             }
             TurnTarget::Skill { skill, runner, .. } => {
