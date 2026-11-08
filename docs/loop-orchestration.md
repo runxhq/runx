@@ -139,11 +139,13 @@ Run it from the OSS workspace:
 sh examples/loop-orchestration/run.sh
 ```
 
-For a repeatable harness check, use a clean receipt directory:
+Its package is `examples/loop-orchestration/skill`, and the loop host,
+`loop-host.mjs`, sits beside it. For a repeatable check of the package's
+tests, use a clean receipt directory:
 
 ```sh
 tmpdir="$(mktemp -d)"
-"${RUNX_BIN:-crates/target/debug/runx}" harness examples/loop-orchestration \
+"${RUNX_BIN:-crates/target/debug/runx}" test examples/loop-orchestration/skill \
   --receipt-dir "$tmpdir" \
   --json
 ```

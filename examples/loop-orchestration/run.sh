@@ -4,4 +4,4 @@
 set -eu
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-node "$HERE/loop/loop-host.mjs"
+node "$HERE/loop-host.mjs"

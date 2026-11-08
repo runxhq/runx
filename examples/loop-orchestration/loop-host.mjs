@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
-const ROOT = resolve(new URL("../../..", import.meta.url).pathname);
-const EXAMPLE = resolve(new URL("..", import.meta.url).pathname);
+const ROOT = resolve(new URL("../..", import.meta.url).pathname);
+// The package this host drives, beside it: the host is not part of it.
+const PACKAGE = resolve(new URL("skill", import.meta.url).pathname);
 
 function findRunx() {
   const candidate = process.env.RUNX_BIN || join(ROOT, "crates/target/debug/runx");
@@ -35,7 +36,7 @@ function runCommand(command, args, options = {}) {
 function runTurn({ runx, receiptDir, loopId, turnIndex, maxTurns, objective, previousSummary, scenario, requestedTool }) {
   const result = runCommand(runx, [
     "skill",
-    EXAMPLE,
+    PACKAGE,
     "turn",
     "--receipt-dir",
     receiptDir,
@@ -63,7 +64,7 @@ function runContextPreview({ runx, receiptDir }) {
     runx,
     [
       "skill",
-      EXAMPLE,
+      PACKAGE,
       "context-gate",
       "--receipt-dir",
       receiptDir,
