@@ -116,7 +116,9 @@ function itemEnd(text, lines, start) {
   return text.slice(0, offset).split("\n").length - 1;
 }
 
-// The lines each `use` item spans, in a crate file.
+// The lines a crate file's `use` items and `impl` headers span. Neither is a
+// use: a caller's reference resolves to what a `use` imports, and an impl is
+// reached through its type and trait.
 function useItemLines(file) {
   const lines = new Set();
   let text;
@@ -125,7 +127,7 @@ function useItemLines(file) {
   } catch {
     return lines;
   }
-  for (const m of text.matchAll(/^[ \t]*(?:pub(?:\([^)]*\))?[ \t]+)?use[ \t][^;]*;/gm)) {
+  for (const m of text.matchAll(/^[ \t]*(?:(?:pub(?:\([^)]*\))?[ \t]+)?use[ \t][^;]*;|(?:unsafe[ \t]+)?impl\b[^{;]*\{)/gm)) {
     const first = text.slice(0, m.index).split("\n").length - 1;
     const last = first + m[0].split("\n").length - 1;
     for (let line = first; line <= last; line += 1) lines.add(line);
@@ -174,8 +176,7 @@ for (const doc of docs) {
     let owner;
     for (const d of defs) if (within(d.enclosing, o.range) && (!owner || smaller(d.enclosing, owner.enclosing))) owner = d;
     if (!owner || defined.get(owner.symbol).test) continue;
-    // A module's `use` items name what they import or re-export. That isn't
-    // a use: a caller's reference already resolves to the definition itself.
+    // A module's `use` items and `impl` headers aren't uses of what they name.
     if (descriptor(owner.symbol).endsWith("/") && useLines.has(o.range[0])) continue;
     const shared = defined.get(owner.symbol).path !== doc.path || /^(crate\/|main\(\)\.)$/.test(descriptor(owner.symbol));
     addEdge(own && shared ? own : owner.symbol, o.symbol);
