@@ -33,6 +33,12 @@ fn every_location_follows_from_three_roots() {
         paths.authoring_applications(),
         Path::new("/work/app/.runx/authoring/applications")
     );
+    assert_eq!(paths.bundled_skills(), Path::new("/home/kam/.runx/bundled"));
+    assert_eq!(paths.tier_statements(), Path::new("/home/kam/.runx/tiers"));
+    assert_eq!(
+        paths.registry_keys_file(),
+        Path::new("/home/kam/.runx/registry-keys.json")
+    );
 }
 
 #[test]
@@ -88,6 +94,33 @@ fn an_empty_or_relative_user_home_counts_as_none() {
         );
         assert_eq!(paths.home(), Path::new("/home/kam/.runx"), "HOME={home:?}");
     }
+}
+
+/// The home is rooted when `RUNX_HOME` is set or a user home is absolute;
+/// otherwise it fell back to the workspace, which a repository can ship, and
+/// callers are told so (D30).
+#[test]
+fn a_home_that_fell_back_to_the_workspace_says_so() {
+    let fell_back = |pairs: &[(&str, &str)]| {
+        RunxPaths::resolve(&env(pairs), Path::new("/work/app")).home_fell_back()
+    };
+    assert!(fell_back(&[(RUNX_CWD_ENV, "/work/app")]));
+    assert!(fell_back(&[
+        ("HOME", "home/kam"),
+        (RUNX_CWD_ENV, "/work/app")
+    ]));
+    assert!(fell_back(&[
+        (RUNX_HOME_ENV, " "),
+        (RUNX_CWD_ENV, "/work/app")
+    ]));
+    assert!(!fell_back(&[
+        ("HOME", "/home/kam"),
+        (RUNX_CWD_ENV, "/work/app")
+    ]));
+    assert!(!fell_back(&[("USERPROFILE", "/home/kam")]));
+    // A home named outright is the operator's, wherever it sits.
+    assert!(!fell_back(&[(RUNX_HOME_ENV, "state/home")]));
+    assert!(!fell_back(&[(RUNX_HOME_ENV, "/work/app/.runx")]));
 }
 
 #[test]

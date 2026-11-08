@@ -2,7 +2,9 @@
 //!
 //! Three roots:
 //! - the home (`RUNX_HOME`, else `~/.runx`) holds the operator's config,
-//!   keys, install state and the packages read for inspection;
+//!   keys, install state, the bundled skills and the packages read for
+//!   inspection. With neither `RUNX_HOME` nor a rooted user home it falls
+//!   back to the workspace, and then counts for nothing (D30);
 //! - the workspace (`RUNX_CWD`, else the nearest directory holding `.git`,
 //!   `skills/` or `pnpm-workspace.yaml`, else the nearest holding
 //!   `connectors/`, else the working directory) holds the project's files.
@@ -38,6 +40,7 @@ pub struct RunxPaths {
     workspace: PathBuf,
     project: PathBuf,
     receipts: Option<PathBuf>,
+    home_fell_back: bool,
 }
 
 impl RunxPaths {
@@ -57,6 +60,8 @@ impl RunxPaths {
             |path| lexical_normalize(&cwd.join(path)),
         );
         let within = |path: &Path| lexical_normalize(&workspace.join(path));
+        let home_fell_back =
+            env_path(env, RUNX_HOME_ENV).is_none() && rooted_user_home(env).is_none();
         let home = env_path(env, RUNX_HOME_ENV)
             .map_or_else(|| user_home(env, &workspace).join(RUNX_DIR), &within);
         let project =
@@ -68,6 +73,7 @@ impl RunxPaths {
             workspace,
             project,
             receipts,
+            home_fell_back,
         }
     }
 
@@ -80,6 +86,16 @@ impl RunxPaths {
     #[must_use]
     pub fn home(&self) -> &Path {
         &self.home
+    }
+
+    /// Whether the home fell back to the workspace: neither `RUNX_HOME` nor
+    /// a rooted `HOME` or `USERPROFILE` names one, so it is `<workspace>/.runx`,
+    /// which a repository can ship. What the home holds for a person (their
+    /// trust, saved authorities, registry keys, cached tier statements) then
+    /// counts for nothing (D30).
+    #[must_use]
+    pub fn home_fell_back(&self) -> bool {
+        self.home_fell_back
     }
 
     #[must_use]
@@ -163,6 +179,26 @@ impl RunxPaths {
         self.home.join("inspected")
     }
 
+    /// The skills the CLI bundles, each version at `<name>/<version>/`: they
+    /// bind against the digest the CLI carries, so they materialize here
+    /// even in a home that fell back, and never into a project.
+    #[must_use]
+    pub fn bundled_skills(&self) -> PathBuf {
+        self.home.join("bundled")
+    }
+
+    /// The registry's tier statements, kept by content digest.
+    #[must_use]
+    pub fn tier_statements(&self) -> PathBuf {
+        self.home.join("tiers")
+    }
+
+    /// The operator's registry keys, beside the CLI's built-in ones.
+    #[must_use]
+    pub fn registry_keys_file(&self) -> PathBuf {
+        self.home.join("registry-keys.json")
+    }
+
     /// The installed copy of a connector tool package, named by its digest.
     #[must_use]
     pub fn connector_tool(&self, digest: &str) -> PathBuf {
@@ -176,10 +212,9 @@ impl RunxPaths {
         self.workspace.join("skills")
     }
 
-    /// Every skill runx added to the project (core-shape §6.5): those from a
-    /// registry and the runx-maintained skills the release carries, at
+    /// Every skill a registry added to the project (core-shape §6.5), at
     /// `<publisher>/<name>/<version>/` in the project directory, each version
-    /// written once. Named apart from `skills/`, which marks a workspace, so
+    /// written once with its `signature.json`. Named apart from `skills/`, which marks a workspace, so
     /// the project directory is never taken for one.
     #[must_use]
     pub fn added_skills(&self) -> PathBuf {
