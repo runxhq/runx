@@ -242,7 +242,8 @@ mod tests {
 
     #[test]
     fn malformed_terms_are_refused() {
-        let cases: [(&str, fn(&mut RegistryTierStatement)); 5] = [
+        type Mutation = fn(&mut RegistryTierStatement);
+        let cases: [(&str, Mutation); 5] = [
             ("schema", |s| s.schema = "runx.registry.tier.v0".to_owned()),
             ("instant", |s| {
                 s.issued_at = "2026-11-08T00:00:00.000Z".to_owned();

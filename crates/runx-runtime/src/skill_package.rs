@@ -748,10 +748,10 @@ mod tests {
         );
         let loaded = super::load_validated_skill_package(&temp.path().join("skills/caller"))
             .expect("caller loads");
-        let error = match super::verify_loaded_execution_binding(loaded, "main", &env, None, None) {
-            Ok(_) => panic!("two project:echo bound"),
-            Err(error) => error.to_string(),
-        };
+        let error = super::verify_loaded_execution_binding(loaded, "main", &env, None, None)
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
         assert!(
             error.contains("two directories bind as project:echo"),
             "{error}"

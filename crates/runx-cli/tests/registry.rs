@@ -203,9 +203,12 @@ methods:
     assert!(installed.join("runx.package.json").is_file());
     assert!(installed.join("dependencies/1/run.yaml").is_file());
     assert!(installed.join("dependencies/2/run.yaml").is_file());
+    // The installed package binds by its signature, so the run trusts the
+    // registry key that signed it, as the operator who installed it does.
     let run = crate::support::isolated_runx_command_with_inherited_cwd("registry-bundle-run")
         .current_dir(&root)
         .env("RUNX_HOME", root.join("home"))
+        .envs(registry.env()?)
         .args([
             "skill",
             installed.to_str().ok_or("non-utf8 installed skill dir")?,
