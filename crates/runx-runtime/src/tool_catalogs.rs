@@ -8,10 +8,9 @@ pub mod search;
 
 pub use error::ToolCatalogError;
 pub use inspect::{
-    LocalToolResolution, ToolInspectOptions, inspect_tool, inspect_tool_with_effects,
-    resolve_local_tool,
+    LocalToolResolution, ToolInspectOptions, inspect_tool_with_effects, resolve_local_tool,
 };
-pub use search::{ToolSearchOptions, search_tools, search_tools_with_effects};
+pub use search::{ToolSearchOptions, search_tools_with_effects};
 
 /// The call a tool is invoked for: the key its run sends it under, the same
 /// each time the call is sent, and the actor that run acts for.

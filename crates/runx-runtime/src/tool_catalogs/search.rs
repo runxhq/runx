@@ -7,10 +7,6 @@ pub struct ToolSearchOptions {
     pub limit: usize,
 }
 
-pub fn search_tools(options: &ToolSearchOptions) -> ToolCatalogSearchReport {
-    search_tools_with_effects(options, &crate::RuntimeEffectRegistry::default())
-}
-
 pub fn search_tools_with_effects(
     options: &ToolSearchOptions,
     effects: &crate::RuntimeEffectRegistry,

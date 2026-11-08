@@ -27,10 +27,6 @@ pub struct LocalToolResolution {
     pub tool: runx_parser::ValidatedTool,
 }
 
-pub fn inspect_tool(options: &ToolInspectOptions) -> Result<ToolInspectReport, ToolCatalogError> {
-    inspect_tool_with_effects(options, &crate::RuntimeEffectRegistry::default())
-}
-
 pub fn inspect_tool_with_effects(
     options: &ToolInspectOptions,
     effects: &crate::RuntimeEffectRegistry,

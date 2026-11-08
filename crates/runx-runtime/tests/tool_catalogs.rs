@@ -2,15 +2,21 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::tools::ToolInspectOrigin;
-use runx_runtime::{ToolInspectOptions, ToolSearchOptions, inspect_tool, search_tools};
+use runx_runtime::{
+    RuntimeEffectRegistry, ToolInspectOptions, ToolSearchOptions, inspect_tool_with_effects,
+    search_tools_with_effects,
+};
 
 #[test]
 fn tool_catalogs_search_returns_native_tools() {
-    let report = search_tools(&ToolSearchOptions {
-        query: "fs.read".to_owned(),
-        source: None,
-        limit: 20,
-    });
+    let report = search_tools_with_effects(
+        &ToolSearchOptions {
+            query: "fs.read".to_owned(),
+            source: None,
+            limit: 20,
+        },
+        &RuntimeEffectRegistry::default(),
+    );
 
     let read = report
         .results
@@ -22,14 +28,17 @@ fn tool_catalogs_search_returns_native_tools() {
 #[test]
 fn tool_catalogs_inspect_native_tool() -> Result<(), Box<dyn std::error::Error>> {
     let root = repo_root()?;
-    let report = inspect_tool(&ToolInspectOptions {
-        root: root.clone(),
-        tool: "fs.read".to_owned(),
-        source: None,
-        search_from_directory: root,
-        tool_roots: Vec::new(),
-        allow_explicit_manifest_path: true,
-    })?;
+    let report = inspect_tool_with_effects(
+        &ToolInspectOptions {
+            root: root.clone(),
+            tool: "fs.read".to_owned(),
+            source: None,
+            search_from_directory: root,
+            tool_roots: Vec::new(),
+            allow_explicit_manifest_path: true,
+        },
+        &RuntimeEffectRegistry::default(),
+    )?;
 
     assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Native);
     assert_eq!(report.tool.name, "fs.read");
@@ -40,14 +49,17 @@ fn tool_catalogs_inspect_native_tool() -> Result<(), Box<dyn std::error::Error>>
 #[test]
 fn tool_catalogs_inspect_local_manifest() -> Result<(), Box<dyn std::error::Error>> {
     let temp_root = copy_minimal_tool_fixture("inspect_local_manifest")?;
-    let report = inspect_tool(&ToolInspectOptions {
-        root: temp_root.clone(),
-        tool: "fixture.minimal".to_owned(),
-        source: None,
-        search_from_directory: temp_root.clone(),
-        tool_roots: Vec::new(),
-        allow_explicit_manifest_path: true,
-    })?;
+    let report = inspect_tool_with_effects(
+        &ToolInspectOptions {
+            root: temp_root.clone(),
+            tool: "fixture.minimal".to_owned(),
+            source: None,
+            search_from_directory: temp_root.clone(),
+            tool_roots: Vec::new(),
+            allow_explicit_manifest_path: true,
+        },
+        &RuntimeEffectRegistry::default(),
+    )?;
 
     assert_eq!(report.tool.provenance.origin, ToolInspectOrigin::Local);
     assert_eq!(report.tool.name, "fixture.minimal");
@@ -86,14 +98,17 @@ fn tool_catalogs_ignore_ancestor_tool_roots_outside_workspace()
 "#,
     )?;
 
-    let error = match inspect_tool(&ToolInspectOptions {
-        root: root.clone(),
-        tool: "docs.echo".to_owned(),
-        source: None,
-        search_from_directory: skill_dir,
-        tool_roots: Vec::new(),
-        allow_explicit_manifest_path: false,
-    }) {
+    let error = match inspect_tool_with_effects(
+        &ToolInspectOptions {
+            root: root.clone(),
+            tool: "docs.echo".to_owned(),
+            source: None,
+            search_from_directory: skill_dir,
+            tool_roots: Vec::new(),
+            allow_explicit_manifest_path: false,
+        },
+        &RuntimeEffectRegistry::default(),
+    ) {
         Ok(_) => return Err("ancestor tool root outside workspace should be ignored".into()),
         Err(error) => error,
     };
@@ -111,14 +126,17 @@ fn tool_catalogs_reject_absolute_explicit_manifest_path() -> Result<(), Box<dyn 
     let temp_root = copy_minimal_tool_fixture("reject_absolute_manifest_path")?;
     let manifest = temp_root.join("tools/fixture/minimal/manifest.json");
 
-    let error = match inspect_tool(&ToolInspectOptions {
-        root: temp_root.clone(),
-        tool: manifest.to_string_lossy().into_owned(),
-        source: None,
-        search_from_directory: temp_root,
-        tool_roots: Vec::new(),
-        allow_explicit_manifest_path: true,
-    }) {
+    let error = match inspect_tool_with_effects(
+        &ToolInspectOptions {
+            root: temp_root.clone(),
+            tool: manifest.to_string_lossy().into_owned(),
+            source: None,
+            search_from_directory: temp_root,
+            tool_roots: Vec::new(),
+            allow_explicit_manifest_path: true,
+        },
+        &RuntimeEffectRegistry::default(),
+    ) {
         Ok(_) => return Err("absolute explicit manifest path should be rejected".into()),
         Err(error) => error,
     };
@@ -137,14 +155,17 @@ fn tool_catalogs_reject_parent_traversal_explicit_manifest_path()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp_root = copy_minimal_tool_fixture("reject_parent_manifest_path")?;
 
-    let error = match inspect_tool(&ToolInspectOptions {
-        root: temp_root.clone(),
-        tool: "../outside/manifest.json".to_owned(),
-        source: None,
-        search_from_directory: temp_root,
-        tool_roots: Vec::new(),
-        allow_explicit_manifest_path: true,
-    }) {
+    let error = match inspect_tool_with_effects(
+        &ToolInspectOptions {
+            root: temp_root.clone(),
+            tool: "../outside/manifest.json".to_owned(),
+            source: None,
+            search_from_directory: temp_root,
+            tool_roots: Vec::new(),
+            allow_explicit_manifest_path: true,
+        },
+        &RuntimeEffectRegistry::default(),
+    ) {
         Ok(_) => return Err("parent traversal explicit manifest path should be rejected".into()),
         Err(error) => error,
     };
