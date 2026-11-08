@@ -1,0 +1,14 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: first
+        skill: ../../skills/json-output
+        inputs:
+          message: hello from graph
+      - id: second
+        skill: ../../skills/echo
+        inputs:
+          message: $steps.first.result.message

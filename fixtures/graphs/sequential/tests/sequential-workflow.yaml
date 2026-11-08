@@ -1,13 +1,11 @@
 name: sequential-workflow
-kind: graph
-target: ../graphs/sequential/graph.yaml
 expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
     body_digest: sha256:9a1a5fb45cb66285ce73b02311bcf94e44e289bf9d5257acc7b5582efabe50cd
     receipt_digest: sha256:ebfa9708d145478e79085f88e96900c3b02af841de193eb6181621bb4f8335a2
-    subject_uri: runx:run:test-workflow
+    subject_uri: runx:run:test-sequential-workflow
     state: sealed
     outcome: completed
     act_ids: []

@@ -10,12 +10,12 @@ use runx_runtime::{TestExpectedStatus, load_test_fixture, run_test_fixture};
 fn loads_active_test_fixtures() -> Result<(), Box<dyn std::error::Error>> {
     for (path, expected_status, expected_seal_outcome) in [
         (
-            "fixtures/harness/echo-skill.yaml",
+            "fixtures/skills/echo/tests/echo-skill.yaml",
             TestExpectedStatus::Sealed,
             RunOutcome::Completed,
         ),
         (
-            "fixtures/harness/sequential-workflow.yaml",
+            "fixtures/graphs/sequential/tests/sequential-workflow.yaml",
             TestExpectedStatus::Sealed,
             RunOutcome::Completed,
         ),
@@ -39,7 +39,7 @@ fn loads_active_test_fixtures() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn parses_test_skill_fixture_contract() -> Result<(), Box<dyn std::error::Error>> {
-    let fixture = load_test_fixture(fixture_path("fixtures/harness/echo-skill.yaml"))?;
+    let fixture = load_test_fixture(fixture_path("fixtures/skills/echo/tests/echo-skill.yaml"))?;
 
     assert_eq!(fixture.name, "echo-skill");
     assert_eq!(fixture.package, None);
@@ -55,10 +55,12 @@ fn parses_test_skill_fixture_contract() -> Result<(), Box<dyn std::error::Error>
 
 #[test]
 fn parses_test_workflow_fixture_contract() -> Result<(), Box<dyn std::error::Error>> {
-    let fixture = load_test_fixture(fixture_path("fixtures/harness/sequential-workflow.yaml"))?;
+    let fixture = load_test_fixture(fixture_path(
+        "fixtures/graphs/sequential/tests/sequential-workflow.yaml",
+    ))?;
 
     assert_eq!(fixture.name, "sequential-workflow");
-    assert_eq!(fixture.package.as_deref(), Some("fixtures/sequential"));
+    assert_eq!(fixture.package, None);
     assert_eq!(
         fixture.expect.steps,
         Some(vec!["first".to_owned(), "second".to_owned()])
@@ -66,7 +68,7 @@ fn parses_test_workflow_fixture_contract() -> Result<(), Box<dyn std::error::Err
     let receipt = fixture.expect.receipt.ok_or("missing expect.receipt")?;
     assert_eq!(
         receipt.subject_uri.as_deref(),
-        Some("runx:run:test-workflow")
+        Some("runx:run:test-sequential-workflow")
     );
     let oracle: Receipt = serde_json::from_str(&std::fs::read_to_string(fixture_path(
         "fixtures/harness/oracle/sequential-workflow.receipt.json",
@@ -89,7 +91,7 @@ fn parses_test_workflow_fixture_contract() -> Result<(), Box<dyn std::error::Err
 
 #[test]
 fn replays_active_test_skill_fixture() -> Result<(), Box<dyn std::error::Error>> {
-    let output = run_fixture("fixtures/harness/echo-skill.yaml")?;
+    let output = run_fixture("fixtures/skills/echo/tests/echo-skill.yaml")?;
 
     assert_eq!(output.status, TestExpectedStatus::Sealed);
     assert_eq!(
@@ -111,12 +113,12 @@ fn replays_active_test_skill_fixture() -> Result<(), Box<dyn std::error::Error>>
 
 #[test]
 fn replays_active_test_workflow_fixture() -> Result<(), Box<dyn std::error::Error>> {
-    let output = run_fixture("fixtures/harness/sequential-workflow.yaml")?;
+    let output = run_fixture("fixtures/graphs/sequential/tests/sequential-workflow.yaml")?;
 
     assert_eq!(output.status, TestExpectedStatus::Sealed);
     assert_eq!(
         output.receipt.subject.reference.uri,
-        "runx:run:test-workflow"
+        "runx:run:test-sequential-workflow"
     );
     assert_eq!(output.receipt.seal.outcome, RunOutcome::Completed);
     assert_eq!(output.step_receipts.len(), 2);
@@ -140,7 +142,7 @@ fn replays_active_test_workflow_fixture() -> Result<(), Box<dyn std::error::Erro
 
 #[test]
 fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn std::error::Error>> {
-    let echo = run_fixture("fixtures/harness/echo-skill.yaml")?;
+    let echo = run_fixture("fixtures/skills/echo/tests/echo-skill.yaml")?;
     assert_oracle(
         "fixtures/harness/oracle/echo-skill.receipt.json",
         &canonical_receipt_json(&echo.receipt)?,
@@ -150,7 +152,7 @@ fn replay_receipts_match_checked_in_canonical_oracles() -> Result<(), Box<dyn st
         &canonical_receipt_json(&echo.step_receipts[0])?,
     )?;
 
-    let graph = run_fixture("fixtures/harness/sequential-workflow.yaml")?;
+    let graph = run_fixture("fixtures/graphs/sequential/tests/sequential-workflow.yaml")?;
     assert_oracle(
         "fixtures/harness/oracle/sequential-workflow.receipt.json",
         &canonical_receipt_json(&graph.receipt)?,
@@ -174,6 +176,7 @@ fn test_setup_refuses_a_receipt_not_in_wire_form() -> Result<(), Box<dyn std::er
     let workspace = tempfile::tempdir()?;
     let package = workspace.path().join("echo");
     std::fs::create_dir_all(package.join("receipts"))?;
+    std::fs::create_dir_all(package.join("tests"))?;
     for file in ["SKILL.md", "run.sh", "run.yaml"] {
         std::fs::copy(
             fixture_path("fixtures/skills/echo").join(file),
@@ -189,11 +192,11 @@ fn test_setup_refuses_a_receipt_not_in_wire_form() -> Result<(), Box<dyn std::er
         package.join("receipts/seed.json"),
         serde_json::to_vec(&receipt)?,
     )?;
-    let fixture = workspace.path().join("seeded.yaml");
+    let fixture = package.join("tests/seeded.yaml");
     std::fs::write(
         &fixture,
-        "name: seeded\nkind: skill\ntarget: echo\ninputs:\n  message: hi\n\
-         setup:\n  receipts:\n    - receipts/seed.json\nexpect:\n  status: sealed\n",
+        "name: seeded\nsetup:\n  receipts:\n    - receipts/seed.json\ninputs:\n  message: hi\n\
+         expect:\n  status: sealed\n",
     )?;
 
     let error = run_test_fixture(&fixture, std::env::vars().collect())
@@ -216,21 +219,23 @@ fn test_setup_refuses_a_receipt_not_in_wire_form() -> Result<(), Box<dyn std::er
 fn a_case_whose_run_errors_still_proves_only_the_requests_it_made()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
-    let package = workspace.path().join("echo");
-    std::fs::create_dir_all(&package)?;
-    for file in ["SKILL.md", "run.sh", "run.yaml"] {
+    let package = workspace.path().join("agent-task");
+    std::fs::create_dir_all(package.join("tests"))?;
+    for file in ["SKILL.md", "run.yaml"] {
         std::fs::copy(
-            fixture_path("fixtures/skills/echo").join(file),
+            fixture_path("fixtures/skills/agent-task").join(file),
             package.join(file),
         )?;
     }
-    // The run ends before any step, so the write the case declares was never
+    // The run errors in its first step, a turn whose scripted call names a
+    // tool the turn does not offer, so the write the case declares was never
     // sent, and the case cannot pass as though it had been.
-    let fixture = workspace.path().join("unsent.yaml");
+    let fixture = package.join("tests/unsent.yaml");
     std::fs::write(
         &fixture,
-        "name: unsent\nkind: skill\ntarget: echo\nrunner: absent\ninputs:\n  message: hi\n\
-         caller:\n  http_exchanges:\n    - request: { method: PATCH, url: \"https://fixture.runx.invalid/item\", body: none }\n\
+        "name: unsent\ninputs:\n  prompt: hi\n\
+         host:\n  turns:\n    default:\n      calls:\n        - tool: absent\n      output: {verdict: ok}\n\
+         providers:\n  http:\n    - request: { method: PATCH, url: \"https://fixture.runx.invalid/item\", body: none }\n\
          \x20     response: { status: 200, headers: { content-type: application/json }, body: \"{}\" }\n\
          expect:\n  status: failure\n",
     )?;

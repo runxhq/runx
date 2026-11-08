@@ -26,7 +26,7 @@ pub struct TestFixtureStepOracle {
 const TEST_FIXTURE_CASES: &[TestFixtureCase] = &[
     TestFixtureCase {
         name: "echo-skill",
-        fixture_path: "fixtures/harness/echo-skill.yaml",
+        fixture_path: "fixtures/skills/echo/tests/echo-skill.yaml",
         root_oracle_path: "fixtures/harness/oracle/echo-skill.receipt.json",
         step_oracles: &[TestFixtureStepOracle {
             step_id: "default",
@@ -35,7 +35,7 @@ const TEST_FIXTURE_CASES: &[TestFixtureCase] = &[
     },
     TestFixtureCase {
         name: "sequential-workflow",
-        fixture_path: "fixtures/harness/sequential-workflow.yaml",
+        fixture_path: "fixtures/graphs/sequential/tests/sequential-workflow.yaml",
         root_oracle_path: "fixtures/harness/oracle/sequential-workflow.receipt.json",
         step_oracles: &[
             TestFixtureStepOracle {
