@@ -53,20 +53,33 @@ function listRustFiles(dir) {
 }
 
 function topLevelModNames(integrationSource) {
-  // Only column-0 module declarations are crate-root test modules.
-  const names = new Set();
+  // Only column-0 module declarations are crate-root test modules. Each maps
+  // to the file a `#[path = "..."]` attribute directly above it names, if
+  // one does.
+  const names = new Map();
+  let attributedPath = null;
   for (const line of integrationSource.split("\n")) {
+    const attribute = /^#\[path\s*=\s*"([^"]+)"\]\s*$/.exec(line);
+    if (attribute) {
+      attributedPath = attribute[1];
+      continue;
+    }
     const match = /^(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/.exec(
       line,
     );
-    if (match) names.add(match[1]);
+    if (match) names.set(match[1], attributedPath);
+    if (!/^#\[/.test(line)) attributedPath = null;
   }
   return names;
 }
 
-function moduleHasSource(testsDir, name) {
-  // A `mod name;` in tests/integration.rs is satisfied by tests/name.rs or
-  // tests/name/mod.rs. A bare tests/name/ directory is not enough.
+function moduleHasSource(testsDir, name, attributedPath) {
+  // A `mod name;` in tests/integration.rs is satisfied by the file its
+  // `#[path]` names, else by tests/name.rs or tests/name/mod.rs. A bare
+  // tests/name/ directory is not enough.
+  if (attributedPath !== null) {
+    return existsSync(path.resolve(testsDir, attributedPath));
+  }
   return (
     existsSync(path.join(testsDir, `${name}.rs`)) ||
     existsSync(path.join(testsDir, name, "mod.rs"))
@@ -163,8 +176,8 @@ for (const crate of crates) {
   }
 
   // Every declared module must resolve to a real file or directory.
-  for (const name of declared) {
-    if (!moduleHasSource(testsDir, name)) {
+  for (const [name, attributedPath] of declared) {
+    if (!moduleHasSource(testsDir, name, attributedPath)) {
       errors.push(
         `${rel}/tests/integration.rs declares \`mod ${name};\` but no matching ` +
           `file or directory exists.`,
