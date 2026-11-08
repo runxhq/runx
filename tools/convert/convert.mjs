@@ -371,56 +371,52 @@ function allowanceCalls(allowance) {
 
 // ---- Shared inputs
 
-// What a field may take from a shared input without changing what it accepts:
-// JSON Schema's annotations. `default` is one there, but runx fills it in.
-const ANNOTATIONS = ["title", "description", "examples", "deprecated", "readOnly", "writeOnly", "$comment"];
+// An input is shared only where every method that names it means exactly the
+// same thing. Today a method's own input is its own, even under a shared
+// input's name, while in 0.12 a method takes a shared input by naming it and
+// its keys override the shared one's. So where any method defines a shared
+// input's name its own way, the name isn't shared at all: each method that
+// took it says it inline, as the shared definition did, each that defined it
+// keeps its own, and the name leaves shared_inputs, which a shared input no
+// method takes leaves too. A method restating the shared definition exactly
+// takes it, `{}`. No method's input changes and nothing is renamed. Only the
+// old shape tells a method's own definition from an override, so this runs
+// when a package converts, never over the 0.12 shape.
+const canonical = (value) =>
+  JSON.stringify(value, (_, item) => (item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : item));
 
-// Today a method's own input is its own, even under a shared input's name.
-// In 0.12 a method takes a shared input by naming it, and its keys override
-// the shared one's, so the conversion keeps the method's own definition only
-// where every key the shared one would add is one it already says. Otherwise
-// two inputs in one package share a name, and which one it is, or what each
-// is called, is its owner's call, never the converter's.
-const inherits = (field, shared) => shared.items.map(keyOf).filter((key) => !has(field, key));
-const changesWhatItAccepts = (field, shared) => inherits(field, shared).filter((key) => !ANNOTATIONS.includes(key));
-
-function ownBesideShared(where, input, field, shared, notes) {
-  if (shared === undefined) return;
-  const changes = changesWhatItAccepts(field, shared);
-  if (changes.length) {
-    refuse(`${where} is its own input, and shared input ${input} would give it ${changes.join(", ")}: two inputs share one name, which its owner decides. Shared: ${JSON.stringify(plain(shared))}. This method's: ${JSON.stringify(plain(field))}`);
-  }
-  const added = inherits(field, shared);
-  if (added.length) notes.push(`${where} takes shared input ${input}'s ${added.join(", ")}, which change nothing it accepts`);
-}
-
-// A method's input that names a shared input says only the keys it overrides.
-// Where it states every key that decides what it accepts, a key restating the
-// shared one's value says nothing, so it goes, and a field restating every
-// key is the shared input itself, `{}`. That changes nothing a method accepts
-// in either format, so it runs on both. A field that leaves such a key to the
-// shared input is an override, or two inputs sharing a name, which the
-// conversion refuses (ownBesideShared); either way it's left as it is.
-function settleSharedInputs(root, notes) {
+function settleSharedInputs(doc, root, notes) {
   const shared = node(root, "shared_inputs");
-  if (!isMap(shared)) return false;
-  let changed = false;
-  for (const method of node(root, "methods")?.items ?? []) {
-    const inputs = isMap(method.value) ? node(method.value, "inputs") : undefined;
-    if (!isMap(inputs)) continue;
-    for (const pair of inputs.items) {
-      const definition = node(shared, keyOf(pair));
-      if (!isMap(definition) || !isMap(pair.value) || pair.value.items.length === 0) continue;
-      if (changesWhatItAccepts(pair.value, definition).length) continue;
-      const kept = pair.value.items.filter((item) => !has(definition, keyOf(item)) || JSON.stringify(plain(item.value)) !== JSON.stringify(read(definition, keyOf(item))));
-      if (kept.length === pair.value.items.length) continue;
-      notes.push(`methods.${keyOf(method)}.inputs.${keyOf(pair)} takes shared input ${keyOf(pair)}${kept.length ? `, overriding ${kept.map(keyOf).join(", ")}` : " as it is"}`);
-      pair.value.items = kept;
-      if (kept.length === 0) pair.value.flow = true;
-      changed = true;
+  if (!isMap(shared)) return;
+  const methods = (node(root, "methods")?.items ?? []).filter((method) => isMap(method.value));
+  for (const entry of [...shared.items]) {
+    const name = keyOf(entry);
+    const uses = methods.flatMap((method) => {
+      const inputs = node(method.value, "inputs");
+      const pair = isMap(inputs) ? pairOf(inputs, name) : undefined;
+      return pair ? [{ method: keyOf(method), pair }] : [];
+    });
+    const takes = (use) => isMap(use.pair.value) && use.pair.value.items.length === 0;
+    const restates = (use) => canonical(plain(use.pair.value)) === canonical(plain(entry.value));
+    const own = uses.filter((use) => !takes(use) && !restates(use));
+    if (uses.length > 0 && own.length === 0) {
+      for (const use of uses.filter((use) => !takes(use))) {
+        use.pair.value = flow(doc, {});
+        notes.push(`methods.${use.method}.inputs.${name} restates shared input ${name}, so it takes it`);
+      }
+      continue;
     }
+    const took = uses.filter(takes);
+    for (const use of took) use.pair.value = entry.value.clone();
+    take(shared, name);
+    const methodsOf = (list) => list.map((use) => use.method).join(", ");
+    notes.push(
+      uses.length === 0
+        ? `shared input ${name} is taken by no method, so it leaves shared_inputs`
+        : `shared input ${name} isn't shared: ${methodsOf(own)} define it their own way, so ${took.length ? `${methodsOf(took)} say it inline and ` : ""}it leaves shared_inputs`,
+    );
   }
-  return changed;
+  if (shared.items.length === 0) take(root, "shared_inputs");
 }
 
 function convertMethod(doc, name, method, context, notes) {
@@ -448,7 +444,6 @@ function convertMethod(doc, name, method, context, notes) {
         pair.value = shared.clone();
         notes.push(`${where}.inputs.${input} copies shared input ${definition}: one name for both is its owner's call`);
       }
-      ownBesideShared(`${where}.inputs.${input}`, input, pair.value, context.shared.get(input), notes);
     }
   }
   const allowance = {
@@ -773,7 +768,7 @@ function convertPackage(dir) {
   const doc = YAML.parseDocument(runText);
   if (doc.errors.length) refuse(`run.yaml doesn't parse: ${doc.errors[0].message}`);
   const root = doc.contents;
-  if (isMap(root) && has(root, "minimum_runx")) return settlePackage(dir, doc, style);
+  if (isMap(root) && has(root, "minimum_runx")) return settlePackage(dir, doc);
   only(root, ROOT_KEYS, "run.yaml");
 
   const declared = read(root, "skill");
@@ -852,7 +847,7 @@ function convertPackage(dir) {
     if (!isMap(target)) refuse(`marketplace.offers.${method} names a method that isn't there`);
     insertAt(target, indexOf(target, "steps") >= 0 ? indexOf(target, "steps") : target.items.length, "offer", offer);
   }
-  settleSharedInputs(root, notes);
+  settleSharedInputs(doc, root, notes);
 
   // Tests: the cases in run.yaml and in fixtures/*.yaml, and support graphs.
   const evals = [];
@@ -918,15 +913,15 @@ function convertPackage(dir) {
 }
 
 // A package already in the 0.12 shape: the conversion has run, so converting
-// it again changes only what a rule above says in the 0.12 shape too, and
-// writes nothing else.
+// it again writes nothing but what a rule above also says in that shape, a
+// test's RUNX_CWD. Its run.yaml is never rewritten: shared inputs are settled
+// only from the old shape (settleSharedInputs).
 const ROOT_KEYS_012 = ["version", "minimum_runx", "default_method", "catalog", "shared_inputs", "connectors", "methods"];
 
-function settlePackage(dir, doc, style) {
+function settlePackage(dir, doc) {
   const notes = [];
   const files = new Map();
   only(doc.contents, ROOT_KEYS_012, "run.yaml, which says minimum_runx,");
-  if (settleSharedInputs(doc.contents, notes)) files.set(path.join(dir, "run.yaml"), doc.toString(style));
   const testsDir = path.join(dir, "tests");
   let tests = 0;
   for (const entry of existsSync(testsDir) ? readdirSync(testsDir).sort() : []) {

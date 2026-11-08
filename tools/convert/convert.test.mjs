@@ -36,7 +36,7 @@ const snapshot = (dir) =>
 
 const digestStep = "    steps:\n      - id: digest\n        tool: data.digest\n        inputs: { value: fixed }\n";
 
-test("an own input that a shared input of its name would change is refused, naming both", (t) => {
+test("a name any method defines its own way isn't shared, and every method keeps exactly its source's meaning", (t) => {
   const dir = tree(t, {
     "SKILL.md": manual("demo"),
     "run.yaml": `skill: demo
@@ -48,34 +48,6 @@ input_definitions:
     default: ""
     description: The account, or empty to resolve it.
     schema: { pattern: "^(?:acct_[a-z]+)?$" }
-runners:
-  run:
-    default: true
-    inputs:
-      account_id: { definition: account_id }
-${digestStep}  capture:
-    inputs:
-      account_id:
-        type: string
-        required: true
-        description: The account, or empty to resolve it.
-        schema: { pattern: "^acct_[a-z]+$" }
-${digestStep}`,
-  });
-  const before = snapshot(dir);
-  const { status, out } = convert("--write", dir);
-  assert.equal(status, 1);
-  assert.match(out, /refused .*methods\.capture\.inputs\.account_id is its own input, and shared input account_id would give it default, optional: two inputs share one name/);
-  assert.match(out, /Shared: \{.*"default":"".*\}\. This method's: \{.*"pattern":"\^acct_\[a-z\]\+\$".*\}/);
-  assert.deepEqual(snapshot(dir), before, "a refused package is left as it was");
-});
-
-test("an own input restating a shared input takes it, and keeps only the keys it overrides", (t) => {
-  const dir = tree(t, {
-    "SKILL.md": manual("demo"),
-    "run.yaml": `skill: demo
-version: "0.1.0"
-input_definitions:
   dispute_id:
     type: string
     required: true
@@ -84,31 +56,35 @@ input_definitions:
     type: string
     required: true
     description: A repository as owner/name.
-    schema: { pattern: "^[a-z]+/[a-z]+$", examples: [runxhq/runx] }
 runners:
   run:
     default: true
     inputs:
+      account_id: { definition: account_id }
       dispute_id: { definition: dispute_id }
-      repository: { definition: repository }
+      repo: { definition: repository }
 ${digestStep}  capture:
     inputs:
+      account_id:
+        type: string
+        required: true
+        description: The account.
+        schema: { pattern: "^acct_[a-z]+$" }
       dispute_id:
-        type: string
-        required: true
         description: The dispute.
-      repository:
-        type: string
         required: true
-        description: The repository to comment on.
-        schema: { pattern: "^[a-z]+/[a-z]+$", maxLength: 201 }
+        type: string
 ${digestStep}`,
   });
   const { status, out } = convert("--write", dir);
   assert.equal(status, 0, out);
   const run = read(dir, "run.yaml");
-  assert.match(run, /  capture:\n    inputs:\n      dispute_id: \{\}\n      repository:\n        description: The repository to comment on\.\n        maxLength: 201\n/);
-  assert.match(out, /methods\.capture\.inputs\.repository takes shared input repository's examples, which change nothing it accepts/);
+  assert.match(run, /^shared_inputs:\n  dispute_id:\n    type: string\n    description: The dispute\.\nmethods:\n/m);
+  assert.match(run, /  run:\n    inputs:\n      account_id:\n        type: string\n        default: ""\n        description: The account, or empty to resolve it\.\n        pattern: "\^\(\?:acct_\[a-z\]\+\)\?\$"\n        optional: true\n      dispute_id: \{\}\n      repo:\n        type: string\n        description: A repository as owner\/name\.\n/);
+  assert.match(run, /  capture:\n    inputs:\n      account_id:\n        type: string\n        description: The account\.\n        pattern: "\^acct_\[a-z\]\+\$"\n      dispute_id: \{\}\n/);
+  assert.match(out, /shared input account_id isn't shared: capture define it their own way, so run say it inline and it leaves shared_inputs/);
+  assert.match(out, /methods\.capture\.inputs\.dispute_id restates shared input dispute_id, so it takes it/);
+  assert.match(out, /shared input repository is taken by no method, so it leaves shared_inputs/);
 });
 
 test("a step's act loses decision, which the 0.12 format removes, and keeps its other fields", (t) => {
