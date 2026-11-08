@@ -42,11 +42,6 @@
       "phase1_state": "keep",
       "decision": "Keep Apache-2.0. Runtime owns local credential consumption, resolved delivery, process supervision, and redaction only."
     },
-    "runx-sdk": {
-      "class": "apache-oss",
-      "phase1_state": "keep",
-      "decision": "Keep Apache-2.0. Hosted connect-list APIs are not exposed from the OSS SDK."
-    },
     "runx-x402": {
       "class": "apache-oss",
       "phase1_state": "keep",
@@ -144,11 +139,6 @@
       "path": "crates/runx-cli/src/main.rs",
       "decision": "rewrite",
       "rationale": "Connect command routing must not invoke hosted brokerage."
-    },
-    {
-      "path": "crates/runx-sdk/src/client.rs",
-      "decision": "abstract-or-remove",
-      "rationale": "SDK connect-list and connection_id surface is hosted-private."
     }
   ],
   "cloud_private_context": [

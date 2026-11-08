@@ -555,7 +555,6 @@ human decisions, resume the run, and inspect its receipts.
 | MCP | `runx mcp <skill-ref>` to expose a skill; `runx mcp --run <run-id>` to work an existing run. |
 | TypeScript / Node.js | [`@runxhq/client`](packages/client/README.md), with explicit workspace and environment configuration. |
 | Python | [Python SDK](packages/sdk-python/README.md). |
-| Rust | [`runx-sdk`](crates/runx-sdk/README.md). |
 | Contracts | [Schemas](schemas/) and the [public specification](https://runx.ai/spec). |
 
 MCP exposes a turn's allowed calls as typed tools. The host owns the model

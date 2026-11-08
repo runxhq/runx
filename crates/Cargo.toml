@@ -8,7 +8,6 @@ members = [
     "runx-contracts-derive",
     "runx-receipts",
     "runx-runtime",
-    "runx-sdk",
     "runx-x402",
 ]
 resolver = "3"

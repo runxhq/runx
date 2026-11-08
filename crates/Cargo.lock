@@ -2859,16 +2859,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "runx-sdk"
-version = "0.0.1"
-dependencies = [
- "runx-contracts",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "runx-x402"
 version = "0.2.0"
 dependencies = [

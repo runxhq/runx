@@ -452,7 +452,6 @@ boundary map:
   supervision, harness replay, journals, registry clients, payment gates, MCP,
   and execution.
 - `runx-cli`: native `runx` binary over the runtime.
-- `runx-sdk`: blocking CLI-backed SDK over stable contracts.
 
 The TypeScript package graph is the client, protocol-extension, wrapper, and
 generated-contract layer:

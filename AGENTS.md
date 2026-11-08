@@ -227,7 +227,7 @@ entry. Publication is limited to the CLI npm packages and native distribution
 artifacts; stamping a Rust crate version does not authorize Cargo publication.
 
 Do not publish `runx-cli` or internal Rust crates (`runx-core`, `runx-runtime`,
-`runx-parser`, `runx-contracts`, `runx-receipts`, `runx-sdk`, or
+`runx-parser`, `runx-contracts`, `runx-receipts`, or
 `runx-contracts-derive`) during a CLI release. Cargo publication requires an
 explicit, coordinated library-crate release because the CLI consumes those
 internal APIs.

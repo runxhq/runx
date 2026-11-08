@@ -14,7 +14,6 @@ const expectedMembers = [
   "runx-parser",
   "runx-receipts",
   "runx-runtime",
-  "runx-sdk",
   "runx-x402",
 ];
 
@@ -25,15 +24,6 @@ const apiBearingPublishedCrates = new Set([
   "runx-receipts",
   "runx-runtime",
   "runx-x402",
-]);
-
-const reservationVersionCrates = new Set([
-  "runx-sdk",
-]);
-
-const publishableLibraryCrates = new Set([
-  ...apiBearingPublishedCrates,
-  ...reservationVersionCrates,
 ]);
 
 const allowedRunxDeps = new Map([
@@ -54,7 +44,6 @@ const allowedRunxDeps = new Map([
   ["runx-parser", new Set(["runx-contracts", "runx-core"])],
   ["runx-receipts", new Set(["runx-contracts"])],
   ["runx-runtime", new Set(["runx-contracts", "runx-core", "runx-parser", "runx-receipts"])],
-  ["runx-sdk", new Set(["runx-contracts"])],
   ["runx-x402", new Set(["runx-contracts"])],
 ]);
 
@@ -64,7 +53,6 @@ const requiredRunxDeps = new Map([
   ["runx-parser", new Set(["runx-contracts", "runx-core"])],
   ["runx-receipts", new Set(["runx-contracts"])],
   ["runx-runtime", new Set(["runx-contracts", "runx-core", "runx-parser", "runx-receipts"])],
-  ["runx-sdk", new Set(["runx-contracts"])],
   ["runx-x402", new Set(["runx-contracts"])],
 ]);
 
@@ -73,7 +61,6 @@ const pureCrateNames = new Set([
   "runx-core",
   "runx-parser",
   "runx-receipts",
-  "runx-sdk",
   "runx-x402",
 ]);
 
@@ -253,12 +240,7 @@ function checkPublishingReadiness(crateName, manifest) {
   if (apiBearingPublishedCrates.has(crateName) && version === "0.0.1") {
     findings.push(`${crateName}/Cargo.toml must not reuse the published reservation version 0.0.1 for API-bearing publishability`);
   }
-  if (reservationVersionCrates.has(crateName)) {
-    if (version !== "0.0.1") {
-      findings.push(`${crateName}/Cargo.toml must use placeholder reservation version 0.0.1, found ${version ?? "missing"}`);
-    }
-  }
-  if (publishableLibraryCrates.has(crateName)) {
+  if (apiBearingPublishedCrates.has(crateName)) {
     if (hasPublishFalse) {
       findings.push(`${crateName}/Cargo.toml must remain publishable so the crates.io package can be reserved or updated`);
     }

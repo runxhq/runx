@@ -49,8 +49,8 @@ unsupported lanes must fail clearly; no hidden JavaScript executor may fill in.
 
 `crates/deny.toml` and the crate-graph check enforce the dependency direction:
 
-- Pure crates (`runx-contracts`, `runx-core`, `runx-parser`, `runx-receipts`,
-  and `runx-sdk`) do not acquire async runtimes, HTTP clients/servers, MCP
+- Pure crates (`runx-contracts`, `runx-core`, `runx-parser` and
+  `runx-receipts`) do not acquire async runtimes, HTTP clients/servers, MCP
   frameworks, or alternate YAML backends.
 - `runx-runtime` owns side-effect dependencies behind their feature flags:
   `reqwest`/`rustls` for adapter HTTPS, `tokio` for async supervision, and
