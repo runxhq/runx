@@ -16,14 +16,13 @@ use serde::{Deserialize, Serialize};
 
 use super::install::{InstallStatus, unique_suffix};
 use super::install_record::{InstallRecord, write_install_record};
+use super::keys::{
+    RegistryKey, RegistryManifestVerificationFailure, registry_key_signs,
+    verify_registry_signed_manifest,
+};
 use super::package_files::validate_registry_package_file_path;
 use super::publish_package::connector_package;
 use super::source_authority::RegistryManifestSourceAuthority;
-use super::trust_anchor::{
-    RegistryManifestVerificationFailure, TrustedRegistryManifestKey,
-    default_trusted_registry_manifest_keys, registry_manifest_key_allows,
-    verify_registry_signed_manifest,
-};
 use super::types::{
     RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
     UnreadVersion,
@@ -50,8 +49,9 @@ pub struct InstallRegistryConnectorOptions {
     pub install_records: PathBuf,
     /// A content digest the caller pinned (`--digest`).
     pub expected_content_digest: Option<String>,
-    /// Empty means the default registry trust anchor.
-    pub trusted_manifest_keys: Vec<TrustedRegistryManifestKey>,
+    /// The registry keys its signed manifest must verify under
+    /// (`registry_keys`).
+    pub registry_keys: Vec<RegistryKey>,
     pub manifest_source_authority: RegistryManifestSourceAuthority,
 }
 
@@ -271,17 +271,7 @@ fn verify_signed_manifest(
 ) -> Result<(), ConnectorInstallError> {
     let connector_ref = &published.connector;
     let manifest = &published.signed_manifest;
-    let trusted_keys = if options.trusted_manifest_keys.is_empty() {
-        default_trusted_registry_manifest_keys().map_err(|_| {
-            ConnectorInstallError::InvalidManifestSignature {
-                name: connector_ref.clone(),
-                reason: "the default registry trust anchor is malformed",
-            }
-        })?
-    } else {
-        options.trusted_manifest_keys.clone()
-    };
-    let key = verify_registry_signed_manifest(manifest, &trusted_keys)
+    let key = verify_registry_signed_manifest(manifest, &options.registry_keys)
         .map_err(|failure| verification_error(connector_ref, &manifest.signer.key_id, failure))?;
     let subject = RegistrySubject {
         kind: RegistrySubjectKind::Connector,
@@ -299,11 +289,10 @@ fn verify_signed_manifest(
             ),
         });
     }
-    registry_manifest_key_allows(
+    registry_key_signs(
         key,
         RegistrySubjectKind::Connector,
         connector_ref.as_str(),
-        &published.trust_tier,
         Some(&options.manifest_source_authority),
     )
     .map_err(

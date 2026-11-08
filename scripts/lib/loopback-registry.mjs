@@ -34,9 +34,9 @@ export function startLoopbackRegistry({ publisher = "acme" } = {}) {
     worker.once("error", reject);
     worker.once("message", ({ url, publicKeyBase64 }) => {
       const env = {
-        RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID: KEY_ID,
-        RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64: publicKeyBase64,
-        RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER: publisher,
+        RUNX_REGISTRY_KEYS: JSON.stringify([
+          { key_id: KEY_ID, public_key: publicKeyBase64, publisher, source: url },
+        ]),
         RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK: "1",
       };
       resolve({

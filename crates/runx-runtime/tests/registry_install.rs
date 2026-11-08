@@ -1,16 +1,13 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::sha256_prefixed;
-use runx_runtime::registry::resolve::{
-    RegistryTarget, install_skill_ref, trusted_manifest_keys_for_source,
-};
+use runx_runtime::registry::resolve::{RegistryTarget, install_skill_ref};
 use runx_runtime::registry::{
-    InstallCandidate, InstallError, InstallLocalSkillOptions, RegistryManifestSignature,
-    RegistryManifestSourceAuthority, RegistryManifestTrustEnvError, RegistryPackageFile,
-    RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
-    TrustedRegistryManifestKey, install_local_skill,
-    registry_manifest_source_authority_from_registry_url, skill_content_digest,
-    trusted_registry_manifest_keys_from_env,
+    InstallCandidate, InstallError, InstallLocalSkillOptions, RUNX_REGISTRY_KEYS_ENV, RegistryKey,
+    RegistryKeyScope, RegistryKeysError, RegistryManifestSignature,
+    RegistryManifestSourceAuthority, RegistryPackageFile, RegistrySignedManifest, RegistrySubject,
+    RegistrySubjectKind, TrustTier, install_local_skill, registry_keys as key_set,
+    skill_content_digest,
 };
 use tempfile::tempdir;
 
@@ -70,7 +67,7 @@ fn trusted_signed_manifest_installs() -> Result<(), Box<dyn std::error::Error>> 
             connectors_root: temp.path().join("connectors"),
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
-            trusted_manifest_keys: trusted_manifest_keys()?,
+            registry_keys: registry_keys()?,
         },
     )?;
 
@@ -157,10 +154,7 @@ fn a_bare_name_installs_the_newest_version_this_runx_reads()
     };
     let env = registry_env(&registry, temp.path())?;
     let options = InstallLocalSkillOptions {
-        trusted_manifest_keys: trusted_manifest_keys_for_source(
-            &env,
-            target.manifest_source_authority(),
-        )?,
+        registry_keys: key_set(&env, &runx_runtime::RunxPaths::resolve(&env, temp.path()))?,
         ..options(temp.path())?
     };
 
@@ -315,7 +309,7 @@ fn options(root: &std::path::Path) -> Result<InstallLocalSkillOptions, Box<dyn s
         connectors_root: root.join("connectors"),
         install_records: root.join(".runx").join("installs"),
         expected_digest: None,
-        trusted_manifest_keys: trusted_manifest_keys()?,
+        registry_keys: registry_keys()?,
     })
 }
 
@@ -334,7 +328,7 @@ fn package_files_install_and_digest_mismatch_fails() -> Result<(), Box<dyn std::
             connectors_root: temp.path().join("connectors"),
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
-            trusted_manifest_keys: trusted_manifest_keys()?,
+            registry_keys: registry_keys()?,
         },
     )?;
 
@@ -546,9 +540,10 @@ fn registry_install_rejects_out_of_scope_manifest_key() -> Result<(), Box<dyn st
             connectors_root: temp.path().join("connectors"),
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
-            trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
-                crate::registry_fixture::KEY_ID.to_owned(),
+            registry_keys: vec![RegistryKey::from_base64(
+                crate::registry_fixture::KEY_ID,
                 &public_key,
+                RegistryKeyScope::Official,
             )?],
         },
     ) {
@@ -580,9 +575,10 @@ fn registry_install_rejects_official_key_from_non_official_source()
             connectors_root: temp.path().join("connectors"),
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
-            trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
-                crate::registry_fixture::KEY_ID.to_owned(),
+            registry_keys: vec![RegistryKey::from_base64(
+                crate::registry_fixture::KEY_ID,
                 &crate::registry_fixture::public_key_base64()?,
+                RegistryKeyScope::Official,
             )?],
         },
     ) {
@@ -614,9 +610,10 @@ fn registry_install_accepts_official_source_signature_for_community_skill()
             connectors_root: temp.path().join("connectors"),
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
-            trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
-                crate::registry_fixture::KEY_ID.to_owned(),
+            registry_keys: vec![RegistryKey::from_base64(
+                crate::registry_fixture::KEY_ID,
                 &crate::registry_fixture::public_key_base64()?,
+                RegistryKeyScope::Official,
             )?],
         },
     )?;
@@ -639,11 +636,15 @@ fn registry_install_rejects_third_party_key_outside_publisher_namespace()
             connectors_root: temp.path().join("connectors"),
             install_records: temp.path().join(".runx").join("installs"),
             expected_digest: None,
-            trusted_manifest_keys: vec![TrustedRegistryManifestKey::from_base64(
-                crate::registry_fixture::KEY_ID.to_owned(),
+            registry_keys: vec![RegistryKey::from_base64(
+                crate::registry_fixture::KEY_ID,
                 &public_key,
-                "other".to_owned(),
-                "test-registry".to_owned(),
+                RegistryKeyScope::ThirdParty {
+                    publisher: "other".to_owned(),
+                    source: RegistryManifestSourceAuthority::RegistrySource(
+                        "test-registry".to_owned(),
+                    ),
+                },
             )?],
         },
     ) {
@@ -660,57 +661,41 @@ fn registry_install_rejects_third_party_key_outside_publisher_namespace()
     Ok(())
 }
 
-/// A key the environment names never signs for the official registry, so it
-/// cannot promote what it signs to the official tier.
+/// An operator key never signs for the official registry, so it cannot pass
+/// for one of the official keys.
 #[test]
-fn registry_manifest_env_key_cannot_self_promote_to_official()
--> Result<(), Box<dyn std::error::Error>> {
-    let env = [
-        (
-            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV.to_owned(),
-            crate::registry_fixture::KEY_ID.to_owned(),
-        ),
-        (
-            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV.to_owned(),
-            crate::registry_fixture::public_key_base64()?,
-        ),
-        (
-            runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV.to_owned(),
-            "acme".to_owned(),
-        ),
-    ]
-    .into_iter()
-    .collect::<BTreeMap<_, _>>();
-
+fn an_operator_key_cannot_name_the_official_registry() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let paths = runx_runtime::RunxPaths::resolve(
+        &BTreeMap::from([("RUNX_HOME".to_owned(), temp.path().display().to_string())]),
+        temp.path(),
+    );
     for official in ["https://runx.ai", "https://api.runx.ai/"] {
+        let env = BTreeMap::from([(
+            RUNX_REGISTRY_KEYS_ENV.to_owned(),
+            serde_json::json!([{
+                "key_id": crate::registry_fixture::KEY_ID,
+                "public_key": crate::registry_fixture::public_key_base64()?,
+                "publisher": "acme",
+                "source": official,
+            }])
+            .to_string(),
+        )]);
         assert!(matches!(
-            trusted_registry_manifest_keys_from_env(
-                &env,
-                &registry_manifest_source_authority_from_registry_url(official),
-            ),
-            Err(RegistryManifestTrustEnvError::InvalidKey)
+            key_set(&env, &paths),
+            Err(RegistryKeysError::Env(message)) if message.contains("official registry")
         ));
     }
     Ok(())
 }
 
 #[test]
-fn registry_install_rejects_unsigned_or_mismatched_trust_tier()
--> Result<(), Box<dyn std::error::Error>> {
+fn registry_install_rejects_an_unsigned_version() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let mut unsigned = install_candidate()?;
     unsigned.signed_manifest = None;
     let unsigned_error = install_error(&unsigned, temp.path())?;
     assert!(matches!(unsigned_error, InstallError::UnsignedManifest(_)));
-
-    let temp = tempdir()?;
-    let mut first_party = install_candidate()?;
-    first_party.trust_tier = Some(TrustTier::FirstParty);
-    let tier_error = install_error(&first_party, temp.path())?;
-    assert!(matches!(
-        tier_error,
-        InstallError::ManifestTrustScopeViolation { .. }
-    ));
     assert!(!temp.path().join("skills").exists());
     Ok(())
 }
@@ -726,7 +711,7 @@ fn install_error(
             connectors_root: temp_path.join("connectors"),
             install_records: temp_path.join(".runx").join("installs"),
             expected_digest: None,
-            trusted_manifest_keys: trusted_manifest_keys()?,
+            registry_keys: registry_keys()?,
         },
     ) {
         Ok(_) => Err("install should fail".into()),
@@ -810,13 +795,15 @@ fn bundle_digest(files: &[RegistryPackageFile]) -> Result<String, Box<dyn std::e
     Ok(crate::registry_fixture::bundle_digest(files)?.ok_or("a bundle holds files")?)
 }
 
-fn trusted_manifest_keys() -> Result<Vec<TrustedRegistryManifestKey>, Box<dyn std::error::Error>> {
+fn registry_keys() -> Result<Vec<RegistryKey>, Box<dyn std::error::Error>> {
     let public_key = crate::registry_fixture::public_key_base64()?;
-    Ok(vec![TrustedRegistryManifestKey::from_base64(
-        crate::registry_fixture::KEY_ID.to_owned(),
+    Ok(vec![RegistryKey::from_base64(
+        crate::registry_fixture::KEY_ID,
         &public_key,
-        "acme".to_owned(),
-        "test-registry".to_owned(),
+        RegistryKeyScope::ThirdParty {
+            publisher: "acme".to_owned(),
+            source: RegistryManifestSourceAuthority::RegistrySource("test-registry".to_owned()),
+        },
     )?])
 }
 

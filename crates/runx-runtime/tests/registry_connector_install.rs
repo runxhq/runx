@@ -4,8 +4,8 @@ use std::path::Path;
 use runx_contracts::{RegistryContentFile, registry_content_digest};
 use runx_runtime::registry::{
     ConnectorInstallError, InstallRegistryConnectorOptions, InstallStatus,
-    RegistryConnectorVersion, RegistryManifestSourceAuthority, RegistryPackageFile,
-    RegistrySignedManifest, RegistrySubjectKind, TrustTier, TrustedRegistryManifestKey,
+    RegistryConnectorVersion, RegistryKey, RegistryKeyScope, RegistryManifestSourceAuthority,
+    RegistryPackageFile, RegistrySignedManifest, RegistrySubjectKind, TrustTier,
     install_registry_connector, prepare_registry_connector_package,
 };
 use tempfile::tempdir;
@@ -279,9 +279,10 @@ fn a_newer_connector_version_installs_beside_its_source() -> Result<(), Box<dyn 
         connectors_root: temp.path().join("connectors"),
         install_records: temp.path().join(".runx").join("installs"),
         expected_content_digest: None,
-        trusted_manifest_keys: vec![TrustedRegistryManifestKey::official_from_base64(
-            crate::registry_fixture::KEY_ID.to_owned(),
+        registry_keys: vec![RegistryKey::from_base64(
+            crate::registry_fixture::KEY_ID,
             &crate::registry_fixture::public_key_base64()?,
+            RegistryKeyScope::Official,
         )?],
         manifest_source_authority: RegistryManifestSourceAuthority::OfficialRunx,
     };
@@ -358,11 +359,13 @@ fn options(
         connectors_root: root.join("connectors"),
         install_records: root.join(".runx").join("installs"),
         expected_content_digest: None,
-        trusted_manifest_keys: vec![TrustedRegistryManifestKey::from_base64(
-            crate::registry_fixture::KEY_ID.to_owned(),
+        registry_keys: vec![RegistryKey::from_base64(
+            crate::registry_fixture::KEY_ID,
             &crate::registry_fixture::public_key_base64()?,
-            allowed_publisher.to_owned(),
-            SOURCE.to_owned(),
+            RegistryKeyScope::ThirdParty {
+                publisher: allowed_publisher.to_owned(),
+                source: RegistryManifestSourceAuthority::RegistrySource(SOURCE.to_owned()),
+            },
         )?],
         manifest_source_authority: RegistryManifestSourceAuthority::RegistrySource(
             SOURCE.to_owned(),

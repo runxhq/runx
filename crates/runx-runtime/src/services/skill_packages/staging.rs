@@ -145,15 +145,13 @@ impl Drop for ValidationReceiptStage {
 /// What selects the registry a candidate's closure is read from, and the key
 /// it is trusted to sign with: the registry's URL, the hosted API base that is
 /// the default registry when no URL is named, leave to reach a private network
-/// address, and the operator's trust key. Reading a public registry takes no
-/// credential, so none is forwarded.
-const REGISTRY_SELECTION_ENV: [&str; 6] = [
+/// address, and the operator's registry keys. Reading a public registry takes
+/// no credential, so none is forwarded.
+const REGISTRY_SELECTION_ENV: [&str; 4] = [
     "RUNX_REGISTRY_URL",
     crate::HOSTED_API_BASE_URL_ENV,
     crate::hosted_api::HOSTED_API_ALLOW_PRIVATE_NETWORK_ENV,
-    crate::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-    crate::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
-    crate::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
+    crate::registry::RUNX_REGISTRY_KEYS_ENV,
 ];
 
 /// The environment a candidate's harness runs in: the repo as its workspace,
@@ -333,9 +331,10 @@ mod tests {
             ("RUNX_REGISTRY_URL", "http://127.0.0.1:4100"),
             ("RUNX_PUBLIC_API_BASE_URL", "https://api.staging.runx.test"),
             ("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1"),
-            ("RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64", "a2V5"),
-            ("RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID", "operator-key"),
-            ("RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER", "acme"),
+            (
+                "RUNX_REGISTRY_KEYS",
+                r#"[{"key_id":"operator-key","public_key":"a2V5","publisher":"acme","source":"http://127.0.0.1:4100"}]"#,
+            ),
         ];
         let operator = selection
             .iter()

@@ -10,17 +10,16 @@ use runx_contracts::sha256_prefixed;
 use runx_parser::{SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install};
 
 use super::install_record::{InstallRecord, write_install_record};
+use super::keys::{
+    RegistryKey, RegistryManifestVerificationFailure, registry_key_signs,
+    verify_registry_signed_manifest,
+};
 use super::package_files::{
     registry_bundle_digest, skill_content_digest, validate_registry_package_file_path,
     validate_registry_skill_package,
 };
 use super::refs::safe_skill_package_parts;
 use super::source_authority::RegistryManifestSourceAuthority;
-use super::trust_anchor::{
-    RegistryManifestVerificationFailure, TrustedRegistryManifestKey,
-    default_trusted_registry_manifest_keys, registry_manifest_key_allows,
-    verify_registry_signed_manifest,
-};
 use super::types::{
     RegistryPackageFile, RegistrySignedManifest, RegistrySubject, RegistrySubjectKind, TrustTier,
     UnreadVersion,
@@ -55,7 +54,9 @@ pub struct InstallLocalSkillOptions {
     /// (`RunxPaths::install_records()`).
     pub install_records: PathBuf,
     pub expected_digest: Option<String>,
-    pub trusted_manifest_keys: Vec<TrustedRegistryManifestKey>,
+    /// The registry keys a signed manifest must verify under
+    /// (`registry_keys`).
+    pub registry_keys: Vec<RegistryKey>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -115,8 +116,6 @@ pub enum InstallError {
         ref_name: String,
         field: &'static str,
     },
-    #[error("registry signed manifest trust tier is required for {0}")]
-    ManifestTrustTierMissing(String),
     #[error("registry signed manifest signer is out of scope for {ref_name}: {reason}")]
     ManifestTrustScopeViolation { ref_name: String, reason: String },
     #[error("binding digest mismatch for {ref_name}: expected {expected}, received {actual}")]
@@ -612,10 +611,10 @@ fn verify_signed_manifest_anchor(
         }
         return Err(InstallError::UnsignedManifest(candidate.package.clone()));
     };
-    let trusted_keys = trusted_manifest_keys(options)?;
-    let key = verify_registry_signed_manifest(manifest, &trusted_keys).map_err(|failure| {
-        manifest_verification_error(candidate.package.clone(), &manifest.signer.key_id, failure)
-    })?;
+    let key =
+        verify_registry_signed_manifest(manifest, &options.registry_keys).map_err(|failure| {
+            manifest_verification_error(candidate.package.clone(), &manifest.signer.key_id, failure)
+        })?;
     validate_manifest_identity(candidate, manifest)?;
     validate_manifest_trust_scope(candidate, key)?;
     if manifest.content_digest != content_digest {
@@ -628,9 +627,11 @@ fn verify_signed_manifest_anchor(
     Ok(actual_digest)
 }
 
+/// The key must be scoped to sign this skill's publisher from the registry
+/// the version came from.
 fn validate_manifest_trust_scope(
     candidate: &InstallCandidate,
-    key: &TrustedRegistryManifestKey,
+    key: &RegistryKey,
 ) -> Result<(), InstallError> {
     let skill_id = candidate
         .skill_id
@@ -639,35 +640,23 @@ fn validate_manifest_trust_scope(
             ref_name: candidate.package.clone(),
             field: "skill_id",
         })?;
-    let trust_tier = candidate
-        .trust_tier
+    let source = candidate
+        .manifest_source_authority
         .as_ref()
-        .ok_or_else(|| InstallError::ManifestTrustTierMissing(candidate.package.clone()))?;
-    registry_manifest_key_allows(
+        .ok_or_else(|| InstallError::ManifestTrustScopeViolation {
+            ref_name: candidate.package.clone(),
+            reason: "an install names the registry it came from".to_owned(),
+        })?;
+    registry_key_signs(
         key,
         super::types::RegistrySubjectKind::Skill,
         skill_id,
-        trust_tier,
-        candidate.manifest_source_authority.as_ref(),
+        Some(source),
     )
     .map_err(|reason| InstallError::ManifestTrustScopeViolation {
         ref_name: candidate.package.clone(),
         reason,
     })
-}
-
-fn trusted_manifest_keys(
-    options: &InstallLocalSkillOptions,
-) -> Result<Vec<TrustedRegistryManifestKey>, InstallError> {
-    if options.trusted_manifest_keys.is_empty() {
-        return default_trusted_registry_manifest_keys().map_err(|_error| {
-            InstallError::InvalidManifestSignature {
-                ref_name: "default registry trust anchor".to_owned(),
-                reason: "malformed trusted key".to_owned(),
-            }
-        });
-    }
-    Ok(options.trusted_manifest_keys.clone())
 }
 
 struct DigestMismatch {

@@ -140,7 +140,8 @@ impl BundledSkill {
                 connectors_root: paths.added_connectors(),
                 install_records: paths.install_records(),
                 expected_digest: expected_digest.map(str::to_owned),
-                trusted_manifest_keys: Vec::new(),
+                // Bundled bytes are the runtime's own, signed by nothing.
+                registry_keys: Vec::new(),
             },
         )
         .map_err(|error| error.to_string())

@@ -10,7 +10,7 @@ use runx_runtime::ConfigError;
 use runx_runtime::WorkspaceEnv;
 use runx_runtime::registry::resolve::{
     Installed, RegistryTarget, ResolveError, install_skill_ref, registry_client,
-    resolve_registry_target, trusted_manifest_keys_for_source,
+    resolve_registry_target,
 };
 use runx_runtime::registry::{
     InstallLocalSkillOptions, InstallLocalSkillResult, RecordInstaller,
@@ -237,7 +237,6 @@ fn run_install(
     cwd: &Path,
 ) -> Result<RegistryCliOutput, RegistryCliError> {
     let source = target.source_uri();
-    let source_authority = target.manifest_source_authority();
     let registry_url = target.registry_url.clone();
     let paths = runx_runtime::RunxPaths::resolve(env, cwd);
     let options = InstallLocalSkillOptions {
@@ -245,7 +244,7 @@ fn run_install(
         connectors_root: paths.added_connectors(),
         install_records: paths.install_records(),
         expected_digest: plan.expected_digest.clone(),
-        trusted_manifest_keys: trusted_manifest_keys_for_source(env, source_authority)?,
+        registry_keys: runx_runtime::registry::registry_keys(env, &paths)?,
     };
     let Some(Installed {
         package: (candidate, acquisition),
@@ -475,6 +474,12 @@ impl From<ResolveError> for RegistryCliError {
             ResolveError::Usage(message) => usage_error(message),
             ResolveError::Failed(message) => internal_error(message),
         }
+    }
+}
+
+impl From<runx_runtime::registry::RegistryKeysError> for RegistryCliError {
+    fn from(error: runx_runtime::registry::RegistryKeysError) -> Self {
+        ResolveError::from(error).into()
     }
 }
 

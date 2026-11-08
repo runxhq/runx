@@ -319,7 +319,7 @@ fn run_registry_doctor(env: &BTreeMap<String, String>, cwd: &Path) -> DoctorRepo
     let mut diagnostics = match resolve_registry_target(None, env) {
         Ok(target) => vec![
             registry_target_diagnostic(&target),
-            registry_trust_key_diagnostic(env, &target),
+            registry_trust_key_diagnostic(env, &paths),
             registry_remote_install_diagnostic(env),
         ],
         Err(error) => vec![registry_target_error_diagnostic(&error.into_message())],
@@ -432,40 +432,30 @@ fn path_diagnostic(id: &str, title: &str, path: PathBuf, env_names: &[&str]) -> 
     }
 }
 
-// Function rationale: one diagnostic assembles the trust-key matrix and repair hints.
-// An operator key signs only from the registry the target selects.
+// Function rationale: one diagnostic assembles the registry key set and its
+// repair hint. An operator key signs only its publisher, from its registry.
 fn registry_trust_key_diagnostic(
     env: &BTreeMap<String, String>,
-    target: &RegistryTarget,
+    paths: &RunxPaths,
 ) -> DoctorDiagnostic {
-    let configured_key_id = env
-        .get(runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV)
-        .filter(|value| !value.trim().is_empty())
-        .cloned();
-    let configured_publisher = env
-        .get(runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV)
-        .filter(|value| !value.trim().is_empty())
-        .cloned();
-    let key_material_configured = env_contains_non_empty(
-        env,
-        runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-    );
-    let mut keys =
-        runx_runtime::registry::default_trusted_registry_manifest_keys().unwrap_or_default();
-    let configured =
-        key_material_configured && configured_key_id.is_some() && configured_publisher.is_some();
-    if configured
-        && let Ok(configured_keys) = runx_runtime::registry::trusted_registry_manifest_keys_from_env(
-            env,
-            &target.manifest_source_authority(),
-        )
-    {
-        keys = configured_keys;
-    }
-    let partial = !configured
-        && (key_material_configured
-            || configured_key_id.is_some()
-            || configured_publisher.is_some());
+    let keys_env = runx_runtime::registry::RUNX_REGISTRY_KEYS_ENV;
+    let keys_file = paths.registry_keys_file();
+    let (keys, refusal) = match runx_runtime::registry::registry_keys(env, paths) {
+        Ok(keys) => (keys, None),
+        Err(error) => (
+            runx_runtime::registry::official_registry_keys(),
+            Some(error.to_string()),
+        ),
+    };
+    let operator_keys = keys
+        .iter()
+        .filter(|key| {
+            !matches!(
+                key.scope,
+                runx_runtime::registry::RegistryKeyScope::Official
+            )
+        })
+        .count();
     let mut evidence = JsonObject::new();
     evidence.insert(
         "key_ids".to_owned(),
@@ -480,55 +470,48 @@ fn registry_trust_key_diagnostic(
         JsonValue::Array(keys.iter().map(registry_trust_policy_evidence).collect()),
     );
     evidence.insert(
-        "operator_key_configured".to_owned(),
-        JsonValue::Bool(configured),
+        "operator_keys".to_owned(),
+        JsonValue::Number(runx_contracts::JsonNumber::U64(
+            u64::try_from(operator_keys).unwrap_or(u64::MAX),
+        )),
     );
     evidence.insert(
-        "partial_operator_key_config".to_owned(),
-        JsonValue::Bool(partial),
+        "invalid_operator_keys".to_owned(),
+        JsonValue::Bool(refusal.is_some()),
     );
     evidence.insert(
         "env_vars".to_owned(),
         JsonValue::Array(
-            [
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
-                "RUNX_REGISTRY_URL",
-            ]
-            .into_iter()
-            .map(|name| JsonValue::String(name.to_owned()))
-            .collect(),
+            [keys_env, "RUNX_REGISTRY_URL"]
+                .into_iter()
+                .map(|name| JsonValue::String(name.to_owned()))
+                .collect(),
         ),
+    );
+    evidence.insert(
+        "keys_file".to_owned(),
+        JsonValue::String(keys_file.display().to_string()),
     );
     DoctorDiagnostic {
         id: "runx.registry.trust_keys".to_owned(),
         instance_id: "runx:doctor-registry:runx.registry.trust_keys".to_owned(),
-        severity: if partial {
+        severity: if refusal.is_some() {
             DoctorDiagnosticSeverity::Warning
         } else {
             DoctorDiagnosticSeverity::Info
         },
         title: "Registry trust keys".to_owned(),
-        message: if configured {
-            format!(
-                "Registry manifest trust key configured; key id: {}.",
-                configured_key_id.unwrap_or_default()
-            )
-        } else if partial {
-            format!(
-                "Registry manifest trust key is partially configured; set {}, {} and {} together.",
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
-            )
-        } else {
-            format!(
-                "Using built-in registry trust keys. Set {}, {} and {} to add an operator key for the selected registry.",
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-                runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
-            )
+        message: match &refusal {
+            Some(refusal) => {
+                format!("Registry keys are refused, so only the built-in keys verify: {refusal}")
+            }
+            None if operator_keys > 0 => {
+                format!("Registry keys: the built-in keys and {operator_keys} operator key(s).")
+            }
+            None => format!(
+                "Using built-in registry trust keys. Add an operator key as {{ key_id, public_key, publisher, source }} in {keys_env} or {}.",
+                keys_file.display()
+            ),
         },
         target: object([
             ("kind", string_value("registry")),
@@ -539,16 +522,11 @@ fn registry_trust_key_diagnostic(
             json_pointer: None,
         },
         evidence: Some(evidence),
-        repairs: if partial {
+        repairs: if refusal.is_some() {
             vec![manual_env_repair(
                 "runx.registry.trust_keys.configure_env",
-                &[
-                    runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
-                    runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
-                    runx_runtime::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
-                    "RUNX_REGISTRY_URL",
-                ],
-                "Set the registry manifest trust key id, public key and allowed publisher namespace together; the key signs only from the registry RUNX_REGISTRY_URL selects.",
+                &[keys_env],
+                "Give each operator key its key_id, base64 ed25519 public_key, publisher namespace and the registry URL it signs from; the official namespaces runx and project are never an operator key's.",
                 DoctorRepairRisk::Sensitive,
             )]
         } else {
@@ -557,24 +535,22 @@ fn registry_trust_key_diagnostic(
     }
 }
 
-fn registry_trust_policy_evidence(
-    key: &runx_runtime::registry::TrustedRegistryManifestKey,
-) -> JsonValue {
-    let (scope, allowed_namespace, allowed_source, can_grant_first_party) = match &key.scope {
-        runx_runtime::registry::RegistryManifestTrustScope::OfficialRunx => (
+fn registry_trust_policy_evidence(key: &runx_runtime::registry::RegistryKey) -> JsonValue {
+    // The official keys sign any publisher from the official registry and
+    // state first_party for runx's own skills; an operator key signs its
+    // publisher from its registry and never states first_party.
+    let (scope, allowed_namespace, allowed_source, first_party_namespace) = match &key.scope {
+        runx_runtime::registry::RegistryKeyScope::Official => (
             "official_runx",
-            "runx/*".to_owned(),
+            "*".to_owned(),
             "official_runx".to_owned(),
-            true,
+            Some("runx/*"),
         ),
-        runx_runtime::registry::RegistryManifestTrustScope::ThirdParty {
-            allowed_publisher,
-            allowed_source,
-        } => (
+        runx_runtime::registry::RegistryKeyScope::ThirdParty { publisher, source } => (
             "third_party",
-            format!("{allowed_publisher}/*"),
-            allowed_source.clone(),
-            false,
+            format!("{publisher}/*"),
+            runx_runtime::registry::registry_manifest_source_key(source),
+            None,
         ),
     };
     JsonValue::Object(object([
@@ -584,7 +560,11 @@ fn registry_trust_policy_evidence(
         ("allowed_source", JsonValue::String(allowed_source)),
         (
             "can_grant_first_party",
-            JsonValue::Bool(can_grant_first_party),
+            JsonValue::Bool(first_party_namespace.is_some()),
+        ),
+        (
+            "first_party_namespace",
+            first_party_namespace.map_or(JsonValue::Null, string_value),
         ),
     ]))
 }

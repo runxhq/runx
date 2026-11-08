@@ -2,9 +2,9 @@ use std::cell::RefCell;
 
 use runx_runtime::registry::{
     AcquireOptions, InstallCandidate, InstallError, InstallLocalSkillOptions, InstallStatus,
-    RegistryClient, RegistryClientError, RegistryManifestSourceAuthority, RegistrySignedManifest,
-    RegistrySubjectKind, TrustTier, TrustedRegistryManifestKey, install_local_skill,
-    parse_registry_ref, skill_content_digest,
+    RegistryClient, RegistryClientError, RegistryKey, RegistryKeyScope,
+    RegistryManifestSourceAuthority, RegistrySignedManifest, RegistrySubjectKind, TrustTier,
+    install_local_skill, parse_registry_ref, skill_content_digest,
 };
 use runx_runtime::{
     HttpMethod, RuntimeHttpError, RuntimeHttpRequest as HttpRequest,
@@ -306,7 +306,7 @@ fn local_install_is_idempotent_and_rejects_conflicts() -> Result<(), Box<dyn std
         connectors_root: temp.path().join("connectors"),
         install_records: temp.path().join(".runx").join("installs"),
         expected_digest: None,
-        trusted_manifest_keys: trusted_manifest_keys()?,
+        registry_keys: registry_keys()?,
     };
 
     let first = install_local_skill(&candidate, &options)?;
@@ -344,7 +344,7 @@ fn local_install_accepts_signed_registry_manifest() -> Result<(), Box<dyn std::e
         install_records: temp.path().join(".runx").join("installs"),
         // A pinned digest is the content digest the registry signs.
         expected_digest: Some(candidate_content_digest(&candidate)?),
-        trusted_manifest_keys: trusted_manifest_keys()?,
+        registry_keys: registry_keys()?,
     };
 
     let install = install_local_skill(&candidate, &options)?;
@@ -365,7 +365,7 @@ fn non_local_install_requires_signed_registry_manifest() -> Result<(), Box<dyn s
         connectors_root: temp.path().join("connectors"),
         install_records: temp.path().join(".runx").join("installs"),
         expected_digest: None,
-        trusted_manifest_keys: trusted_manifest_keys()?,
+        registry_keys: registry_keys()?,
     };
 
     let error = match install_local_skill(&candidate, &options) {
@@ -386,7 +386,7 @@ fn local_install_rejects_bad_expected_digest() -> Result<(), Box<dyn std::error:
         connectors_root: temp.path().join("connectors"),
         install_records: temp.path().join(".runx").join("installs"),
         expected_digest: Some("sha256:wrong".to_owned()),
-        trusted_manifest_keys: trusted_manifest_keys()?,
+        registry_keys: registry_keys()?,
     };
 
     let error = match install_local_skill(&candidate, &options) {
@@ -413,7 +413,7 @@ fn a_profile_changed_after_signing_leaves_no_partial_install()
         connectors_root: temp.path().join("connectors"),
         install_records: temp.path().join(".runx").join("installs"),
         expected_digest: None,
-        trusted_manifest_keys: trusted_manifest_keys()?,
+        registry_keys: registry_keys()?,
     };
 
     let error = match install_local_skill(&candidate, &options) {
@@ -496,13 +496,15 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
     Ok(candidate)
 }
 
-fn trusted_manifest_keys() -> Result<Vec<TrustedRegistryManifestKey>, Box<dyn std::error::Error>> {
+fn registry_keys() -> Result<Vec<RegistryKey>, Box<dyn std::error::Error>> {
     let public_key = crate::registry_fixture::public_key_base64()?;
-    Ok(vec![TrustedRegistryManifestKey::from_base64(
-        crate::registry_fixture::KEY_ID.to_owned(),
+    Ok(vec![RegistryKey::from_base64(
+        crate::registry_fixture::KEY_ID,
         &public_key,
-        "acme".to_owned(),
-        "test-registry".to_owned(),
+        RegistryKeyScope::ThirdParty {
+            publisher: "acme".to_owned(),
+            source: RegistryManifestSourceAuthority::RegistrySource("test-registry".to_owned()),
+        },
     )?])
 }
 

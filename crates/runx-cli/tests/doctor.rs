@@ -315,12 +315,10 @@ fn doctor_registry_json_reports_readiness_without_key_material()
         .args(["doctor", "registry", "--json"])
         .env("RUNX_HOME", root.to_str().unwrap_or_default())
         .env("RUNX_REGISTRY_URL", "https://registry.runx.test/api")
-        .env("RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID", "operator-key-1")
         .env(
-            "RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64",
-            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "RUNX_REGISTRY_KEYS",
+            r#"[{"key_id":"operator-key-1","public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","publisher":"acme","source":"https://registry.runx.test/api"}]"#,
         )
-        .env("RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER", "acme")
         .output()?;
 
     assert!(output.status.success());
@@ -364,15 +362,15 @@ fn doctor_registry_json_reports_trust_policy_scope_without_key_material()
 }
 
 #[test]
-fn doctor_registry_json_warns_on_partial_trust_key_config() -> Result<(), Box<dyn std::error::Error>>
+fn doctor_registry_json_warns_on_an_invalid_operator_key() -> Result<(), Box<dyn std::error::Error>>
 {
-    let root = temp_root("doctor-registry-partial");
+    let root = temp_root("doctor-registry-invalid");
     let output = registry_doctor_command()
         .args(["doctor", "registry", "--json"])
         .env("RUNX_HOME", root.to_str().unwrap_or_default())
         .env(
-            "RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64",
-            "raw-public-key-material",
+            "RUNX_REGISTRY_KEYS",
+            r#"[{"key_id":"operator-key-1","public_key":"raw-public-key-material","publisher":"acme","source":"https://registry.runx.test"}]"#,
         )
         .output()?;
 
@@ -382,9 +380,8 @@ fn doctor_registry_json_warns_on_partial_trust_key_config() -> Result<(), Box<dy
     assert_eq!(report["status"], "success");
     assert_eq!(report["summary"]["warnings"], 1);
     let rendered = serde_json::to_string(&report)?;
-    assert!(rendered.contains("partial_operator_key_config"));
-    assert!(rendered.contains("RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID"));
-    assert!(rendered.contains("RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER"));
+    assert!(rendered.contains("invalid_operator_keys"));
+    assert!(rendered.contains("RUNX_REGISTRY_KEYS"));
     assert!(!rendered.contains("raw-public-key-material"));
     assert!(diagnostic_has_repair(&report, "runx.registry.trust_keys"));
     Ok(())
@@ -445,9 +442,7 @@ const REGISTRY_ENV_NAMES: &[&str] = &[
     "RUNX_HOME",
     "RUNX_REGISTRY_URL",
     "RUNX_INSTALLATION_ID",
-    "RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID",
-    "RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64",
-    "RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER",
+    "RUNX_REGISTRY_KEYS",
 ];
 
 fn temp_root(name: &str) -> PathBuf {

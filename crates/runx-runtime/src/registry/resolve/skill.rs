@@ -359,7 +359,6 @@ fn resolve_registry_skill(
     let source_description = target.description();
     let hosted_registry_url = Some(target.registry_url.clone());
     let source_digest = registry_source_digest(&target);
-    let source_authority = target.manifest_source_authority();
     // A fetched skill is added to the project's added skills, once per
     // version, like any other; one read for inspection, to the home's cache.
     let paths = crate::RunxPaths::resolve(env, cwd);
@@ -383,7 +382,7 @@ fn resolve_registry_skill(
         connectors_root,
         install_records,
         expected_digest: options.expected_digest.map(ToOwned::to_owned),
-        trusted_manifest_keys: super::trusted_manifest_keys_for_source(env, source_authority)?,
+        registry_keys: crate::registry::registry_keys(env, &paths).map_err(ResolveError::from)?,
     };
     let super::Installed {
         package: (candidate, acquisition),

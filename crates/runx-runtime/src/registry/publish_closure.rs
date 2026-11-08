@@ -16,6 +16,7 @@ use super::install::{
     InstallCandidate, InstallError, InstallLocalSkillOptions, InstallLocalSkillResult,
     install_local_skill,
 };
+use super::keys::{RegistryKeysError, registry_keys};
 use super::publish_package::{
     RegistryPublishPackageError, RegistryPublishPackageRequest, unheld_publish_registry_refs,
 };
@@ -23,7 +24,6 @@ use super::refs::parse_registry_ref;
 use super::source_authority::{
     RegistryManifestSourceAuthority, registry_manifest_source_authority_from_registry_url,
 };
-use super::trust_anchor::{RegistryManifestTrustEnvError, trusted_registry_manifest_keys_from_env};
 use super::types::RegistrySkillVersion;
 use crate::http::RuntimeHttpTransport;
 
@@ -37,7 +37,7 @@ pub enum PublishClosureError {
     #[error(transparent)]
     Client(#[from] RegistryClientError),
     #[error(transparent)]
-    Trust(#[from] RegistryManifestTrustEnvError),
+    Keys(#[from] RegistryKeysError),
     #[error("installing {reference}: {source}")]
     Install {
         reference: String,
@@ -175,12 +175,12 @@ impl RecordInstaller {
     ///
     /// # Errors
     ///
-    /// Returns an error when the environment names a malformed trust key.
+    /// Returns an error when the registry key set holds a malformed key.
     pub fn new(
         registry_url: &str,
         env: &BTreeMap<String, String>,
         cwd: &Path,
-    ) -> Result<Self, RegistryManifestTrustEnvError> {
+    ) -> Result<Self, RegistryKeysError> {
         let paths = crate::RunxPaths::resolve(env, cwd);
         let source_authority = registry_manifest_source_authority_from_registry_url(registry_url);
         let options = InstallLocalSkillOptions {
@@ -188,7 +188,7 @@ impl RecordInstaller {
             connectors_root: paths.added_connectors(),
             install_records: paths.install_records(),
             expected_digest: None,
-            trusted_manifest_keys: trusted_registry_manifest_keys_from_env(env, &source_authority)?,
+            registry_keys: registry_keys(env, &paths)?,
         };
         Ok(Self {
             source_authority,

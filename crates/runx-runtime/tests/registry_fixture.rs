@@ -3,8 +3,8 @@
 //! `registry/http.rs` reads and `registry/publish.rs` writes, an operator's
 //! publish included), keeps what is
 //! published, and signs each version with a fixture key the runtime is told
-//! to trust through `RUNX_REGISTRY_MANIFEST_TRUST_KEY_*`. Cloud's own
-//! contract test holds the service side.
+//! to trust through `RUNX_REGISTRY_KEYS`, scoped to one publisher from this
+//! registry. Cloud's own contract test holds the service side.
 //!
 //! Each connection is served on its own thread and read to the end of its
 //! request, with no timeout: a client that stalls stalls only itself.
@@ -26,10 +26,7 @@ use runx_contracts::{
     CopyableCommand, RegistryManifestSignature, RegistryManifestSigner, RegistrySignedManifest,
     RegistrySubject, RegistrySubjectKind, TrustTier, sha256_prefixed,
 };
-use runx_runtime::registry::{
-    RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV, RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
-    RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV, RegistryPackageFile,
-};
+use runx_runtime::registry::{RUNX_REGISTRY_KEYS_ENV, RegistryPackageFile};
 use serde_json::{Value, json};
 
 type Error = Box<dyn std::error::Error>;
@@ -147,22 +144,26 @@ impl LoopbackRegistry {
     pub fn env_trusting(&self, publisher: &str) -> Result<BTreeMap<String, String>, Error> {
         Ok(BTreeMap::from([
             (
-                RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV.to_owned(),
-                public_key_base64()?,
-            ),
-            (
-                RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV.to_owned(),
-                KEY_ID.to_owned(),
-            ),
-            (
-                RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV.to_owned(),
-                publisher.to_owned(),
+                RUNX_REGISTRY_KEYS_ENV.to_owned(),
+                self.registry_keys(publisher)?,
             ),
             (
                 "RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK".to_owned(),
                 "1".to_owned(),
             ),
         ]))
+    }
+
+    /// The fixture key as `RUNX_REGISTRY_KEYS` names it: trusted to sign
+    /// `publisher`'s namespace from this registry.
+    pub fn registry_keys(&self, publisher: &str) -> Result<String, Error> {
+        Ok(json!([{
+            "key_id": KEY_ID,
+            "public_key": public_key_base64()?,
+            "publisher": publisher,
+            "source": self.url,
+        }])
+        .to_string())
     }
 
     /// As [`Self::env`], with the token a publisher authenticates with.

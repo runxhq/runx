@@ -20,8 +20,8 @@ use runx_contracts::connector::ConnectorName;
 use super::{
     AcquireOptions, AcquiredRegistrySkill, InstallCandidate, InstallRegistryConnectorOptions,
     InstalledRegistryConnector, RegistryClient, RegistryConnectorSearchResult,
-    RegistryConnectorVersion, RegistryManifestSourceAuthority, RegistrySearchResult,
-    TrustedRegistryManifestKey, UnreadVersion, VersionPage, install_registry_connector,
+    RegistryConnectorVersion, RegistrySearchResult, UnreadVersion, VersionPage,
+    install_registry_connector,
 };
 
 /// Why a ref did not resolve.
@@ -66,15 +66,9 @@ impl From<super::InstallError> for ResolveError {
     }
 }
 
-impl From<super::RegistryManifestTrustEnvError> for ResolveError {
-    fn from(error: super::RegistryManifestTrustEnvError) -> Self {
-        match error {
-            super::RegistryManifestTrustEnvError::InvalidKey => Self::Failed(error.to_string()),
-            super::RegistryManifestTrustEnvError::MissingKeyId
-            | super::RegistryManifestTrustEnvError::MissingPublisher => {
-                Self::Usage(error.to_string())
-            }
-        }
+impl From<super::RegistryKeysError> for ResolveError {
+    fn from(error: super::RegistryKeysError) -> Self {
+        Self::Usage(error.to_string())
     }
 }
 
@@ -293,11 +287,12 @@ pub fn install_connector(
     }
     .manifest_source_authority();
     let client = registry_client(registry_url, env)?;
+    let paths = crate::RunxPaths::resolve(env, cwd);
     let options = InstallRegistryConnectorOptions {
-        connectors_root: crate::RunxPaths::resolve(env, cwd).added_connectors(),
-        install_records: crate::RunxPaths::resolve(env, cwd).install_records(),
+        connectors_root: paths.added_connectors(),
+        install_records: paths.install_records(),
         expected_content_digest: expected_content_digest.map(ToOwned::to_owned),
-        trusted_manifest_keys: trusted_manifest_keys_for_source(env, source_authority.clone())?,
+        registry_keys: super::registry_keys(env, &paths)?,
         manifest_source_authority: source_authority,
     };
     let package = |version: &str| -> Result<Option<RegistryConnectorVersion>, ResolveError> {
@@ -377,19 +372,6 @@ pub fn registry_client(
     RegistryClient::with_transport(registry_url, transport).map_err(ResolveError::from)
 }
 
-/// The manifest keys a package from `source_authority` must be signed by.
-///
-/// # Errors
-///
-/// Returns an error when the environment names a malformed trust key.
-pub fn trusted_manifest_keys_for_source(
-    env: &BTreeMap<String, String>,
-    source_authority: RegistryManifestSourceAuthority,
-) -> Result<Vec<TrustedRegistryManifestKey>, ResolveError> {
-    super::trusted_registry_manifest_keys_from_env(env, &source_authority)
-        .map_err(ResolveError::from)
-}
-
 fn installation_id(env: &BTreeMap<String, String>, cwd: &Path) -> Result<String, ResolveError> {
     if let Some(installation_id) = env
         .get("RUNX_INSTALLATION_ID")
@@ -406,7 +388,7 @@ fn installation_id(env: &BTreeMap<String, String>, cwd: &Path) -> Result<String,
 fn candidate_from_acquired(
     registry_ref: &str,
     acquired: &AcquiredRegistrySkill,
-    source_authority: RegistryManifestSourceAuthority,
+    source_authority: super::RegistryManifestSourceAuthority,
 ) -> InstallCandidate {
     InstallCandidate {
         markdown: acquired.markdown.clone(),
