@@ -48,15 +48,12 @@ source ids, locator counts, runner state, target repos, owner coverage, outcome
 settings, permissions, and validation findings without echoing raw provider
 locators.
 
-Use the CLI gate before wiring a policy into a live runner:
-
-```bash
-runx policy fixtures/operational-policy/provider-like.json --json
-```
-
-`runx policy` returns a redacted readback shape for admin
-surfaces. It is safe to show to developers because it reports locator counts
-instead of raw Slack channels, Sentry projects, or provider thread locators.
+Lint a policy before wiring it into a live runner. The `policy-draft` skill
+lints every policy it proposes with the native `policy.lint` tool, and any
+skill can call `policy.lint` itself. It returns a redacted readback shape for
+admin surfaces. It is safe to show to developers because it reports locator
+counts instead of raw Slack channels, Sentry projects, or provider thread
+locators.
 
 Required policy fields:
 

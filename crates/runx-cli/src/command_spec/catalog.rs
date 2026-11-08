@@ -213,13 +213,6 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
     },
     CommandSpec {
-        name: "policy",
-        top_level_usage: &[],
-        usage: &["runx policy <policy.json> [--json]"],
-        notes: &["Validates an operational policy and reads it back."],
-        options: &["-j, --json"],
-    },
-    CommandSpec {
         name: "notarize",
         top_level_usage: &[],
         usage: &[

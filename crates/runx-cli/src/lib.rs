@@ -13,7 +13,6 @@ pub mod login;
 mod managed_agent;
 pub mod mcp;
 pub mod notarize;
-pub mod policy;
 pub mod process;
 mod project;
 pub mod registry;

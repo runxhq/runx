@@ -96,7 +96,6 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
             runx_cli::connector::run_native_connector(plan, workspace)
         }
         RouterAction::RunSecret(plan) => runx_cli::secret::run_native_secret(plan, workspace),
-        RouterAction::RunPolicy(plan) => runx_cli::policy::run_native_policy(plan, workspace),
         RouterAction::RunNotarize(plan) => runx_cli::notarize::run_native_notarize(plan, workspace),
         RouterAction::RunRegistry(plan) => runx_cli::registry::run_native_registry(plan, workspace),
         RouterAction::RunResume(plan) => {

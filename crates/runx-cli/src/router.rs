@@ -10,7 +10,6 @@ use crate::login::LoginPlan;
 use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
 use crate::mcp::McpPlan;
 use crate::notarize::NotarizePlan;
-use crate::policy::PolicyPlan;
 use crate::registry::{RegistryAction, RegistryPlan};
 use crate::resume::ResumePlan;
 use crate::secret::SecretPlan;
@@ -35,7 +34,6 @@ pub enum RouterAction {
     RunHarness(HarnessPlan),
     RunConfig(ConfigPlan),
     RunConnector(ConnectorPlan),
-    RunPolicy(PolicyPlan),
     RunNotarize(NotarizePlan),
     RunRegistry(RegistryPlan),
     RunResume(ResumePlan),
@@ -215,10 +213,6 @@ fn route_args_with_optional_workspace(
             crate::login::parse_login_plan(&args),
             RouterAction::RunLogin,
         );
-    }
-
-    if first_arg_is(&args, "policy") {
-        return route_parse(&args, parse_policy_plan(&args), RouterAction::RunPolicy);
     }
 
     if first_arg_is(&args, "notarize") {
@@ -732,45 +726,6 @@ fn parse_list_kind(value: &str) -> Option<ListKind> {
         "overlays" => Some(ListKind::Overlays),
         _ => None,
     }
-}
-
-fn parse_policy_plan(args: &[OsString]) -> Result<PolicyPlan, String> {
-    let mut json = false;
-    let mut positionals = Vec::new();
-    let mut index = 1;
-
-    while index < args.len() {
-        let Some(token) = args[index].to_str() else {
-            positionals.push(PathBuf::from(args[index].clone()));
-            index += 1;
-            continue;
-        };
-        if !crate::cli_args::is_flag(token) {
-            positionals.push(PathBuf::from(token));
-            index += 1;
-            continue;
-        }
-
-        let (flag, inline_value) = split_flag(token);
-        match flag {
-            "--json" | "-j" => {
-                if inline_value.is_some() {
-                    return Err("--json does not take a value".to_owned());
-                }
-                json = true;
-                index += 1;
-            }
-            _ => return Err(format!("unknown policy flag {flag}")),
-        }
-    }
-
-    let [path] = positionals.as_slice() else {
-        return Err("runx policy requires exactly one policy path".to_owned());
-    };
-    Ok(PolicyPlan {
-        path: path.clone(),
-        json,
-    })
 }
 
 fn parse_tool_plan(args: &[OsString]) -> Result<ToolPlan, String> {

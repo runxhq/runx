@@ -3,7 +3,6 @@ use runx_cli::config::{ConfigAction, ConfigPlan};
 use runx_cli::export::{ExportPlan, Target};
 use runx_cli::login::LoginPlan;
 use runx_cli::mcp::McpPlan;
-use runx_cli::policy::PolicyPlan;
 use runx_cli::registry::{RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
@@ -682,25 +681,6 @@ fn routes_config_to_native_plan() {
     );
 }
 
-#[test]
-fn routes_policy_to_native_plan() {
-    assert_eq!(
-        plan(&[
-            "policy",
-            "fixtures/operational-policy/provider-like.json",
-            "--json",
-        ]),
-        RouterAction::RunPolicy(PolicyPlan {
-            path: PathBuf::from("fixtures/operational-policy/provider-like.json"),
-            json: true,
-        })
-    );
-    assert_eq!(
-        plan(&["policy", "a.json", "b.json"]),
-        RouterAction::Error("runx policy requires exactly one policy path".to_owned())
-    );
-}
-
 /// Development evaluators and the receipt notary have no command of the
 /// old names: the evaluators are build tools, and a receipt is notarized.
 #[test]
@@ -1045,7 +1025,7 @@ fn routes_tool_to_native_plan_and_rejects_unknown_subcommands() {
 #[test]
 fn native_router_argument_errors_exit_with_usage_code() -> Result<(), Box<dyn std::error::Error>> {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_runx"))
-        .args(["policy", "--json"])
+        .args(["notarize", "--json"])
         .output()?;
 
     assert_eq!(output.status.code(), Some(64));
@@ -1054,7 +1034,7 @@ fn native_router_argument_errors_exit_with_usage_code() -> Result<(), Box<dyn st
     assert_eq!(value["status"], "failure");
     assert_eq!(value["error"]["code"], "invalid_args");
     assert!(value["error"]["message"].as_str().is_some_and(|message| {
-        message.contains("runx policy requires exactly one policy path")
+        message.contains("runx notarize requires a receipt JSON path")
     }));
     Ok(())
 }
