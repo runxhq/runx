@@ -12,6 +12,8 @@ export {
   validateConnectorBinding,
   connectorImplements,
   hostedHttp,
+  isRuntimeCapabilityConnector,
+  RUNTIME_CAPABILITY_CONNECTORS,
   isCheckingRead,
   operationAccess,
   operationInputError,

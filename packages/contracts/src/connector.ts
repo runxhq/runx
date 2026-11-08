@@ -9,6 +9,7 @@ import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
 
 import { generatedSchema, validateContractSchema } from "./internal.js";
 import type { HttpPagesContract } from "./generated/contract-types.js";
+import { runtimeCapabilityConnectors } from "./generated/runtime-capabilities.js";
 
 /** Exact revision identity, validated by the Rust-owned binding schema. */
 export interface ConnectorBinding {
@@ -302,6 +303,19 @@ export function referenceKind(connector: Pick<ConnectorManifest, "references">, 
 /** Read versus mutate, derived from the verb. */
 export function operationAccess(operation: ConnectorOperation): "read" | "mutate" {
   return operation.verb === "read" ? "read" : "mutate";
+}
+
+/**
+ * The connectors the runtime implements itself, by name, as it embeds them
+ * (`runtime_capabilities.rs`, written by the same generator). The runtime
+ * knows them by origin, so a manifest claiming to be one gets nothing, and a
+ * registry decides by name, which in it is a reserved namespace.
+ */
+export const RUNTIME_CAPABILITY_CONNECTORS: readonly string[] = runtimeCapabilityConnectors;
+
+/** Whether `name` names one of the runtime's own connectors. */
+export function isRuntimeCapabilityConnector(name: string): boolean {
+  return RUNTIME_CAPABILITY_CONNECTORS.includes(name);
 }
 
 /** Where a connector's operation runs: on the caller's machine, or hosted by runx. */

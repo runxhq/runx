@@ -11,6 +11,8 @@ import {
   connectorImplements,
   connectorPays,
   hostedHttp,
+  isRuntimeCapabilityConnector,
+  RUNTIME_CAPABILITY_CONNECTORS,
   operationAmount,
   renderDeclaredRequest,
   renderOAuth2TokenEndpoint,
@@ -38,6 +40,14 @@ describe("connector payment compatibility", () => {
     expect(connectorPays({}, { family: "x402" })).toBe(false);
     expect(connectorPays({ payment: {} }, { family: "constructor" })).toBe(false);
     expect(connectorPays({ payment: {} }, { family: "toString" })).toBe(false);
+  });
+});
+
+describe("the runtime's own connectors", () => {
+  it("are known by name, never by what a manifest claims", () => {
+    for (const name of RUNTIME_CAPABILITY_CONNECTORS) expect(isRuntimeCapabilityConnector(name)).toBe(true);
+    expect(isRuntimeCapabilityConnector("github")).toBe(false);
+    expect(isRuntimeCapabilityConnector("acme/web")).toBe(false);
   });
 });
 
