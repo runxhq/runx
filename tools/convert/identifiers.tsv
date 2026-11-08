@@ -1,9 +1,12 @@
 repo	identifier	uses	words	to	note	where
 ausca	runner	111	runner	?	a bare word: code or prose, read in place	.github/workflows/verify.yml catalog/history/20b8a125aa48a27ae1f0f1bc69f82807a085e765e37c3dbab55b0d759f12888f/revisions/0bf51dd2f811bea7ef9b687e5daa8fc941b06432ec4f8de4e8d66b6e62dcbc02.json
 ausca	holds	77	hold	?	a bare word: code or prose, read in place	contracts/generated/mcp/tools.json contracts/openapi.yaml
+ausca	Runner	34	runner	?	bare: renamed in place to Method; all 34 Go uses are the manifest sense (Execution.Runner, the purchase body, site-data)	cmd/gateway/gateway_test.go cmd/site-data/authorities.go
 ausca	harness	32	harness	?	a bare word: code or prose, read in place	contracts/vendor/runx/hosted-api.openapi.json contracts/vendor/runx/x402/schemas/runx-x402-purchase-extension-v1.schema.json
 ausca	graph	17	graph	?	a bare word: code or prose, read in place	deploy/resource-release-common.sh runx/skills/agent-inbox/fixtures/create-composes-in-graph.yaml
+ausca	ClaimedHold	13	hold	ClaimedLease	the lease family: PurchaseRead.holds becomes leases in step 2	internal/adapters/runx/buyer.go internal/app/resource_access_test.go
 ausca	hold	12	hold	?	a bare word: code or prose, read in place	deploy/origin-slots.test.mjs deploy/site-release-common.sh
+ausca	Holds	11	hold	Leases	the lease family: PurchaseRead.holds becomes leases in step 2	internal/adapters/runx/buyer.go internal/adapters/runx/client_test.go
 ausca	__harness	9	harness	__test	the test sense	services/browser-session/tests/support/worker-entry.ts services/browser-session/tests/worker.test.ts
 ausca	closure	8	closure	closure	a schema or Go dependency closure: stays	catalog/history/README.md deploy/README.md
 ausca	holding	5	hold	?	a bare word: code or prose, read in place	runx/skills/document-ocr/schemas/ocr.output.schema.json scripts/test-resource-release-live-proof.sh
@@ -11,15 +14,23 @@ ausca	stage_runner	5	runner	stage_runner	another runner: stays	runx/skills/async
 ausca	BrowserWorkerHarness	4	harness	BrowserWorkerTest	the test sense	services/browser-session/tests/support/workerd.ts services/browser-session/tests/worker.test.ts
 ausca	createTestHarness	4	harness	createTestHarness	wrangler's own name: stays	services/agent-inbox/tests/store.test.ts services/agent-inbox/tests/worker.test.ts
 ausca	harnessPost	4	harness	testPost	the test sense	services/browser-session/tests/worker.test.ts
+ausca	heldCapability	4	hold	leasedCapability	the lease family: PurchaseRead.holds becomes leases in step 2	internal/app/resources.go
+ausca	holdsArchive	4	hold	holdsArchive	English (the container holds an archive): stays	services/attachment-scanner/internal/container/bounds_test.go services/attachment-scanner/internal/container/walk.go
+ausca	copyExternalClosure	3	closure	copyExternalClosure	runxsync's file closure: stays	tools/cmd/runxsync/main.go tools/cmd/runxsync/main_test.go
 ausca	HarnessResponse	3	harness	TestResponse	the test sense	services/agent-inbox/tests/worker.test.ts
+ausca	not_held	3	hold	not_held	Cloud's refusal code, which its own row keeps: stays	internal/adapters/runx/client_test.go internal/adapters/runx/invocation.go
 ausca	RUNNER_LIMIT_MINUTES	3	runner	RUNNER_LIMIT_MINUTES	a CI runner's time limit: stays	scripts/buyer-canary.mjs
 ausca	RUNNER_TEMP	3	runner	RUNNER_TEMP	GitHub Actions' variable: stays	.github/workflows/buyer-canary.yml
+ausca	runnerContract	3	runner	methodContract		cmd/site-data/skill_example_test.go
+ausca	Runners	3	runner	?	bare: renamed in place to Methods; site-data's old-manifest reader, rewritten for 0.12 by hand after step 2	cmd/site-data/skill.go
+ausca	caller-held	2	hold	caller-held	English: stays	internal/domain/resource.go
 ausca	Harness	2	harness	?	a bare word: code or prose, read in place	services/browser-session/tests/support/provider.ts services/browser-session/tests/worker.test.ts
 ausca	Harness-only	2	harness	Test-only	the test sense	services/browser-session/tests/support/provider.ts services/browser-session/tests/support/worker-entry.ts
 ausca	harness-spine	2	harness	run-spine	the run sense	contracts/vendor/runx/canonical-json/runx-receipt-c14n-v1.oracles.json
 ausca	harnesses	2	harness	tests	the test sense: BUILD.md's skill harnesses and the plans index's link label	BUILD.md docs/plans/README.md
 ausca	held-out	2	hold	held-out	English, or a skill's own word: stays	BUILD.md docs/plans/structured-extraction.md
 ausca	Hold	2	hold	Hold	English: STRATEGY.md:541's 'Hold the account'; ARCHITECTURE.md:92 is the lease sense, rewritten to Lease by hand, not by a row	ARCHITECTURE.md STRATEGY.md
+ausca	runnerNamePattern	2	runner	methodNamePattern		cmd/site-data/skill.go
 ausca	agent-inbox-create-composes-in-graph	1	graph	agent-inbox-create-composes-in-workflow		runx/skills/agent-inbox/tests/create-composes-in-graph.yaml
 ausca	agent-inbox-delete-ends-the-held-inbox	1	hold	agent-inbox-delete-ends-the-held-inbox	English, or a skill's own word: stays	runx/skills/agent-inbox/tests/delete.yaml
 ausca	agent-inbox-messages-lists-the-inbox-its-caller-holds	1	hold	agent-inbox-messages-lists-the-inbox-its-caller-holds	English, or a skill's own word: stays	runx/skills/agent-inbox/tests/messages.yaml
@@ -36,6 +47,11 @@ ausca	held	1	hold	?	a bare word: code or prose, read in place	scripts/buyer-cana
 ausca	Holding	1	hold	Holding	the buyer holds its own capability: English, stays	runx/skills/agent-inbox/SKILL.md
 ausca	media-transcription-transcription-composes-in-graph	1	graph	media-transcription-transcription-composes-in-workflow		runx/skills/media-transcription/tests/transcription-composes-in-graph.yaml
 ausca	runners	1	runner	?	a bare word: code or prose, read in place	.github/workflows/buyer-canary.yml
+ausca	TestClaimPurchaseClaimsWhatRunxHoldsAsThePurchaseKey	1	hold	TestClaimPurchaseClaimsItsLeasesAsThePurchaseKey	the lease family: PurchaseRead.holds becomes leases in step 2	internal/adapters/runx/client_test.go
+ausca	TestLegacyStalledClientHoldsBoundedResources	1	hold	TestLegacyStalledClientHoldsBoundedResources	English: stays	internal/transport/mcp/legacy_test.go
+ausca	TestResourceIssuerHandsTheBuyerWhatRunxHoldsForItsPurchase	1	hold	TestResourceIssuerHandsTheBuyerItsPurchaseLeases	the lease family: PurchaseRead.holds becomes leases in step 2	internal/app/resource_access_test.go
+ausca	TestResourceIssuerRefusesAHoldOnAnotherResource	1	hold	TestResourceIssuerRefusesALeaseOnAnotherResource	the lease family: PurchaseRead.holds becomes leases in step 2	internal/app/resource_access_test.go
+ausca	TestSnapshotContainsExactlyItsArtifactClosure	1	closure	TestSnapshotContainsExactlyItsArtifactClosure	runxsync's file closure: stays	tools/cmd/runxsync/main_test.go
 ausca	wallet-holding	1	hold	wallet-holding	English, or a skill's own word: stays	DISTRIBUTION.md
 ausca	workerd-harness	1	harness	workerd-test	the test sense	services/browser-session/tests/support/workerd.ts
 cloud	harness	1326	harness	?	a bare word: code or prose, read in place	apps/public-read/src/index.test.ts apps/public-read/src/index.ts
@@ -479,6 +495,7 @@ nitrosend	holds	7	hold	holds	English: stays	AGENTS.md artifacts/aws-marketplace/
 nitrosend	runners	7	runner	?	a bare word: code or prose, read in place	.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
 nitrosend	sentryRunner	7	runner	sentryMethod		scripts/runx-issue-flow.test.mjs
 nitrosend	agent_act_closed	3	agent_act	turn_closed		skills/nitrosend/issue-intake/X.yaml skills/nitrosend/team-slack/X.yaml
+nitrosend	api-runner	3	runner	api-runner	the Make target that runs Rails's runner (make api-runner CMD='puts 1'): stays	Makefile
 nitrosend	runner_id	3	runner	method_id		.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
 nitrosend	runner_ids	3	runner	method_ids		.runx/runx-issue-flow.json
 nitrosend	RUNNER_TEMP	3	runner	RUNNER_TEMP	GitHub Actions' variable: stays	scripts/scafld-verify.sh
