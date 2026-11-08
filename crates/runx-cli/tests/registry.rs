@@ -743,7 +743,7 @@ fn registry_install_versions_are_side_by_side() -> Result<(), Box<dyn std::error
 }
 
 #[test]
-fn registry_install_reports_typed_trust_anchor_errors() -> Result<(), Box<dyn std::error::Error>> {
+fn registry_install_reports_typed_signature_errors() -> Result<(), Box<dyn std::error::Error>> {
     type VersionMutator = fn(&mut serde_json::Value);
     let cases: [(&str, VersionMutator); 3] = [
         ("unknown_key", |version| {
