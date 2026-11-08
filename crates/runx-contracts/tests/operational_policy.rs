@@ -15,6 +15,8 @@ const INVALID_SOURCE_THREAD_MISSING: &str =
     include_str!("../../../fixtures/operational-policy/invalid-source-thread-missing.json");
 const INVALID_NO_AVAILABLE_RUNNER: &str =
     include_str!("../../../fixtures/operational-policy/invalid-no-available-runner.json");
+const INVALID_NOT_SCAFLD_TARGET: &str =
+    include_str!("../../../fixtures/operational-policy/invalid-not-scafld-target.json");
 const INVALID_SCHEMA_LITERAL: &str =
     include_str!("../../../fixtures/operational-policy/invalid-schema-literal.json");
 const INVALID_SECRET_FIELD: &str =
@@ -43,6 +45,7 @@ fn semantic_fixture_findings_are_stable() -> Result<(), Box<dyn std::error::Erro
         (INVALID_OWNER_ROUTE_MISMATCH, "owner_route_target_mismatch"),
         (INVALID_SOURCE_THREAD_MISSING, "source_thread_required"),
         (INVALID_NO_AVAILABLE_RUNNER, "target_action_without_runner"),
+        (INVALID_NOT_SCAFLD_TARGET, "mutation_without_scafld"),
     ] {
         let policy: OperationalPolicy = serde_json::from_str(fixture)?;
         let findings = lint_operational_policy_contract(&policy)?;
