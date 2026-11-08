@@ -1112,7 +1112,18 @@ fn a_host_states_the_grant_its_run_executes_under() -> TestResult {
 /// One turn tool call on its own `runx mcp --run` process, so a test proves
 /// what survives between processes. Returns the call's structured result.
 fn turn_tool(root: &Path, run: &str, tool: &str, arguments: Value) -> TestResult<Value> {
-    let mut server = command(root)
+    turn_tool_on(command(root), run, tool, arguments)
+}
+
+/// [`turn_tool`] on `server`, a `runx` command a test has set up, such as one
+/// pointed at a loopback Connect.
+pub(crate) fn turn_tool_on(
+    mut server: Command,
+    run: &str,
+    tool: &str,
+    arguments: Value,
+) -> TestResult<Value> {
+    let mut server = server
         .args(["mcp", "--run", run])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -1169,7 +1180,7 @@ fn method_ref(package: &Path, method: &str) -> std::ffi::OsString {
     reference
 }
 
-fn command(root: &Path) -> Command {
+pub(crate) fn command(root: &Path) -> Command {
     crate::support::unsigned_runx_command_at(root)
 }
 
@@ -1234,7 +1245,7 @@ fn run_read(root: &Path, run_id: &str) -> TestResult<Value> {
     Ok(read)
 }
 
-fn assert_json(output: &Output, expected_exit: i32) -> TestResult<Value> {
+pub(crate) fn assert_json(output: &Output, expected_exit: i32) -> TestResult<Value> {
     assert_exit(output, expected_exit)?;
     Ok(serde_json::from_slice(&output.stdout)?)
 }
@@ -1265,7 +1276,7 @@ fn output_with_stdin(command: &mut Command, input: &str) -> TestResult<Output> {
     Ok(child.wait_with_output()?)
 }
 
-fn json_string<'a>(value: &'a Value, field: &str) -> TestResult<&'a str> {
+pub(crate) fn json_string<'a>(value: &'a Value, field: &str) -> TestResult<&'a str> {
     value[field]
         .as_str()
         .ok_or_else(|| format!("missing string field {field}").into())
