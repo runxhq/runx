@@ -90,14 +90,6 @@ pub struct ReceiptVerification {
 
 impl ReceiptVerification {
     #[must_use]
-    pub fn valid() -> Self {
-        Self {
-            valid: true,
-            findings: Vec::new(),
-        }
-    }
-
-    #[must_use]
     pub fn from_findings(findings: Vec<ReceiptFinding>) -> Self {
         Self {
             valid: findings.is_empty(),

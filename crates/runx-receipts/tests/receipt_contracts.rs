@@ -12,8 +12,7 @@ use runx_contracts::{
 use runx_receipts::{
     ReceiptFindingCode, ReceiptProofContext, ReceiptProofStatusKind, ReceiptVerification,
     SignatureVerificationFailure, SignatureVerifier, canonical_receipt_digest,
-    canonical_receipt_json, receipt_proof_status, validate_receipt, validate_receipt_proof,
-    verify_receipt, verify_receipt_proof,
+    canonical_receipt_json, receipt_proof_status, verify_receipt, verify_receipt_proof,
 };
 
 const SUCCESS_RECEIPT: &str =
@@ -38,7 +37,7 @@ fn with_child(mut receipt: Receipt) -> Receipt {
 fn success_receipt_verifies_basic_invariants() -> Result<(), serde_json::Error> {
     let receipt = fixture(SUCCESS_RECEIPT)?;
 
-    assert!(validate_receipt(&receipt).is_ok());
+    assert!(verify_receipt(&receipt).valid);
     assert!(matches!(
         canonical_receipt_json(&receipt),
         Ok(json) if json.starts_with(r#"{"acts":"#)
@@ -54,7 +53,7 @@ fn success_receipt_verifies_basic_invariants() -> Result<(), serde_json::Error> 
 fn abnormal_failed_receipt_verifies_basic_invariants() -> Result<(), serde_json::Error> {
     let receipt = fixture(ABNORMAL_RECEIPT)?;
 
-    assert!(validate_receipt(&receipt).is_ok());
+    assert!(verify_receipt(&receipt).valid);
     assert_eq!(receipt.seal.outcome, RunOutcome::Failed);
     Ok(())
 }
@@ -124,7 +123,7 @@ fn effect_evidence_requires_authority_grant_refs() -> Result<(), serde_json::Err
 #[test]
 fn an_acts_legitimacy_names_a_term_the_authority_holds() -> Result<(), serde_json::Error> {
     let receipt = fixture(SUCCESS_RECEIPT)?;
-    assert!(validate_receipt(&receipt).is_ok());
+    assert!(verify_receipt(&receipt).valid);
 
     let mut unbound = receipt;
     unbound.authority.terms.clear();
@@ -169,7 +168,7 @@ fn effect_evidence_accepts_authority_grant_refs() -> Result<(), serde_json::Erro
         .grant_refs
         .push(Reference::runx(ReferenceType::Grant, "operator-grant-1"));
 
-    assert!(validate_receipt(&receipt).is_ok());
+    assert!(verify_receipt(&receipt).valid);
     Ok(())
 }
 
@@ -186,7 +185,7 @@ fn strict_proof_accepts_recomputed_digest_and_signature() -> Result<(), serde_js
     let verifier = fixture_key();
     let context = proof_context(&verifier);
 
-    assert!(validate_receipt_proof(&receipt, &context).is_ok());
+    assert!(verify_receipt_proof(&receipt, &context).valid);
     Ok(())
 }
 
@@ -194,7 +193,7 @@ fn strict_proof_accepts_recomputed_digest_and_signature() -> Result<(), serde_js
 fn structural_validation_does_not_claim_strict_proof() -> Result<(), serde_json::Error> {
     let receipt = fixture(SUCCESS_RECEIPT)?;
 
-    assert!(validate_receipt(&receipt).is_ok());
+    assert!(verify_receipt(&receipt).valid);
     assert_finding(
         &verify_receipt_proof(&receipt, &ReceiptProofContext::default()),
         ReceiptFindingCode::SignatureVerifierMissing,
@@ -284,7 +283,7 @@ fn inline_decision_integrity_accepts_real_selected_act_id() -> Result<(), serde_
         act_id.as_str()
     );
 
-    assert!(validate_receipt(&receipt).is_ok());
+    assert!(verify_receipt(&receipt).valid);
     Ok(())
 }
 

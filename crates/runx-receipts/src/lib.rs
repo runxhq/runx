@@ -12,7 +12,7 @@ mod wire;
 
 pub use canonical::{
     canonical_receipt_body_digest, canonical_receipt_body_json, canonical_receipt_digest,
-    canonical_receipt_identity_json, canonical_receipt_json, content_addressed_receipt_id,
+    canonical_receipt_json, content_addressed_receipt_id,
 };
 pub use identity::{SignedDisplayIdentity, signed_display_identity};
 pub use notary::{
@@ -34,8 +34,8 @@ pub use verify::{
     ReceiptVerifyCheck, ReceiptVerifyFinding, ReceiptVerifyLineageCheck,
     ReceiptVerifySignatureCheck, ReceiptVerifyVerdict, SignatureVerificationFailure,
     SignatureVerifier, VERIFY_VERDICT_SCHEMA, receipt_id_is_content_addressed,
-    receipt_proof_status, validate_receipt, validate_receipt_proof, verify_receipt,
-    verify_receipt_document_verdict, verify_receipt_proof, verify_receipt_verdict,
+    receipt_proof_status, verify_receipt, verify_receipt_document_verdict, verify_receipt_proof,
+    verify_receipt_verdict,
 };
 pub use wire::{ReceiptDecodeError, decode_receipt, decode_receipt_value};
 

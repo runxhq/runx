@@ -24,16 +24,12 @@ pub fn canonical_receipt_body_digest(receipt: &Receipt) -> Result<String, Receip
         .map(|bytes| sha256_prefixed(&bytes))
 }
 
-/// The canonical body that the content-addressed `id` commits: the signed
-/// body without the `id` it derives. A receipt names only receipts that exist
-/// before it (its children and the receipt it follows), so its lineage is part
-/// of its address: two receipts that differ anywhere have different ids.
-pub fn canonical_receipt_identity_json(receipt: &Receipt) -> Result<String, ReceiptError> {
-    canonical_string(&ReceiptView::of(receipt, Commitment::Identity))
-}
-
 /// `id = hash(canonical_body)` under `runx.receipt.c14n.v1`: the content address
-/// of this receipt. References to a receipt use this id.
+/// of this receipt. References to a receipt use this id. The body it commits
+/// is the signed body without the `id` it derives. A receipt names only
+/// receipts that exist before it (its children and the receipt it follows),
+/// so its lineage is part of its address: two receipts that differ anywhere
+/// have different ids.
 pub fn content_addressed_receipt_id(receipt: &Receipt) -> Result<String, ReceiptError> {
     canonical_bytes(&ReceiptView::of(receipt, Commitment::Identity))
         .map(|bytes| sha256_prefixed(&bytes))

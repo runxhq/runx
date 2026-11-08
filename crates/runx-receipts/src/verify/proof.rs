@@ -9,18 +9,6 @@ mod signature;
 pub use signature::{SignatureVerificationFailure, SignatureVerifier};
 use signature::{signature_failure_code, signature_failure_message, signature_failure_path};
 
-pub fn validate_receipt_proof(
-    receipt: &Receipt,
-    context: &ReceiptProofContext<'_>,
-) -> Result<(), ReceiptVerification> {
-    let verification = verify_receipt_proof(receipt, context);
-    if verification.valid {
-        Ok(())
-    } else {
-        Err(verification)
-    }
-}
-
 /// Read-time proof verification. Computes signature and digest validity on
 /// top of the structural checks (which include the inline `selected_act_id`
 /// integrity property against `acts[]`).

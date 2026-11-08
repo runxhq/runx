@@ -17,22 +17,13 @@ pub use projection::{
 };
 pub use proof::{
     ReceiptProofContext, SignatureVerificationFailure, SignatureVerifier,
-    receipt_id_is_content_addressed, validate_receipt_proof, verify_receipt_proof,
+    receipt_id_is_content_addressed, verify_receipt_proof,
 };
 pub use verdict::{
     ReceiptVerifyCheck, ReceiptVerifyFinding, ReceiptVerifyLineageCheck,
     ReceiptVerifySignatureCheck, ReceiptVerifyVerdict, VERIFY_VERDICT_SCHEMA,
     verify_receipt_document_verdict, verify_receipt_verdict,
 };
-
-pub fn validate_receipt(receipt: &Receipt) -> Result<(), ReceiptVerification> {
-    let verification = verify_receipt(receipt);
-    if verification.valid {
-        Ok(())
-    } else {
-        Err(verification)
-    }
-}
 
 #[must_use]
 pub fn verify_receipt(receipt: &Receipt) -> ReceiptVerification {
