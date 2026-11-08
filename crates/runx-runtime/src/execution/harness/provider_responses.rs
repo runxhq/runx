@@ -1,38 +1,38 @@
 use runx_contracts::{JsonObject, JsonValue};
-use runx_parser::{HarnessProviderAccess, HarnessProviderResponsesFixture};
+use runx_parser::{TestProviderAccess, TestProviderResponsesFixture};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::http::{
-    HarnessExchanges, HttpMethod, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse,
-    RuntimeHttpTransport,
+    HttpMethod, RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
+    TestExchanges,
 };
 
-pub(crate) const HARNESS_PROVIDER_BASE_URL: &str = "https://provider-fixture.runx.invalid";
-pub(crate) const HARNESS_PROVIDER_TOKEN: &str = "runx-harness-provider-token";
+pub(crate) const TEST_PROVIDER_BASE_URL: &str = "https://provider-fixture.runx.invalid";
+pub(crate) const TEST_PROVIDER_TOKEN: &str = "runx-test-provider-token";
 
 /// The harness's transport beneath operation steps. It answers the provider
 /// fixture's hosted endpoints, including the declared requests runx Connect
 /// renders and sends, and the case's exact HTTP exchanges, and refuses every
 /// other request: a harness run never reaches a live provider.
 #[derive(Clone, Debug)]
-pub(super) struct HarnessTransport {
-    pub(super) provider: Option<HarnessProviderResponsesFixture>,
+pub(super) struct TestTransport {
+    pub(super) provider: Option<TestProviderResponsesFixture>,
     /// The exact connector the fixture's grant is for, as runx Connect
     /// lists and executes it.
     pub(super) grant_connector: Option<Arc<crate::kernel::connectors::LoadedConnector>>,
     /// The exact connectors the fixture's holds are of.
-    pub(super) held_connectors: Vec<Arc<crate::kernel::connectors::LoadedConnector>>,
-    pub(super) exchanges: Arc<HarnessExchanges>,
+    pub(super) connectors_with_leases: Vec<Arc<crate::kernel::connectors::LoadedConnector>>,
+    pub(super) exchanges: Arc<TestExchanges>,
     pub(super) mutation_keys: Arc<Mutex<BTreeMap<(String, String), String>>>,
     /// The fixture principal's artifact space, as runx keeps it: what the
     /// case's artifact calls stored, by reference.
     pub(super) artifacts: Arc<Mutex<BTreeMap<String, JsonObject>>>,
 }
 
-impl RuntimeHttpTransport for HarnessTransport {
+impl RuntimeHttpTransport for TestTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
-        if !request.url.starts_with(HARNESS_PROVIDER_BASE_URL) {
+        if !request.url.starts_with(TEST_PROVIDER_BASE_URL) {
             return self.exchanges.answer(&request);
         }
         let fixture = self
@@ -41,7 +41,7 @@ impl RuntimeHttpTransport for HarnessTransport {
             .ok_or_else(|| transport_error("the case declares no provider fixture".to_owned()))?;
         validate_authorization(&request)?;
         match (request.method, request.url.as_str()) {
-            (HttpMethod::Get, url) if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/me") => {
+            (HttpMethod::Get, url) if url == format!("{TEST_PROVIDER_BASE_URL}/v1/me") => {
                 json_response(JsonValue::Object(JsonObject::from([
                     ("status".to_owned(), JsonValue::String("success".to_owned())),
                     (
@@ -53,7 +53,7 @@ impl RuntimeHttpTransport for HarnessTransport {
                     ),
                 ])))
             }
-            (HttpMethod::Get, url) if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/grants") => {
+            (HttpMethod::Get, url) if url == format!("{TEST_PROVIDER_BASE_URL}/v1/grants") => {
                 let grants = match &fixture.grant {
                     Some(grant) => {
                         let connector = self.grant_connector.as_ref().ok_or_else(|| {
@@ -83,17 +83,17 @@ impl RuntimeHttpTransport for HarnessTransport {
                 )
             }
             (HttpMethod::Post, url)
-                if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/provider-operations") =>
+                if url == format!("{TEST_PROVIDER_BASE_URL}/v1/provider-operations") =>
             {
                 self.provider_operation(fixture, request.body.as_deref())
             }
             (HttpMethod::Post, url)
-                if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/provider-requests") =>
+                if url == format!("{TEST_PROVIDER_BASE_URL}/v1/provider-requests") =>
             {
                 self.provider_request(fixture, request.body.as_deref())
             }
             (HttpMethod::Post, url)
-                if url == format!("{HARNESS_PROVIDER_BASE_URL}/v1/artifact-operations") =>
+                if url == format!("{TEST_PROVIDER_BASE_URL}/v1/artifact-operations") =>
             {
                 self.artifact_operation(fixture, request.body.as_deref())
             }
@@ -107,7 +107,7 @@ impl RuntimeHttpTransport for HarnessTransport {
 }
 
 fn validate_authorization(request: &RuntimeHttpRequest) -> Result<(), RuntimeHttpError> {
-    let expected = format!("Bearer {HARNESS_PROVIDER_TOKEN}");
+    let expected = format!("Bearer {TEST_PROVIDER_TOKEN}");
     if request
         .headers
         .iter()
@@ -120,10 +120,10 @@ fn validate_authorization(request: &RuntimeHttpRequest) -> Result<(), RuntimeHtt
     ))
 }
 
-impl HarnessTransport {
+impl TestTransport {
     fn provider_operation(
         &self,
-        fixture: &HarnessProviderResponsesFixture,
+        fixture: &TestProviderResponsesFixture,
         body: Option<&str>,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         let request = serde_json::from_str::<JsonObject>(
@@ -135,8 +135,8 @@ impl HarnessTransport {
         let target = required_string(&request, "target")?;
         let access = required_string(&request, "access")?;
         let access = match access {
-            "read" => HarnessProviderAccess::Read,
-            "mutate" => HarnessProviderAccess::Mutate,
+            "read" => TestProviderAccess::Read,
+            "mutate" => TestProviderAccess::Mutate,
             value => {
                 return Err(transport_error(format!(
                     "unsupported provider access {value:?}"
@@ -172,7 +172,7 @@ impl HarnessTransport {
         let identity = runx_contracts::sha256_prefixed(
             format!("{grant_id}\0{operation}\0{target}").as_bytes(),
         );
-        let idempotency_key = if access == HarnessProviderAccess::Mutate {
+        let idempotency_key = if access == TestProviderAccess::Mutate {
             let input = request
                 .get("input")
                 .and_then(JsonValue::as_object)
@@ -258,7 +258,7 @@ struct DeclaredRequest {
     grant_id: Option<String>,
     /// What a purchase holds on one resource, presented in place of a grant.
     #[serde(default)]
-    held: Option<DeclaredHold>,
+    held: Option<DeclaredLease>,
     operation: String,
     operation_digest: String,
     implementation_digest: String,
@@ -275,12 +275,12 @@ struct DeclaredRequest {
 /// The held resource a declared request is sent under.
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-struct DeclaredHold {
+struct DeclaredLease {
     credential: String,
     target: String,
 }
 
-impl HarnessTransport {
+impl TestTransport {
     /// Send one declared request as runx Connect does: under the fixture's
     /// grant, for the exact connector it holds at the digests that connector
     /// declares, rendered by Connect's renderer with the case's paid
@@ -288,7 +288,7 @@ impl HarnessTransport {
     /// answers as Connect's does, before anything is sent.
     fn provider_request(
         &self,
-        fixture: &HarnessProviderResponsesFixture,
+        fixture: &TestProviderResponsesFixture,
         body: Option<&str>,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         let Ok(call) = serde_json::from_str::<DeclaredRequest>(body.unwrap_or_default()) else {
@@ -329,7 +329,7 @@ impl HarnessTransport {
                     );
                 }
                 let Some(connector) = self
-                    .held_connectors
+                    .connectors_with_leases
                     .iter()
                     .find(|connector| connector.binding() == call.connector_binding)
                 else {
@@ -475,8 +475,8 @@ impl HarnessTransport {
         };
         let answer = self.exchanges.answer(&rendered)?;
         let body = match operation.holds.as_ref() {
-            Some(hold) if hold.action == runx_contracts::connector::HoldAction::Take => {
-                held_answer(hold, spec, answer.status, &answer.body).map_err(transport_error)?
+            Some(hold) if hold.action == runx_contracts::connector::LeaseAction::Take => {
+                leased_answer(hold, spec, answer.status, &answer.body).map_err(transport_error)?
             }
             _ => answer.body,
         };
@@ -494,8 +494,8 @@ impl HarnessTransport {
 /// field the hold takes replaced by the hold's evidence, so the kernel sees
 /// that a hold was taken and never what it holds. An error answer keeps none
 /// of the fields.
-fn held_answer(
-    hold: &runx_contracts::connector::OperationHold,
+fn leased_answer(
+    hold: &runx_contracts::connector::OperationLease,
     spec: &runx_contracts::connector::HttpImplementation,
     status: u16,
     body: &str,
@@ -568,7 +568,7 @@ fn held_answer(
             .map(|text| runx_contracts::sha256_prefixed(text.as_bytes()))
             .map_err(|error| error.to_string())?;
     let evidence = serde_json::json!({
-        runx_contracts::connector::HOLD_EVIDENCE_KEY: {
+        runx_contracts::connector::LEASE_EVIDENCE_KEY: {
             "target": target,
             "expires_at": expires_at,
             "value_digest": digest,
@@ -603,16 +603,16 @@ fn replace_at(
 }
 
 /// When the harness states every artifact was stored.
-const HARNESS_ARTIFACT_CREATED_AT: &str = "2026-01-01T00:00:00.000Z";
+const TEST_ARTIFACT_CREATED_AT: &str = "2026-01-01T00:00:00.000Z";
 
-impl HarnessTransport {
+impl TestTransport {
     /// Store or read one artifact in the fixture principal's space, as runx
     /// does: an allocation is keyed by its idempotency key, holds exactly the
     /// bytes whose digest the call states, and answers with the same
     /// reference on every repeat; an inspection reads what is held.
     fn artifact_operation(
         &self,
-        fixture: &HarnessProviderResponsesFixture,
+        fixture: &TestProviderResponsesFixture,
         body: Option<&str>,
     ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         use base64::Engine as _;
@@ -668,7 +668,7 @@ impl HarnessTransport {
                     ),
                     (
                         "created_at".to_owned(),
-                        JsonValue::String(HARNESS_ARTIFACT_CREATED_AT.to_owned()),
+                        JsonValue::String(TEST_ARTIFACT_CREATED_AT.to_owned()),
                     ),
                 ]);
                 match artifacts.get(&artifact_uri) {
@@ -754,10 +754,10 @@ fn refused(
     ))
 }
 
-fn access_name(access: HarnessProviderAccess) -> &'static str {
+fn access_name(access: TestProviderAccess) -> &'static str {
     match access {
-        HarnessProviderAccess::Read => "read",
-        HarnessProviderAccess::Mutate => "mutate",
+        TestProviderAccess::Read => "read",
+        TestProviderAccess::Mutate => "mutate",
     }
 }
 
@@ -784,12 +784,12 @@ fn transport_error(message: String) -> RuntimeHttpError {
 mod tests {
     #![allow(clippy::expect_used)]
 
-    use runx_contracts::connector::{HttpImplementation, OperationHold};
+    use runx_contracts::connector::{HttpImplementation, OperationLease};
     use serde_json::json;
 
-    use super::held_answer;
+    use super::leased_answer;
 
-    fn hold() -> OperationHold {
+    fn hold() -> OperationLease {
         serde_json::from_value(json!({
             "action": "take",
             "credential": "lease",
@@ -810,8 +810,8 @@ mod tests {
     }
 
     #[test]
-    fn a_take_answers_the_hold_s_evidence_in_place_of_what_it_holds() {
-        let answer = held_answer(
+    fn a_take_answers_the_lease_s_evidence_in_place_of_what_it_leases() {
+        let answer = leased_answer(
             &hold(),
             &spec(),
             200,
@@ -832,8 +832,8 @@ mod tests {
     }
 
     #[test]
-    fn a_take_holds_nothing_from_an_error_or_an_answer_without_its_fields() {
-        let refused = held_answer(
+    fn a_take_leases_nothing_from_an_error_or_an_answer_without_its_fields() {
+        let refused = leased_answer(
             &hold(),
             &spec(),
             409,
@@ -841,13 +841,13 @@ mod tests {
         )
         .expect("an error answer");
         assert_eq!(refused, r#"{"capability":null,"error":"quota"}"#);
-        held_answer(
+        leased_answer(
             &hold(),
             &spec(),
             200,
             r#"{"lease":{"inbox_id":"inb_1","expires_at":"2026-10-16T00:00:00.000Z"}}"#,
         )
         .expect_err("no capability to hold");
-        held_answer(&hold(), &spec(), 200, "not json").expect_err("not an object");
+        leased_answer(&hold(), &spec(), 200, "not json").expect_err("not an object");
     }
 }

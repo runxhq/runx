@@ -54,9 +54,9 @@ pub enum CatalogRole {
     Canonical,
     Branded,
     Context,
-    GraphStage,
+    WorkflowStage,
     RuntimePath,
-    HarnessFixture,
+    TestFixture,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -121,9 +121,9 @@ impl CatalogRole {
             CatalogRole::Canonical => "canonical",
             CatalogRole::Branded => "branded",
             CatalogRole::Context => "context",
-            CatalogRole::GraphStage => "graph-stage",
+            CatalogRole::WorkflowStage => "workflow-stage",
             CatalogRole::RuntimePath => "runtime-path",
-            CatalogRole::HarnessFixture => "harness-fixture",
+            CatalogRole::TestFixture => "test-fixture",
         }
     }
 }
@@ -248,7 +248,7 @@ pub struct CatalogSemanticReport {
     pub mode: String,
     pub skill: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_runner: Option<String>,
+    pub default_method: Option<String>,
     pub diagnostics: Vec<CatalogSemanticDiagnostic>,
     pub readiness: CatalogOperatorReadiness,
 }
@@ -259,7 +259,7 @@ pub struct CatalogSemanticReport {
 #[must_use]
 pub fn analyze_catalog_semantics(
     skill: &str,
-    manifest: &crate::SkillRunnerManifest,
+    manifest: &crate::SkillMethodManifest,
 ) -> CatalogSemanticReport {
     let default = manifest
         .runners
@@ -274,7 +274,7 @@ pub fn analyze_catalog_semantics(
         return CatalogSemanticReport {
             mode: "operator_readiness".to_owned(),
             skill: skill.to_owned(),
-            default_runner: None,
+            default_method: None,
             diagnostics: Vec::new(),
             readiness: CatalogOperatorReadiness::default(),
         };
@@ -283,7 +283,7 @@ pub fn analyze_catalog_semantics(
         return CatalogSemanticReport {
             mode: "operator_readiness".to_owned(),
             skill: skill.to_owned(),
-            default_runner: Some(runner.name.clone()),
+            default_method: Some(runner.name.clone()),
             diagnostics: Vec::new(),
             readiness: CatalogOperatorReadiness::default(),
         };
@@ -291,7 +291,7 @@ pub fn analyze_catalog_semantics(
     CatalogSemanticReport {
         mode: "operator_readiness".to_owned(),
         skill: skill.to_owned(),
-        default_runner: Some(runner.name.clone()),
+        default_method: Some(runner.name.clone()),
         diagnostics: Vec::new(),
         readiness: CatalogOperatorReadiness::default(),
     }
@@ -304,8 +304,8 @@ pub fn analyze_catalog_semantics(
 #[must_use]
 pub fn analyze_package_catalog_semantics(
     skill: &str,
-    manifest: &crate::SkillRunnerManifest,
-    fixtures: &BTreeMap<String, crate::harness_fixture::HarnessFixture>,
+    manifest: &crate::SkillMethodManifest,
+    fixtures: &BTreeMap<String, crate::test_fixture::TestFixture>,
 ) -> CatalogSemanticReport {
     let mut report = analyze_catalog_semantics(skill, manifest);
     let Some(catalog) = manifest.catalog.as_ref() else {
@@ -314,13 +314,13 @@ pub fn analyze_package_catalog_semantics(
     if catalog.visibility != CatalogVisibility::Public {
         return report;
     }
-    let Some(default_runner) = report.default_runner.as_deref() else {
+    let Some(default_method) = report.default_method.as_deref() else {
         return report;
     };
-    let Some(runner) = manifest.runners.get(default_runner) else {
+    let Some(runner) = manifest.runners.get(default_method) else {
         return report;
     };
-    let readiness = package_operator_readiness(skill, manifest, fixtures, default_runner);
+    let readiness = package_operator_readiness(skill, manifest, fixtures, default_method);
     let observed = readiness_observations(&readiness);
     if !readiness.cold_selection {
         report.diagnostics.push(semantic_diagnostic(
@@ -359,9 +359,9 @@ pub fn analyze_package_catalog_semantics(
 
 fn package_operator_readiness(
     skill: &str,
-    manifest: &crate::SkillRunnerManifest,
-    fixtures: &BTreeMap<String, crate::harness_fixture::HarnessFixture>,
-    default_runner: &str,
+    manifest: &crate::SkillMethodManifest,
+    fixtures: &BTreeMap<String, crate::test_fixture::TestFixture>,
+    default_method: &str,
 ) -> CatalogOperatorReadiness {
     let mut readiness = CatalogOperatorReadiness {
         evaluated: true,
@@ -371,7 +371,7 @@ fn package_operator_readiness(
         for case in &harness.cases {
             update_operator_readiness(
                 skill,
-                default_runner,
+                default_method,
                 &case.name,
                 true,
                 case.runner.as_deref(),
@@ -385,12 +385,10 @@ fn package_operator_readiness(
     for fixture in fixtures.values() {
         update_operator_readiness(
             skill,
-            default_runner,
+            default_method,
             &fixture.name,
-            matches!(
-                fixture.kind,
-                crate::harness_fixture::HarnessFixtureKind::Skill
-            ) && fixture.target == "..",
+            matches!(fixture.kind, crate::test_fixture::TestFixtureKind::Skill)
+                && fixture.target == "..",
             fixture.runner.as_deref(),
             &fixture.operator_journeys,
             !fixture.caller.answers.is_empty(),
@@ -404,24 +402,24 @@ fn package_operator_readiness(
 #[allow(clippy::too_many_arguments)]
 fn update_operator_readiness(
     skill: &str,
-    default_runner: &str,
+    default_method: &str,
     case_name: &str,
-    package_runner_case: bool,
-    selected_runner: Option<&str>,
+    package_method_case: bool,
+    selected_method: Option<&str>,
     journeys: &[crate::OperatorJourneyClaim],
     supplied_agent_answers: bool,
-    expected_status: Option<&crate::harness_fixture::HarnessExpectedStatus>,
+    expected_status: Option<&crate::test_fixture::TestExpectedStatus>,
     readiness: &mut CatalogOperatorReadiness,
 ) {
     for journey in journeys {
         let completed = matches!(
             expected_status,
-            Some(crate::harness_fixture::HarnessExpectedStatus::Sealed)
+            Some(crate::test_fixture::TestExpectedStatus::Sealed)
         );
-        let exercises_default = if package_runner_case {
-            selected_runner.is_none_or(|runner| runner == default_runner)
+        let exercises_default = if package_method_case {
+            selected_method.is_none_or(|runner| runner == default_method)
         } else {
-            journey.exercises_runner.as_deref() == Some(default_runner)
+            journey.exercises_method.as_deref() == Some(default_method)
         };
         match journey.mode {
             crate::OperatorJourneyMode::Standalone if exercises_default && completed => {
@@ -458,13 +456,13 @@ fn update_operator_readiness(
 fn readiness_observations(readiness: &CatalogOperatorReadiness) -> Vec<String> {
     let mut observed = Vec::new();
     if readiness.cold_selection {
-        observed.push("cold_selection_harness".to_owned());
+        observed.push("cold_selection_test".to_owned());
     }
     if readiness.standalone_default {
-        observed.push("standalone_default_harness".to_owned());
+        observed.push("standalone_default_test".to_owned());
     }
     if readiness.composed_reuse {
-        observed.push("composed_reuse_harness".to_owned());
+        observed.push("composed_reuse_test".to_owned());
     }
     if readiness.supplied_agent_answers {
         observed.push("supplied_agent_answers".to_owned());
@@ -475,7 +473,7 @@ fn readiness_observations(readiness: &CatalogOperatorReadiness) -> Vec<String> {
 fn semantic_diagnostic(
     code: CatalogSemanticCode,
     skill: &str,
-    runner: &super::SkillRunnerDefinition,
+    runner: &super::SkillMethodDefinition,
     catalog: &CatalogMetadata,
     observed: &[String],
     required_correction: &str,
@@ -731,11 +729,11 @@ fn parse_catalog_role(value: &JsonObject, label: &str) -> Result<CatalogRole, Va
         "canonical" => Ok(CatalogRole::Canonical),
         "branded" => Ok(CatalogRole::Branded),
         "context" => Ok(CatalogRole::Context),
-        "graph-stage" => Ok(CatalogRole::GraphStage),
+        "workflow-stage" => Ok(CatalogRole::WorkflowStage),
         "runtime-path" => Ok(CatalogRole::RuntimePath),
-        "harness-fixture" => Ok(CatalogRole::HarnessFixture),
+        "test-fixture" => Ok(CatalogRole::TestFixture),
         _ => Err(FIELDS.validation_error(format!(
-            "{label}.role must be canonical, branded, context, graph-stage, runtime-path, or harness-fixture."
+            "{label}.role must be canonical, branded, context, workflow-stage, runtime-path, or test-fixture."
         ))),
     }
 }
@@ -748,7 +746,7 @@ fn validate_catalog_role(
     if visibility == CatalogVisibility::Public
         && matches!(
             role,
-            CatalogRole::GraphStage | CatalogRole::RuntimePath | CatalogRole::HarnessFixture
+            CatalogRole::WorkflowStage | CatalogRole::RuntimePath | CatalogRole::TestFixture
         )
     {
         return Err(FIELDS.validation_error(format!(
@@ -780,7 +778,7 @@ fn validate_catalog_bindings(
     }
     if matches!(
         role,
-        CatalogRole::GraphStage | CatalogRole::RuntimePath | CatalogRole::HarnessFixture
+        CatalogRole::WorkflowStage | CatalogRole::RuntimePath | CatalogRole::TestFixture
     ) && part_of.is_empty()
     {
         return Err(FIELDS.validation_error(format!(
@@ -795,10 +793,10 @@ fn validate_catalog_bindings(
 mod tests {
     use super::*;
 
-    fn manifest(source: &str) -> Result<crate::SkillRunnerManifest, String> {
+    fn manifest(source: &str) -> Result<crate::SkillMethodManifest, String> {
         let parsed =
-            crate::parse_runner_manifest_yaml(source).map_err(|error| error.to_string())?;
-        crate::validate_runner_manifest(parsed).map_err(|error| error.to_string())
+            crate::parse_method_manifest_yaml(source).map_err(|error| error.to_string())?;
+        crate::validate_method_manifest(parsed).map_err(|error| error.to_string())
     }
 
     #[test]
@@ -828,7 +826,7 @@ runners:
         )?;
         let report = analyze_catalog_semantics("github", &manifest);
         assert_eq!(report.mode, "operator_readiness");
-        assert_eq!(report.default_runner.as_deref(), Some("plan"));
+        assert_eq!(report.default_method.as_deref(), Some("plan"));
         assert!(report.diagnostics.is_empty());
         Ok(())
     }

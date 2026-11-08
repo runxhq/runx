@@ -251,14 +251,14 @@ fn native_skill_prints_operator_context_and_admits_safe_run_by_default()
 }
 
 #[test]
-fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn std::error::Error>>
-{
+fn workflow_action_approval_yields_one_operator_resolution()
+-> Result<(), Box<dyn std::error::Error>> {
     let root = crate::support::temp_root("runx-explicit-approval");
     fs::create_dir_all(&root)?;
     let receipt_dir = root.join(".runx/receipts");
-    let approval_skill = write_approval_graph_skill(&root)?;
+    let approval_skill = write_approval_workflow_skill(&root)?;
 
-    let graph_run = crate::support::unsigned_runx_command_at(&root)
+    let workflow_run = crate::support::unsigned_runx_command_at(&root)
         .args([
             "skill",
             approval_skill
@@ -270,15 +270,15 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
         ])
         .output()?;
     assert_eq!(
-        graph_run.status.code(),
+        workflow_run.status.code(),
         Some(2),
         "stdout={}\nstderr={}",
-        String::from_utf8_lossy(&graph_run.stdout),
-        String::from_utf8_lossy(&graph_run.stderr)
+        String::from_utf8_lossy(&workflow_run.stdout),
+        String::from_utf8_lossy(&workflow_run.stderr)
     );
-    let graph_json = serde_json::from_slice::<serde_json::Value>(&graph_run.stdout)?;
-    assert_eq!(graph_json["status"], "needs_approval");
-    assert_eq!(graph_json["requests"][0]["kind"], "approval");
+    let workflow_json = serde_json::from_slice::<serde_json::Value>(&workflow_run.stdout)?;
+    assert_eq!(workflow_json["status"], "needs_approval");
+    assert_eq!(workflow_json["requests"][0]["kind"], "approval");
 
     let signed_run = runx_command()
         .current_dir(&root)
@@ -298,8 +298,8 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
     assert_eq!(signed_json["status"], "needs_approval");
     assert_eq!(signed_json["requests"][0]["kind"], "approval");
 
-    let run_id = graph_json["run_id"].as_str().ok_or("missing run id")?;
-    let request_id = graph_json["requests"][0]["id"]
+    let run_id = workflow_json["run_id"].as_str().ok_or("missing run id")?;
+    let request_id = workflow_json["requests"][0]["id"]
         .as_str()
         .ok_or("missing request id")?;
     let answers = root.join("decline.json");
@@ -354,7 +354,7 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
             cwd: root,
             managed_agent: runx_runtime::ManagedAgentPolicy::HostDriven,
         },
-        Some("approval-graph"),
+        Some("approval-workflow"),
         None,
         None,
     )?;
@@ -369,10 +369,10 @@ fn graph_action_approval_yields_one_operator_resolution() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn native_skill_positional_runner_selects_non_default_runner()
+fn native_skill_positional_method_selects_non_default_method()
 -> Result<(), Box<dyn std::error::Error>> {
-    let root = crate::support::temp_root("runx-skill-positional-runner");
-    let skill_dir = write_multi_runner_skill(&root)?;
+    let root = crate::support::temp_root("runx-skill-positional-method");
+    let skill_dir = write_multi_method_skill(&root)?;
     let receipt_dir = root.join("receipts");
 
     let output = runx_command()
@@ -654,7 +654,7 @@ fn native_skill_registry_run_reports_provenance_on_execution_error()
         .args([
             "skill",
             "acme/echo@1.0.0",
-            "missing-runner",
+            "missing-method",
             "--registry",
             &registry.url,
             "--json",
@@ -706,7 +706,8 @@ fn native_skill_resolves_registry_versions_side_by_side() -> Result<(), Box<dyn 
 /// it as it fetches a top-level ref, into the project's skills, and the run
 /// resolves the step from there.
 #[test]
-fn a_graph_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn std::error::Error>> {
+fn a_workflow_fetches_its_registry_steps_before_it_runs() -> Result<(), Box<dyn std::error::Error>>
+{
     let root = crate::support::temp_root("runx-skill-registry-nested");
     let registry = publish_echo(&[("1.0.0", "# Echo\n")])?;
     let graph = root.join("project").join("nested");
@@ -1275,12 +1276,12 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_approval_graph_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("approval-graph");
+fn write_approval_workflow_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("approval-workflow");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: approval-graph\ndescription: approval-graph fixture.\n---\n# Approval Graph\n",
+        "---\nname: approval-workflow\ndescription: approval-workflow fixture.\n---\n# Approval Graph\n",
     )?;
     fs::write(
         skill_dir.join("fail.mjs"),
@@ -1289,14 +1290,14 @@ fn write_approval_graph_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: approval-graph
+skill: approval-workflow
 runners:
-  approval-graph:
+  approval-workflow:
     default: true
     result_from: [fail]
     steps:
       - id: approve
-        ask: { gate: approval-graph.local-development, reason: approve the local development fixture }
+        ask: { gate: approval-workflow.local-development, reason: approve the local development fixture }
       - id: fail
         tool: { module: fail.mjs, export: fail }
         outputs: { result: object }
@@ -1305,17 +1306,17 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_multi_runner_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("multi-runner");
+fn write_multi_method_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("multi-method");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: multi-runner\ndescription: multi-runner fixture.\n---\n# Multi Runner\n",
+        "---\nname: multi-method\ndescription: multi-method fixture.\n---\n# Multi Runner\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: multi-runner
+skill: multi-method
 runners:
   first:
     default: true

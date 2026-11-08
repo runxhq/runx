@@ -1,22 +1,18 @@
-skill: managed-agent-intake
+minimum_runx: 0.12.0
 
 catalog:
-  kind: skill
-  audience: public
   visibility: public
-  role: canonical
 
-runners:
+methods:
   intake:
-    default: true
     inputs:
       issue_title:
         type: string
-        required: false
+        optional: true
     steps:
       - id: intake
-        agent: { role: builder, task: triage-intake }
+        agent: triage-intake
         inputs:
           issue_title: $input.issue_title
         outputs:
-          summary: object
+          summary: {type: object}

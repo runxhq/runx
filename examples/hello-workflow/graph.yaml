@@ -1,0 +1,11 @@
+name: hello-workflow
+publisher: runx
+steps:
+  - id: first
+    skill: ../hello-world
+    inputs:
+      message: hello from graph
+  - id: second
+    skill: ../hello-world
+    inputs:
+      message: $steps.first.message

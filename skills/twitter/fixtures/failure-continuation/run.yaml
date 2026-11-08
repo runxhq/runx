@@ -1,0 +1,82 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+    - id: digest
+      tool: data.digest
+      inputs:
+        value:
+          decision: ready
+          objective: Delete two reviewed obsolete posts; keep failures visible.
+          principal: account:@example
+          acts:
+          - act_id: act-delete-1
+            kind: delete_post
+            params:
+              post_id: '7001'
+            consequence: live_mutation
+            rationale: Reviewed obsolete post.
+          - act_id: act-delete-2
+            kind: delete_post
+            params:
+              post_id: '7002'
+            consequence: live_mutation
+            rationale: Reviewed obsolete post.
+          gates:
+            human_approval_required: true
+            approval_id: null
+    - id: batch1
+      skill: ../..#execute
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-failure-proof
+        max_acts: 1
+        plan_json:
+          decision: ready
+          objective: Delete two reviewed obsolete posts; keep failures visible.
+          principal: account:@example
+          acts:
+          - act_id: act-delete-1
+            kind: delete_post
+            params:
+              post_id: '7001'
+            consequence: live_mutation
+            rationale: Reviewed obsolete post.
+          - act_id: act-delete-2
+            kind: delete_post
+            params:
+              post_id: '7002'
+            consequence: live_mutation
+            rationale: Reviewed obsolete post.
+          gates:
+            human_approval_required: true
+            approval_id: null
+    - id: status1
+      skill: ../..#status
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-failure-proof
+        max_acts: 1
+    - id: batch2
+      skill: ../..#execute
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-failure-proof
+        max_acts: 1
+    - id: status2
+      skill: ../..#status
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-failure-proof
+        max_acts: 1
+    - id: recent
+      skill: ../..#recent
+      inputs:
+        data_source_uri: local://twitter-failure-proof
+    - id: complete
+      skill: ../..#execute
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-failure-proof

@@ -1,0 +1,9 @@
+name: crm-update-plan-needs-transcript
+inputs:
+  crm_records:
+    - id: acct-1
+  crm_schema:
+    allowed_fields:
+      - next_action
+expect:
+  status: failure

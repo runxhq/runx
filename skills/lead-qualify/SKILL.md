@@ -53,9 +53,7 @@ input. The selected sending capability performs native approval and delivery.
 The calling application owns task assignment, refresh, follow-up timing and
 continuing work.
 
-## Agent task contract
-
-### `lead-qualify-assess`
+## Agent task: lead-qualify-assess
 
 Apply each supplied criterion to the admitted facts. Return one assessment per
 criterion ID, with status, rationale and exact `fact_fields`. Use `unknown`

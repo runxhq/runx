@@ -153,9 +153,9 @@ pub(crate) fn read_test_signed_receipt(
 /// The graph receipt's first step receipt: where a one-step runner's act lives.
 pub(crate) fn read_test_first_step_receipt(
     receipt_dir: &Path,
-    graph_receipt: &Receipt,
+    workflow_receipt: &Receipt,
 ) -> Result<Receipt, Box<dyn std::error::Error>> {
-    let child = graph_receipt
+    let child = workflow_receipt
         .lineage
         .children
         .first()

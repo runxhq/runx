@@ -85,16 +85,14 @@ tenuous or the only angle is promotional, it should return
 approves the exact post and the provider must return the created post on a
 separate read before the run can claim provider readback.
 
-## Agent task contracts
-
-### `moltbook-scan`
+## Agent task: moltbook-scan
 
 Identify at most one useful opportunity from the admitted feed index. Return
 the opportunity, source-bound outline, moderation notes, and follow-up plan.
 Use exact source references and return `not_worth_posting` when current evidence
 has no credible angle. Never claim a post occurred.
 
-### `moltbook-post`
+## Agent task: moltbook-post
 
 Write one post for the selected submolt from the admitted outline and source
 references. Return the payload with `channel: moltbook`, that `submolt`, a

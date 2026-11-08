@@ -488,9 +488,7 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 - `receipt_id`, `receipt_summary`, `harness_output`, `failure_packet` (improve):
   failure evidence, including the stable packet from `diagnose-skill-run`.
 
-## Agent task contracts
-
-### `skill-build-architecture`
+## Agent task: skill-build-architecture
 
 Call `turn_complete` with exactly one root field,
 `{"architecture_decision": <decision>}`. The inner decision uses
@@ -580,7 +578,7 @@ failures. When evidence cannot justify a change, choose `extend_existing` and
 let the author return `no_change`. For `harness`, plan fixture-only changes and
 preserve all production behavior.
 
-### `skill-build-author`
+## Agent task: skill-build-author
 
 Receive the exact native `architecture_plan` and return one `change_draft` using
 `runx.skill.change_draft.v1`. Never copy or calculate `base_digest`,

@@ -4,17 +4,17 @@ use runx_contracts::{JsonObject, JsonValue};
 use serde::{Deserialize, Serialize};
 
 use crate::ValidationError;
-pub use crate::harness_fixture::{
-    HarnessCaller, HarnessExpectation, HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture,
-    HarnessHttpResponseFixture, HarnessMcpCallFixture, HarnessProcessCallFixture,
-    OperatorJourneyClaim, OperatorJourneyMode, ReceiptExpectation,
+pub use crate::test_fixture::{
+    OperatorJourneyClaim, OperatorJourneyMode, ReceiptExpectation, TestCaller, TestExpectation,
+    TestHttpExchangeFixture, TestHttpRequestBodyFixture, TestHttpResponseFixture,
+    TestMcpCallFixture, TestProcessCallFixture,
 };
 
 use super::FIELDS;
 
-const RUNTIME_OWNED_HARNESS_ENV: &[&str] = &["RUNX_CWD", "RUNX_RECEIPT_DIR"];
-const HARNESS_FIELDS: &[&str] = &["files", "cases"];
-const HARNESS_CASE_FIELDS: &[&str] = &[
+const RUNTIME_OWNED_TEST_ENV: &[&str] = &["RUNX_CWD", "RUNX_RECEIPT_DIR"];
+const TEST_FIELDS: &[&str] = &["files", "cases"];
+const TEST_CASE_FIELDS: &[&str] = &[
     "name",
     "runner",
     "inputs",
@@ -24,33 +24,33 @@ const HARNESS_CASE_FIELDS: &[&str] = &[
     "operator_journeys",
 ];
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RunnerHarnessCase {
+pub struct MethodTestCase {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runner: Option<String>,
     pub inputs: JsonObject,
     pub env: BTreeMap<String, String>,
-    pub caller: HarnessCaller,
-    pub expect: HarnessExpectation,
+    pub caller: TestCaller,
+    pub expect: TestExpectation,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub operator_journeys: Vec<OperatorJourneyClaim>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RunnerHarnessManifest {
+pub struct MethodTestManifest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<String>,
-    pub cases: Vec<RunnerHarnessCase>,
+    pub cases: Vec<MethodTestCase>,
 }
 
-pub(crate) fn validate_harness_manifest(
+pub(crate) fn validate_test_manifest(
     value: Option<JsonObject>,
     field: &str,
-) -> Result<Option<RunnerHarnessManifest>, ValidationError> {
+) -> Result<Option<MethodTestManifest>, ValidationError> {
     let Some(value) = value else {
         return Ok(None);
     };
-    FIELDS.reject_unknown_fields(&value, field, HARNESS_FIELDS)?;
+    FIELDS.reject_unknown_fields(&value, field, TEST_FIELDS)?;
     let files = FIELDS
         .optional_string_array(value.get("files"), &format!("{field}.files"))?
         .unwrap_or_default();
@@ -59,21 +59,18 @@ pub(crate) fn validate_harness_manifest(
         .iter()
         .enumerate()
         .map(|(index, entry)| {
-            validate_harness_case(
+            validate_test_case(
                 FIELDS.required_object(Some(entry), &format!("{field}.cases[{index}]"))?,
                 &format!("{field}.cases[{index}]"),
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Some(RunnerHarnessManifest { files, cases }))
+    Ok(Some(MethodTestManifest { files, cases }))
 }
 
-fn validate_harness_case(
-    value: &JsonObject,
-    field: &str,
-) -> Result<RunnerHarnessCase, ValidationError> {
-    FIELDS.reject_unknown_fields(value, field, HARNESS_CASE_FIELDS)?;
-    Ok(RunnerHarnessCase {
+fn validate_test_case(value: &JsonObject, field: &str) -> Result<MethodTestCase, ValidationError> {
+    FIELDS.reject_unknown_fields(value, field, TEST_CASE_FIELDS)?;
+    Ok(MethodTestCase {
         name: FIELDS.required_string(value.get("name"), &format!("{field}.name"))?,
         runner: FIELDS
             .optional_non_empty_string(value.get("runner"), &format!("{field}.runner"))?,
@@ -86,13 +83,13 @@ fn validate_harness_case(
                 .unwrap_or_default(),
             &format!("{field}.env"),
         )?,
-        caller: validate_harness_caller(
+        caller: validate_test_caller(
             FIELDS
                 .optional_object(value.get("caller"), &format!("{field}.caller"))?
                 .unwrap_or_default(),
             &format!("{field}.caller"),
         )?,
-        expect: validate_harness_expectation(
+        expect: validate_test_expectation(
             FIELDS.required_object(value.get("expect"), &format!("{field}.expect"))?,
             &format!("{field}.expect"),
         )?,
@@ -117,7 +114,7 @@ fn validate_operator_journeys(
         .map(|(index, value)| {
             let claim_field = format!("{field}[{index}]");
             let object = FIELDS.required_object(Some(value), &claim_field)?.clone();
-            crate::harness_fixture::parse_operator_journey(object)
+            crate::test_fixture::parse_operator_journey(object)
                 .map_err(|error| FIELDS.validation_error(format!("{claim_field}: {error}")))
         })
         .collect()
@@ -130,7 +127,7 @@ fn validate_string_object(
     value
         .into_iter()
         .map(|(key, value)| {
-            if RUNTIME_OWNED_HARNESS_ENV.contains(&key.as_str()) {
+            if RUNTIME_OWNED_TEST_ENV.contains(&key.as_str()) {
                 return Err(FIELDS.validation_error(format!(
                     "{field}.{key} is owned by the isolated harness runtime and cannot be overridden."
                 )));
@@ -143,32 +140,29 @@ fn validate_string_object(
         .collect()
 }
 
-fn validate_harness_caller(
-    value: JsonObject,
-    field: &str,
-) -> Result<HarnessCaller, ValidationError> {
-    crate::harness_fixture::parse_harness_caller(value)
+fn validate_test_caller(value: JsonObject, field: &str) -> Result<TestCaller, ValidationError> {
+    crate::test_fixture::parse_test_caller(value)
         .map_err(|error| FIELDS.validation_error(format!("{field}: {error}")))
 }
 
-fn validate_harness_expectation(
+fn validate_test_expectation(
     value: &JsonObject,
     field: &str,
-) -> Result<HarnessExpectation, ValidationError> {
-    crate::harness_fixture::parse_harness_expectation(value.clone())
+) -> Result<TestExpectation, ValidationError> {
+    crate::test_fixture::parse_test_expectation(value.clone())
         .map_err(|error| FIELDS.validation_error(format!("{field}: {error}")))
 }
 
 #[cfg(test)]
 mod tests {
     use super::OperatorJourneyMode;
-    use crate::{parse_runner_manifest_yaml, validate_runner_manifest};
+    use crate::{parse_method_manifest_yaml, validate_method_manifest};
 
     #[test]
-    fn inline_harness_cannot_override_runtime_owned_isolation()
+    fn inline_test_cannot_override_runtime_owned_isolation()
     -> Result<(), Box<dyn std::error::Error>> {
         for key in ["RUNX_CWD", "RUNX_RECEIPT_DIR"] {
-            let raw = parse_runner_manifest_yaml(&format!(
+            let raw = parse_method_manifest_yaml(&format!(
                 r#"
 skill: fixture
 harness:
@@ -191,7 +185,7 @@ runners:
           value: fixture
 "#
             ))?;
-            let Err(error) = validate_runner_manifest(raw) else {
+            let Err(error) = validate_method_manifest(raw) else {
                 return Err("runtime-owned harness environment was accepted".into());
             };
 
@@ -201,9 +195,9 @@ runners:
     }
 
     #[test]
-    fn inline_harness_projects_semantic_operator_journey_claims()
+    fn inline_test_projects_semantic_operator_journey_claims()
     -> Result<(), Box<dyn std::error::Error>> {
-        let raw = parse_runner_manifest_yaml(
+        let raw = parse_method_manifest_yaml(
             r#"
 skill: fixture
 harness:
@@ -231,7 +225,7 @@ runners:
           value: fixture
 "#,
         )?;
-        let manifest = validate_runner_manifest(raw)?;
+        let manifest = validate_method_manifest(raw)?;
         let claim = manifest
             .harness
             .as_ref()
@@ -247,7 +241,7 @@ runners:
     #[test]
     fn composed_operator_journey_requires_reuse_and_non_repetition_claims()
     -> Result<(), Box<dyn std::error::Error>> {
-        let raw = parse_runner_manifest_yaml(
+        let raw = parse_method_manifest_yaml(
             r#"
 skill: fixture
 harness:
@@ -271,7 +265,7 @@ runners:
           value: fixture
 "#,
         )?;
-        let Err(error) = validate_runner_manifest(raw) else {
+        let Err(error) = validate_method_manifest(raw) else {
             return Err("empty composed claim must fail".into());
         };
         assert!(
@@ -283,9 +277,9 @@ runners:
     }
 
     #[test]
-    fn inline_harness_accepts_request_sensitive_http_exchanges()
+    fn inline_test_accepts_request_sensitive_http_exchanges()
     -> Result<(), Box<dyn std::error::Error>> {
-        let raw = parse_runner_manifest_yaml(
+        let raw = parse_method_manifest_yaml(
             r#"
 skill: fixture
 harness:
@@ -315,7 +309,7 @@ runners:
           value: fixture
 "#,
         )?;
-        let manifest = validate_runner_manifest(raw)?;
+        let manifest = validate_method_manifest(raw)?;
         let exchanges = &manifest
             .harness
             .as_ref()
@@ -329,7 +323,7 @@ runners:
     }
 
     #[test]
-    fn inline_harness_http_exchanges_accept_get_and_delete_json_bodies()
+    fn inline_test_http_exchanges_accept_get_and_delete_json_bodies()
     -> Result<(), Box<dyn std::error::Error>> {
         for method in ["GET", "DELETE"] {
             let yaml = format!(
@@ -362,8 +356,8 @@ runners:
           value: fixture
 "#,
             );
-            let raw = parse_runner_manifest_yaml(&yaml)?;
-            let manifest = validate_runner_manifest(raw)?;
+            let raw = parse_method_manifest_yaml(&yaml)?;
+            let manifest = validate_method_manifest(raw)?;
             let exchanges = &manifest
                 .harness
                 .as_ref()
@@ -377,7 +371,7 @@ runners:
     }
 
     #[test]
-    fn inline_harness_http_exchanges_reject_credentials_and_fragments()
+    fn inline_test_http_exchanges_reject_credentials_and_fragments()
     -> Result<(), Box<dyn std::error::Error>> {
         for url in [
             "https://user:pass@fixture.runx.invalid/source",
@@ -412,8 +406,8 @@ runners:
           value: fixture
 "#,
             );
-            let raw = parse_runner_manifest_yaml(&yaml)?;
-            let Err(error) = validate_runner_manifest(raw) else {
+            let raw = parse_method_manifest_yaml(&yaml)?;
+            let Err(error) = validate_method_manifest(raw) else {
                 return Err("inline credential and fragment URLs must fail validation".into());
             };
             assert!(error.to_string().contains("exact absolute HTTP(S) URL"));

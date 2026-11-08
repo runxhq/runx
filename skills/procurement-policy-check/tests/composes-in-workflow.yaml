@@ -1,0 +1,6 @@
+name: procurement-policy-check-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps: [procurement-policy-check, digest]
+  receipt: {schema: runx.receipt.v1}

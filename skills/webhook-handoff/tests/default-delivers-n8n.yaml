@@ -1,0 +1,53 @@
+name: webhook-handoff-default-delivers-n8n
+setup: {credentials: [n8n]}
+inputs:
+  platform: n8n
+  webhook_host: acme.app.n8n.cloud
+  event_id: evt_n8n_demo_001
+  handoff_audience: n8n:workflow:runx-governed-effect
+  execution_context: {caller: runx-cli, workflow: n8n-cloud-demo}
+  payload: {hello: workflow}
+env: {N8N_WEBHOOK_URL: 'https://acme.app.n8n.cloud/webhook/runx-governed-effect'}
+host:
+  approvals:
+    "deliver": true
+providers:
+  http:
+    - request:
+        method: POST
+        url: https://acme.app.n8n.cloud/webhook/runx-governed-effect
+        body:
+          json:
+            event_id: evt_n8n_demo_001
+            execution_context:
+              caller: runx-cli
+              event_id: evt_n8n_demo_001
+              handoff_audience: n8n:workflow:runx-governed-effect
+              handoff_scope: orchestrator.n8n.workflow.invoke
+              idempotency_key: evt_n8n_demo_001
+              platform: n8n
+              workflow: n8n-cloud-demo
+            handoff_audience: n8n:workflow:runx-governed-effect
+            handoff_scope: orchestrator.n8n.workflow.invoke
+            idempotency_key: evt_n8n_demo_001
+            payload: {hello: workflow}
+            source: runx
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"message":"Workflow was started"}'
+expect:
+  status: sealed
+  steps: [terms, build-handoff-context, address, deliver]
+  step_outputs:
+    deliver:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: n8n
+            operation: handoff.deliver
+            finality: acknowledged
+            result:
+              acknowledgement: {message: Workflow was started}
+  receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

@@ -6,28 +6,28 @@ use serde_json as schema_json;
 
 use crate::schema::{NamedSchemas, RunxSchema};
 use crate::{
-    ActAssignment, ActResultEnvelope, AgentActInvocation, AgentContextEnvelope,
-    ApprovalDecisionPacket, ApprovalGate, Artifact, Attestation, AuthorityDerivation,
-    AuthoritySubsetProof, AuthorityTerm, CancelPurchaseRequest, CancelPurchaseResult, CliHelp,
-    CommandExecution, CommandPlan, ConnectorInstance, ConnectorManifest, ConversationObservation,
-    ConversationPage, CredentialDeliveryObservation, DataComparison, DataDigest,
-    DataOperationResult, DataValidation, Decision, DecisionObservation, DoctorReport,
-    ExecutePurchaseRequest, ExecutePurchaseResult, ExternalJobContinuation, ExternalJobSchedule,
-    ExternalJobScheduleIntent, ExternalJobStageRequest, ExternalJobStageResult, FileApplyBundle,
-    FileEdit, FileInverseBundle, FileList, FileRead, FileReadBundle, FileSearch, FileWrite,
-    Fixture, GetPurchaseRequest, GetPurchaseResult, GitBlobDigest, GitBranch, GitDiff, GitLog,
-    GitPatch, GitShow, GitStatus, HarnessContext, LedgerEntry, LocalArtifact, LocalArtifactPage,
-    OfferVersionBinding, OperationalPolicy, OperationalProposal, OrchestratorExecutionContext,
-    OrchestratorHandoffContext, Output, PacketLock, PaidSkillListing, PolicyLint, ProcessList,
-    ProcessOutput, ProviderOperationPacket, Purchase, PurchaseClaim, PurchaseRead, Question,
-    QuotePurchaseRequest, QuotePurchaseResult, Readiness, Receipt, ReceiptProof, ReceiptQuery,
-    Reference, ReferenceLink, RegistryBinding, RegistryInspection, RegistrySearchPacket,
-    ResolutionRequest, ResolutionResponse, RunList, RunxListReport, RunxProcess,
-    RunxX402PurchaseExtensionInfo, Signal, SkillApplyResult, SkillArchitectureDecision,
-    SkillArchitecturePlan, SkillAuthoringContext, SkillChangeBundle, SkillChangeDraft,
-    SkillInspection, SkillValidation, SkillValidationResult, SourcePacket, ToolManifest,
-    TurnCallResult, TurnLoad, TurnReadPage, TurnStatus, WorkOutcome, X402PaymentPayload,
-    X402PaymentRequired, X402PaymentRequirements, X402ResourceInfo, X402SettleResponse,
+    ActAssignment, ActResultEnvelope, AgentContextEnvelope, ApprovalDecisionPacket, ApprovalGate,
+    Artifact, Attestation, AuthorityDerivation, AuthoritySubsetProof, AuthorityTerm,
+    CancelPurchaseRequest, CancelPurchaseResult, CliHelp, CommandExecution, CommandPlan,
+    ConnectorInstance, ConnectorManifest, ConversationObservation, ConversationPage,
+    CredentialDeliveryObservation, DataComparison, DataDigest, DataOperationResult, DataValidation,
+    Decision, DecisionObservation, DoctorReport, ExecutePurchaseRequest, ExecutePurchaseResult,
+    ExternalJobContinuation, ExternalJobSchedule, ExternalJobScheduleIntent,
+    ExternalJobStageRequest, ExternalJobStageResult, FileApplyBundle, FileEdit, FileInverseBundle,
+    FileList, FileRead, FileReadBundle, FileSearch, FileWrite, Fixture, GetPurchaseRequest,
+    GetPurchaseResult, GitBlobDigest, GitBranch, GitDiff, GitLog, GitPatch, GitShow, GitStatus,
+    LedgerEntry, LocalArtifact, LocalArtifactPage, OfferVersionBinding, OperationalPolicy,
+    OperationalProposal, OrchestratorExecutionContext, OrchestratorHandoffContext, Output,
+    PacketLock, PaidSkillListing, PolicyLint, ProcessList, ProcessOutput, ProviderOperationPacket,
+    Purchase, PurchaseClaim, PurchaseRead, Question, QuotePurchaseRequest, QuotePurchaseResult,
+    Readiness, Receipt, ReceiptProof, ReceiptQuery, Reference, ReferenceLink, RegistryBinding,
+    RegistryInspection, RegistrySearchPacket, ResolutionRequest, ResolutionResponse, RunContext,
+    RunList, RunxListReport, RunxProcess, RunxX402PurchaseExtensionInfo, Signal, SkillApplyResult,
+    SkillArchitectureDecision, SkillArchitecturePlan, SkillAuthoringContext, SkillChangeBundle,
+    SkillChangeDraft, SkillInspection, SkillValidation, SkillValidationResult, SourcePacket,
+    ToolManifest, TurnCallResult, TurnInvocation, TurnLoad, TurnReadPage, TurnStatus, WorkOutcome,
+    X402PaymentPayload, X402PaymentRequired, X402PaymentRequirements, X402ResourceInfo,
+    X402SettleResponse,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -81,7 +81,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<Readiness>("readiness.schema.json"),
         schema_artifact::<AuthorityDerivation>("authority-derivation.schema.json"),
         schema_artifact::<AgentContextEnvelope>("agent-context-envelope.schema.json"),
-        schema_artifact::<AgentActInvocation>("agent-act-invocation.schema.json"),
+        schema_artifact::<TurnInvocation>("agent-act-invocation.schema.json"),
         schema_artifact::<TurnCallResult>("turn-call.schema.json"),
         schema_artifact::<TurnStatus>("turn-status.schema.json"),
         schema_artifact::<TurnLoad>("turn-load.schema.json"),
@@ -124,7 +124,7 @@ pub fn generated_schema_artifacts() -> Vec<SchemaArtifact> {
         public_packet_artifact::<DataValidation>("data-validation.schema.json"),
         public_packet_artifact::<DataDigest>("data-digest.schema.json"),
         public_packet_artifact::<DataComparison>("data-comparison.schema.json"),
-        public_packet_artifact::<HarnessContext>("harness-context.schema.json"),
+        public_packet_artifact::<RunContext>("run-context.schema.json"),
         public_packet_artifact::<FileRead>("file-read.schema.json"),
         public_packet_artifact::<FileReadBundle>("file-read-bundle.schema.json"),
         public_packet_artifact::<FileWrite>("file-write.schema.json"),
@@ -218,7 +218,7 @@ pub fn schema_artifact<T: RunxSchema>(file_name: &'static str) -> SchemaArtifact
 }
 
 /// Mark a reusable, named boundary contract for packet distribution even when
-/// its immediate producer is native rather than a skill manifest. Runner-local
+/// its immediate producer is native rather than a skill manifest. Method-local
 /// input and output shapes must stay in `run.yaml` and use [`schema_artifact`]
 /// instead.
 pub fn public_packet_artifact<T: RunxSchema>(file_name: &'static str) -> SchemaArtifact {

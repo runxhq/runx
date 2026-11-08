@@ -1,0 +1,11 @@
+{
+  "skill_name": "prior-art",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Inspect prior art for this design before I create anything new.",
+      "expected_output": "Return bounded citation-backed findings and a reuse, amend, new-work, or stop recommendation.",
+      "files": []
+    }
+  ]
+}

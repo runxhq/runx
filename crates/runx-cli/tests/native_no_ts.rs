@@ -60,13 +60,13 @@ fn native_cli_smoke_runs_without_node_or_typescript_env() -> Result<(), Box<dyn 
     crate::support::assert_json_stderr(&skill.stderr)?;
     let skill_json = serde_json::from_slice::<serde_json::Value>(&skill.stdout)?;
     assert_eq!(skill_json["status"], "needs_agent");
-    assert_eq!(skill_json["requests"][0]["kind"], "agent_act");
+    assert_eq!(skill_json["requests"][0]["kind"], "turn");
 
-    let harness_fixture = write_sequential_graph_smoke_harness(&temp)?;
+    let test_fixture = write_sequential_workflow_smoke_test(&temp)?;
     let harness = native_command()?
         .args([
             "harness",
-            harness_fixture
+            test_fixture
                 .to_str()
                 .ok_or("non-utf8 harness fixture path")?,
             "--receipt-dir",
@@ -100,16 +100,16 @@ fn assert_success(output: &std::process::Output) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-fn write_sequential_graph_smoke_harness(
+fn write_sequential_workflow_smoke_test(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let graph_path = crate::support::repo_root()?.join("fixtures/graphs/sequential/graph.yaml");
-    let harness_path = root.join("sequential-graph-smoke.yaml");
+    let workflow_path = crate::support::repo_root()?.join("fixtures/graphs/sequential/graph.yaml");
+    let test_path = root.join("sequential-workflow-smoke.yaml");
     fs::write(
-        &harness_path,
+        &test_path,
         format!(
             r#"
-name: sequential-graph-smoke
+name: sequential-workflow-smoke
 kind: graph
 target: {}
 expect:
@@ -118,8 +118,8 @@ expect:
     - first
     - second
 "#,
-            graph_path.display()
+            workflow_path.display()
         ),
     )?;
-    Ok(harness_path)
+    Ok(test_path)
 }

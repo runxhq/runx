@@ -1,0 +1,6 @@
+name: research-default-acquisition-is-a-real-open-turn
+inputs:
+  objective: Decide where generic evidence admission belongs.
+  paths: [fixtures/local-architecture-evidence.txt]
+expect:
+  status: needs_agent

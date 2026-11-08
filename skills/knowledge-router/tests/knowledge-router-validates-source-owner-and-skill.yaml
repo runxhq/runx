@@ -1,0 +1,72 @@
+name: knowledge-router-validates-source-owner-and-skill
+inputs:
+  question: Can API keys be scoped to read-only campaign analytics?
+  available_sources:
+    sources:
+      - id: auth-docs
+        kind: docs
+        summary: Authentication and API key scopes.
+      - id: campaigns-docs
+        kind: docs
+        summary: Campaign analytics fields and export limits.
+    owners:
+      - id: security-team
+        domains:
+          - authentication
+      - id: growth-team
+        domains:
+          - campaigns
+    skills:
+      - id: research
+        purpose: Resolve a bounded source-backed question.
+host:
+  answers:
+    propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: authentication
+          rationale: The question joins API-key scope policy with analytics access.
+          source_ids:
+            - auth-docs
+            - campaigns-docs
+        source_matches:
+          - source_id: auth-docs
+            matching_signal: API keys scoped to read-only
+            reason: Defines key scope behavior.
+          - source_id: campaigns-docs
+            matching_signal: campaign analytics
+            reason: Defines the requested read surface.
+        owner_recommendation:
+          owner_id: security-team
+          rationale: Authentication scope ownership is primary.
+          escalation_required: false
+        next_skill:
+          skill: research
+          rationale: Resolve the bounded answer from both validated sources.
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - digest
+    - propose
+    - validate
+  step_outputs:
+    validate:
+      subset:
+        knowledge_route:
+          data:
+            verdict: routed
+            route:
+              domain: authentication
+              source_ids:
+                - auth-docs
+                - campaigns-docs
+            owner_recommendation:
+              owner_id: security-team
+            next_skill:
+              skill: research
+            validation:
+              valid: true
+              unknown_entries: []

@@ -1,7 +1,7 @@
 use runx_contracts::digest::DigestAlgorithm;
 use runx_contracts::{
     DataComparison, DataDigest, DataValidation, DataValidationIssue, DataValueValidation, Digest,
-    HarnessContext, JsonObject, JsonValue,
+    JsonObject, JsonValue, RunContext,
 };
 use serde::{Deserialize, Serialize};
 
@@ -112,7 +112,7 @@ impl CapabilityOutput for MinorUnitsOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-struct HarnessContextInput {
+struct RunContextInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     harness: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -121,7 +121,7 @@ struct HarnessContextInput {
     decision: Option<JsonObject>,
 }
 
-impl CapabilityInput for HarnessContextInput {}
+impl CapabilityInput for RunContextInput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -141,7 +141,7 @@ impl CapabilityOutput for CompareOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-struct HarnessContextOutput {
+struct RunContextOutput {
     present: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     harness: Option<JsonObject>,
@@ -149,10 +149,10 @@ struct HarnessContextOutput {
     signal: Option<JsonObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
     decision: Option<JsonObject>,
-    harness_context: HarnessContext,
+    run_context: RunContext,
 }
 
-impl CapabilityOutput for HarnessContextOutput {}
+impl CapabilityOutput for RunContextOutput {}
 
 const DIGEST_FIELDS: &[CapabilityField] = &[
     field("value", "Exact JSON value or UTF-8 string to hash."),
@@ -214,22 +214,22 @@ static COMPARE: TypedNativeCapability<CompareInput, CompareOutput> = TypedNative
     compare_values,
 );
 
-static HARNESS_CONTEXT: TypedNativeCapability<HarnessContextInput, HarnessContextOutput> =
+static RUN_CONTEXT: TypedNativeCapability<RunContextInput, RunContextOutput> =
     TypedNativeCapability::new(
         CapabilityDefinition {
-            id: "control.capture_harness_context",
+            id: "control.capture_run_context",
             source: "runx-runtime/control",
             summary: "Capture supplied harness, signal, and decision packets as explicit context.",
             scopes: &["runx:control:read"],
             effect: CapabilityEffect::Read,
             approval: CapabilityApproval::None,
             artifacts: CapabilityArtifacts::Named {
-                output: "harness_context",
-                packet: "runx.control.harness_context.v1",
+                output: "run_context",
+                packet: "runx.control.run_context.v1",
             },
             fields: CONTEXT_FIELDS,
         },
-        capture_harness_context,
+        capture_run_context,
     );
 
 static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNativeCapability::new(
@@ -288,7 +288,7 @@ pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[
     &COMPARE,
     &VALIDATE,
     &MINOR_UNITS,
-    &HARNESS_CONTEXT,
+    &RUN_CONTEXT,
     &OBSERVED_AT,
 ];
 
@@ -404,19 +404,19 @@ fn compare_values(
     })
 }
 
-fn capture_harness_context(
-    invocation: &NativeInvocation<'_, HarnessContextInput>,
-) -> Result<HarnessContextOutput, RuntimeError> {
+fn capture_run_context(
+    invocation: &NativeInvocation<'_, RunContextInput>,
+) -> Result<RunContextOutput, RuntimeError> {
     let harness = invocation.inputs.harness.as_ref();
     let signal = invocation.inputs.signal.as_ref();
     let decision = invocation.inputs.decision.as_ref();
     let present = harness.is_some() || signal.is_some() || decision.is_some();
-    Ok(HarnessContextOutput {
+    Ok(RunContextOutput {
         present,
         harness: harness.cloned(),
         signal: signal.cloned(),
         decision: decision.cloned(),
-        harness_context: HarnessContext {
+        run_context: RunContext {
             captured: present,
             harness: harness.cloned(),
             signal: signal.cloned(),

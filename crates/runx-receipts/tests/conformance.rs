@@ -27,9 +27,9 @@ use serde_json::Value;
 
 const RECEIPT_SCHEMA: &str = include_str!("../../../schemas/receipt.schema.json");
 const SUCCESS_RECEIPT: &str =
-    include_str!("../../../fixtures/contracts/harness-spine/receipt-success.json");
+    include_str!("../../../fixtures/contracts/run-spine/receipt-success.json");
 const ABNORMAL_RECEIPT: &str =
-    include_str!("../../../fixtures/contracts/harness-spine/receipt-abnormal.json");
+    include_str!("../../../fixtures/contracts/run-spine/receipt-abnormal.json");
 const RECEIPT_ORACLE: &str =
     include_str!("../../../fixtures/contracts/canonical-json/runx-receipt-c14n-v1.oracles.json");
 
@@ -67,8 +67,8 @@ fn fixture_receipt(json: &str) -> Receipt {
 
 fn fixture_json_by_path(path: &str) -> &'static str {
     match path {
-        "harness-spine/receipt-success.json" => SUCCESS_RECEIPT,
-        "harness-spine/receipt-abnormal.json" => ABNORMAL_RECEIPT,
+        "run-spine/receipt-success.json" => SUCCESS_RECEIPT,
+        "run-spine/receipt-abnormal.json" => ABNORMAL_RECEIPT,
         other => panic!("unknown conformance fixture path: {other}"),
     }
 }

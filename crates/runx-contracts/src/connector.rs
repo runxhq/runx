@@ -231,7 +231,7 @@ pub struct NoAuth {}
 
 /// The kind of a credential a purchase fills. runx Connect holds it per
 /// resource for the purchase's buyer, taken from the seller's provider answer
-/// (`OperationHold`), so nobody connects it and nothing local delivers it.
+/// (`OperationLease`), so nobody connects it and nothing local delivers it.
 pub const PURCHASE_CREDENTIAL_KIND: &str = "purchase";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -590,7 +590,7 @@ pub struct ConnectorOperation {
     /// What the call does to a resource a purchase holds: takes it from the
     /// provider's answer, moves its expiry, or ends it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub holds: Option<OperationHold>,
+    pub holds: Option<OperationLease>,
     /// Present when the hosted placement offers the operation: it runs an
     /// `http` implementation through the provider gateway, and any other
     /// operation through a private driver.
@@ -699,8 +699,8 @@ pub struct OperationEffect {
 /// so a seller holds resources only in its own connector.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct OperationHold {
-    pub action: HoldAction,
+pub struct OperationLease {
+    pub action: LeaseAction,
     /// The `kind: purchase` credential held.
     pub credential: CredentialName,
     /// The held resource. A take renders it from the call's public result;
@@ -718,11 +718,11 @@ pub struct OperationHold {
 }
 
 /// The key a hold's evidence stands under in a provider answer.
-pub const HOLD_EVIDENCE_KEY: &str = "$held";
+pub const LEASE_EVIDENCE_KEY: &str = "$held";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HoldAction {
+pub enum LeaseAction {
     /// Hold a new resource's credential for the buyer of the purchase whose
     /// run made the call.
     Take,

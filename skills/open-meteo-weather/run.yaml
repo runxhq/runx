@@ -1,39 +1,25 @@
-skill: open-meteo-weather
 version: "0.1.11"
+minimum_runx: 0.12.0
+default_method: weather
 catalog:
-  kind: graph
-  audience: public
   visibility: public
-  role: canonical
-  provider: open-meteo
-  execution: read
-  completion: provider_readback
-  approval: none
   category: data
-connectors:
-  open-meteo:
-    operations:
-    - geocode.search
-    - forecast.read
-    - air_quality.read
-runners:
+methods:
   air_quality:
     description: Read air quality for a latitude and longitude.
     inputs:
       latitude:
         type: string
-        required: true
         description: Decimal latitude selected from the location evidence.
       longitude:
         type: string
-        required: true
         description: Decimal longitude selected from the location evidence.
     result_from:
     - air_quality
     steps:
     - id: air_quality
       operation: open-meteo/air_quality.read
-      input:
+      inputs:
         latitude: $input.latitude
         longitude: $input.longitude
   forecast:
@@ -41,23 +27,21 @@ runners:
     inputs:
       latitude:
         type: string
-        required: true
         description: Decimal latitude selected from the location evidence.
       longitude:
         type: string
-        required: true
         description: Decimal longitude selected from the location evidence.
       forecast_days:
         type: string
-        required: false
         default: '3'
         description: Number of forecast days to request.
+        optional: true
     result_from:
     - forecast
     steps:
     - id: forecast
       operation: open-meteo/forecast.read
-      input:
+      inputs:
         latitude: $input.latitude
         longitude: $input.longitude
         forecast_days: $input.forecast_days
@@ -66,30 +50,28 @@ runners:
     inputs:
       name:
         type: string
-        required: true
         description: Place name to resolve before selecting the intended coordinates.
     steps:
     - id: locate
       operation: open-meteo/geocode.search
-      input:
+      inputs:
         name: $input.name
   weather:
-    default: true
     description: Resolve an intended place and read its forecast or air quality, keeping ambiguity explicit.
     inputs:
-      name: {type: string, required: true, description: 'Place name; include country or region when known.', schema: {minLength: 1, maxLength: 100}}
-      location_context: {type: string, required: false, description: 'Optional region or other intent that distinguishes similarly named places; never coordinates to invent.'}
-      kind: {type: string, required: false, default: forecast, description: Requested weather evidence., schema: {enum: [forecast, air_quality]}}
-      forecast_days: {type: string, required: false, default: '3', description: 'Requested horizon for forecast; not used for air quality.', schema: {pattern: '^([1-9]|1[0-6])$'}}
+      name: {type: string, description: 'Place name; include country or region when known.', minLength: 1, maxLength: 100}
+      location_context: {type: string, description: 'Optional region or other intent that distinguishes similarly named places; never coordinates to invent.', optional: true}
+      kind: {type: string, default: forecast, description: Requested weather evidence., enum: [forecast, air_quality], optional: true}
+      forecast_days: {type: string, default: '3', description: 'Requested horizon for forecast; not used for air quality.', pattern: '^([1-9]|1[0-6])$', optional: true}
     examples:
-      - {name: Shanghai, location_context: China, kind: forecast, forecast_days: '3'}
+    - {name: Shanghai, location_context: China, kind: forecast, forecast_days: '3'}
     result_from: [bind-location, forecast, air_quality]
     steps:
     - id: locate
       operation: open-meteo/geocode.search
-      input: {name: $input.name}
+      inputs: {name: $input.name}
     - id: select-location
-      agent: {role: researcher, task: open-meteo-select-location}
+      agent: open-meteo-select-location
       inputs:
         name: $input.name
         location_context: $input.location_context
@@ -97,48 +79,38 @@ runners:
       outputs:
         selection:
           type: object
-          schema:
-            additionalProperties: false
-            required: [decision, selected_id, reason]
-            properties:
-              decision: {enum: [selected, needs_input]}
-              selected_id: {type: [integer, 'null']}
-              reason: {type: string, minLength: 1, maxLength: 2000}
+          additionalProperties: false
+          required: [decision, selected_id, reason]
+          properties:
+            decision: {enum: [selected, needs_input]}
+            selected_id: {type: [integer, 'null']}
+            reason: {type: string, minLength: 1, maxLength: 2000}
     - id: bind-location
       tool: {module: location.mjs, export: bindLocation}
       inputs: {geocoding: $steps.locate.provider_operation, selection: $steps.select-location.selection, kind: $input.kind}
       outputs:
         location:
           type: object
-          schema:
-            additionalProperties: false
-            required: [decision, candidates, selected, reason, readback_uri, result_digest, requested_operation, request_coordinates]
-            properties:
-              decision: {enum: [selected, needs_input, not_found]}
-              candidates: {type: array, items: {type: object, additionalProperties: true}, description: Original provider candidate records.}
-              selected: {type: [object, 'null'], additionalProperties: true, description: Exact selected provider record or null; no invented coordinates.}
-              reason: {type: string}
-              readback_uri: {type: string}
-              result_digest: {type: string}
-              requested_operation: {enum: [forecast.read, air_quality.read, null]}
-              request_coordinates:
-                type: [object, 'null']
-                additionalProperties: false
-                required: [latitude, longitude]
-                properties: {latitude: {type: string}, longitude: {type: string}}
-      artifacts:
-        named_emits: {location: location}
+          additionalProperties: false
+          required: [decision, candidates, selected, reason, readback_uri, result_digest, requested_operation, request_coordinates]
+          properties:
+            decision: {enum: [selected, needs_input, not_found]}
+            candidates: {type: array, items: {type: object, additionalProperties: true}, description: Original provider candidate records.}
+            selected: {type: [object, 'null'], additionalProperties: true, description: Exact selected provider record or null; no invented coordinates.}
+            reason: {type: string}
+            readback_uri: {type: string}
+            result_digest: {type: string}
+            requested_operation: {enum: [forecast.read, air_quality.read, null]}
+            request_coordinates:
+              type: [object, 'null']
+              additionalProperties: false
+              required: [latitude, longitude]
+              properties: {latitude: {type: string}, longitude: {type: string}}
     - id: forecast
       when: {value: $steps.bind-location.location.requested_operation, equals: forecast.read}
       operation: open-meteo/forecast.read
-      input: {latitude: $steps.bind-location.location.request_coordinates.latitude, longitude: $steps.bind-location.location.request_coordinates.longitude, forecast_days: $input.forecast_days}
+      inputs: {latitude: $steps.bind-location.location.request_coordinates.latitude, longitude: $steps.bind-location.location.request_coordinates.longitude, forecast_days: $input.forecast_days}
     - id: air_quality
       when: {value: $steps.bind-location.location.requested_operation, equals: air_quality.read}
       operation: open-meteo/air_quality.read
-      input: {latitude: $steps.bind-location.location.request_coordinates.latitude, longitude: $steps.bind-location.location.request_coordinates.longitude}
-
-
-harness:
-  files:
-  - fixtures/support/composed.graph
-  cases: []
+      inputs: {latitude: $steps.bind-location.location.request_coordinates.latitude, longitude: $steps.bind-location.location.request_coordinates.longitude}

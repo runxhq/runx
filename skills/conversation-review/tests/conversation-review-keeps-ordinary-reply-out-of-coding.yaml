@@ -1,0 +1,35 @@
+name: conversation-review-keeps-ordinary-reply-out-of-coding
+inputs:
+  source_locator: nitrosend://example/1/2
+  source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  thread_locator: nitrosend://example/1
+  title: A quick call
+  body: Could we find time to talk next week?
+  thread:
+    source_locator: nitrosend://example/1/2
+    source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    thread_locator: nitrosend://example/1
+    coverage_incomplete: false
+    messages: [{text: "Could we find time to talk next week?"}]
+  source_complete: true
+host:
+  answers:
+    judge:
+      draft:
+        kind: reply
+        summary: A call was requested.
+        reason: The sender asked for a scheduling response.
+        draft_message: Happy to talk. I will check my availability and get back to you with times.
+        request_quote: ""
+expect:
+  status: sealed
+  steps: [judge, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        conversation_packet:
+          data:
+            status: reply
+            delivery_status: not_sent
+            validation: {status: pass, findings: []}
+  receipt: {schema: runx.receipt.v1}

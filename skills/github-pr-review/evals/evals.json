@@ -1,0 +1,11 @@
+{
+  "skill_name": "github-pr-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review this selected PR for concrete code defects without requiring a user-known head SHA.",
+      "expected_output": "Produce a bounded review draft without publishing, modifying code or claiming tests ran.",
+      "files": []
+    }
+  ]
+}

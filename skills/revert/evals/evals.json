@@ -1,0 +1,11 @@
+{
+  "skill_name": "revert",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Undo a call the run never made.",
+      "expected_output": "Refuse with the call id the run has no record of, and change nothing.",
+      "files": []
+    }
+  ]
+}

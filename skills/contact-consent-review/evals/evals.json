@@ -1,0 +1,11 @@
+{
+  "skill_name": "contact-consent-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Decide whether this contact needs re-permission or suppression before a campaign.",
+      "expected_output": "Record only a justified consent-ledger transition, verify the exact event, and leave delivery unattempted.",
+      "files": []
+    }
+  ]
+}

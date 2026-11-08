@@ -1,0 +1,33 @@
+name: does-not-invent-issue-identity
+inputs:
+  request: The README install example is stale. It needs to match the current CLI help.
+  project_context: Runx OSS documentation
+host:
+  answers:
+    intake:
+      intake_draft:
+        category: docs
+        severity: low
+        summary: Correct the README example to use the current documented install command.
+        suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example locally.
+        recommended_lane: github-issue-to-pr
+        rationale: A bounded documentation correction can be handled by the existing host without a separate governed implementation lane.
+        target_surfaces:
+          - surface: oss-docs
+            kind: docs
+            mutating: true
+            rationale: Only the README example changes.
+        shared_invariants:
+          - Use the current CLI help as the command source.
+        success_criteria:
+          - The README install example agrees with current CLI help.
+        operator_notes: []
+        open_questions: []
+expect:
+  status: sealed
+  steps:
+    - digest
+    - intake
+    - finalize
+  receipt:
+    schema: runx.receipt.v1

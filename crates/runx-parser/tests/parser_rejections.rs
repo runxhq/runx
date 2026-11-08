@@ -1,12 +1,12 @@
 use runx_parser::{
-    ParseError, ValidationError, parse_graph_yaml, parse_runner_manifest_yaml,
-    parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml, validate_graph,
-    validate_skill, validate_tool_manifest,
+    ParseError, ValidationError, parse_method_manifest_yaml, parse_skill_markdown,
+    parse_tool_manifest_json, parse_tool_manifest_yaml, parse_workflow_yaml, validate_skill,
+    validate_tool_manifest, validate_workflow,
 };
 
 #[test]
 fn parse_rejections_cover_every_error_kind() -> Result<(), String> {
-    let invalid_yaml = parse_rejection(parse_graph_yaml("name: [unterminated\n"))?;
+    let invalid_yaml = parse_rejection(parse_workflow_yaml("name: [unterminated\n"))?;
     assert!(
         matches!(invalid_yaml, ParseError::InvalidYaml { .. }),
         "{invalid_yaml:?}"
@@ -118,7 +118,7 @@ fn tool_manifests_require_the_canonical_schema_marker() -> Result<(), String> {
 
 #[test]
 fn validation_rejections_cover_every_error_kind() -> Result<(), String> {
-    let missing_step_id = parse_graph_yaml(
+    let missing_step_id = parse_workflow_yaml(
         r#"
 name: bad
 steps:
@@ -126,13 +126,13 @@ steps:
 "#,
     )
     .map_err(|error| error.to_string())?;
-    let missing_field = validation_rejection(validate_graph(missing_step_id))?;
+    let missing_field = validation_rejection(validate_workflow(missing_step_id))?;
     assert!(
         matches!(missing_field, ValidationError::MissingField { .. }),
         "{missing_field:?}"
     );
 
-    let unknown_field = parse_graph_yaml(
+    let unknown_field = parse_workflow_yaml(
         r#"
 name: bad
 schedule: daily
@@ -142,7 +142,7 @@ steps:
 "#,
     )
     .map_err(|error| error.to_string())?;
-    let invalid_field = validation_rejection(validate_graph(unknown_field))?;
+    let invalid_field = validation_rejection(validate_workflow(unknown_field))?;
     assert!(
         matches!(invalid_field, ValidationError::InvalidField { .. }),
         "{invalid_field:?}"
@@ -151,9 +151,9 @@ steps:
 }
 
 #[test]
-fn graph_agent_task_accepts_context_skills() -> Result<(), String> {
-    let graph = validate_graph(
-        parse_graph_yaml(
+fn workflow_agent_task_accepts_context_skills() -> Result<(), String> {
+    let graph = validate_workflow(
+        parse_workflow_yaml(
             r#"
 name: context-skills
 steps:
@@ -175,8 +175,8 @@ steps:
 }
 
 #[test]
-fn runner_inputs_expand_one_exact_definition_and_validate_nested_examples() -> Result<(), String> {
-    let raw = parse_runner_manifest_yaml(
+fn method_inputs_expand_one_exact_definition_and_validate_nested_examples() -> Result<(), String> {
+    let raw = parse_method_manifest_yaml(
         r#"
 skill: typed-inputs
 input_definitions:
@@ -210,7 +210,7 @@ runners:
 "#,
     )
     .map_err(|error| error.to_string())?;
-    let manifest = runx_parser::validate_runner_manifest(raw).map_err(|error| error.to_string())?;
+    let manifest = runx_parser::validate_method_manifest(raw).map_err(|error| error.to_string())?;
     let runner = manifest
         .runners
         .get("inspect")
@@ -225,7 +225,7 @@ runners:
 }
 
 #[test]
-fn runner_inputs_reject_definition_overrides_and_invalid_nested_examples() -> Result<(), String> {
+fn method_inputs_reject_definition_overrides_and_invalid_nested_examples() -> Result<(), String> {
     for (declaration, expected) in [
         (
             "{ definition: selector, required: false }",
@@ -241,7 +241,7 @@ fn runner_inputs_reject_definition_overrides_and_invalid_nested_examples() -> Re
         } else {
             26
         };
-        let raw = parse_runner_manifest_yaml(&format!(
+        let raw = parse_method_manifest_yaml(&format!(
             r#"
 skill: typed-inputs
 input_definitions:
@@ -270,7 +270,7 @@ runners:
 "#
         ))
         .map_err(|error| error.to_string())?;
-        let error = runx_parser::validate_runner_manifest(raw)
+        let error = runx_parser::validate_method_manifest(raw)
             .err()
             .ok_or_else(|| {
                 "invalid reusable input declaration unexpectedly validated".to_owned()
@@ -281,8 +281,8 @@ runners:
 }
 
 #[test]
-fn graph_step_rejects_malformed_artifact_contract() -> Result<(), String> {
-    let raw = parse_graph_yaml(
+fn workflow_step_rejects_malformed_artifact_contract() -> Result<(), String> {
+    let raw = parse_workflow_yaml(
         r#"
 name: malformed-step-artifacts
 steps:
@@ -294,9 +294,9 @@ steps:
 "#,
     )
     .map_err(|error| error.to_string())?;
-    let error = validate_graph(raw)
+    let error = validate_workflow(raw)
         .err()
-        .ok_or_else(|| "expected malformed graph-step artifacts to be rejected".to_owned())?;
+        .ok_or_else(|| "expected malformed workflow-step artifacts to be rejected".to_owned())?;
 
     assert!(
         error
@@ -308,9 +308,9 @@ steps:
 }
 
 #[test]
-fn graph_rejects_context_skills_on_non_agent_run_steps() -> Result<(), String> {
-    let error = validate_graph(
-        parse_graph_yaml(
+fn workflow_rejects_context_skills_on_non_agent_run_steps() -> Result<(), String> {
+    let error = validate_workflow(
+        parse_workflow_yaml(
             r#"
 name: bad-context-skills
 steps:
@@ -361,7 +361,7 @@ Body
 
 #[test]
 fn yaml_parity_rejects_embedded_colon_mapping_key() -> Result<(), String> {
-    let error = parse_runner_manifest_yaml(
+    let error = parse_method_manifest_yaml(
         r#"
 skill: bad
 email:send:

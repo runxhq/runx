@@ -1,0 +1,5 @@
+name: slack-default-requires-provider-binding
+inputs:
+  query: {keywords: release readiness, channel_types: [public_channel, private_channel], limit: 20}
+expect:
+  status: policy_denied

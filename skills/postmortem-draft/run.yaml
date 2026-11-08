@@ -1,303 +1,45 @@
-skill: postmortem-draft
 version: "0.1.12"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
   category: ops
-  role: canonical
-  execution: plan
-  completion: runtime_receipt
-  approval: none
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases:
-    - name: postmortem-draft-publishable-seals
-      operator_journeys:
-        - mode: standalone
-          confusors:
-            - operations-review
-            - release
-          request: Produce the postmortem for this resolved incident from the collected fragments.
-          expected_outcome: Return a readable source-cited document, a complete known-cause draft and an
-            unexecuted publish proposal; quote checks do not independently prove causality.
-        - mode: composed
-          request: Draft from the incident evidence already captured upstream.
-          expected_outcome: Reuse the exact collected incident fragments without another source scan or any
-            message delivery.
-          prior_evidence:
-            - The exact source-labelled incident fragments already captured by the upstream incident
-              operator.
-          must_not_repeat:
-            - Do not fetch logs or incident messages again.
-            - Do not publish or deliver the report.
-      inputs:
-        incident_id: inc-checkout-2026-08-09
-        incident_fragments:
-          - id: frag-1
-            source: pagerduty
-            text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
-          - id: frag-2
-            source: deploy-log
-            text: 03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api.
-          - id: frag-3
-            source: slack-incident
-            text: 03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline.
-          - id: frag-4
-            source: incident-investigation
-            text: 04:20 UTC investigation confirmed the pool maximum was reduced to one connection while 100
-              workers were active; saturation caused checkout timeouts. platform-oncall owns pool
-              saturation alerting.
-      caller:
-        answers:
-          draft:
-            postmortem_draft:
-              summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
-              impact:
-                status: known
-                statement: Checkout requests failed above the alert threshold until rollback.
-                scope: checkout-api
-                fragment_id: frag-1
-                quote: checkout 5xx rate crossed 8 percent
-              timeline:
-                - entry: Deploy 2026.08.09.3 shipped a connection pool change.
-                  fragment_id: frag-2
-                  quote: deploy 2026.08.09.3 rolled out a connection pool change
-                - entry: Checkout 5xx rate crossed the alert threshold.
-                  fragment_id: frag-1
-                  quote: checkout 5xx rate crossed 8 percent
-                - entry: Rollback restored baseline.
-                  fragment_id: frag-3
-                  quote: rollback of 2026.08.09.3 completed and 5xx rate returned to baseline
-              root_cause:
-                status: known
-                statement: Reducing the pool maximum to one connection with 100 active workers caused checkout
-                  timeouts.
-                fragment_id: frag-4
-                quote: the pool maximum was reduced to one connection while 100 workers were active; saturation
-                  caused checkout timeouts
-              unknowns: []
-              action_items:
-                - action: Add pool saturation alerting before the next pool change ships.
-                  owner: platform-oncall
-      expect:
-        status: sealed
-        steps:
-          - digest-fragments
-          - draft
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              postmortem:
-                data:
-                  schema: runx/postmortem-draft.postmortem.v1
-                  decision: publishable
-                  publish_proposal:
-                    gate: human-approver
-                    delivery_skill: message-send
-                    sent: false
-                  publish_performed: false
-                  validation:
-                    status: pass
-                    findings: []
-        receipt:
-          schema: runx.receipt.v1
-    - name: postmortem-draft-unknowns-block-publish
-      inputs:
-        incident_id: inc-batch-2026-08-10
-        incident_fragments:
-          - id: frag-1
-            source: cron-log
-            text: Nightly batch failed at step export with exit 1.
-      caller:
-        answers:
-          draft:
-            postmortem_draft:
-              summary: The nightly batch failed at the export step; cause not yet established.
-              impact:
-                status: known
-                statement: The nightly export did not complete.
-                scope: batch-pipeline
-                fragment_id: frag-1
-                quote: Nightly batch failed at step export
-              timeline:
-                - entry: The nightly batch failed at the export step.
-                  fragment_id: frag-1
-                  quote: Nightly batch failed at step export
-              root_cause:
-                status: unknown
-              unknowns:
-                - Which upstream input changed before the export step failed.
-              action_items:
-                - action: Capture export step inputs on failure.
-                  owner: data-oncall
-      expect:
-        status: sealed
-        steps:
-          - digest-fragments
-          - draft
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              postmortem:
-                data:
-                  decision: needs_more_evidence
-                  publish_proposal: null
-                  publish_performed: false
-                  validation:
-                    status: pass
-                    findings: []
-        receipt:
-          schema: runx.receipt.v1
-    - name: postmortem-draft-invented-citation-refuses
-      inputs:
-        incident_id: inc-x
-        incident_fragments:
-          - id: frag-1
-            source: log
-            text: Service restarted at 09:00.
-      caller:
-        answers:
-          draft:
-            postmortem_draft:
-              summary: Total outage caused by database corruption.
-              impact:
-                status: unknown
-              timeline:
-                - entry: The database corrupted.
-                  fragment_id: frag-1
-                  quote: database corruption detected
-              root_cause:
-                status: known
-                statement: Database corruption.
-                fragment_id: frag-1
-                quote: database corruption detected
-              unknowns: []
-              action_items: []
-      expect:
-        status: sealed
-        steps:
-          - digest-fragments
-          - draft
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              postmortem:
-                data:
-                  decision: refused
-                  timeline: []
-                  publish_proposal: null
-                  validation:
-                    status: fail
-        receipt:
-          schema: runx.receipt.v1
-    - name: postmortem-draft-needs-fragments
-      inputs:
-        incident_id: inc-y
-      expect:
-        status: failure
-    - name: suspected-cause-never-publishes-with-an-empty-unknown-list
-      inputs:
-        incident_id: inc-checkout-2026-08-09
-        incident_fragments:
-          - id: frag-1
-            source: pagerduty
-            text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
-          - id: frag-2
-            source: deploy-log
-            text: 03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api.
-          - id: frag-3
-            source: slack-incident
-            text: 03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline.
-      caller:
-        answers:
-          draft:
-            postmortem_draft:
-              summary: Checkout errors rose after a connection-pool change and returned to baseline after
-                rollback; the exact mechanism is not established.
-              impact:
-                status: known
-                statement: Checkout requests failed above the alert threshold until rollback.
-                scope: checkout-api
-                fragment_id: frag-1
-                quote: checkout 5xx rate crossed 8 percent
-              timeline:
-                - entry: Deploy 2026.08.09.3 shipped a connection pool change.
-                  fragment_id: frag-2
-                  quote: deploy 2026.08.09.3 rolled out a connection pool change
-                - entry: Checkout 5xx rate crossed the alert threshold.
-                  fragment_id: frag-1
-                  quote: checkout 5xx rate crossed 8 percent
-                - entry: Rollback restored baseline.
-                  fragment_id: frag-3
-                  quote: rollback of 2026.08.09.3 completed and 5xx rate returned to baseline
-              root_cause:
-                status: suspected
-                statement: The connection-pool change is associated with the failure; the supplied records do not
-                  establish the mechanism.
-                fragment_id: frag-2
-                quote: connection pool change to checkout-api
-              unknowns: []
-              action_items:
-                - action: Add pool saturation alerting before the next pool change ships.
-                  owner: platform-oncall
-      expect:
-        status: sealed
-        step_outputs:
-          finalize:
-            subset:
-              postmortem:
-                data:
-                  decision: needs_more_evidence
-                  publish_proposal: null
-                  publish_performed: false
-runners:
+methods:
   make:
-    default: true
     inputs:
       incident_id:
         type: string
-        required: true
         description: Identifier of the resolved incident this postmortem covers.
-        schema:
-          minLength: 1
-          maxLength: 256
-          pattern: \S
+        minLength: 1
+        maxLength: 256
+        pattern: \S
       incident_fragments:
         type: array
-        required: true
-        description: Already collected incident fragments; preserve their stable id, source and complete
-          text. This runner does not acquire live evidence.
-        schema:
-          minItems: 1
-          maxItems: 500
-          items:
-            type: object
-            required:
-              - id
-              - source
-              - text
-            additionalProperties: false
-            properties:
-              id:
-                type: string
-                minLength: 1
-                maxLength: 200
-                pattern: \S
-              source:
-                type: string
-                minLength: 1
-                maxLength: 2000
-                pattern: \S
-              text:
-                type: string
-                minLength: 1
-                maxLength: 1000000
-                pattern: \S
+        description: Already collected incident fragments; preserve their stable id, source and complete text. This runner does not acquire live evidence.
+        minItems: 1
+        maxItems: 500
+        items:
+          type: object
+          required:
+            - id
+            - source
+            - text
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              minLength: 1
+              maxLength: 200
+              pattern: \S
+            source:
+              type: string
+              minLength: 1
+              maxLength: 2000
+              pattern: \S
+            text:
+              type: string
+              minLength: 1
+              maxLength: 1000000
+              pattern: \S
     examples:
       - incident_id: inc-checkout-2026-08-09
         incident_fragments:
@@ -312,164 +54,155 @@ runners:
         inputs:
           value: $input.incident_fragments
       - id: draft
-        label: separate facts from hypotheses across the fragments
-        agent:
-          role: reviewer
-          task: postmortem-draft-draft
+        agent: postmortem-draft-draft
         outputs:
           postmortem_draft:
             type: object
-            schema:
-              type: object
-              required:
-                - summary
-                - impact
-                - timeline
-                - root_cause
-                - unknowns
-                - action_items
-              additionalProperties: false
-              properties:
-                summary:
-                  type: string
-                  minLength: 1
-                  maxLength: 8000
-                  pattern: \S
-                impact:
-                  oneOf:
-                    - type: object
-                      required:
-                        - status
-                      additionalProperties: false
-                      properties:
-                        status:
-                          const: unknown
-                    - type: object
-                      required:
-                        - status
-                        - statement
-                        - scope
-                        - fragment_id
-                        - quote
-                      additionalProperties: false
-                      properties:
-                        status:
-                          const: known
-                        statement:
-                          type: string
-                          minLength: 1
-                          maxLength: 4000
-                          pattern: \S
-                        scope:
-                          type: string
-                          minLength: 1
-                          maxLength: 500
-                          pattern: \S
-                        fragment_id:
-                          type: string
-                          minLength: 1
-                          maxLength: 200
-                          pattern: \S
-                        quote:
-                          type: string
-                          minLength: 1
-                          maxLength: 4000
-                          pattern: \S
-                timeline:
-                  type: array
-                  maxItems: 500
-                  items:
-                    type: object
+            required:
+              - summary
+              - impact
+              - timeline
+              - root_cause
+              - unknowns
+              - action_items
+            additionalProperties: false
+            properties:
+              summary:
+                type: string
+                minLength: 1
+                maxLength: 8000
+                pattern: \S
+              impact:
+                oneOf:
+                  - type: object
                     required:
-                      - entry
+                      - status
+                    additionalProperties: false
+                    properties:
+                      status:
+                        const: unknown
+                  - type: object
+                    required:
+                      - status
+                      - statement
+                      - scope
                       - fragment_id
                       - quote
                     additionalProperties: false
                     properties:
-                      entry:
+                      status:
+                        const: known
+                      statement:
                         type: string
                         minLength: 1
                         maxLength: 4000
+                        pattern: \S
+                      scope:
+                        type: string
+                        minLength: 1
+                        maxLength: 500
+                        pattern: \S
                       fragment_id:
                         type: string
                         minLength: 1
                         maxLength: 200
+                        pattern: \S
                       quote:
                         type: string
                         minLength: 1
                         maxLength: 4000
-                  minItems: 1
-                root_cause:
-                  oneOf:
-                    - type: object
-                      required:
-                        - status
-                      additionalProperties: false
-                      properties:
-                        status:
-                          const: unknown
-                    - type: object
-                      required:
-                        - status
-                        - statement
-                        - fragment_id
-                        - quote
-                      additionalProperties: false
-                      properties:
-                        status:
-                          type: string
-                          enum:
-                            - known
-                            - suspected
-                        statement:
-                          type: string
-                          minLength: 1
-                          maxLength: 4000
-                          pattern: \S
-                        fragment_id:
-                          type: string
-                          minLength: 1
-                          maxLength: 200
-                          pattern: \S
-                        quote:
-                          type: string
-                          minLength: 1
-                          maxLength: 4000
-                          pattern: \S
-                unknowns:
-                  type: array
-                  maxItems: 100
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 2000
-                  uniqueItems: true
-                action_items:
-                  type: array
-                  maxItems: 100
-                  items:
-                    type: object
+                        pattern: \S
+              timeline:
+                type: array
+                maxItems: 500
+                items:
+                  type: object
+                  required:
+                    - entry
+                    - fragment_id
+                    - quote
+                  additionalProperties: false
+                  properties:
+                    entry:
+                      type: string
+                      minLength: 1
+                      maxLength: 4000
+                    fragment_id:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    quote:
+                      type: string
+                      minLength: 1
+                      maxLength: 4000
+                minItems: 1
+              root_cause:
+                oneOf:
+                  - type: object
                     required:
-                      - action
-                      - owner
+                      - status
                     additionalProperties: false
                     properties:
-                      action:
+                      status:
+                        const: unknown
+                  - type: object
+                    required:
+                      - status
+                      - statement
+                      - fragment_id
+                      - quote
+                    additionalProperties: false
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                          - known
+                          - suspected
+                      statement:
                         type: string
                         minLength: 1
-                        maxLength: 2000
-                      owner:
+                        maxLength: 4000
+                        pattern: \S
+                      fragment_id:
                         type: string
                         minLength: 1
-                        maxLength: 500
+                        maxLength: 200
+                        pattern: \S
+                      quote:
+                        type: string
+                        minLength: 1
+                        maxLength: 4000
+                        pattern: \S
+              unknowns:
+                type: array
+                maxItems: 100
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                uniqueItems: true
+              action_items:
+                type: array
+                maxItems: 100
+                items:
+                  type: object
+                  required:
+                    - action
+                    - owner
+                  additionalProperties: false
+                  properties:
+                    action:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    owner:
+                      type: string
+                      minLength: 1
+                      maxLength: 500
         inputs:
           incident_id: $input.incident_id
           incident_fragments: $input.incident_fragments
-        artifacts:
-          named_emits:
-            postmortem_draft: postmortem_draft
       - id: finalize
-        label: enforce fragment citations deterministically
         inputs:
           incident_fragments: $input.incident_fragments
           postmortem_draft: $steps.draft.postmortem_draft
@@ -481,13 +214,7 @@ runners:
         outputs:
           postmortem:
             type: object
+            packet: runx/postmortem-draft.postmortem.v1
           document:
             type: string
-        artifacts:
-          named_emits:
-            postmortem: postmortem
-            document: document
-          packets:
-            postmortem: runx/postmortem-draft.postmortem.v1
-    description: Draft a readable source-cited incident report, keep hypotheses explicit, and propose
-      publication only for a complete known-cause draft; no publication performed.
+    description: Draft a readable source-cited incident report, keep hypotheses explicit, and propose publication only for a complete known-cause draft; no publication performed.

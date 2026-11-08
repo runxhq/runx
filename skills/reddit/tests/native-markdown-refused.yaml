@@ -1,0 +1,10 @@
+name: reddit-markdown-refused
+package: fixtures/admission
+inputs: {}
+expect:
+  status: sealed
+  step_outputs:
+    publish:
+      subset:
+        result:
+          status: refused

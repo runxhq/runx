@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 import {
   listToolPacketDeclarations,
   resolveNativeRunxBinary,
-  validateRunnerManifestYamlBatch,
+  validateMethodManifestYamlBatch,
 } from "./lib/native-parser.mjs";
 import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
@@ -48,13 +48,13 @@ interface StepDeclaration {
   };
 }
 
-interface RunnerDeclaration {
+interface MethodDeclaration {
   readonly inputs?: Readonly<Record<string, { readonly packet?: string }>>;
   readonly graph: { readonly steps: readonly StepDeclaration[] };
 }
 
-interface RunnerManifest {
-  readonly runners: Readonly<Record<string, RunnerDeclaration>>;
+interface MethodManifest {
+  readonly runners: Readonly<Record<string, MethodDeclaration>>;
 }
 
 interface LockEntry {
@@ -187,9 +187,9 @@ async function readDeclarations(): Promise<
     ? [...selectedSkills].map((name) => path.join(skillsRoot, name))
     : [skillsRoot];
   const profilePaths = (await Promise.all(profileRoots.map(findProfiles))).flat().sort();
-  const manifests = validateRunnerManifestYamlBatch(
+  const manifests = validateMethodManifestYamlBatch(
     await Promise.all(profilePaths.map((profilePath) => readFile(profilePath, "utf8"))),
-  ) as RunnerManifest[];
+  ) as MethodManifest[];
   const declarations = new Map<
     string,
     { ids: Set<string>; wrapped: { packet: string; outputs: string[]; at: string }[] }
@@ -199,7 +199,7 @@ async function readDeclarations(): Promise<
     const packageName = relative.split(path.sep)[1]!;
     const declared = declarations.get(packageName) ?? { ids: new Set<string>(), wrapped: [] };
     declarations.set(packageName, declared);
-    for (const [runnerName, runner] of Object.entries(manifests[index]!.runners)) {
+    for (const [methodName, runner] of Object.entries(manifests[index]!.runners)) {
       for (const input of Object.values(runner.inputs ?? {})) {
         if (input.packet) declared.ids.add(input.packet);
       }
@@ -212,7 +212,7 @@ async function readDeclarations(): Promise<
           declared.wrapped.push({
             packet: artifacts.packet,
             outputs: Object.keys(step.outputs ?? {}),
-            at: `${relative}#${runnerName}.${step.id}`,
+            at: `${relative}#${methodName}.${step.id}`,
           });
         }
       }

@@ -224,8 +224,8 @@ fn discover_skill_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runt
                 continue;
             }
         };
-        let fixture_count = loaded.package.harness_fixtures.len() as u64;
-        let harness_case_count = loaded
+        let fixture_count = loaded.package.test_fixtures.len() as u64;
+        let test_case_count = loaded
             .package
             .profiles
             .values()
@@ -238,7 +238,7 @@ fn discover_skill_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runt
             .sum::<u64>();
         for (profile_relative, manifest) in &loaded.package.profiles {
             let profile_path = loaded.package_root.join(profile_relative);
-            if fixture_count == 0 && harness_case_count == 0 {
+            if fixture_count == 0 && test_case_count == 0 {
                 let covered_by_parent = manifest.catalog.as_ref().is_some_and(|catalog| {
                     catalog.visibility == runx_parser::CatalogVisibility::Internal
                         && !catalog.part_of.is_empty()
@@ -251,7 +251,7 @@ fn discover_skill_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runt
                     &profile_path,
                     &skill_name,
                     fixture_count,
-                    harness_case_count,
+                    test_case_count,
                 )?);
             }
         }
@@ -397,7 +397,7 @@ fn skill_fixture_missing_diagnostic(
     profile_path: &Path,
     skill_name: &str,
     fixture_count: u64,
-    harness_case_count: u64,
+    test_case_count: u64,
 ) -> Result<DoctorDiagnostic, RuntimeError> {
     let location_path = project_path(root, profile_path);
     let target = object([
@@ -410,7 +410,7 @@ fn skill_fixture_missing_diagnostic(
     };
     let evidence = object([
         ("fixture_count", number_value(fixture_count)),
-        ("harness_case_count", number_value(harness_case_count)),
+        ("test_case_count", number_value(test_case_count)),
     ]);
     create_diagnostic(DiagnosticParts {
         id: "runx.skill.fixture.missing",
@@ -423,7 +423,7 @@ fn skill_fixture_missing_diagnostic(
         location,
         evidence: Some(evidence),
         repairs: vec![manual_repair(
-            "add_inline_harness_case",
+            "add_inline_test_case",
             DoctorRepairConfidence::Medium,
             DoctorRepairRisk::Low,
             false,
@@ -703,7 +703,7 @@ harness:
           outcome: completed
 "#;
 
-    const INVALID_HARNESS_STATUS_PROFILE: &str = r#"
+    const INVALID_TEST_STATUS_PROFILE: &str = r#"
 skill: doctor-profile
 runners:
   main:
@@ -743,8 +743,8 @@ harness:
     }
 
     #[test]
-    fn invalid_harness_status_is_rejected() {
-        let result = validate_skill_profile(INVALID_HARNESS_STATUS_PROFILE);
+    fn invalid_test_status_is_rejected() {
+        let result = validate_skill_profile(INVALID_TEST_STATUS_PROFILE);
         assert!(
             result.is_err(),
             "an invalid harness expect.status must be rejected by doctor"

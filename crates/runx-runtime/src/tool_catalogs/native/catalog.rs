@@ -147,7 +147,7 @@ pub(crate) fn inventory(effects: &RuntimeEffectRegistry) -> Vec<SkillCatalogEntr
                     .map(Into::into)
                     .collect(),
                 fixtures: None,
-                harness_cases: None,
+                test_cases: None,
             }
         })
         .collect()
@@ -192,7 +192,7 @@ fn list_item(name: &str, scopes: &[&str], emits: Option<Vec<RunxListEmit>>) -> R
             .then(|| scopes.iter().map(|scope| (*scope).to_owned()).collect()),
         emits,
         fixtures: None,
-        harness_cases: None,
+        test_cases: None,
         steps: None,
     }
 }

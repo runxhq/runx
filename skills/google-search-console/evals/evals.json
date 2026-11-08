@@ -1,0 +1,23 @@
+{
+  "skill_name": "google-search-console",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Show page-level Google Search performance for this verified site and date range.",
+      "expected_output": "Return normalized clicks, impressions, CTR, position, dimensions, and data-state caveats with site identity preserved.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Show page-level Google Search performance without configuring a Search Console account.",
+      "expected_output": "Refuse immediately with one provider-binding message before claiming search evidence.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Show page-level Google Search performance for this verified property and date range.",
+      "expected_output": "Query the configured property once and return normalized Search Console evidence with provider readback.",
+      "files": []
+    }
+  ]
+}

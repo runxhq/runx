@@ -420,7 +420,7 @@ fn candidate_from_acquired(
         version: Some(acquired.version.clone()),
         signed_manifest: acquired.signed_manifest.clone(),
         profile_digest: acquired.profile_digest.clone(),
-        runner_names: acquired.runner_names.clone(),
+        method_names: acquired.method_names.clone(),
         trust_tier: Some(acquired.trust_tier),
         manifest_source_authority: Some(source_authority),
     }

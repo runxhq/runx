@@ -374,9 +374,7 @@ costs a large multiple of a plain one, so prefer archive exports for bulk
 history, set a spending cap in the developer portal, and let `max_items` and
 the act caps bound each run.
 
-## Agent task contract
-
-### `twitter-plan`
+## Agent task: twitter-plan
 
 Follow the `plan` procedure and act vocabulary above. Return one
 `twitter_plan` containing `decision`, `objective`, `principal`, typed `acts`,

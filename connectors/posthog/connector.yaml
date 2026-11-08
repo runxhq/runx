@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: posthog
-name: PostHog
+name: posthog
+title: PostHog
 description: Read saved product insights from an explicitly selected PostHog Cloud project and region.
 category: analytics
-runtime_capability: false
 auth:
   credentials:
     personal_key:
@@ -45,7 +44,7 @@ operations:
         allowed_hosts: [us.posthog.com, eu.posthog.com]
         auth: {personal_key: {type: bearer, field: personal_key}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: [{$parameter: /api_origin}, '/api/projects/', {$parameter: /project_id}, '/insights/']}
             query:
               limit: {$argument: /limit}
@@ -78,7 +77,7 @@ operations:
         allowed_hosts: [us.posthog.com, eu.posthog.com]
         auth: {personal_key: {type: bearer, field: personal_key}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: [{$parameter: /api_origin}, '/api/projects/', {$parameter: /project_id}, '/insights/', {$argument: /insight_id}, '/']}
             query: {refresh: force_cache}
             headers: {accept: application/json}

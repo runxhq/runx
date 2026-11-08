@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    SkillRunnerManifest, ValidatedSkill, parse_runner_manifest_yaml, parse_skill_markdown,
-    validate_runner_manifest, validate_skill,
+    SkillMethodManifest, ValidatedSkill, parse_method_manifest_yaml, parse_skill_markdown,
+    validate_method_manifest, validate_skill,
 };
 
 use super::{SkillPackageError, SkillPackageSource};
@@ -37,7 +37,7 @@ pub(super) fn validate_manual(markdown: &str) -> Result<ValidatedSkill, SkillPac
 
 pub(super) fn validate_profiles(
     source: &SkillPackageSource,
-) -> Result<BTreeMap<String, SkillRunnerManifest>, SkillPackageError> {
+) -> Result<BTreeMap<String, SkillMethodManifest>, SkillPackageError> {
     owned_profile_paths(source)
         .into_iter()
         .map(|path| {
@@ -78,14 +78,14 @@ pub(super) fn has_nested_manual_boundary(path: &str, source: &SkillPackageSource
     false
 }
 
-fn validate_manifest(path: &str, contents: &str) -> Result<SkillRunnerManifest, SkillPackageError> {
+fn validate_manifest(path: &str, contents: &str) -> Result<SkillMethodManifest, SkillPackageError> {
     let parsed =
-        parse_runner_manifest_yaml(contents).map_err(|source| SkillPackageError::Parse {
+        parse_method_manifest_yaml(contents).map_err(|source| SkillPackageError::Parse {
             path: path.to_owned(),
             source,
         })?;
     let manifest =
-        validate_runner_manifest(parsed).map_err(|source| SkillPackageError::Validation {
+        validate_method_manifest(parsed).map_err(|source| SkillPackageError::Validation {
             path: path.to_owned(),
             source,
         })?;
@@ -105,7 +105,7 @@ fn validate_manifest(path: &str, contents: &str) -> Result<SkillRunnerManifest, 
 
 pub(super) fn validate_package_identity(
     skill: &ValidatedSkill,
-    manifest: Option<&SkillRunnerManifest>,
+    manifest: Option<&SkillMethodManifest>,
 ) -> Result<(), SkillPackageError> {
     let Some(manifest_name) = manifest.map(|manifest| manifest.skill.as_str()) else {
         return Ok(());

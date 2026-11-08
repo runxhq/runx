@@ -1,0 +1,11 @@
+{
+  "skill_name": "web-search",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Find a bounded set of source candidates without fetching pages or claiming completed research.",
+      "expected_output": "Return the exact bounded domain result and preserve holds without outward effects.",
+      "files": []
+    }
+  ]
+}

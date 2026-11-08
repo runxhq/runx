@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: sentry
-name: Sentry
+name: sentry
+title: Sentry
 description: Read bounded issue and event evidence from a selected Sentry organization.
 category: dev-tools
-runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -44,7 +43,7 @@ operations:
         allowed_hosts: [sentry.io]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://sentry.io/api/0/projects/', {$parameter: /organization}, '/', {$argument: /project}, '/issues/']}
             query:
               limit: {$argument: /limit}
@@ -70,7 +69,7 @@ operations:
         allowed_hosts: [sentry.io]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://sentry.io/api/0/organizations/', {$parameter: /organization}, '/issues/', {$argument: /issue_id}, '/']}
             headers: {accept: application/json}
   event.read:
@@ -93,6 +92,6 @@ operations:
         allowed_hosts: [sentry.io]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://sentry.io/api/0/organizations/', {$parameter: /organization}, '/issues/', {$argument: /issue_id}, '/events/', {$argument: /event_id}, '/']}
             headers: {accept: application/json}

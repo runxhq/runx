@@ -448,10 +448,10 @@ fn a_global_export_needs_a_rooted_home() -> Result<(), Box<dyn std::error::Error
 }
 
 #[test]
-fn exports_default_runner_inputs_when_skill_frontmatter_has_none()
+fn exports_default_method_inputs_when_skill_frontmatter_has_none()
 -> Result<(), Box<dyn std::error::Error>> {
-    let fixture = ExportFixture::new("runx-export-runner-inputs")?;
-    fixture.write_skill_with_runner_inputs("code-plan")?;
+    let fixture = ExportFixture::new("runx-export-method-inputs")?;
+    fixture.write_skill_with_method_inputs("code-plan")?;
 
     run_export_command(
         &ExportPlan {
@@ -483,9 +483,9 @@ fn exports_default_runner_inputs_when_skill_frontmatter_has_none()
 }
 
 #[test]
-fn omits_multi_runner_skill_without_default() -> Result<(), Box<dyn std::error::Error>> {
-    let fixture = ExportFixture::new("runx-export-multi-runner-selection")?;
-    fixture.write_multi_runner_skill_without_default("acme-operator")?;
+fn omits_multi_method_skill_without_default() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = ExportFixture::new("runx-export-multi-method-selection")?;
+    fixture.write_multi_method_skill_without_default("acme-operator")?;
 
     let report = run_export_command(
         &ExportPlan {
@@ -597,7 +597,7 @@ fn flag_value<'a>(contents: &'a str, flag: &str) -> Result<&'a str, Box<dyn std:
 #[test]
 fn a_skill_in_a_skill_root_exports_by_its_name() -> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-skill-root-ref")?;
-    let skill_root = fixture.write_skill_root_skill_with_runner_inputs("code-plan")?;
+    let skill_root = fixture.write_skill_root_skill_with_method_inputs("code-plan")?;
     let mut env = fixture.env.clone();
     env.insert("RUNX_SKILL_ROOTS".to_owned(), path_string(&skill_root)?);
 
@@ -960,7 +960,7 @@ fn exported_contract_drives_typed_inputs_bound_resume_and_verified_receipt()
     use std::process::Stdio;
 
     let fixture = ExportFixture::new("runx-export-cold-journey")?;
-    fixture.write_skill_with_runner_inputs("compose")?;
+    fixture.write_skill_with_method_inputs("compose")?;
     let source = fixture.project.join("skills/compose");
     let profile = source.join("run.yaml");
     let yaml = fs::read_to_string(&profile)?.replace(
@@ -1158,7 +1158,7 @@ impl ExportFixture {
         visibility: Option<&str>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let dir = self.project.join("skills").join(name);
-        let harness = readiness_harness("default", &[input_name]);
+        let harness = readiness_test("default", &[input_name]);
         fs::create_dir_all(&dir)?;
         fs::write(
             dir.join("SKILL.md"),
@@ -1176,12 +1176,12 @@ impl ExportFixture {
         Ok(())
     }
 
-    fn write_skill_with_runner_inputs(&self, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn write_skill_with_method_inputs(&self, name: &str) -> Result<(), Box<dyn std::error::Error>> {
         let dir = self.project.join("skills").join(name);
-        Self::write_runner_input_skill_at(&dir, name)
+        Self::write_method_input_skill_at(&dir, name)
     }
 
-    fn write_multi_runner_skill_without_default(
+    fn write_multi_method_skill_without_default(
         &self,
         name: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -1202,20 +1202,20 @@ impl ExportFixture {
         Ok(())
     }
 
-    fn write_skill_root_skill_with_runner_inputs(
+    fn write_skill_root_skill_with_method_inputs(
         &self,
         name: &str,
     ) -> Result<PathBuf, Box<dyn std::error::Error>> {
         let root = self.root.join("skills");
-        Self::write_runner_input_skill_at(&root.join(name), name)?;
+        Self::write_method_input_skill_at(&root.join(name), name)?;
         Ok(root)
     }
 
-    fn write_runner_input_skill_at(
+    fn write_method_input_skill_at(
         dir: &Path,
         name: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let harness = readiness_harness("plan", &["objective", "principal"]);
+        let harness = readiness_test("plan", &["objective", "principal"]);
         fs::create_dir_all(dir)?;
         fs::write(
             dir.join("SKILL.md"),
@@ -1239,7 +1239,7 @@ impl ExportFixture {
     }
 }
 
-fn readiness_harness(runner: &str, inputs: &[&str]) -> String {
+fn readiness_test(runner: &str, inputs: &[&str]) -> String {
     let inputs = inputs
         .iter()
         .map(|input| format!("        \"{input}\": fixture\n"))

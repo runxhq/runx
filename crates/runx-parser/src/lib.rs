@@ -5,7 +5,6 @@ pub mod data;
 pub mod error;
 pub mod eval;
 pub mod graph;
-pub mod harness_fixture;
 pub mod install;
 mod json_fields;
 pub mod mark;
@@ -14,6 +13,7 @@ pub mod packet;
 mod registry_ref;
 pub mod runner;
 pub mod skill;
+pub mod test_fixture;
 pub mod tool;
 pub mod yaml;
 
@@ -23,14 +23,10 @@ pub use connector::{
 pub use error::{ParseError, ValidationError};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
-    AgentTask, AskGate, Binding, DuplicatePolicy, ExecutionGraph, GraphGuard, GraphPolicy,
-    GraphStep, GraphWhen, LoadStep, LoadTarget, Operand, OperationStepTarget, ProcessTool,
-    RawGraphIr, SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, parse_graph_yaml,
-    validate_graph, validate_graph_document, validate_process_tool,
-};
-pub use harness_fixture::{
-    HarnessProviderAccess, HarnessProviderGrantFixture, HarnessProviderHoldFixture,
-    HarnessProviderOperationFixture, HarnessProviderResponsesFixture,
+    AgentTask, AskGate, Binding, DuplicatePolicy, LoadStep, LoadTarget, Operand,
+    OperationStepTarget, ProcessTool, RawWorkflowIr, SkillTarget, Source, StepAct, StepKind,
+    ToolTarget, WorkerTool, Workflow, WorkflowGuard, WorkflowPolicy, WorkflowStep, WorkflowWhen,
+    parse_workflow_yaml, validate_process_tool, validate_workflow, validate_workflow_document,
 };
 pub use install::{
     SkillInstallError, SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install,
@@ -45,21 +41,25 @@ pub use packet::{
 };
 pub use registry_ref::{REGISTRY_REF_PREFIX, registry_ref};
 pub use runner::{
-    MarketplaceManifest, RawRunnerManifestIr, SkillRunnerManifest, parse_runner_manifest_yaml,
-    validate_runner_manifest,
+    MarketplaceManifest, RawMethodManifestIr, SkillMethodManifest, parse_method_manifest_yaml,
+    validate_method_manifest,
 };
 pub use skill::{
     ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, CatalogApproval, CatalogAudience,
     CatalogCompletion, CatalogExecution, CatalogKind, CatalogMetadata, CatalogOperatorReadiness,
     CatalogRole, CatalogSemanticCode, CatalogSemanticDiagnostic, CatalogSemanticReport,
-    CatalogVisibility, ConnectorRequirement, HarnessCaller, HarnessExpectation,
-    HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture,
-    HarnessMcpCallFixture, HarnessProcessCallFixture, InputMode, OperatorJourneyClaim,
-    OperatorJourneyMode, RawSkillIr, ReceiptExpectation, RunnerHarnessCase, RunnerHarnessManifest,
-    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillRunnerDefinition,
-    ValidateSkillMode, ValidateSkillOptions, ValidatedSkill, analyze_catalog_semantics,
-    analyze_package_catalog_semantics, parse_skill_markdown, validate_input_examples,
-    validate_skill, validate_skill_artifact_contract, validate_skill_with_options,
+    CatalogVisibility, ConnectorRequirement, InputMode, MethodTestCase, MethodTestManifest,
+    OperatorJourneyClaim, OperatorJourneyMode, RawSkillIr, ReceiptExpectation,
+    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillMethodDefinition, TestCaller,
+    TestExpectation, TestHttpExchangeFixture, TestHttpRequestBodyFixture, TestHttpResponseFixture,
+    TestMcpCallFixture, TestProcessCallFixture, ValidateSkillMode, ValidateSkillOptions,
+    ValidatedSkill, analyze_catalog_semantics, analyze_package_catalog_semantics,
+    parse_skill_markdown, validate_input_examples, validate_skill,
+    validate_skill_artifact_contract, validate_skill_with_options,
+};
+pub use test_fixture::{
+    TestProviderAccess, TestProviderGrantFixture, TestProviderLeaseFixture,
+    TestProviderOperationFixture, TestProviderResponsesFixture,
 };
 pub use tool::{
     RawToolManifestIr, ValidatedTool, parse_tool_manifest_json, parse_tool_manifest_yaml,

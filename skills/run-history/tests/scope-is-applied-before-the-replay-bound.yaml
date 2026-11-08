@@ -1,0 +1,28 @@
+name: scope-is-applied-before-the-replay-bound
+inputs:
+  objective: Count the selected skill from the supplied projections.
+  scope: target
+  limit: 1
+  runs:
+    - run_id: other
+      skill: other
+      state: sealed
+      outcome: failed
+    - run_id: target
+      skill: target
+      state: sealed
+      outcome: completed
+  catalog_items: []
+expect:
+  status: sealed
+  step_outputs:
+    finalize-replay:
+      subset:
+        history_report:
+          decision: ready
+          runs:
+            terminal_count: 1
+            outcomes:
+              completed: 1
+  receipt:
+    schema: runx.receipt.v1

@@ -1,0 +1,12 @@
+name: cold-outreach-from-known-facts
+inputs:
+  sender: {name: Example Ops, from_address: ops@example.com, reply_to: ops@example.com}
+  prospect: {email: morgan@example.org, name: Morgan, company: Example SaaS}
+  audience: engineering maintainers
+  purpose: Offer a relevant release-automation review using the supplied fictional fixture facts.
+  offer: A source-bound build notification workflow.
+  required_footer: Example Ops - reply to opt out.
+  contact_policy: {recipient: morgan@example.org, status: eligible, suppressed: false, policy_id: fixture:demo, evidence_ids: [fixture:explicit-demo-consent]}
+  facts: [The fictional prospect is evaluating release automation., The fictional product supports source-bound build notifications.]
+expect:
+  status: needs_agent

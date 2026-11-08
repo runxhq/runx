@@ -1,0 +1,10 @@
+name: hello-world-smoke
+method: default
+inputs:
+  message: hello from docs
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

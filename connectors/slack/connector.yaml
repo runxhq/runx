@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: slack
-name: Slack
+name: slack
+title: Slack
 description: Search, read and post messages in Slack workspaces.
 category: communication
-runtime_capability: false
 auth:
   delegated: {principal: {url: "https://slack.com/api/auth.test", id: user_id, login: user}}
 placements:
@@ -19,8 +18,7 @@ operations:
     target:
       template: "slack://messages"
     result_fields: [provider, external_tenant_ref, connected_subject_ref, messages, next_cursor]
-    hosted:
-      provider_scopes: ["search:read.public", "search:read.private", "search:read.im", "search:read.mpim"]
+    provider_scopes: ["search:read.public", "search:read.private", "search:read.im", "search:read.mpim"]
   thread.read:
     description: Read one page of messages in a thread.
     verb: read
@@ -28,8 +26,7 @@ operations:
     target:
       template: {"$argument": "/thread_locator"}
     result_fields: [provider, external_tenant_ref, connected_subject_ref, thread_locator, messages, next_cursor]
-    hosted:
-      provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
+    provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
   thread.reply:
     description: Reply in a thread.
     verb: write
@@ -37,8 +34,7 @@ operations:
     target:
       template: {"$argument": "/thread_locator"}
     result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, thread_locator, message_locator, occurred_at, content_digest, idempotency_key]
-    hosted:
-      provider_scopes: ["chat:write"]
+    provider_scopes: ["chat:write"]
   thread.reply.read:
     description: Read back one reply in a thread.
     verb: read
@@ -46,8 +42,7 @@ operations:
     target:
       template: {"$argument": "/thread_locator"}
     result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, thread_locator, message_locator, occurred_at, content_digest]
-    hosted:
-      provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
+    provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
   file.read:
     description: Read one image file attached to a message.
     verb: read
@@ -55,8 +50,7 @@ operations:
     target:
       template: {"$argument": "/file_locator"}
     result_fields: [provider, external_tenant_ref, connected_subject_ref, file_locator, name, mimetype, size_bytes, image_width, image_height, content_digest, data_base64]
-    hosted:
-      provider_scopes: ["files:read"]
+    provider_scopes: ["files:read"]
   channel.post:
     description: Post a message to a channel.
     verb: write
@@ -70,8 +64,7 @@ operations:
     effect:
       kind: thread
       locator: {"$result": "/message_locator"}
-    hosted:
-      provider_scopes: ["chat:write"]
+    provider_scopes: ["chat:write"]
   channel.post.read:
     description: Read back one message posted to a channel.
     verb: read
@@ -79,5 +72,4 @@ operations:
     target:
       template: {"$argument": "/conversation_locator"}
     result_fields: [provider, external_tenant_ref, connected_subject_ref, conversation_locator, message_locator, occurred_at, content_digest]
-    hosted:
-      provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]
+    provider_scopes: ["channels:history", "groups:history", "im:history", "mpim:history"]

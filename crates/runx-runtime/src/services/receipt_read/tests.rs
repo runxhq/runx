@@ -10,7 +10,7 @@ use crate::execution::runner::StepRun;
 use crate::kernel::store::{KERNEL_STORE_FILE, KernelStore};
 use crate::paths::{RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RunxPaths};
 use crate::receipts::store::LocalReceiptStore;
-use crate::receipts::{RunScope, RuntimeReceiptSignatureConfig, graph_receipt, step_receipt};
+use crate::receipts::{RunScope, RuntimeReceiptSignatureConfig, step_receipt, workflow_receipt};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
@@ -55,7 +55,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
     let receipt = step_receipt(
         RunScope {
             run_id: "run_claim",
-            graph_name: "fixture",
+            workflow_name: "fixture",
         },
         "read",
         1,
@@ -145,10 +145,10 @@ fn receipt_read_returns_only_the_exact_signed_claim_and_rfc6901_selection() -> T
 fn parent(fixture: &Fixture, run_id: &str, steps: &[StepRun]) -> TestResult<Receipt> {
     let paths = RunxPaths::resolve(&fixture.env, fixture.root.path());
     let signature = RuntimeReceiptSignatureConfig::resolve(&fixture.env, &paths)?;
-    let receipt = graph_receipt(
+    let receipt = workflow_receipt(
         RunScope {
             run_id,
-            graph_name: "parent",
+            workflow_name: "parent",
         },
         steps,
         "2026-11-04T00:00:00Z",
@@ -166,7 +166,7 @@ fn other_retained_step(fixture: &Fixture) -> TestResult<StepRun> {
     let receipt = step_receipt(
         RunScope {
             run_id: "run_other",
-            graph_name: "other",
+            workflow_name: "other",
         },
         "other",
         1,
@@ -230,7 +230,7 @@ fn receipt_read_binds_child_grandchild_and_self_to_the_original_signed_tree() ->
         nested.root_receipt_id.as_ref().map(|id| id.as_str()),
         Some(outer.id.as_str())
     );
-    let graph_self = read_receipt_claim(
+    let workflow_self = read_receipt_claim(
         outer.id.as_str(),
         Some(outer.id.as_str()),
         "",
@@ -238,7 +238,7 @@ fn receipt_read_binds_child_grandchild_and_self_to_the_original_signed_tree() ->
         &fixture.env,
         fixture.root.path(),
     )?;
-    assert_eq!(graph_self.status, ReceiptReadStatus::NotAStep);
+    assert_eq!(workflow_self.status, ReceiptReadStatus::NotAStep);
     let leaf_self = read_receipt_claim(
         fixture.receipt.id.as_str(),
         Some(fixture.receipt.id.as_str()),

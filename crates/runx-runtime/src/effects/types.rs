@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::{JsonObject, Receipt};
-use runx_parser::GraphStep;
+use runx_parser::WorkflowStep;
 
 use crate::CapabilityContract;
 use crate::RuntimeError;
@@ -68,7 +68,7 @@ pub trait RuntimeEffect: Send + Sync {
     /// this exact act also requires approval.
     fn prepare_execution(
         &self,
-        step: &GraphStep,
+        step: &WorkflowStep,
         admission: EffectAdmission,
         host: &mut dyn crate::Host,
     ) -> Result<EffectPreparationOutcome, RuntimeEffectError> {
@@ -140,11 +140,11 @@ pub struct EffectToolRequest<'a> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct EffectStepRequest<'a> {
-    pub step: &'a GraphStep,
+    pub step: &'a WorkflowStep,
     pub target: ResolvedEffectTarget<'a>,
     pub inputs: &'a JsonObject,
     pub env: &'a BTreeMap<String, String>,
-    pub graph_dir: &'a Path,
+    pub workflow_dir: &'a Path,
     /// The run the step belongs to.
     pub run_id: &'a str,
     pub run_authority: Option<&'a crate::RunAuthority>,
@@ -156,15 +156,15 @@ pub struct ResolvedEffectTarget<'a> {
 }
 
 pub struct EffectOutputRequest<'a> {
-    pub step: &'a GraphStep,
+    pub step: &'a WorkflowStep,
     pub admission: &'a EffectAdmission,
     pub claim: &'a JsonObject,
     pub output: &'a mut InvocationOutput,
 }
 
 pub struct EffectReceiptRequest<'a> {
-    pub step: &'a GraphStep,
-    pub graph_dir: &'a Path,
+    pub step: &'a WorkflowStep,
+    pub workflow_dir: &'a Path,
     pub admission: &'a EffectAdmission,
     pub claim: &'a JsonObject,
     pub output: &'a mut InvocationOutput,

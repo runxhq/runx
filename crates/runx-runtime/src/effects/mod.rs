@@ -19,7 +19,7 @@ mod tests {
 
     use runx_contracts::{AuthorityVerb, JsonObject, JsonValue};
     use runx_core::state_machine::AuthorityAdmissionWitness;
-    use runx_parser::{GraphStep, StepKind, ToolTarget};
+    use runx_parser::{StepKind, ToolTarget, WorkflowStep};
     use serde::{Deserialize, Serialize};
 
     use super::*;
@@ -127,7 +127,7 @@ mod tests {
             },
             inputs: &inputs,
             env: &env,
-            graph_dir: Path::new("."),
+            workflow_dir: Path::new("."),
             run_id: "run-1",
             run_authority: None,
         });
@@ -169,7 +169,7 @@ mod tests {
             },
             inputs: &inputs,
             env: &env,
-            graph_dir: Path::new("."),
+            workflow_dir: Path::new("."),
             run_id: "run-1",
             run_authority: None,
         });
@@ -210,7 +210,7 @@ mod tests {
             },
             inputs: &inputs,
             env: &env,
-            graph_dir: Path::new("."),
+            workflow_dir: Path::new("."),
             run_id: "run-1",
             run_authority: None,
         });
@@ -350,8 +350,8 @@ mod tests {
         result.unwrap_or_default()
     }
 
-    fn test_step(tool: &str) -> GraphStep {
-        GraphStep {
+    fn test_step(tool: &str) -> WorkflowStep {
+        WorkflowStep {
             id: "ship".to_owned(),
             label: None,
             kind: StepKind::Tool(ToolTarget::Catalog(tool.to_owned())),

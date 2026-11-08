@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: zapier
-name: Zapier
+name: zapier
+title: Zapier
 description: Deliver a governed handoff to a Zapier Catch Hook.
 category: orchestration
-runtime_capability: false
 auth:
   credentials:
     catch_hook:
@@ -47,7 +46,7 @@ operations:
         auth:
           catch_hook: {type: url, field: url}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://hooks.zapier.com/hooks/catch/
             headers:
               accept: application/json

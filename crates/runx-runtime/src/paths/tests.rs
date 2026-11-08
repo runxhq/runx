@@ -168,7 +168,7 @@ fn an_otherwise_unmarked_plugin_is_its_own_workspace() -> std::io::Result<()> {
 }
 
 #[test]
-fn harness_receipts_follow_the_request_then_the_environment() {
+fn test_receipts_follow_the_request_then_the_environment() {
     let base = env(&[(RUNX_CWD_ENV, "/work/app")]);
     let mut overridden = base.clone();
     overridden.insert(RUNX_RECEIPT_DIR_ENV.to_owned(), "/receipts".to_owned());
@@ -177,12 +177,12 @@ fn harness_receipts_follow_the_request_then_the_environment() {
     let with_env = RunxPaths::resolve(&overridden, Path::new("/work/app"));
 
     assert_eq!(
-        paths.harness_receipts(None),
-        Path::new("/work/app/.runx/harness-receipts")
+        paths.test_receipts(None),
+        Path::new("/work/app/.runx/test-receipts")
     );
-    assert_eq!(with_env.harness_receipts(None), Path::new("/receipts"));
+    assert_eq!(with_env.test_receipts(None), Path::new("/receipts"));
     assert_eq!(
-        with_env.harness_receipts(Some(Path::new("out"))),
+        with_env.test_receipts(Some(Path::new("out"))),
         Path::new("/work/app/out")
     );
 }

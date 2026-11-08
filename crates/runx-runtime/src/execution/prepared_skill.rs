@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::{
     ExecutionBoundaryKind, JsonObject, JsonValue, Reference, ReferenceType, sha256_prefixed,
 };
-use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest, StepKind};
+use runx_parser::{SkillMethodDefinition, SkillMethodManifest, StepKind};
 use serde::{Deserialize, Serialize};
 
 use super::operator_context::{
@@ -23,7 +23,7 @@ use super::operator_context::{
 use super::orchestrator::ManagedAgentPolicy;
 use super::orchestrator::SkillRunRequest;
 use super::skill_front::SkillRunError;
-use super::skill_front::runner_manifest::selected_runner;
+use super::skill_front::method_manifest::selected_method;
 use crate::RuntimeError;
 
 pub const PREPARED_SKILL_REPORT_SCHEMA: &str = "runx.prepared_skill_run.v1";
@@ -173,9 +173,9 @@ pub(crate) struct PreparedArtifactGuard {
 pub struct PreparedSkillRun {
     request: SkillRunRequest,
     package_digest: String,
-    selected_runner: String,
-    manifest: SkillRunnerManifest,
-    runner: SkillRunnerDefinition,
+    selected_method: String,
+    manifest: SkillMethodManifest,
+    runner: SkillMethodDefinition,
     report: PreparedSkillRunReport,
     guards: Vec<PreparedArtifactGuard>,
     context_bound: bool,
@@ -186,7 +186,7 @@ impl std::fmt::Debug for PreparedSkillRun {
         formatter
             .debug_struct("PreparedSkillRun")
             .field("package_digest", &self.package_digest)
-            .field("selected_runner", &self.selected_runner)
+            .field("selected_method", &self.selected_method)
             .field("report", &self.report)
             .field("guard_count", &self.guards.len())
             .field("context_bound", &self.context_bound)
@@ -265,15 +265,15 @@ impl PreparedSkillRun {
         &self.request
     }
 
-    pub(crate) fn selected_runner(&self) -> &str {
-        &self.selected_runner
+    pub(crate) fn selected_method(&self) -> &str {
+        &self.selected_method
     }
 
-    pub(crate) fn manifest(&self) -> &SkillRunnerManifest {
+    pub(crate) fn manifest(&self) -> &SkillMethodManifest {
         &self.manifest
     }
 
-    pub(crate) fn runner(&self) -> &SkillRunnerDefinition {
+    pub(crate) fn runner(&self) -> &SkillMethodDefinition {
         &self.runner
     }
 
@@ -313,7 +313,7 @@ impl PreparedSkillRun {
                 .map_err(RuntimeError::from)?;
         crate::skill_package::verify_loaded_execution_binding(
             loaded.clone(),
-            &self.selected_runner,
+            &self.selected_method,
             workspace.env(),
             Some(&self.package_digest),
             self.execution_closure_digest(),
@@ -347,7 +347,7 @@ struct PreparedContextPreimage<'a> {
 
 pub(crate) fn prepare_skill_run_with_effects(
     mut request: SkillRunRequest,
-    selected_runner_name: Option<&str>,
+    selected_method_name: Option<&str>,
     mut entry: PreparedEntryProvenance,
     effects: &crate::RuntimeEffectRegistry,
 ) -> Result<PreparedSkillRun, SkillRunError> {
@@ -361,7 +361,7 @@ pub(crate) fn prepare_skill_run_with_effects(
     })?;
     let package_digest = loaded.package.package_digest.clone();
     let skill_dir = loaded.directory.clone();
-    let runner = selected_runner(&manifest, selected_runner_name)?.clone();
+    let runner = selected_method(&manifest, selected_method_name)?.clone();
     let workspace = crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
         .map_err(RuntimeError::from)?;
     let execution_closure_digest = crate::skill_package::verify_loaded_execution_binding(
@@ -378,7 +378,7 @@ pub(crate) fn prepare_skill_run_with_effects(
     }
     super::skill_front::restore_continuation_inputs(&mut request, &workspace)?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
-    let input_failure = match crate::input_contract::materialize_present_runner_inputs(
+    let input_failure = match crate::input_contract::materialize_present_method_inputs(
         &runner.inputs,
         &request.inputs,
     ) {
@@ -395,7 +395,7 @@ pub(crate) fn prepare_skill_run_with_effects(
             blocked_prepared_context(
                 vec![PreparedTraceEntry {
                     node_path: "entry".to_owned(),
-                    stage: "resolve_runner".to_owned(),
+                    stage: "resolve_method".to_owned(),
                     outcome: "resolved".to_owned(),
                     detail: format!("selected runner {}", runner.name),
                 }],
@@ -456,7 +456,7 @@ pub(crate) fn prepare_skill_run_with_effects(
     Ok(PreparedSkillRun {
         request,
         package_digest,
-        selected_runner: runner.name.clone(),
+        selected_method: runner.name.clone(),
         manifest,
         runner,
         report: PreparedSkillRunReport {
@@ -525,12 +525,12 @@ fn prepared_context_digest(
 fn resolve_prepared_context(
     request: &SkillRunRequest,
     loaded: &crate::LoadedSkillPackage,
-    runner: &SkillRunnerDefinition,
+    runner: &SkillMethodDefinition,
     effects: &crate::RuntimeEffectRegistry,
 ) -> PreparedContextResolution {
     let trace = vec![PreparedTraceEntry {
         node_path: "entry".to_owned(),
-        stage: "resolve_runner".to_owned(),
+        stage: "resolve_method".to_owned(),
         outcome: "resolved".to_owned(),
         detail: format!("selected runner {}", runner.name),
     }];
@@ -1293,7 +1293,7 @@ mod tests {
     }
 
     #[test]
-    fn prepared_governance_consumes_typed_graph_step_contract() -> Result<(), Box<dyn Error>> {
+    fn prepared_governance_consumes_typed_workflow_step_contract() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         crate::kernel::connectors::plugin_with_fixture_connectors(temp.path(), &["fixture/forge"]);
         write_manual(temp.path(), "prepared", "# Prepared")?;
@@ -1343,7 +1343,7 @@ runners:
     }
 
     #[test]
-    fn prepared_governance_includes_terminal_runner_scopes() -> Result<(), Box<dyn Error>> {
+    fn prepared_governance_includes_terminal_method_scopes() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_manual(temp.path(), "prepared", "# Prepared")?;
         fs::write(
@@ -1485,7 +1485,7 @@ runners:
     -> Result<(), Box<dyn Error>> {
         use crate::adapter::InvocationOutput;
         use crate::receipts::{
-            RuntimeReceiptSignatureConfig, SealedCall, StepSeal, StepSealClosure, seal_step,
+            RuntimeReceiptSignatureConfig, SealedCall, StepSeal, StepSealEnding, seal_step,
         };
         use runx_contracts::RunOutcome;
 
@@ -1504,7 +1504,7 @@ runners:
                 StepSeal {
                     scope: crate::receipts::RunScope {
                         run_id: "run_prepared",
-                        graph_name: "prepared",
+                        workflow_name: "prepared",
                     },
                     step_id: "execute",
                     attempt: 1,
@@ -1516,7 +1516,7 @@ runners:
                     admission_refs: Vec::new(),
                     child_receipts: &[],
                     descendant_receipts: &[],
-                    closure: Some(StepSealClosure {
+                    closure: Some(StepSealEnding {
                         outcome: RunOutcome::Completed,
                         reason: None,
                     }),

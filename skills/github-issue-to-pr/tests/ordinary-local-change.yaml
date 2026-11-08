@@ -1,0 +1,71 @@
+name: github-issue-to-pr-ordinary-repository-change
+method: resume
+inputs:
+  issue_evidence:
+    schema: runx/github-issue-to-pr.issue_evidence.v1
+    repository: runxhq/runx
+    number: "442"
+    title: Make issue-to-PR operator-first
+    state: open
+    body: Reuse prior evidence instead of reading the provider again.
+    url: https://github.com/runxhq/runx/issues/442
+    labels:
+      - operator-experience
+    assignees: []
+    source:
+      provider: github
+      transport: local_http
+      principal_uri: runx:principal:github:7
+      readback_uri: runx:github-readback:sha256:fixture
+  host_result:
+    schema: runx/github-issue-to-pr.host_result.v1
+    status: completed
+    repository: runxhq/runx
+    issue_number: "442"
+    repo_root: .
+    branch: fix/442-operator-first
+    commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    files:
+      - oss/skills/github-issue-to-pr/run.yaml
+    tests:
+      - command: cargo test -p runx-cli --test integration issue_to_pr_journey
+        status: passed
+        evidence: receipt:test:github-issue-to-pr-composed
+    publication:
+      decision: hold
+      title: ""
+      body: ""
+      head: ""
+      base: ""
+      draft: false
+      idempotency_key: ""
+    errors: []
+    summary: Implement the issue workflow correction and preserve the exact candidate.
+    governance:
+      kind: repository
+      reason: Routine documentation correction; repository instructions require focused checks and no scafld lifecycle.
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  output:
+    subset:
+      issue_to_pr_result:
+        data:
+          schema: runx/github-issue-to-pr.result.v1
+          status: completed
+          outcome: local_change
+          repository: runxhq/runx
+          issue_number: "442"
+          commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          publication:
+            status: not_requested
+          governance:
+            kind: repository
+            status: not_required
+  steps:
+    - verify
+    - intent
+    - finalize-local

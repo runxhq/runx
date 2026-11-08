@@ -1,0 +1,54 @@
+name: preserves-incomplete-data-caveat
+method: normalize-performance
+inputs:
+  request:
+    property: sc-domain:example.com
+    start_date: 2026-07-01
+    end_date: 2026-07-19
+    dimensions:
+      - query
+    search_type: web
+    data_state: all
+  provider_result:
+    property: sc-domain:example.com
+    start_date: 2026-07-01
+    end_date: 2026-07-19
+    dimensions:
+      - query
+    search_type: web
+    data_state: all
+    aggregation_type: auto
+    rows:
+      - keys:
+          - runx operator
+        clicks: 3
+        impressions: 50
+        ctr: 0.06
+        position: 8.5
+    row_count: 1
+    pagination:
+      complete: true
+      returned_rows: 1
+    metadata:
+      first_incomplete_date: 2026-07-18
+expect:
+  status: sealed
+  steps:
+    - normalize
+    - digest
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        performance_evidence:
+          data:
+            decision: usable_with_caveats
+            provider_status: not_called
+            freshness:
+              complete: false
+              data_state: all
+              first_incomplete_date: 2026-07-18
+            validation:
+              status: pass
+  receipt:
+    schema: runx.receipt.v1

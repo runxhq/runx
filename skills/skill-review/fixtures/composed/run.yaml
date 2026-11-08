@@ -1,0 +1,16 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: skill-review
+        skill: ../..#review
+        inputs:
+          skill: fixtures/subject
+          objective: Decide whether the subject has bounded evidence and stop behavior
+          test_constraints: Run only local read-only harnesses.
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.skill-review

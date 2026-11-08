@@ -83,9 +83,7 @@ for information-rich layouts with strong hierarchy and a dislike of decorative
 empty space. It should also preserve the tension—density is conditional, not a
 blanket rule—so a downstream designer does not turn “dense” into clutter.
 
-## Agent task contract
-
-### `taste-profile-synthesize`
+## Agent task: taste-profile-synthesize
 
 Derive scoped preferences only from the supplied evidence index. Bind every
 preference, avoidance, and tension to admitted source references; distinguish

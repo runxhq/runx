@@ -1,0 +1,90 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: first-verdict
+        skill: ../..#decide
+        inputs:
+          request_packet:
+            type: erasure
+            subject_id: subject:alice
+            scope:
+              request_id: dsr-001
+              data_classes:
+                - profile
+                - activity
+              requested_scopes:
+                - profile
+                - activity
+          requestor_proof:
+            identity_provider: idp:acme
+            verified_at: 2026-08-01T10:00:00Z
+            assertion:
+              subject_id: subject:alice
+              assertion_id: idp:acme:session:9911
+              assertion_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          policy:
+            jurisdiction: GDPR
+            trusted_identity_providers:
+              - idp:acme
+            lawful_bases:
+              erasure: art17_right_to_erasure
+            scope_bounds:
+              data_classes:
+                - profile
+                - activity
+                - billing
+              erasure_allowed:
+                - profile
+                - activity
+              export_allowed:
+                - profile
+          data_source_uri: local://privacy-request-review/conflict
+          resource: subject_requests
+          aggregate_id: subject:conflict
+          expected_version: 0
+          idempotency_key: privacy-conflict-v1
+      - id: stale-verdict
+        skill: ../..#decide
+        inputs:
+          request_packet:
+            type: erasure
+            subject_id: subject:alice
+            scope:
+              request_id: dsr-001
+              data_classes:
+                - profile
+                - activity
+              requested_scopes:
+                - profile
+                - activity
+          requestor_proof:
+            identity_provider: idp:acme
+            verified_at: 2026-08-01T10:00:00Z
+            assertion:
+              subject_id: subject:alice
+              assertion_id: idp:acme:session:9911
+              assertion_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          policy:
+            jurisdiction: GDPR
+            trusted_identity_providers:
+              - idp:acme
+            lawful_bases:
+              erasure: art17_right_to_erasure
+            scope_bounds:
+              data_classes:
+                - profile
+                - activity
+                - billing
+              erasure_allowed:
+                - profile
+                - activity
+              export_allowed:
+                - profile
+          data_source_uri: local://privacy-request-review/conflict
+          resource: subject_requests
+          aggregate_id: subject:conflict
+          expected_version: 0
+          idempotency_key: privacy-conflict-v2

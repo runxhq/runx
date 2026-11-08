@@ -3,7 +3,7 @@ use std::path::Path;
 
 use runx_runtime::registry::{
     HostedAdminSkillPublishRequest, HostedSkillPublishRequest, HostedSkillPublishResult,
-    RegistryPublishHarnessReport, RegistryPublishPackage, publish_hosted_admin_skill,
+    RegistryPublishPackage, RegistryPublishTestReport, publish_hosted_admin_skill,
     publish_hosted_skill,
 };
 
@@ -13,7 +13,7 @@ pub(super) fn publish_remote_skill_package(
     registry_url: &str,
     plan: &RegistryPlan,
     package: &RegistryPublishPackage,
-    harness: &RegistryPublishHarnessReport,
+    harness: &RegistryPublishTestReport,
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<HostedSkillPublishResult, RegistryCliError> {

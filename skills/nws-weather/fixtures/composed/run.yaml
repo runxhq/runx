@@ -1,0 +1,16 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: nws-weather
+        skill: ../..#forecast
+        inputs:
+          office: LWX
+          grid_x: "97"
+          grid_y: "71"
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.nws-weather

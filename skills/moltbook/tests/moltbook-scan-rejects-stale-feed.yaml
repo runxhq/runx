@@ -1,0 +1,19 @@
+name: moltbook-scan-rejects-stale-feed
+method: scan
+inputs:
+  objective: Find a current post.
+  as_of: "2026-07-17T12:00:00Z"
+  max_age_hours: 24
+  feed_snapshot:
+    - {source_id: old_1, topic: old, summary: Old product update., observed_at: "2026-07-10T10:00:00Z"}
+expect:
+  status: sealed
+  steps: [admit, digest, reject]
+  step_outputs:
+    reject:
+      subset:
+        moltbook_scan_packet:
+          data:
+            decision: needs_more_evidence
+            delivery_status: not_posted
+  receipt: {schema: runx.receipt.v1}

@@ -100,9 +100,7 @@ dispatched or message sent by a routed result.
 - `constraints` (optional): exact source/owner/skill selection limits and
   advisory notes. Constraints are not authority.
 
-## Agent task contracts
-
-### `knowledge-router-propose`
+## Agent task: knowledge-router-propose
 
 Route the question through only the supplied knowledge catalog. Return route_proposal with
 verdict, route, source_matches, owner_recommendation, and next_skill. Every selected source_id,

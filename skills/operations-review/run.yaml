@@ -1,65 +1,46 @@
-skill: operations-review
 version: "0.3.13"
+minimum_runx: 0.12.0
+default_method: operate
 catalog:
-  kind: skill
-  audience: operator
   visibility: public
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: ops
-connectors:
-  store:
-    operations:
-      - projection.read
-runners:
+methods:
   operate:
-    description: Review an operations snapshot you supply, ranking the findings, choosing the next
-      action and its governed lane, and saying what approval and evidence it needs.
+    description: Review an operations snapshot you supply, ranking the findings, choosing the next action and its governed lane, and saying what approval and evidence it needs.
     inputs:
       objective:
         type: string
-        required: true
         description: The bounded operator objective.
       scope:
         type: string
-        required: true
         description: Project, workspace, account, product, or bounded operating surface being operated.
       dashboard_snapshot:
-        type: json
-        required: false
         description: Current projected state for the operating scope.
+        optional: true
       receipt_summary:
-        type: json
-        required: false
         description: Receipt and effect evidence available to the run.
+        optional: true
       provider_status:
-        type: json
-        required: false
         description: Provider health, account, webhook, credential, or deploy state.
+        optional: true
       approval_context:
-        type: json
-        required: false
         description: Existing approvals, denials, or policy gates.
+        optional: true
       operator_policy:
         type: string
-        required: false
         description: Tenant-specific guardrails and lane names.
+        optional: true
       project_profile:
         type: string
-        required: false
-        description: Project topology, existing commands/workflows, and verification expectations. Context
-          only, not authority.
+        description: Project topology, existing commands/workflows, and verification expectations. Context only, not authority.
+        optional: true
       requested_action:
         type: string
-        required: false
         description: Optional action id or lane selected by the dashboard.
+        optional: true
     steps:
       - id: operate
-        agent:
-          role: operator
-          task: operations-review
+        agent: operations-review
         inputs:
           objective: $input.objective
           scope: $input.scope
@@ -73,12 +54,7 @@ runners:
         outputs:
           ops_desk_packet:
             type: object
-        artifacts:
-          named_emits:
-            ops_desk_packet: ops_desk_packet
-          packets:
-            ops_desk_packet: runx/operations-review.desk.v1
-    default: true
+            packet: runx/operations-review.desk.v1
     examples:
       - objective: Review the remaining invoice-payment gap and choose the next bounded step.
         scope: workspace:runx-skill-completion
@@ -86,39 +62,27 @@ runners:
           invoice_pay:
             structured_settlement: available
             automatic_intake: incomplete
-            reason: The rejected candidate trusted an unbound currency exponent and duplicated native exact
-              conversion.
-        project_profile: "Existing source owners: skills/invoice-pay handles invoice matching; skills/pay
-          owns buyer mandate/approval; crates/runx-contracts/src/connector/template.rs owns exact
-          template minor-unit conversion. prior-art#prior-art-agent inspects exact selected local
-          sources."
-        operator_policy: Return one useful read-only proposal. Do not invent execution aliases, payment
-          authority, delivery or a missing primitive.
+            reason: The rejected candidate trusted an unbound currency exponent and duplicated native exact conversion.
+        project_profile: "Existing source owners: skills/invoice-pay handles invoice matching; skills/pay owns buyer mandate/approval; crates/runx-contracts/src/connector/template.rs owns exact template minor-unit conversion. prior-art#prior-art-agent inspects exact selected local sources."
+        operator_policy: Return one useful read-only proposal. Do not invent execution aliases, payment authority, delivery or a missing primitive.
   review-action:
-    description: Review one proposed action, its consequence, whether it needs approval, its blockers
-      and the evidence that would prove it.
+    description: Review one proposed action, its consequence, whether it needs approval, its blockers and the evidence that would prove it.
     inputs:
       action_packet:
-        type: json
-        required: true
         description: Proposed ops desk action or ops_desk_packet.proposals item.
       receipt_summary:
-        type: json
-        required: false
         description: Evidence expected to prove or reject the action.
+        optional: true
       approval_context:
-        type: json
-        required: false
         description: Human gate state for the proposed action.
+        optional: true
       project_profile:
         type: string
-        required: false
         description: Project topology and expected execution surfaces.
+        optional: true
     steps:
       - id: review-action
-        agent:
-          role: reviewer
-          task: operations-review-action-review
+        agent: operations-review-action-review
         inputs:
           action_packet: $input.action_packet
           receipt_summary: $input.receipt_summary
@@ -127,69 +91,58 @@ runners:
         outputs:
           action_review:
             type: object
-        artifacts:
-          wrap_as: action_review_packet
-          packet: runx/operations-review.action_review.v1
+          action_review_packet: {packet: runx/operations-review.action_review.v1}
+        result_as: action_review_packet
   operate_from_projection:
     description: Review the same way, reading a bounded product-owned projection first.
     inputs:
       data_source_uri:
         type: string
-        required: true
         description: Logical data source that stores the operating projection.
       resource:
         type: string
-        required: true
         description: Declared projection or event resource.
       aggregate_id:
         type: string
-        required: true
         description: Operating scope partition to read before planning.
       objective:
         type: string
-        required: true
         description: The bounded operator objective.
       scope:
         type: string
-        required: true
         description: Project, workspace, account, product, or bounded operating surface being operated.
       receipt_summary:
-        type: json
-        required: false
         description: Receipt and effect evidence available to the run.
+        optional: true
       provider_status:
-        type: json
-        required: false
         description: Provider health, account, webhook, credential, or deploy state.
+        optional: true
       approval_context:
-        type: json
-        required: false
         description: Existing approvals, denials, or policy gates.
+        optional: true
       operator_policy:
         type: string
-        required: false
         description: Tenant-specific guardrails and lane names.
+        optional: true
       project_profile:
         type: string
-        required: false
-        description: Project topology, existing commands/workflows, and verification expectations. Context
-          only, not authority.
+        description: Project topology, existing commands/workflows, and verification expectations. Context only, not authority.
+        optional: true
       requested_action:
         type: string
-        required: false
         description: Optional action id or lane selected by the dashboard.
+        optional: true
     result_from:
       - operate
     steps:
       - id: read-state
         operation: store/projection.read
-        input:
+        inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
       - id: operate
-        skill: .
-        runner: operate
+        skill: .#operate
         inputs:
           objective: $input.objective
           scope: $input.scope
@@ -200,12 +153,5 @@ runners:
           project_profile: $input.project_profile
           requested_action: $input.requested_action
           dashboard_snapshot: $steps.read-state.provider_operation.result.projection
-        artifacts:
-          named_emits:
-            ops_desk_packet: ops_desk_packet
-          packets:
-            ops_desk_packet: runx/operations-review.desk.v1
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases: []
+        outputs:
+          ops_desk_packet: {packet: runx/operations-review.desk.v1, optional: true}

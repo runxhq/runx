@@ -1,0 +1,47 @@
+name: schema-check-breaking-change-refuses
+inputs:
+  current_schema:
+    type: object
+    required:
+      - id
+    properties:
+      id:
+        type: string
+      amount:
+        type: number
+  proposed_schema:
+    type: object
+    required:
+      - id
+      - amount
+    properties:
+      id:
+        type: string
+      amount:
+        type: string
+  sample_payloads:
+    - id: case-1
+      amount: 12.5
+  compatibility_policy:
+    breaking_allowed: false
+    required_fields:
+      - id
+expect:
+  status: sealed
+  steps:
+    - digest-current
+    - digest-proposed
+    - digest-samples
+    - validate-current
+    - validate-proposed
+    - check
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: refused
+            policy_result: blocked_by_policy
+            proposal: null
+  receipt:
+    schema: runx.receipt.v1

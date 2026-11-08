@@ -1,86 +1,59 @@
-skill: invoice-pay
 version: "0.6.4"
+minimum_runx: 0.12.0
+default_method: invoice-pay
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
-  role: canonical
-  execution: execute
-  completion: provider_readback
-  approval: required
   category: payments
-input_definitions:
+shared_inputs:
   parent_payment_authority:
-    type: json
-    required: true
     description: Original parent payment mandate passed unchanged to pay; it grants no native authority.
   idempotency_seed:
     type: string
-    required: true
     description: Stable settlement idempotency material.
-    schema:
-      minLength: 16
-      maxLength: 500
+    minLength: 16
+    maxLength: 500
   connector:
     type: string
-    required: true
     description: The held buyer connector that settles this invoice.
-    schema:
-      enum:
-        - wallet/evm
-        - link
-runners:
+    enum:
+      - wallet/evm
+      - link
+methods:
   invoice-pay:
-    default: true
     description: Pay one invoice whose reference, amount, currency and payee are already known.
     inputs:
       invoice_id:
         type: string
-        required: true
         description: The invoice's own reference.
-        schema:
-          minLength: 1
-          maxLength: 256
-          pattern: ^\S(?:.*\S)?$
+        minLength: 1
+        maxLength: 256
+        pattern: ^\S(?:.*\S)?$
       amount_minor:
         type: integer
-        required: true
         description: The amount due in minor units.
-        schema:
-          minimum: 1
-          maximum: 9007199254740991
+        minimum: 1
+        maximum: 9007199254740991
       currency:
         type: string
-        required: true
         description: ISO 4217 code of the amount due.
-        schema:
-          pattern: ^[A-Z]{3}$
+        pattern: ^[A-Z]{3}$
       payee:
         type: object
-        required: true
-        description: The invoice payee exact HTTPS payment endpoint. Provider-specific payment addresses
-          belong to the request.
-        schema:
-          required:
-            - payment_url
-          additionalProperties: false
-          properties:
-            payment_url:
-              type: string
-              format: uri
-              pattern: ^https://
-              maxLength: 2048
-      parent_payment_authority:
-        definition: parent_payment_authority
-      idempotency_seed:
-        definition: idempotency_seed
-      connector:
-        definition: connector
+        description: The invoice payee exact HTTPS payment endpoint. Provider-specific payment addresses belong to the request.
+        required:
+          - payment_url
+        additionalProperties: false
+        properties:
+          payment_url:
+            type: string
+            format: uri
+            pattern: ^https://
+            maxLength: 2048
+      parent_payment_authority: {}
+      idempotency_seed: {}
+      connector: {}
       request:
-        type: json
-        required: true
-        description: Exact pay request of the selected buyer method, carrying this invoice amount/currency
-          and payment endpoint. Inspect that connector; no reusable credentials.
+        description: Exact pay request of the selected buyer method, carrying this invoice amount/currency and payment endpoint. Inspect that connector; no reusable credentials.
     result_from:
       - settle
     steps:
@@ -97,10 +70,9 @@ runners:
           export: admitInvoice
           timeout_seconds: 5
         outputs:
-          payment_request: object
+          payment_request: {type: object}
       - id: settle
-        skill: ../pay
-        runner: pay
+        skill: ../pay#pay
         inputs:
           connector: $input.connector
           request: $steps.admit.payment_request
@@ -132,39 +104,28 @@ runners:
     inputs:
       path:
         type: string
-        required: true
         description: Workspace-relative UTF-8 text of the invoice. Convert a PDF or image to text first.
       repo_root:
         type: string
-        required: false
         default: .
         description: Authorized workspace root.
-      parent_payment_authority:
-        definition: parent_payment_authority
-      idempotency_seed:
-        definition: idempotency_seed
-      connector:
-        definition: connector
+        optional: true
+      parent_payment_authority: {}
+      idempotency_seed: {}
+      connector: {}
       request:
-        type: json
-        required: true
-        description: The selected method's request without the terms the document supplies. For wallet/evm omit amount_minor and
-          resource.url; for link omit resource_url, amount_minor and currency. No reusable credentials.
+        description: The selected method's request without the terms the document supplies. For wallet/evm omit amount_minor and resource.url; for link omit resource_url, amount_minor and currency. No reusable credentials.
     result_from:
       - terms
       - settle
     steps:
       - id: read
-        skill: ../extract
-        runner: from-file
+        skill: ../extract#from-file
         inputs:
           source_id: $input.path
           path: $input.path
           repo_root: $input.repo_root
-          objective: Extract the amount due now, its currency, the invoice's own reference and its HTTPS payment URL. Write the
-            amount as digits and one dot with no symbols or separators, with two fractional digits for USD, so that $1,234.5 is
-            1234.50. Take the balance due, never a subtotal or a prior total. If the document states two different amounts due or
-            payment URLs, or omits a field, list that field as missing instead of choosing one.
+          objective: Extract the amount due now, its currency, the invoice's own reference and its HTTPS payment URL. Write the amount as digits and one dot with no symbols or separators, with two fractional digits for USD, so that $1,234.5 is 1234.50. Take the balance due, never a subtotal or a prior total. If the document states two different amounts due or payment URLs, or omits a field, list that field as missing instead of choosing one.
           schema:
             type: object
             additionalProperties: false
@@ -199,20 +160,20 @@ runners:
           export: invoiceTerms
           timeout_seconds: 5
         outputs:
-          invoice_id: string
-          amount_decimal: string
-          currency: string
-          payment_url: string
-          scale: number
-          source_digest: string
-          citations: array
+          invoice_id: {type: string}
+          amount_decimal: {type: string}
+          currency: {type: string}
+          payment_url: {type: string}
+          scale: {type: number}
+          source_digest: {type: string}
+          citations: {type: array}
       - id: amount
         tool: data.minor_units
         inputs:
           decimal: $steps.terms.amount_decimal
           scale: $steps.terms.scale
         outputs:
-          units: number
+          units: {type: number}
       - id: request
         inputs:
           connector: $input.connector
@@ -224,10 +185,9 @@ runners:
           export: documentRequest
           timeout_seconds: 5
         outputs:
-          request: object
+          request: {type: object}
       - id: settle
-        skill: .
-        runner: invoice-pay
+        skill: .#invoice-pay
         inputs:
           invoice_id: $steps.terms.invoice_id
           amount_minor: $steps.amount.units
@@ -238,31 +198,3 @@ runners:
           request: $steps.request.request
           parent_payment_authority: $input.parent_payment_authority
           idempotency_seed: $input.idempotency_seed
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases:
-    - name: refuses-blank-reference-at-native-admission
-      inputs:
-        invoice_id: "   "
-        amount_minor: 4200
-        currency: USD
-        payee:
-          payment_url: https://payee.example/v1/invoices/pay
-        parent_payment_authority:
-          term_id: invoice-authority-1
-          currency: USD
-          max_amount_minor: 5000
-          resource_url: https://payee.example/v1/invoices/pay
-        idempotency_seed: invoice-pay-test-0042
-        connector: wallet/evm
-        request:
-          resource:
-            url: https://payee.example/v1/invoices/pay
-            method: POST
-            body:
-              invoice_id: INV-2026-0042
-          amount_minor: 4200
-          pay_to: "0x00000000000000000000000000000000000000a1"
-      expect:
-        status: failure

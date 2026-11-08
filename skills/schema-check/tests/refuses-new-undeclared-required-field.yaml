@@ -1,0 +1,29 @@
+name: refuses-new-undeclared-required-field
+inputs:
+  current_schema:
+    type: object
+  proposed_schema:
+    type: object
+    required:
+      - new
+  sample_payloads:
+    - new: true
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: sealed
+  steps:
+    - digest-current
+    - digest-proposed
+    - digest-samples
+    - validate-current
+    - validate-proposed
+    - check
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: refused
+  receipt:
+    schema: runx.receipt.v1

@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/browser
-name: Fixture Browser
+name: fixture/browser
+title: Fixture Browser
 description: Account-bound local browser identity and process execution fixture.
-runtime_capability: false
 auth:
   session:
     kind: host_browser

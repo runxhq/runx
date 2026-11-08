@@ -1,0 +1,23 @@
+{
+  "skill_name": "cold-outreach",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Draft a first-contact email from the known facts and supplied recipient policy.",
+      "expected_output": "Open one cold-outreach writing turn with the admitted facts; do not require research, look up a lead or send a message.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Prepare first contact for a suppressed recipient; withhold the payload and make no writing or provider call.",
+      "expected_output": "Return the exact bounded domain result and preserve holds without outward effects.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Prepare one relevant cold email using supplied evidence and policy, keeping delivery off.",
+      "expected_output": "Return one exact evidence-bound reviewable email from one writing turn that ghostwrite admits and verifies, with no send.",
+      "files": []
+    }
+  ]
+}

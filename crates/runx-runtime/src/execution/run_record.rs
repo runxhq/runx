@@ -348,7 +348,7 @@ struct SealedEvent {
 /// The caller's context, stored as one blob.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct RunContext {
+pub(crate) struct CallerContext {
     pub current: Vec<ContextEntry>,
     pub historical: Vec<ContextEntry>,
 }
@@ -467,7 +467,7 @@ pub(crate) struct RunRecord {
     pub inputs: JsonObject,
     /// The act the run's invoker stated, read by its steps as `$act`.
     pub act: Option<CallAct>,
-    pub context: RunContext,
+    pub context: CallerContext,
     pub facts: Vec<Replayed>,
     /// Where the run waits now, when its last step-level event is a
     /// suspension no later step has settled.
@@ -1224,7 +1224,7 @@ pub(crate) struct StartRequest<'a> {
     pub package_digest: &'a str,
     pub execution_closure_digest: &'a str,
     pub inputs: &'a JsonObject,
-    pub context: &'a RunContext,
+    pub context: &'a CallerContext,
     pub run_authority: Option<&'a RunAuthority>,
     pub act: Option<&'a CallAct>,
     pub driver: RunDriver,
@@ -1347,7 +1347,7 @@ fn request_blob(request: &ResolutionRequest) -> Result<(String, Blob, String), R
     let id = match request {
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
-        | ResolutionRequest::AgentAct { id, .. }
+        | ResolutionRequest::Turn { id, .. }
         | ResolutionRequest::Retry { id, .. }
         | ResolutionRequest::Purchase { id, .. } => id.to_string(),
     };
@@ -1387,7 +1387,7 @@ fn replay(
             (
                 Origin::Child(started),
                 digest,
-                RunContext::default(),
+                CallerContext::default(),
                 created_at,
             )
         }
@@ -1396,7 +1396,7 @@ fn replay(
             (
                 Origin::Evaluation(started),
                 None,
-                RunContext::default(),
+                CallerContext::default(),
                 created_at,
             )
         }
@@ -1701,7 +1701,7 @@ fn collect_waiting(
         .value
         .as_object()
         .and_then(|value| value.get("kind"))
-        == Some(&JsonValue::String("agent_act".to_owned()));
+        == Some(&JsonValue::String("turn".to_owned()));
     waiting.push(held.request);
     if !turn {
         return Ok(());

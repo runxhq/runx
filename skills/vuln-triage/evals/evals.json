@@ -1,0 +1,11 @@
+{
+  "skill_name": "vuln-triage",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Triage these exact dependency findings and tell me what to fix.",
+      "expected_output": "Return concrete recommendations and keep unproven exposure explicit without a fabricated sealed receipt.",
+      "files": []
+    }
+  ]
+}

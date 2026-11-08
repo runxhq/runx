@@ -28,7 +28,7 @@ pub(crate) fn agent_contract_checks_with_artifacts(
     artifacts: Option<&SkillArtifactContract>,
     skill_directory: &Path,
 ) -> Result<ContractChecks, RuntimeError> {
-    let ResolutionRequest::AgentAct { invocation, .. } = request else {
+    let ResolutionRequest::Turn { invocation, .. } = request else {
         return Err(RuntimeError::SkillFailed {
             skill_name: "agent".to_owned(),
             message: "agent result verification requires an agent-act request".to_owned(),
@@ -68,8 +68,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use runx_contracts::{
-        AgentActInvocation, AgentContextEnvelope, JsonValue, OutputField, OutputType,
-        ResolutionRequest,
+        AgentContextEnvelope, JsonValue, OutputField, OutputType, ResolutionRequest, TurnInvocation,
     };
 
     use super::agent_contract_checks;
@@ -91,9 +90,9 @@ mod tests {
             "output": { "notify_plan": "object" },
             "trust_boundary": "test"
         }))?;
-        Ok(ResolutionRequest::AgentAct {
+        Ok(ResolutionRequest::Turn {
             id: "req_1".into(),
-            invocation: Box::new(AgentActInvocation {
+            invocation: Box::new(TurnInvocation {
                 id: "act_1".into(),
                 role: "planner".into(),
                 task: "notify".into(),
@@ -198,7 +197,7 @@ mod tests {
 
     #[test]
     fn fixture_contract_is_the_declared_object_field() -> Result<(), Box<dyn std::error::Error>> {
-        let ResolutionRequest::AgentAct { invocation, .. } = request()? else {
+        let ResolutionRequest::Turn { invocation, .. } = request()? else {
             return Err("expected agent-act request".into());
         };
         assert_eq!(

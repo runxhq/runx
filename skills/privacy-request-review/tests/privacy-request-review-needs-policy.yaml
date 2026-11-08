@@ -1,0 +1,19 @@
+name: privacy-request-review-needs-policy
+inputs:
+  request_packet:
+    type: erasure
+    subject_id: subject:alice
+    scope:
+      request_id: dsr-003
+      data_classes:
+        - profile
+  requestor_proof:
+    identity_provider: idp:acme
+    verified_at: 2026-08-01T10:00:00Z
+  data_source_uri: tenant://privacy/sqlite-requests
+  resource: subject_requests
+  aggregate_id: subject:alice:dsr-003
+  expected_version: 0
+  idempotency_key: dsr-003:verdict:v1
+expect:
+  status: failure

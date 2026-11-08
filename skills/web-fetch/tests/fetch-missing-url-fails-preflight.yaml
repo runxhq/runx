@@ -1,0 +1,5 @@
+name: fetch-missing-url-fails-preflight
+method: web-fetch
+inputs: {}
+expect:
+  status: failure

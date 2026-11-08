@@ -3,7 +3,7 @@
   "expected": {
     "kind": "output",
     "value": {
-      "graphId": "gx_fixture",
+      "workflowId": "gx_fixture",
       "state": "running",
       "steps": [
         {
@@ -41,9 +41,9 @@
       "stepId": "first",
       "type": "step_succeeded"
     },
-    "kind": "state-machine.transitionSequentialGraph",
+    "kind": "state-machine.transitionSequentialWorkflow",
     "state": {
-      "graphId": "gx_fixture",
+      "workflowId": "gx_fixture",
       "state": "running",
       "steps": [
         {

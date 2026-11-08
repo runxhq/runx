@@ -1,0 +1,10 @@
+name: invalid-publication-time-stops-before-provider
+method: search
+inputs:
+  query: Current exact release docs
+  start_published_at: not-a-date
+expect:
+  status: failure
+  receipt:
+    schema: runx.receipt.v1
+    outcome: failed

@@ -1,0 +1,18 @@
+name: filters-one-skill
+inputs:
+  objective: Review release runs only.
+  scope: release
+  runs:
+    - run_id: run_release
+      skill: release
+      state: sealed
+      outcome: completed
+    - run_id: run_research
+      skill: research
+      state: sealed
+      outcome: failed
+  catalog_items: []
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

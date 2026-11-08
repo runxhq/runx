@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: notion
-name: Notion
+name: notion
+title: Notion
 description: Search authorized Notion titles and read selected page, data-source and block evidence.
 category: productivity
-runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -37,7 +36,7 @@ operations:
         allowed_hosts: [api.notion.com]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://api.notion.com/v1/search
             headers: {accept: application/json, Notion-Version: '2026-03-11'}
             body:
@@ -65,7 +64,7 @@ operations:
         allowed_hosts: [api.notion.com]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://api.notion.com/v1/pages/', {$argument: /page_id}]}
             headers: {accept: application/json, Notion-Version: '2026-03-11'}
   datasource.read:
@@ -87,7 +86,7 @@ operations:
         allowed_hosts: [api.notion.com]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://api.notion.com/v1/data_sources/', {$argument: /data_source_id}]}
             headers: {accept: application/json, Notion-Version: '2026-03-11'}
   blocks.list:
@@ -111,7 +110,7 @@ operations:
         allowed_hosts: [api.notion.com]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://api.notion.com/v1/blocks/', {$argument: /block_id}, '/children']}
             headers: {accept: application/json, Notion-Version: '2026-03-11'}
             query:

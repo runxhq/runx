@@ -1,0 +1,17 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: web-fetch
+        skill: ../..#web-fetch
+        inputs:
+          url: https://fixture.runx.invalid/example
+          allowlist:
+            - fixture.runx.invalid
+          extract: metadata
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.web-fetch

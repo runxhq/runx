@@ -33,7 +33,7 @@ pub use command::{
     CommandExecutionSchema, CommandOutputMode, CommandPlan, CommandPlanSchema,
     PROCESS_ENV_NAME_PATTERN, ProcessEnvName,
 };
-pub use control::HarnessContext;
+pub use control::RunContext;
 pub use data::{
     DataComparison, DataDigest, DataOperationResult, DataOperationStatus, DataStopCondition,
     DataValidation, DataValidationIssue, DataValueValidation,
@@ -61,7 +61,7 @@ pub use receipts::{
     ReceiptReadSchema, ReceiptReadStatus,
 };
 pub use registry::{
-    CatalogHit, CatalogPackageKind, CatalogRunner, CatalogSource, ConnectorInspection,
+    CatalogHit, CatalogMethod, CatalogPackageKind, CatalogSource, ConnectorInspection,
     InspectedOperation, RegistryInspection, RegistrySearchPacket,
 };
 pub use runs::{RUN_LIST_MAX_RUNS, RunList, RunListEntry, RunListSchema};

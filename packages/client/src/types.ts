@@ -87,7 +87,7 @@ export interface SkillRunOptions extends SkillInspectOptions {
    * provenance and sharing. Context informs the run and its children; it
    * never grants authority.
    */
-  readonly context?: RunContext;
+  readonly context?: CallerContext;
   /**
    * The run's submission identity. Submitting it again continues that run, and
    * a sealed run returns what it sealed, so a host's retry never runs a step
@@ -96,7 +96,7 @@ export interface SkillRunOptions extends SkillInspectOptions {
   readonly runId?: string;
 }
 
-export interface RunContext {
+export interface CallerContext {
   readonly current_context?: AgentContextEnvelopeContract["current_context"];
   readonly historical_context?: AgentContextEnvelopeContract["historical_context"];
 }
@@ -208,7 +208,7 @@ export interface NativeConnectorPackageOutput extends Readonly<Record<string, un
   };
 }
 
-export interface NativeHarnessOutput {
+export interface NativeTestOutput {
   readonly status: "passed" | "failed" | "not_declared";
   readonly case_count: number;
   readonly assertion_error_count: number;
@@ -216,7 +216,7 @@ export interface NativeHarnessOutput {
   readonly case_names: readonly string[];
   readonly receipt_ids: readonly string[];
   /** `kind: graph` fixtures that proved the skill composes into a graph. */
-  readonly graph_case_count: number;
+  readonly workflow_case_count: number;
 }
 
 export interface ReceiptVerifyOutput extends Readonly<Record<string, unknown>> {
@@ -261,7 +261,7 @@ export interface RunxClient {
      */
     install(options: InvocationOptions & { readonly records: readonly unknown[]; readonly registry?: string }): Promise<NativeRecordInstallOutput>;
   };
-  readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeHarnessOutput> };
+  readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeTestOutput> };
   readonly artifacts: {
     /** A project artifact by its reference, confined to the project and checked against its digest. */
     read(reference: ProjectArtifactContract, options?: { readonly maxBytes?: number }): Promise<unknown>;

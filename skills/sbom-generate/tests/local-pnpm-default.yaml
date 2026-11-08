@@ -1,0 +1,14 @@
+name: local-pnpm-default
+inputs:
+  path: fixtures/input/pnpm-lock.txt
+  path_scope: skill
+  lockfile_type: pnpm
+expect:
+  status: sealed
+  step_outputs:
+    generate:
+      subset:
+        sbom_result:
+          data:
+            component_count: 1
+            decision: generated

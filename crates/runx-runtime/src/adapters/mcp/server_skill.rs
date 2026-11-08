@@ -60,17 +60,17 @@ pub(super) fn load_mcp_server_tools(
     };
     for runner in manifest.runners.values() {
         if runner.default
-            || !crate::skill_package::runner_has_sealed_standalone_journey(
+            || !crate::skill_package::method_has_sealed_standalone_journey(
                 &loaded.package,
                 manifest,
                 runner,
             )
-            || !crate::skill_package::runner_makes_calls(
+            || !crate::skill_package::method_makes_calls(
                 loaded.clone().into(),
                 &runner.name,
                 &execution.env,
             )
-            .map_err(|error| mcp_runner_error(&loaded.package.skill.name, error))?
+            .map_err(|error| mcp_method_error(&loaded.package.skill.name, error))?
         {
             continue;
         }
@@ -94,14 +94,14 @@ fn load_mcp_server_tool(
         .canonicalize()
         .map_err(|source| RuntimeError::io("canonicalizing skill path", source))?;
     let manifest = loaded.manifest().ok_or_else(|| {
-        mcp_runner_error(
+        mcp_method_error(
             &loaded.package.skill.name,
             "skill package does not declare run.yaml runners",
         )
     })?;
     let runner =
-        crate::execution::skill_front::runner_manifest::selected_runner(manifest, selected)
-            .map_err(|error| mcp_runner_error(&loaded.package.skill.name, error))?
+        crate::execution::skill_front::method_manifest::selected_method(manifest, selected)
+            .map_err(|error| mcp_method_error(&loaded.package.skill.name, error))?
             .clone();
     // A server given one runner offers it under the skill's own name.
     let tool_runner = selected.filter(|_| execution.runner.is_none());
@@ -114,9 +114,9 @@ fn load_mcp_server_tool(
         None,
         None,
     )
-    .map_err(|error| mcp_runner_error(&skill.name, error))?
+    .map_err(|error| mcp_method_error(&skill.name, error))?
     .closure_digest
-    .ok_or_else(|| mcp_runner_error(&skill.name, "skill requires an execution-closure binding"))?;
+    .ok_or_else(|| mcp_method_error(&skill.name, "skill requires an execution-closure binding"))?;
     Ok(McpServerTool {
         name: crate::export::skill_tool_name(&skill.name, tool_runner),
         description: skill
@@ -136,7 +136,7 @@ fn load_mcp_server_tool(
     })
 }
 
-fn mcp_runner_error(skill_name: &str, error: impl std::fmt::Display) -> RuntimeError {
+fn mcp_method_error(skill_name: &str, error: impl std::fmt::Display) -> RuntimeError {
     RuntimeError::SkillFailed {
         skill_name: skill_name.to_owned(),
         message: error.to_string(),

@@ -50,7 +50,7 @@ export function checkRegistryOwnership(findings) {
     if (/\b(?:reqwest|ureq|isahc|attohttpc)::/u.test(source)) {
       findings.push(`${relative(filePath)} owns registry transport instead of using runx-runtime registry services`);
     }
-    if (/\b(?:load_validated_skill_package|parse_harness_fixture)\b/u.test(source)) {
+    if (/\b(?:load_validated_skill_package|parse_test_fixture)\b/u.test(source)) {
       findings.push(`${relative(filePath)} prepares registry packages in the CLI instead of using the runtime publish service`);
     }
   }
@@ -72,7 +72,7 @@ export function checkRegistryOwnership(findings) {
   for (const token of [
     "prepare_registry_publish_package",
     "RegistryPublishPackageRequest",
-    "run_harness",
+    "run_test",
   ]) {
     if (!publishPackage.includes(token)) {
       findings.push(`${relative(publishPackagePath)} lacks canonical registry publish owner token ${token}`);

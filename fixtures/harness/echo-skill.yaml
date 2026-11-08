@@ -12,7 +12,7 @@ expect:
     schema: runx.receipt.v1
     body_digest: sha256:e1134f7645f8c63862500007e053f0bf78ab154a9b8758c112275c25dc091002
     receipt_digest: sha256:2fc80a7bbc1dc826f23568118a87d4b5547bd63e59ab571e5b524082e4363438
-    subject_uri: runx:run:harness-echo-skill
+    subject_uri: runx:run:test-echo-skill
     state: sealed
     outcome: completed
     child_receipt_uris:

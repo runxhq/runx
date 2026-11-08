@@ -1,0 +1,93 @@
+name: execute-unfollow-batch-stops-at-rate-limit
+method: execute
+setup:
+  credentials: [twitter]
+inputs:
+  plan_json:
+    decision: ready
+    objective: Unfollow accounts that do not follow back.
+    principal: account:@example
+    acts:
+      - {act_id: act-unfollow-3001, kind: unfollow, params: {target_user_id: "3001"}, consequence: live_mutation, rationale: Does not follow back.}
+      - {act_id: act-unfollow-3002, kind: unfollow, params: {target_user_id: "3002"}, consequence: live_mutation, rationale: Does not follow back.}
+      - {act_id: act-unfollow-3003, kind: unfollow, params: {target_user_id: "3003"}, consequence: live_mutation, rationale: Does not follow back.}
+      - {act_id: act-unfollow-3004, kind: unfollow, params: {target_user_id: "3004"}, consequence: live_mutation, rationale: Does not follow back.}
+      - {act_id: act-del-4001, kind: delete_post, params: {post_id: "4001"}, consequence: live_mutation, rationale: Matched the operator predicate.}
+    gates: {human_approval_required: true, approval_id: approval:granted}
+  plan_digest: sha256:d36a57ea6b2eb1687879699aca6a5c731f5b726e50821ba58d5233a8f2e76365
+  data_source_uri: tenant://twitter/sqlite-unfollow
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+host:
+  approvals:
+    "request": true
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+        body: none
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":4,"tweet_count":1}}}'
+    - request:
+        method: DELETE
+        url: https://api.x.com/2/users/42/following/3001
+        body: none
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"data":{"following":false}}'
+    - request:
+        method: DELETE
+        url: https://api.x.com/2/users/42/following/3002
+        body: none
+      response:
+        status: 400
+        headers: {content-type: application/json}
+        body: '{"errors":[{"message":"You cannot unfollow an account that is not active.","detail":"You cannot unfollow an account that is not active."}],"title":"Invalid Request"}'
+    - request:
+        method: DELETE
+        url: https://api.x.com/2/users/42/following/3003
+        body: none
+      response:
+        status: 429
+        headers: {content-type: application/json, x-rate-limit-remaining: "0", x-rate-limit-reset: "1800000000"}
+        body: '{"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}'
+expect:
+  status: sealed
+  steps: [saved, resolve, ledger, digest, prepare, remember, self, bind, request, apply, persist]
+  step_outputs:
+    request:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: twitter
+            operation: users.unfollow
+            finality: acknowledged
+            result:
+              outcomes:
+                - {status: applied, acknowledgement: {data: {following: false}}}
+                - {status: refused, code: provider_rejected}
+                - {status: refused, code: rate_limited, retry_at: "2027-01-15T08:00:00Z"}
+                - {status: unsent, code: rate_limited}
+    apply:
+      subset:
+        twitter_execution:
+          data:
+            decision: stopped
+            next_act_index: 2
+            remaining_count: 3
+            rate: {limited: true, remaining: 0, reset_at: "2027-01-15T08:00:00Z"}
+            results:
+              - {act_id: act-unfollow-3001, status: done, external_id: "3001"}
+              - {act_id: act-unfollow-3002, status: done, external_id: "3002"}
+              - {act_id: act-unfollow-3003, status: failed, external_id: "3003"}
+            ledger_delta:
+              account_id: "42"
+              decision: stopped
+              next_act_index: 2
+              batch: {start_act_index: 0, selected_act_count: 4, processed_act_count: 2, succeeded_act_count: 2, failed_act_count: 0, rate_limited: true}
+  receipt: {schema: runx.receipt.v1, state: sealed}

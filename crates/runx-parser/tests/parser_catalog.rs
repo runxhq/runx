@@ -1,11 +1,11 @@
 use runx_parser::{
     CatalogApproval, CatalogAudience, CatalogCompletion, CatalogExecution, CatalogKind,
-    CatalogRole, CatalogVisibility, parse_runner_manifest_yaml, validate_runner_manifest,
+    CatalogRole, CatalogVisibility, parse_method_manifest_yaml, validate_method_manifest,
 };
 
-fn parse_manifest(yaml: &str) -> Result<runx_parser::SkillRunnerManifest, String> {
-    let raw = parse_runner_manifest_yaml(yaml).map_err(|error| error.to_string())?;
-    validate_runner_manifest(raw).map_err(|error| error.to_string())
+fn parse_manifest(yaml: &str) -> Result<runx_parser::SkillMethodManifest, String> {
+    let raw = parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?;
+    validate_method_manifest(raw).map_err(|error| error.to_string())
 }
 
 #[test]
@@ -17,7 +17,7 @@ catalog:
   kind: graph
   audience: builder
   visibility: internal
-  role: graph-stage
+  role: workflow-stage
   execution: plan
   completion: plan
   approval: required
@@ -37,7 +37,7 @@ runners:
     assert_eq!(catalog.kind, CatalogKind::Graph);
     assert_eq!(catalog.audience, CatalogAudience::Builder);
     assert_eq!(catalog.visibility, CatalogVisibility::Internal);
-    assert_eq!(catalog.role, CatalogRole::GraphStage);
+    assert_eq!(catalog.role, CatalogRole::WorkflowStage);
     assert_eq!(catalog.execution, Some(CatalogExecution::Plan));
     assert_eq!(catalog.completion, Some(CatalogCompletion::Plan));
     assert_eq!(catalog.approval, Some(CatalogApproval::Required));
@@ -46,7 +46,7 @@ runners:
     assert_eq!(catalog.kind.as_str(), "graph");
     assert_eq!(catalog.audience.as_str(), "builder");
     assert_eq!(catalog.visibility.as_str(), "internal");
-    assert_eq!(catalog.role.as_str(), "graph-stage");
+    assert_eq!(catalog.role.as_str(), "workflow-stage");
     Ok(())
 }
 
@@ -104,7 +104,7 @@ runners:
 
 #[test]
 fn unknown_catalog_kind_fails_closed() -> Result<(), String> {
-    let raw = parse_runner_manifest_yaml(
+    let raw = parse_method_manifest_yaml(
         r#"
 catalog:
   kind: not-a-kind
@@ -119,7 +119,7 @@ runners:
     )
     .map_err(|error| error.to_string())?;
     assert!(
-        validate_runner_manifest(raw).is_err(),
+        validate_method_manifest(raw).is_err(),
         "an unknown catalog.kind must fail closed at validation time"
     );
     Ok(())

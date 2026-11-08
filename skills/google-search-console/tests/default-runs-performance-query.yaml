@@ -1,0 +1,51 @@
+name: google-search-console-default-runs-performance-query
+inputs:
+  property: sc-domain:example.com
+  start_date: "2026-07-01"
+  end_date: "2026-07-31"
+  dimensions: [query, page]
+  search_type: web
+  data_state: final
+providers:
+  hosted:
+    principal_id: operator-fixture
+    grant:
+      grant_id: gsc-performance-fixture
+      provider: google/search-console
+      scopes: [search.analytics.read]
+    operations:
+      - operation: search.analytics.query
+        target: sc-domain:example.com
+        access: read
+        result:
+          property: sc-domain:example.com
+          start_date: "2026-07-01"
+          end_date: "2026-07-31"
+          dimensions: [query, page]
+          search_type: web
+          data_state: final
+          rows:
+            - keys: [runx agent skills, https://example.com/runx]
+              clicks: 42
+              impressions: 600
+              ctr: 0.07
+              position: 4.2
+          row_count: 1
+          aggregation_type: byPage
+          metadata: {}
+          pagination: {complete: true, returned_rows: 1}
+          fetched_at: "2026-08-01T03:00:00Z"
+expect:
+  status: sealed
+  steps: [read, normalize, digest, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        performance_evidence:
+          data:
+            decision: usable_with_caveats
+            provider_status: readback_verified
+            source_status: provider_readback
+            property: sc-domain:example.com
+            validation: {status: pass}
+  receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

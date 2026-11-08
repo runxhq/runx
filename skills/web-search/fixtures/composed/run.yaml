@@ -1,0 +1,15 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: web-search
+        skill: ../..#search
+        inputs:
+          query: Example API documentation
+          limit: 3
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.web-search

@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/forum
-name: Fixture Forum
+name: fixture/forum
+title: Fixture Forum
 description: Read recent posts on a forum fixture and publish posts as an agent account.
-runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -37,7 +36,7 @@ operations:
         allowed_hosts: [forum.fixture.invalid]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - method: GET
+          - http_method: GET
             url: "https://forum.fixture.invalid/api/v1/posts"
             query:
               sort: new

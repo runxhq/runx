@@ -1,0 +1,40 @@
+name: ecosystem-rejects-stale-source-before-research
+method: ecosystem
+inputs:
+  objective: Identify the current ecosystem signal.
+  audience: operators
+  channel: brief
+  as_of: "2026-07-17T12:00:00Z"
+  max_age_hours: 24
+  source_packets:
+    - decision: ready
+      final_url: https://example.com/stale
+      status: 200
+      content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      extracted: This evidence is too old for a current ecosystem brief.
+      provenance:
+        fetched_at: "2026-07-10T12:00:00Z"
+        bytes: 57
+        truncated: false
+        redirects: []
+expect:
+  status: sealed
+  steps:
+    - freshness
+    - research-topic
+  step_outputs:
+    freshness:
+      subset:
+        freshness_report:
+          data:
+            decision: needs_more_evidence
+            accepted_count: 0
+    research-topic:
+      subset:
+        research_packet:
+          data:
+            decision: needs_more_evidence
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

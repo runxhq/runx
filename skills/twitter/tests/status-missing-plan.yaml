@@ -1,0 +1,19 @@
+name: status-missing-plan-does-not-contact-x
+method: status
+inputs:
+  plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+expect:
+  status: sealed
+  steps:
+    - saved
+    - resolve
+    - ledger
+    - digest
+    - prepare
+    - status
+  step_outputs:
+    status:
+      subset:
+        twitter_status:
+          decision: needs_plan
+          next_input: null

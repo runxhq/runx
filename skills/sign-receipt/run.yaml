@@ -1,51 +1,37 @@
-skill: sign-receipt
 version: "0.3.5"
+minimum_runx: 0.12.0
 catalog:
-  publisher: runx
-  kind: skill
-  audience: public
   visibility: public
-  role: canonical
-  execution: execute
-  completion: runtime_receipt
-  approval: none
   category: security
 
-runners:
+methods:
   sign-receipt:
-    default: true
     inputs:
       action:
         type: string
-        required: true
         description: What happened outside Runx.
       evidence:
-        type: json
-        required: true
         description: Opaque references, sha256 digests, and what each locator proves.
       principal:
         type: string
-        required: true
         description: Actor named by the attestation.
       claim:
         type: string
-        required: true
         description: Exact assertion to bind into the receipt.
       scope:
         type: object
-        required: false
         description: Bound on downstream reliance.
-        schema:
-          additionalProperties: true
+        additionalProperties: true
+        optional: true
     result_from: [attest]
     examples:
       - action: Issued a goodwill refund in the provider console for order 7741.
         principal: ops:jordan
         claim: A refund for order 7741 was completed in the provider console.
         evidence:
-        - locator: provider:refund:re_3PqL2x
-          digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          proves: The provider shows the refund settled for order 7741.
+          - locator: provider:refund:re_3PqL2x
+            digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            proves: The provider shows the refund settled for order 7741.
     steps:
       - id: attest
         tool: receipt.attest
@@ -55,7 +41,3 @@ runners:
           principal: $input.principal
           claim: $input.claim
           scope: $input.scope
-
-harness:
-  files: [fixtures/support/composed.graph]
-  cases: []

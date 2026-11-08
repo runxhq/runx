@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: stripe
-name: Stripe
+name: stripe
+title: Stripe
 description: Collect and refund payments on your Stripe account, with exact terms and independent processor readback.
 category: payments
-runtime_capability: false
 auth:
   credentials:
     key:
@@ -43,7 +42,6 @@ operations:
       properties: {}
     result_fields:
     - account_id
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -54,7 +52,7 @@ operations:
             field: api_key
         requests:
         - id: account
-          method: GET
+          http_method: GET
           url: https://api.stripe.com/v1/account
           headers:
             stripe-version: 2026-09-30.endive
@@ -67,8 +65,7 @@ operations:
         result_paths:
           account_id: acknowledgement.account_id
   payment.stripe:
-    description: Collect one exact payment using an existing Stripe payment method. Only a succeeded PaymentIntent
-      independently read back with the approved terms confirms collection.
+    description: Collect one exact payment using an existing Stripe payment method. Only a succeeded PaymentIntent independently read back with the approved terms confirms collection.
     verb: write
     approval: required
     scopes:
@@ -116,7 +113,6 @@ operations:
     - status
     - charge_id
     - reference
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -127,7 +123,7 @@ operations:
             field: api_key
         requests:
         - id: collect
-          method: POST
+          http_method: POST
           url: https://api.stripe.com/v1/payment_intents
           headers: &id002
             stripe-version: 2026-09-30.endive
@@ -158,7 +154,7 @@ operations:
         preconditions:
         - request:
             id: account
-            method: GET
+            http_method: GET
             url: https://api.stripe.com/v1/account
             headers: &id001
               stripe-version: 2026-09-30.endive
@@ -178,7 +174,7 @@ operations:
         readbacks:
         - request:
             id: payment
-            method: GET
+            http_method: GET
             url:
               $concat:
               - https://api.stripe.com/v1/payment_intents/
@@ -262,7 +258,6 @@ operations:
     - currency
     - status
     - charge_id
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -273,7 +268,7 @@ operations:
             field: api_key
         requests:
         - id: payment
-          method: GET
+          http_method: GET
           url:
             $concat:
             - https://api.stripe.com/v1/payment_intents/
@@ -292,7 +287,7 @@ operations:
         preconditions:
         - request:
             id: account
-            method: GET
+            http_method: GET
             url: https://api.stripe.com/v1/account
             headers: *id001
           decode:
@@ -313,8 +308,7 @@ operations:
           status: acknowledgement.status
           charge_id: acknowledgement.charge_id
   payment.stripe.lookup:
-    description: 'Find one PaymentIntent by the native effect key recorded for the attempted collection. Search
-      is eventually consistent: absence never proves a payment was not submitted. Multiple matches refuse.'
+    description: 'Find one PaymentIntent by the native effect key recorded for the attempted collection. Search is eventually consistent: absence never proves a payment was not submitted. Multiple matches refuse.'
     verb: read
     scopes:
     - payment.stripe.read
@@ -348,7 +342,6 @@ operations:
     - status
     - charge_id
     - reference
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -359,7 +352,7 @@ operations:
             field: api_key
         requests:
         - id: lookup
-          method: GET
+          http_method: GET
           url: https://api.stripe.com/v1/payment_intents/search
           query:
             query:
@@ -387,7 +380,7 @@ operations:
         preconditions:
         - request:
             id: account
-            method: GET
+            http_method: GET
             url: https://api.stripe.com/v1/account
             headers: *id001
           decode:
@@ -409,8 +402,7 @@ operations:
           charge_id: acknowledgement.charge_id
           reference: acknowledgement.reference
   payment.stripe.refund:
-    description: Refund one original PaymentIntent on its account and currency. Stripe atomically enforces its remaining
-      refundable amount, including concurrent partial refunds.
+    description: Refund one original PaymentIntent on its account and currency. Stripe atomically enforces its remaining refundable amount, including concurrent partial refunds.
     verb: write
     approval: required
     scopes:
@@ -452,7 +444,6 @@ operations:
     - amount_minor
     - currency
     - status
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -463,7 +454,7 @@ operations:
             field: api_key
         requests:
         - id: refund
-          method: POST
+          http_method: POST
           url: https://api.stripe.com/v1/refunds
           headers: *id002
           body_encoding: form
@@ -482,7 +473,7 @@ operations:
         preconditions:
         - request:
             id: account
-            method: GET
+            http_method: GET
             url: https://api.stripe.com/v1/account
             headers: *id001
           decode:
@@ -497,7 +488,7 @@ operations:
             observed: account_id
         - request:
             id: original
-            method: GET
+            http_method: GET
             url:
               $concat:
               - https://api.stripe.com/v1/payment_intents/
@@ -530,7 +521,7 @@ operations:
         readbacks:
         - request:
             id: refund_read
-            method: GET
+            http_method: GET
             url:
               $concat:
               - https://api.stripe.com/v1/refunds/
@@ -610,7 +601,6 @@ operations:
     - amount_minor
     - currency
     - status
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -621,7 +611,7 @@ operations:
             field: api_key
         requests:
         - id: refund
-          method: GET
+          http_method: GET
           url:
             $concat:
             - https://api.stripe.com/v1/refunds/
@@ -639,7 +629,7 @@ operations:
         preconditions:
         - request:
             id: account
-            method: GET
+            http_method: GET
             url: https://api.stripe.com/v1/account
             headers: *id001
           decode:
@@ -690,7 +680,6 @@ operations:
     - amount_refunded
     - currency
     - status
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -701,7 +690,7 @@ operations:
             field: api_key
         requests:
         - id: charge
-          method: GET
+          http_method: GET
           url:
             $concat:
             - https://api.stripe.com/v1/charges/
@@ -720,7 +709,7 @@ operations:
         preconditions:
         - request:
             id: account
-            method: GET
+            http_method: GET
             url: https://api.stripe.com/v1/account
             headers: *id001
           decode:
@@ -741,25 +730,24 @@ operations:
           currency: acknowledgement.currency
           status: acknowledgement.status
   dispute.read:
-    description: Read one exact dispute on the selected Stripe merchant account, including bank response state,
-      deadline, evidence and submission count. Reading does not file evidence or concede liability.
+    description: Read one exact dispute on the selected Stripe merchant account, including bank response state, deadline, evidence and submission count. Reading does not file evidence or concede liability.
     verb: read
     scopes:
-      - dispute.read
+    - dispute.read
     credentials:
-      - key
+    - key
     target:
       template:
         $concat:
-          - stripe://
-          - $argument: /account_id
-          - /disputes/
-          - $argument: /dispute_id
+        - stripe://
+        - $argument: /account_id
+        - /disputes/
+        - $argument: /dispute_id
     input_schema:
       type: object
       required:
-        - account_id
-        - dispute_id
+      - account_id
+      - dispute_id
       additionalProperties: false
       properties:
         account_id:
@@ -769,75 +757,74 @@ operations:
           type: string
           pattern: ^du_[A-Za-z0-9]{1,128}$
     result_fields:
-      - dispute_id
-      - charge_id
-      - payment_id
-      - amount_minor
-      - currency
-      - reason
-      - status
-      - due_by
-      - past_due
-      - has_evidence
-      - submission_count
-      - evidence
-      - livemode
-    hosted: {}
+    - dispute_id
+    - charge_id
+    - payment_id
+    - amount_minor
+    - currency
+    - reason
+    - status
+    - due_by
+    - past_due
+    - has_evidence
+    - submission_count
+    - evidence
+    - livemode
     implementation:
       http:
         allowed_hosts:
-          - api.stripe.com
+        - api.stripe.com
         auth:
           key:
             type: bearer
             field: api_key
         requests:
-          - id: dispute
-            method: GET
-            url:
-              $concat:
-                - https://api.stripe.com/v1/disputes/
-                - $argument: /dispute_id
+        - id: dispute
+          http_method: GET
+          url:
+            $concat:
+            - https://api.stripe.com/v1/disputes/
+            - $argument: /dispute_id
+          headers:
+            stripe-version: 2026-09-30.endive
+            stripe-account:
+              $argument: /account_id
+        decode:
+        - op: auto_json
+        - op: project
+          fields:
+            dispute_id: id
+            charge_id: charge
+            payment_id: payment_intent
+            amount_minor: amount
+            currency: currency
+            reason: reason
+            status: status
+            due_by: evidence_details.due_by
+            past_due: evidence_details.past_due
+            has_evidence: evidence_details.has_evidence
+            submission_count: evidence_details.submission_count
+            evidence: evidence
+            livemode: livemode
+        preconditions:
+        - request:
+            id: account
+            http_method: GET
+            url: https://api.stripe.com/v1/account
             headers:
               stripe-version: 2026-09-30.endive
               stripe-account:
                 $argument: /account_id
-        decode:
+          decode:
           - op: auto_json
           - op: project
             fields:
-              dispute_id: id
-              charge_id: charge
-              payment_id: payment_intent
-              amount_minor: amount
-              currency: currency
-              reason: reason
-              status: status
-              due_by: evidence_details.due_by
-              past_due: evidence_details.past_due
-              has_evidence: evidence_details.has_evidence
-              submission_count: evidence_details.submission_count
-              evidence: evidence
-              livemode: livemode
-        preconditions:
-          - request:
-              id: account
-              method: GET
-              url: https://api.stripe.com/v1/account
-              headers:
-                stripe-version: 2026-09-30.endive
-                stripe-account:
-                  $argument: /account_id
-            decode:
-              - op: auto_json
-              - op: project
-                fields:
-                  account_id: id
-            matches:
-              - expected:
-                  source: argument
-                  path: account_id
-                observed: account_id
+              account_id: id
+          matches:
+          - expected:
+              source: argument
+              path: account_id
+            observed: account_id
         result_paths:
           dispute_id: acknowledgement.dispute_id
           charge_id: acknowledgement.charge_id
@@ -853,37 +840,34 @@ operations:
           evidence: acknowledgement.evidence
           livemode: acknowledgement.livemode
   dispute.file:
-    description: Submit the exact approved evidence to the bank, then read the same dispute and require the
-      expected submission count. This is formal submission, not draft staging, acceptance, closing or
-      refunding. Read current case first; submission_count must equal prior_submission_count plus one.
-      Reconcile an uncertain attempt before another submission.
+    description: Submit the exact approved evidence to the bank, then read the same dispute and require the expected submission count. This is formal submission, not draft staging, acceptance, closing or refunding. Read current case first; submission_count must equal prior_submission_count plus one. Reconcile an uncertain attempt before another submission.
     verb: write
     approval: required
     scopes:
-      - dispute.file
+    - dispute.file
     credentials:
-      - key
+    - key
     target:
       template:
         $concat:
-          - stripe://
-          - $argument: /account_id
-          - /disputes/
-          - $argument: /dispute_id
+        - stripe://
+        - $argument: /account_id
+        - /disputes/
+        - $argument: /dispute_id
     input_schema:
       type: object
       required:
-        - account_id
-        - dispute_id
-        - charge_id
-        - amount_minor
-        - currency
-        - expected_status
-        - prior_submission_count
-        - submission_count
-        - evidence_form
-        - amount_refunded
-        - expected_evidence
+      - account_id
+      - dispute_id
+      - charge_id
+      - amount_minor
+      - currency
+      - expected_status
+      - prior_submission_count
+      - submission_count
+      - evidence_form
+      - amount_refunded
+      - expected_evidence
       additionalProperties: false
       properties:
         account_id:
@@ -904,8 +888,8 @@ operations:
           pattern: ^[a-z]{3}$
         expected_status:
           enum:
-            - needs_response
-            - warning_needs_response
+          - needs_response
+          - warning_needs_response
         prior_submission_count:
           type: integer
           minimum: 0
@@ -915,7 +899,7 @@ operations:
         evidence_form:
           type: object
           required:
-            - submit
+          - submit
           minProperties: 2
           additionalProperties: false
           properties:
@@ -1009,48 +993,93 @@ operations:
         expected_evidence:
           type: object
           additionalProperties: true
-          description: Exact staged evidence object from the current dispute read. Native preconditions require it
-            unchanged before submitting the complete approved evidence form.
+          description: Exact staged evidence object from the current dispute read. Native preconditions require it unchanged before submitting the complete approved evidence form.
     result_fields:
-      - dispute_id
-      - charge_id
-      - payment_id
-      - amount_minor
-      - currency
-      - reason
-      - status
-      - due_by
-      - past_due
-      - has_evidence
-      - submission_count
-      - evidence
-      - livemode
-    hosted: {}
+    - dispute_id
+    - charge_id
+    - payment_id
+    - amount_minor
+    - currency
+    - reason
+    - status
+    - due_by
+    - past_due
+    - has_evidence
+    - submission_count
+    - evidence
+    - livemode
     implementation:
       http:
         allowed_hosts:
-          - api.stripe.com
+        - api.stripe.com
         auth:
           key:
             type: bearer
             field: api_key
         requests:
-          - id: file
-            method: POST
-            url:
-              $concat:
-                - https://api.stripe.com/v1/disputes/
-                - $argument: /dispute_id
+        - id: file
+          http_method: POST
+          url:
+            $concat:
+            - https://api.stripe.com/v1/disputes/
+            - $argument: /dispute_id
+          headers:
+            stripe-version: 2026-09-30.endive
+            stripe-account:
+              $argument: /account_id
+            idempotency-key:
+              $runx: idempotency_key
+          body_encoding: form
+          body:
+            $argument: /evidence_form
+        decode:
+        - op: auto_json
+        - op: project
+          fields:
+            dispute_id: id
+            charge_id: charge
+            payment_id: payment_intent
+            amount_minor: amount
+            currency: currency
+            reason: reason
+            status: status
+            due_by: evidence_details.due_by
+            past_due: evidence_details.past_due
+            has_evidence: evidence_details.has_evidence
+            submission_count: evidence_details.submission_count
+            evidence: evidence
+            livemode: livemode
+        preconditions:
+        - request:
+            id: account
+            http_method: GET
+            url: https://api.stripe.com/v1/account
             headers:
               stripe-version: 2026-09-30.endive
               stripe-account:
                 $argument: /account_id
-              idempotency-key:
-                $runx: idempotency_key
-            body_encoding: form
-            body:
-              $argument: /evidence_form
-        decode:
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              account_id: id
+          matches:
+          - expected:
+              source: argument
+              path: account_id
+            observed: account_id
+        - request:
+            id: before
+            http_method: GET
+            url:
+              $concat:
+              - https://api.stripe.com/v1/disputes/
+              - $argument: /dispute_id
+            headers:
+              stripe-version: 2026-09-30.endive
+              stripe-account:
+                $argument: /account_id
+          decode:
           - op: auto_json
           - op: project
             fields:
@@ -1067,175 +1096,128 @@ operations:
               submission_count: evidence_details.submission_count
               evidence: evidence
               livemode: livemode
-        preconditions:
-          - request:
-              id: account
-              method: GET
-              url: https://api.stripe.com/v1/account
-              headers:
-                stripe-version: 2026-09-30.endive
-                stripe-account:
-                  $argument: /account_id
-            decode:
-              - op: auto_json
-              - op: project
-                fields:
-                  account_id: id
-            matches:
-              - expected:
-                  source: argument
-                  path: account_id
-                observed: account_id
-          - request:
-              id: before
-              method: GET
-              url:
-                $concat:
-                  - https://api.stripe.com/v1/disputes/
-                  - $argument: /dispute_id
-              headers:
-                stripe-version: 2026-09-30.endive
-                stripe-account:
-                  $argument: /account_id
-            decode:
-              - op: auto_json
-              - op: project
-                fields:
-                  dispute_id: id
-                  charge_id: charge
-                  payment_id: payment_intent
-                  amount_minor: amount
-                  currency: currency
-                  reason: reason
-                  status: status
-                  due_by: evidence_details.due_by
-                  past_due: evidence_details.past_due
-                  has_evidence: evidence_details.has_evidence
-                  submission_count: evidence_details.submission_count
-                  evidence: evidence
-                  livemode: livemode
-            matches:
-              - expected:
-                  source: argument
-                  path: dispute_id
-                observed: dispute_id
-              - expected:
-                  source: argument
-                  path: charge_id
-                observed: charge_id
-              - expected:
-                  source: argument
-                  path: amount_minor
-                observed: amount_minor
-              - expected:
-                  source: argument
-                  path: currency
-                observed: currency
-              - expected:
-                  source: argument
-                  path: expected_status
-                observed: status
-              - expected:
-                  source: argument
-                  path: prior_submission_count
-                observed: submission_count
-              - expected:
-                  source: literal
-                  value: false
-                observed: past_due
-              - expected:
-                  source: argument
-                  path: expected_evidence
-                observed: evidence
-          - request:
-              id: charge_before
-              method: GET
-              url:
-                $concat:
-                  - https://api.stripe.com/v1/charges/
-                  - $argument: /charge_id
-              headers:
-                stripe-version: 2026-09-30.endive
-                stripe-account:
-                  $argument: /account_id
-            decode:
-              - op: auto_json
-              - op: project
-                fields:
-                  charge_id: id
-                  payment_id: payment_intent
-                  amount_minor: amount
-                  amount_refunded: amount_refunded
-                  currency: currency
-                  status: status
-            matches:
-              - expected:
-                  source: argument
-                  path: charge_id
-                observed: charge_id
-              - expected:
-                  source: argument
-                  path: amount_refunded
-                observed: amount_refunded
-              - expected:
-                  source: argument
-                  path: currency
-                observed: currency
+          matches:
+          - expected:
+              source: argument
+              path: dispute_id
+            observed: dispute_id
+          - expected:
+              source: argument
+              path: charge_id
+            observed: charge_id
+          - expected:
+              source: argument
+              path: amount_minor
+            observed: amount_minor
+          - expected:
+              source: argument
+              path: currency
+            observed: currency
+          - expected:
+              source: argument
+              path: expected_status
+            observed: status
+          - expected:
+              source: argument
+              path: prior_submission_count
+            observed: submission_count
+          - expected:
+              source: literal
+              value: false
+            observed: past_due
+          - expected:
+              source: argument
+              path: expected_evidence
+            observed: evidence
+        - request:
+            id: charge_before
+            http_method: GET
+            url:
+              $concat:
+              - https://api.stripe.com/v1/charges/
+              - $argument: /charge_id
+            headers:
+              stripe-version: 2026-09-30.endive
+              stripe-account:
+                $argument: /account_id
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              charge_id: id
+              payment_id: payment_intent
+              amount_minor: amount
+              amount_refunded: amount_refunded
+              currency: currency
+              status: status
+          matches:
+          - expected:
+              source: argument
+              path: charge_id
+            observed: charge_id
+          - expected:
+              source: argument
+              path: amount_refunded
+            observed: amount_refunded
+          - expected:
+              source: argument
+              path: currency
+            observed: currency
         operation_id_path: dispute_id
         readbacks:
-          - request:
-              id: after
-              method: GET
-              url:
-                $concat:
-                  - https://api.stripe.com/v1/disputes/
-                  - $argument: /dispute_id
-              headers:
-                stripe-version: 2026-09-30.endive
-                stripe-account:
-                  $argument: /account_id
-            decode:
-              - op: auto_json
-              - op: project
-                fields:
-                  dispute_id: id
-                  charge_id: charge
-                  payment_id: payment_intent
-                  amount_minor: amount
-                  currency: currency
-                  reason: reason
-                  status: status
-                  due_by: evidence_details.due_by
-                  past_due: evidence_details.past_due
-                  has_evidence: evidence_details.has_evidence
-                  submission_count: evidence_details.submission_count
-                  evidence: evidence
-                  livemode: livemode
-            matches:
-              - expected:
-                  source: argument
-                  path: dispute_id
-                observed: dispute_id
-              - expected:
-                  source: argument
-                  path: charge_id
-                observed: charge_id
-              - expected:
-                  source: argument
-                  path: amount_minor
-                observed: amount_minor
-              - expected:
-                  source: argument
-                  path: currency
-                observed: currency
-              - expected:
-                  source: argument
-                  path: submission_count
-                observed: submission_count
-              - expected:
-                  source: literal
-                  value: true
-                observed: has_evidence
+        - request:
+            id: after
+            http_method: GET
+            url:
+              $concat:
+              - https://api.stripe.com/v1/disputes/
+              - $argument: /dispute_id
+            headers:
+              stripe-version: 2026-09-30.endive
+              stripe-account:
+                $argument: /account_id
+          decode:
+          - op: auto_json
+          - op: project
+            fields:
+              dispute_id: id
+              charge_id: charge
+              payment_id: payment_intent
+              amount_minor: amount
+              currency: currency
+              reason: reason
+              status: status
+              due_by: evidence_details.due_by
+              past_due: evidence_details.past_due
+              has_evidence: evidence_details.has_evidence
+              submission_count: evidence_details.submission_count
+              evidence: evidence
+              livemode: livemode
+          matches:
+          - expected:
+              source: argument
+              path: dispute_id
+            observed: dispute_id
+          - expected:
+              source: argument
+              path: charge_id
+            observed: charge_id
+          - expected:
+              source: argument
+              path: amount_minor
+            observed: amount_minor
+          - expected:
+              source: argument
+              path: currency
+            observed: currency
+          - expected:
+              source: argument
+              path: submission_count
+            observed: submission_count
+          - expected:
+              source: literal
+              value: true
+            observed: has_evidence
         result_paths:
           dispute_id: readbacks.0.dispute_id
           charge_id: readbacks.0.charge_id

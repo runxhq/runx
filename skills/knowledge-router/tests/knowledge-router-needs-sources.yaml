@@ -1,0 +1,5 @@
+name: knowledge-router-needs-sources
+inputs:
+  question: Where should this go?
+expect:
+  status: failure

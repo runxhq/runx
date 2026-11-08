@@ -1,0 +1,13 @@
+name: schema-check-needs-proposed-schema
+inputs:
+  current_schema:
+    type: object
+    properties:
+      id:
+        type: string
+  sample_payloads:
+    - id: case-1
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: failure

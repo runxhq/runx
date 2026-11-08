@@ -1,0 +1,35 @@
+{
+  "skill_name": "message-send",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Reply to this exact conversation after approval.",
+      "expected_output": "Hold when the source packet does not prove complete coverage; do not send.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Notify this Slack channel that release 0.8.2 is live.",
+      "expected_output": "Prepare the exact notification, post it once after approval, and return provider readback.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Notify this Slack channel that release 0.8.2 is live.",
+      "expected_output": "Prepare the exact notification, post it once after approval, and return provider readback.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Notify this Slack channel without configuring a Slack delivery binding.",
+      "expected_output": "Refuse with one actionable connector blocker before claiming delivery.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Prepare the exact reply for this Slack thread and stop before delivery.",
+      "expected_output": "Return a digest-bound reply plan with exact target, body, principal, and approval boundary.",
+      "files": []
+    }
+  ]
+}

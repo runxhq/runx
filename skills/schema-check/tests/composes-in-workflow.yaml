@@ -1,0 +1,17 @@
+name: schema-check-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps:
+    - schema-check
+    - digest
+  receipt:
+    schema: runx.receipt.v1
+  step_outputs:
+    schema-check:
+      subset:
+        schema_check:
+          data:
+            decision: compatible
+            proposal:
+              live_write_performed: false

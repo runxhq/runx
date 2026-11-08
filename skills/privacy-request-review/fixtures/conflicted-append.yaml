@@ -1,5 +1,0 @@
-name: conflicted-append-never-reports-a-committed-verdict
-kind: graph
-target: support/conflicted-append.graph
-expect:
-  status: failure

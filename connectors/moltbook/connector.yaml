@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: moltbook
-name: Moltbook
+name: moltbook
+title: Moltbook
 description: Read recent Moltbook posts and publish posts as an agent account.
 category: communication
-runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -38,7 +37,7 @@ operations:
         allowed_hosts: [www.moltbook.com]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - method: GET
+          - http_method: GET
             url: "https://www.moltbook.com/api/v1/posts"
             query:
               sort: new
@@ -68,7 +67,7 @@ operations:
         allowed_hosts: [www.moltbook.com]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - method: POST
+          - http_method: POST
             url: "https://www.moltbook.com/api/v1/posts"
             headers: {accept: application/json}
             body:
@@ -78,7 +77,7 @@ operations:
         readbacks:
           - request:
               id: post
-              method: GET
+              http_method: GET
               url: {"$concat": ["https://www.moltbook.com/api/v1/posts/", {"$response": "write.json.post.id"}]}
               headers: {accept: application/json}
             matches:

@@ -1,4 +1,4 @@
-//! Runner-output and packet-contract verification shared by every execution
+//! Method-output and packet-contract verification shared by every execution
 //! source. Agent, JavaScript, CLI, native-tool, and nested-skill results must
 //! cross the same typed boundary before a successful receipt can be sealed.
 
@@ -148,7 +148,7 @@ pub(crate) fn artifact_data(envelope: &JsonValue) -> Option<&JsonValue> {
 
 /// The checks of a runner's result against its declared output contract and
 /// packets, the contract parsed from the runner's raw declaration.
-pub(crate) fn runner_contract_checks(
+pub(crate) fn method_contract_checks(
     skill_name: &str,
     payload: &JsonValue,
     raw_output: Option<&JsonObject>,

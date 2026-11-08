@@ -16,11 +16,11 @@ mod tools;
 use contract::{required_text_file, validate_manual, validate_package_identity, validate_profiles};
 use modules::validate_modules;
 use references::{
-    collect_harness_fixture_references, collect_package_references, validate_context_skill_sources,
+    collect_package_references, collect_test_fixture_references, validate_context_skill_sources,
 };
 use support::{
-    validate_execution_files, validate_harness_fixtures, validate_harness_support_files,
-    validate_nested_package_consumed_files, validate_operator_reference_files,
+    validate_execution_files, validate_nested_package_consumed_files,
+    validate_operator_reference_files, validate_test_fixtures, validate_test_support_files,
 };
 use tools::validate_package_tools;
 
@@ -32,15 +32,15 @@ pub fn validate_skill_package(
     let skill = validate_manual(&manual_markdown)?;
     let profiles = validate_profiles(&source)?;
     validate_package_identity(&skill, profiles.get(super::PROFILE_FILE))?;
-    let harness_fixtures = validate_harness_fixtures(&source)?;
+    let test_fixtures = validate_test_fixtures(&source)?;
     validate_catalog_semantics(
         &skill.name,
         profiles.get(super::PROFILE_FILE),
-        &harness_fixtures,
+        &test_fixtures,
     )?;
     let mut references = collect_package_references(&profiles)?;
-    let harness_fixture_files =
-        collect_harness_fixture_references(&harness_fixtures, &source, &mut references)?;
+    let test_fixture_files =
+        collect_test_fixture_references(&test_fixtures, &source, &mut references)?;
     let tools = validate_package_tools(&source)?;
     validate_context_skill_sources(&source, &references.context_refs)?;
     let mut execution_files = references.execution_files;
@@ -49,8 +49,8 @@ pub fn validate_skill_package(
         execution_files.extend(package_tool.source_files.iter().cloned());
     }
     validate_execution_files(&source, &execution_files)?;
-    let mut harness_files = validate_harness_support_files(&source, &profiles)?;
-    harness_files.extend(harness_fixture_files);
+    let mut test_files = validate_test_support_files(&source, &profiles)?;
+    test_files.extend(test_fixture_files);
     let mut context_skills = references
         .context_refs
         .into_iter()
@@ -65,7 +65,7 @@ pub fn validate_skill_package(
     consumed_files.extend(profiles.keys().cloned());
     consumed_files.extend(javascript_modules.keys().cloned());
     consumed_files.extend(execution_files.iter().cloned());
-    consumed_files.extend(harness_files.iter().cloned());
+    consumed_files.extend(test_files.iter().cloned());
     consumed_files.extend(validate_operator_reference_files(&source)?);
     consumed_files.extend(validate_nested_package_consumed_files(&source)?);
     if let Some(mark) = source.files.get(crate::mark::MARK_FILE) {
@@ -97,9 +97,9 @@ pub fn validate_skill_package(
         javascript_modules,
         tools,
         execution_files,
-        harness_files,
+        test_files,
         consumed_files,
-        harness_fixtures,
+        test_fixtures,
         context_skills,
         packets,
         source,
@@ -108,8 +108,8 @@ pub fn validate_skill_package(
 
 fn validate_catalog_semantics(
     skill_name: &str,
-    manifest: Option<&crate::SkillRunnerManifest>,
-    fixtures: &BTreeMap<String, crate::harness_fixture::HarnessFixture>,
+    manifest: Option<&crate::SkillMethodManifest>,
+    fixtures: &BTreeMap<String, crate::test_fixture::TestFixture>,
 ) -> Result<(), SkillPackageError> {
     let Some(manifest) = manifest else {
         return Ok(());

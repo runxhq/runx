@@ -84,9 +84,7 @@ read its earlier result parts when coverage is incomplete. Never replace missing
 evidence with a receipt-shaped string, silently shorten the findings list, or
 report an incomplete scan as a negative result.
 
-## Agent task contracts
-
-### `vuln-triage-assess`
+## Agent task: vuln-triage-assess
 
 Use `triage_context.findings` and the supplied deployment context. Return
 `risk_assessment_draft` with `decision` (`remediate`, `monitor` or `needs_human`),
@@ -98,7 +96,7 @@ concrete `recommendation`. Add `fixed_version` only from the matching supplied
 advisory's fixed events. Cover every finding once; do not invent findings,
 deployment evidence, independent verification or completed remediation.
 
-### `vuln-triage-advisory`
+## Agent task: vuln-triage-advisory
 
 Return `advisory_draft` with title, summary, body, affected_advisory_ids and
 disclosure_checklist. Cite only admitted ids. Preserve partial coverage and

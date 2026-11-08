@@ -49,10 +49,10 @@ pub struct SkillInspection {
     pub operator_journeys: Vec<OperatorJourney>,
     /// Each runner with the execution closure it binds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub runner_inspections: Vec<RunnerInspectionEntry>,
+    pub method_inspections: Vec<MethodInspectionEntry>,
     /// The runner inspected: the one named, else the default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub runner: Option<RunnerInspection>,
+    pub runner: Option<MethodInspection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_closure: Option<JsonObject>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -115,13 +115,13 @@ pub struct OperatorJourney {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runner: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exercises_runner: Option<String>,
+    pub exercises_method: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RunnerInspectionEntry {
-    pub runner: RunnerInspection,
+pub struct MethodInspectionEntry {
+    pub runner: MethodInspection,
     pub execution_closure: JsonObject,
 }
 
@@ -129,7 +129,7 @@ pub struct RunnerInspectionEntry {
 /// what it needs.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RunnerInspection {
+pub struct MethodInspection {
     pub name: String,
     /// Its inputs as one JSON schema, with the runner's examples.
     pub input_schema: JsonObject,

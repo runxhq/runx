@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentContextEnvelopeSchema,
-  agentActInvocationSchema,
+  turnInvocationSchema,
   approvalGateSchema,
   actResultEnvelopeSchema,
   actAssignmentV1Schema,
@@ -63,7 +63,7 @@ describe("@runxhq/contracts", () => {
   it("exports Rust-generated artifacts for control schema facades", () => {
     expect(outputSchema).toBe(runxContractSchemas.output);
     expect(agentContextEnvelopeSchema).toBe(runxContractSchemas.agentContextEnvelope);
-    expect(agentActInvocationSchema).toBe(runxContractSchemas.agentActInvocation);
+    expect(turnInvocationSchema).toBe(runxContractSchemas.turnInvocation);
     expect(questionSchema).toBe(runxContractSchemas.question);
     expect(approvalGateSchema).toBe(runxContractSchemas.approvalGate);
     expect(resolutionRequestSchema).toBe(runxContractSchemas.resolutionRequest);
@@ -327,7 +327,7 @@ describe("@runxhq/contracts", () => {
         },
       }],
       runners: [{
-        runner_id: "local-review",
+        method_id: "local-review",
         kind: "local",
         state: "available",
         allowed_actions: ["issue-to-pr", "merge-assist"],
@@ -341,7 +341,7 @@ describe("@runxhq/contracts", () => {
       }],
       targets: [{
         repo: "example/api",
-        runner_ids: ["local-review"],
+        method_ids: ["local-review"],
         allowed_actions: ["issue-to-pr", "merge-assist"],
         default_owner_route: "api-owner",
         scafld_required: true,
@@ -653,7 +653,7 @@ describe("@runxhq/contracts", () => {
         materialized_package_is_registry_artifact: true,
       },
       harness: {
-        state: "harness_verified",
+        state: "test_verified",
         case_count: 1,
       },
     })).toMatchObject({ schema: "runx.registry_binding.v1" });
@@ -683,7 +683,7 @@ describe("@runxhq/contracts", () => {
         materialized_package_is_registry_artifact: true,
       },
       harness: {
-        state: "harness_verified",
+        state: "test_verified",
         case_count: 1,
       },
     })).toThrow(/runx\/registry-binding\/v1\.json/);

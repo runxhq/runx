@@ -1,0 +1,71 @@
+name: code-plan-skill-package-requires-skill-build
+inputs:
+  objective: Add a new Runx operator skill.
+  repo_root: fixtures/workspace
+host:
+  answers:
+    draft:
+      work_plan_draft:
+        decision: ready
+        plan_kind: skill_package
+        change_set:
+          change_set_id: change_set_new_skill
+          thread_locator: objective://new-skill
+          summary: Add a new Runx operator skill.
+          category: feature_request
+          severity: medium
+          recommended_lane: code-plan
+          commence_decision: approve
+          action_decision: proceed_to_plan
+          target_surfaces:
+            - surface: skills/new-skill
+              kind: package
+              mutating: true
+              rationale: A skill package must be authored.
+          shared_invariants:
+            - Use the canonical Runx authoring lane.
+          success_criteria:
+            - The skill has focused harness proof.
+        objective_summary: Add a new Runx operator skill.
+        workspace_change_plan:
+          plan_id: plan_new_skill
+          change_set_id: change_set_new_skill
+          objective_summary: Add a new Runx operator skill.
+          shared_invariants:
+            - Use the canonical Runx authoring lane.
+          success_criteria:
+            - The skill has focused harness proof.
+          phases:
+            - id: author-skill
+              name: Author skill
+              depends_on: []
+              parallelizable: false
+              repo_change_requests: []
+          integration_checks:
+            - Focused harness passes.
+          open_questions: []
+        orchestration_steps:
+          - id: generic-repo-change
+            skill: ../github-issue-to-pr
+            scopes:
+              - git.write
+            mutating: true
+            inputs: {}
+            context_from:
+              - change_set
+            description: Use a generic repo lane to author the skill.
+        required_skills:
+          - name: github-issue-to-pr
+            exists: true
+        open_questions: []
+expect:
+  status: sealed
+  step_outputs:
+    validate:
+      subset:
+        decision: blocked
+        validation:
+          status: hold
+          findings:
+            - code: skill_package.skill_build_required
+              path: orchestration_steps

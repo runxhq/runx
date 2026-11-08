@@ -18,7 +18,7 @@ pub(super) fn candidate_resource_usage(package: &ValidatedSkillPackage) -> Candi
     };
     for profile in package.profiles.values() {
         for runner in profile.runners.values() {
-            classify_runner(runner, &mut usage);
+            classify_method(runner, &mut usage);
         }
     }
     if usage.domain_modules {
@@ -27,8 +27,8 @@ pub(super) fn candidate_resource_usage(package: &ValidatedSkillPackage) -> Candi
     usage
 }
 
-fn classify_runner(
-    runner: &runx_parser::SkillRunnerDefinition,
+fn classify_method(
+    runner: &runx_parser::SkillMethodDefinition,
     usage: &mut CandidateResourceUsage,
 ) {
     for step in &runner.graph.steps {

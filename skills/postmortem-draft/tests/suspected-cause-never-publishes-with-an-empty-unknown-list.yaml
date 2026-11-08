@@ -1,0 +1,53 @@
+name: suspected-cause-never-publishes-with-an-empty-unknown-list
+inputs:
+  incident_id: inc-checkout-2026-08-09
+  incident_fragments:
+    - id: frag-1
+      source: pagerduty
+      text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
+    - id: frag-2
+      source: deploy-log
+      text: 03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api.
+    - id: frag-3
+      source: slack-incident
+      text: 03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline.
+host:
+  answers:
+    draft:
+      postmortem_draft:
+        summary: Checkout errors rose after a connection-pool change and returned to baseline after rollback; the exact mechanism is not established.
+        impact:
+          status: known
+          statement: Checkout requests failed above the alert threshold until rollback.
+          scope: checkout-api
+          fragment_id: frag-1
+          quote: checkout 5xx rate crossed 8 percent
+        timeline:
+          - entry: Deploy 2026.08.09.3 shipped a connection pool change.
+            fragment_id: frag-2
+            quote: deploy 2026.08.09.3 rolled out a connection pool change
+          - entry: Checkout 5xx rate crossed the alert threshold.
+            fragment_id: frag-1
+            quote: checkout 5xx rate crossed 8 percent
+          - entry: Rollback restored baseline.
+            fragment_id: frag-3
+            quote: rollback of 2026.08.09.3 completed and 5xx rate returned to baseline
+        root_cause:
+          status: suspected
+          statement: The connection-pool change is associated with the failure; the supplied records do not establish the mechanism.
+          fragment_id: frag-2
+          quote: connection pool change to checkout-api
+        unknowns: []
+        action_items:
+          - action: Add pool saturation alerting before the next pool change ships.
+            owner: platform-oncall
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            decision: needs_more_evidence
+            publish_proposal: null
+            publish_performed: false

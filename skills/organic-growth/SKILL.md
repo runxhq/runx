@@ -165,9 +165,7 @@ It does not hash evidence, call providers, or implement generic verification.
 Runx owns native digest provenance, evidence verification, agent receipts, and
 all downstream effect gates.
 
-## Agent task contract
-
-### `organic-growth-analyze`
+## Agent task: organic-growth-analyze
 
 Return `growth_candidate` with `decision: ready`, the exact objective and
 site_url, executive_summary, observations, hypotheses, opportunities,
@@ -181,7 +179,7 @@ Mark statements as observed, inferred, or hypothesized. Preserve source caveats,
 do not invent metrics or causes, and do not claim a change, publication,
 provider call, ranking result, or AI citation occurred.
 
-### `organic-growth-collect`
+## Agent task: organic-growth-collect
 
 Acquire relevant missing evidence for the exact objective/site, using the named
 read-only skill defaults and native asks if a genuine selector is missing. Do

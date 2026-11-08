@@ -27,7 +27,7 @@ if (findings.length > 0) {
 }
 
 const comparison = base ? ` against ${base}` : " (version comparison skipped: no Git base)";
-console.log(`skill catalog version and graph-input checks ok${comparison}`);
+console.log(`skill catalog version and workflow-input checks ok${comparison}`);
 
 function checkCurrentCatalog() {
   const findings = [];
@@ -42,7 +42,7 @@ function checkCurrentCatalog() {
     documents.push({ skill: entry.name, source });
   }
   const results = evaluateParserRequestResults(documents.map(({ source }) => ({
-    kind: "parser.validateRunnerManifestYaml",
+    kind: "parser.validateMethodManifestYaml",
     yaml: source,
   })));
   for (const [index, document] of documents.entries()) {
@@ -58,7 +58,7 @@ function checkCurrentCatalog() {
     } else if (!document.source.split("\n").some((line) => line === `version: "${profile.version}"`)) {
       findings.push(`skills/${document.skill}/run.yaml: version must be quoted as "${profile.version}"`);
     }
-    const unstated = runnersWithoutPurpose(profile);
+    const unstated = methodsWithoutPurpose(profile);
     if (unstated.length > 0) {
       findings.push(
         `skills/${document.skill}/run.yaml: a skill of several runners states each one's purpose in its description, which a model chooses it by; ${unstated.join(", ")} ${unstated.length === 1 ? "states" : "state"} none`,
@@ -72,7 +72,7 @@ function checkCurrentCatalog() {
  * The runners of a skill of several that state no purpose. A skill's only
  * runner is described by the skill's own description.
  */
-function runnersWithoutPurpose(profile) {
+function methodsWithoutPurpose(profile) {
   const runners = Object.entries(profile?.runners ?? {});
   if (runners.length < 2) return [];
   return runners
@@ -227,9 +227,9 @@ function runSelfTests() {
   assert(versionFinding("same", "0.1.0", "0.1.0", ["skills/same/SKILL.md"]) !== null, "unchanged version fails");
   assert(versionFinding("bumped", "0.1.0", "0.1.1", ["skills/bumped/SKILL.md"]) === null, "increased version passes");
   assert(versionFinding("corrected", "1.0.0", "0.7.0", ["skills/corrected/run.yaml"]) === null, "corrected prerelease label passes");
-  assert(runnersWithoutPurpose({ runners: { only: {} } }).length === 0, "a skill's only runner needs no purpose of its own");
+  assert(methodsWithoutPurpose({ runners: { only: {} } }).length === 0, "a skill's only runner needs no purpose of its own");
   assert(
-    runnersWithoutPurpose({ runners: { read: { description: "Read it." }, write: {}, blank: { description: " " } } })
+    methodsWithoutPurpose({ runners: { read: { description: "Read it." }, write: {}, blank: { description: " " } } })
       .join(",") === "write,blank",
     "each runner of several states its purpose",
   );

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { validateRunnerManifestYamlBatch } from "./native-parser.mjs";
+import { validateMethodManifestYamlBatch } from "./native-parser.mjs";
 
 /**
  * The skills `root`'s skills/ holds: each directory with a SKILL.md and a
@@ -22,7 +22,7 @@ export function repositorySkills(root, env = process.env, selected = null) {
       && existsSync(path.join(skillsRoot, entry.name, "run.yaml")))
     .map((entry) => entry.name)
     .sort();
-  const manifests = validateRunnerManifestYamlBatch(
+  const manifests = validateMethodManifestYamlBatch(
     names.map((name) => readFileSync(path.join(skillsRoot, name, "run.yaml"), "utf8")),
     env,
   );

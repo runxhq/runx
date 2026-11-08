@@ -1,0 +1,17 @@
+{
+  "skill_name": "ghostwrite",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Write a short update using the facts I already supplied.",
+      "expected_output": "Admit the exact supplied facts and open one writing turn, without requesting a research packet or external verification.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Ghostwrite an operator brief from this evidence pack and objective.",
+      "expected_output": "Return publication-ready draft copy whose claims and caveats remain bound to supplied evidence.",
+      "files": []
+    }
+  ]
+}

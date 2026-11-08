@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::PacketId;
 use runx_parser::{
-    PacketSchemaError, SkillArtifactContract, SkillInput, SkillRunnerDefinition,
+    PacketSchemaError, SkillArtifactContract, SkillInput, SkillMethodDefinition,
     ValidatedPacketSchema, ValidatedSkillPackage, ValidatedTool, parse_packet_schema_document,
 };
 use thiserror::Error;
@@ -538,7 +538,7 @@ pub(crate) fn packet_schema_entry(
     Ok(entry)
 }
 
-pub(crate) fn declared_runner_packet_ids(runner: &SkillRunnerDefinition) -> BTreeSet<PacketId> {
+pub(crate) fn declared_method_packet_ids(runner: &SkillMethodDefinition) -> BTreeSet<PacketId> {
     let mut packet_ids = BTreeSet::new();
     extend_input_packet_ids(&runner.inputs, &mut packet_ids);
     for step in &runner.graph.steps {

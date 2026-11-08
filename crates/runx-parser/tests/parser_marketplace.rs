@@ -1,12 +1,12 @@
 use runx_contracts::{PaidSkillPrice, PortableAmountMinor};
-use runx_parser::{SkillRunnerManifest, parse_runner_manifest_yaml, validate_runner_manifest};
+use runx_parser::{SkillMethodManifest, parse_method_manifest_yaml, validate_method_manifest};
 
 const DIGEST_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DIGEST_B: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-fn validate(yaml: &str) -> Result<SkillRunnerManifest, String> {
-    let raw = parse_runner_manifest_yaml(yaml).map_err(|error| error.to_string())?;
-    validate_runner_manifest(raw).map_err(|error| error.to_string())
+fn validate(yaml: &str) -> Result<SkillMethodManifest, String> {
+    let raw = parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?;
+    validate_method_manifest(raw).map_err(|error| error.to_string())
 }
 
 /// A skill with a free `preview` runner and a `transcribe` runner whose inputs
@@ -51,7 +51,7 @@ fn offer(price: &str) -> String {
     )
 }
 
-fn price_of(parsed: SkillRunnerManifest) -> Result<PaidSkillPrice, String> {
+fn price_of(parsed: SkillMethodManifest) -> Result<PaidSkillPrice, String> {
     Ok(parsed
         .marketplace
         .ok_or_else(|| "missing marketplace".to_owned())?
@@ -70,7 +70,7 @@ fn refused(price: &str) -> Result<String, String> {
 }
 
 #[test]
-fn marketplace_paid_and_free_runners_share_one_manifest() -> Result<(), String> {
+fn marketplace_paid_and_free_methods_share_one_manifest() -> Result<(), String> {
     let parsed = validate(&manifest(&offer("{model: fixed, amount_minor: 125}")))?;
     let offers = &parsed
         .marketplace
@@ -96,7 +96,7 @@ fn marketplace_paid_and_free_runners_share_one_manifest() -> Result<(), String> 
 }
 
 #[test]
-fn missing_marketplace_keeps_all_runners_free() -> Result<(), String> {
+fn missing_marketplace_keeps_all_methods_free() -> Result<(), String> {
     let parsed = validate(&manifest(""))?;
     assert!(parsed.marketplace.is_none());
     Ok(())
@@ -192,7 +192,7 @@ fn a_prepared_offer_is_no_longer_accepted() -> Result<(), String> {
 }
 
 #[test]
-fn an_offer_names_the_held_resource_it_acts_on() -> Result<(), String> {
+fn an_offer_names_the_leased_resource_it_acts_on() -> Result<(), String> {
     let acting = offer("{model: fixed, amount_minor: 5}").replace(
         "      currency: USD\n",
         "      currency: USD\n      acts_on: {connector: ausca/inbox, credential: lease, target: {$concat: [\"ausca:agent-inbox/\", {$argument: /language}]}}\n",
@@ -228,7 +228,7 @@ fn an_offer_names_the_held_resource_it_acts_on() -> Result<(), String> {
 }
 
 #[test]
-fn marketplace_rejects_undeclared_runner_and_unknown_rail_fields() -> Result<(), String> {
+fn marketplace_rejects_undeclared_method_and_unknown_rail_fields() -> Result<(), String> {
     let undeclared =
         offer("{model: fixed, amount_minor: 125}").replace("    transcribe:\n", "    missing:\n");
     let Err(error) = validate(&manifest(&undeclared)) else {
@@ -268,14 +268,14 @@ fn marketplace_rejects_ambiguous_terms() -> Result<(), String> {
 }
 
 #[test]
-fn continuation_dependencies_name_other_declared_runners_once()
+fn continuation_dependencies_name_other_declared_methods_once()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = "skill: async-work\nrunners:\n  schedule:\n    continuations: [continue]\n    steps:\n      - id: scheduled\n        tool: data.digest\n        inputs: {value: waiting}\n  continue:\n    steps:\n      - id: observed\n        tool: data.digest\n        inputs: {value: ready}\n";
-    let parsed = validate_runner_manifest(parse_runner_manifest_yaml(source)?)?;
+    let parsed = validate_method_manifest(parse_method_manifest_yaml(source)?)?;
     assert_eq!(parsed.runners["schedule"].continuations, ["continue"]);
     for invalid in ["[missing]", "[schedule]", "[continue, continue]"] {
         assert!(
-            validate_runner_manifest(parse_runner_manifest_yaml(
+            validate_method_manifest(parse_method_manifest_yaml(
                 &source.replace("[continue]", invalid)
             )?)
             .is_err(),
@@ -289,7 +289,7 @@ fn continuation_dependencies_name_other_declared_runners_once()
 fn a_schedule_packet_does_not_invent_continuation_edges() -> Result<(), Box<dyn std::error::Error>>
 {
     let source = "skill: async-work\nrunners:\n  schedule:\n    steps:\n      - id: schedule\n        tool: {module: schedule.mjs}\n        outputs: {schedule_intent: object}\n        artifacts:\n          named_emits: {schedule_intent: schedule_intent}\n          packets: {schedule_intent: runx.external_job_schedule_intent.v1}\n";
-    let manifest = validate_runner_manifest(parse_runner_manifest_yaml(source)?)?;
+    let manifest = validate_method_manifest(parse_method_manifest_yaml(source)?)?;
     assert!(manifest.runners["schedule"].continuations.is_empty());
     Ok(())
 }

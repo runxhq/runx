@@ -8,7 +8,7 @@ use std::path::Path;
 
 use runx_contracts::schema::RunxSchema;
 use runx_contracts::{
-    CatalogHit, CatalogPackageKind, CatalogRunner, CatalogSource, ConnectorInspection,
+    CatalogHit, CatalogMethod, CatalogPackageKind, CatalogSource, ConnectorInspection,
     InspectedOperation, JsonObject, JsonValue, RegistryInspection, RegistrySearchPacket,
 };
 use serde::{Deserialize, Serialize};
@@ -101,9 +101,9 @@ fn search(
                 trust_tier: Some(result.trust_tier),
                 summary: result.summary,
                 runners: result
-                    .runner_names
+                    .method_names
                     .into_iter()
-                    .map(|name| CatalogRunner {
+                    .map(|name| CatalogMethod {
                         name,
                         purpose: None,
                     })
@@ -169,7 +169,7 @@ fn project_hits(
                 summary: skill.description.clone(),
                 runners: loaded
                     .manifest()
-                    .map(crate::skill_package::catalog_runners)
+                    .map(crate::skill_package::catalog_methods)
                     .unwrap_or_default(),
             });
         }

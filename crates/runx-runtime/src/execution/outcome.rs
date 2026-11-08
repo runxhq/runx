@@ -4,7 +4,7 @@ use thiserror::Error;
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub(crate) enum OutcomeClaimError {
     #[error("agent answer closure must be an object")]
-    ClosureNotObject,
+    EndingNotObject,
     #[error("agent answer closure.outcome is required")]
     MissingOutcome,
     #[error("agent answer closure.outcome must be a string")]
@@ -26,7 +26,7 @@ pub(crate) fn parse_agent_answer_outcome(
         .ok_or(OutcomeClaimError::MissingOutcome)?;
     let closure = closure
         .as_object()
-        .ok_or(OutcomeClaimError::ClosureNotObject)?;
+        .ok_or(OutcomeClaimError::EndingNotObject)?;
     let outcome = closure
         .get("outcome")
         .ok_or(OutcomeClaimError::MissingOutcome)?;

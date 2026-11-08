@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: open-meteo
-name: Open-Meteo
+name: open-meteo
+title: Open-Meteo
 description: Geocode places and read forecast and air quality data from Open-Meteo.
 category: public-data
-runtime_capability: false
 auth:
   none: {}
 placements:
@@ -27,7 +26,7 @@ operations:
       http:
         allowed_hosts: [geocoding-api.open-meteo.com]
         requests:
-          - method: GET
+          - http_method: GET
             url: "https://geocoding-api.open-meteo.com/v1/search"
             query:
               name: {"$argument": "/name"}
@@ -55,7 +54,7 @@ operations:
       http:
         allowed_hosts: [api.open-meteo.com]
         requests:
-          - method: GET
+          - http_method: GET
             url: "https://api.open-meteo.com/v1/forecast"
             query:
               latitude: {"$argument": "/latitude"}
@@ -84,7 +83,7 @@ operations:
       http:
         allowed_hosts: [air-quality-api.open-meteo.com]
         requests:
-          - method: GET
+          - http_method: GET
             url: "https://air-quality-api.open-meteo.com/v1/air-quality"
             query:
               latitude: {"$argument": "/latitude"}

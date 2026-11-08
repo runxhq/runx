@@ -1,0 +1,19 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: setup
+        inputs: {prepare_status: blocked}
+        tool: {command: node, args: [../support/setup_release_fixture.mjs]}
+        outputs:
+          project_root: {type: string}
+          profile_path: {type: string}
+      - id: prepare
+        skill: ../..#prepare
+        inputs:
+          channel: fixture
+          version: 1.2.3
+          project_root: $steps.setup.project_root
+          profile_path: $steps.setup.profile_path

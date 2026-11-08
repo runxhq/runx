@@ -11,8 +11,8 @@ use super::helpers::{
 };
 use super::tool::validate_tool_target;
 use super::types::{
-    AgentTask, AskGate, DuplicatePolicy, GraphStep, GraphWhen, OperationStepTarget, SkillTarget,
-    StepAct, StepKind,
+    AgentTask, AskGate, DuplicatePolicy, OperationStepTarget, SkillTarget, StepAct, StepKind,
+    WorkflowStep, WorkflowWhen,
 };
 use crate::{ValidationError, skill::validate_skill_artifact_contract};
 use runx_contracts::connector::{OperationName, is_connector_name, is_operation_name};
@@ -72,7 +72,7 @@ pub fn validate_step(
     raw_step: &JsonObject,
     field: &str,
     previous_step_ids: &BTreeSet<String>,
-) -> Result<GraphStep, ValidationError> {
+) -> Result<WorkflowStep, ValidationError> {
     let kind_name = step_kind_name(raw_step, field)?;
     reject_fields_outside_kind(raw_step, field, kind_name)?;
 
@@ -145,7 +145,7 @@ pub fn validate_step(
     };
     let duplicates = validate_duplicates(raw_step, field)?;
 
-    Ok(GraphStep {
+    Ok(WorkflowStep {
         id,
         label: optional_non_empty_string(raw_step.get("label"), &format!("{field}.label"))?,
         kind,
@@ -375,7 +375,7 @@ fn validate_when(
     value: Option<&JsonValue>,
     previous_step_ids: &BTreeSet<String>,
     field: &str,
-) -> Result<Option<GraphWhen>, ValidationError> {
+) -> Result<Option<WorkflowWhen>, ValidationError> {
     let Some(record) = optional_object(value, field)? else {
         return Ok(None);
     };
@@ -408,7 +408,7 @@ fn validate_when(
     let value = record
         .get("value")
         .ok_or_else(|| validation_error(format!("{field}.value is required.")))?;
-    Ok(Some(GraphWhen {
+    Ok(Some(WorkflowWhen {
         value: parse_operand(value, previous_step_ids, &format!("{field}.value"))?,
         equals,
         not_equals,

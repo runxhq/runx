@@ -1,0 +1,47 @@
+name: github-common-read-exact-issue
+setup:
+  sessions:
+    - github
+inputs:
+  repo: runxhq/runx
+  number: 241
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://api.github.com/user
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id": 7, "login": "operator"}'
+    - request:
+        method: GET
+        url: https://api.github.com/repos/runxhq/runx/issues/241
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"number":241,"title":"Sourcey output path is unclear","state":"open","body":"The docs mention two different output directories.","html_url":"https://github.com/runxhq/runx/issues/241","labels":[],"assignees":[]}'
+expect:
+  status: sealed
+  output:
+    subset:
+      provider_operation:
+        data:
+          status: success
+          provider: github
+          operation: issues.read
+          target: runxhq/runx
+          transport: local_http
+          result:
+            issues:
+              - number: 241
+                title: Sourcey output path is unclear
+                body: The docs mention two different output directories.
+  receipt:
+    schema: runx.receipt.v1

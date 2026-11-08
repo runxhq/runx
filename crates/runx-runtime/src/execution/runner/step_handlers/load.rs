@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    ApprovalGate, AuthorityVerb, BoundClosure, CatalogRule, JsonObject, JsonValue, LoadedPackage,
-    LoadedRunner, LoadedRunnerInput, ResolutionRequest, SkillManual, TrustTier, TurnLoad,
+    ApprovalGate, AuthorityVerb, BoundClosure, CatalogRule, JsonObject, JsonValue, LoadedMethod,
+    LoadedMethodInput, LoadedPackage, ResolutionRequest, SkillManual, TrustTier, TurnLoad,
     TurnTarget, TurnTool,
 };
 use runx_core::state_machine::StepAdmissionWitness;
@@ -64,7 +64,7 @@ struct Bound {
     origin: Origin,
     /// A skill's manual and every runner it declares.
     manual: Option<SkillManual>,
-    runners: Vec<LoadedRunner>,
+    runners: Vec<LoadedMethod>,
     tools: Vec<TurnTool>,
     /// The execution closures a person's trust covers.
     closures: Vec<String>,
@@ -82,15 +82,15 @@ where
 {
     let StepHandlerCtx {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         host,
         ..
     } = request;
     let env = &runtime.options.env;
-    let paths = RunxPaths::resolve(env, graph_dir);
+    let paths = RunxPaths::resolve(env, workflow_dir);
     let refused = |reason: String| RuntimeError::AuthorityDenied {
         verb: AuthorityVerb::Execute,
         step_id: step.id.clone(),
@@ -115,7 +115,7 @@ where
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|message| RuntimeError::effect_state("reading trust", message))?;
             if !trusted.iter().all(|trusted| *trusted) {
-                ask_trust(runtime, graph_dir, step, &bound, minimum, &paths, host)?;
+                ask_trust(runtime, workflow_dir, step, &bound, minimum, &paths, host)?;
             }
         }
     }
@@ -142,7 +142,7 @@ where
     let projection = project_step_claim(outputs, None);
     let receipt = seal_executed_step(
         StepSeal {
-            scope: runtime.scope(graph_name),
+            scope: runtime.scope(workflow_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -306,7 +306,7 @@ fn bind_skill(
         runners: manifest
             .runners
             .values()
-            .map(|declared| LoadedRunner {
+            .map(|declared| LoadedMethod {
                 name: declared.name.as_str().into(),
                 purpose: declared
                     .description
@@ -315,7 +315,7 @@ fn bind_skill(
                 inputs: declared
                     .inputs
                     .iter()
-                    .map(|(name, input)| LoadedRunnerInput {
+                    .map(|(name, input)| LoadedMethodInput {
                         name: name.as_str().into(),
                         input_type: input.input_type.as_str().into(),
                         required: input.required,
@@ -521,8 +521,8 @@ fn revision_refusal(bound: &Bound, held: &BTreeMap<String, String>) -> Option<St
 /// Ask the person to trust `bound`; record their trust for its closures.
 fn ask_trust<A>(
     runtime: &super::Runtime<A>,
-    graph_dir: &Path,
-    step: &runx_parser::GraphStep,
+    workflow_dir: &Path,
+    step: &runx_parser::WorkflowStep,
     bound: &Bound,
     minimum: TrustTier,
     paths: &RunxPaths,
@@ -561,7 +561,7 @@ fn ask_trust<A>(
     crate::approval::carry_payload(
         &mut gate,
         payload,
-        &RunxPaths::resolve(&options.env, graph_dir).artifacts(),
+        &RunxPaths::resolve(&options.env, workflow_dir).artifacts(),
         options.run.run_id(),
     )
     .map_err(|message| RuntimeError::effect_state("carrying a load", message))?;

@@ -434,19 +434,19 @@ impl ConnectorScope {
         Ok(scope)
     }
 
-    /// The connectors an operation step of the skill at `graph_dir` resolves
+    /// The connectors an operation step of the skill at `workflow_dir` resolves
     /// in: the project's for a connector a load of the turn bound, where the
     /// load found it, so a bundled session reaches what it loads; the skill's
     /// own otherwise.
     pub fn of_operation(
         target: &runx_parser::OperationStepTarget,
-        graph_dir: &Path,
+        workflow_dir: &Path,
         paths: &RunxPaths,
     ) -> Result<Self, ConnectorRegistryError> {
         let dir = if target.loaded {
             paths.workspace()
         } else {
-            graph_dir
+            workflow_dir
         };
         Self::in_project(dir, paths)
     }

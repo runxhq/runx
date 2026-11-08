@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{JsonNumber, JsonObject, JsonValue, RunOutcome};
-use runx_parser::{SkillRunnerDefinition, SkillRunnerManifest};
+use runx_parser::{SkillMethodDefinition, SkillMethodManifest};
 use thiserror::Error;
 
 use crate::RuntimeError;
@@ -19,25 +19,25 @@ use crate::paths::RUNX_RECEIPT_DIR_ENV;
 use crate::receipts::signing::strip_receipt_signing_env;
 use crate::receipts::store::ReceiptStoreError;
 use crate::receipts::{
-    RunScope, RuntimeReceiptSignatureConfig, StepSeal, StepSealClosure, seal_step,
+    RunScope, RuntimeReceiptSignatureConfig, StepSeal, StepSealEnding, seal_step,
 };
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
 mod executable_adapter;
 mod graph;
+pub(crate) mod method_manifest;
 mod resolution_answers;
-pub(crate) mod runner_manifest;
 mod turn_session;
 
 pub(crate) use self::executable_adapter::ExecutableAdapter;
 pub use self::turn_session::TurnSession;
 
-use self::runner_manifest::selected_runner;
+use self::method_manifest::selected_method;
 
 pub use super::operator_context::{
     SkillOperatorContextChain, SkillOperatorContextContextSkill, SkillOperatorContextDocument,
-    SkillOperatorContextNode, SkillOperatorContextOptions, SkillOperatorContextPackage,
-    SkillOperatorContextRegistry, SkillOperatorContextRunner, SkillOperatorContextStep,
+    SkillOperatorContextMethod, SkillOperatorContextNode, SkillOperatorContextOptions,
+    SkillOperatorContextPackage, SkillOperatorContextRegistry, SkillOperatorContextStep,
     SkillOperatorContextTool,
 };
 pub use super::prepared_skill::{
@@ -94,8 +94,8 @@ pub(crate) struct ResolvedSkillRun<'a> {
     pub(crate) overrides: &'a SkillRunOverrides,
     pub(crate) effects: &'a RuntimeEffectRegistry,
     pub(crate) skill_dir: &'a Path,
-    pub(crate) manifest: &'a SkillRunnerManifest,
-    pub(crate) runner: &'a SkillRunnerDefinition,
+    pub(crate) manifest: &'a SkillMethodManifest,
+    pub(crate) runner: &'a SkillMethodDefinition,
     pub(crate) package_digest: &'a str,
     pub(crate) execution_closure_digest: Option<&'a str>,
 }
@@ -117,8 +117,8 @@ pub(crate) struct BoundRun {
     effects: RuntimeEffectRegistry,
     workspace: WorkspaceEnv,
     receipts: ReceiptServices,
-    manifest: SkillRunnerManifest,
-    runner: SkillRunnerDefinition,
+    manifest: SkillMethodManifest,
+    runner: SkillMethodDefinition,
     package_digest: String,
     execution_closure_digest: Option<String>,
 }
@@ -151,7 +151,7 @@ pub(crate) fn execute_bound_skill_run_with_overrides(
 /// The inputs command-line `texts` give the runner of `skill_path` that a run
 /// with `runner` selects: each read by its declaration, never guessed. A text
 /// for an input the runner does not declare is refused.
-pub fn runner_inputs_from_text(
+pub fn method_inputs_from_text(
     skill_path: &Path,
     runner: Option<&str>,
     texts: &BTreeMap<String, String>,
@@ -163,7 +163,7 @@ pub fn runner_inputs_from_text(
             loaded.directory.display(),
         ))
     })?;
-    let runner = selected_runner(manifest, runner)?;
+    let runner = selected_method(manifest, runner)?;
     texts
         .iter()
         .map(|(name, text)| {
@@ -182,7 +182,7 @@ pub fn runner_inputs_from_text(
         .collect()
 }
 
-fn declared_names(runner: &SkillRunnerDefinition) -> String {
+fn declared_names(runner: &SkillMethodDefinition) -> String {
     if runner.inputs.is_empty() {
         return "no inputs".to_owned();
     }
@@ -211,7 +211,7 @@ pub(crate) fn bind_skill_run(
             skill_dir.display(),
         ))
     })?;
-    let runner = selected_runner(&manifest, overrides.runner.as_deref())?.clone();
+    let runner = selected_method(&manifest, overrides.runner.as_deref())?.clone();
     let package_digest = loaded.package.package_digest.clone();
     // The closure resolves in the workspace the run executes in, so what it
     // admits is what the run's steps reach.
@@ -328,14 +328,14 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
             Replayed::Skipped(_) => None,
         })
         .collect::<Vec<_>>();
-    let receipt = crate::receipts::graph_receipt_with_closure(
+    let receipt = crate::receipts::workflow_receipt_with_ending(
         RunScope {
             run_id,
-            graph_name: &started.skill,
+            workflow_name: &started.skill,
         },
         &steps,
         &crate::time::now_iso8601(),
-        crate::receipts::GraphClosure {
+        crate::receipts::WorkflowEnding {
             outcome: close.outcome.into(),
             reason: Some(runx_contracts::SealReason::HostClosed),
         },
@@ -360,11 +360,11 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
     };
     for step in &steps {
         for nested in &step.nested_receipts {
-            runner_manifest::write_skill_receipt(&request, &workspace, &receipts, nested)?;
+            method_manifest::write_skill_receipt(&request, &workspace, &receipts, nested)?;
         }
-        runner_manifest::write_skill_receipt(&request, &workspace, &receipts, &step.receipt)?;
+        method_manifest::write_skill_receipt(&request, &workspace, &receipts, &step.receipt)?;
     }
-    runner_manifest::write_skill_receipt(&request, &workspace, &receipts, &receipt)?;
+    method_manifest::write_skill_receipt(&request, &workspace, &receipts, &receipt)?;
     Ok(sealed_output(
         &started.skill,
         &started.runner,
@@ -503,8 +503,8 @@ fn bind_resolved(
 /// preparation before admission, for `reason`.
 pub(super) fn seal_skill_preflight_refusal(
     request: &SkillRunRequest,
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
+    manifest: &SkillMethodManifest,
+    runner: &SkillMethodDefinition,
     failure: JsonObject,
     reason: runx_contracts::SealReason,
 ) -> Result<String, SkillRunError> {
@@ -525,24 +525,24 @@ pub(super) fn seal_skill_preflight_refusal(
     let receipt = seal_refusal(
         RunScope {
             run_id: &run_id,
-            graph_name: &manifest.skill,
+            workflow_name: &manifest.skill,
         },
         runner,
         receipts.signature_config(),
         &output,
-        StepSealClosure {
+        StepSealEnding {
             outcome: RunOutcome::Blocked,
             reason: Some(reason),
         },
     )?;
-    runner_manifest::write_skill_receipt(request, &workspace, &receipts, &receipt)?;
+    method_manifest::write_skill_receipt(request, &workspace, &receipts, &receipt)?;
     Ok(receipt.id.to_string())
 }
 
 fn prepare_skill_execution(
     request: &SkillRunRequest,
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
+    manifest: &SkillMethodManifest,
+    runner: &SkillMethodDefinition,
     trusted_prepared: bool,
 ) -> Result<(SkillRunRequest, WorkspaceEnv, ReceiptServices), SkillRunError> {
     let mut request = request.clone();
@@ -553,9 +553,9 @@ fn prepare_skill_execution(
     restore_continuation_inputs(&mut request, &raw_workspace)?;
     crate::input_contract::apply_defaults(&runner.inputs, &mut request.inputs);
     let materialize = if request.answers.is_some() {
-        crate::input_contract::materialize_present_runner_inputs
+        crate::input_contract::materialize_present_method_inputs
     } else {
-        crate::input_contract::materialize_complete_runner_inputs
+        crate::input_contract::materialize_complete_method_inputs
     };
     request.inputs = match materialize(&runner.inputs, &request.inputs) {
         Ok(inputs) => inputs,
@@ -638,7 +638,7 @@ pub(crate) fn restore_continuation_inputs(
 
 /// A run that waits: the requests it waits on, each with its id.
 fn paused_output(
-    manifest: &SkillRunnerManifest,
+    manifest: &SkillMethodManifest,
     runner: &str,
     run_id: &str,
     waiting: &[crate::execution::run_record::PendingRequest],
@@ -701,17 +701,17 @@ fn request_for_public_loop(request_id: &str, request: JsonValue) -> JsonValue {
     object.insert("id".to_owned(), JsonValue::String(request_id.to_owned()));
     object
         .entry("kind".to_owned())
-        .or_insert_with(|| JsonValue::String("agent_act".to_owned()));
+        .or_insert_with(|| JsonValue::String("turn".to_owned()));
     JsonValue::Object(object)
 }
 
 /// Seal a run that was refused before any step ran.
 fn seal_refusal(
     scope: RunScope<'_>,
-    runner: &SkillRunnerDefinition,
+    runner: &SkillMethodDefinition,
     signature_config: &RuntimeReceiptSignatureConfig,
     output: &InvocationOutput,
-    closure: StepSealClosure,
+    closure: StepSealEnding,
 ) -> Result<runx_contracts::Receipt, SkillRunError> {
     Ok(seal_step(
         StepSeal {

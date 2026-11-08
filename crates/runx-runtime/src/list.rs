@@ -56,7 +56,7 @@ fn discover_list_items(
         RunxListRequestedKind::All | RunxListRequestedKind::Skills | RunxListRequestedKind::Graphs
     ) {
         items.extend(
-            discover_skill_and_graph_list_items(root)?
+            discover_skill_and_workflow_list_items(root)?
                 .into_iter()
                 .filter(|item| match requested_kind {
                     RunxListRequestedKind::All => true,
@@ -119,7 +119,7 @@ fn discover_tool_list_items(
                         .map(tool_emits)
                         .filter(|items| !items.is_empty()),
                     fixtures: Some(count_yaml_files(&tool_entry.path.join("fixtures"))?),
-                    harness_cases: None,
+                    test_cases: None,
                     steps: None,
                 }),
                 Err(()) => items.push(invalid_item(
@@ -162,7 +162,7 @@ fn tool_emits(artifacts: &runx_parser::SkillArtifactContract) -> Vec<RunxListEmi
         .collect()
 }
 
-fn discover_skill_and_graph_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
+fn discover_skill_and_workflow_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
     let mut items = Vec::new();
     for skill in crate::registry::bundled_skills().map_err(|message| RuntimeError::SkillFailed {
         skill_name: "runx core".to_owned(),
@@ -175,7 +175,7 @@ fn discover_skill_and_graph_list_items(root: &Path) -> Result<Vec<RunxListItem>,
                 package.skill.description.clone(),
                 skill.skill_id.clone(),
                 RunxListSource::BuiltIn,
-                package.harness_fixtures.len() as u64,
+                package.test_fixtures.len() as u64,
             );
             item.name.clone_from(&skill.skill_id);
             items.push(item);
@@ -211,7 +211,7 @@ fn skill_list_items(
                 profile_description(&loaded.package, profile_relative),
                 project_path(root, &profile_path),
                 RunxListSource::Local,
-                loaded.package.harness_fixtures.len() as u64,
+                loaded.package.test_fixtures.len() as u64,
             )
         })
         .collect()
@@ -234,7 +234,7 @@ fn profile_description(
 }
 
 fn skill_profile_list_item(
-    manifest: &runx_parser::SkillRunnerManifest,
+    manifest: &runx_parser::SkillMethodManifest,
     description: Option<String>,
     path: String,
     source: RunxListSource,
@@ -258,12 +258,12 @@ fn skill_profile_list_item(
             },
         ),
         description,
-        runners: Some(crate::skill_package::catalog_runners(manifest)),
+        runners: Some(crate::skill_package::catalog_methods(manifest)),
         diagnostics: None,
         scopes: skill_scopes(manifest),
         emits: skill_emits(manifest),
         fixtures: Some(fixtures),
-        harness_cases: Some(
+        test_cases: Some(
             manifest
                 .harness
                 .as_ref()
@@ -279,16 +279,16 @@ fn skill_profile_list_item(
     }
 }
 
-fn skill_scopes(manifest: &runx_parser::SkillRunnerManifest) -> Option<Vec<String>> {
+fn skill_scopes(manifest: &runx_parser::SkillMethodManifest) -> Option<Vec<String>> {
     let scopes = manifest
         .runners
         .values()
-        .flat_map(runx_parser::SkillRunnerDefinition::declared_scopes)
+        .flat_map(runx_parser::SkillMethodDefinition::declared_scopes)
         .collect::<BTreeSet<_>>();
     (!scopes.is_empty()).then(|| scopes.into_iter().collect())
 }
 
-fn skill_emits(manifest: &runx_parser::SkillRunnerManifest) -> Option<Vec<RunxListEmit>> {
+fn skill_emits(manifest: &runx_parser::SkillMethodManifest) -> Option<Vec<RunxListEmit>> {
     let mut emits = BTreeSet::<(String, Option<runx_contracts::PacketId>)>::new();
     for step in manifest
         .runners
@@ -351,7 +351,7 @@ fn discover_packet_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeE
                 scopes: None,
                 emits: None,
                 fixtures: None,
-                harness_cases: None,
+                test_cases: None,
                 steps: None,
             });
         }
@@ -378,7 +378,7 @@ fn invalid_item(
         scopes: None,
         emits: None,
         fixtures: None,
-        harness_cases: None,
+        test_cases: None,
         steps: None,
     }
 }
@@ -508,7 +508,7 @@ mod tests {
             scopes: None,
             emits: None,
             fixtures: None,
-            harness_cases: None,
+            test_cases: None,
             steps: None,
         }
     }

@@ -1,0 +1,11 @@
+{
+  "skill_name": "web-fetch",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Fetch RFC 9110 from the supplied public URL and return bounded text with provenance.",
+      "expected_output": "Return one digest-bound source artifact with exact URL, content metadata, and bounded extracted text.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+name: loop-turn-refuses-disallowed-tool
+method: turn
+inputs:
+  loop_id: loop-harness-refusal
+  turn_index: 1
+  max_turns: 3
+  objective: Attempt a write outside policy.
+  previous_summary: No prior turn.
+  requested_tool: fs.write
+  scenario: refusal
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

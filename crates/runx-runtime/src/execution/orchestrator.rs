@@ -12,8 +12,8 @@ use std::path::PathBuf;
 use runx_contracts::{JsonValue, Receipt, RunOutcome};
 use thiserror::Error;
 
-use super::harness::PackageHarnessReport;
-use super::harness::{HarnessReplayError, HarnessReplayOutput};
+use super::harness::PackageTestReport;
+use super::harness::{TestReplayError, TestReplayOutput};
 use super::prepared_skill::{
     PreparedEntryProvenance, PreparedSkillRun, prepare_skill_run_with_effects,
 };
@@ -116,7 +116,7 @@ pub struct TurnRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HarnessRunRequest {
+pub struct TestRunRequest {
     pub fixture_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
 }
@@ -125,7 +125,7 @@ pub struct HarnessRunRequest {
 /// a package directory or its `SKILL.md`; inline cases and conventional fixture
 /// files share the supplied environment and receipt directory.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PackageHarnessRequest {
+pub struct PackageTestRequest {
     pub skill_path: PathBuf,
     pub receipt_dir: Option<PathBuf>,
 }
@@ -181,7 +181,7 @@ pub enum OrchestratorError {
     #[error(transparent)]
     Runtime(#[from] crate::RuntimeError),
     #[error(transparent)]
-    Harness(#[from] HarnessReplayError),
+    Harness(#[from] TestReplayError),
     #[error(transparent)]
     ReceiptStore(#[from] crate::receipts::store::ReceiptStoreError),
 }
@@ -359,7 +359,7 @@ impl LocalOrchestrator {
         }
         let (loaded, packages) = prepared.verify_artifacts()?;
         let overrides = super::skill_front::SkillRunOverrides {
-            runner: Some(prepared.selected_runner().to_owned()),
+            runner: Some(prepared.selected_method().to_owned()),
             ..Default::default()
         };
         let output = super::skill_front::execute_prepared_skill_run_with_resolved(
@@ -379,11 +379,11 @@ impl LocalOrchestrator {
         Ok(output)
     }
 
-    pub fn run_package_harness(
+    pub fn run_package_test(
         &self,
-        request: &PackageHarnessRequest,
-    ) -> Result<PackageHarnessReport, OrchestratorError> {
-        Ok(super::harness::run_package_harness_with_effects(
+        request: &PackageTestRequest,
+    ) -> Result<PackageTestReport, OrchestratorError> {
+        Ok(super::harness::run_package_test_with_effects(
             &request.skill_path,
             request.receipt_dir.as_deref(),
             &self.environment,
@@ -391,16 +391,16 @@ impl LocalOrchestrator {
         )?)
     }
 
-    pub fn run_harness_fixture(
+    pub fn run_test_fixture(
         &self,
-        request: &HarnessRunRequest,
-    ) -> Result<HarnessReplayOutput, OrchestratorError> {
-        let (mut options, receipt_dir) = standalone_harness_options(request, &self.environment)?;
+        request: &TestRunRequest,
+    ) -> Result<TestReplayOutput, OrchestratorError> {
+        let (mut options, receipt_dir) = standalone_test_options(request, &self.environment)?;
         options.effects = self.effects.clone();
         // The case writes its receipts into a scratch root; they are kept
         // where the caller asked once the case passes.
         let scratch = tempfile::Builder::new()
-            .prefix("runx-harness-receipts-")
+            .prefix("runx-test-receipts-")
             .tempdir()
             .map_err(|source| crate::RuntimeError::io("creating a harness case scratch", source))?;
         let mut case = options.clone();
@@ -412,20 +412,20 @@ impl LocalOrchestrator {
                 .to_string_lossy()
                 .into_owned(),
         );
-        let output = super::harness::run_harness_fixture_with_adapter(
+        let output = super::harness::run_test_fixture_with_adapter(
             &request.fixture_path,
             super::skill_front::ExecutableAdapter,
             case,
         )?;
-        persist_harness_receipts(&output, &options, &receipt_dir)?;
+        persist_test_receipts(&output, &options, &receipt_dir)?;
         Ok(output)
     }
 }
 
-fn standalone_harness_options(
-    request: &HarnessRunRequest,
+fn standalone_test_options(
+    request: &TestRunRequest,
     environment: &BTreeMap<String, String>,
-) -> Result<(super::harness::HarnessOptions, PathBuf), OrchestratorError> {
+) -> Result<(super::harness::TestOptions, PathBuf), OrchestratorError> {
     use crate::paths::RUNX_RECEIPT_DIR_ENV;
 
     let workspace = crate::WorkspaceEnv::from_admitted(environment.clone())
@@ -433,18 +433,18 @@ fn standalone_harness_options(
     let mut env = workspace.env().clone();
     let receipt_dir = workspace
         .paths()
-        .harness_receipts(request.receipt_dir.as_deref());
+        .test_receipts(request.receipt_dir.as_deref());
     env.insert(
         RUNX_RECEIPT_DIR_ENV.to_owned(),
         receipt_dir.to_string_lossy().into_owned(),
     );
-    let options = super::harness::HarnessOptions::new(env)?;
+    let options = super::harness::TestOptions::new(env)?;
     Ok((options, receipt_dir))
 }
 
-fn persist_harness_receipts(
-    output: &HarnessReplayOutput,
-    options: &super::harness::HarnessOptions,
+fn persist_test_receipts(
+    output: &TestReplayOutput,
+    options: &super::harness::TestOptions,
     receipt_dir: &std::path::Path,
 ) -> Result<(), OrchestratorError> {
     crate::services::ReceiptServices::from_signature_config(options.receipt_signature.clone())

@@ -1,61 +1,42 @@
-skill: web-fetch
 version: "0.4.6"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: public
   visibility: public
-  role: canonical
-  execution: read
-  completion: provider_readback
-  approval: none
   category: research
 
-connectors:
-  web:
-    operations: [page.read]
-
-runners:
+methods:
   web-fetch:
-    default: true
     inputs:
       url:
         type: string
-        required: true
         description: "Single public HTTP(S) URL to fetch."
-        schema:
-          format: uri
-          pattern: '^https?://'
+        format: uri
+        pattern: '^https?://'
       allowlist:
         type: array
-        required: false
         default: ["*"]
         description: "Optional host restriction. Omit for any publicly routable host; use exact hosts or leading wildcards such as *.example.com to narrow the fetch and redirects."
-        schema:
-          minItems: 1
-          maxItems: 64
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
-            maxLength: 253
+        minItems: 1
+        maxItems: 64
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+          maxLength: 253
+        optional: true
       extract:
         type: string
-        required: false
         default: text
         description: "Extraction mode: text, metadata, links, or json. Defaults to text."
+        optional: true
     examples:
       - url: https://example.com/
         extract: text
     result_from: [fetch]
     steps:
       - id: fetch
-        label: fetch one allowlisted web source
         operation: web/page.read
-        input:
+        inputs:
           url: "$input.url"
           allowlist: "$input.allowlist"
           extract: "$input.extract"
-
-harness:
-  files: [fixtures/support/composed.graph]
-  cases: []

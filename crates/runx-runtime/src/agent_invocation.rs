@@ -5,8 +5,8 @@ use crate::RuntimeError;
 use crate::SkillInvocation;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    AgentActInvocation, AgentContextEnvelope, AgentExecutionRequirements, ExecutionLocation,
-    JsonObject, OutputField, ResolutionRequest,
+    AgentContextEnvelope, AgentExecutionRequirements, ExecutionLocation, JsonObject, OutputField,
+    ResolutionRequest, TurnInvocation,
 };
 
 const TRUST_BOUNDARY: &str = "runtime-governed: caller-mediated resolution is the default; an in-process model loop runs only with explicit per-run managed-agent consent, and every resolution is receipt-bound";
@@ -15,14 +15,14 @@ mod profiles;
 
 /// The act `request` asks, at `address`: the address of the step that asks
 /// it, as an approval is the address of its gate.
-pub(crate) fn agent_act_resolution_request(
+pub(crate) fn turn_resolution_request(
     request: &SkillInvocation,
     package: &crate::LoadedSkillPackage,
     act: Option<&runx_contracts::CallAct>,
     address: String,
 ) -> Result<ResolutionRequest, RuntimeError> {
-    let invocation = build_agent_act_invocation(request, package, act, address)?;
-    Ok(ResolutionRequest::AgentAct {
+    let invocation = build_turn_invocation(request, package, act, address)?;
+    Ok(ResolutionRequest::Turn {
         id: invocation.id.clone(),
         invocation: Box::new(invocation),
     })
@@ -37,18 +37,18 @@ fn agent_task(request: &SkillInvocation) -> Result<&runx_parser::AgentTask, Runt
 
 /// The act `request` asks, under the instructions of `package`, the skill
 /// package its run admitted, for the run whose invoker stated `act`.
-pub(crate) fn build_agent_act_invocation(
+pub(crate) fn build_turn_invocation(
     request: &SkillInvocation,
     package: &crate::LoadedSkillPackage,
     act: Option<&runx_contracts::CallAct>,
     id: String,
-) -> Result<AgentActInvocation, RuntimeError> {
+) -> Result<TurnInvocation, RuntimeError> {
     let agent = agent_task(request)?;
     let non_empty = |value: &str, field: &str| {
         NonEmptyString::new(value.to_owned())
             .ok_or_else(|| invalid_agent_invocation(request, format!("agent {field} is empty")))
     };
-    Ok(AgentActInvocation {
+    Ok(TurnInvocation {
         id: id.into(),
         role: non_empty(&agent.role, "role")?,
         task: non_empty(&agent.task, "task")?,

@@ -1,686 +1,641 @@
-skill: github
 version: "0.6.4"
+minimum_runx: 0.12.0
+default_method: github
 catalog:
-  kind: skill
-  audience: public
   visibility: public
-  role: canonical
-  provider: github
-  execution: execute
-  completion: provider_readback
-  approval: none
   category: ops
-harness:
-  files:
-    - fixtures/bin/gh
-    - fixtures/support/composed.graph
-    - fixtures/support/read-triage.graph
-  cases: []
-input_definitions:
+shared_inputs:
   repository:
     type: string
-    required: true
     description: Target GitHub repository as owner/name.
-    schema:
-      pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
-      examples:
-        - runxhq/runx
+    pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+    examples:
+      - runxhq/runx
   direction:
     type: string
-    required: true
     description: Synchronization direction.
-    schema:
-      enum:
-        - pull
-        - push
+    enum:
+      - pull
+      - push
   scope:
     type: string
-    required: true
     description: Requested repository access.
-    schema:
-      enum:
-        - read
-        - write
+    enum:
+      - read
+      - write
   resources:
     type: object
-    required: true
     description: Bounded issue, pull-request, or thread selector with up to twenty typed mutations per call.
-    schema:
-      required:
-        - kind
-      additionalProperties: false
-      properties:
-        kind:
-          type: string
-          enum:
-            - issues
-            - prs
-            - threads
-            - batch
-        filters: {}
-        paths: {}
-        mutations:
-          type: array
-          maxItems: 20
-      allOf:
-        - if:
-            properties:
-              kind:
-                const: issues
-            required:
-              - kind
-          then:
-            properties:
-              filters:
-                type: object
-                additionalProperties: false
-                properties:
-                  state:
-                    type: string
-                    enum:
-                      - open
-                      - closed
-                      - all
-                  labels:
-                    type: array
-                    maxItems: 100
-                    uniqueItems: true
-                    items:
-                      type: string
-                      minLength: 1
-                      maxLength: 100
-                      pattern: ^[^\u0000]+$
-                  since:
-                    type: string
-                    minLength: 1
-                    maxLength: 64
-                  limit:
-                    type: integer
-                    minimum: 1
-                    maximum: 100
-                    default: 30
-                  cursor:
-                    type: string
-                    pattern: ^[1-9][0-9]*$
-                    maxLength: 16
-                    description: Exact next GitHub page number. It must remain a positive portable integer.
-                  sort:
-                    enum:
-                      - created
-                      - updated
-                      - comments
-                  direction:
-                    enum:
-                      - asc
-                      - desc
-              paths:
-                type: array
-                maxItems: 100
-                uniqueItems: true
-                items:
-                  type: string
-                  pattern: ^issues/[1-9][0-9]*$
-              mutations:
-                type: array
-                items:
-                  oneOf:
-                    - type: object
-                      required:
-                        - path
-                        - op
-                        - payload
-                      additionalProperties: false
-                      properties:
-                        path:
-                          type: string
-                          pattern: ^issues/[1-9][0-9]*$
-                        op:
-                          const: update
-                        payload:
-                          type: object
-                          minProperties: 1
-                          additionalProperties: false
-                          properties:
-                            title:
-                              type: string
-                              minLength: 1
-                              maxLength: 256
-                              pattern: ^[^\u0000]+$
-                            body:
-                              type: string
-                              maxLength: 65536
-                              pattern: ^[^\u0000]*$
-                            state:
-                              type: string
-                              enum:
-                                - open
-                                - closed
-                            state_reason:
-                              type: string
-                              enum:
-                                - completed
-                                - not_planned
-                                - reopened
-                            labels:
-                              type: array
-                              maxItems: 100
-                              uniqueItems: true
-                              items:
-                                type: string
-                                minLength: 1
-                                maxLength: 100
-                                pattern: ^[^\u0000]+$
-                            assignees:
-                              type: array
-                              maxItems: 20
-                              uniqueItems: true
-                              items:
-                                type: string
-                                minLength: 1
-                                maxLength: 100
-                                pattern: ^[^\u0000]+$
-                            milestone:
-                              type:
-                                - integer
-                                - "null"
-                              minimum: 1
-                    - type: object
-                      required:
-                        - path
-                        - op
-                        - payload
-                      additionalProperties: false
-                      properties:
-                        path:
-                          const: issues
-                        op:
-                          const: create
-                        payload:
-                          type: object
-                          required:
-                            - title
-                          additionalProperties: false
-                          properties:
-                            title:
-                              type: string
-                              minLength: 1
-                              maxLength: 256
-                              pattern: ^[^\u0000]+$
-                            body:
-                              type: string
-                              maxLength: 65536
-                              pattern: ^[^\u0000]*$
-                            labels:
-                              type: array
-                              maxItems: 100
-                              uniqueItems: true
-                              items:
-                                type: string
-                                minLength: 1
-                                maxLength: 100
-                                pattern: ^[^\u0000]+$
-                            assignees:
-                              type: array
-                              maxItems: 10
-                              uniqueItems: true
-                              items:
-                                type: string
-                                minLength: 1
-                                maxLength: 100
-                                pattern: ^[^\u0000]+$
-                            milestone:
-                              type: integer
-                              minimum: 1
-        - if:
-            properties:
-              kind:
-                const: prs
-            required:
-              - kind
-          then:
-            properties:
-              filters:
-                type: object
-                additionalProperties: false
-                properties:
-                  state:
-                    type: string
-                    enum:
-                      - open
-                      - closed
-                      - all
-                  base:
-                    type: string
-                    minLength: 1
-                    maxLength: 255
-                    pattern: ^[A-Za-z0-9._/-]+$
-                  head:
-                    type: string
-                    minLength: 1
-                    maxLength: 255
-                    pattern: ^[A-Za-z0-9._:/-]+$
-                  sort:
-                    type: string
-                    enum:
-                      - created
-                      - updated
-                      - popularity
-                      - long-running
-                  direction:
-                    type: string
-                    enum:
-                      - asc
-                      - desc
-                  limit:
-                    type: integer
-                    minimum: 1
-                    maximum: 100
-                    default: 30
-                  cursor:
-                    type: string
-                    pattern: ^[1-9][0-9]*$
-                    maxLength: 16
-                    description: Exact next GitHub page number. It must remain a positive portable integer.
-              paths:
-                type: array
-                maxItems: 100
-                uniqueItems: true
-                items:
-                  type: string
-                  pattern: ^pulls/[1-9][0-9]*$
-              mutations:
-                type: array
-                items:
-                  type: object
-                  required:
-                    - path
-                    - op
-                    - payload
-                  additionalProperties: false
-                  properties:
-                    path:
-                      type: string
-                      pattern: ^pulls/[1-9][0-9]*$
-                    op:
-                      const: update
-                    payload:
-                      type: object
-                      minProperties: 1
-                      additionalProperties: false
-                      properties:
-                        title:
-                          type: string
-                          minLength: 1
-                          maxLength: 256
-                          pattern: ^[^\u0000]+$
-                        body:
-                          type: string
-                          maxLength: 65536
-                          pattern: ^[^\u0000]*$
-                        state:
-                          type: string
-                          enum:
-                            - open
-                            - closed
-                        base:
-                          type: string
-                          minLength: 1
-                          maxLength: 255
-                          pattern: ^[A-Za-z0-9._/-]+$
-                        maintainer_can_modify:
-                          type: boolean
-        - if:
-            properties:
-              kind:
-                const: threads
-            required:
-              - kind
-          then:
-            properties:
-              filters:
-                type: object
-                additionalProperties: false
-                properties:
-                  thread_path:
-                    type: string
-                    pattern: ^(issues|pulls)/[1-9][0-9]*/comments$
-                  limit:
-                    type: integer
-                    minimum: 1
-                    maximum: 100
-                    default: 30
-                  cursor:
-                    type: string
-                    pattern: ^[1-9][0-9]*$
-                    maxLength: 16
-                    description: Exact next GitHub page number. It must remain a positive portable integer.
-              paths:
-                type: array
-                maxItems: 100
-                uniqueItems: true
-                items:
-                  type: string
-                  pattern: ^(issues|pulls)/[1-9][0-9]*/comments$
-              mutations:
-                type: array
-                items:
-                  oneOf:
-                    - type: object
-                      required:
-                        - path
-                        - op
-                        - payload
-                      additionalProperties: false
-                      properties:
-                        path:
-                          type: string
-                          pattern: ^(issues|pulls)/[1-9][0-9]*/comments$
-                        op:
-                          const: comment
-                        payload:
-                          type: object
-                          required:
-                            - body
-                          additionalProperties: false
-                          properties:
-                            body:
-                              type: string
-                              minLength: 1
-                              maxLength: 65536
-                              pattern: ^[^\u0000]+$
-        - if:
-            properties:
-              kind:
-                const: batch
-            required:
-              - kind
-          then:
-            properties:
-              mutations:
-                type: array
-                minItems: 1
-                items:
-                  oneOf:
-                    - type: object
-                      required:
-                        - path
-                        - op
-                        - payload
-                      additionalProperties: false
-                      properties:
-                        path:
-                          type: string
-                          pattern: ^issues/[1-9][0-9]*$
-                        op:
-                          const: update
-                        payload:
-                          type: object
-                          minProperties: 1
-                          additionalProperties: false
-                          properties:
-                            title:
-                              type: string
-                              minLength: 1
-                              maxLength: 256
-                              pattern: ^[^\u0000]+$
-                            body:
-                              type: string
-                              maxLength: 65536
-                              pattern: ^[^\u0000]*$
-                            state:
-                              type: string
-                              enum:
-                                - open
-                                - closed
-                            state_reason:
-                              type: string
-                              enum:
-                                - completed
-                                - not_planned
-                                - reopened
-                            labels:
-                              type: array
-                              maxItems: 100
-                              uniqueItems: true
-                              items:
-                                type: string
-                                minLength: 1
-                                maxLength: 100
-                                pattern: ^[^\u0000]+$
-                            assignees:
-                              type: array
-                              maxItems: 20
-                              uniqueItems: true
-                              items:
-                                type: string
-                                minLength: 1
-                                maxLength: 100
-                                pattern: ^[^\u0000]+$
-                            milestone:
-                              type:
-                                - integer
-                                - "null"
-                              minimum: 1
-                    - type: object
-                      required:
-                        - path
-                        - op
-                        - payload
-                      additionalProperties: false
-                      properties:
-                        path:
-                          const: issues
-                        op:
-                          const: create
-                        payload:
-                          type: object
-                          required:
-                            - title
-                          additionalProperties: false
-                          properties:
-                            title:
-                              type: string
-                              minLength: 1
-                              maxLength: 256
-                              pattern: ^[^\u0000]+$
-                            body:
-                              type: string
-                              maxLength: 65536
-                              pattern: ^[^\u0000]*$
-                            labels:
-                              type: array
-                              maxItems: 100
-                              uniqueItems: true
-                              items:
-                                type: string
-                                minLength: 1
-                                maxLength: 100
-                                pattern: ^[^\u0000]+$
-                            assignees:
-                              type: array
-                              maxItems: 10
-                              uniqueItems: true
-                              items:
-                                type: string
-                                minLength: 1
-                                maxLength: 100
-                                pattern: ^[^\u0000]+$
-                            milestone:
-                              type: integer
-                              minimum: 1
-                    - type: object
-                      required:
-                        - path
-                        - op
-                        - payload
-                      additionalProperties: false
-                      properties:
-                        path:
-                          type: string
-                          pattern: ^pulls/[1-9][0-9]*$
-                        op:
-                          const: update
-                        payload:
-                          type: object
-                          minProperties: 1
-                          additionalProperties: false
-                          properties:
-                            title:
-                              type: string
-                              minLength: 1
-                              maxLength: 256
-                              pattern: ^[^\u0000]+$
-                            body:
-                              type: string
-                              maxLength: 65536
-                              pattern: ^[^\u0000]*$
-                            state:
-                              type: string
-                              enum:
-                                - open
-                                - closed
-                            base:
-                              type: string
-                              minLength: 1
-                              maxLength: 255
-                              pattern: ^[A-Za-z0-9._/-]+$
-                            maintainer_can_modify:
-                              type: boolean
-                    - type: object
-                      required:
-                        - path
-                        - op
-                        - payload
-                      additionalProperties: false
-                      properties:
-                        path:
-                          type: string
-                          pattern: ^(issues|pulls)/[1-9][0-9]*/comments$
-                        op:
-                          const: comment
-                        payload:
-                          type: object
-                          required:
-                            - body
-                          additionalProperties: false
-                          properties:
-                            body:
-                              type: string
-                              minLength: 1
-                              maxLength: 65536
-                              pattern: ^[^\u0000]+$
-                    - type: object
-                      required:
-                        - path
-                        - op
-                        - payload
-                      additionalProperties: false
-                      properties:
-                        path:
-                          type: string
-                          pattern: ^issues/comments/[1-9][0-9]*$
-                        op:
-                          const: update
-                        payload:
-                          type: object
-                          required:
-                            - body
-                          additionalProperties: false
-                          properties:
-                            body:
-                              type: string
-                              minLength: 1
-                              maxLength: 65536
-                              pattern: ^[^\u0000]+$
-connectors:
-  store:
-    operations:
-      - events.append
-      - projection.read
-  github:
-    operations:
-      - issues.read
-      - issues.list
-      - pullrequests.read
-      - pullrequests.list
-      - comments.list
-      - issues.create
-      - issues.update
-      - pullrequests.update
-      - comments.create
-      - comments.update
-runners:
-  github:
-    default: true
-    description: Read GitHub records with a repository and optional kind/number. Default is one page of the open
-      issue feed, which GitHub also includes PRs in. No direction or authority scope input is needed for a
-      read.
-    inputs:
-      repo:
-        definition: repository
+    required:
+      - kind
+    additionalProperties: false
+    properties:
       kind:
         type: string
-        required: false
+        enum:
+          - issues
+          - prs
+          - threads
+          - batch
+      filters: {}
+      paths: {}
+      mutations:
+        type: array
+        maxItems: 20
+    allOf:
+      - if:
+          properties:
+            kind:
+              const: issues
+          required:
+            - kind
+        then:
+          properties:
+            filters:
+              type: object
+              additionalProperties: false
+              properties:
+                state:
+                  type: string
+                  enum:
+                    - open
+                    - closed
+                    - all
+                labels:
+                  type: array
+                  maxItems: 100
+                  uniqueItems: true
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                    pattern: ^[^\u0000]+$
+                since:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 30
+                cursor:
+                  type: string
+                  pattern: ^[1-9][0-9]*$
+                  maxLength: 16
+                  description: Exact next GitHub page number. It must remain a positive portable integer.
+                sort:
+                  enum:
+                    - created
+                    - updated
+                    - comments
+                direction:
+                  enum:
+                    - asc
+                    - desc
+            paths:
+              type: array
+              maxItems: 100
+              uniqueItems: true
+              items:
+                type: string
+                pattern: ^issues/[1-9][0-9]*$
+            mutations:
+              type: array
+              items:
+                oneOf:
+                  - type: object
+                    required:
+                      - path
+                      - op
+                      - payload
+                    additionalProperties: false
+                    properties:
+                      path:
+                        type: string
+                        pattern: ^issues/[1-9][0-9]*$
+                      op:
+                        const: update
+                      payload:
+                        type: object
+                        minProperties: 1
+                        additionalProperties: false
+                        properties:
+                          title:
+                            type: string
+                            minLength: 1
+                            maxLength: 256
+                            pattern: ^[^\u0000]+$
+                          body:
+                            type: string
+                            maxLength: 65536
+                            pattern: ^[^\u0000]*$
+                          state:
+                            type: string
+                            enum:
+                              - open
+                              - closed
+                          state_reason:
+                            type: string
+                            enum:
+                              - completed
+                              - not_planned
+                              - reopened
+                          labels:
+                            type: array
+                            maxItems: 100
+                            uniqueItems: true
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                              pattern: ^[^\u0000]+$
+                          assignees:
+                            type: array
+                            maxItems: 20
+                            uniqueItems: true
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                              pattern: ^[^\u0000]+$
+                          milestone:
+                            type:
+                              - integer
+                              - "null"
+                            minimum: 1
+                  - type: object
+                    required:
+                      - path
+                      - op
+                      - payload
+                    additionalProperties: false
+                    properties:
+                      path:
+                        const: issues
+                      op:
+                        const: create
+                      payload:
+                        type: object
+                        required:
+                          - title
+                        additionalProperties: false
+                        properties:
+                          title:
+                            type: string
+                            minLength: 1
+                            maxLength: 256
+                            pattern: ^[^\u0000]+$
+                          body:
+                            type: string
+                            maxLength: 65536
+                            pattern: ^[^\u0000]*$
+                          labels:
+                            type: array
+                            maxItems: 100
+                            uniqueItems: true
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                              pattern: ^[^\u0000]+$
+                          assignees:
+                            type: array
+                            maxItems: 10
+                            uniqueItems: true
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                              pattern: ^[^\u0000]+$
+                          milestone:
+                            type: integer
+                            minimum: 1
+      - if:
+          properties:
+            kind:
+              const: prs
+          required:
+            - kind
+        then:
+          properties:
+            filters:
+              type: object
+              additionalProperties: false
+              properties:
+                state:
+                  type: string
+                  enum:
+                    - open
+                    - closed
+                    - all
+                base:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  pattern: ^[A-Za-z0-9._/-]+$
+                head:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  pattern: ^[A-Za-z0-9._:/-]+$
+                sort:
+                  type: string
+                  enum:
+                    - created
+                    - updated
+                    - popularity
+                    - long-running
+                direction:
+                  type: string
+                  enum:
+                    - asc
+                    - desc
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 30
+                cursor:
+                  type: string
+                  pattern: ^[1-9][0-9]*$
+                  maxLength: 16
+                  description: Exact next GitHub page number. It must remain a positive portable integer.
+            paths:
+              type: array
+              maxItems: 100
+              uniqueItems: true
+              items:
+                type: string
+                pattern: ^pulls/[1-9][0-9]*$
+            mutations:
+              type: array
+              items:
+                type: object
+                required:
+                  - path
+                  - op
+                  - payload
+                additionalProperties: false
+                properties:
+                  path:
+                    type: string
+                    pattern: ^pulls/[1-9][0-9]*$
+                  op:
+                    const: update
+                  payload:
+                    type: object
+                    minProperties: 1
+                    additionalProperties: false
+                    properties:
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 256
+                        pattern: ^[^\u0000]+$
+                      body:
+                        type: string
+                        maxLength: 65536
+                        pattern: ^[^\u0000]*$
+                      state:
+                        type: string
+                        enum:
+                          - open
+                          - closed
+                      base:
+                        type: string
+                        minLength: 1
+                        maxLength: 255
+                        pattern: ^[A-Za-z0-9._/-]+$
+                      maintainer_can_modify:
+                        type: boolean
+      - if:
+          properties:
+            kind:
+              const: threads
+          required:
+            - kind
+        then:
+          properties:
+            filters:
+              type: object
+              additionalProperties: false
+              properties:
+                thread_path:
+                  type: string
+                  pattern: ^(issues|pulls)/[1-9][0-9]*/comments$
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 30
+                cursor:
+                  type: string
+                  pattern: ^[1-9][0-9]*$
+                  maxLength: 16
+                  description: Exact next GitHub page number. It must remain a positive portable integer.
+            paths:
+              type: array
+              maxItems: 100
+              uniqueItems: true
+              items:
+                type: string
+                pattern: ^(issues|pulls)/[1-9][0-9]*/comments$
+            mutations:
+              type: array
+              items:
+                oneOf:
+                  - type: object
+                    required:
+                      - path
+                      - op
+                      - payload
+                    additionalProperties: false
+                    properties:
+                      path:
+                        type: string
+                        pattern: ^(issues|pulls)/[1-9][0-9]*/comments$
+                      op:
+                        const: comment
+                      payload:
+                        type: object
+                        required:
+                          - body
+                        additionalProperties: false
+                        properties:
+                          body:
+                            type: string
+                            minLength: 1
+                            maxLength: 65536
+                            pattern: ^[^\u0000]+$
+      - if:
+          properties:
+            kind:
+              const: batch
+          required:
+            - kind
+        then:
+          properties:
+            mutations:
+              type: array
+              minItems: 1
+              items:
+                oneOf:
+                  - type: object
+                    required:
+                      - path
+                      - op
+                      - payload
+                    additionalProperties: false
+                    properties:
+                      path:
+                        type: string
+                        pattern: ^issues/[1-9][0-9]*$
+                      op:
+                        const: update
+                      payload:
+                        type: object
+                        minProperties: 1
+                        additionalProperties: false
+                        properties:
+                          title:
+                            type: string
+                            minLength: 1
+                            maxLength: 256
+                            pattern: ^[^\u0000]+$
+                          body:
+                            type: string
+                            maxLength: 65536
+                            pattern: ^[^\u0000]*$
+                          state:
+                            type: string
+                            enum:
+                              - open
+                              - closed
+                          state_reason:
+                            type: string
+                            enum:
+                              - completed
+                              - not_planned
+                              - reopened
+                          labels:
+                            type: array
+                            maxItems: 100
+                            uniqueItems: true
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                              pattern: ^[^\u0000]+$
+                          assignees:
+                            type: array
+                            maxItems: 20
+                            uniqueItems: true
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                              pattern: ^[^\u0000]+$
+                          milestone:
+                            type:
+                              - integer
+                              - "null"
+                            minimum: 1
+                  - type: object
+                    required:
+                      - path
+                      - op
+                      - payload
+                    additionalProperties: false
+                    properties:
+                      path:
+                        const: issues
+                      op:
+                        const: create
+                      payload:
+                        type: object
+                        required:
+                          - title
+                        additionalProperties: false
+                        properties:
+                          title:
+                            type: string
+                            minLength: 1
+                            maxLength: 256
+                            pattern: ^[^\u0000]+$
+                          body:
+                            type: string
+                            maxLength: 65536
+                            pattern: ^[^\u0000]*$
+                          labels:
+                            type: array
+                            maxItems: 100
+                            uniqueItems: true
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                              pattern: ^[^\u0000]+$
+                          assignees:
+                            type: array
+                            maxItems: 10
+                            uniqueItems: true
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                              pattern: ^[^\u0000]+$
+                          milestone:
+                            type: integer
+                            minimum: 1
+                  - type: object
+                    required:
+                      - path
+                      - op
+                      - payload
+                    additionalProperties: false
+                    properties:
+                      path:
+                        type: string
+                        pattern: ^pulls/[1-9][0-9]*$
+                      op:
+                        const: update
+                      payload:
+                        type: object
+                        minProperties: 1
+                        additionalProperties: false
+                        properties:
+                          title:
+                            type: string
+                            minLength: 1
+                            maxLength: 256
+                            pattern: ^[^\u0000]+$
+                          body:
+                            type: string
+                            maxLength: 65536
+                            pattern: ^[^\u0000]*$
+                          state:
+                            type: string
+                            enum:
+                              - open
+                              - closed
+                          base:
+                            type: string
+                            minLength: 1
+                            maxLength: 255
+                            pattern: ^[A-Za-z0-9._/-]+$
+                          maintainer_can_modify:
+                            type: boolean
+                  - type: object
+                    required:
+                      - path
+                      - op
+                      - payload
+                    additionalProperties: false
+                    properties:
+                      path:
+                        type: string
+                        pattern: ^(issues|pulls)/[1-9][0-9]*/comments$
+                      op:
+                        const: comment
+                      payload:
+                        type: object
+                        required:
+                          - body
+                        additionalProperties: false
+                        properties:
+                          body:
+                            type: string
+                            minLength: 1
+                            maxLength: 65536
+                            pattern: ^[^\u0000]+$
+                  - type: object
+                    required:
+                      - path
+                      - op
+                      - payload
+                    additionalProperties: false
+                    properties:
+                      path:
+                        type: string
+                        pattern: ^issues/comments/[1-9][0-9]*$
+                      op:
+                        const: update
+                      payload:
+                        type: object
+                        required:
+                          - body
+                        additionalProperties: false
+                        properties:
+                          body:
+                            type: string
+                            minLength: 1
+                            maxLength: 65536
+                            pattern: ^[^\u0000]+$
+methods:
+  github:
+    description: Read GitHub records with a repository and optional kind/number. Default is one page of the open issue feed, which GitHub also includes PRs in. No direction or authority scope input is needed for a read.
+    inputs:
+      repo:
+        type: string
+        description: Target GitHub repository as owner/name.
+        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        examples:
+          - runxhq/runx
+      kind:
+        type: string
         default: issues
-        description: Issue feed, pull-request records, or issue/PR comments. Comments need a number; pull-request
-          review comments are a different API.
-        schema:
-          enum:
-            - issues
-            - pull_requests
-            - comments
+        description: Issue feed, pull-request records, or issue/PR comments. Comments need a number; pull-request review comments are a different API.
+        enum:
+          - issues
+          - pull_requests
+          - comments
+        optional: true
       number:
         type: integer
-        required: false
         description: Exact issue or pull-request number; omit for a list. Required for comments.
-        schema:
-          minimum: 1
-          maximum: 9007199254740991
+        minimum: 1
+        maximum: 9007199254740991
+        optional: true
       state:
         type: string
-        required: false
         default: open
         description: List state filter; exact numbered reads return the actual current record.
-        schema:
-          enum:
-            - open
-            - closed
-            - all
+        enum:
+          - open
+          - closed
+          - all
+        optional: true
       labels:
         type: array
-        required: false
         default: []
         description: Exact issue-feed label filters.
-        schema:
-          maxItems: 100
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
-            maxLength: 100
+        maxItems: 100
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+          maxLength: 100
+        optional: true
       since:
         type: string
-        required: false
         description: Issue-feed updated-since filter. Combine with page/limit for bounded collection.
-        schema:
-          format: date-time
+        format: date-time
+        optional: true
       limit:
         type: integer
-        required: false
         default: 30
-        description: Maximum records requested in this page; GitHub supports up to 100. Exact numbered reads fetch
-          that record.
-        schema:
-          minimum: 1
-          maximum: 100
+        description: Maximum records requested in this page; GitHub supports up to 100. Exact numbered reads fetch that record.
+        minimum: 1
+        maximum: 100
+        optional: true
       page:
         type: integer
-        required: false
         default: 1
         description: Page of this unchanged list/comments query. A page is a slice, never a whole-history claim.
-        schema:
-          minimum: 1
-          maximum: 9007199254740991
+        minimum: 1
+        maximum: 9007199254740991
+        optional: true
     examples:
       - repo: runxhq/runx
       - repo: runxhq/runx
@@ -708,31 +663,28 @@ runners:
           limit: $input.limit
           page: $input.page
         outputs:
-          sync_plan: object
-        artifacts:
-          named_emits:
-            sync_plan: sync_plan
-          packets:
-            sync_plan: runx/github.sync_plan.v1
+          sync_plan: {type: object, packet: runx/github.sync_plan.v1}
       - id: read
         when:
           value: $steps.plan.sync_plan.decision
           equals: ready
-        operation: github
-        operation_name: $steps.plan.sync_plan.provider_operation
-        input: $steps.plan.sync_plan.provider_input
+        operation:
+          connector: github
+          choose: $steps.plan.sync_plan.provider_operation
+          from: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
+        inputs: $steps.plan.sync_plan.provider_input
   plan:
-    description: Plan a pull or push without touching GitHub, naming the exact resources, operation and scope it
-      would use. Use it only when the plan is what you want.
+    description: Plan a pull or push without touching GitHub, naming the exact resources, operation and scope it would use. Use it only when the plan is what you want.
     inputs:
       repo:
-        definition: repository
-      direction:
-        definition: direction
-      resources:
-        definition: resources
-      scope:
-        definition: scope
+        type: string
+        description: Target GitHub repository as owner/name.
+        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        examples:
+          - runxhq/runx
+      direction: {}
+      resources: {}
+      scope: {}
     examples:
       - repo: runxhq/runx
         direction: pull
@@ -754,19 +706,17 @@ runners:
           resources: $input.resources
           scope: $input.scope
         outputs:
-          sync_plan: object
-        artifacts:
-          named_emits:
-            sync_plan: sync_plan
-          packets:
-            sync_plan: runx/github.sync_plan.v1
+          sync_plan: {type: object, packet: runx/github.sync_plan.v1}
   pull:
     description: Read issues, pull requests or comments by a bounded selector, returning GitHub's records whole.
     inputs:
       repo:
-        definition: repository
-      resources:
-        definition: resources
+        type: string
+        description: Target GitHub repository as owner/name.
+        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        examples:
+          - runxhq/runx
+      resources: {}
     examples:
       - repo: runxhq/runx
         resources:
@@ -786,39 +736,36 @@ runners:
         tool:
           module: github.mjs
         outputs:
-          sync_plan: object
-        artifacts:
-          named_emits:
-            sync_plan: sync_plan
-          packets:
-            sync_plan: runx/github.sync_plan.v1
+          sync_plan: {type: object, packet: runx/github.sync_plan.v1}
       - id: pull
         when:
           value: $steps.plan.sync_plan.decision
           equals: ready
-        operation: github
-        operation_name: $steps.plan.sync_plan.provider_operation
-        input: $steps.plan.sync_plan.provider_input
+        operation:
+          connector: github
+          choose: $steps.plan.sync_plan.provider_operation
+          from: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
+        inputs: $steps.plan.sync_plan.provider_input
   activity:
-    description: Read what changed in a repository since a time, the issues and pull requests updated since then,
-      compact enough to summarise. Use it for a periodic summary.
+    description: Read what changed in a repository since a time, the issues and pull requests updated since then, compact enough to summarise. Use it for a periodic summary.
     inputs:
       repo:
-        definition: repository
+        type: string
+        description: Target GitHub repository as owner/name.
+        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        examples:
+          - runxhq/runx
       since:
         type: string
-        required: true
         description: The time to read from; every issue and pull request updated at or after it is read.
-        schema:
-          format: date-time
-          maxLength: 64
+        format: date-time
+        maxLength: 64
       page:
         type: integer
-        required: false
         description: The page to read, 1 by default; a result with next_page has more.
-        schema:
-          minimum: 1
-          maximum: 9007199254740991
+        minimum: 1
+        maximum: 9007199254740991
+        optional: true
     examples:
       - repo: runxhq/runx
         since: 2026-10-19T21:00:00Z
@@ -834,10 +781,10 @@ runners:
           since: $input.since
           page: $input.page
         outputs:
-          read_input: object
+          read_input: {type: object}
       - id: read
         operation: github/issues.list
-        input: $steps.window.read_input
+        inputs: $steps.window.read_input
       - id: digest
         tool:
           module: github.mjs
@@ -848,114 +795,111 @@ runners:
         outputs:
           activity:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - repository
-                - since
-                - page
-                - items
-              properties:
-                repository:
-                  type: string
-                since:
-                  type: string
-                page:
-                  type: integer
-                  minimum: 1
-                next_page:
-                  type: integer
-                  minimum: 2
+            additionalProperties: false
+            required:
+              - repository
+              - since
+              - page
+              - items
+            properties:
+              repository:
+                type: string
+              since:
+                type: string
+              page:
+                type: integer
+                minimum: 1
+              next_page:
+                type: integer
+                minimum: 2
+              items:
+                type: array
+                maxItems: 100
                 items:
-                  type: array
-                  maxItems: 100
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required:
-                      - number
-                      - kind
-                      - title
-                      - state
-                      - new
-                      - author
-                      - bot
-                      - created_at
-                      - updated_at
-                      - closed_at
-                      - labels
-                      - assignees
-                      - comments
-                      - url
-                      - body
-                      - body_left_out
-                    properties:
-                      number:
-                        type: integer
-                        minimum: 1
-                      kind:
-                        enum:
-                          - issue
-                          - pull_request
-                      title:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - number
+                    - kind
+                    - title
+                    - state
+                    - new
+                    - author
+                    - bot
+                    - created_at
+                    - updated_at
+                    - closed_at
+                    - labels
+                    - assignees
+                    - comments
+                    - url
+                    - body
+                    - body_left_out
+                  properties:
+                    number:
+                      type: integer
+                      minimum: 1
+                    kind:
+                      enum:
+                        - issue
+                        - pull_request
+                    title:
+                      type: string
+                    state:
+                      enum:
+                        - open
+                        - closed
+                        - merged
+                    new:
+                      type: boolean
+                      description: Opened at or after since.
+                    author:
+                      type:
+                        - string
+                        - "null"
+                    bot:
+                      type: boolean
+                    created_at:
+                      type: string
+                    updated_at:
+                      type: string
+                    closed_at:
+                      type:
+                        - string
+                        - "null"
+                    labels:
+                      type: array
+                      items:
                         type: string
-                      state:
-                        enum:
-                          - open
-                          - closed
-                          - merged
-                      new:
-                        type: boolean
-                        description: Opened at or after since.
-                      author:
-                        type:
-                          - string
-                          - "null"
-                      bot:
-                        type: boolean
-                      created_at:
+                    assignees:
+                      type: array
+                      items:
                         type: string
-                      updated_at:
-                        type: string
-                      closed_at:
-                        type:
-                          - string
-                          - "null"
-                      labels:
-                        type: array
-                        items:
-                          type: string
-                      assignees:
-                        type: array
-                        items:
-                          type: string
-                      comments:
-                        type: integer
-                        minimum: 0
-                      url:
-                        type: string
-                      body:
-                        type: string
-                        maxLength: 600
-                        description: The body's first 600 characters.
-                      body_left_out:
-                        type: integer
-                        minimum: 0
-                        description: Characters of the body not kept.
-        artifacts:
-          named_emits:
-            activity: activity
+                    comments:
+                      type: integer
+                      minimum: 0
+                    url:
+                      type: string
+                    body:
+                      type: string
+                      maxLength: 600
+                      description: The body's first 600 characters.
+                    body_left_out:
+                      type: integer
+                      minimum: 0
+                      description: Characters of the body not kept.
   push:
-    description: Apply one to twenty decided changes of one kind (new issues, issue or pull request updates, or
-      comments) and read each back. Needs write scope.
+    description: Apply one to twenty decided changes of one kind (new issues, issue or pull request updates, or comments) and read each back. Needs write scope.
     inputs:
       repo:
-        definition: repository
-      resources:
-        definition: resources
+        type: string
+        description: Target GitHub repository as owner/name.
+        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        examples:
+          - runxhq/runx
+      resources: {}
       idempotency_key:
         type: string
-        required: true
         description: Stable retry key for this exact mutation.
     examples:
       - repo: runxhq/runx
@@ -980,52 +924,44 @@ runners:
         tool:
           module: github.mjs
         outputs:
-          sync_plan: object
-        artifacts:
-          named_emits:
-            sync_plan: sync_plan
-          packets:
-            sync_plan: runx/github.sync_plan.v1
+          sync_plan: {type: object, packet: runx/github.sync_plan.v1}
       - id: apply
         when:
           value: $steps.plan.sync_plan.decision
           equals: ready_for_execution
-        operation: github
+        operation:
+          connector: github
+          choose: $steps.plan.sync_plan.provider_operation
+          from: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
         idempotency_key: $input.idempotency_key
-        operation_name: $steps.plan.sync_plan.provider_operation
-        input: $steps.plan.sync_plan.provider_input
+        inputs: $steps.plan.sync_plan.provider_input
   plan_and_append_cursor:
-    description: Plan a sync and append it to the store's cursor log, reading the projection back. It keeps the
-      cursor locally and touches nothing on GitHub.
+    description: Plan a sync and append it to the store's cursor log, reading the projection back. It keeps the cursor locally and touches nothing on GitHub.
     inputs:
       data_source_uri:
         type: string
-        required: true
         description: Logical data source for cursor events.
       resource:
         type: string
-        required: true
         description: Declared cursor event resource.
       aggregate_id:
         type: string
-        required: true
         description: Cursor stream key.
       expected_version:
         type: number
-        required: true
         description: Current cursor stream version.
       idempotency_key:
         type: string
-        required: true
         description: Stable retry key.
       repo:
-        definition: repository
-      direction:
-        definition: direction
-      resources:
-        definition: resources
-      scope:
-        definition: scope
+        type: string
+        description: Target GitHub repository as owner/name.
+        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        examples:
+          - runxhq/runx
+      direction: {}
+      resources: {}
+      scope: {}
     examples:
       - data_source_uri: tenant://github/sqlite-cursors
         resource: github_sync_events
@@ -1047,7 +983,7 @@ runners:
     steps:
       - id: read-cursor
         operation: store/projection.read
-        input:
+        inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
@@ -1060,16 +996,11 @@ runners:
         tool:
           module: github.mjs
         outputs:
-          sync_plan: object
-        artifacts:
-          named_emits:
-            sync_plan: sync_plan
-          packets:
-            sync_plan: runx/github.sync_plan.v1
+          sync_plan: {type: object, packet: runx/github.sync_plan.v1}
       - id: append-cursor-event
         operation: store/events.append
         idempotency_key: $input.idempotency_key
-        input:
+        inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
@@ -1077,7 +1008,7 @@ runners:
           event: $steps.plan.sync_plan
       - id: readback
         operation: store/projection.read
-        input:
+        inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
@@ -1086,33 +1017,25 @@ runners:
     inputs:
       repository:
         type: string
-        required: true
         description: Exact GitHub repository slug as owner/name.
-        schema:
-          pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
-          maxLength: 201
+        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        maxLength: 201
       pr_number:
         type: string
-        required: true
         description: Positive decimal pull-request number.
-        schema:
-          pattern: ^[1-9][0-9]*$
-          maxLength: 20
+        pattern: ^[1-9][0-9]*$
+        maxLength: 20
       body:
         type: string
-        required: true
         description: Exact review note body bound into approval and provider readback.
-        schema:
-          minLength: 1
-          maxLength: 65536
+        minLength: 1
+        maxLength: 65536
       idempotency_key:
         type: string
-        required: true
         description: Stable retry key for this exact repository, pull request, and body.
-        schema:
-          minLength: 8
-          maxLength: 256
-          pattern: ^[A-Za-z0-9._:-]+$
+        minLength: 8
+        maxLength: 256
+        pattern: ^[A-Za-z0-9._:-]+$
     examples:
       - repository: runxhq/runx
         pr_number: "42"
@@ -1124,27 +1047,27 @@ runners:
       - id: post-comment
         operation: github/comments.create
         idempotency_key: $input.idempotency_key
-        input:
+        inputs:
           repository: $input.repository
           comments:
             - number: $input.pr_number
               body: $input.body
   sync:
-    description: "Pull or push one bounded GitHub sync in the direction given: a bounded read of issues, pull
-      requests or comments, or one to twenty decided changes of one kind, each read back."
+    description: "Pull or push one bounded GitHub sync in the direction given: a bounded read of issues, pull requests or comments, or one to twenty decided changes of one kind, each read back."
     inputs:
       repo:
-        definition: repository
-      direction:
-        definition: direction
-      resources:
-        definition: resources
-      scope:
-        definition: scope
+        type: string
+        description: Target GitHub repository as owner/name.
+        pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        examples:
+          - runxhq/runx
+      direction: {}
+      resources: {}
+      scope: {}
       idempotency_key:
         type: string
-        required: false
         description: Stable retry key required for push and ignored for pull.
+        optional: true
     examples:
       - repo: runxhq/runx
         direction: pull
@@ -1170,25 +1093,21 @@ runners:
         tool:
           module: github.mjs
         outputs:
-          sync_plan: object
-        artifacts:
-          named_emits:
-            sync_plan: sync_plan
-          packets:
-            sync_plan: runx/github.sync_plan.v1
+          sync_plan: {type: object, packet: runx/github.sync_plan.v1}
       - id: pull
         when:
           value: $steps.plan.sync_plan.decision
           equals: ready
-        operation: github
-        operation_name: $steps.plan.sync_plan.provider_operation
-        input: $steps.plan.sync_plan.provider_input
+        operation:
+          connector: github
+          choose: $steps.plan.sync_plan.provider_operation
+          from: [issues.read, issues.list, pullrequests.read, pullrequests.list, comments.list, issues.create, issues.update, pullrequests.update, comments.create, comments.update]
+        inputs: $steps.plan.sync_plan.provider_input
       - id: push
         when:
           value: $steps.plan.sync_plan.decision
           equals: ready_for_execution
-        skill: .
-        runner: push
+        skill: .#push
         inputs:
           repo: $input.repo
           resources: $input.resources

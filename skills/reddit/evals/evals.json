@@ -1,0 +1,12 @@
+{
+  "skill_name": "reddit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Read a named Reddit account and draft a useful answer before submitting one reviewed comment.",
+      "expected_output": "Return account-specific drafts and evidence without publishing or voting.",
+      "files": [],
+      "method": "reddit"
+    }
+  ]
+}

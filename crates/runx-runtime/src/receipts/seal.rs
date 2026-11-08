@@ -32,7 +32,7 @@ pub fn step_receipt(
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     step_receipt_with_declared_claim_and_policy(
-        StepReceiptWithOutcome::with_default_closure(scope, step_id, attempt, output, created_at),
+        StepReceiptWithOutcome::with_default_ending(scope, step_id, attempt, output, created_at),
         claim,
         signature_policy,
     )
@@ -64,14 +64,14 @@ impl<'a> StepReceiptWithOutcome<'a> {
     /// process-exit default): `Completed`/`Failed` by exit status, with no
     /// reason. This is the single source of that derivation for the
     /// process-exit step receipts.
-    pub(crate) fn with_default_closure(
+    pub(crate) fn with_default_ending(
         scope: RunScope<'a>,
         step_id: &'a str,
         attempt: u32,
         output: &'a InvocationOutput,
         created_at: &'a str,
     ) -> Self {
-        let StepSealClosure { outcome, reason } = StepSealClosure::default_for(output);
+        let StepSealEnding { outcome, reason } = StepSealEnding::default_for(output);
         Self {
             scope,
             step_id,
@@ -211,17 +211,17 @@ pub(crate) struct StepSeal<'a> {
     /// All receipts below `child_receipts`, supplied only to resolve and
     /// validate the complete tree. They are not direct children of this step.
     pub(crate) descendant_receipts: &'a [Receipt],
-    pub(crate) closure: Option<StepSealClosure>,
+    pub(crate) closure: Option<StepSealEnding>,
 }
 
 /// A step's own outcome, and the reason it ended that way when one
 /// applies, when it does not derive them from a process exit.
-pub(crate) struct StepSealClosure {
+pub(crate) struct StepSealEnding {
     pub(crate) outcome: RunOutcome,
     pub(crate) reason: Option<SealReason>,
 }
 
-impl StepSealClosure {
+impl StepSealEnding {
     /// The process-exit default closure derived from the output: `Completed`/`Failed`
     /// by exit status, with no reason beyond the exit. The single source of
     /// this derivation.
@@ -251,8 +251,8 @@ pub(crate) fn seal_step(
         descendant_receipts,
         closure,
     } = params;
-    let StepSealClosure { outcome, reason } =
-        closure.unwrap_or_else(|| StepSealClosure::default_for(output));
+    let StepSealEnding { outcome, reason } =
+        closure.unwrap_or_else(|| StepSealEnding::default_for(output));
     step_receipt_with_outcome_projection_authority_and_policy(StepReceiptSeal {
         params: StepReceiptWithOutcome {
             scope,
@@ -347,27 +347,27 @@ fn push_verified_criterion(
     });
 }
 
-pub fn graph_receipt(
+pub fn workflow_receipt(
     scope: RunScope<'_>,
     steps: &[StepRun],
     created_at: &str,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
-    graph_receipt_with_closure(
+    workflow_receipt_with_ending(
         scope,
         steps,
         created_at,
-        GraphClosure::completed(),
+        WorkflowEnding::completed(),
         signature_policy,
     )
 }
 
-pub(crate) struct GraphClosure {
+pub(crate) struct WorkflowEnding {
     pub(crate) outcome: RunOutcome,
     pub(crate) reason: Option<SealReason>,
 }
 
-impl GraphClosure {
+impl WorkflowEnding {
     pub(crate) fn completed() -> Self {
         Self {
             outcome: RunOutcome::Completed,
@@ -376,11 +376,11 @@ impl GraphClosure {
     }
 }
 
-pub(crate) fn graph_receipt_with_closure(
+pub(crate) fn workflow_receipt_with_ending(
     scope: RunScope<'_>,
     steps: &[StepRun],
     created_at: &str,
-    closure: GraphClosure,
+    closure: WorkflowEnding,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
 ) -> Result<Receipt, RuntimeError> {
     let current_child_indexes = current_step_indexes(steps);
@@ -392,7 +392,7 @@ pub(crate) fn graph_receipt_with_closure(
     // A receipt graph is a DAG: the parent commits each active child's exact
     // id and signed-body digest. Children stay immutable and reusable instead
     // of acquiring one post-hoc parent link.
-    let receipt = build_graph_receipt(
+    let receipt = build_workflow_receipt(
         signature_policy.signer()?.issuer(),
         scope,
         child_refs,
@@ -414,12 +414,12 @@ pub(crate) fn graph_receipt_with_closure(
     Ok(receipt)
 }
 
-fn build_graph_receipt(
+fn build_workflow_receipt(
     issuer: ReceiptIssuer,
     scope: RunScope<'_>,
     children: Vec<Reference>,
     created_at: &str,
-    closure: &GraphClosure,
+    closure: &WorkflowEnding,
 ) -> Result<UnsealedReceipt, RuntimeError> {
     let digest = outcome_digest(closure.outcome, &JsonObject::new(), &children)?;
     Ok(build_unsealed_receipt(BuildReceipt {
@@ -513,7 +513,7 @@ fn validate_receipt_tree_with_policy<'a>(
 #[derive(Clone, Copy, Debug)]
 pub struct RunScope<'a> {
     pub run_id: &'a str,
-    pub graph_name: &'a str,
+    pub workflow_name: &'a str,
 }
 
 /// The part of a run a receipt seals.
@@ -639,7 +639,7 @@ fn decision(node_id: &str, choice: DecisionChoice, act: &ReceiptAct) -> Decision
 /// The run node a receipt seals, labelled with the graph that ran.
 fn subject(scope: RunScope<'_>, uri: String, kind: SubjectKind, outcome_digest: Digest) -> Subject {
     let mut reference = Reference::with_uri(ReferenceType::Run, uri);
-    reference.label = Some(scope.graph_name.into());
+    reference.label = Some(scope.workflow_name.into());
     Subject {
         kind,
         reference,
@@ -851,10 +851,10 @@ fn receipt_error(verification: runx_receipts::ReceiptVerification) -> RuntimeErr
 
 #[cfg(test)]
 mod tests {
-    fn test_scope(graph_name: &'static str) -> RunScope<'static> {
+    fn test_scope(workflow_name: &'static str) -> RunScope<'static> {
         RunScope {
             run_id: "run_test",
-            graph_name,
+            workflow_name,
         }
     }
 
@@ -906,7 +906,7 @@ mod tests {
     #[test]
     fn credential_delivery_refs_are_sealed_as_verification_refs() -> Result<(), TestError> {
         let receipt = step_receipt(
-            test_scope("credential_graph"),
+            test_scope("credential_workflow"),
             "credential_step",
             1,
             &credential_output()?,
@@ -958,7 +958,7 @@ mod tests {
         };
 
         let receipt = step_receipt(
-            test_scope("agent_graph"),
+            test_scope("agent_workflow"),
             "agent_step",
             1,
             &output,
@@ -972,8 +972,8 @@ mod tests {
         assert_eq!(receipt.seal.criteria.len(), 4);
         // A governed call's act carries the same criteria.
         let call = step_receipt_with_outcome_projection_authority_and_policy(StepReceiptSeal {
-            params: StepReceiptWithOutcome::with_default_closure(
-                test_scope("agent_graph"),
+            params: StepReceiptWithOutcome::with_default_ending(
+                test_scope("agent_workflow"),
                 "call_step",
                 1,
                 &output,
@@ -1027,7 +1027,7 @@ mod tests {
         let output = InvocationOutput::runtime_success(serde_json::from_value(claims)?, 1);
 
         let receipt = step_receipt(
-            test_scope("claims_graph"),
+            test_scope("claims_workflow"),
             "claims_step",
             1,
             &output,
@@ -1094,7 +1094,7 @@ mod tests {
             Some(runx_contracts::ExecutionBoundaryKind::TrustedHostProcess);
 
         let receipt = step_receipt(
-            test_scope("boundary_graph"),
+            test_scope("boundary_workflow"),
             "boundary_step",
             1,
             &output,
@@ -1116,8 +1116,8 @@ mod tests {
         let output = successful_output(stdout);
         Ok(step_receipt_with_outcome_projection_authority_and_policy(
             StepReceiptSeal {
-                params: StepReceiptWithOutcome::with_default_closure(
-                    test_scope("identity_graph"),
+                params: StepReceiptWithOutcome::with_default_ending(
+                    test_scope("identity_workflow"),
                     "identity_step",
                     1,
                     &output,
@@ -1186,8 +1186,8 @@ mod tests {
         let outer = |child: &Receipt| {
             let output = successful_output("outer transport");
             step_receipt_with_outcome_projection_authority_and_policy(StepReceiptSeal {
-                params: StepReceiptWithOutcome::with_default_closure(
-                    test_scope("outer_graph"),
+                params: StepReceiptWithOutcome::with_default_ending(
+                    test_scope("outer_workflow"),
                     "outer_step",
                     1,
                     &output,
@@ -1253,7 +1253,7 @@ mod tests {
             request_id: "credential_delivery_request_1".into(),
             response_id: Some("credential_delivery_response_1".into()),
             status: CredentialDeliveryObservationStatus::Delivered,
-            harness_ref: Reference::with_uri(
+            run_ref: Reference::with_uri(
                 ReferenceType::Harness,
                 "runx:harness:local-credential-provision",
             ),

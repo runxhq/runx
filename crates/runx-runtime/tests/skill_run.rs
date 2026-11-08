@@ -111,7 +111,7 @@ fn runtime_options_local_development_uses_live_timestamp() -> Result<(), Box<dyn
 }
 
 #[test]
-fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::error::Error>> {
+fn native_skill_run_pauses_with_turn_request() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
     let expected_instructions = fs::read_to_string(skill_dir.join("SKILL.md"))?;
@@ -143,7 +143,7 @@ fn native_skill_run_pauses_with_agent_act_request() -> Result<(), Box<dyn std::e
     let requests = array_field(output, "requests").ok_or("missing requests")?;
     assert_eq!(requests.len(), 1);
     let request = object(&requests[0], "request")?;
-    assert_eq!(string_field(request, "kind"), Some("agent_act"));
+    assert_eq!(string_field(request, "kind"), Some("turn"));
     assert_eq!(string_field(request, "id"), Some("intake"));
     let invocation = object_field(request, "invocation").ok_or("missing invocation")?;
     assert_eq!(string_field(invocation, "task"), Some("code-intake"));
@@ -599,7 +599,7 @@ runners:
 }
 
 #[test]
-fn native_graph_runs_a_javascript_module_without_manifest_process_plumbing()
+fn native_workflow_runs_a_javascript_module_without_manifest_process_plumbing()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = temp.path().join("javascript-module-skill");
@@ -698,7 +698,7 @@ runners:
 }
 
 #[test]
-fn native_javascript_runner_rejects_a_packet_schema_violation()
+fn native_javascript_method_rejects_a_packet_schema_violation()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = temp.path().join("invalid-javascript-packet");
@@ -911,10 +911,10 @@ fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std
 }
 
 #[test]
-fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn std::error::Error>>
-{
+fn native_workflow_skill_run_pauses_and_resumes_agent_task()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_agent_task_skill(temp.path())?;
+    let skill_dir = write_workflow_agent_task_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
@@ -1085,10 +1085,11 @@ fn native_graph_skill_run_pauses_and_resumes_agent_task() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn native_graph_transition_gate_allows_declared_agent_output()
+fn native_workflow_transition_gate_allows_declared_agent_output()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_gated_agent_task_skill_with_field(temp.path(), "decide.approved")?;
+    let skill_dir =
+        write_workflow_gated_agent_task_skill_with_field(temp.path(), "decide.approved")?;
     let receipt_dir = temp.path().join("receipts");
 
     let initial = run_skill(SkillRunRequest {
@@ -1149,7 +1150,7 @@ fn native_graph_transition_gate_allows_declared_agent_output()
 /// resumes with no inputs supplied: the checkpoint's inputs are restored before
 /// defaults could fill the omitted one.
 #[test]
-fn native_graph_resume_keeps_a_non_default_input() -> Result<(), Box<dyn std::error::Error>> {
+fn native_workflow_resume_keeps_a_non_default_input() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = temp.path().join("skills/continuation");
     fs::create_dir_all(&skill_dir)?;
@@ -1214,9 +1215,9 @@ runners:
 }
 
 #[test]
-fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::error::Error>> {
+fn native_workflow_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_gated_agent_task_skill(temp.path())?;
+    let skill_dir = write_workflow_gated_agent_task_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
 
     let initial = run_skill(SkillRunRequest {
@@ -1265,7 +1266,10 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
     let output = object(&blocked.output, "blocked graph result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
     assert_eq!(string_field(output, "outcome"), Some("blocked"));
-    assert_eq!(string_field(output, "seal_reason"), Some("graph_blocked"));
+    assert_eq!(
+        string_field(output, "seal_reason"),
+        Some("workflow_blocked")
+    );
     // Why the guard refused rides the run's output, outside the signed receipt.
     let refusal = object_field(output, "refusal").ok_or("missing refusal")?;
     assert!(
@@ -1279,10 +1283,10 @@ fn native_graph_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std::e
 }
 
 #[test]
-fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
+fn native_workflow_skill_run_pauses_and_resumes_nested_agent_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_nested_agent_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_agent_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
@@ -1361,7 +1365,7 @@ fn native_graph_skill_run_pauses_and_resumes_nested_agent_skill()
 }
 
 #[test]
-fn graph_agent_task_injects_registry_skill_as_current_context()
+fn workflow_agent_task_injects_registry_skill_as_current_context()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let registry = LoopbackRegistry::serve()?;
@@ -1388,7 +1392,7 @@ runners:
 "#,
         ),
     ))?;
-    let skill_dir = write_graph_agent_task_with_context_skill(
+    let skill_dir = write_workflow_agent_task_with_context_skill(
         temp.path(),
         "registry:acme/taste-profile@1.0.0",
     )?;
@@ -1447,7 +1451,8 @@ runners:
 }
 
 #[test]
-fn graph_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn std::error::Error>> {
+fn workflow_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn std::error::Error>>
+{
     let temp = tempdir()?;
     let context_dir = temp.path().join("taste-profile");
     fs::create_dir_all(&context_dir)?;
@@ -1455,7 +1460,7 @@ fn graph_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn st
         context_dir.join("SKILL.md"),
         "---\nname: taste-profile\ndescription: taste-profile fixture.\n---\n# Taste Profile\n",
     )?;
-    let skill_dir = write_graph_agent_task_with_context_skill(temp.path(), "../taste-profile")?;
+    let skill_dir = write_workflow_agent_task_with_context_skill(temp.path(), "../taste-profile")?;
 
     let error = match run_skill(SkillRunRequest {
         current_context: Vec::new(),
@@ -1486,9 +1491,10 @@ fn graph_agent_task_rejects_parent_path_context_skill() -> Result<(), Box<dyn st
 }
 
 #[test]
-fn graph_agent_task_rejects_graph_stage_context_skill() -> Result<(), Box<dyn std::error::Error>> {
+fn workflow_agent_task_rejects_workflow_stage_context_skill()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_agent_task_with_context_skill(temp.path(), "context-stage")?;
+    let skill_dir = write_workflow_agent_task_with_context_skill(temp.path(), "context-stage")?;
     let stage_dir = skill_dir.join("context-stage");
     fs::create_dir_all(&stage_dir)?;
     fs::write(
@@ -1507,9 +1513,9 @@ catalog:
   kind: skill
   audience: builder
   visibility: internal
-  role: graph-stage
+  role: workflow-stage
   part_of:
-    - graph-agent-context-skill
+    - workflow-agent-context-skill
 runners:
   main:
     default: true
@@ -1538,7 +1544,7 @@ runners:
     };
 
     assert!(
-        error.to_string().contains("catalog.role=graph-stage"),
+        error.to_string().contains("catalog.role=workflow-stage"),
         "unexpected error: {error}"
     );
 
@@ -1546,7 +1552,7 @@ runners:
 }
 
 #[test]
-fn graph_agent_task_rejects_registry_runtime_path_context_skill()
+fn workflow_agent_task_rejects_registry_runtime_path_context_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let registry = LoopbackRegistry::serve()?;
@@ -1567,7 +1573,7 @@ catalog:
   visibility: internal
   role: runtime-path
   part_of:
-    - graph-agent-context-skill
+    - workflow-agent-context-skill
 runners:
   main:
     default: true
@@ -1577,7 +1583,7 @@ runners:
 "#,
         ),
     ))?;
-    let skill_dir = write_graph_agent_task_with_context_skill(
+    let skill_dir = write_workflow_agent_task_with_context_skill(
         temp.path(),
         "registry:acme/runtime-helper@1.0.0",
     )?;
@@ -1610,9 +1616,9 @@ runners:
 }
 
 #[test]
-fn native_graph_skill_run_executes_local_tool_step() -> Result<(), Box<dyn std::error::Error>> {
+fn native_workflow_skill_run_executes_local_tool_step() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_tool_skill(temp.path())?;
+    let skill_dir = write_workflow_tool_skill(temp.path())?;
     write_echo_tool(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let tool_root = temp.path().join("tools");
@@ -1655,10 +1661,10 @@ fn native_graph_skill_run_executes_local_tool_step() -> Result<(), Box<dyn std::
 }
 
 #[test]
-fn configured_model_credentials_do_not_enable_graph_agent_without_run_consent()
+fn configured_model_credentials_do_not_enable_workflow_agent_without_run_consent()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_agent_task_skill(temp.path())?;
+    let skill_dir = write_workflow_agent_task_skill(temp.path())?;
     let env = BTreeMap::from([
         ("RUNX_AGENT_PROVIDER".to_owned(), "anthropic".to_owned()),
         ("RUNX_AGENT_MODEL".to_owned(), "claude-test".to_owned()),
@@ -1685,10 +1691,10 @@ fn configured_model_credentials_do_not_enable_graph_agent_without_run_consent()
 }
 
 #[test]
-fn native_graph_skill_run_resolves_agent_task_named_emit_context()
+fn native_workflow_skill_run_resolves_agent_task_named_emit_context()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_agent_artifact_context_skill(temp.path())?;
+    let skill_dir = write_workflow_agent_artifact_context_skill(temp.path())?;
     write_echo_tool(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let tool_root = temp.path().join("tools");
@@ -1757,10 +1763,10 @@ fn native_graph_skill_run_resolves_agent_task_named_emit_context()
 }
 
 #[test]
-fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
+fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_agent_then_input_tool_skill(temp.path())?;
+    let skill_dir = write_workflow_agent_then_input_tool_skill(temp.path())?;
     write_echo_tool_at(
         &temp.path().join("tools/test/echo"),
         "/evidence/non-default",
@@ -1871,10 +1877,10 @@ fn native_graph_skill_resume_preserves_initial_inputs_for_later_tool_steps()
 // return the declared contract directly, so an `output`-wrapped answer fails
 // with the typed missing-output error instead of being silently unwrapped.
 #[test]
-fn native_graph_skill_run_refuses_agent_output_envelope_claim()
+fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_agent_artifact_context_skill(temp.path())?;
+    let skill_dir = write_workflow_agent_artifact_context_skill(temp.path())?;
     write_echo_tool(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let tool_root = temp.path().join("tools");
@@ -1966,10 +1972,10 @@ fn native_graph_skill_run_refuses_agent_output_envelope_claim()
 }
 
 #[test]
-fn native_graph_skill_run_omits_missing_optional_graph_input_references()
+fn native_workflow_skill_run_omits_missing_optional_workflow_input_references()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_optional_json_tool_skill(temp.path())?;
+    let skill_dir = write_workflow_optional_json_tool_skill(temp.path())?;
     write_optional_json_tool(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let tool_root = temp.path().join("tools");
@@ -2015,10 +2021,10 @@ fn native_graph_skill_run_omits_missing_optional_graph_input_references()
 }
 
 #[test]
-fn native_graph_skill_run_requires_declared_graph_inputs() -> Result<(), Box<dyn std::error::Error>>
-{
+fn native_workflow_skill_run_requires_declared_workflow_inputs()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_required_input_skill(temp.path())?;
+    let skill_dir = write_workflow_required_input_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
 
     let request = with_test_signing_env(SkillRunRequest {
@@ -2063,14 +2069,14 @@ fn native_graph_skill_run_requires_declared_graph_inputs() -> Result<(), Box<dyn
 }
 
 #[test]
-fn native_graph_skill_resume_applies_approval_before_completing_step()
+fn native_workflow_skill_resume_applies_approval_before_completing_step()
 -> Result<(), Box<dyn std::error::Error>> {
     let case = "approvals-field";
     let answers = serde_json::json!({
         "approvals": { "approval-resume.approve": true }
     });
     let temp = tempdir()?;
-    let skill_dir = write_graph_approval_resume_skill(temp.path())?;
+    let skill_dir = write_workflow_approval_resume_skill(temp.path())?;
     let receipt_dir = temp.path().join(format!("receipts-{case}"));
 
     let pending = run_skill(SkillRunRequest {
@@ -2128,10 +2134,10 @@ fn native_graph_skill_resume_applies_approval_before_completing_step()
 }
 
 #[test]
-fn native_graph_skill_resume_approves_only_what_the_run_waits_on()
+fn native_workflow_skill_resume_approves_only_what_the_run_waits_on()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_approval_resume_skill(temp.path())?;
+    let skill_dir = write_workflow_approval_resume_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts-digest-bound-approval");
     let run_id = "run_assistant_work_digest_bound_approval".to_owned();
     let start = SkillRunRequest {
@@ -2184,10 +2190,10 @@ fn native_graph_skill_resume_approves_only_what_the_run_waits_on()
 }
 
 #[test]
-fn native_graph_skill_resume_rejects_agent_answer_for_approval()
+fn native_workflow_skill_resume_rejects_agent_answer_for_approval()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_approval_resume_skill(temp.path())?;
+    let skill_dir = write_workflow_approval_resume_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts-agent-approval");
     let answers = serde_json::json!({
         "answers": { "approval-resume.approve": true }
@@ -2241,9 +2247,9 @@ fn native_graph_skill_resume_rejects_agent_answer_for_approval()
 }
 
 #[test]
-fn native_graph_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn std::error::Error>> {
+fn native_workflow_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_tool_skill_under_skills(temp.path())?;
+    let skill_dir = write_workflow_tool_skill_under_skills(temp.path())?;
     write_echo_tool_at(&temp.path().join("tools/test/echo"), "root tools")?;
     write_echo_tool_at(
         &temp.path().join("packages/cli/tools/test/echo"),
@@ -2283,10 +2289,10 @@ fn native_graph_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn std::
 }
 
 #[test]
-fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
+fn native_workflow_skill_run_merges_imported_workflow_skill_tool_roots()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_importing_graph_with_bundled_tool(temp.path())?;
+    let skill_dir = write_workflow_importing_workflow_with_bundled_tool(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
@@ -2328,23 +2334,23 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
     let root_receipt = crate::support::read_test_signed_receipt(&receipt_dir, root_receipt_id)?;
     let nested_step_receipt =
         crate::support::read_test_signed_receipt(&receipt_dir, nested_step_id)?;
-    let nested_graph_ref = nested_step_receipt
+    let nested_workflow_ref = nested_step_receipt
         .lineage
         .children
         .first()
         .ok_or("nested step receipt missing child graph reference")?;
-    let nested_graph_id = nested_graph_ref
+    let nested_workflow_id = nested_workflow_ref
         .uri
         .as_str()
         .strip_prefix("runx:receipt:")
         .ok_or("nested graph receipt reference is malformed")?;
-    let nested_graph_receipt =
-        crate::support::read_test_signed_receipt(&receipt_dir, nested_graph_id)?;
+    let nested_workflow_receipt =
+        crate::support::read_test_signed_receipt(&receipt_dir, nested_workflow_id)?;
     assert_eq!(
-        nested_graph_ref.locator.as_deref(),
-        Some(nested_graph_receipt.digest.as_str())
+        nested_workflow_ref.locator.as_deref(),
+        Some(nested_workflow_receipt.digest.as_str())
     );
-    let nested_child_refs = &nested_graph_receipt.lineage.children;
+    let nested_child_refs = &nested_workflow_receipt.lineage.children;
     assert_eq!(nested_child_refs.len(), 1);
     let nested_child_id = nested_child_refs[0]
         .uri
@@ -2358,7 +2364,7 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
         &root_receipt,
         vec![
             nested_step_receipt,
-            nested_graph_receipt,
+            nested_workflow_receipt,
             nested_child_receipt,
         ],
         ReceiptTreeConfig::default(),
@@ -2373,10 +2379,10 @@ fn native_graph_skill_run_merges_imported_graph_skill_tool_roots()
 }
 
 #[test]
-fn native_graph_skill_run_executes_nested_process_tool_skill()
+fn native_workflow_skill_run_executes_nested_process_tool_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_nested_cli_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_cli_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
@@ -2464,11 +2470,11 @@ fn native_graph_skill_run_executes_nested_process_tool_skill()
 }
 
 #[test]
-fn native_graph_skill_run_executes_nested_registry_skill() -> Result<(), Box<dyn std::error::Error>>
-{
+fn native_workflow_skill_run_executes_nested_registry_skill()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let registry = registry_child()?;
-    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_registry_skill(temp.path())?;
     let env = fetch_registry_refs(&registry, temp.path(), &skill_dir)?;
 
     let result = run_skill(SkillRunRequest {
@@ -2502,12 +2508,12 @@ fn skill_inspection_reports_registry_refs_the_project_does_not_hold()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let registry = registry_child()?;
-    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_registry_skill(temp.path())?;
     let env = registry_env(&registry, temp.path())?;
     let closure_of = |inspection: &runx_contracts::SkillInspection| -> Result<JsonValue, Box<dyn std::error::Error>> {
         Ok(JsonValue::Object(
             inspection
-                .runner_inspections
+                .method_inspections
                 .first()
                 .ok_or("no runner inspection")?
                 .execution_closure
@@ -2558,7 +2564,7 @@ fn a_nested_runx_skill_from_another_registry_is_refused() -> Result<(), Box<dyn 
         "---\nname: registry-child\ndescription: Official registry-backed nested child.\n---\n# Registry Child\n",
         Some(&registry_child_profile_document()),
     ))?;
-    let skill_dir = write_graph_nested_registry_skill_with_ref(
+    let skill_dir = write_workflow_nested_registry_skill_with_ref(
         temp.path(),
         "registry:runx/registry-child@1.0.0",
     )?;
@@ -2578,7 +2584,7 @@ fn a_nested_runx_skill_from_another_registry_is_refused() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
+fn native_workflow_skill_run_rejects_unsigned_nested_registry_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let registry = registry_child()?;
@@ -2587,7 +2593,7 @@ fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
             record.remove("signed_manifest");
         }
     })?;
-    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_registry_skill(temp.path())?;
 
     let error = fetch_registry_refs(&registry, temp.path(), &skill_dir)
         .err()
@@ -2601,7 +2607,7 @@ fn native_graph_skill_run_rejects_unsigned_nested_registry_skill()
 }
 
 #[test]
-fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
+fn native_workflow_skill_run_rejects_tampered_nested_registry_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let registry = registry_child()?;
@@ -2611,7 +2617,7 @@ fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
             .map(|markdown| markdown.replace("Registry", "Tampered"));
         record["markdown"] = serde_json::json!(tampered);
     })?;
-    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_registry_skill(temp.path())?;
 
     let error = fetch_registry_refs(&registry, temp.path(), &skill_dir)
         .err()
@@ -2625,10 +2631,10 @@ fn native_graph_skill_run_rejects_tampered_nested_registry_skill()
 }
 
 #[test]
-fn native_graph_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold()
+fn native_workflow_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_registry_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
 
     let error = match run_skill(SkillRunRequest {
@@ -2659,9 +2665,9 @@ fn native_graph_skill_run_rejects_a_nested_registry_skill_the_project_does_not_h
 }
 
 #[test]
-fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std::error::Error>> {
+fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_nested_cli_counter_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_cli_counter_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let count_file = temp.path().join("count.txt");
     let inputs = [(
@@ -2759,10 +2765,10 @@ fn native_graph_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn std:
 }
 
 #[test]
-fn native_graph_skill_run_executes_graph_stage_process_tool_skill()
+fn native_workflow_skill_run_executes_workflow_stage_process_tool_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_stage_cli_skill(temp.path())?;
+    let skill_dir = write_workflow_stage_cli_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
@@ -2803,10 +2809,10 @@ fn native_graph_skill_run_executes_graph_stage_process_tool_skill()
 }
 
 #[test]
-fn native_graph_skill_run_executes_nested_x_yaml_runner_skill()
+fn native_workflow_skill_run_executes_nested_x_yaml_method_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_nested_x_yaml_cli_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_x_yaml_cli_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
     let inputs = [(
         "thread_title".to_owned(),
@@ -2992,17 +2998,17 @@ runners:
     Ok(skill_dir.to_path_buf())
 }
 
-fn write_graph_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-issue-to-pr");
+fn write_workflow_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("workflow-issue-to-pr");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-issue-to-pr\ndescription: graph-issue-to-pr fixture.\n---\n# Graph Issue To PR\n\nUse the full issue context.\n",
+        "---\nname: workflow-issue-to-pr\ndescription: workflow-issue-to-pr fixture.\n---\n# Graph Issue To PR\n\nUse the full issue context.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-issue-to-pr
+skill: workflow-issue-to-pr
 runners:
   graph:
     default: true
@@ -3014,7 +3020,7 @@ runners:
       - decide
     steps:
       - id: decide
-        agent: { role: builder, task: graph-decide }
+        agent: { role: builder, task: workflow-decide }
         inputs:
           thread_title: $input.thread_title
         outputs:
@@ -3024,21 +3030,21 @@ runners:
     Ok(skill_dir.to_path_buf())
 }
 
-fn write_graph_agent_task_with_context_skill(
+fn write_workflow_agent_task_with_context_skill(
     root: &Path,
     context_skill: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-agent-context-skill");
+    let skill_dir = root.join("workflow-agent-context-skill");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-agent-context-skill\ndescription: graph-agent-context-skill fixture.\n---\n# Graph Agent Context Skill\n",
+        "---\nname: workflow-agent-context-skill\ndescription: workflow-agent-context-skill fixture.\n---\n# Graph Agent Context Skill\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         format!(
             r#"
-skill: graph-agent-context-skill
+skill: workflow-agent-context-skill
 runners:
   graph:
     default: true
@@ -3057,25 +3063,27 @@ runners:
     Ok(skill_dir.to_path_buf())
 }
 
-fn write_graph_gated_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    write_graph_gated_agent_task_skill_with_field(root, "decide.skill_claim.approved")
+fn write_workflow_gated_agent_task_skill(
+    root: &Path,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    write_workflow_gated_agent_task_skill_with_field(root, "decide.skill_claim.approved")
 }
 
-fn write_graph_gated_agent_task_skill_with_field(
+fn write_workflow_gated_agent_task_skill_with_field(
     root: &Path,
     gate_field: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-gated-agent-task");
+    let skill_dir = root.join("workflow-gated-agent-task");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-gated-agent-task\ndescription: graph-gated-agent-task fixture.\n---\n# Graph Gated Agent Step\n",
+        "---\nname: workflow-gated-agent-task\ndescription: workflow-gated-agent-task fixture.\n---\n# Graph Gated Agent Step\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         format!(
             r#"
-skill: graph-gated-agent-task
+skill: workflow-gated-agent-task
 runners:
   graph:
     default: true
@@ -3101,7 +3109,7 @@ runners:
     Ok(skill_dir.to_path_buf())
 }
 
-fn write_graph_nested_agent_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn write_workflow_nested_agent_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let child_name = "child-agent";
     let child_dir = root.join(child_name);
     let runner = r#"    inputs:
@@ -3137,17 +3145,17 @@ runners:
         .as_str(),
     )?;
 
-    let skill_dir = root.join("graph-nested-agent");
+    let skill_dir = root.join("workflow-nested-agent");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-nested-agent\ndescription: graph-nested-agent fixture.\n---\n# Graph Nested agent\n",
+        "---\nname: workflow-nested-agent\ndescription: workflow-nested-agent fixture.\n---\n# Graph Nested agent\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         format!(
             r#"
-skill: graph-nested-agent
+skill: workflow-nested-agent
 runners:
   graph:
     default: true
@@ -3168,17 +3176,19 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_graph_tool_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-tool");
-    write_graph_tool_skill_at(&skill_dir)
+fn write_workflow_tool_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("workflow-tool");
+    write_workflow_tool_skill_at(&skill_dir)
 }
 
-fn write_graph_tool_skill_under_skills(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("skills/graph-tool");
-    write_graph_tool_skill_at(&skill_dir)
+fn write_workflow_tool_skill_under_skills(
+    root: &Path,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("skills/workflow-tool");
+    write_workflow_tool_skill_at(&skill_dir)
 }
 
-fn write_graph_importing_graph_with_bundled_tool(
+fn write_workflow_importing_workflow_with_bundled_tool(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let parent_dir = root.join("skills/parent-board");
@@ -3242,16 +3252,16 @@ runners:
     Ok(parent_dir)
 }
 
-fn write_graph_tool_skill_at(skill_dir: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn write_workflow_tool_skill_at(skill_dir: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     fs::create_dir_all(skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-tool\ndescription: graph-tool fixture.\n---\n# Graph Tool\n",
+        "---\nname: workflow-tool\ndescription: workflow-tool fixture.\n---\n# Graph Tool\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-tool
+skill: workflow-tool
 runners:
   graph:
     default: true
@@ -3272,19 +3282,19 @@ runners:
     Ok(skill_dir.to_path_buf())
 }
 
-fn write_graph_agent_artifact_context_skill(
+fn write_workflow_agent_artifact_context_skill(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-agent-artifact-context");
+    let skill_dir = root.join("workflow-agent-artifact-context");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-agent-artifact-context\ndescription: graph-agent-artifact-context fixture.\n---\n# Graph Agent Artifact Context\n",
+        "---\nname: workflow-agent-artifact-context\ndescription: workflow-agent-artifact-context fixture.\n---\n# Graph Agent Artifact Context\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-agent-artifact-context
+skill: workflow-agent-artifact-context
 runners:
   graph:
     default: true
@@ -3292,7 +3302,7 @@ runners:
       - echo
     steps:
       - id: author
-        agent: { role: builder, task: graph-author }
+        agent: { role: builder, task: workflow-author }
         outputs:
           fix_bundle: object
         artifacts:
@@ -3308,19 +3318,19 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_graph_agent_then_input_tool_skill(
+fn write_workflow_agent_then_input_tool_skill(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-agent-then-input-tool");
+    let skill_dir = root.join("workflow-agent-then-input-tool");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-agent-then-input-tool\ndescription: graph-agent-then-input-tool fixture.\n---\n# Graph Agent Then Input Tool\n",
+        "---\nname: workflow-agent-then-input-tool\ndescription: workflow-agent-then-input-tool fixture.\n---\n# Graph Agent Then Input Tool\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-agent-then-input-tool
+skill: workflow-agent-then-input-tool
 runners:
   graph:
     default: true
@@ -3335,7 +3345,7 @@ runners:
       - echo
     steps:
       - id: author
-        agent: { role: builder, task: graph-author }
+        agent: { role: builder, task: workflow-author }
         outputs:
           result: object
       - id: echo
@@ -3348,19 +3358,19 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_graph_optional_json_tool_skill(
+fn write_workflow_optional_json_tool_skill(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-optional-json-tool");
+    let skill_dir = root.join("workflow-optional-json-tool");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-optional-json-tool\ndescription: graph-optional-json-tool fixture.\n---\n# Graph Optional JSON Tool\n",
+        "---\nname: workflow-optional-json-tool\ndescription: workflow-optional-json-tool fixture.\n---\n# Graph Optional JSON Tool\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-optional-json-tool
+skill: workflow-optional-json-tool
 runners:
   graph:
     default: true
@@ -3385,17 +3395,17 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_graph_required_input_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-required-input");
+fn write_workflow_required_input_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("workflow-required-input");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-required-input\ndescription: graph-required-input fixture.\n---\n# Graph Required Input\n",
+        "---\nname: workflow-required-input\ndescription: workflow-required-input fixture.\n---\n# Graph Required Input\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-required-input
+skill: workflow-required-input
 runners:
   graph:
     default: true
@@ -3408,13 +3418,15 @@ runners:
       - approve
     steps:
       - id: approve
-        ask: { gate: graph-required-input.approve, reason: approve the graph }
+        ask: { gate: workflow-required-input.approve, reason: approve the graph }
 "#,
     )?;
     Ok(skill_dir)
 }
 
-fn write_graph_approval_resume_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn write_workflow_approval_resume_skill(
+    root: &Path,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let skill_dir = root.join("approval-resume");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
@@ -3531,7 +3543,7 @@ esac
     Ok(())
 }
 
-fn write_graph_nested_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn write_workflow_nested_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let child_dir = root.join("child-echo");
     crate::support::write_test_skill_package(
         &child_dir,
@@ -3570,16 +3582,16 @@ console.log(JSON.stringify({ nested: { message: input.message } }));
 "#,
     )?;
 
-    let skill_dir = root.join("graph-nested-cli");
+    let skill_dir = root.join("workflow-nested-cli");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-nested-cli\ndescription: graph-nested-cli fixture.\n---\n# Graph Nested CLI\n",
+        "---\nname: workflow-nested-cli\ndescription: workflow-nested-cli fixture.\n---\n# Graph Nested CLI\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-nested-cli
+skill: workflow-nested-cli
 runners:
   graph:
     default: true
@@ -3599,25 +3611,27 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_graph_nested_registry_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    write_graph_nested_registry_skill_with_ref(root, "registry:acme/registry-child@1.0.0")
+fn write_workflow_nested_registry_skill(
+    root: &Path,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    write_workflow_nested_registry_skill_with_ref(root, "registry:acme/registry-child@1.0.0")
 }
 
-fn write_graph_nested_registry_skill_with_ref(
+fn write_workflow_nested_registry_skill_with_ref(
     root: &Path,
     skill_ref: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-nested-registry");
+    let skill_dir = root.join("workflow-nested-registry");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-nested-registry\ndescription: graph-nested-registry fixture.\n---\n# Graph Nested Registry\n",
+        "---\nname: workflow-nested-registry\ndescription: workflow-nested-registry fixture.\n---\n# Graph Nested Registry\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         format!(
             r#"
-skill: graph-nested-registry
+skill: workflow-nested-registry
 runners:
   graph:
     default: true
@@ -3632,8 +3646,8 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_graph_stage_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-stage-cli");
+fn write_workflow_stage_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("workflow-stage-cli");
     let stage_dir = skill_dir.join("graph/child-echo");
     crate::support::write_test_skill_package(
         &stage_dir,
@@ -3672,12 +3686,12 @@ console.log(JSON.stringify({ nested: { message: input.message } }));
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-stage-cli\ndescription: graph-stage-cli fixture.\n---\n# Graph Stage CLI\n",
+        "---\nname: workflow-stage-cli\ndescription: workflow-stage-cli fixture.\n---\n# Graph Stage CLI\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-stage-cli
+skill: workflow-stage-cli
 runners:
   graph:
     default: true
@@ -3697,7 +3711,7 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_graph_nested_cli_counter_skill(
+fn write_workflow_nested_cli_counter_skill(
     root: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let child_dir = root.join("child-counter");
@@ -3742,16 +3756,16 @@ console.log(JSON.stringify({ counted: { count } }));
 "#,
     )?;
 
-    let skill_dir = root.join("graph-nested-cli-counter");
+    let skill_dir = root.join("workflow-nested-cli-counter");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-nested-cli-counter\ndescription: graph-nested-cli-counter fixture.\n---\n# Graph Nested CLI Counter\n",
+        "---\nname: workflow-nested-cli-counter\ndescription: workflow-nested-cli-counter fixture.\n---\n# Graph Nested CLI Counter\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-nested-cli-counter
+skill: workflow-nested-cli-counter
 runners:
   graph:
     default: true
@@ -3771,7 +3785,9 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_graph_nested_x_yaml_cli_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn write_workflow_nested_x_yaml_cli_skill(
+    root: &Path,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let child_dir = root.join("child-x-cli");
     fs::create_dir_all(&child_dir)?;
     fs::write(
@@ -3807,16 +3823,16 @@ console.log(JSON.stringify({ nested: { message: input.message } }));
 "#,
     )?;
 
-    let skill_dir = root.join("graph-nested-x-yaml-cli");
+    let skill_dir = root.join("workflow-nested-x-yaml-cli");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-nested-x-yaml-cli\ndescription: graph-nested-x-yaml-cli fixture.\n---\n# Graph Nested X YAML CLI\n",
+        "---\nname: workflow-nested-x-yaml-cli\ndescription: workflow-nested-x-yaml-cli fixture.\n---\n# Graph Nested X YAML CLI\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-nested-x-yaml-cli
+skill: workflow-nested-x-yaml-cli
 runners:
   graph:
     default: true
@@ -3883,17 +3899,17 @@ fn string_field<'a>(object: &'a runx_contracts::JsonObject, field: &str) -> Opti
     }
 }
 
-fn write_graph_when_branch_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("graph-when-branch");
+fn write_workflow_when_branch_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("workflow-when-branch");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: graph-when-branch\ndescription: graph-when-branch fixture.\n---\n# Graph When Branch\n",
+        "---\nname: workflow-when-branch\ndescription: workflow-when-branch fixture.\n---\n# Graph When Branch\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: graph-when-branch
+skill: workflow-when-branch
 runners:
   graph:
     default: true
@@ -3925,9 +3941,9 @@ runners:
 }
 
 #[test]
-fn native_graph_when_skips_unselected_branch() -> Result<(), Box<dyn std::error::Error>> {
+fn native_workflow_when_skips_unselected_branch() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let skill_dir = write_graph_when_branch_skill(temp.path())?;
+    let skill_dir = write_workflow_when_branch_skill(temp.path())?;
     let receipt_dir = temp.path().join("receipts");
 
     let initial = run_skill(SkillRunRequest {
@@ -3992,7 +4008,7 @@ fn a_publish_binds_another_publishers_skill_from_the_registry_it_targets()
     let temp = tempdir()?;
     // The registry the package is published to holds acme's skill.
     let registry = registry_child()?;
-    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_registry_skill(temp.path())?;
     let env = registry_env(&registry, temp.path())?;
     let subject = skill_dir.to_string_lossy().into_owned();
     let request = runx_runtime::registry::RegistryPublishPackageRequest {
@@ -4051,7 +4067,7 @@ fn a_publish_refuses_a_closure_record_its_registry_did_not_sign()
             .map(|markdown| markdown.replace("Registry", "Tampered"));
         record["markdown"] = serde_json::json!(tampered);
     })?;
-    let skill_dir = write_graph_nested_registry_skill(temp.path())?;
+    let skill_dir = write_workflow_nested_registry_skill(temp.path())?;
     let env = registry_env(&registry, temp.path())?;
     let subject = skill_dir.to_string_lossy().into_owned();
     let request = runx_runtime::registry::RegistryPublishPackageRequest {
@@ -4081,7 +4097,7 @@ fn a_publish_refuses_a_closure_record_its_registry_did_not_sign()
 /// into the candidate's own project before its cases run, as a publish binds
 /// its closure.
 #[test]
-fn a_candidates_harness_reads_its_registry_children_from_the_operators_registry()
+fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let registry = registry_child()?;
@@ -4094,7 +4110,7 @@ fn a_candidates_harness_reads_its_registry_children_from_the_operators_registry(
     crate::support::write_test_skill_package(
         &validator,
         "---\nname: validator\ndescription: Validates the candidate.\n---\n# Validator\n",
-        "skill: validator\nrunners:\n  validate:\n    default: true\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        scopes: [fs.read, registry.read]\n        inputs:\n          repo_root: .\n          skill_path: skills/candidate\n          allow_execute_harness: true\n",
+        "skill: validator\nrunners:\n  validate:\n    default: true\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        scopes: [fs.read, registry.read]\n        inputs:\n          repo_root: .\n          skill_path: skills/candidate\n          allow_execute_test: true\n",
     )?;
     let mut env = registry_env(&registry, temp.path())?;
     env.extend(path_env());

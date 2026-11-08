@@ -454,7 +454,7 @@ fn a_hosted_credential_is_submitted_to_the_session_it_opens() {
 }
 
 #[test]
-fn a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement() {
+fn a_connector_whose_credential_only_connect_leases_takes_its_hosted_placement() {
     let compute = fixture_scope().connector("fixture/compute").unwrap();
     let connect = Connect::new(
         json!({"status": "credential_required", "session_id": "sess_1"}),
@@ -632,7 +632,8 @@ fn a_connector_with_one_credential_asks_for_it_when_its_variable_is_not_set() ->
 }
 
 #[test]
-fn a_credential_with_a_local_home_stays_local_though_connect_could_hold_it() -> Result<(), String> {
+fn a_credential_with_a_local_home_stays_local_though_connect_could_lease_it() -> Result<(), String>
+{
     let refs = fixture_scope().connector("fixture/refs").unwrap();
     let project = Project::new();
     let connect = Connect::new(Value::Null, &[]);

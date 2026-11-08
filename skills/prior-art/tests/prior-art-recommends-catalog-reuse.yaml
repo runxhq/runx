@@ -1,0 +1,68 @@
+name: prior-art-recommends-catalog-reuse
+inputs:
+  objective: Add a Moltbook opportunity scan to an existing governed pipeline.
+  repo_root: fixtures/workspace
+  source_paths:
+    - skills/moltbook/run.yaml
+  decomposition:
+    objective_summary: Add a Moltbook opportunity scan step.
+    orchestration_steps:
+      - id: scan
+        skill: ../moltbook
+        runner: scan
+    required_skills:
+      - name: moltbook
+        exists: true
+host:
+  answers:
+    research:
+      prior_art_draft:
+        decision: ready
+        findings:
+          - claim: The existing Moltbook package owns the opportunity scan boundary.
+            source: skills/moltbook/run.yaml
+            relevance: Reuse avoids a duplicate public scanner.
+            confidence: verified
+        catalog_fit:
+          decision: reuse
+          adjacent_skills:
+            - moltbook
+          rationale: Compose the existing scan runner and add only pipeline glue.
+        quality_bar:
+          audience: Runx skill maintainers
+          artifact: A source-bound reuse decision.
+          evidence: Cite the inspected manifest.
+          stop_conditions:
+            - Stop if the runner cannot be verified.
+        recommended_flow:
+          - step: scan
+            rationale: Reuse the existing Moltbook scan runner.
+        sources:
+          - path: skills/moltbook/run.yaml
+            kind: skill-manifest
+        risks: []
+expect:
+  status: sealed
+  steps:
+    - plan
+    - catalog
+    - read
+    - index
+    - research
+    - validate
+  step_outputs:
+    validate:
+      subset:
+        decision: ready
+        catalog_fit:
+          decision: reuse
+          adjacent_skills:
+            - moltbook
+        evidence:
+          cited_paths:
+            - skills/moltbook/run.yaml
+        validation:
+          status: pass
+          findings: []
+  receipt:
+    schema: runx.receipt.v1

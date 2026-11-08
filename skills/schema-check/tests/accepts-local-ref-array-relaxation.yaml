@@ -1,0 +1,43 @@
+name: accepts-local-ref-array-relaxation
+inputs:
+  current_schema:
+    $defs:
+      id:
+        type: integer
+        minimum: 1
+    type: array
+    items:
+      $ref: "#/$defs/id"
+    minItems: 2
+    maxItems: 5
+  proposed_schema:
+    $defs:
+      id:
+        type: number
+        minimum: 0
+    type: array
+    items:
+      $ref: "#/$defs/id"
+    minItems: 1
+    maxItems: 10
+  sample_payloads:
+    - - 1
+      - 2
+    - - 3
+      - 4
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: sealed
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: compatible
+            breaking_changes: []
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

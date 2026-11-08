@@ -13,7 +13,7 @@ fn malformed_and_wrong_namespace_refs_are_stable_findings() -> Result<(), serde_
     let child = proof_child("rcpt_child_1")?;
     link_child_digest(&mut root, 0, &child)?;
 
-    child_refs_mut(&mut root)[0].uri = format!("runx:graph_receipt:{}", child.id).into();
+    child_refs_mut(&mut root)[0].uri = format!("runx:workflow_receipt:{}", child.id).into();
     refresh_proof_digest_and_signature(&mut root)?;
     let verification = verify_tree(&root, std::slice::from_ref(&child));
     assert_finding(

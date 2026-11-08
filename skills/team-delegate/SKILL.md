@@ -61,7 +61,7 @@ or `held`, the objective and rationale, assignments, missing context, an input
 digest and validation findings. A held result exposes no executable assignments.
 No member, provider effect, payment or communication is started by this skill.
 
-## Agent task: `team-delegate`
+## Agent task: team-delegate
 
 Return one `draft` for the bounded objective. Use only the fixed roster. Choose
 assignments whose inputs exist now; represent missing upstream results as

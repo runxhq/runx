@@ -1,0 +1,14 @@
+name: mock-pay-remains-local
+inputs:
+  payment_signal: {challenge_id: ch_mock_001, amount_minor: 125, currency: USD, rail: mock, payee: merchant:demo}
+  parent_payment_authority: {term_id: authority:mock}
+  idempotency_seed: mock-pay-001
+expect:
+  status: sealed
+  steps: [simulate]
+  step_outputs:
+    simulate:
+      subset:
+        payment_result:
+          data: {status: simulated, rail: mock, amount_minor: 125, currency: USD}
+  receipt: {schema: runx.receipt.v1}

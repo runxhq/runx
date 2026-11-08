@@ -1389,7 +1389,7 @@ operations:
 "#;
 
 #[test]
-fn a_purchase_credential_is_taken_from_the_answer_and_held_per_resource() {
+fn a_purchase_credential_is_taken_from_the_answer_and_leased_per_resource() {
     let validated = validate(INBOX).expect("the inbox connector is valid");
     let lease = validated
         .manifest
@@ -1403,7 +1403,7 @@ fn a_purchase_credential_is_taken_from_the_answer_and_held_per_resource() {
 }
 
 #[test]
-fn a_held_value_never_reaches_the_call_s_result() {
+fn a_leased_value_never_reaches_the_call_s_result() {
     assert_rejects(
         &INBOX.replace(
             "result_paths: {lease: acknowledgement.lease}",
@@ -1421,7 +1421,7 @@ fn a_held_value_never_reaches_the_call_s_result() {
 }
 
 #[test]
-fn a_purchase_credential_is_held_by_runx_alone() {
+fn a_purchase_credential_is_leased_by_runx_alone() {
     assert_rejects(
         &INBOX.replace(
             "      fields: [{name: capability}]\n",
@@ -1443,7 +1443,7 @@ fn a_purchase_credential_is_held_by_runx_alone() {
 }
 
 #[test]
-fn an_operation_on_a_held_resource_names_it_by_its_arguments() {
+fn an_operation_on_a_leased_resource_names_it_by_its_arguments() {
     assert_rejects(
         &INBOX.replace(
             "    target: {template: {\"$concat\": [\"acme:inbox/\", {\"$argument\": \"/inbox_id\"}]}}\n    guarantees: {provider_idempotency: inherent, readback: unavailable}\n    input_schema",

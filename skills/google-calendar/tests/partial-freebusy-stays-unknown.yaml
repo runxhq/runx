@@ -1,0 +1,30 @@
+name: partial-freebusy-stays-unknown
+method: normalize-supplied
+inputs:
+  kind: freebusy
+  calendar_id: primary
+  time_min: 2026-10-04T00:00:00Z
+  time_max: 2026-10-05T00:00:00Z
+  provider_result:
+    calendar_id: primary
+    time_min: 2026-10-04T00:00:00Z
+    time_max: 2026-10-05T00:00:00Z
+    fetched_at: 2026-10-04T01:00:00Z
+    complete: false
+    errors:
+      - reason: notFound
+    busy: []
+expect:
+  status: sealed
+  steps:
+    - normalize
+  step_outputs:
+    normalize:
+      subset:
+        calendar_context:
+          data:
+            decision: partial
+            coverage: partial
+            provider_status: not_called
+  receipt:
+    schema: runx.receipt.v1

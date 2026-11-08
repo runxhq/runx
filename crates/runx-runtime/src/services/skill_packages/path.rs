@@ -63,7 +63,7 @@ pub(super) fn assert_allowed_package_write_path(
             "{basename} is auxiliary package bloat; keep operating guidance in SKILL.md"
         )));
     }
-    assert_harness_path(relative, mode)
+    assert_test_path(relative, mode)
 }
 
 pub(super) fn assert_allowed_package_delete_path(
@@ -76,7 +76,7 @@ pub(super) fn assert_allowed_package_delete_path(
             "{basename} is an existing public package surface and cannot be deleted by skill-build"
         )));
     }
-    assert_harness_path(relative, mode)
+    assert_test_path(relative, mode)
 }
 
 fn is_auxiliary_doc(basename: &str) -> bool {
@@ -86,7 +86,7 @@ fn is_auxiliary_doc(basename: &str) -> bool {
     )
 }
 
-fn assert_harness_path(relative: &str, mode: &str) -> Result<(), RuntimeError> {
+fn assert_test_path(relative: &str, mode: &str) -> Result<(), RuntimeError> {
     if mode == "harness"
         && !(relative.starts_with("fixtures/")
             && (relative.ends_with(".yaml") || relative.ends_with(".yml")))

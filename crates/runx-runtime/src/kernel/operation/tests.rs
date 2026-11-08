@@ -11,7 +11,7 @@ use runx_contracts::{
     Reference, ReferenceType, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
 };
 use runx_core::policy::AttenuationRequest;
-use runx_parser::GraphStep;
+use runx_parser::WorkflowStep;
 
 use super::*;
 use crate::effects::{
@@ -408,7 +408,7 @@ impl Host for Approver {
 
 struct Fixture {
     root: tempfile::TempDir,
-    steps: BTreeMap<String, GraphStep>,
+    steps: BTreeMap<String, WorkflowStep>,
     env: BTreeMap<String, String>,
     run_id: &'static str,
     provider: Provider,
@@ -432,8 +432,8 @@ impl Fixture {
                 "fixture/hooks",
             ],
         );
-        let manifest = runx_parser::validate_runner_manifest(
-            runx_parser::parse_runner_manifest_yaml(SKILL).unwrap(),
+        let manifest = runx_parser::validate_method_manifest(
+            runx_parser::parse_method_manifest_yaml(SKILL).unwrap(),
         )
         .unwrap();
         let steps = manifest.runners["run"]
@@ -559,7 +559,7 @@ impl Fixture {
                 target: ResolvedEffectTarget::default(),
                 inputs,
                 env: &self.env,
-                graph_dir: self.root.path(),
+                workflow_dir: self.root.path(),
                 run_id: self.run_id,
                 run_authority,
             })
@@ -1411,8 +1411,8 @@ fn readiness_reports_the_same_unpriced_usage_gate_and_money_refusal_as_admission
                 && reason.detail.as_str().contains("provider-account credits")
         })
     }));
-    let manifest = runx_parser::validate_runner_manifest(
-        runx_parser::parse_runner_manifest_yaml(SKILL).unwrap(),
+    let manifest = runx_parser::validate_method_manifest(
+        runx_parser::parse_method_manifest_yaml(SKILL).unwrap(),
     )
     .unwrap();
     let readiness = admission::skill_readiness(
@@ -2176,8 +2176,8 @@ operations:
         ),
     )
     .unwrap();
-    let manifest = runx_parser::validate_runner_manifest(
-        runx_parser::parse_runner_manifest_yaml(
+    let manifest = runx_parser::validate_method_manifest(
+        runx_parser::parse_method_manifest_yaml(
             r#"
 skill: probe
 connectors:
@@ -2240,7 +2240,7 @@ runners:
                 target: ResolvedEffectTarget::default(),
                 inputs: &inputs,
                 env: &env,
-                graph_dir: &skill_dir,
+                workflow_dir: &skill_dir,
                 run_id: "run-1",
                 run_authority: None,
             })

@@ -72,7 +72,7 @@ const steps = [
     label: "prove runx-maintained skills with a fresh isolated caller",
     command: process.execPath,
     args: [
-      "scripts/harness-sweep.mjs",
+      "scripts/test-sweep.mjs",
       "--no-build",
       "--runx-bin",
       rustKernelBin,

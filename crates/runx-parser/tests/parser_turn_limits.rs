@@ -2,12 +2,12 @@ use runx_contracts::{
     AllowedOperation, CatalogRule, CatalogTrust, SkillAllowance, TrustTier, TurnAllowance,
 };
 use runx_parser::{
-    SkillRunnerManifest, StepKind, parse_graph_yaml, parse_runner_manifest_yaml, validate_graph,
-    validate_runner_manifest,
+    SkillMethodManifest, StepKind, parse_method_manifest_yaml, parse_workflow_yaml,
+    validate_method_manifest, validate_workflow,
 };
 
-fn manifest(yaml: &str) -> Result<SkillRunnerManifest, String> {
-    validate_runner_manifest(parse_runner_manifest_yaml(yaml).map_err(|error| error.to_string())?)
+fn manifest(yaml: &str) -> Result<SkillMethodManifest, String> {
+    validate_method_manifest(parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())
 }
 
@@ -17,7 +17,7 @@ fn refusal(yaml: &str) -> Result<String, String> {
         .ok_or_else(|| "expected the manifest to be refused".to_owned())
 }
 
-fn allowance(manifest: &SkillRunnerManifest, runner: &str) -> Result<TurnAllowance, String> {
+fn allowance(manifest: &SkillMethodManifest, runner: &str) -> Result<TurnAllowance, String> {
     let step = manifest
         .runners
         .get(runner)
@@ -30,7 +30,7 @@ fn allowance(manifest: &SkillRunnerManifest, runner: &str) -> Result<TurnAllowan
 }
 
 #[test]
-fn every_agent_turn_receives_its_runners_explicit_operations() -> Result<(), String> {
+fn every_agent_turn_receives_its_methods_explicit_operations() -> Result<(), String> {
     let manifest = manifest(
         r#"
 skill: triage
@@ -83,7 +83,7 @@ runners:
 }
 
 #[test]
-fn a_runner_without_steps_is_one_agent_turn() -> Result<(), String> {
+fn a_method_without_steps_is_one_agent_turn() -> Result<(), String> {
     let manifest = manifest(
         r#"
 skill: answer
@@ -183,7 +183,7 @@ runners:
 }
 
 #[test]
-fn a_runner_narrows_the_skills_limits() -> Result<(), String> {
+fn a_method_narrows_the_skills_limits() -> Result<(), String> {
     let manifest = manifest(
         r#"
 skill: session
@@ -237,7 +237,7 @@ runners:
 }
 
 #[test]
-fn runners_opt_into_connector_calls_without_changing_graph_operations() -> Result<(), String> {
+fn methods_opt_into_connector_calls_without_changing_workflow_operations() -> Result<(), String> {
     let manifest = manifest(
         r#"
 skill: inspect
@@ -279,7 +279,7 @@ runners:
 }
 
 #[test]
-fn runner_operations_cannot_widen_or_misstate_the_package_ceiling() -> Result<(), String> {
+fn method_operations_cannot_widen_or_misstate_the_package_ceiling() -> Result<(), String> {
     for (operations, expected) in [
         (
             "[github/issue.write]",
@@ -307,7 +307,7 @@ fn runner_operations_cannot_widen_or_misstate_the_package_ceiling() -> Result<()
 }
 
 #[test]
-fn a_composed_runner_returns_its_steps_not_runner_outputs() -> Result<(), String> {
+fn a_composed_method_returns_its_steps_not_method_outputs() -> Result<(), String> {
     let error = refusal(
         r#"
 skill: demo
@@ -379,9 +379,9 @@ runners:
 }
 
 #[test]
-fn a_graph_outside_a_skill_allows_nothing() -> Result<(), String> {
-    let graph = validate_graph(
-        parse_graph_yaml(
+fn a_workflow_outside_a_skill_allows_nothing() -> Result<(), String> {
+    let graph = validate_workflow(
+        parse_workflow_yaml(
             r#"
 name: bare
 steps:
@@ -400,9 +400,9 @@ steps:
 }
 
 #[test]
-fn graph_rejects_path_like_tool_refs() -> Result<(), String> {
-    let error = validate_graph(
-        parse_graph_yaml(
+fn workflow_rejects_path_like_tool_refs() -> Result<(), String> {
+    let error = validate_workflow(
+        parse_workflow_yaml(
             r#"
 name: bad-tool-ref
 steps:

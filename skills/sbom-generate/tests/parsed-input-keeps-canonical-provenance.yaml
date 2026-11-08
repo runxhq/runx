@@ -1,0 +1,29 @@
+name: parsed-input-keeps-canonical-provenance
+method: make
+inputs:
+  lockfile:
+    name: fixture-project
+    lockfileVersion: 3
+    packages:
+      "":
+        name: fixture-project
+        dependencies:
+          alias: npm:@scope/real@1.2.3
+          local: workspace:*
+      node_modules/alias:
+        name: "@scope/real"
+        version: 1.2.3
+        license: MIT
+        resolved: https://registry.npmjs.org/@scope/real/-/real-1.2.3.tgz
+      node_modules/local:
+        resolved: packages/local
+        link: true
+expect:
+  status: sealed
+  step_outputs:
+    generate:
+      subset:
+        sbom_result:
+          data:
+            source:
+              digest_encoding: canonical_json

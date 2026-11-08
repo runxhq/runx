@@ -5,7 +5,7 @@ use runx_contracts::PacketId;
 use super::insert_source_file;
 use crate::LoadedSkillPackage;
 use crate::packet_schemas::{
-    PacketSchemaCatalog, declared_runner_packet_ids, declared_tool_packet_ids,
+    PacketSchemaCatalog, declared_method_packet_ids, declared_tool_packet_ids,
 };
 use crate::registry::RegistryPackageFile;
 use crate::registry::publish_package::RegistryPublishPackageError;
@@ -23,7 +23,7 @@ pub(super) fn append_declared_packet_schemas(
     required_packet_ids.extend(loaded.resolved_input_packet_schemas.keys().cloned());
     for manifest in loaded.package.profiles.values() {
         for runner in manifest.runners.values() {
-            required_packet_ids.extend(declared_runner_packet_ids(runner));
+            required_packet_ids.extend(declared_method_packet_ids(runner));
         }
     }
     for package_tool in loaded.package.tools.values() {

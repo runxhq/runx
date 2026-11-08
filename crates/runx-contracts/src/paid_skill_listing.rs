@@ -430,7 +430,7 @@ pub struct PaidSkillExecutorBinding {
 /// One immutable, registry-resolved runner offer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct PaidSkillRunnerOffer {
+pub struct PaidSkillMethodOffer {
     pub offer_version: EmbeddedOfferVersionBinding,
     pub price: PaidSkillPrice,
     pub currency: CurrencyCode,
@@ -442,10 +442,10 @@ pub struct PaidSkillRunnerOffer {
 /// One to sixty-four runner offers keyed by unique runner identity.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
-pub struct PaidSkillOffers(BTreeMap<String, PaidSkillRunnerOffer>);
+pub struct PaidSkillOffers(BTreeMap<String, PaidSkillMethodOffer>);
 
 impl PaidSkillOffers {
-    pub fn new(value: BTreeMap<String, PaidSkillRunnerOffer>) -> Option<Self> {
+    pub fn new(value: BTreeMap<String, PaidSkillMethodOffer>) -> Option<Self> {
         let valid_names = value.keys().all(|runner| !runner.is_empty());
         (valid_names && (1..=64).contains(&value.len())).then_some(Self(value))
     }
@@ -456,7 +456,7 @@ impl<'de> Deserialize<'de> for PaidSkillOffers {
     where
         D: Deserializer<'de>,
     {
-        let value = BTreeMap::<String, PaidSkillRunnerOffer>::deserialize(deserializer)?;
+        let value = BTreeMap::<String, PaidSkillMethodOffer>::deserialize(deserializer)?;
         Self::new(value).ok_or_else(|| {
             de::Error::custom("paid skill offers must contain 1..=64 non-empty runner names")
         })
@@ -467,7 +467,7 @@ impl RunxSchema for PaidSkillOffers {
     fn json_schema() -> Value {
         json!({
             "type": "object",
-            "additionalProperties": PaidSkillRunnerOffer::json_schema(),
+            "additionalProperties": PaidSkillMethodOffer::json_schema(),
             "propertyNames": { "minLength": 1 },
             "minProperties": 1,
             "maxProperties": 64,
@@ -475,7 +475,7 @@ impl RunxSchema for PaidSkillOffers {
     }
 
     fn named_schemas(named: &mut NamedSchemas) {
-        PaidSkillRunnerOffer::named_schemas(named);
+        PaidSkillMethodOffer::named_schemas(named);
     }
 }
 
@@ -554,7 +554,7 @@ mod tests {
     }
 
     #[test]
-    fn paid_skill_listing_rejects_empty_runner_identity() {
+    fn paid_skill_listing_rejects_empty_method_identity() {
         let offer = json!({
             "offer_version": offer_version(),
             "price": {"model": "fixed", "amount_minor": 125},
@@ -691,7 +691,7 @@ mod tests {
     /// The registry resolves a runner's offer from these terms; what it
     /// reads here is what a runner may act on.
     #[test]
-    fn offer_terms_name_what_a_runner_acts_on() -> Result<(), serde_json::Error> {
+    fn offer_terms_name_what_a_method_acts_on() -> Result<(), serde_json::Error> {
         let terms: PaidSkillOfferTerms = serde_json::from_value(json!({
             "price": {"model": "input_choice", "selectors": ["duration_seconds"], "cases": [
                 {"when": [3600], "amount_minor": 5}

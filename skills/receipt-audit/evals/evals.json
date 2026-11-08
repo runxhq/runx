@@ -1,0 +1,11 @@
+{
+  "skill_name": "receipt-audit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Audit this sealed Runx receipt for authority over-reach and approval inconsistency.",
+      "expected_output": "Return a governance verdict grounded in verified receipt authority, acts, decisions, and seal evidence.",
+      "files": []
+    }
+  ]
+}

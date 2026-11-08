@@ -1,0 +1,122 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+    - id: digest
+      tool: data.digest
+      inputs:
+        value:
+          decision: ready
+          objective: Publish a two-part update, follow the reviewed account, then unfollow the old account.
+          principal: account:@example
+          acts:
+          - act_id: act-thread-1
+            kind: thread
+            params:
+              texts:
+              - First part.
+              - Second part.
+            consequence: public_send
+            rationale: Exact operator-approved update.
+          - act_id: act-follow-1
+            kind: follow
+            params:
+              target_user_id: '3001'
+            consequence: live_mutation
+            rationale: Reviewed account requested by the operator.
+          - act_id: act-unfollow-1
+            kind: unfollow
+            params:
+              target_user_id: '3002'
+            consequence: live_mutation
+            rationale: Old account selected by the operator.
+          gates:
+            human_approval_required: true
+            approval_id: null
+    - id: batch1
+      skill: ../..#execute
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof
+        max_acts: 1
+        plan_json:
+          decision: ready
+          objective: Publish a two-part update, follow the reviewed account, then unfollow the old account.
+          principal: account:@example
+          acts:
+          - act_id: act-thread-1
+            kind: thread
+            params:
+              texts:
+              - First part.
+              - Second part.
+            consequence: public_send
+            rationale: Exact operator-approved update.
+          - act_id: act-follow-1
+            kind: follow
+            params:
+              target_user_id: '3001'
+            consequence: live_mutation
+            rationale: Reviewed account requested by the operator.
+          - act_id: act-unfollow-1
+            kind: unfollow
+            params:
+              target_user_id: '3002'
+            consequence: live_mutation
+            rationale: Old account selected by the operator.
+          gates:
+            human_approval_required: true
+            approval_id: null
+    - id: status1
+      skill: ../..#status
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof
+        max_acts: 1
+    - id: batch2
+      skill: ../..#execute
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof
+        max_acts: 1
+    - id: status2
+      skill: ../..#status
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof
+        max_acts: 1
+    - id: batch3
+      skill: ../..#execute
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof
+        max_acts: 1
+    - id: status3
+      skill: ../..#status
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof
+        max_acts: 1
+    - id: batch4
+      skill: ../..#execute
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof
+        max_acts: 1
+    - id: status4
+      skill: ../..#status
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof
+        max_acts: 1
+    - id: recent
+      skill: ../..#recent
+      inputs:
+        data_source_uri: local://twitter-proof
+    - id: complete
+      skill: ../..#execute
+      inputs:
+        plan_digest: $steps.digest.digest_result.digest
+        data_source_uri: local://twitter-proof

@@ -10,7 +10,7 @@ const observation: CredentialDeliveryObservationContract = {
   observation_id: "cred_obs_1",
   request_id: "cred_req_1",
   status: "delivered",
-  harness_ref: { type: "harness", uri: "runx:harness:credential-smoke" },
+  run_ref: { type: "harness", uri: "runx:harness:credential-smoke" },
   host_ref: { type: "host", uri: "runx:host:local" },
   profile_id: "github-provider-api-env",
   provider: "github",

@@ -12,7 +12,7 @@ use runx_contracts::{
     ApprovalGate, AuthorityVerb, JsonObject, JsonValue, Reference, ReferenceType,
     ResolutionRequest, StandingApproval,
 };
-use runx_parser::{GraphStep, StepKind, ToolTarget};
+use runx_parser::{StepKind, ToolTarget, WorkflowStep};
 
 use super::Runtime;
 use crate::RuntimeError;
@@ -75,8 +75,8 @@ impl Admitted {
 /// on the person is pending on its gate; one the person declined is refused.
 pub(super) fn hold<A>(
     runtime: &Runtime<A>,
-    graph_dir: &Path,
-    step: &GraphStep,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
     inputs: &JsonObject,
     host: &mut dyn Host,
 ) -> Result<Admitted, RuntimeError> {
@@ -88,7 +88,7 @@ pub(super) fn hold<A>(
     else {
         return Ok(Admitted::Free);
     };
-    let Some(effect) = local_effect(runtime, graph_dir, step, inputs)? else {
+    let Some(effect) = local_effect(runtime, workflow_dir, step, inputs)? else {
         return Ok(Admitted::Free);
     };
     if let Some(entry) = covering(&effect, &authority.standing_approvals) {
@@ -111,7 +111,7 @@ pub(super) fn hold<A>(
     crate::approval::carry_payload(
         &mut gate,
         effect.payload,
-        &crate::paths::RunxPaths::resolve(&options.env, graph_dir).artifacts(),
+        &crate::paths::RunxPaths::resolve(&options.env, workflow_dir).artifacts(),
         options.run.run_id(),
     )
     .map_err(|message| RuntimeError::effect_state("carrying a local effect", message))?;
@@ -159,8 +159,8 @@ pub(super) fn hold<A>(
 /// runs as a process; a graph's process step.
 fn local_effect<A>(
     runtime: &Runtime<A>,
-    graph_dir: &Path,
-    step: &GraphStep,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
     inputs: &JsonObject,
 ) -> Result<Option<LocalEffect>, RuntimeError> {
     let options = &runtime.options;
@@ -173,7 +173,7 @@ fn local_effect<A>(
                 tool,
                 inputs.clone(),
                 &options.env,
-                graph_dir,
+                workflow_dir,
                 &options.effects,
                 bounds,
             )
@@ -182,7 +182,7 @@ fn local_effect<A>(
             let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
                 tool,
                 &options.env,
-                graph_dir,
+                workflow_dir,
                 &options.effects,
             )?;
             Ok(inspected

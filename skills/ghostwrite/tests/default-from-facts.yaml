@@ -1,0 +1,8 @@
+name: ghostwrite-default-accepts-actual-facts
+inputs:
+  objective: Write a short fixture-project status update.
+  audience: maintainers
+  channel: brief
+  facts: [The fixture project updated its setup guidance.]
+expect:
+  status: needs_agent

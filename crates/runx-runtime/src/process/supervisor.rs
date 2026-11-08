@@ -479,7 +479,7 @@ mod tests {
     }
 
     #[test]
-    fn env_shim_process_parts_turns_portable_runner_into_windows_command() {
+    fn env_shim_process_parts_turns_portable_method_into_windows_command() {
         let spec = ProcessSpec::new("env-shim-test", "/usr/bin/env", 128)
             .args(vec!["node".to_owned(), "run.mjs".to_owned()]);
 

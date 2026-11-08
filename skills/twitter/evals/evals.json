@@ -1,0 +1,53 @@
+{
+  "skill_name": "twitter",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Read the bounded current snapshot for this X account.",
+      "expected_output": "Use the live account read runner by default and return bounded provider evidence through the account's bound credential.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Prepare an exact X cleanup plan from supplied post evidence.",
+      "expected_output": "Return a digest-bound typed deletion plan without executing it.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Audit the posts in this local X archive and return bounded account evidence.",
+      "expected_output": "Normalize and digest the admitted archive once, then return a truthful read-only audit result.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Read my three most recent posts on X.",
+      "expected_output": "Read the authenticated account, page its posts until at least the requested count, and return every post of those whole pages with where the next read starts.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Show the recent X work in this workspace.",
+      "expected_output": "Return an empty bounded page, without X calls or guessed account work.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Select the reviewed non-mutual X accounts from supplied archives.",
+      "expected_output": "Return the exact deterministic unfollow plan without changing the account.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Select matching reposts from my X archive.",
+      "expected_output": "Return the deterministic matching act plan and its native digest.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Inspect progress for this saved X plan.",
+      "expected_output": "Explain that this store has no saved plan and provide the exact recovery step without an X call.",
+      "files": []
+    }
+  ]
+}

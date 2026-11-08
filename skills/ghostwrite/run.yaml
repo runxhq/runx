@@ -1,78 +1,56 @@
-skill: ghostwrite
 version: "0.4.8"
+minimum_runx: 0.12.0
+default_method: draft
 catalog:
-  kind: skill
-  audience: public
   visibility: public
-  role: context
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: content
-input_definitions:
+shared_inputs:
   objective:
     type: string
-    required: true
     description: What the content must accomplish.
   audience:
     type: string
-    required: true
     description: Intended reader.
   channel:
     type: string
-    required: true
     description: Intended content channel.
   evidence_pack:
-    type: json
-    required: false
     packet: runx/research.packet.v1
     description: Validated runx/research.packet.v1 evidence.
+    optional: true
   facts:
     type: array
-    required: false
-    description: Factual statements supplied for this writing task, instead of a research packet. They remain
-      operator-supplied and not independently verified; never supply both source forms.
-    schema:
-      minItems: 1
-      maxItems: 100
-      items:
-        type: string
-        minLength: 1
-        maxLength: 4000
+    description: Factual statements supplied for this writing task, instead of a research packet. They remain operator-supplied and not independently verified; never supply both source forms.
+    minItems: 1
+    maxItems: 100
+    items:
+      type: string
+      minLength: 1
+      maxLength: 4000
+    optional: true
   brand_context:
-    type: json
-    required: false
     packet: runx/brand-voice.context.v1
     description: Validated runx/brand-voice.context.v1 packet.
+    optional: true
   taste_context:
-    type: json
-    required: false
     packet: runx/taste-profile.context.v1
     description: Validated runx/taste-profile.context.v1 packet.
-runners:
+    optional: true
+methods:
   draft:
-    description: Write one evidence-bound draft from a ready research or evidence packet, admitting the evidence,
-      writing, then verifying every claim against its source.
-    default: true
+    description: Write one evidence-bound draft from a ready research or evidence packet, admitting the evidence, writing, then verifying every claim against its source.
     inputs:
-      objective:
-        definition: objective
-      audience:
-        definition: audience
-      channel:
-        definition: channel
-      evidence_pack:
-        definition: evidence_pack
-      facts:
-        definition: facts
+      objective: {}
+      audience: {}
+      channel: {}
+      evidence_pack: {}
+      facts: {}
       voice_guide:
         type: string
-        required: false
         description: Additional project-specific voice constraints.
-      brand_context:
-        definition: brand_context
-      taste_context:
-        definition: taste_context
+        optional: true
+      brand_context: {}
+      taste_context: {}
     result_from:
       - reject
       - finalize
@@ -81,12 +59,10 @@ runners:
         audience: existing customers
         channel: changelog
         facts:
-        - Exports of any size now run in the background and email a link when finished.
+          - Exports of any size now run in the background and email a link when finished.
     steps:
       - id: admit
-        label: admit validated evidence
-        skill: .
-        runner: admit
+        skill: .#admit
         inputs:
           objective: $input.objective
           audience: $input.audience
@@ -96,114 +72,108 @@ runners:
           brand_context: $input.brand_context
           taste_context: $input.taste_context
       - id: reject
-        label: withhold unsupported draft
         when:
           value: $steps.admit.evidence_context.decision
           equals: needs_more_evidence
-        skill: .
-        runner: verify
+        skill: .#verify
         inputs:
           evidence_context: $steps.admit.evidence_context
       - id: author
-        label: author from bounded evidence
         when:
           value: $steps.admit.evidence_context.decision
           equals: ready
-        agent:
-          role: writer
-          task: ghostwrite-draft
+        agent: ghostwrite-draft
         outputs:
           content_draft:
             type: object
-            schema:
-              properties:
-                decision:
-                  type: string
-                content_brief:
-                  type: object
-                  properties:
-                    objective:
-                      type: string
-                    audience:
-                      type: string
-                    channel:
-                      type: string
-                  required:
+            properties:
+              decision:
+                type: string
+              content_brief:
+                type: object
+                properties:
+                  objective:
+                    type: string
+                  audience:
+                    type: string
+                  channel:
+                    type: string
+                required:
                   - objective
                   - audience
                   - channel
-                draft:
-                  type: object
-                  properties:
-                    title:
-                      type: string
-                    body:
-                      type: string
-                    claims:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          claim:
+              draft:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  body:
+                    type: string
+                  claims:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        claim:
+                          type: string
+                        source_digests:
+                          type: array
+                          items:
                             type: string
-                          source_digests:
-                            type: array
-                            items:
-                              type: string
-                        required:
+                      required:
                         - claim
                         - source_digests
-                  required:
+                required:
                   - title
                   - body
                   - claims
-                context_binding:
-                  type: object
-                  properties:
-                    applied:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          packet_digest:
+              context_binding:
+                type: object
+                properties:
+                  applied:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        packet_digest:
+                          type: string
+                        applied_rules:
+                          type: array
+                          items:
                             type: string
-                          applied_rules:
-                            type: array
-                            items:
+                        scope_review:
+                          type: object
+                          properties:
+                            decision:
                               type: string
-                          scope_review:
-                            type: object
-                            properties:
-                              decision:
-                                type: string
-                              reason:
-                                type: string
-                            required:
+                            reason:
+                              type: string
+                          required:
                             - decision
                             - reason
-                        required:
+                      required:
                         - packet_digest
                         - applied_rules
                         - scope_review
-                  required:
-                  - applied
-                review_checklist:
-                  type: array
-                  items:
-                    type: string
-                distribution_notes:
-                  type: object
-                  properties:
-                    primary_channel:
-                      type: string
-              required:
-              - decision
-              if:
-                properties:
-                  decision:
-                    pattern: ^ready
-              then:
                 required:
+                  - applied
+              review_checklist:
+                type: array
+                items:
+                  type: string
+              distribution_notes:
+                type: object
+                properties:
+                  primary_channel:
+                    type: string
+            required:
+              - decision
+            if:
+              properties:
+                decision:
+                  pattern: ^ready
+            then:
+              required:
                 - content_brief
                 - draft
                 - context_binding
@@ -218,37 +188,24 @@ runners:
           evidence_pack: $input.evidence_pack
           brand_context: $input.brand_context
           taste_context: $input.taste_context
-        artifacts:
-          named_emits:
-            content_draft: content_draft
       - id: finalize
-        label: verify draft evidence and context bindings
         when:
           value: $steps.admit.evidence_context.decision
           equals: ready
-        skill: .
-        runner: verify
+        skill: .#verify
         inputs:
           evidence_context: $steps.admit.evidence_context
           content_draft: $steps.author.content_draft
   admit:
-    description: Admit the evidence packet, and any voice or taste context, that a draft may use, by digest. For a
-      skill that composes its own writing turn.
+    description: Admit the evidence packet, and any voice or taste context, that a draft may use, by digest. For a skill that composes its own writing turn.
     inputs:
-      objective:
-        definition: objective
-      audience:
-        definition: audience
-      channel:
-        definition: channel
-      evidence_pack:
-        definition: evidence_pack
-      facts:
-        definition: facts
-      brand_context:
-        definition: brand_context
-      taste_context:
-        definition: taste_context
+      objective: {}
+      audience: {}
+      channel: {}
+      evidence_pack: {}
+      facts: {}
+      brand_context: {}
+      taste_context: {}
     result_from:
       - prepare
     steps:
@@ -260,7 +217,7 @@ runners:
           module: ghostwrite.mjs
           export: selectEvidence
         outputs:
-          selected_source: object
+          selected_source: {type: object}
       - id: digest-evidence
         tool: data.digest
         inputs:
@@ -278,7 +235,6 @@ runners:
             type: taste_profile
             packet: $input.taste_context
       - id: prepare
-        label: admit validated evidence
         inputs:
           objective: $input.objective
           audience: $input.audience
@@ -294,34 +250,24 @@ runners:
           module: ghostwrite.mjs
           export: prepareEvidence
         outputs:
-          evidence_context: object
-        artifacts:
-          named_emits:
-            evidence_context: evidence_context
+          evidence_context: {type: object}
   verify:
-    description: Check every material claim and context binding of a draft against what was admitted, withholding
-      what it cannot bind.
+    description: Check every material claim and context binding of a draft against what was admitted, withholding what it cannot bind.
     inputs:
       evidence_context:
-        type: json
-        required: true
         description: Evidence context returned by `admit`, the authority for source digests and context rules.
       content_draft:
-        type: json
-        required: false
         description: Candidate draft written from that evidence context; absent when admission withheld the draft.
+        optional: true
     result_from:
       - reject
       - finalize
     steps:
       - id: reject
-        label: withhold unsupported draft
         when:
           value: $input.evidence_context.decision
           equals: needs_more_evidence
         tool: evidence.verify_artifact
-        scopes:
-          - runx:evidence:read
         inputs:
           artifact_name: content_draft_packet
           candidate:
@@ -363,13 +309,9 @@ runners:
           source_digests: $input.evidence_context.source_digests
           context_requirements: $input.evidence_context.context_requirements
           fallback_source: $input.evidence_context
-        artifacts:
-          named_emits:
-            content_draft_packet: content_draft_packet
-          packets:
-            content_draft_packet: runx/ghostwrite.draft.v1
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
       - id: review-context
-        label: check recorded editorial applicability
         when:
           value: $input.evidence_context.decision
           equals: ready
@@ -380,16 +322,13 @@ runners:
           evidence_context: $input.evidence_context
           content_draft: $input.content_draft
         outputs:
-          reviewed_draft: object
-          review_context: object
+          reviewed_draft: {type: object}
+          review_context: {type: object}
       - id: finalize
-        label: verify draft evidence and context bindings
         when:
           value: $input.evidence_context.decision
           equals: ready
         tool: evidence.verify_artifact
-        scopes:
-          - runx:evidence:read
         inputs:
           artifact_name: content_draft_packet
           required_paths:
@@ -456,21 +395,15 @@ runners:
           claim_bindings: $steps.review-context.reviewed_draft.draft.claims
           context_requirements: $input.evidence_context.context_requirements
           context_bindings: $steps.review-context.reviewed_draft.context_binding.applied
-        artifacts:
-          named_emits:
-            content_draft_packet: content_draft_packet
-          packets:
-            content_draft_packet: runx/ghostwrite.draft.v1
+        outputs:
+          content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
   package:
     description: Turn a verified draft into a channel payload bound to its digest, not yet sent.
     inputs:
       channel:
         type: string
-        required: true
         description: Target delivery channel.
       draft:
-        type: json
-        required: true
         packet: runx/ghostwrite.draft.v1
         description: Validated, evidence-bound runx/ghostwrite.draft.v1 packet.
     result_from:
@@ -484,8 +417,8 @@ runners:
           module: ghostwrite.mjs
           export: prepareContent
         outputs:
-          publish_draft: object
-          digest_input: string
+          publish_draft: {type: object}
+          digest_input: {type: string}
       - id: digest
         tool: data.digest
         inputs:
@@ -501,36 +434,23 @@ runners:
         outputs:
           content_publish_packet:
             type: object
-        artifacts:
-          named_emits:
-            content_publish_packet: content_publish_packet
-          packets:
-            content_publish_packet: runx/ghostwrite.publish.v1
+            packet: runx/ghostwrite.publish.v1
   handoff:
-    description: Bind a packaged payload to its exact target, and say who delivers it next and whether that needs
-      approval. Sends nothing.
+    description: Bind a packaged payload to its exact target, and say who delivers it next and whether that needs approval. Sends nothing.
     inputs:
       channel:
         type: string
-        required: true
         description: Target outward channel.
       boundary_kind:
         type: string
-        required: true
-        schema:
-          enum:
-            - internal
-            - external
-        description: Whether delivery crosses outside the team; an external delivery needs the delivering lane's own
-          approval.
+        description: Whether delivery crosses outside the team; an external delivery needs the delivering lane's own approval.
+        enum:
+          - internal
+          - external
       packet:
-        type: json
-        required: true
         packet: runx/ghostwrite.publish.v1
         description: Content publication packet from `package`, bound to its payload digest.
       target:
-        type: json
-        required: true
         description: Exact downstream target locator.
     steps:
       - id: handoff
@@ -547,10 +467,5 @@ runners:
             type: object
           boundary_state:
             type: object
-        artifacts:
-          wrap_as: content_handoff_packet
-          packet: runx/ghostwrite.handoff.v1
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases: []
+          content_handoff_packet: {packet: runx/ghostwrite.handoff.v1}
+        result_as: content_handoff_packet

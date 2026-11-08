@@ -1,0 +1,27 @@
+{
+  "workflowName": "hello-workflow",
+  "state": "succeeded",
+  "stepIds": [
+    "first",
+    "second"
+  ],
+  "contracts": [
+    {
+      "message": "hello from graph"
+    },
+    {
+      "message": "hello from graph"
+    }
+  ],
+  "createdAt": "2026-05-18T00:00:00Z",
+  "workflowSealDigest": "sha256:7b32059bc4f1727ab366cc8ad41f4ecd298936c85d832ffb0b9e4628f5a919b0",
+  "childSealDigests": [
+    "sha256:f835b449e6f76c5ba779e7ca1a80c4e4436ff3063395bc30e7ba1cb5c2cd99c4",
+    "sha256:e3416dedd909cc5ba814929462ea9f708234dc7748b0d5f1285307f563833ec0"
+  ],
+  "workflowReceiptId": "sha256:061ab1f80a4af6fd2ca0043fa54fd402f4b8eae1e3e469b4d0321df93cd9076c",
+  "childReceiptIds": [
+    "sha256:ebc4b882fb31347365e8ecccac23e93ff0648116f3bd8fa35a50fe60b3c6dac7",
+    "sha256:0e10bd87b2fea80f7f401216d662d7763490f8a75195e258b8bcc27280157644"
+  ]
+}

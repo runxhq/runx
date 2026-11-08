@@ -1,0 +1,11 @@
+{
+  "skill_name": "schema-check",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Check whether this proposed contract change breaks existing callers before the schema is published.",
+      "expected_output": "Return a compatibility verdict with per-sample validation and a gated publish proposal, with no live write.",
+      "files": []
+    }
+  ]
+}

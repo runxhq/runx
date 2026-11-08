@@ -1,0 +1,27 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: redact-pii
+        skill: ../..#from-detections
+        inputs:
+          content: Dana from the north office approved the draft.
+          classes:
+            - name
+          mode: redact
+          redaction_draft:
+            decision: needs_review
+            detected:
+              - class: name
+                selector:
+                  quote: Dana
+                confidence: 0.7
+            residual_risk:
+              level: medium
+              reason_code: ambiguous_semantics
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.redact-pii

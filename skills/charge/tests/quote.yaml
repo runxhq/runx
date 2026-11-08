@@ -1,0 +1,14 @@
+name: charge-quote
+method: quote
+inputs:
+  resource: https://seller.example/v1/reports/launch
+  amount_minor: 125
+  currency: USD
+  description: Launch report
+providers:
+  hosted:
+    principal_id: charge-fixture
+    grant: {grant_id: charge-fixture, provider: coinbase/cdp, scopes: [payment.x402.merchant.read]}
+    operations:
+      - {operation: payment.x402.merchant.quote, target: "https://seller.example/v1/reports/launch", access: read, result: {quote_contract: "runx.x402-merchant-quote/v1", resource: "https://seller.example/v1/reports/launch", amount_minor: 125, currency: USD, accepts: [{scheme: exact, network: "eip155:8453", amount: "1250000", payTo: "0x0000000000000000000000000000000000000002"}], quote_digest: "sha256:4444444444444444444444444444444444444444444444444444444444444444"}}
+expect: {status: sealed, receipt: {schema: runx.receipt.v1}}

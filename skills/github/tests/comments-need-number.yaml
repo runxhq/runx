@@ -1,0 +1,19 @@
+name: github-comments-require-bound-number
+inputs:
+  repo: runxhq/runx
+  kind: comments
+expect:
+  status: sealed
+  steps:
+    - plan
+  step_outputs:
+    plan:
+      subset:
+        sync_plan:
+          data:
+            decision: blocked
+            provider_status: not_called
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

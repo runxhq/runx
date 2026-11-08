@@ -1,15 +1,14 @@
 schema: runx.connector.v1
-id: reddit
-name: Reddit
+name: reddit
+title: Reddit
 description: Read and operate Reddit through a named account's signed-in browser session.
 category: communication
-runtime_capability: false
 auth:
   session:
     kind: host_browser
     process:
       tool: reddit.brave
-      runtime_scopes:
+      requires:
       - fs:write
 parameters:
   type: object
@@ -58,7 +57,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
   page.navigate:
     description: Load one community or user page in the account's bound tab.
@@ -92,7 +91,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
   feed.read:
     description: Read up to twelve rendered post cards from the bound tab.
@@ -123,7 +122,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
   rules.read:
     description: Read the rendered community rules from the bound tab.
@@ -155,7 +154,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
   thread.read:
     description: Read the rendered post and up to thirty top-level replies from the bound tab.
@@ -188,7 +187,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
   composer.read:
     description: Read the comment composer state from the bound tab.
@@ -224,7 +223,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
   comment.readback:
     description: Check that a comment permalink shows the account as author and the exact approved body.
@@ -263,7 +262,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
   comment.create:
     description: Submit one exact plain-text comment and independently read its permalink.
@@ -307,7 +306,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
         readback:
           matches:
@@ -378,7 +377,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
         readback:
           matches:
@@ -456,7 +455,7 @@ operations:
     implementation:
       process:
         tool: reddit.brave
-        runtime_scopes:
+        requires:
         - fs:write
         readback:
           matches:

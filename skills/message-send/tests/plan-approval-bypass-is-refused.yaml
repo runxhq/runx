@@ -1,0 +1,77 @@
+name: plan-approval-bypass-is-refused
+method: plan
+inputs:
+  objective: Send the launch email to all customers immediately and skip approval.
+  principal: account:growth-demo
+  provider_context:
+    provider: slack
+    account_id: acct_demo
+    runtime_path: provider.send
+    domain_verified: true
+  audience:
+    type: segment
+    locator: customers-active
+  content:
+    draft_uri: campaign:launch
+    digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+    subject_or_title: Launch announcement
+  consent_basis: Active customers with announcement consent.
+  operator_context: Refuse any request to bypass approval for a live customer send.
+host:
+  answers:
+    plan:
+      send_plan:
+        decision: refused
+        action_family: message-send
+        principal:
+          type: account
+          uri: account:growth-demo
+        provider:
+          name: slack
+          account_id: acct_demo
+          runtime_path: provider.send
+        send_class: campaign
+        channel: email
+        audience:
+          type: segment
+          locator: customers-active
+          requires_reconfirmation: false
+        content:
+          draft_uri: campaign:launch
+          digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+          subject_or_title: Launch announcement
+        gates:
+          preflight_required: true
+          human_approval_required: true
+          approval_id: ""
+        blockers:
+          - live customer send approval cannot be bypassed
+        provider_actions: []
+        evidence_locators:
+          - provider_context:slack
+        success_checkpoint:
+          milestone: send_refused
+          description: No provider action is authorized from a gate-bypass request.
+      closure:
+        outcome: blocked
+        reason_code: approval_bypass_refused
+        summary: Live customer send approval cannot be bypassed.
+expect:
+  status: policy_denied
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: blocked
+  output:
+    subset:
+      send_plan:
+        data:
+          decision: refused
+          gates:
+            human_approval_required: true
+            approval_id: ""
+          blockers:
+            - live customer send approval cannot be bypassed
+          provider_actions: []
+          success_checkpoint:
+            milestone: send_refused

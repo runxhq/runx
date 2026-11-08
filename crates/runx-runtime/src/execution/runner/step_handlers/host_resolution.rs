@@ -1,13 +1,13 @@
 // Approval host resolution is a concrete step-handler concern.
 use runx_contracts::ApprovalGate;
-use runx_parser::GraphStep;
+use runx_parser::WorkflowStep;
 
 use crate::RuntimeError;
 use crate::approval::{ApprovalError, ApprovalResolution, LocalApprovalGateResolver};
 use crate::host::Host;
 
 pub(super) fn resolve_step_approval(
-    step: &GraphStep,
+    step: &WorkflowStep,
     host: &mut dyn Host,
     request_id: impl Into<String>,
     gate: ApprovalGate,

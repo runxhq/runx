@@ -1,603 +1,239 @@
-skill: google-analytics
 version: "0.1.14"
+minimum_runx: 0.12.0
+default_method: report
 catalog:
-  kind: graph
-  audience: public
   visibility: public
   category: data
-  role: branded
-  canonical_skill: runx/organic-growth
-  provider: google/analytics
-  execution: read
-  completion: provider_readback
-  approval: none
-input_definitions:
+shared_inputs:
   property:
     type: string
-    required: true
     description: Exact GA4 property resource, such as properties/123456.
-    schema:
-      pattern: ^properties/[1-9][0-9]*$
+    pattern: ^properties/[1-9][0-9]*$
   date_ranges:
     type: array
-    required: true
     description: One to four inclusive GA4 date ranges using YYYY-MM-DD or GA relative dates.
-    schema:
-      minItems: 1
-      maxItems: 4
-      items:
-        type: object
-        required:
-          - start_date
-          - end_date
-        additionalProperties: false
-        properties:
-          start_date:
-            type: string
-            pattern: ^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|today|yesterday|[0-9]+daysAgo)$
-          end_date:
-            type: string
-            pattern: ^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|today|yesterday|[0-9]+daysAgo)$
-          name:
-            type: string
-            maxLength: 64
-  dimensions:
-    type: array
-    required: true
-    description: Zero to nine ordered GA4 dimension names; an empty list supports metric-only reports.
-    schema:
-      maxItems: 9
-      items:
-        type: string
-        minLength: 1
-        maxLength: 256
-  metrics:
-    type: array
-    required: true
-    description: One to ten ordered GA4 metric names.
-    schema:
-      minItems: 1
-      maxItems: 10
-      items:
-        type: string
-        minLength: 1
-        maxLength: 256
-  filter:
-    type: object
-    required: false
-    description: GA4 FilterExpression passed intact to the configured provider connector.
-    schema:
-      additionalProperties: true
-  order_bys:
-    type: array
-    required: false
-    description: Ordered GA4 OrderBy records passed intact to the provider connector.
-    schema:
-      maxItems: 10
-      items:
-        type: object
-        additionalProperties: true
-  minute_ranges:
-    type: array
-    required: false
-    description: One or more bounded GA4 realtime minute ranges.
-    schema:
-      maxItems: 4
-      items:
-        type: object
-        required:
-          - start_minutes_ago
-          - end_minutes_ago
-        additionalProperties: false
-        properties:
-          start_minutes_ago:
-            type: integer
-            minimum: 0
-            maximum: 59
-          end_minutes_ago:
-            type: integer
-            minimum: 0
-            maximum: 59
-          name:
-            type: string
-            maxLength: 64
-  report_request:
-    type: object
-    required: true
-    description: Expected GA4 report identity and ordered headers for supplied-result normalization.
-    schema:
+    minItems: 1
+    maxItems: 4
+    items:
+      type: object
       required:
-        - property
-        - report_type
-        - dimensions
-        - metrics
+        - start_date
+        - end_date
       additionalProperties: false
       properties:
-        property:
+        start_date:
           type: string
-          pattern: ^properties/[1-9][0-9]*$
-        report_type:
+          pattern: ^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|today|yesterday|[0-9]+daysAgo)$
+        end_date:
           type: string
-          enum:
-            - standard
-            - realtime
-        date_ranges:
-          type: array
-          maxItems: 4
-          items:
-            type: object
-            additionalProperties: true
-        dimensions:
-          type: array
-          maxItems: 9
-          items:
-            type: string
-            minLength: 1
-            maxLength: 256
-        metrics:
-          type: array
-          minItems: 1
-          maxItems: 10
-          items:
-            type: string
-            minLength: 1
-            maxLength: 256
-        dimension_filter:
-          type: object
-          additionalProperties: true
-        metric_filter:
-          type: object
-          additionalProperties: true
-        order_bys:
-          type: array
-          maxItems: 10
-          items:
-            type: object
-            additionalProperties: true
-        minute_ranges:
-          type: array
-          maxItems: 4
-          items:
-            type: object
-            additionalProperties: true
-        currency_code:
+          pattern: ^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|today|yesterday|[0-9]+daysAgo)$
+        name:
           type: string
-          pattern: ^[A-Z]{3}$
-        limit:
-          type: integer
-          minimum: 1
-          maximum: 100000
-        offset:
-          type: integer
-          minimum: 0
-  provider_result:
+          maxLength: 64
+  dimensions:
+    type: array
+    description: Zero to nine ordered GA4 dimension names; an empty list supports metric-only reports.
+    maxItems: 9
+    items:
+      type: string
+      minLength: 1
+      maxLength: 256
+  metrics:
+    type: array
+    description: One to ten ordered GA4 metric names.
+    minItems: 1
+    maxItems: 10
+    items:
+      type: string
+      minLength: 1
+      maxLength: 256
+  filter:
     type: object
-    required: true
-    description: GA4 report readback with ordered headers and bounded rows; provider metadata is preserved.
-    schema:
+    description: GA4 FilterExpression passed intact to the configured provider connector.
+    additionalProperties: true
+    optional: true
+  order_bys:
+    type: array
+    description: Ordered GA4 OrderBy records passed intact to the provider connector.
+    maxItems: 10
+    items:
+      type: object
+      additionalProperties: true
+    optional: true
+  minute_ranges:
+    type: array
+    description: One or more bounded GA4 realtime minute ranges.
+    maxItems: 4
+    items:
+      type: object
       required:
-        - dimension_headers
-        - metric_headers
-        - rows
+        - start_minutes_ago
+        - end_minutes_ago
+      additionalProperties: false
       properties:
-        property:
-          type: string
-          pattern: ^properties/[1-9][0-9]*$
-        dimension_headers:
-          type: array
-          maxItems: 9
-          items:
-            type:
-              - string
-              - object
-            additionalProperties: true
-        metric_headers:
-          type: array
-          maxItems: 10
-          items:
-            type:
-              - string
-              - object
-            additionalProperties: true
-        rows:
-          type: array
-          maxItems: 100000
-          items:
-            type: object
-            additionalProperties: true
-        row_count:
+        start_minutes_ago:
           type: integer
           minimum: 0
-        pagination:
-          type: object
-          additionalProperties: true
-        metadata:
-          type: object
-          additionalProperties: true
-        property_quota:
-          type: object
-          additionalProperties: true
-        fetched_at:
+          maximum: 59
+        end_minutes_ago:
+          type: integer
+          minimum: 0
+          maximum: 59
+        name:
           type: string
-          format: date-time
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases:
-    - name: normalizes-organic-landing-page-outcomes
-      operator_journeys:
-        - mode: standalone
-          request: Show which organic landing pages produced engaged sessions and conversions in this GA4
-            property.
-          expected_outcome: Return a normalized bounded GA4 report with property identity, dimensions,
-            metrics, dates, and measurement caveats intact.
-        - mode: composed
-          request: Normalize this connector-returned GA4 report for the growth analysis chain.
-          expected_outcome: Reuse provider evidence without querying GA4 again or hiding thresholding and
-            attribution caveats.
-          prior_evidence:
-            - The compatible connector response, property binding, report request, and measurement
-              metadata supplied in the fixture.
-          must_not_repeat:
-            - Do not call the analytics provider again.
-            - Do not recompute or discard provider measurement caveats.
-      runner: normalize-report
-      inputs:
-        request:
-          property: properties/123456
-          report_type: standard
-          date_ranges:
-            - start_date: 2026-06-01
-              end_date: 2026-06-30
-              name: june
-          dimensions:
-            - landingPagePlusQueryString
-            - sessionDefaultChannelGroup
-          metrics:
-            - sessions
-            - keyEvents
-            - totalRevenue
-        provider_result:
-          property: properties/123456
-          dimension_headers:
-            - name: landingPagePlusQueryString
-            - name: sessionDefaultChannelGroup
-          metric_headers:
-            - name: sessions
-              type: TYPE_INTEGER
-            - name: keyEvents
-              type: TYPE_FLOAT
-            - name: totalRevenue
-              type: TYPE_CURRENCY
-          rows:
-            - dimension_values:
-                - /guides/runx
-                - Organic Search
-              metric_values:
-                - "120"
-                - "9"
-                - "450.25"
-          row_count: 1
-          pagination:
-            complete: true
-            returned_rows: 1
-          metadata:
-            time_zone: Australia/Sydney
-            currency_code: AUD
-            subject_to_thresholding: false
-            data_loss_from_other_row: false
-          fetched_at: 2026-07-01T03:00:00Z
-      expect:
-        status: sealed
-        steps:
-          - normalize
-          - compare-query
-          - bind-query
-          - digest
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              report_evidence:
-                data:
-                  schema: runx/google-analytics.report_evidence.v1
-                  decision: usable_with_caveats
-                  provider: google-analytics
-                  provider_status: not_called
-                  source_status: supplied_result
-                  property: properties/123456
-                  report_type: standard
-                  rows:
-                    - dimensions:
-                        landingPagePlusQueryString: /guides/runx
-                        sessionDefaultChannelGroup: Organic Search
-                      metrics:
-                        sessions: 120
-                        keyEvents: 9
-                        totalRevenue: 450.25
-                  row_count: 1
-                  pagination:
-                    complete: true
-                    returned_rows: 1
-                  measurement:
-                    time_zone: Australia/Sydney
-                    currency_code: AUD
-                  validation:
-                    status: pass
-        receipt:
-          schema: runx.receipt.v1
-    - name: carries-privacy-thresholding-as-caveat
-      runner: normalize-report
-      inputs:
-        request:
-          property: properties/123456
-          report_type: standard
-          date_ranges:
-            - start_date: 2026-07-01
-              end_date: 2026-07-19
-          dimensions:
-            - city
-          metrics:
-            - activeUsers
-        provider_result:
-          property: properties/123456
-          dimension_headers:
-            - name: city
-          metric_headers:
-            - name: activeUsers
-              type: TYPE_INTEGER
-          rows:
-            - dimension_values:
-                - Sydney
-              metric_values:
-                - "18"
-          row_count: 1
-          pagination:
-            complete: true
-            returned_rows: 1
-          metadata:
-            subject_to_thresholding: true
-            data_loss_from_other_row: false
-            time_zone: Australia/Sydney
-      expect:
-        status: sealed
-        steps:
-          - normalize
-          - compare-query
-          - bind-query
-          - digest
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              report_evidence:
-                data:
-                  decision: usable_with_caveats
-                  privacy:
-                    subject_to_thresholding: true
-                  validation:
-                    status: pass
-        receipt:
-          schema: runx.receipt.v1
-    - name: blocks-returned-header-drift
-      runner: normalize-report
-      inputs:
-        request:
-          property: properties/123456
-          report_type: standard
-          date_ranges:
-            - start_date: 2026-06-01
-              end_date: 2026-06-30
-          dimensions:
-            - landingPage
-          metrics:
-            - sessions
-        provider_result:
-          property: properties/123456
-          dimension_headers:
-            - name: landingPage
-          metric_headers:
-            - name: totalUsers
-              type: TYPE_INTEGER
-          rows:
-            - dimension_values:
-                - /
-              metric_values:
-                - "100"
-          row_count: 1
-          pagination:
-            complete: true
-            returned_rows: 1
-      expect:
-        status: sealed
-        steps:
-          - normalize
-          - compare-query
-          - bind-query
-          - digest
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              report_evidence:
-                data:
-                  decision: blocked
-                  validation:
-                    status: fail
-        receipt:
-          schema: runx.receipt.v1
-    - name: short-page-does-not-hide-remaining-query
-      runner: normalize-report
-      inputs:
-        request:
-          property: properties/123456
-          report_type: standard
-          date_ranges:
-            - start_date: 2026-10-01
-              end_date: 2026-10-31
-          dimensions:
-            - landingPage
-          metrics:
-            - sessions
-          limit: 2
-          offset: 0
-        provider_result:
-          property: properties/123456
-          dimension_headers:
-            - name: landingPage
-          metric_headers:
-            - name: sessions
-              type: TYPE_INTEGER
-          rows:
-            - dimension_values:
-                - /docs
-              metric_values:
-                - "50"
-          row_count: 10
-          pagination:
-            returned_rows: 1
-            complete: true
-          metadata:
-            time_zone: UTC
-            currency_code: USD
-          fetched_at: 2026-11-05T00:00:00Z
-      expect:
-        status: sealed
-        steps:
-          - normalize
-          - compare-query
-          - bind-query
-          - digest
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              report_evidence:
-                data:
-                  decision: usable_with_caveats
-                  row_count: 10
-                  pagination:
-                    returned_rows: 1
-                    complete: false
-                    next_offset: 1
-                  validation:
-                    status: pass
-        receipt:
-          schema: runx.receipt.v1
-    - name: rejects-relabeling-a-different-source-query
-      runner: normalize-report
-      inputs:
-        request:
-          property: properties/123456
-          report_type: standard
-          date_ranges:
-            - start_date: 2026-10-01
-              end_date: 2026-10-31
-          dimensions:
-            - landingPage
-          metrics:
-            - sessions
-          limit: 2
-          offset: 0
-        provider_result:
-          property: properties/123456
-          dimension_headers:
-            - name: landingPage
-          metric_headers:
-            - name: sessions
-              type: TYPE_INTEGER
-          rows:
-            - dimension_values:
-                - /docs
-              metric_values:
-                - "50"
-          row_count: 1
-          pagination:
-            returned_rows: 1
-            complete: true
-          metadata:
-            time_zone: UTC
-            currency_code: USD
-          fetched_at: 2026-11-05T00:00:00Z
-          request:
-            property: properties/123456
-            report_type: standard
-            date_ranges:
-              - start_date: 2026-01-01
-                end_date: 2026-01-31
-            dimensions:
-              - landingPage
-            metrics:
-              - sessions
-            limit: 2
-            offset: 0
-      expect:
-        status: sealed
-        steps:
-          - normalize
-          - compare-query
-          - bind-query
-          - digest
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              report_evidence:
-                data:
-                  decision: blocked
-                  validation:
-                    status: fail
-                    findings:
-                      - code: ga.request.mismatch
-                        message: the source query differs from the requested report; do not relabel or combine its rows
-        receipt:
-          schema: runx.receipt.v1
-connectors:
-  google/analytics:
-    operations:
-      - reports.run
-      - reports.run_realtime
-      - properties.list
-      - metadata.get
-runners:
-  report:
-    description: Run one date-bounded GA4 report on a property, with its measurement caveats. Check
-      unfamiliar fields with metadata first.
-    default: true
-    inputs:
+          maxLength: 64
+    optional: true
+  report_request:
+    type: object
+    description: Expected GA4 report identity and ordered headers for supplied-result normalization.
+    required:
+      - property
+      - report_type
+      - dimensions
+      - metrics
+    additionalProperties: false
+    properties:
       property:
-        definition: property
+        type: string
+        pattern: ^properties/[1-9][0-9]*$
+      report_type:
+        type: string
+        enum:
+          - standard
+          - realtime
       date_ranges:
-        definition: date_ranges
+        type: array
+        maxItems: 4
+        items:
+          type: object
+          additionalProperties: true
       dimensions:
-        definition: dimensions
+        type: array
+        maxItems: 9
+        items:
+          type: string
+          minLength: 1
+          maxLength: 256
       metrics:
-        definition: metrics
+        type: array
+        minItems: 1
+        maxItems: 10
+        items:
+          type: string
+          minLength: 1
+          maxLength: 256
       dimension_filter:
-        definition: filter
+        type: object
+        additionalProperties: true
       metric_filter:
-        definition: filter
+        type: object
+        additionalProperties: true
       order_bys:
-        definition: order_bys
+        type: array
+        maxItems: 10
+        items:
+          type: object
+          additionalProperties: true
+      minute_ranges:
+        type: array
+        maxItems: 4
+        items:
+          type: object
+          additionalProperties: true
       currency_code:
         type: string
-        required: false
-        description: ISO currency override when needed.
+        pattern: ^[A-Z]{3}$
       limit:
         type: integer
-        required: false
-        default: 1000
-        description: Bounded row limit, at most 100000.
-        schema:
-          minimum: 1
-          maximum: 100000
+        minimum: 1
+        maximum: 100000
       offset:
         type: integer
-        required: false
+        minimum: 0
+  provider_result:
+    type: object
+    description: GA4 report readback with ordered headers and bounded rows; provider metadata is preserved.
+    required:
+      - dimension_headers
+      - metric_headers
+      - rows
+    properties:
+      property:
+        type: string
+        pattern: ^properties/[1-9][0-9]*$
+      dimension_headers:
+        type: array
+        maxItems: 9
+        items:
+          type:
+            - string
+            - object
+          additionalProperties: true
+      metric_headers:
+        type: array
+        maxItems: 10
+        items:
+          type:
+            - string
+            - object
+          additionalProperties: true
+      rows:
+        type: array
+        maxItems: 100000
+        items:
+          type: object
+          additionalProperties: true
+      row_count:
+        type: integer
+        minimum: 0
+      pagination:
+        type: object
+        additionalProperties: true
+      metadata:
+        type: object
+        additionalProperties: true
+      property_quota:
+        type: object
+        additionalProperties: true
+      fetched_at:
+        type: string
+        format: date-time
+methods:
+  report:
+    description: Run one date-bounded GA4 report on a property, with its measurement caveats. Check unfamiliar fields with metadata first.
+    inputs:
+      property: {}
+      date_ranges: {}
+      dimensions: {}
+      metrics: {}
+      dimension_filter:
+        type: object
+        description: GA4 FilterExpression passed intact to the configured provider connector.
+        additionalProperties: true
+        optional: true
+      metric_filter:
+        type: object
+        description: GA4 FilterExpression passed intact to the configured provider connector.
+        additionalProperties: true
+        optional: true
+      order_bys: {}
+      currency_code:
+        type: string
+        description: ISO currency override when needed.
+        optional: true
+      limit:
+        type: integer
+        default: 1000
+        description: Bounded row limit, at most 100000.
+        minimum: 1
+        maximum: 100000
+        optional: true
+      offset:
+        type: integer
         default: 0
         description: Zero-based row offset.
-        schema:
-          minimum: 0
+        minimum: 0
+        optional: true
     examples:
       - property: properties/123456
         date_ranges:
@@ -613,18 +249,19 @@ runners:
     steps:
       - id: read
         operation: google/analytics/reports.run
-        result_fields:
-          - property
-          - request
-          - dimension_headers
-          - metric_headers
-          - rows
-          - row_count
-          - pagination
-          - metadata
-          - property_quota
-          - fetched_at
-        input:
+        result:
+          required:
+            - property
+            - request
+            - dimension_headers
+            - metric_headers
+            - rows
+            - row_count
+            - pagination
+            - metadata
+            - property_quota
+            - fetched_at
+        inputs:
           property: $input.property
           date_ranges: $input.date_ranges
           dimensions: $input.dimensions
@@ -655,9 +292,9 @@ runners:
           module: google-analytics.mjs
           export: normalizeReport
         outputs:
-          report_draft: object
-          expected_query: object
-          source_query: object
+          report_draft: {type: object}
+          expected_query: {type: object}
+          source_query: {type: object}
       - id: compare-query
         tool: data.compare
         inputs:
@@ -671,7 +308,7 @@ runners:
           report_draft: $steps.normalize.report_draft
           comparison: $steps.compare-query.comparison
         outputs:
-          report_draft: object
+          report_draft: {type: object}
       - id: digest
         tool: data.digest
         inputs:
@@ -684,18 +321,78 @@ runners:
           module: google-analytics.mjs
           export: finalizeReport
         outputs:
-          report_evidence: object
-        artifacts:
-          named_emits:
-            report_evidence: report_evidence
+          report_evidence: {type: object}
   normalize-report:
-    description: Check and normalize a GA4-shaped result a trusted import already supplied, without
-      calling Google, so never proof that runx reached Google.
+    description: Check and normalize a GA4-shaped result a trusted import already supplied, without calling Google, so never proof that runx reached Google.
     inputs:
-      provider_result:
-        definition: provider_result
+      provider_result: {}
       request:
-        definition: report_request
+        type: object
+        description: Expected GA4 report identity and ordered headers for supplied-result normalization.
+        required:
+          - property
+          - report_type
+          - dimensions
+          - metrics
+        additionalProperties: false
+        properties:
+          property:
+            type: string
+            pattern: ^properties/[1-9][0-9]*$
+          report_type:
+            type: string
+            enum:
+              - standard
+              - realtime
+          date_ranges:
+            type: array
+            maxItems: 4
+            items:
+              type: object
+              additionalProperties: true
+          dimensions:
+            type: array
+            maxItems: 9
+            items:
+              type: string
+              minLength: 1
+              maxLength: 256
+          metrics:
+            type: array
+            minItems: 1
+            maxItems: 10
+            items:
+              type: string
+              minLength: 1
+              maxLength: 256
+          dimension_filter:
+            type: object
+            additionalProperties: true
+          metric_filter:
+            type: object
+            additionalProperties: true
+          order_bys:
+            type: array
+            maxItems: 10
+            items:
+              type: object
+              additionalProperties: true
+          minute_ranges:
+            type: array
+            maxItems: 4
+            items:
+              type: object
+              additionalProperties: true
+          currency_code:
+            type: string
+            pattern: ^[A-Z]{3}$
+          limit:
+            type: integer
+            minimum: 1
+            maximum: 100000
+          offset:
+            type: integer
+            minimum: 0
     examples:
       - request:
           property: properties/123456
@@ -732,9 +429,9 @@ runners:
           module: google-analytics.mjs
           export: normalizeReport
         outputs:
-          report_draft: object
-          expected_query: object
-          source_query: object
+          report_draft: {type: object}
+          expected_query: {type: object}
+          source_query: {type: object}
       - id: compare-query
         tool: data.compare
         inputs:
@@ -748,7 +445,7 @@ runners:
           report_draft: $steps.normalize.report_draft
           comparison: $steps.compare-query.comparison
         outputs:
-          report_draft: object
+          report_draft: {type: object}
       - id: digest
         tool: data.digest
         inputs:
@@ -761,34 +458,31 @@ runners:
           module: google-analytics.mjs
           export: finalizeReport
         outputs:
-          report_evidence: object
-        artifacts:
-          named_emits:
-            report_evidence: report_evidence
+          report_evidence: {type: object}
   realtime:
-    description: Read a short GA4 realtime window, a current pulse after a deployment or campaign,
-      provisional rather than settled reporting.
+    description: Read a short GA4 realtime window, a current pulse after a deployment or campaign, provisional rather than settled reporting.
     inputs:
-      property:
-        definition: property
-      dimensions:
-        definition: dimensions
-      metrics:
-        definition: metrics
+      property: {}
+      dimensions: {}
+      metrics: {}
       dimension_filter:
-        definition: filter
+        type: object
+        description: GA4 FilterExpression passed intact to the configured provider connector.
+        additionalProperties: true
+        optional: true
       metric_filter:
-        definition: filter
-      minute_ranges:
-        definition: minute_ranges
+        type: object
+        description: GA4 FilterExpression passed intact to the configured provider connector.
+        additionalProperties: true
+        optional: true
+      minute_ranges: {}
       limit:
         type: integer
-        required: false
         default: 1000
         description: Bounded realtime row limit.
-        schema:
-          minimum: 1
-          maximum: 100000
+        minimum: 1
+        maximum: 100000
+        optional: true
     examples:
       - property: properties/123456
         dimensions:
@@ -800,18 +494,19 @@ runners:
     steps:
       - id: read
         operation: google/analytics/reports.run_realtime
-        result_fields:
-          - property
-          - request
-          - dimension_headers
-          - metric_headers
-          - rows
-          - row_count
-          - pagination
-          - metadata
-          - property_quota
-          - fetched_at
-        input:
+        result:
+          required:
+            - property
+            - request
+            - dimension_headers
+            - metric_headers
+            - rows
+            - row_count
+            - pagination
+            - metadata
+            - property_quota
+            - fetched_at
+        inputs:
           property: $input.property
           dimensions: $input.dimensions
           metrics: $input.metrics
@@ -836,9 +531,9 @@ runners:
           module: google-analytics.mjs
           export: normalizeReport
         outputs:
-          report_draft: object
-          expected_query: object
-          source_query: object
+          report_draft: {type: object}
+          expected_query: {type: object}
+          source_query: {type: object}
       - id: compare-query
         tool: data.compare
         inputs:
@@ -852,7 +547,7 @@ runners:
           report_draft: $steps.normalize.report_draft
           comparison: $steps.compare-query.comparison
         outputs:
-          report_draft: object
+          report_draft: {type: object}
       - id: digest
         tool: data.digest
         inputs:
@@ -865,10 +560,7 @@ runners:
           module: google-analytics.mjs
           export: finalizeReport
         outputs:
-          report_evidence: object
-        artifacts:
-          named_emits:
-            report_evidence: report_evidence
+          report_evidence: {type: object}
   properties:
     description: List the GA4 properties the grant can read, when the property is unknown.
     inputs: {}
@@ -877,15 +569,15 @@ runners:
     steps:
       - id: read
         operation: google/analytics/properties.list
-        result_fields:
-          - properties
-        input: {}
+        result:
+          required:
+            - properties
+        inputs: {}
   metadata:
     description: Read a property's dimension and metric catalog, before composing an unfamiliar report.
     inputs:
       property:
         type: string
-        required: true
         description: Exact GA4 property resource.
     examples:
       - property: properties/123456
@@ -894,10 +586,11 @@ runners:
     steps:
       - id: read
         operation: google/analytics/metadata.get
-        result_fields:
-          - property
-          - dimensions
-          - metrics
-          - fetched_at
-        input:
+        result:
+          required:
+            - property
+            - dimensions
+            - metrics
+            - fetched_at
+        inputs:
           property: $input.property

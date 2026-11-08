@@ -1,0 +1,5 @@
+name: echo-beta
+inputs:
+  message: beta
+expect:
+  status: sealed

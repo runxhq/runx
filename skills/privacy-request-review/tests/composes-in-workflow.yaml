@@ -1,0 +1,6 @@
+name: privacy-request-review-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps: [privacy-request-review, digest]
+  receipt: {schema: runx.receipt.v1}

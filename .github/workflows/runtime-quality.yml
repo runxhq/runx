@@ -76,7 +76,7 @@ jobs:
           pnpm stress:runtime:process-tool
 
       - name: Verify performance harness
-        run: pnpm perf:harness-check
+        run: pnpm perf:test-check
 
       - name: Capture focused runtime performance evidence
         run: |

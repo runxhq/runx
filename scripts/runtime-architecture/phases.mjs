@@ -79,7 +79,7 @@ export function checkProjectionHotPaths(findings) {
   }
 
   const cloneBudget = new Map([
-    ["crates/runx-runtime/src/execution/graph_index.rs", 8],
+    ["crates/runx-runtime/src/execution/workflow_index.rs", 8],
     ["crates/runx-runtime/src/execution/output_projection.rs", 8],
   ]);
   for (const [relPath, maxClones] of cloneBudget) {

@@ -1,0 +1,11 @@
+name: github-issue-to-pr-composes-in-graph
+package: fixtures/composed
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - github-issue-to-pr
+    - digest

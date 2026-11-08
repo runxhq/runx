@@ -1,219 +1,188 @@
-skill: lead-enrichment
 version: "0.4.8"
+minimum_runx: 0.12.0
+default_method: lookup
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
-  role: context
-  execution: read
-  completion: provider_readback
-  approval: none
   category: growth
-input_definitions:
+shared_inputs:
   subject:
     type: object
-    required: true
     description: One exact person or company reference; provider matches must refer to it.
-    schema:
+    additionalProperties: false
+    required:
+      - id
+      - kind
+    properties:
+      id:
+        type: string
+        minLength: 1
+        maxLength: 1000
+      kind:
+        enum:
+          - person
+          - company
+  sources:
+    type: array
+    description: Bounded factual observations with explicit entity matches and upstream source digests.
+    minItems: 1
+    maxItems: 100
+    items:
+      type: object
       additionalProperties: false
       required:
-        - id
-        - kind
+        - source_id
+        - source_digest
+        - subject_id
+        - observed_at
+        - match_confidence
+        - facts
       properties:
-        id:
+        source_id:
           type: string
           minLength: 1
           maxLength: 1000
-        kind:
+        source_digest:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+        subject_id:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        observed_at:
+          type: string
+          format: date-time
+        match_confidence:
           enum:
-            - person
-            - company
-  sources:
-    type: array
-    required: true
-    description: Bounded factual observations with explicit entity matches and upstream source digests.
-    schema:
-      minItems: 1
-      maxItems: 100
-      items:
-        type: object
-        additionalProperties: false
-        required:
-          - source_id
-          - source_digest
-          - subject_id
-          - observed_at
-          - match_confidence
-          - facts
-        properties:
-          source_id:
-            type: string
-            minLength: 1
-            maxLength: 1000
-          source_digest:
-            type: string
-            pattern: ^sha256:[0-9a-f]{64}$
-          subject_id:
-            type: string
-            minLength: 1
-            maxLength: 1000
-          observed_at:
-            type: string
-            format: date-time
-          match_confidence:
-            enum:
-              - high
-              - medium
-              - low
-              - unknown
-          facts:
-            type: array
-            minItems: 1
-            maxItems: 30
-            items:
-              type: object
-              additionalProperties: false
-              required:
-                - field
-                - value
-              properties:
-                field:
-                  enum:
-                    - person.name
-                    - person.email
-                    - person.title
-                    - person.linkedin_url
-                    - company.name
-                    - company.domain
-                    - company.industry
-                    - company.employee_count
-                    - company.country
-                    - company.website
-                value:
-                  oneOf:
-                    - type: string
-                      minLength: 1
-                      maxLength: 2000
-                    - type: integer
+            - high
+            - medium
+            - low
+            - unknown
+        facts:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - field
+              - value
+            properties:
+              field:
+                enum:
+                  - person.name
+                  - person.email
+                  - person.title
+                  - person.linkedin_url
+                  - company.name
+                  - company.domain
+                  - company.industry
+                  - company.employee_count
+                  - company.country
+                  - company.website
+              value:
+                oneOf:
+                  - type: string
+                    minLength: 1
+                    maxLength: 2000
+                  - type: integer
+                    minimum: 0
+                    maximum: 1000000000
+            allOf:
+              - if:
+                  properties:
+                    field:
+                      const: company.employee_count
+                  required:
+                    - field
+                then:
+                  properties:
+                    value:
+                      type: integer
                       minimum: 0
                       maximum: 1000000000
-              allOf:
-                - if:
-                    properties:
-                      field:
-                        const: company.employee_count
-                    required:
-                      - field
-                  then:
-                    properties:
-                      value:
-                        type: integer
-                        minimum: 0
-                        maximum: 1000000000
-                  else:
-                    properties:
-                      value:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
+                else:
+                  properties:
+                    value:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
   requested_fields:
     type: array
-    required: true
     description: Professional fields needed by this task; unrelated fields are omitted.
-    schema:
-      minItems: 1
-      maxItems: 30
-      items:
-        enum:
-          - person.name
-          - person.email
-          - person.title
-          - person.linkedin_url
-          - company.name
-          - company.domain
-          - company.industry
-          - company.employee_count
-          - company.country
-          - company.website
-      uniqueItems: true
+    minItems: 1
+    maxItems: 30
+    items:
+      enum:
+        - person.name
+        - person.email
+        - person.title
+        - person.linkedin_url
+        - company.name
+        - company.domain
+        - company.industry
+        - company.employee_count
+        - company.country
+        - company.website
+    uniqueItems: true
   as_of:
     type: string
-    required: true
     description: Explicit evaluation time; no host clock is read.
-    schema:
-      format: date-time
+    format: date-time
   max_age_days:
     type: integer
-    required: false
     description: Maximum observation age in days.
-    schema:
-      minimum: 1
-      maximum: 3650
     default: 90
-connectors:
-  apollo:
-    operations:
-      - person.enrich
-      - company.enrich
-harness:
-  files:
-    - fixtures/support/qualify.graph
-  cases: []
-runners:
+    minimum: 1
+    maximum: 3650
+    optional: true
+methods:
   lookup:
-    default: true
-    description: Enrich one identified person or company with the selected Apollo account; charges require native
-      bounded-use authority or exact approval.
+    description: Enrich one identified person or company with the selected Apollo account; charges require native bounded-use authority or exact approval.
     inputs:
-      subject:
-        definition: subject
+      subject: {}
       selector:
         type: object
-        required: true
-        description: Apollo person ID, email, LinkedIn profile or full name plus employer for a person; domain,
-          website or LinkedIn company profile for a company. Native connector inspection declares exact
-          fields. Never credentials.
-        schema:
-          additionalProperties: false
-          properties:
-            id:
-              type: string
-              minLength: 1
-              maxLength: 128
-            email:
-              type: string
-              format: email
-              maxLength: 320
-            linkedin_url:
-              type: string
-              format: uri
-              maxLength: 2000
-            name:
-              type: string
-              minLength: 1
-              maxLength: 300
-            first_name:
-              type: string
-              minLength: 1
-              maxLength: 150
-            last_name:
-              type: string
-              minLength: 1
-              maxLength: 150
-            domain:
-              type: string
-              minLength: 1
-              maxLength: 253
-            organization_name:
-              type: string
-              minLength: 1
-              maxLength: 300
-            website:
-              type: string
-              format: uri
-              maxLength: 2000
-      requested_fields:
-        definition: requested_fields
+        description: Apollo person ID, email, LinkedIn profile or full name plus employer for a person; domain, website or LinkedIn company profile for a company. Native connector inspection declares exact fields. Never credentials.
+        additionalProperties: false
+        properties:
+          id:
+            type: string
+            minLength: 1
+            maxLength: 128
+          email:
+            type: string
+            format: email
+            maxLength: 320
+          linkedin_url:
+            type: string
+            format: uri
+            maxLength: 2000
+          name:
+            type: string
+            minLength: 1
+            maxLength: 300
+          first_name:
+            type: string
+            minLength: 1
+            maxLength: 150
+          last_name:
+            type: string
+            minLength: 1
+            maxLength: 150
+          domain:
+            type: string
+            minLength: 1
+            maxLength: 253
+          organization_name:
+            type: string
+            minLength: 1
+            maxLength: 300
+          website:
+            type: string
+            format: uri
+            maxLength: 2000
+      requested_fields: {}
     result_from:
       - normalize-person
       - normalize-company
@@ -224,8 +193,8 @@ runners:
         selector:
           domain: northwind.example
         requested_fields:
-        - company.name
-        - company.employee_count
+          - company.name
+          - company.employee_count
     steps:
       - id: prepare
         inputs:
@@ -236,23 +205,23 @@ runners:
           module: lead-enrichment.mjs
           export: prepareLookup
         outputs:
-          lookup_request: object
+          lookup_request: {type: object}
       - id: person
         when:
           value: $input.subject.kind
           equals: person
         operation: apollo/person.enrich
-        input: $steps.prepare.lookup_request
+        inputs: $steps.prepare.lookup_request
       - id: company
         when:
           value: $input.subject.kind
           equals: company
         operation: apollo/company.enrich
-        input: $steps.prepare.lookup_request
+        inputs: $steps.prepare.lookup_request
       - id: observe
         tool: control.observed_at
         outputs:
-          observed_at: string
+          observed_at: {type: string}
       - id: normalize-person
         when:
           value: $input.subject.kind
@@ -267,58 +236,51 @@ runners:
           module: lead-enrichment.mjs
           export: normalizeLookup
         outputs:
-          lead_enrichment_packet: object
+          lead_enrichment_packet: {type: object, packet: runx/lead-enrichment.enrichment.v1}
           lookup_evidence:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - match_confidence
-                - readback_uri
-                - result_digest
-                - observed_at
-                - unavailable_fields
-                - blockers
-              properties:
-                decision:
-                  enum:
-                    - matched
-                    - no_match
-                    - ambiguous
-                    - identity_conflict
-                match_confidence:
-                  enum:
-                    - high
-                    - medium
-                    - low
-                    - none
-                    - unknown
-                readback_uri:
+            additionalProperties: false
+            required:
+              - decision
+              - match_confidence
+              - readback_uri
+              - result_digest
+              - observed_at
+              - unavailable_fields
+              - blockers
+            properties:
+              decision:
+                enum:
+                  - matched
+                  - no_match
+                  - ambiguous
+                  - identity_conflict
+              match_confidence:
+                enum:
+                  - high
+                  - medium
+                  - low
+                  - none
+                  - unknown
+              readback_uri:
+                type: string
+                minLength: 1
+              result_digest:
+                type: string
+                pattern: ^sha256:[0-9a-f]{64}$
+              observed_at:
+                type: string
+                format: date-time
+              unavailable_fields:
+                type: array
+                items:
                   type: string
-                  minLength: 1
-                result_digest:
+              blockers:
+                type: array
+                items:
                   type: string
-                  pattern: ^sha256:[0-9a-f]{64}$
-                observed_at:
-                  type: string
-                  format: date-time
-                unavailable_fields:
-                  type: array
-                  items:
-                    type: string
-                blockers:
-                  type: array
-                  items:
-                    type: string
-                cost:
-                  type: object
-        artifacts:
-          named_emits:
-            lead_enrichment_packet: lead_enrichment_packet
-            lookup_evidence: lookup_evidence
-          packets:
-            lead_enrichment_packet: runx/lead-enrichment.enrichment.v1
+              cost:
+                type: object
       - id: normalize-company
         when:
           value: $input.subject.kind
@@ -333,71 +295,59 @@ runners:
           module: lead-enrichment.mjs
           export: normalizeLookup
         outputs:
-          lead_enrichment_packet: object
+          lead_enrichment_packet: {type: object, packet: runx/lead-enrichment.enrichment.v1}
           lookup_evidence:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - match_confidence
-                - readback_uri
-                - result_digest
-                - observed_at
-                - unavailable_fields
-                - blockers
-              properties:
-                decision:
-                  enum:
-                    - matched
-                    - no_match
-                    - ambiguous
-                    - identity_conflict
-                match_confidence:
-                  enum:
-                    - high
-                    - medium
-                    - low
-                    - none
-                    - unknown
-                readback_uri:
+            additionalProperties: false
+            required:
+              - decision
+              - match_confidence
+              - readback_uri
+              - result_digest
+              - observed_at
+              - unavailable_fields
+              - blockers
+            properties:
+              decision:
+                enum:
+                  - matched
+                  - no_match
+                  - ambiguous
+                  - identity_conflict
+              match_confidence:
+                enum:
+                  - high
+                  - medium
+                  - low
+                  - none
+                  - unknown
+              readback_uri:
+                type: string
+                minLength: 1
+              result_digest:
+                type: string
+                pattern: ^sha256:[0-9a-f]{64}$
+              observed_at:
+                type: string
+                format: date-time
+              unavailable_fields:
+                type: array
+                items:
                   type: string
-                  minLength: 1
-                result_digest:
+              blockers:
+                type: array
+                items:
                   type: string
-                  pattern: ^sha256:[0-9a-f]{64}$
-                observed_at:
-                  type: string
-                  format: date-time
-                unavailable_fields:
-                  type: array
-                  items:
-                    type: string
-                blockers:
-                  type: array
-                  items:
-                    type: string
-                cost:
-                  type: object
-        artifacts:
-          named_emits:
-            lead_enrichment_packet: lead_enrichment_packet
-            lookup_evidence: lookup_evidence
-          packets:
-            lead_enrichment_packet: runx/lead-enrichment.enrichment.v1
+              cost:
+                type: object
   enrich:
     description: Reuse supplied factual sources without any provider call or additional credits.
     inputs:
-      subject:
-        definition: subject
-      sources:
-        definition: sources
-      requested_fields:
-        definition: requested_fields
-      as_of:
-        definition: as_of
-      max_age_days:
-        definition: max_age_days
+      subject: {}
+      sources: {}
+      requested_fields: {}
+      as_of: {}
+      max_age_days: {}
     result_from:
       - enrich
     steps:
@@ -414,8 +364,4 @@ runners:
         outputs:
           lead_enrichment_packet:
             type: object
-        artifacts:
-          named_emits:
-            lead_enrichment_packet: lead_enrichment_packet
-          packets:
-            lead_enrichment_packet: runx/lead-enrichment.enrichment.v1
+            packet: runx/lead-enrichment.enrichment.v1

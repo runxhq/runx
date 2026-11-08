@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/search
-name: Fixture Search
+name: fixture/search
+title: Fixture Search
 description: Search a public web fixture within explicit query and result limits.
-runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -42,7 +41,7 @@ operations:
         allowed_hosts: [search.fixture.invalid]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://search.fixture.invalid/search
             headers: {accept: application/json}
             body:

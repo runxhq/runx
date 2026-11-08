@@ -8,16 +8,15 @@ use runx_contracts::{
 use serde::{Deserialize, Serialize};
 
 use crate::skill::{
-    CatalogMetadata, ConnectorRequirement, RunnerHarnessManifest, SkillInput,
-    SkillRunnerDefinition, bind_operation_steps, validate_catalog_metadata,
-    validate_connector_requirements, validate_harness_manifest, validate_inputs,
-    validate_runner_definition,
+    CatalogMetadata, ConnectorRequirement, MethodTestManifest, SkillInput, SkillMethodDefinition,
+    bind_operation_steps, validate_catalog_metadata, validate_connector_requirements,
+    validate_inputs, validate_method_definition, validate_test_manifest,
 };
 use crate::{
     ParseError, ValidationError, assert_execution_profile_yaml_subset, json_fields::JsonFieldReader,
 };
 
-const FIELDS: JsonFieldReader = JsonFieldReader::new("runner_manifest");
+const FIELDS: JsonFieldReader = JsonFieldReader::new("method_manifest");
 const MANIFEST_FIELDS: &[&str] = &[
     "skill",
     "version",
@@ -33,13 +32,13 @@ const MANIFEST_FIELDS: &[&str] = &[
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RawRunnerManifestIr {
+pub struct RawMethodManifestIr {
     pub document: JsonObject,
     pub raw: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SkillRunnerManifest {
+pub struct SkillMethodManifest {
     /// The skill's name; it must match SKILL.md and names every runner's
     /// graph.
     pub skill: String,
@@ -66,10 +65,10 @@ pub struct SkillRunnerManifest {
     pub input_definitions: BTreeMap<String, crate::skill::SkillInput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub marketplace: Option<MarketplaceManifest>,
-    pub runners: BTreeMap<String, SkillRunnerDefinition>,
+    pub runners: BTreeMap<String, SkillMethodDefinition>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub harness: Option<RunnerHarnessManifest>,
-    pub raw: RawRunnerManifestIr,
+    pub harness: Option<MethodTestManifest>,
+    pub raw: RawMethodManifestIr,
 }
 
 /// Optional commercial terms for ordinary skill runners. The registry owns
@@ -81,13 +80,13 @@ pub struct MarketplaceManifest {
     pub offers: BTreeMap<String, PaidSkillOfferTerms>,
 }
 
-impl SkillRunnerManifest {
+impl SkillMethodManifest {
     /// Return the exact non-secret requirements selected by one runner.
     ///
     /// This is the parser-owned projection used by inspection and execution;
     /// downstream consumers must not rescan raw YAML or normalize scope values.
     #[must_use]
-    pub fn execution_requirements(&self, runner: &SkillRunnerDefinition) -> ExecutionRequirements {
+    pub fn execution_requirements(&self, runner: &SkillMethodDefinition) -> ExecutionRequirements {
         ExecutionRequirements {
             scopes: runner.declared_scopes(),
             environment: runner.environment(),
@@ -95,29 +94,29 @@ impl SkillRunnerManifest {
     }
 }
 
-pub fn parse_runner_manifest_yaml(yaml: &str) -> Result<RawRunnerManifestIr, ParseError> {
-    assert_execution_profile_yaml_subset("runner_manifest", yaml)?;
+pub fn parse_method_manifest_yaml(yaml: &str) -> Result<RawMethodManifestIr, ParseError> {
+    assert_execution_profile_yaml_subset("method_manifest", yaml)?;
     let parsed: JsonValue =
         serde_norway::from_str(yaml).map_err(|error| ParseError::InvalidYaml {
-            field: "runner_manifest".to_owned(),
+            field: "method_manifest".to_owned(),
             message: error.to_string(),
         })?;
     let JsonValue::Object(document) = parsed else {
         return Err(ParseError::InvalidDocument {
-            field: "runner_manifest".to_owned(),
+            field: "method_manifest".to_owned(),
             message: "Runner manifest YAML must parse to an object.".to_owned(),
         });
     };
-    Ok(RawRunnerManifestIr {
+    Ok(RawMethodManifestIr {
         document,
         raw: yaml.to_owned(),
     })
 }
 
-pub fn validate_runner_manifest(
-    raw: RawRunnerManifestIr,
-) -> Result<SkillRunnerManifest, ValidationError> {
-    FIELDS.reject_unknown_fields(&raw.document, "runner_manifest", MANIFEST_FIELDS)?;
+pub fn validate_method_manifest(
+    raw: RawMethodManifestIr,
+) -> Result<SkillMethodManifest, ValidationError> {
+    FIELDS.reject_unknown_fields(&raw.document, "method_manifest", MANIFEST_FIELDS)?;
     let input_definitions = validate_inputs(
         FIELDS
             .optional_object(raw.document.get("input_definitions"), "input_definitions")?
@@ -139,18 +138,18 @@ pub fn validate_runner_manifest(
                 })
         })
         .collect();
-    let runners_record = FIELDS.required_object(raw.document.get("runners"), "runners")?;
+    let methods_record = FIELDS.required_object(raw.document.get("runners"), "runners")?;
     let mut runners = BTreeMap::new();
-    let mut runner_limits = BTreeMap::new();
-    for (name, value) in runners_record {
+    let mut method_limits = BTreeMap::new();
+    for (name, value) in methods_record {
         let JsonValue::Object(runner) = value else {
             return Err(FIELDS.validation_error(format!("runners.{name} must be an object.")));
         };
-        runner_limits.insert(name.clone(), limits.narrowed(runner, name)?);
+        method_limits.insert(name.clone(), limits.narrowed(runner, name)?);
         let runner = expand_input_definitions(name, runner, &input_definitions)?;
         runners.insert(
             name.clone(),
-            validate_runner_definition(&skill, name, runner)?,
+            validate_method_definition(&skill, name, runner)?,
         );
     }
 
@@ -168,7 +167,7 @@ pub fn validate_runner_manifest(
         }
     }
     bind_operation_steps(&mut runners, &connectors)?;
-    bind_turn_allowance(&mut runners, &runner_limits, &connectors);
+    bind_turn_allowance(&mut runners, &method_limits, &connectors);
     let TurnLimits {
         tools,
         skills,
@@ -177,17 +176,17 @@ pub fn validate_runner_manifest(
     } = limits;
     let marketplace = validate_marketplace(raw.document.get("marketplace"), &runners, &connectors)?;
 
-    let harness = validate_harness_manifest(
+    let harness = validate_test_manifest(
         FIELDS.optional_object(raw.document.get("harness"), "harness")?,
         "harness",
     )?;
-    validate_harness_runners(&harness, &runners)?;
+    validate_test_methods(&harness, &runners)?;
 
     let catalog = validate_catalog_metadata(
         FIELDS.optional_object(raw.document.get("catalog"), "catalog")?,
         "catalog",
     )?;
-    Ok(SkillRunnerManifest {
+    Ok(SkillMethodManifest {
         skill,
         version: FIELDS.optional_string(raw.document.get("version"), "version")?,
         catalog,
@@ -381,7 +380,7 @@ fn skill_allowance(entry: &str, value: &JsonValue) -> Result<SkillAllowance, Val
 /// Every agent step of a runner may call the whole of the runner's limits,
 /// admitted under the skill's own declarations.
 fn bind_turn_allowance(
-    runners: &mut BTreeMap<String, SkillRunnerDefinition>,
+    runners: &mut BTreeMap<String, SkillMethodDefinition>,
     limits: &BTreeMap<String, TurnLimits>,
     connectors: &BTreeMap<String, ConnectorRequirement>,
 ) {
@@ -401,7 +400,7 @@ fn bind_turn_allowance(
 
 fn validate_marketplace(
     value: Option<&JsonValue>,
-    runners: &BTreeMap<String, SkillRunnerDefinition>,
+    runners: &BTreeMap<String, SkillMethodDefinition>,
     connectors: &BTreeMap<String, ConnectorRequirement>,
 ) -> Result<Option<MarketplaceManifest>, ValidationError> {
     let Some(marketplace) = FIELDS.optional_object(value, "marketplace")? else {
@@ -546,14 +545,14 @@ fn enum_choices(input: &SkillInput) -> Option<Vec<&JsonValue>> {
 }
 
 fn expand_input_definitions(
-    runner_name: &str,
+    method_name: &str,
     runner: &JsonObject,
     definitions: &BTreeMap<String, crate::skill::SkillInput>,
 ) -> Result<JsonObject, ValidationError> {
     let Some(inputs) = runner.get("inputs") else {
         return Ok(runner.clone());
     };
-    let inputs = FIELDS.required_object(Some(inputs), &format!("runners.{runner_name}.inputs"))?;
+    let inputs = FIELDS.required_object(Some(inputs), &format!("runners.{method_name}.inputs"))?;
     let mut expanded = JsonObject::new();
     for (input_name, declaration) in inputs {
         let Some(reference) = declaration
@@ -567,7 +566,7 @@ fn expand_input_definitions(
         };
         let definition = definitions.get(reference).ok_or_else(|| {
             FIELDS.validation_error(format!(
-                "runners.{runner_name}.inputs.{input_name}.definition references unknown input_definitions.{reference}"
+                "runners.{method_name}.inputs.{input_name}.definition references unknown input_definitions.{reference}"
             ))
         })?;
         let value = serde_json::to_value(definition)
@@ -584,9 +583,9 @@ fn expand_input_definitions(
     Ok(resolved)
 }
 
-fn validate_harness_runners(
-    harness: &Option<RunnerHarnessManifest>,
-    runners: &BTreeMap<String, SkillRunnerDefinition>,
+fn validate_test_methods(
+    harness: &Option<MethodTestManifest>,
+    runners: &BTreeMap<String, SkillMethodDefinition>,
 ) -> Result<(), ValidationError> {
     for entry in harness.iter().flat_map(|harness| harness.cases.iter()) {
         if let Some(runner) = &entry.runner

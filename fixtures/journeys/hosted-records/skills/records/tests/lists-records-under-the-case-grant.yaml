@@ -1,0 +1,17 @@
+name: lists-records-under-the-case-grant
+method: list
+providers:
+  hosted:
+    principal_id: operator-fixture
+    grant:
+      grant_id: records-fixture
+      provider: fixture/records
+      scopes: [records.read]
+    operations:
+      - operation: records.list
+        target: "fixture-records://records"
+        access: read
+        result:
+          records: []
+expect:
+  status: sealed

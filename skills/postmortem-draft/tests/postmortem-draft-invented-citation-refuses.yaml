@@ -1,0 +1,43 @@
+name: postmortem-draft-invented-citation-refuses
+inputs:
+  incident_id: inc-x
+  incident_fragments:
+    - id: frag-1
+      source: log
+      text: Service restarted at 09:00.
+host:
+  answers:
+    draft:
+      postmortem_draft:
+        summary: Total outage caused by database corruption.
+        impact:
+          status: unknown
+        timeline:
+          - entry: The database corrupted.
+            fragment_id: frag-1
+            quote: database corruption detected
+        root_cause:
+          status: known
+          statement: Database corruption.
+          fragment_id: frag-1
+          quote: database corruption detected
+        unknowns: []
+        action_items: []
+expect:
+  status: sealed
+  steps:
+    - digest-fragments
+    - draft
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            decision: refused
+            timeline: []
+            publish_proposal: null
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

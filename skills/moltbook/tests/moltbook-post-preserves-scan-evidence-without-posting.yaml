@@ -1,0 +1,50 @@
+name: moltbook-post-preserves-scan-evidence-without-posting
+method: post
+inputs:
+  scan_packet:
+    decision: ready
+    opportunity_report:
+      topic: package skill migration
+      rationale: Current demand supports a practical post.
+      source_ids: [changelog_1]
+    post_outline:
+      headline: How to move a Runx skill into a package root
+      beats: [What changed, How to migrate]
+      source_ids: [changelog_1]
+    source_evidence:
+      - {source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z"}
+    evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    delivery_status: not_posted
+    validation: {status: pass, findings: []}
+  outline:
+    headline: How to move a Runx skill into a package root
+    beats: [What changed, How to migrate]
+  submolt: agents
+  community_context: OSS operators.
+  operator_guidance: Keep it factual.
+host:
+  answers:
+    author:
+      post_draft:
+        decision: ready_for_handoff
+        post_payload:
+          channel: moltbook
+          submolt: agents
+          title: How to move a Runx skill into a package root
+          body: Package-rooted skills make inspection and harness verification explicit.
+          claims:
+            - {claim: Package-rooted skills are the migration subject., source_ids: [changelog_1]}
+        moderation_notes: {final_check: [No unsupported claims.]}
+        follow_up_plan: {monitor_for: [migration questions]}
+expect:
+  status: sealed
+  steps: [admit-scan, author, digest-post, finalize-post]
+  step_outputs:
+    finalize-post:
+      subset:
+        moltbook_post_packet:
+          data:
+            decision: ready_for_handoff
+            delivery_status: not_posted
+            validation: {status: pass}
+  receipt: {schema: runx.receipt.v1}

@@ -1,0 +1,41 @@
+name: crm-update-plan-rejects-unlisted-field
+inputs:
+  transcript: Owner said move the account to Kim.
+  crm_records:
+    - id: acct-1
+      owner: lee
+  crm_schema:
+    allowed_fields:
+      - next_action
+host:
+  answers:
+    reconcile:
+      update_draft:
+        updates:
+          - record_id: acct-1
+            field: owner
+            to: kim
+            evidence_quote: move the account to Kim
+expect:
+  status: sealed
+  steps:
+    - digest-transcript
+    - digest-records
+    - reconcile
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        crm_update_proposal:
+          data:
+            decision: no_action
+            updates: []
+            rejected_updates:
+              - record_id: acct-1
+                field: owner
+                reason: field is outside the crm_schema allowlist
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

@@ -1,0 +1,36 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+    - id: lead-qualify
+      skill: ../..#qualify
+      inputs:
+        enrichment_packet:
+          decision: enriched
+          subject: {id: 'lead:example', kind: person}
+          as_of: '2026-10-10T00:00:00Z'
+          facts:
+          - {field: company.industry, value: B2B software, source_ids: ['crm:lead']}
+          missing_fields: []
+          conflicts: []
+          sources:
+          - source_id: crm:lead
+            source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            observed_at: '2026-10-09T00:00:00Z'
+            match_confidence: high
+            provenance: caller_supplied_source_digest
+          blockers: []
+          acquisition: supplied_evidence
+        criteria:
+        - {id: industry, description: Works for a B2B software company., required: true}
+        contact_eligibility:
+          subject: {id: 'lead:example', kind: person}
+          status: unknown
+          policy_id: policy:outreach
+          evidence_ids: ['policy:assessment']
+    - id: digest
+      tool: data.digest
+      inputs:
+        value: $steps.lead-qualify

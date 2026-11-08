@@ -1,0 +1,332 @@
+use std::fs;
+use std::hint::black_box;
+
+use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
+use runx_contracts::{JsonNumber, JsonObject, JsonValue};
+use runx_core::state_machine::{
+    SequentialWorkflowEvent, SequentialWorkflowPlan, SequentialWorkflowStepDefinition,
+    SequentialWorkflowStepIndex, StepAdmissionWitness, WorkflowState,
+    apply_sequential_workflow_event_owned_indexed, create_sequential_workflow,
+    create_sequential_workflow_step_index, plan_sequential_workflow_transition_indexed_from,
+    start_sequential_workflow_step_indexed, succeed_sequential_workflow_step_indexed,
+};
+use runx_runtime::{
+    EphemeralValue, InvocationOutput, RuntimeReceiptSignatureConfig, StepRun,
+    receipts::{step_receipt, workflow_receipt},
+};
+use tempfile::TempDir;
+
+#[path = "workflow_throughput/runtime_paths.rs"]
+mod runtime_paths;
+#[path = "workflow_throughput/volume_paths.rs"]
+mod volume_paths;
+
+const CREATED_AT: &str = "2026-05-26T00:00:00Z";
+const SCOPE: runx_runtime::receipts::RunScope<'static> = runx_runtime::receipts::RunScope {
+    run_id: "run_throughput",
+    workflow_name: "throughput_workflow",
+};
+const RECEIPT_STORE_SCALE_SMALL: usize = 16;
+const RECEIPT_STORE_SCALE_LARGE: usize = 128;
+
+fn bench_workflow_throughput(c: &mut Criterion) {
+    runtime_paths::register(c);
+    volume_paths::register(c);
+
+    c.bench_function("workflow_planning", |b| {
+        let steps = sequential_steps(192);
+        let step_index = create_sequential_workflow_step_index(&steps);
+        b.iter(|| drive_state_machine(black_box(&steps), black_box(&step_index)))
+    });
+
+    c.bench_function("workflow_receipt_sealing", |b| {
+        let signature = fixture_signature();
+        let template = synthetic_step_runs(&signature, 32);
+        b.iter(|| {
+            let steps = black_box(template.clone());
+            workflow_receipt(SCOPE, &steps, CREATED_AT, signature.signature_policy())
+                .map(|receipt| receipt.digest)
+        })
+    });
+
+    register_receipt_store_append(c, "receipt_store_append", 12);
+    register_receipt_store_append(
+        c,
+        "receipt_store_append_scale_small",
+        RECEIPT_STORE_SCALE_SMALL,
+    );
+    register_receipt_store_append(
+        c,
+        "receipt_store_append_scale_large",
+        RECEIPT_STORE_SCALE_LARGE,
+    );
+    register_receipt_store_index(c, "receipt_store_index", 12);
+    register_receipt_store_index(
+        c,
+        "receipt_store_index_scale_small",
+        RECEIPT_STORE_SCALE_SMALL,
+    );
+    register_receipt_store_index(
+        c,
+        "receipt_store_index_scale_large",
+        RECEIPT_STORE_SCALE_LARGE,
+    );
+}
+
+fn session_metric(stats: runx_runtime::adapters::javascript::JavaScriptSessionStats) -> JsonValue {
+    JsonValue::Object(JsonObject::from([
+        (
+            "spawn_count".to_owned(),
+            JsonValue::Number(JsonNumber::U64(stats.spawned_process_count)),
+        ),
+        (
+            "peak_in_flight".to_owned(),
+            JsonValue::Number(JsonNumber::U64(
+                u64::try_from(stats.peak_in_flight).unwrap_or(u64::MAX),
+            )),
+        ),
+    ]))
+}
+
+fn record_resource_metrics(metrics: &JsonObject) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(path) = std::env::var_os("RUNX_PERF_RESOURCE_METRICS_PATH") else {
+        return Ok(());
+    };
+    fs::write(path, serde_json::to_vec(metrics)?)?;
+    Ok(())
+}
+
+fn record_resource_metric(name: &str, metric: JsonValue) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(path) = std::env::var_os("RUNX_PERF_RESOURCE_METRICS_PATH") else {
+        return Ok(());
+    };
+    let mut metrics = match fs::read(&path) {
+        Ok(bytes) => serde_json::from_slice::<JsonObject>(&bytes)?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => JsonObject::new(),
+        Err(error) => return Err(error.into()),
+    };
+    metrics.insert(name.to_owned(), metric);
+    record_resource_metrics(&metrics)
+}
+
+fn register_receipt_store_append(c: &mut Criterion, name: &str, count: usize) {
+    c.bench_function(name, |b| {
+        let signature = fixture_signature();
+        let mut receipts = synthetic_receipts(&signature, count.saturating_add(1));
+        let pending = receipts.pop();
+        b.iter_batched(
+            || prepare_receipt_append(&signature, &receipts),
+            |prepared| match (prepared, pending.as_ref()) {
+                (Ok(fixture), Some(receipt)) => fixture
+                    .store
+                    .write_receipt(black_box(receipt), signature.signature_policy())
+                    .map(|()| black_box(fixture.directory.path().to_path_buf()))
+                    .map_err(|error| error.to_string()),
+                (Err(message), _) => Err(message),
+                (_, None) => Err("receipt append benchmark has no pending receipt".to_owned()),
+            },
+            BatchSize::PerIteration,
+        )
+    });
+}
+
+struct ReceiptAppendFixture {
+    directory: TempDir,
+    store: runx_runtime::LocalReceiptStore,
+}
+
+fn prepare_receipt_append(
+    signature: &RuntimeReceiptSignatureConfig,
+    history: &[runx_contracts::Receipt],
+) -> Result<ReceiptAppendFixture, String> {
+    let directory = TempDir::new().map_err(|source| source.to_string())?;
+    let store = runx_runtime::LocalReceiptStore::new(directory.path().join("receipts"));
+    store
+        .write_receipts(history, signature.signature_policy())
+        .map_err(|error| error.to_string())?;
+    Ok(ReceiptAppendFixture { directory, store })
+}
+
+fn register_receipt_store_index(c: &mut Criterion, name: &str, count: usize) {
+    c.bench_function(name, |b| {
+        let signature = fixture_signature();
+        let receipts = synthetic_receipts(&signature, count);
+        let temp_dir = TempDir::new().map_err(|source| source.to_string());
+        let temp_dir = match temp_dir {
+            Ok(temp_dir) => temp_dir,
+            Err(message) => return b.iter(|| Err::<usize, String>(message.clone())),
+        };
+        let store = runx_runtime::LocalReceiptStore::new(temp_dir.path().join("receipts"));
+        if let Err(error) = store.write_receipts(&receipts, signature.signature_policy()) {
+            return b.iter(|| Err::<usize, String>(error.to_string()));
+        }
+        b.iter(|| {
+            store
+                .rebuild_index(signature.signature_policy())
+                .map(|index| black_box(index.entries.len()))
+                .map_err(|error| error.to_string())
+        })
+    });
+}
+
+fn sequential_steps(count: usize) -> Vec<SequentialWorkflowStepDefinition> {
+    (0..count)
+        .map(|index| SequentialWorkflowStepDefinition {
+            id: format!("step_{index}"),
+            context_from: (index > 0).then(|| vec![format!("step_{}", index - 1)]),
+        })
+        .collect()
+}
+
+fn drive_state_machine(
+    steps: &[SequentialWorkflowStepDefinition],
+    step_index: &SequentialWorkflowStepIndex,
+) -> usize {
+    let mut graph = create_sequential_workflow("throughput_workflow", steps);
+    let mut completed = 0usize;
+    let mut planning_cursor = 0usize;
+    loop {
+        while graph.steps.get(planning_cursor).is_some_and(|step| {
+            matches!(
+                step.state,
+                runx_core::state_machine::WorkflowStepState::Succeeded
+                    | runx_core::state_machine::WorkflowStepState::Skipped
+            )
+        }) {
+            planning_cursor += 1;
+        }
+        let plan = plan_sequential_workflow_transition_indexed_from(
+            &graph,
+            steps,
+            step_index,
+            planning_cursor,
+        );
+        match plan {
+            SequentialWorkflowPlan::RunStep {
+                step_id, attempt, ..
+            } => {
+                graph = start_step(graph, &step_id, step_index);
+                graph = succeed_step(graph, &step_id, attempt, step_index);
+                completed += 1;
+            }
+            SequentialWorkflowPlan::Complete => {
+                apply_sequential_workflow_event_owned_indexed(
+                    &mut graph,
+                    SequentialWorkflowEvent::Complete,
+                    step_index,
+                );
+                return completed + usize::from(graph.state == WorkflowState::Succeeded);
+            }
+            SequentialWorkflowPlan::Blocked { .. } | SequentialWorkflowPlan::Failed { .. } => {
+                return completed;
+            }
+        }
+    }
+}
+
+fn start_step(
+    mut graph: runx_core::state_machine::SequentialWorkflow,
+    step_id: &str,
+    step_index: &SequentialWorkflowStepIndex,
+) -> runx_core::state_machine::SequentialWorkflow {
+    start_sequential_workflow_step_indexed(&mut graph, step_id, CREATED_AT.to_owned(), step_index);
+    graph
+}
+
+fn succeed_step(
+    mut graph: runx_core::state_machine::SequentialWorkflow,
+    step_id: &str,
+    attempt: u32,
+    step_index: &SequentialWorkflowStepIndex,
+) -> runx_core::state_machine::SequentialWorkflow {
+    let receipt_id = format!("sha256:{step_id}_{attempt}");
+    succeed_sequential_workflow_step_indexed(
+        &mut graph,
+        CREATED_AT.to_owned(),
+        StepAdmissionWitness::local_runtime(step_id, receipt_id),
+        Some(object([(
+            "value",
+            JsonValue::String(format!("{step_id}:{attempt}")),
+        )])),
+        step_index,
+    );
+    graph
+}
+
+/// The public fixture identity a benchmark seals under, as a replayed run is.
+fn fixture_signature() -> RuntimeReceiptSignatureConfig {
+    match RuntimeReceiptSignatureConfig::fixture() {
+        Ok(signature) => signature,
+        Err(_error) => std::process::exit(2),
+    }
+}
+
+fn synthetic_step_runs(signature: &RuntimeReceiptSignatureConfig, count: usize) -> Vec<StepRun> {
+    (0..count)
+        .map(|index| {
+            let step_id = format!("step_{index}");
+            let contract = object([(
+                "nested",
+                JsonValue::Object(object([("value", JsonValue::String(index.to_string()))])),
+            )]);
+            let output = skill_output(&format!(
+                r#"{{"nested":{{"value":{index}}},"status":"ok"}}"#
+            ));
+            let receipt = match step_receipt(
+                SCOPE,
+                &step_id,
+                1,
+                &output,
+                &contract,
+                CREATED_AT,
+                signature.signature_policy(),
+            ) {
+                Ok(receipt) => receipt,
+                Err(_error) => std::process::exit(2),
+            };
+            StepRun {
+                step_id: step_id.clone(),
+                attempt: 1,
+                skill: step_id.clone(),
+                runner: None,
+                contract,
+                artifact_outputs: Default::default(),
+                ephemeral_contract: EphemeralValue::default(),
+                outcome: output.into(),
+                admission_witness: StepAdmissionWitness::local_runtime(
+                    &step_id,
+                    receipt.id.as_str(),
+                ),
+                receipt,
+                nested_receipts: Vec::new(),
+                refusal: None,
+                settlement: None,
+            }
+        })
+        .collect()
+}
+
+fn synthetic_receipts(
+    signature: &RuntimeReceiptSignatureConfig,
+    count: usize,
+) -> Vec<runx_contracts::Receipt> {
+    synthetic_step_runs(signature, count)
+        .into_iter()
+        .map(|run| run.receipt)
+        .collect()
+}
+
+fn skill_output(value: &str) -> InvocationOutput {
+    let value = serde_json::from_str(value).unwrap_or_else(|_| JsonValue::String(value.to_owned()));
+    InvocationOutput::runtime_success(value, 0)
+}
+
+fn object(entries: impl IntoIterator<Item = (&'static str, JsonValue)>) -> JsonObject {
+    entries
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value))
+        .collect()
+}
+
+criterion_group!(benches, bench_workflow_throughput);
+criterion_main!(benches);

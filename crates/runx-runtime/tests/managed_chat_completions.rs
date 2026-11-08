@@ -332,7 +332,7 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn the_managed_agent_calls_the_runner_it_loads_and_reads_its_manual_as_guidance()
+fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let child_dir = temp.path().join("skills").join("child");
@@ -727,7 +727,7 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
     let invoke = crate::support::read_test_first_step_receipt(&receipts, &graph)?;
     let child = crate::support::read_test_first_step_receipt(&receipts, &invoke)?;
     let reason = child.seal.reason.ok_or("the child names why it failed")?;
-    assert_ne!(reason, runx_contracts::SealReason::GraphStepFailed);
+    assert_ne!(reason, runx_contracts::SealReason::WorkflowStepFailed);
     assert_eq!(invoke.seal.reason, Some(reason));
     assert_eq!(graph.seal.reason, Some(reason));
     assert_eq!(output["seal_reason"], reason.label(), "{output}");

@@ -1,0 +1,7 @@
+name: revert-refuses-a-call-the-run-never-made
+method: revert
+inputs:
+  run_id: run_session_missing
+  call_ids: [edit-1]
+expect:
+  status: failure

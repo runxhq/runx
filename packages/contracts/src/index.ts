@@ -32,11 +32,11 @@ export {
   operationAmount,
   type HttpMethod,
   type HttpReadback,
-  type HoldEvidence,
+  type LeaseEvidence,
   type HttpRequest,
   type JsonObject,
   type JsonValue,
-  type OperationHold,
+  type OperationLease,
   type OperationVerb,
   type ReferenceDeclaration,
   type ReferenceKind,
@@ -194,10 +194,10 @@ export {
 } from "./schemas/context.js";
 
 export {
-  agentActInvocationSchema,
+  turnInvocationSchema,
   questionSchema,
   approvalGateSchema,
-  validateAgentActInvocationContract,
+  validateTurnInvocationContract,
   validateQuestionContract,
   validateApprovalGateContract,
 } from "./schemas/agent-act.js";
@@ -450,7 +450,7 @@ import { runxSchemaArtifacts } from "./schema-artifacts.js";
 export const runxContractSchemas = {
   output: runxSchemaArtifacts["output.schema.json"],
   agentContextEnvelope: runxSchemaArtifacts["agent-context-envelope.schema.json"],
-  agentActInvocation: runxSchemaArtifacts["agent-act-invocation.schema.json"],
+  turnInvocation: runxSchemaArtifacts["agent-act-invocation.schema.json"],
   turnCall: runxSchemaArtifacts["turn-call.schema.json"],
   turnStatus: runxSchemaArtifacts["turn-status.schema.json"],
   runRead: runxSchemaArtifacts["run-read.schema.json"],

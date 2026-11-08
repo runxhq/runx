@@ -8,11 +8,11 @@
 mod parser_catalog;
 mod parser_connectors;
 mod parser_fixtures;
-mod parser_graph_context_edges;
 mod parser_marketplace;
 mod parser_packet;
 mod parser_rejections;
 mod parser_skill_package;
 mod parser_step_kinds;
 mod parser_turn_limits;
+mod parser_workflow_context_edges;
 mod plugin_connectors;

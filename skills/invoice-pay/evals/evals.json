@@ -1,0 +1,59 @@
+{
+  "skill_name": "invoice-pay",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Pay this invoice file.",
+      "expected_output": "Stop before any payment and say which term could not be bound.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Pay this invoice file.",
+      "expected_output": "Stop before any payment and say which term could not be bound.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Pay this invoice file.",
+      "expected_output": "Stop before any payment and say which term could not be bound.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Pay this invoice file.",
+      "expected_output": "Read the invoice's own terms, convert the amount in the method's unit, and pay it through pay with resource readback.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Pay this invoice.",
+      "expected_output": "Check the invoice against the authority and pay it through pay with resource readback.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Pay this invoice.",
+      "expected_output": "Check the invoice against the authority and pay it through pay with resource readback.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Pay this invoice.",
+      "expected_output": "Check the invoice against the authority and pay it through pay with resource readback.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Pay this invoice.",
+      "expected_output": "Check the invoice against the authority and pay it through pay with resource readback.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Pay this invoice.",
+      "expected_output": "Check the invoice against the authority and pay it through pay with resource readback.",
+      "files": []
+    }
+  ]
+}

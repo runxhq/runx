@@ -123,7 +123,7 @@ canonical hashing. Never create a new key merely to retry an uncertain act.
 An acknowledgement, unchanged metadata, a receipt signature or an evidence
 draft alone is not proof of a bank submission.
 
-## Agent task contract: `dispute-response-draft`
+## Agent task: dispute-response-draft
 
 Read `case_context`, including existing staged evidence and cumulative refunds.
 Return `response_draft` with:

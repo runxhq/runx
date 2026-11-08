@@ -1,13 +1,13 @@
 use runx_contracts::{JsonObject, JsonValue};
 
-use super::fixtures::HarnessJsonExpectation;
-use super::runner::HarnessReplayError;
+use super::fixtures::TestJsonExpectation;
+use super::runner::TestReplayError;
 
 pub(crate) fn assert_json_expectation(
-    expectation: &HarnessJsonExpectation,
+    expectation: &TestJsonExpectation,
     actual: &JsonValue,
     field: &str,
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     if let Some(expected) = &expectation.exact
         && expected != actual
     {
@@ -23,7 +23,7 @@ fn assert_json_subset(
     expected: &JsonValue,
     actual: &JsonValue,
     field: &str,
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     match expected {
         JsonValue::Object(expected_object) => {
             let Some(actual_object) = object_value(actual) else {
@@ -64,8 +64,8 @@ fn object_value(value: &JsonValue) -> Option<&JsonObject> {
     }
 }
 
-fn json_mismatch(field: String, expected: &JsonValue, actual: &JsonValue) -> HarnessReplayError {
-    HarnessReplayError::Mismatch {
+fn json_mismatch(field: String, expected: &JsonValue, actual: &JsonValue) -> TestReplayError {
+    TestReplayError::Mismatch {
         field,
         expected: json_value_text(expected),
         actual: json_value_text(actual),
@@ -105,7 +105,7 @@ mod tests {
 
         assert!(matches!(
             assert_json_subset(&expected, &actual, "expect.output.subset"),
-            Err(HarnessReplayError::Mismatch { .. })
+            Err(TestReplayError::Mismatch { .. })
         ));
         Ok(())
     }

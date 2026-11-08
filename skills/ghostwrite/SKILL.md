@@ -100,9 +100,7 @@ using those claims and record the voice packet digest. `package` can create the
 newsletter payload. `handoff` can point to the email provider lane. None of those
 steps means the newsletter was approved or sent.
 
-## Agent task contract
-
-### `ghostwrite-draft`
+## Agent task: ghostwrite-draft
 
 Write only from the supplied evidence context. Return the content brief, draft,
 review checklist, distribution notes, and exact context bindings. Copy the brief's

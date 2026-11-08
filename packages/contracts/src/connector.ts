@@ -92,7 +92,7 @@ export interface CredentialDeclaration {
  * the credential's fields from the provider's answer, moves its expiry, or
  * ends the hold, and the kernel sees only the hold's evidence.
  */
-export interface OperationHold {
+export interface OperationLease {
   readonly action: "take" | "refresh" | "release";
   /** The connector's `kind: purchase` credential. */
   readonly credential: string;
@@ -105,7 +105,7 @@ export interface OperationHold {
 }
 
 /** Where runx Connect put a held value in a provider answer, as `{"$held": ...}`. */
-export interface HoldEvidence {
+export interface LeaseEvidence {
   readonly target: string;
   readonly expires_at: string;
   readonly value_digest: string;
@@ -171,7 +171,7 @@ export interface ConnectorOperation {
    */
   readonly effect?: OperationEffect;
   /** What the call does to a resource a purchase holds. */
-  readonly holds?: OperationHold;
+  readonly holds?: OperationLease;
   /** Present when the hosted placement offers the operation. */
   readonly hosted?: { readonly provider_scopes?: readonly string[] };
   readonly implementation?: {

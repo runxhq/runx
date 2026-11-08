@@ -62,9 +62,7 @@ work. Delivery still needs a real destination, exact content and the approval
 required by the selected communication lane; a send proposal creates no
 approval and performs no delivery.
 
-## Agent task contracts
-
-### `contract-draft-assemble`
+## Agent task: contract-draft-assemble
 
 Read `template`, `parties`, and `terms` from step inputs. Return `draft_doc`
 with `title`, `clauses` (each `id`, `heading`, `text`), and `deviations` as an

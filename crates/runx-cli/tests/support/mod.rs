@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use runx_contracts::ReceiptSchema;
-use runx_runtime::harness::{HarnessFixture, ReceiptExpectation};
+use runx_runtime::harness::{ReceiptExpectation, TestFixture};
 
 const FIXTURE_SIGNING_SEED: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
@@ -240,12 +240,12 @@ fn require_stderr_prefix(lines: &[&str], cursor: &mut usize, prefix: &str) -> Re
     }
 }
 
-pub struct GovernedHarnessFixture {
+pub struct GovernedTestFixture {
     path: PathBuf,
     root: PathBuf,
 }
 
-impl GovernedHarnessFixture {
+impl GovernedTestFixture {
     pub fn path_str(&self) -> Result<&str, Box<dyn std::error::Error>> {
         self.path
             .to_str()
@@ -257,28 +257,28 @@ impl GovernedHarnessFixture {
     }
 }
 
-impl Drop for GovernedHarnessFixture {
+impl Drop for GovernedTestFixture {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.root).ok();
     }
 }
 
-pub fn governed_harness_fixture(
+pub fn governed_test_fixture(
     fixture: &str,
-) -> Result<GovernedHarnessFixture, Box<dyn std::error::Error>> {
+) -> Result<GovernedTestFixture, Box<dyn std::error::Error>> {
     let repo = repo_root()?;
     let source_path = repo.join(fixture);
     let parent = source_path
         .parent()
         .ok_or("harness fixture path has no parent")?;
-    let root = isolated_target_temp_root("governed-harness")?;
+    let root = isolated_target_temp_root("governed-test")?;
     let file_name = source_path
         .file_name()
         .ok_or("harness fixture path has no file name")?;
     let path = root.join(file_name);
-    let fixture = runx_runtime::load_harness_fixture(&source_path)?;
-    fs::write(&path, governed_harness_document(fixture, parent)?)?;
-    Ok(GovernedHarnessFixture { path, root })
+    let fixture = runx_runtime::load_test_fixture(&source_path)?;
+    fs::write(&path, governed_test_document(fixture, parent)?)?;
+    Ok(GovernedTestFixture { path, root })
 }
 
 pub fn write_agent_task_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -311,8 +311,8 @@ runners:
     Ok(skill_dir)
 }
 
-fn governed_harness_document(
-    mut fixture: HarnessFixture,
+fn governed_test_document(
+    mut fixture: TestFixture,
     fixture_parent: &Path,
 ) -> Result<String, Box<dyn std::error::Error>> {
     if !fixture.target.is_empty() {

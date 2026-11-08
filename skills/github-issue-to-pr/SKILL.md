@@ -102,7 +102,7 @@ If the checkout has changed, recover the exact candidate or produce a newly
 checked work packet. Notifications, comments, feeds and release work remain
 separate downstream capabilities.
 
-### `github-issue-to-pr-host-work`
+## Agent task: github-issue-to-pr-host-work
 
 Do the requested repository work, following its actual instructions and authority.
 Inspect before editing; select appropriate checks; report their real outcome and

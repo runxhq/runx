@@ -8,7 +8,7 @@ use runx_contracts::{
 };
 
 use super::path::{canonical_directory, display_repo_path, invalid_skill_change};
-use super::staging::{InlineCandidateStage, ValidationReceiptStage, isolated_harness_env};
+use super::staging::{InlineCandidateStage, ValidationReceiptStage, isolated_test_env};
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
 
@@ -27,7 +27,7 @@ pub(super) fn validate_candidate(
     candidate: &Path,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
-    run_harness: bool,
+    run_test: bool,
     architecture: Option<&SkillArchitectureDecision>,
 ) -> Result<CandidateValidation, RuntimeError> {
     let loaded = crate::load_validated_skill_package(candidate)?;
@@ -42,10 +42,10 @@ pub(super) fn validate_candidate(
                 .and_then(serde_json::from_value::<JsonObject>)
                 .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
         })?;
-    let harness = if run_harness {
-        run_candidate_harness(repo_root, candidate, env, effects)?
+    let harness = if run_test {
+        run_candidate_test(repo_root, candidate, env, effects)?
     } else {
-        skipped_harness()
+        skipped_test()
     };
     Ok(CandidateValidation { inspect, harness })
 }
@@ -53,7 +53,7 @@ pub(super) fn validate_candidate(
 fn validate_architecture_identity(
     architecture: &SkillArchitectureDecision,
     package: &runx_parser::ValidatedSkillPackage,
-    manifest: Option<&runx_parser::SkillRunnerManifest>,
+    manifest: Option<&runx_parser::SkillMethodManifest>,
 ) -> Result<(), RuntimeError> {
     // The package loader already enforces public catalog readiness. This
     // boundary binds that validated package to the admitted architecture.
@@ -85,21 +85,21 @@ fn validate_architecture_identity(
     Ok(())
 }
 
-fn run_candidate_harness(
+fn run_candidate_test(
     repo_root: &Path,
     candidate: &Path,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<JsonObject, RuntimeError> {
     let receipt_stage = ValidationReceiptStage::prepare(repo_root)?;
-    let mut harness_env = isolated_harness_env(repo_root, env, receipt_stage.root());
-    crate::services::merge_inferred_tool_roots(&mut harness_env, candidate);
-    install_candidate_closure(repo_root, candidate, &harness_env)?;
+    let mut test_env = isolated_test_env(repo_root, env, receipt_stage.root());
+    crate::services::merge_inferred_tool_roots(&mut test_env, candidate);
+    install_candidate_closure(repo_root, candidate, &test_env)?;
     let harness = crate::orchestrator::LocalOrchestrator::with_effects_and_environment(
         effects.clone(),
-        harness_env,
+        test_env,
     )
-    .run_package_harness(&crate::orchestrator::PackageHarnessRequest {
+    .run_package_test(&crate::orchestrator::PackageTestRequest {
         skill_path: candidate.to_path_buf(),
         receipt_dir: Some(receipt_stage.receipt_dir.clone()),
     })
@@ -148,13 +148,13 @@ fn install_candidate_closure(
         .map_err(|error| unbound(error.to_string()))
 }
 
-fn skipped_harness() -> JsonObject {
+fn skipped_test() -> JsonObject {
     JsonObject::from([
         ("attempted".to_owned(), JsonValue::Bool(false)),
         ("status".to_owned(), JsonValue::String("skipped".to_owned())),
         (
             "reason".to_owned(),
-            JsonValue::String("needs_consequential_harness_approval".to_owned()),
+            JsonValue::String("needs_consequential_test_approval".to_owned()),
         ),
     ])
 }
@@ -163,7 +163,7 @@ pub(crate) fn validate_skill_package(
     repo_root: &Path,
     requested_path: &str,
     candidate_files: Option<&[JsonValue]>,
-    allow_execute_harness: bool,
+    allow_execute_test: bool,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<SkillValidation, RuntimeError> {
@@ -173,7 +173,7 @@ pub(crate) fn validate_skill_package(
         .transpose()?;
     let candidate_path = resolve_candidate_path(&repo_root, requested_path, stage.as_ref())?;
     let inspected = crate::inspect_skill_package(&candidate_path, None, Some(env));
-    let run_harness = allow_execute_harness || safe_harness_execution(inspected.as_ref().ok());
+    let run_test = allow_execute_test || safe_test_execution(inspected.as_ref().ok());
     let inspected = inspected.and_then(|inspection| {
         serde_json::to_value(&inspection)
             .and_then(serde_json::from_value)
@@ -188,12 +188,12 @@ pub(crate) fn validate_skill_package(
         display_repo_path(&repo_root, &candidate_path)
     };
 
-    let result = validate_candidate(&repo_root, &candidate_path, env, effects, run_harness, None);
+    let result = validate_candidate(&repo_root, &candidate_path, env, effects, run_test, None);
     Ok(validation_result_report(
         requested_path,
         &resolved_path,
         inspected,
-        run_harness,
+        run_test,
         result,
     ))
 }
@@ -202,7 +202,7 @@ fn validation_result_report(
     requested_path: &str,
     resolved_path: &str,
     inspected: Result<JsonObject, crate::SkillInspectionError>,
-    run_harness: bool,
+    run_test: bool,
     result: Result<CandidateValidation, RuntimeError>,
 ) -> SkillValidation {
     let (verdict, inspect, harness) = match result {
@@ -210,7 +210,7 @@ fn validation_result_report(
             let verdict = if validation.harness.get("status").and_then(JsonValue::as_str)
                 == Some("skipped")
             {
-                SkillValidationVerdict::NeedsConsequentialHarnessApproval
+                SkillValidationVerdict::NeedsConsequentialTestApproval
             } else {
                 SkillValidationVerdict::Tested
             };
@@ -220,7 +220,7 @@ fn validation_result_report(
             SkillValidationVerdict::ValidationFailed,
             failed_inspection(inspected),
             JsonObject::from([
-                ("attempted".to_owned(), JsonValue::Bool(run_harness)),
+                ("attempted".to_owned(), JsonValue::Bool(run_test)),
                 ("status".to_owned(), JsonValue::String("failed".to_owned())),
                 ("reason".to_owned(), JsonValue::String(error.to_string())),
             ]),
@@ -279,7 +279,7 @@ fn resolve_candidate_path(
     Ok(resolved)
 }
 
-fn safe_harness_execution(inspection: Option<&runx_contracts::SkillInspection>) -> bool {
+fn safe_test_execution(inspection: Option<&runx_contracts::SkillInspection>) -> bool {
     inspection
         .and_then(|inspection| inspection.capabilities.as_ref())
         .is_none_or(|capabilities| matches!(capabilities.execution.as_str(), "read" | "plan"))

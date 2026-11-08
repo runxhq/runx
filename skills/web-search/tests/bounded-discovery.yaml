@@ -1,0 +1,44 @@
+name: bounded-discovery
+setup:
+  credentials:
+  - exa
+inputs:
+  query: Example API documentation
+  limit: 3
+env:
+  EXA_API_KEY: harness-exa-key
+providers:
+  http:
+  - request:
+      method: POST
+      url: https://api.exa.ai/search
+      body:
+        json:
+          query: Example API documentation
+          numResults: 3
+          type: auto
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"requestId":"fixture-1","results":[{"url":"https://example.com/docs","title":"Example docs"},{"url":"https://example.com/docs","title":"Example docs"}],"costDollars":{"total":0.005}}'
+expect:
+  status: sealed
+  steps:
+  - validate
+  - search
+  - normalize
+  step_outputs:
+    normalize:
+      subset:
+        search_result:
+          data:
+            decision: sources_found
+            returned_count: 2
+            duplicate_count: 1
+            reported_cost_usd: 0.005
+            sources:
+            - url: https://example.com/docs
+              content_status: not_fetched
+  receipt:
+    schema: runx.receipt.v1

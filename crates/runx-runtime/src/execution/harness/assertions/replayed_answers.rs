@@ -1,21 +1,21 @@
 use runx_contracts::{JsonObject, JsonValue};
 
-use crate::execution::harness::runner::{HarnessReplayError, HarnessReplayOutput};
+use crate::execution::harness::runner::{TestReplayError, TestReplayOutput};
 
 pub(super) fn assert_caller_answers_replayed(
-    output: &HarnessReplayOutput,
-) -> Result<(), HarnessReplayError> {
+    output: &TestReplayOutput,
+) -> Result<(), TestReplayError> {
     assert_replayed_answers(&output.fixture.caller.answers, &output.replayed_answers)
 }
 
 fn assert_replayed_answers(
     answers: &JsonObject,
     replayed_answers: &JsonObject,
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     for (request_id, answer) in answers {
         let expected = json_text(answer);
         let Some(actual) = replayed_answers.get(request_id) else {
-            return Err(HarnessReplayError::Mismatch {
+            return Err(TestReplayError::Mismatch {
                 field: format!("caller.answers.{request_id}.replayed"),
                 expected,
                 actual: "<answer was not consumed>".to_owned(),
@@ -24,7 +24,7 @@ fn assert_replayed_answers(
         if json_text(answer) == json_text(actual) {
             continue;
         }
-        return Err(HarnessReplayError::Mismatch {
+        return Err(TestReplayError::Mismatch {
             field: format!("caller.answers.{request_id}.replayed"),
             expected,
             actual: json_text(actual),
@@ -42,7 +42,7 @@ fn json_text(value: &JsonValue) -> String {
 mod tests {
     use runx_contracts::{JsonNumber, JsonObject, JsonValue};
 
-    use super::{HarnessReplayError, assert_replayed_answers};
+    use super::{TestReplayError, assert_replayed_answers};
 
     fn send_plan(decision: &str) -> JsonValue {
         JsonValue::Object(JsonObject::from([(
@@ -72,7 +72,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(HarnessReplayError::Mismatch { field, .. })
+            Err(TestReplayError::Mismatch { field, .. })
                 if field == "caller.answers.plan.replayed"
         ));
     }
@@ -106,7 +106,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(HarnessReplayError::Mismatch { field, actual, .. })
+            Err(TestReplayError::Mismatch { field, actual, .. })
                 if field == "caller.answers.plan.replayed"
                     && actual == "<answer was not consumed>"
         ));

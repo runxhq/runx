@@ -1,0 +1,45 @@
+name: skill-review-assesses-supplied-evidence
+method: assess
+inputs:
+  skill: example/skill
+  evidence_pack:
+    inspect:
+      status: ok
+    harness:
+      status: passed
+host:
+  answers:
+    assess:
+      capability_profile:
+        skill: example/skill
+        summary: Only inspection and harness status flags were supplied.
+        operator_job: Unknown from the supplied evidence.
+        default_result: Unknown; no actual implementation or artifact is present.
+        caller_work:
+          - Supply the actual manual, implementation, ordinary request and resulting artifact or effect evidence.
+        value_judgment: unknown
+        value_reason: A status of ok or passed does not describe what an agent can accomplish.
+        composition: No actual input/output or reuse contract is present in this evidence pack.
+      trust_assessment:
+        tier: supplied_status_only
+        caveats:
+          - The caller supplied status flags without source or real-use evidence.
+        implementation_evidence: []
+        product_evidence: []
+      test_matrix:
+        - check: Implementation and advertised behavior
+          status: required
+          evidence: Not included.
+        - check: Actual ordinary or downstream job
+          status: required
+          evidence: Not included.
+      recommendation_report:
+        recommendation: needs_more_evidence
+        rationale: The provided status flags cannot support an adoption or usefulness decision.
+        blockers:
+          - Missing capability, implementation and actual outcome evidence.
+        next_action: Provide bounded source and an ordinary-request result; reuse existing inspection rather than rerun provider effects.
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

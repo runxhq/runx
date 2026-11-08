@@ -1,0 +1,15 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: acquire
+        skill: ../..#capture
+        inputs:
+          repository: example/project
+          number: 42
+      - id: offline
+        skill: ../..#from-snapshot
+        inputs:
+          snapshot: $steps.acquire.project_artifact

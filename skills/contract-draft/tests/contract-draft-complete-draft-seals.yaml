@@ -1,0 +1,64 @@
+name: contract-draft-complete-draft-seals
+inputs:
+  template:
+    id: msa-basic-v1
+    version: "1.0"
+    title: Services Agreement
+    required_terms:
+      - services
+      - fee_usd
+    clauses:
+      - id: parties
+        heading: Parties
+        baseline: This Services Agreement is between {{provider.legal_name}} and {{customer.legal_name}}.
+      - id: fees
+        heading: Fees and Payment
+        baseline: Customer will pay USD {{terms.fee_usd}} for {{terms.services}}.
+  parties:
+    provider:
+      legal_name: Acme Pty Ltd
+    customer:
+      legal_name: Globex LLC
+  terms:
+    services: monthly platform maintenance
+    fee_usd: 4000
+host:
+  answers:
+    assemble:
+      draft_doc:
+        title: Services Agreement
+        clauses:
+          - id: parties
+            heading: Parties
+            text: This Services Agreement is between Acme Pty Ltd and Globex LLC.
+          - id: fees
+            heading: Fees and Payment
+            text: Customer will pay USD 4000 for monthly platform maintenance.
+        deviations: []
+expect:
+  status: sealed
+  steps:
+    - admit
+    - digest-template
+    - digest-parties
+    - digest-terms
+    - assemble
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        contract_draft:
+          data:
+            schema: runx/contract-draft.draft.v1
+            decision: drafted
+            deviations: []
+            send_proposal:
+              gate: human-approver
+              delivery_skill: message-send
+              sent: false
+            delivery_performed: false
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

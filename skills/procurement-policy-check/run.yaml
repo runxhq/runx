@@ -1,274 +1,68 @@
-skill: procurement-policy-check
 version: "0.1.9"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
   category: payments
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases:
-    - name: procurement-policy-check-approves-in-policy
-      operator_journeys:
-        - mode: standalone
-          confusors:
-            - pay
-            - invoice-pay
-          request: Decide whether this procurement request is allowed under the procurement policy before any
-            money moves.
-          expected_outcome: Return an approval decision bound to the exact request and policy digests, with no
-            spend executed.
-        - mode: composed
-          request: Check this already captured procurement request against its supplied policy/budget
-            snapshot.
-          expected_outcome: Reuse the exact policy/request evidence without fetching accounts, reserving funds
-            or executing a spend.
-          prior_evidence:
-            - The original procurement terms and policy/budget snapshot selected upstream.
-          must_not_repeat:
-            - Do not refresh provider accounts or reserve/spend funds inside this policy decision.
-      inputs:
-        procurement_request:
-          payee: sourcey
-          amount: 125
-          currency: USD
-          purpose: generate public llms.txt docs for a maintained OSS project
-        procurement_policy:
-          currency: USD
-          remaining_budget: 300
-          request_cap: 200
-          approved_payees:
-            - sourcey
-            - runx
-          approval_threshold: 200
-      expect:
-        status: sealed
-        steps:
-          - digest-request
-          - digest-policy
-          - decide
-        step_outputs:
-          decide:
-            subset:
-              procurement_approval:
-                data:
-                  schema: runx/procurement-policy-check.approval.v1
-                  decision: approved
-                  payee: sourcey
-                  ceiling_amount: 200
-                  human_lane: null
-                  refused_reason: null
-                  spend_executed: false
-                  validation:
-                    status: pass
-                    findings: []
-        receipt:
-          schema: runx.receipt.v1
-    - name: procurement-policy-check-refuses-unapproved-payee
-      inputs:
-        procurement_request:
-          payee: unknown-ai-tool
-          amount: 450
-          currency: USD
-          purpose: buy unreviewed credits
-        procurement_policy:
-          currency: USD
-          remaining_budget: 300
-          request_cap: 200
-          approved_payees:
-            - sourcey
-            - runx
-          approval_threshold: 200
-      expect:
-        status: sealed
-        steps:
-          - digest-request
-          - digest-policy
-          - decide
-        step_outputs:
-          decide:
-            subset:
-              procurement_approval:
-                data:
-                  decision: refused
-                  refused_reason: unapproved_payee
-                  spend_executed: false
-        receipt:
-          schema: runx.receipt.v1
-    - name: procurement-policy-check-routes-threshold-to-human
-      inputs:
-        procurement_request:
-          payee: runx
-          amount: 200
-          currency: USD
-          purpose: annual plan renewal
-        procurement_policy:
-          currency: USD
-          remaining_budget: 500
-          request_cap: 400
-          approved_payees:
-            - sourcey
-            - runx
-          approval_threshold: 200
-          human_lane: finance-review
-      expect:
-        status: sealed
-        steps:
-          - digest-request
-          - digest-policy
-          - decide
-        step_outputs:
-          decide:
-            subset:
-              procurement_approval:
-                data:
-                  decision: needs_human
-                  human_lane: finance-review
-                  spend_executed: false
-        receipt:
-          schema: runx.receipt.v1
-    - name: procurement-policy-check-refuses-missing-policy
-      inputs:
-        procurement_request:
-          payee: sourcey
-          amount: 125
-          currency: USD
-        procurement_policy:
-          currency: USD
-      expect:
-        status: sealed
-        steps:
-          - digest-request
-          - digest-policy
-          - decide
-        step_outputs:
-          decide:
-            subset:
-              procurement_approval:
-                data:
-                  decision: refused
-                  refused_reason: missing_policy_authority
-                  validation:
-                    status: fail
-        receipt:
-          schema: runx.receipt.v1
-    - name: zero-budget-is-exhausted-not-missing
-      inputs:
-        procurement_request:
-          payee: selected-vendor
-          amount: 1
-          currency: USD
-        procurement_policy:
-          currency: USD
-          remaining_budget: 0
-          request_cap: 100
-          approved_payees:
-            - selected-vendor
-      expect:
-        status: sealed
-        step_outputs:
-          decide:
-            subset:
-              procurement_approval:
-                data:
-                  decision: refused
-                  refused_reason: over_remaining_budget
-                  validation:
-                    status: pass
-    - name: zero-threshold-can-require-review-for-every-request
-      inputs:
-        procurement_request:
-          payee: selected-vendor
-          amount: 0
-          currency: USD
-        procurement_policy:
-          currency: USD
-          remaining_budget: 0
-          request_cap: 0
-          approved_payees:
-            - selected-vendor
-          approval_threshold: 0
-          human_lane: procurement-owner
-      expect:
-        status: sealed
-        step_outputs:
-          decide:
-            subset:
-              procurement_approval:
-                data:
-                  decision: needs_human
-                  amount: 0
-                  spend_executed: false
-runners:
+methods:
   decide:
-    default: true
     inputs:
       procurement_request:
         type: object
-        required: true
         description: One proposed procurement request with payee, amount, currency, and purpose.
-        schema:
-          additionalProperties: false
-          properties:
-            payee:
+        additionalProperties: false
+        properties:
+          payee:
+            type: string
+            minLength: 1
+            maxLength: 500
+            pattern: \S
+          amount:
+            type: number
+            minimum: 0
+          currency:
+            type: string
+            minLength: 1
+            maxLength: 10
+            pattern: \S
+          purpose:
+            type: string
+            maxLength: 2000
+        required:
+          - payee
+          - amount
+          - currency
+      procurement_policy:
+        type: object
+        description: Explicit procurement authority; missing fields refuse instead of guessing.
+        additionalProperties: false
+        properties:
+          currency:
+            type: string
+            minLength: 1
+            maxLength: 10
+            pattern: \S
+          remaining_budget:
+            type: number
+            minimum: 0
+          request_cap:
+            type: number
+            minimum: 0
+          approved_payees:
+            type: array
+            maxItems: 500
+            items:
               type: string
               minLength: 1
               maxLength: 500
               pattern: \S
-            amount:
-              type: number
-              minimum: 0
-            currency:
-              type: string
-              minLength: 1
-              maxLength: 10
-              pattern: \S
-            purpose:
-              type: string
-              maxLength: 2000
-          required:
-            - payee
-            - amount
-            - currency
-      procurement_policy:
-        type: object
-        required: true
-        description: Explicit procurement authority; missing fields refuse instead of guessing.
-        schema:
-          additionalProperties: false
-          properties:
-            currency:
-              type: string
-              minLength: 1
-              maxLength: 10
-              pattern: \S
-            remaining_budget:
-              type: number
-              minimum: 0
-            request_cap:
-              type: number
-              minimum: 0
-            approved_payees:
-              type: array
-              maxItems: 500
-              items:
-                type: string
-                minLength: 1
-                maxLength: 500
-                pattern: \S
-              uniqueItems: true
-            approval_threshold:
-              type: number
-              minimum: 0
-            human_lane:
-              type: string
-              minLength: 1
-              maxLength: 200
+            uniqueItems: true
+          approval_threshold:
+            type: number
+            minimum: 0
+          human_lane:
+            type: string
+            minLength: 1
+            maxLength: 200
     examples:
       - procurement_request:
           payee: sourcey
@@ -295,7 +89,6 @@ runners:
         inputs:
           value: $input.procurement_policy
       - id: decide
-        label: apply the procurement policy deterministically
         inputs:
           procurement_request: $input.procurement_request
           procurement_policy: $input.procurement_policy
@@ -307,8 +100,4 @@ runners:
         outputs:
           procurement_approval:
             type: object
-        artifacts:
-          named_emits:
-            procurement_approval: procurement_approval
-          packets:
-            procurement_approval: runx/procurement-policy-check.approval.v1
+            packet: runx/procurement-policy-check.approval.v1

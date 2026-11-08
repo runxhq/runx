@@ -1,0 +1,47 @@
+name: reads-and-normalizes-cached-activation
+method: read-posthog
+setup:
+  credentials:
+    - posthog
+  parameters:
+    posthog:
+      api_origin: https://us.posthog.com
+      project_id: "123"
+inputs:
+  insight_id: launch01
+env:
+  POSTHOG_PERSONAL_API_KEY: harness-posthog-key
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://us.posthog.com/api/projects/123/insights/launch01/?refresh=force_cache
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":42,"short_id":"launch01","name":"Activation","query":{"kind":"InsightVizNode","source":{"kind":"FunnelsQuery","dateRange":{"date_from":"-7d"},"series":[{"kind":"EventsNode","event":"signed_up"},{"kind":"EventsNode","event":"invited_teammate"}],"funnelsFilter":{"funnelOrderType":"ordered","funnelVizType":"steps","funnelWindowInterval":7,"funnelWindowIntervalUnit":"day"}}},"result":[{"order":0,"name":"signed_up","count":100},{"order":1,"name":"invited_teammate","count":65}],"last_refresh":"2026-11-01T00:00:00Z","timezone":"UTC","resolved_date_range":{"date_from":"2026-10-24T00:00:00Z","date_to":"2026-10-31T00:00:00Z"},"hasMore":false,"refreshing":false}'
+expect:
+  status: sealed
+  steps:
+    - read
+    - save
+    - normalize
+  receipt:
+    schema: runx.receipt.v1
+  step_outputs:
+    normalize:
+      subset:
+        source_admission:
+          name: current
+          report:
+            funnel:
+              steps:
+                - event: signed_up
+                  count: 100
+                - event: invited_teammate
+                  count: 65
+            observed_at: 2026-11-01T00:00:00Z
+            estimated: false
+          blockers: []

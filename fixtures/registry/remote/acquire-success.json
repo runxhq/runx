@@ -16,7 +16,7 @@
       }
     ],
     "bundle_digest": "sha256:fixture-package",
-    "runner_names": ["default"],
+    "method_names": ["default"],
     "trust_tier": "community",
     "publisher": {
       "kind": "organization",

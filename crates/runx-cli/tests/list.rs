@@ -45,9 +45,9 @@ fn list_discovers_nested_repo_skills() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[test]
-fn list_marks_a_graph_stage_internal_with_its_own_description()
+fn list_marks_a_workflow_stage_internal_with_its_own_description()
 -> Result<(), Box<dyn std::error::Error>> {
-    let root = temp_root("runx-list-graph-stage");
+    let root = temp_root("runx-list-workflow-stage");
     let skill = root.join("skills/reply");
     let stage = skill.join("graph/draft");
     fs::create_dir_all(&stage)?;
@@ -65,10 +65,10 @@ fn list_marks_a_graph_stage_internal_with_its_own_description()
     )?;
     fs::write(
         stage.join("run.yaml"),
-        "skill: reply-draft\nversion: 1.0.0\ncatalog:\n  kind: skill\n  audience: public\n  visibility: internal\n  role: graph-stage\n  part_of:\n    - reply\nrunners:\n  draft:\n    default: true\n    steps:\n      - id: draft\n        agent: { role: writer, task: draft }\n",
+        "skill: reply-draft\nversion: 1.0.0\ncatalog:\n  kind: skill\n  audience: public\n  visibility: internal\n  role: workflow-stage\n  part_of:\n    - reply\nrunners:\n  draft:\n    default: true\n    steps:\n      - id: draft\n        agent: { role: writer, task: draft }\n",
     )?;
 
-    let output = isolated_runx_command_with_inherited_cwd("list-graph-stage")
+    let output = isolated_runx_command_with_inherited_cwd("list-workflow-stage")
         .current_dir(&root)
         .args(["list", "skills", "--ok-only", "--json"])
         .output()?;

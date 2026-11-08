@@ -1,0 +1,23 @@
+{
+  "skill_name": "research-brief",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Produce a decision-ready research-brief brief from these bounded sources.",
+      "expected_output": "Return a rigorous brief with material claims bound to source evidence and no publication claim.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Produce a fresh decision-ready ecosystem brief from these bounded sources.",
+      "expected_output": "Return a concise evidence-bound ecosystem briefing with source freshness and uncertainty explicit.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Produce a decision-ready research-brief brief from these bounded sources.",
+      "expected_output": "Return a rigorous brief with material claims bound to source evidence and no publication claim.",
+      "files": []
+    }
+  ]
+}

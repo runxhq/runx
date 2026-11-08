@@ -1,0 +1,36 @@
+name: schema-check-invalid-samples-refuse
+inputs:
+  current_schema:
+    type: object
+    properties:
+      id:
+        type: string
+  proposed_schema:
+    type: object
+    properties:
+      id:
+        type: string
+  sample_payloads: []
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: sealed
+  steps:
+    - digest-current
+    - digest-proposed
+    - digest-samples
+    - validate-current
+    - validate-proposed
+    - check
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: refused
+            policy_result: invalid_input
+            proposal: null
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

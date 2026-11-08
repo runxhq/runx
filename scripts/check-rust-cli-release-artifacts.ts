@@ -591,7 +591,7 @@ function inspectTextFiles(packageDir: string, packedFiles: readonly string[], ou
       "RUNX_JS_BIN",
       "RUNX_NPM_PACKAGE",
       "RUNX_RUST_CLI",
-      "RUNX_RUST_HARNESS",
+      "RUNX_RUST_TEST",
       "npm exec",
       "packages/cli/src",
       "packages/cli/dist",

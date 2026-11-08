@@ -1,0 +1,17 @@
+{
+  "skill_name": "open-meteo-weather",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Fetch a three-day Open-Meteo forecast for Shanghai.",
+      "expected_output": "Return bounded global forecast evidence with exact coordinates and provider provenance.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Read the forecast for Shanghai, China.",
+      "expected_output": "Return location-bound provider forecast evidence from one geocode and one forecast call.",
+      "files": []
+    }
+  ]
+}

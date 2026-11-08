@@ -5,7 +5,7 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 #[test]
 fn package_mode_runs_inline_and_conventional_fixture_cases() -> TestResult {
-    let root = crate::support::temp_root("runx-package-harness-union");
+    let root = crate::support::temp_root("runx-package-test-union");
     let skill_dir = root.join("skill");
     let receipt_dir = root.join("receipts");
     fs::create_dir_all(skill_dir.join("fixtures"))?;
@@ -69,10 +69,10 @@ expect:
 
 #[test]
 fn package_mode_keeps_default_receipts_after_isolated_replay() -> TestResult {
-    let root = crate::support::temp_root("runx-package-harness-default-receipts");
+    let root = crate::support::temp_root("runx-package-test-default-receipts");
     let skill_dir = root.join("skill");
     let project = root.join(".runx");
-    let receipt_dir = project.join("harness-receipts");
+    let receipt_dir = project.join("test-receipts");
     fs::create_dir_all(&skill_dir)?;
     write_process_tool_skill(&skill_dir)?;
 
@@ -114,13 +114,13 @@ fn package_mode_keeps_default_receipts_after_isolated_replay() -> TestResult {
 
 #[test]
 fn package_mode_persists_complete_nested_receipt_lineage() -> TestResult {
-    let root = crate::support::temp_root("runx-package-harness-nested-receipts");
+    let root = crate::support::temp_root("runx-package-test-nested-receipts");
     let skill_dir = root.join("parent");
     let child_dir = root.join("child");
     let receipt_dir = root.join("receipts");
     fs::create_dir_all(skill_dir.join("fixtures"))?;
     fs::create_dir_all(&child_dir)?;
-    write_nested_harness_parent(&skill_dir)?;
+    write_nested_test_parent(&skill_dir)?;
     write_process_tool_skill(&child_dir)?;
     fs::write(
         skill_dir.join("fixtures/conventional.yaml"),
@@ -186,7 +186,7 @@ expect:
 }
 
 #[test]
-fn inline_harness_rejects_receipt_expectation_drift() -> TestResult {
+fn inline_test_rejects_receipt_expectation_drift() -> TestResult {
     assert_inline_expectation_fails(
         "receipt:\n            schema: runx.receipt.v1\n            state: deferred",
         "expect.receipt.state",
@@ -194,12 +194,12 @@ fn inline_harness_rejects_receipt_expectation_drift() -> TestResult {
 }
 
 #[test]
-fn inline_harness_rejects_step_expectation_drift() -> TestResult {
+fn inline_test_rejects_step_expectation_drift() -> TestResult {
     assert_inline_expectation_fails("steps: [missing-step]", "expect.steps")
 }
 
 #[test]
-fn inline_harness_rejects_step_output_expectation_drift() -> TestResult {
+fn inline_test_rejects_step_output_expectation_drift() -> TestResult {
     assert_inline_expectation_fails(
         "step_outputs:\n            run:\n              subset:\n                status: expected",
         "expect.step_outputs.run.subset.status",
@@ -209,8 +209,8 @@ fn inline_harness_rejects_step_output_expectation_drift() -> TestResult {
 /// Every harness case seals under the fixture identity: the caller's signing
 /// variables, even a partial set, never reach a case.
 #[test]
-fn package_harness_seals_under_the_fixture_identity_whatever_the_signer_env() -> TestResult {
-    let root = crate::support::temp_root("runx-inline-harness-signer");
+fn package_test_seals_under_the_fixture_identity_whatever_the_signer_env() -> TestResult {
+    let root = crate::support::temp_root("runx-inline-test-signer");
     let skill_dir = root.join("skill");
     let receipt_dir = root.join("receipts");
     fs::create_dir_all(&skill_dir)?;
@@ -245,7 +245,7 @@ fn package_harness_seals_under_the_fixture_identity_whatever_the_signer_env() ->
 /// environment cannot lift the refusal.
 #[test]
 fn a_refusing_host_never_runs_a_packages_process_tool() -> TestResult {
-    let root = crate::support::temp_root("runx-harness-refuses-processes");
+    let root = crate::support::temp_root("runx-run-refuses-processes");
     let skill_dir = root.join("skill");
     fs::create_dir_all(&skill_dir)?;
     write_process_tool_skill(&skill_dir)?;
@@ -280,7 +280,7 @@ fn a_refusing_host_never_runs_a_packages_process_tool() -> TestResult {
 
 #[test]
 fn standalone_fixture_persists_to_requested_store() -> TestResult {
-    let root = crate::support::temp_root("runx-standalone-harness-receipts");
+    let root = crate::support::temp_root("runx-standalone-test-receipts");
     let skill_dir = root.join("skill");
     let receipt_dir = root.join(".runx/receipts");
     fs::create_dir_all(skill_dir.join("fixtures"))?;
@@ -346,12 +346,12 @@ fn unsigned_runx_command() -> TestResult<Command> {
 fn write_process_tool_skill(skill_dir: &std::path::Path) -> TestResult {
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: harness-hint\ndescription: harness-hint fixture.\n---\n# Harness Hint\n",
+        "---\nname: test-hint\ndescription: test-hint fixture.\n---\n# Harness Hint\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: harness-hint
+skill: test-hint
 version: "0.1.0"
 
 harness:
@@ -374,15 +374,15 @@ runners:
     Ok(())
 }
 
-fn write_nested_harness_parent(skill_dir: &std::path::Path) -> TestResult {
+fn write_nested_test_parent(skill_dir: &std::path::Path) -> TestResult {
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: harness-parent\ndescription: harness-parent fixture.\n---\n# Harness Parent\n",
+        "---\nname: test-parent\ndescription: test-parent fixture.\n---\n# Harness Parent\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: harness-parent
+skill: test-parent
 version: "0.1.0"
 
 runners:
@@ -399,15 +399,15 @@ runners:
 }
 
 fn assert_inline_expectation_fails(expectation: &str, expected_field: &str) -> TestResult {
-    let root = crate::support::temp_root("runx-inline-harness-negative");
+    let root = crate::support::temp_root("runx-inline-test-negative");
     let skill_dir = root.join("skill");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: harness-negative\ndescription: harness-negative fixture.\n---\n# Harness Negative\n",
+        "---\nname: test-negative\ndescription: test-negative fixture.\n---\n# Harness Negative\n",
     )?;
     let manifest = r#"
-skill: harness-negative
+skill: test-negative
 version: "0.1.0"
 harness:
   cases:

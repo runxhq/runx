@@ -164,13 +164,13 @@ fn append_node(
         ));
     }
     out.push_str(&format!(
-        "runner_name: {}\nrunner_selection: {}\nrunner_scopes: {}\n",
+        "method_name: {}\nrunner_selection: {}\nrunner_scopes: {}\n",
         node.runner.name,
         node.runner.selection,
         list_or_none(&node.runner.scopes),
     ));
     if let Some(requested) = &node.runner.requested_name {
-        out.push_str(&format!("runner_requested_name: {requested}\n"));
+        out.push_str(&format!("method_requested_name: {requested}\n"));
     }
     append_document(
         out,
@@ -182,7 +182,7 @@ fn append_node(
         &node.skill_markdown,
         "markdown",
     );
-    let runner_label = if entry {
+    let method_label = if entry {
         format!("selected runner: {}", node.runner.name)
     } else {
         format!(
@@ -190,7 +190,7 @@ fn append_node(
             node.runner.name, node.node_path
         )
     };
-    append_json_block(out, &runner_label, &node.runner.raw)?;
+    append_json_block(out, &method_label, &node.runner.raw)?;
     append_tools(out, &node.node_path, &node.tools);
     for step in &node.steps {
         append_step(out, step)?;

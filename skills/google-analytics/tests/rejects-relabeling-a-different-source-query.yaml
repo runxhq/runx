@@ -1,0 +1,68 @@
+name: rejects-relabeling-a-different-source-query
+method: normalize-report
+inputs:
+  request:
+    property: properties/123456
+    report_type: standard
+    date_ranges:
+      - start_date: 2026-10-01
+        end_date: 2026-10-31
+    dimensions:
+      - landingPage
+    metrics:
+      - sessions
+    limit: 2
+    offset: 0
+  provider_result:
+    property: properties/123456
+    dimension_headers:
+      - name: landingPage
+    metric_headers:
+      - name: sessions
+        type: TYPE_INTEGER
+    rows:
+      - dimension_values:
+          - /docs
+        metric_values:
+          - "50"
+    row_count: 1
+    pagination:
+      returned_rows: 1
+      complete: true
+    metadata:
+      time_zone: UTC
+      currency_code: USD
+    fetched_at: 2026-11-05T00:00:00Z
+    request:
+      property: properties/123456
+      report_type: standard
+      date_ranges:
+        - start_date: 2026-01-01
+          end_date: 2026-01-31
+      dimensions:
+        - landingPage
+      metrics:
+        - sessions
+      limit: 2
+      offset: 0
+expect:
+  status: sealed
+  steps:
+    - normalize
+    - compare-query
+    - bind-query
+    - digest
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        report_evidence:
+          data:
+            decision: blocked
+            validation:
+              status: fail
+              findings:
+                - code: ga.request.mismatch
+                  message: the source query differs from the requested report; do not relabel or combine its rows
+  receipt:
+    schema: runx.receipt.v1

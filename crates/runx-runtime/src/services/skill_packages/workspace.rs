@@ -198,6 +198,6 @@ fn catalog_entry(item: RunxListItem) -> SkillCatalogEntry {
             .map(Into::into)
             .collect(),
         fixtures: item.fixtures,
-        harness_cases: item.harness_cases,
+        test_cases: item.test_cases,
     }
 }

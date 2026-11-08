@@ -1,235 +1,70 @@
-skill: moltbook
 version: "0.4.13"
+minimum_runx: 0.12.0
+default_method: scan-provider
 catalog:
-  kind: skill
-  audience: public
   visibility: public
-  role: context
-  provider: moltbook
-  execution: execute
-  completion: provider_readback
-  approval: conditional
   category: content
 
-input_definitions:
+shared_inputs:
   feed_snapshot:
     type: array
-    required: true
     description: One to 100 unique, timestamped Moltbook evidence items admitted for local analysis.
-    schema:
-      minItems: 1
-      maxItems: 100
-      items:
-        type: object
-        required: [source_id, topic, summary, observed_at]
-        additionalProperties: false
-        properties:
-          source_id: { type: string, minLength: 1, maxLength: 512 }
-          topic: { type: string, minLength: 1, maxLength: 500 }
-          summary: { type: string, minLength: 1, maxLength: 10000 }
-          observed_at: { type: string, format: date-time }
-  outline:
-    type: object
-    required: true
-    description: Exact headline and beats selected from the admitted scan packet.
-    schema:
-      required: [headline, beats]
+    minItems: 1
+    maxItems: 100
+    items:
+      type: object
+      required: [source_id, topic, summary, observed_at]
       additionalProperties: false
       properties:
-        headline: { type: string, minLength: 1, maxLength: 500 }
-        beats:
-          type: array
-          minItems: 1
-          maxItems: 20
-          items: { type: string, minLength: 1, maxLength: 1000 }
-        source_ids:
-          type: array
-          uniqueItems: true
-          items: { type: string, minLength: 1, maxLength: 512 }
-
-harness:
-  files: [fixtures/support/composed.graph]
-  cases:
-    - name: moltbook-scan-binds-fresh-opportunity
-      operator_journeys:
-        - mode: standalone
-          request: Scan Moltbook for credible opportunities relevant to this operator objective.
-          expected_outcome: Return fresh evidence-bound opportunities with credibility and source caveats explicit.
-      runner: scan
-      inputs:
-        objective: Find one useful post for Runx builders.
-        community_context: OSS operators evaluating governed agent workflows.
-        as_of: "2026-07-17T12:00:00Z"
-        max_age_hours: 48
-        feed_snapshot:
-          - { source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z" }
-          - { source_id: feedback_1, topic: migration, summary: Builders requested clearer migration guidance., observed_at: "2026-07-16T11:00:00Z" }
-      caller:
-        answers:
-          analyze:
-            scan_draft:
-              decision: ready
-              opportunity_report:
-                topic: package skill migration
-                rationale: Current product change and operator demand support a practical migration post.
-                source_ids: [changelog_1, feedback_1]
-              post_outline:
-                headline: How to move a Runx skill into a package root
-                beats: [What changed, How to migrate, How to verify]
-                source_ids: [changelog_1, feedback_1]
-              moderation_notes: { sensitivity: low, tone: direct and useful }
-              follow_up_plan: { monitor_for: [migration questions] }
-      expect:
-        status: sealed
-        steps: [admit, digest, analyze, finalize]
-        step_outputs:
-          finalize:
-            subset:
-              moltbook_scan_packet:
-                data:
-                  decision: ready
-                  delivery_status: not_posted
-                  validation: { status: pass }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: moltbook-scan-rejects-stale-feed
-      runner: scan
-      inputs:
-        objective: Find a current post.
-        as_of: "2026-07-17T12:00:00Z"
-        max_age_hours: 24
-        feed_snapshot:
-          - { source_id: old_1, topic: old, summary: Old product update., observed_at: "2026-07-10T10:00:00Z" }
-      expect:
-        status: sealed
-        steps: [admit, digest, reject]
-        step_outputs:
-          reject:
-            subset:
-              moltbook_scan_packet:
-                data:
-                  decision: needs_more_evidence
-                  delivery_status: not_posted
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: moltbook-post-preserves-scan-evidence-without-posting
-      operator_journeys:
-        - mode: composed
-          request: Prepare the exact Moltbook post from this completed opportunity scan.
-          expected_outcome: Reuse scan evidence and selected opportunity without rescanning or claiming publication.
-          prior_evidence:
-            - The completed Moltbook scan packet and selected opportunity supplied in the fixture.
-          must_not_repeat:
-            - Do not scan the Moltbook feed again.
-            - Do not publish without exact approval and provider readback.
-      runner: post
-      inputs:
-        scan_packet:
-          decision: ready
-          opportunity_report:
-            topic: package skill migration
-            rationale: Current demand supports a practical post.
-            source_ids: [changelog_1]
-          post_outline:
-            headline: How to move a Runx skill into a package root
-            beats: [What changed, How to migrate]
-            source_ids: [changelog_1]
-          source_evidence:
-            - { source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
-          evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          delivery_status: not_posted
-          validation: { status: pass, findings: [] }
-        outline:
-          headline: How to move a Runx skill into a package root
-          beats: [What changed, How to migrate]
-        submolt: agents
-        community_context: OSS operators.
-        operator_guidance: Keep it factual.
-      caller:
-        answers:
-          author:
-            post_draft:
-              decision: ready_for_handoff
-              post_payload:
-                channel: moltbook
-                submolt: agents
-                title: How to move a Runx skill into a package root
-                body: Package-rooted skills make inspection and harness verification explicit.
-                claims:
-                  - { claim: Package-rooted skills are the migration subject., source_ids: [changelog_1] }
-              moderation_notes: { final_check: [No unsupported claims.] }
-              follow_up_plan: { monitor_for: [migration questions] }
-      expect:
-        status: sealed
-        steps: [admit-scan, author, digest-post, finalize-post]
-        step_outputs:
-          finalize-post:
-            subset:
-              moltbook_post_packet:
-                data:
-                  decision: ready_for_handoff
-                  delivery_status: not_posted
-                  validation: { status: pass }
-        receipt: { schema: runx.receipt.v1 }
-
-    - name: moltbook-post-refuses-an-unready-scan
-      runner: post
-      inputs:
-        scan_packet:
-          decision: needs_more_evidence
-          delivery_status: not_posted
-          validation: { status: fail, findings: [] }
-        outline:
-          headline: How to move a Runx skill into a package root
-          beats: [What changed]
-        submolt: agents
-      expect:
-        status: sealed
-        steps: [admit-scan, reject-post]
-        step_outputs:
-          reject-post:
-            subset:
-              moltbook_post_packet:
-                data:
-                  decision: needs_more_evidence
-                  delivery_status: not_posted
-                  validation: { status: fail }
-        receipt: { schema: runx.receipt.v1 }
-
-connectors:
-  moltbook:
-    operations: [feed.scan, post.create]
-runners:
+        source_id: {type: string, minLength: 1, maxLength: 512}
+        topic: {type: string, minLength: 1, maxLength: 500}
+        summary: {type: string, minLength: 1, maxLength: 10000}
+        observed_at: {type: string, format: date-time}
+  outline:
+    type: object
+    description: Exact headline and beats selected from the admitted scan packet.
+    required: [headline, beats]
+    additionalProperties: false
+    properties:
+      headline: {type: string, minLength: 1, maxLength: 500}
+      beats:
+        type: array
+        minItems: 1
+        maxItems: 20
+        items: {type: string, minLength: 1, maxLength: 1000}
+      source_ids:
+        type: array
+        uniqueItems: true
+        items: {type: string, minLength: 1, maxLength: 512}
+methods:
   scan-provider:
     description: Read Moltbook's newest posts, in one submolt if named, and find at most one opportunity, cited to the posts behind it.
-    default: true
     inputs:
       objective:
         type: string
-        required: true
         description: Posting objective.
       community_context:
         type: string
-        required: false
         description: Intended community and discussion context.
+        optional: true
       as_of:
         type: string
-        required: false
         description: ISO-8601 evaluation time for a replay. A live read is judged at its own observation time.
+        optional: true
       max_age_hours:
         type: number
-        required: false
         default: 168
         description: Maximum feed signal age.
+        optional: true
       max_items:
         type: number
-        required: false
         default: 50
         description: Newest posts to read, at most 100.
+        optional: true
       submolt:
         type: string
-        required: false
         description: Read only this submolt's posts.
+        optional: true
     examples:
       - objective: Find one useful post for Runx builders.
         community_context: OSS operators evaluating governed agent workflows.
@@ -240,12 +75,13 @@ runners:
       - id: observed
         tool: control.observed_at
         outputs:
-          observed_at: string
+          observed_at: {type: string}
 
       - id: read-feed
         operation: moltbook/feed.scan
-        result_fields: [posts]
-        input:
+        result:
+          required: [posts]
+        inputs:
           limit: $input.max_items
           submolt: $input.submolt
 
@@ -256,13 +92,10 @@ runners:
           observed_at: $steps.observed.observed_at
           max_age_hours: $input.max_age_hours
           posts: $steps.read-feed.provider_operation.result.posts
-        tool: { module: moltbook.mjs, export: admitFeed }
+        tool: {module: moltbook.mjs, export: admitFeed}
         outputs:
-          feed_index: object
-          as_of: string
-        artifacts:
-          named_emits:
-            feed_index: feed_index
+          feed_index: {type: object}
+          as_of: {type: string}
 
       - id: digest
         tool: data.digest
@@ -276,73 +109,67 @@ runners:
         inputs:
           feed_index: $steps.admit.feed_index
           evidence_digest: $steps.digest.digest_result.digest
-        tool: { module: moltbook.mjs, export: finalizeScan }
+        tool: {module: moltbook.mjs, export: finalizeScan}
         outputs:
-          moltbook_scan_packet: object
-        artifacts:
-          named_emits:
-            moltbook_scan_packet: moltbook_scan_packet
-          packets:
-            moltbook_scan_packet: runx/moltbook.scan.v1
+          moltbook_scan_packet: {type: object, packet: runx/moltbook.scan.v1}
 
       - id: analyze
         when:
           value: $steps.admit.feed_index.decision
           equals: ready
-        agent: { role: researcher, task: moltbook-scan }
+        agent: moltbook-scan
         outputs:
           scan_draft:
             type: object
-            schema:
+            properties:
+              decision:
+                type: string
+              opportunity_report:
+                type: object
+                properties:
+                  topic:
+                    type: string
+                  rationale:
+                    type: string
+                  source_ids:
+                    type: array
+                    items:
+                      type: string
+              post_outline:
+                type: object
+                properties:
+                  headline:
+                    type: string
+                  beats:
+                    type: array
+                    items:
+                      type: string
+                  source_ids:
+                    type: array
+                    items:
+                      type: string
+              moderation_notes:
+                type: object
+                properties:
+                  sensitivity:
+                    type: string
+                  tone:
+                    type: string
+              follow_up_plan:
+                type: object
+                properties:
+                  monitor_for:
+                    type: array
+                    items:
+                      type: string
+            required:
+              - decision
+            if:
               properties:
                 decision:
-                  type: string
-                opportunity_report:
-                  type: object
-                  properties:
-                    topic:
-                      type: string
-                    rationale:
-                      type: string
-                    source_ids:
-                      type: array
-                      items:
-                        type: string
-                post_outline:
-                  type: object
-                  properties:
-                    headline:
-                      type: string
-                    beats:
-                      type: array
-                      items:
-                        type: string
-                    source_ids:
-                      type: array
-                      items:
-                        type: string
-                moderation_notes:
-                  type: object
-                  properties:
-                    sensitivity:
-                      type: string
-                    tone:
-                      type: string
-                follow_up_plan:
-                  type: object
-                  properties:
-                    monitor_for:
-                      type: array
-                      items:
-                        type: string
+                  pattern: ^ready
+            then:
               required:
-              - decision
-              if:
-                properties:
-                  decision:
-                    pattern: ^ready
-              then:
-                required:
                 - opportunity_report
                 - post_outline
                 - moderation_notes
@@ -356,9 +183,6 @@ runners:
           max_age_hours: $input.max_age_hours
           max_items: $input.max_items
           submolt: $input.submolt
-        artifacts:
-          named_emits:
-            scan_draft: scan_draft
 
       - id: finalize
         when:
@@ -368,37 +192,29 @@ runners:
           feed_index: $steps.admit.feed_index
           evidence_digest: $steps.digest.digest_result.digest
           scan_draft: $steps.analyze.scan_draft
-        tool: { module: moltbook.mjs, export: finalizeScan }
+        tool: {module: moltbook.mjs, export: finalizeScan}
         outputs:
-          moltbook_scan_packet: object
-        artifacts:
-          named_emits:
-            moltbook_scan_packet: moltbook_scan_packet
-          packets:
-            moltbook_scan_packet: runx/moltbook.scan.v1
+          moltbook_scan_packet: {type: object, packet: runx/moltbook.scan.v1}
 
   scan:
     description: Find at most one opportunity in a feed snapshot you already captured, for replay or offline work.
     inputs:
       objective:
         type: string
-        required: true
         description: Posting objective.
       community_context:
         type: string
-        required: false
         description: Intended community and discussion context.
-      feed_snapshot:
-        definition: feed_snapshot
+        optional: true
+      feed_snapshot: {}
       as_of:
         type: string
-        required: true
         description: Explicit ISO-8601 evaluation time.
       max_age_hours:
         type: number
-        required: false
         default: 168
         description: Maximum feed signal age.
+        optional: true
     examples:
       - objective: Find one useful post for Runx builders.
         community_context: OSS operators evaluating governed agent workflows.
@@ -417,13 +233,10 @@ runners:
           feed_snapshot: $input.feed_snapshot
           as_of: $input.as_of
           max_age_hours: $input.max_age_hours
-        tool: { module: moltbook.mjs, export: admitFeed }
+        tool: {module: moltbook.mjs, export: admitFeed}
         outputs:
-          feed_index: object
-          as_of: string
-        artifacts:
-          named_emits:
-            feed_index: feed_index
+          feed_index: {type: object}
+          as_of: {type: string}
 
       - id: digest
         tool: data.digest
@@ -437,73 +250,67 @@ runners:
         inputs:
           feed_index: $steps.admit.feed_index
           evidence_digest: $steps.digest.digest_result.digest
-        tool: { module: moltbook.mjs, export: finalizeScan }
+        tool: {module: moltbook.mjs, export: finalizeScan}
         outputs:
-          moltbook_scan_packet: object
-        artifacts:
-          named_emits:
-            moltbook_scan_packet: moltbook_scan_packet
-          packets:
-            moltbook_scan_packet: runx/moltbook.scan.v1
+          moltbook_scan_packet: {type: object, packet: runx/moltbook.scan.v1}
 
       - id: analyze
         when:
           value: $steps.admit.feed_index.decision
           equals: ready
-        agent: { role: researcher, task: moltbook-scan }
+        agent: moltbook-scan
         outputs:
           scan_draft:
             type: object
-            schema:
+            properties:
+              decision:
+                type: string
+              opportunity_report:
+                type: object
+                properties:
+                  topic:
+                    type: string
+                  rationale:
+                    type: string
+                  source_ids:
+                    type: array
+                    items:
+                      type: string
+              post_outline:
+                type: object
+                properties:
+                  headline:
+                    type: string
+                  beats:
+                    type: array
+                    items:
+                      type: string
+                  source_ids:
+                    type: array
+                    items:
+                      type: string
+              moderation_notes:
+                type: object
+                properties:
+                  sensitivity:
+                    type: string
+                  tone:
+                    type: string
+              follow_up_plan:
+                type: object
+                properties:
+                  monitor_for:
+                    type: array
+                    items:
+                      type: string
+            required:
+              - decision
+            if:
               properties:
                 decision:
-                  type: string
-                opportunity_report:
-                  type: object
-                  properties:
-                    topic:
-                      type: string
-                    rationale:
-                      type: string
-                    source_ids:
-                      type: array
-                      items:
-                        type: string
-                post_outline:
-                  type: object
-                  properties:
-                    headline:
-                      type: string
-                    beats:
-                      type: array
-                      items:
-                        type: string
-                    source_ids:
-                      type: array
-                      items:
-                        type: string
-                moderation_notes:
-                  type: object
-                  properties:
-                    sensitivity:
-                      type: string
-                    tone:
-                      type: string
-                follow_up_plan:
-                  type: object
-                  properties:
-                    monitor_for:
-                      type: array
-                      items:
-                        type: string
+                  pattern: ^ready
+            then:
               required:
-              - decision
-              if:
-                properties:
-                  decision:
-                    pattern: ^ready
-              then:
-                required:
                 - opportunity_report
                 - post_outline
                 - moderation_notes
@@ -516,9 +323,6 @@ runners:
           feed_snapshot: $input.feed_snapshot
           as_of: $input.as_of
           max_age_hours: $input.max_age_hours
-        artifacts:
-          named_emits:
-            scan_draft: scan_draft
 
       - id: finalize
         when:
@@ -528,38 +332,29 @@ runners:
           feed_index: $steps.admit.feed_index
           evidence_digest: $steps.digest.digest_result.digest
           scan_draft: $steps.analyze.scan_draft
-        tool: { module: moltbook.mjs, export: finalizeScan }
+        tool: {module: moltbook.mjs, export: finalizeScan}
         outputs:
-          moltbook_scan_packet: object
-        artifacts:
-          named_emits:
-            moltbook_scan_packet: moltbook_scan_packet
-          packets:
-            moltbook_scan_packet: runx/moltbook.scan.v1
+          moltbook_scan_packet: {type: object, packet: runx/moltbook.scan.v1}
 
   post:
     description: Draft a post for the opportunity a scan chose, within Moltbook's limits and the scan's evidence. Publishes nothing.
     inputs:
       scan_packet:
-        type: json
         packet: runx/moltbook.scan.v1
-        required: true
         description: Validated ready Moltbook scan packet.
-      outline:
-        definition: outline
+      outline: {}
       submolt:
         type: string
-        required: true
         description: The submolt the post is written for.
-        schema: { pattern: '^[A-Za-z0-9_-]{1,64}$' }
+        pattern: '^[A-Za-z0-9_-]{1,64}$'
       community_context:
         type: string
-        required: false
         description: Intended community context.
+        optional: true
       operator_guidance:
         type: string
-        required: false
         description: Local content guidance, not publication approval.
+        optional: true
     examples:
       - scan_packet:
           decision: ready
@@ -572,10 +367,10 @@ runners:
             beats: [What changed, How to migrate]
             source_ids: [changelog_1]
           source_evidence:
-            - { source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
+            - {source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z"}
           evidence_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           delivery_status: not_posted
-          validation: { status: pass, findings: [] }
+          validation: {status: pass, findings: []}
         outline:
           headline: How to move a Runx skill into a package root
           beats: [What changed, How to migrate]
@@ -588,69 +383,65 @@ runners:
         inputs:
           scan_packet: $input.scan_packet
           outline: $input.outline
-        tool: { module: moltbook.mjs, export: admitScan }
+        tool: {module: moltbook.mjs, export: admitScan}
         outputs:
-          post_context: object
-        artifacts:
-          named_emits:
-            post_context: post_context
+          post_context: {type: object}
 
       - id: author
         when:
           value: $steps.admit-scan.post_context.decision
           equals: ready
-        agent: { role: writer, task: moltbook-post }
+        agent: moltbook-post
         outputs:
           post_draft:
             type: object
-            schema:
+            properties:
+              decision:
+                type: string
+              post_payload:
+                type: object
+                properties:
+                  channel:
+                    type: string
+                  submolt:
+                    type: string
+                  title:
+                    type: string
+                  body:
+                    type: string
+                  claims:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        claim:
+                          type: string
+                        source_ids:
+                          type: array
+                          items:
+                            type: string
+              moderation_notes:
+                type: object
+                properties:
+                  final_check:
+                    type: array
+                    items:
+                      type: string
+              follow_up_plan:
+                type: object
+                properties:
+                  monitor_for:
+                    type: array
+                    items:
+                      type: string
+            required:
+              - decision
+            if:
               properties:
                 decision:
-                  type: string
-                post_payload:
-                  type: object
-                  properties:
-                    channel:
-                      type: string
-                    submolt:
-                      type: string
-                    title:
-                      type: string
-                    body:
-                      type: string
-                    claims:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          claim:
-                            type: string
-                          source_ids:
-                            type: array
-                            items:
-                              type: string
-                moderation_notes:
-                  type: object
-                  properties:
-                    final_check:
-                      type: array
-                      items:
-                        type: string
-                follow_up_plan:
-                  type: object
-                  properties:
-                    monitor_for:
-                      type: array
-                      items:
-                        type: string
+                  pattern: ^ready
+            then:
               required:
-              - decision
-              if:
-                properties:
-                  decision:
-                    pattern: ^ready
-              then:
-                required:
                 - post_payload
                 - moderation_notes
                 - follow_up_plan
@@ -661,9 +452,6 @@ runners:
           post_context: $steps.admit-scan.post_context
           scan_packet: $input.scan_packet
           outline: $input.outline
-        artifacts:
-          named_emits:
-            post_draft: post_draft
 
       - id: digest-post
         when:
@@ -680,14 +468,9 @@ runners:
         inputs:
           submolt: $input.submolt
           post_context: $steps.admit-scan.post_context
-        tool: { module: moltbook.mjs, export: finalizePost }
+        tool: {module: moltbook.mjs, export: finalizePost}
         outputs:
-          moltbook_post_packet: object
-        artifacts:
-          named_emits:
-            moltbook_post_packet: moltbook_post_packet
-          packets:
-            moltbook_post_packet: runx/moltbook.post.v1
+          moltbook_post_packet: {type: object, packet: runx/moltbook.post.v1}
 
       - id: finalize-post
         when:
@@ -698,26 +481,18 @@ runners:
           post_context: $steps.admit-scan.post_context
           post_draft: $steps.author.post_draft
           payload_digest: $steps.digest-post.digest_result.digest
-        tool: { module: moltbook.mjs, export: finalizePost }
+        tool: {module: moltbook.mjs, export: finalizePost}
         outputs:
-          moltbook_post_packet: object
-        artifacts:
-          named_emits:
-            moltbook_post_packet: moltbook_post_packet
-          packets:
-            moltbook_post_packet: runx/moltbook.post.v1
+          moltbook_post_packet: {type: object, packet: runx/moltbook.post.v1}
 
   publish:
     description: Publish a drafted post to its submolt once, after exact approval, and read it back.
     inputs:
       post_packet:
-        type: json
         packet: runx/moltbook.post.v1
-        required: true
         description: Exact validated runx/moltbook.post.v1 payload to publish.
       idempotency_key:
         type: string
-        required: true
         description: Stable retry key for this exact post payload.
     examples:
       - post_packet:
@@ -731,12 +506,12 @@ runners:
               - claim: Package-rooted skills are the migration subject.
                 source_ids: [changelog_1]
           payload_digest: sha256:22d50f9adab4c26e2408063ce226b8eccf65415f8abb5eb8205791cf2202c251
-          moderation_notes: { final_check: [No unsupported claims.] }
-          follow_up_plan: { monitor_for: [migration questions] }
+          moderation_notes: {final_check: [No unsupported claims.]}
+          follow_up_plan: {monitor_for: [migration questions]}
           source_evidence:
-            - { source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z" }
+            - {source_id: changelog_1, observed_at: "2026-07-16T10:00:00Z"}
           delivery_status: not_posted
-          validation: { status: pass, findings: [] }
+          validation: {status: pass, findings: []}
         idempotency_key: fixture-moltbook-publish-001
     result_from: [publish]
     steps:
@@ -780,8 +555,9 @@ runners:
         approval:
           reason: Approve publishing this exact post to Moltbook.
           type: moltbook_post
-        result_fields: [post]
-        input:
+        result:
+          required: [post]
+        inputs:
           submolt_name: $input.post_packet.post_payload.submolt
           title: $input.post_packet.post_payload.title
           content: $input.post_packet.post_payload.body

@@ -1,0 +1,40 @@
+name: obfuscated-email-stops
+method: redact-pii
+inputs:
+  content: Reach Dana at dana [at] example [dot] com for details.
+  classes:
+    - email
+  mode: redact
+host:
+  answers:
+    detect:
+      redaction_draft:
+        decision: ready
+        detected: []
+        residual_risk:
+          level: low
+          reason_code: none
+expect:
+  status: sealed
+  steps:
+    - block-policy
+    - detect
+    - apply
+  step_outputs:
+    apply:
+      subset:
+        redaction_report:
+          data:
+            decision: needs_review
+            redacted_digest: null
+            residual_risk:
+              level: medium
+              reason_code: deterministic_residual_detected
+            scanner:
+              status: hold
+              findings:
+                - class: email
+                  rule: obfuscated_email
+        redacted_content: ""
+  receipt:
+    schema: runx.receipt.v1

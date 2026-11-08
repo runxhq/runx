@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  validateRunnerManifestYamlBatch,
+  validateMethodManifestYamlBatch,
   validateSkillMarkdownBatch,
 } from "./lib/native-parser.mjs";
 
@@ -14,7 +14,7 @@ const check = process.argv.includes("--check");
 const generatedAt = "2026-05-18T00:00:00Z";
 const skillNames = ["code-intake"] as const;
 
-interface ParsedRunnerManifest {
+interface ParsedMethodManifest {
   readonly skill: string;
   readonly runners: Readonly<Record<string, {
     readonly name: string;
@@ -36,9 +36,9 @@ const packages = await Promise.all(skillNames.map(async (skillName) => {
   };
 }));
 const skills = validateSkillMarkdownBatch(packages.map((entry) => entry.skillMarkdown));
-const profiles = validateRunnerManifestYamlBatch(
+const profiles = validateMethodManifestYamlBatch(
   packages.map((entry) => entry.profileSource),
-) as ParsedRunnerManifest[];
+) as ParsedMethodManifest[];
 for (const [index, entry] of packages.entries()) {
   const profile = profiles[index];
   if (!profile) throw new Error(`native parser omitted skills/${entry.skillName}/run.yaml`);
@@ -57,15 +57,15 @@ async function generateSkillFixtures(
   skillName: typeof skillNames[number],
   skillMarkdown: string,
   profileSource: string,
-  profile: ParsedRunnerManifest,
+  profile: ParsedMethodManifest,
   declaredSkillName: string,
 ): Promise<void> {
   const profilePath = path.join(workspaceRoot, "skills", skillName, "run.yaml");
   if (declaredSkillName !== skillName || profile.skill !== skillName) {
     throw new Error(`${skillName}: product skill name drifted from SKILL.md/run.yaml`);
   }
-  const runner = defaultRunner(profile, profilePath);
-  const cases = harnessCases(profile, profilePath);
+  const runner = defaultMethod(profile, profilePath);
+  const cases = testCases(profile, profilePath);
   const targetDir = path.join(fixtureRoot, skillName);
   if (!check) {
     await rm(targetDir, { recursive: true, force: true });
@@ -81,7 +81,7 @@ async function generateSkillFixtures(
     },
     skill_name: skillName,
     manifest_hash: `sha256:${sha256(`${skillMarkdown}\n${profileSource}`)}`,
-    harness_schema: "runx.receipt.v1",
+    test_schema: "runx.receipt.v1",
     case_names: cases.map((entry) => String(entry.name)),
   }, null, 2)}\n`);
 
@@ -122,7 +122,7 @@ function intakeFixture(
   };
 }
 
-function defaultRunner(profile: ParsedRunnerManifest, sourcePath: string): string {
+function defaultMethod(profile: ParsedMethodManifest, sourcePath: string): string {
   const runners = Object.values(profile.runners);
   const defaults = runners.filter((runner) => runner.default);
   const runner = defaults.length === 1 ? defaults[0] : runners.length === 1 ? runners[0] : undefined;
@@ -156,7 +156,7 @@ function canonicalExpectation(
   };
 }
 
-function harnessCases(profile: ParsedRunnerManifest, sourcePath: string): Record<string, unknown>[] {
+function testCases(profile: ParsedMethodManifest, sourcePath: string): Record<string, unknown>[] {
   const cases = profile.harness?.cases;
   if (!cases) {
     throw new Error(`${sourcePath}: harness.cases must be an array`);

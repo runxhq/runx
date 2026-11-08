@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{ActForm, DecisionChoice, Receipt, ReferenceType};
-use runx_runtime::{HarnessReplayError, HarnessReplayOutput, run_harness_fixture};
+use runx_runtime::{TestReplayError, TestReplayOutput, run_test_fixture};
 
 /// An act's legitimacy as its receipt states it.
 fn legitimacy(act: &runx_contracts::ReceiptAct) -> String {
@@ -74,7 +74,7 @@ struct Case<'a> {
     status: &'a str,
 }
 
-fn run(root: &Path, case: &Case<'_>) -> Result<HarnessReplayOutput, HarnessReplayError> {
+fn run(root: &Path, case: &Case<'_>) -> Result<TestReplayOutput, TestReplayError> {
     crate::support::plugin_with_fixture_connectors(root, &["fixture/chat", "fixture/forge"])
         .unwrap();
     let skill = root.join("call-acts");
@@ -129,10 +129,10 @@ expect:
         .ok()
         .map(|path| BTreeMap::from([("PATH".to_owned(), path)]))
         .unwrap_or_default();
-    run_harness_fixture(path, env)
+    run_test_fixture(path, env)
 }
 
-fn post(output: &HarnessReplayOutput) -> &Receipt {
+fn post(output: &TestReplayOutput) -> &Receipt {
     &output
         .steps
         .iter()
@@ -384,7 +384,7 @@ expect:
         .ok()
         .map(|path| BTreeMap::from([("PATH".to_owned(), path)]))
         .unwrap_or_default();
-    let output = run_harness_fixture(path, env).expect("the turn seals");
+    let output = run_test_fixture(path, env).expect("the turn seals");
     let call = output
         .steps
         .iter()
@@ -405,7 +405,7 @@ expect:
 
 /// A parent whose skill step hands its child run a post, decided by
 /// `approvals`.
-fn delegate(root: &Path, approvals: &str) -> Result<HarnessReplayOutput, HarnessReplayError> {
+fn delegate(root: &Path, approvals: &str) -> Result<TestReplayOutput, TestReplayError> {
     crate::support::plugin_with_fixture_connectors(root, &["fixture/chat"]).unwrap();
     let parent = root.join("delegating");
     let child = parent.join("child");
@@ -491,7 +491,7 @@ expect:
         .ok()
         .map(|path| BTreeMap::from([("PATH".to_owned(), path)]))
         .unwrap_or_default();
-    run_harness_fixture(path, env)
+    run_test_fixture(path, env)
 }
 
 #[test]

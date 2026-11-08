@@ -117,9 +117,7 @@ policy decision.
 The runtime receipt proves which draft was validated. It does not approve or
 install the policy.
 
-## Agent task contracts
-
-### `policy-draft-draft`
+## Agent task: policy-draft-draft
 
 Draft one policy proposal using the exact runx.operational_policy.v1 contract described by the
 skill. Return decision, policy, rationale, blockers, needs_input, and success_checkpoint. Do not

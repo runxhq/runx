@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/tracker
-name: Fixture Tracker
+name: fixture/tracker
+title: Fixture Tracker
 description: Read bounded team issues of a tracker fixture.
-runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -27,7 +26,6 @@ operations:
     verb: read
     scopes: [read]
     credentials: [access_token, api_key]
-    hosted: {}
     target:
       template: {$concat: ['https://tracker.fixture.invalid/team/', {$argument: /team_id}, '/issues']}
     input_schema:
@@ -46,7 +44,7 @@ operations:
           access_token: {type: bearer, field: access_token}
           api_key: {type: header, name: authorization, field: api_key}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://tracker.fixture.invalid/graphql
             headers: {accept: application/json}
             body:

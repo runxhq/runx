@@ -1,10 +1,8 @@
 schema: runx.connector.v1
-id: link
-name: Link
-description: Authorize one-time wallet spending and pay MPP resources through your local Link
-  session. Tokens remain inside the official Link CLI.
+name: link
+title: Link
+description: Authorize one-time wallet spending and pay MPP resources through your local Link session. Tokens remain inside the official Link CLI.
 category: payments
-runtime_capability: false
 auth:
   session:
     kind: managed_command
@@ -20,9 +18,9 @@ placements:
   local:
     auth:
       - session
-pays:
+payment:
   mpp:
-    methods:
+    payment_methods:
       - stripe
 operations:
   account.read:
@@ -47,9 +45,8 @@ operations:
       process:
         tool: link.payment
   spend.request:
-    description: Request one-time wallet authorization bound to the original resource, method, body and
-      MPP challenge. Approval is not payment.
-    verb: create
+    description: Request one-time wallet authorization bound to the original resource, method, body and MPP challenge. Approval is not payment.
+    verb: write
     scopes:
       - payment.link.request
     target:
@@ -188,8 +185,7 @@ operations:
       process:
         tool: link.payment
   payment.mpp:
-    description: Pay one pinned Stripe MPP charge with an approved Link spend request, then
-      independently read its payment outcome.
+    description: Pay one pinned Stripe MPP charge with an approved Link spend request, then independently read its payment outcome.
     verb: write
     scopes:
       - payment.link.pay

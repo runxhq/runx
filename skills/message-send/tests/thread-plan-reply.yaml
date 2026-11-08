@@ -1,0 +1,42 @@
+name: message-send-thread-slack-plans-one-digest-bound-thread-reply
+method: plan_reply
+inputs:
+  principal: user:kam
+  thread_locator: slack://T123ABC/C123ABC/1750000000.000001
+  text: I’ll verify this now.
+  provider_context:
+    connector: runx-connect
+    workspace: T123ABC
+  operator_context: Reply only in the supplied thread and require approval before delivery.
+host:
+  answers:
+    plan:
+      send_plan:
+        decision: ready
+        action_family: message-send
+        principal: {type: user, uri: "user:kam"}
+        provider: {name: slack, account_id: "workspace:T123ABC", runtime_path: slack}
+        send_class: internal
+        channel: chat
+        audience:
+          type: thread
+          locator: slack://T123ABC/C123ABC/1750000000.000001
+          requires_reconfirmation: false
+        content:
+          draft_uri: inline
+          digest: sha256:8604f5c08db8d76b6fa8066c769fbdc6a4992101373d0d17bcfe426cf8e77647
+          subject_or_title: Slack thread reply
+        gates:
+          preflight_required: true
+          human_approval_required: true
+          approval_id: slack.deliver-reply.approval
+        blockers: []
+        provider_actions: [thread.reply]
+        evidence_locators: []
+        success_checkpoint:
+          milestone: plan_ready
+          description: Digest-bound Slack reply awaits approved provider execution.
+expect:
+  status: sealed
+  steps: [digest, authorize]
+  receipt: {schema: runx.receipt.v1}

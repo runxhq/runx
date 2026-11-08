@@ -1,0 +1,11 @@
+{
+  "skill_name": "team-delegate",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Divide this bounded documentation task between the supplied researcher and writer.",
+      "expected_output": "Return roster-bound assignments with exact targets, input context and acceptance checks; do not start a standing case or claim execution.",
+      "files": []
+    }
+  ]
+}

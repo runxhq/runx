@@ -1,0 +1,34 @@
+name: knowledge-router-rejects-invented-reference
+inputs:
+  question: Where is the retention policy documented?
+  available_sources:
+    sources:
+      - id: policy-docs
+        kind: docs
+        summary: Product policy documentation.
+    owners: []
+    skills: []
+host:
+  answers:
+    propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: policy
+          rationale: Use the retention documentation.
+          source_ids:
+            - invented-docs
+        source_matches:
+          - source_id: invented-docs
+            matching_signal: retention policy
+            reason: Invented source must be rejected.
+        owner_recommendation: null
+        next_skill: null
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - digest
+    - propose
+    - validate

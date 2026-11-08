@@ -1,0 +1,47 @@
+name: crm-update-plan-proposes-traced-updates
+inputs:
+  transcript: "Call with Globex on renewal. Dana said the rollout stalled and they want an executive review before renewing. Next step agreed: send the Q3 usage report by Friday."
+  crm_records:
+    - id: acct-globex
+      account_status: healthy
+      next_action: none
+  crm_schema:
+    allowed_fields:
+      - account_status
+      - next_action
+      - health_score
+host:
+  answers:
+    reconcile:
+      update_draft:
+        updates:
+          - record_id: acct-globex
+            field: account_status
+            to: at_risk
+            evidence_quote: the rollout stalled and they want an executive review before renewing
+          - record_id: acct-globex
+            field: next_action
+            to: send the Q3 usage report by Friday
+            evidence_quote: send the Q3 usage report by Friday
+expect:
+  status: sealed
+  steps:
+    - digest-transcript
+    - digest-records
+    - reconcile
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        crm_update_proposal:
+          data:
+            schema: runx/crm-update-plan.proposal.v1
+            decision: proposed
+            write_performed: false
+            gate: crm-operator-or-human-approver
+            rejected_updates: []
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

@@ -1,0 +1,6 @@
+name: webhook-handoff-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps: [webhook-handoff, digest]
+  receipt: {schema: runx.receipt.v1}

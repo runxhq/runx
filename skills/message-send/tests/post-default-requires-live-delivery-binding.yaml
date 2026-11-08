@@ -1,0 +1,30 @@
+name: message-send-default-requires-live-delivery-binding
+inputs:
+  channel_locator: slack://T123/C456
+  text: Release 0.8.2 is live.
+  principal: runx:principal:release-bot
+  idempotency_key: slack-release-0-8-2-live
+host:
+  answers:
+    plan:
+      send_plan:
+        decision: ready
+        action_family: message-send
+        principal: {type: account, uri: runx:principal:release-bot}
+        provider: {name: slack, account_id: workspace:T123, runtime_path: slack}
+        send_class: status
+        channel: chat
+        audience: {type: channel, locator: slack://T123/C456, requires_reconfirmation: false}
+        content:
+          draft_uri: inline:sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
+          digest: sha256:2497ff7c585df614f84f034872869ceff21afbaaab7230fb9b1fa0d271a122fb
+          subject_or_title: Release notice
+        gates: {preflight_required: true, human_approval_required: true, approval_id: message-send.post.approval}
+        blockers: []
+        provider_actions: [channel.post]
+        evidence_locators: []
+        success_checkpoint:
+          milestone: provider_delivery_required
+          description: The exact Slack notification is ready for provider delivery.
+expect:
+  status: policy_denied

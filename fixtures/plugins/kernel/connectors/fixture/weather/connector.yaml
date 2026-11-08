@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/weather
-name: Fixture Weather
+name: fixture/weather
+title: Fixture Weather
 description: Read forecast data from a public weather fixture.
-runtime_capability: false
 auth:
   none: {}
 placements:
@@ -26,7 +25,7 @@ operations:
       http:
         allowed_hosts: [geocoding-weather.fixture.invalid]
         requests:
-          - method: GET
+          - http_method: GET
             url: "https://geocoding-weather.fixture.invalid/v1/search"
             query:
               name: {"$argument": "/name"}

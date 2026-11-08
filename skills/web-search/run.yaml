@@ -1,63 +1,46 @@
-skill: web-search
 version: "0.1.5"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: public
   visibility: public
-  role: canonical
-  execution: read
-  completion: provider_readback
-  approval: none
   category: research
-connectors:
-  exa:
-    operations:
-      - search.query
-runners:
+methods:
   search:
-    default: true
     inputs:
       query:
         type: string
-        required: true
         description: One specific discovery question, within the caller's request budget.
-        schema:
-          minLength: 1
-          maxLength: 2000
-          pattern: \S
+        minLength: 1
+        maxLength: 2000
+        pattern: \S
       limit:
         type: integer
-        required: false
         default: 8
         description: Maximum source candidates for this one provider call.
-        schema:
-          minimum: 1
-          maximum: 20
+        minimum: 1
+        maximum: 20
+        optional: true
       include_domains:
         type: array
-        required: false
         description: Optional exact domain filters for authoritative source discovery.
-        schema:
-          minItems: 1
-          maxItems: 20
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
-            maxLength: 253
-            pattern: ^[a-zA-Z0-9.-]+$
+        minItems: 1
+        maxItems: 20
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+          maxLength: 253
+          pattern: ^[a-zA-Z0-9.-]+$
+        optional: true
       start_published_at:
         type: string
-        required: false
         description: Optional publication-time lower bound, not an event-date claim.
-        schema:
-          format: date-time
+        format: date-time
+        optional: true
       end_published_at:
         type: string
-        required: false
         description: Optional publication-time upper bound.
-        schema:
-          format: date-time
+        format: date-time
+        optional: true
     result_from:
       - search
       - normalize
@@ -73,10 +56,10 @@ runners:
           start_published_at: $input.start_published_at
           end_published_at: $input.end_published_at
         outputs:
-          valid: boolean
+          valid: {type: boolean}
       - id: search
         operation: exa/search.query
-        input:
+        inputs:
           query: $input.query
           limit: $input.limit
           include_domains: $input.include_domains
@@ -93,99 +76,81 @@ runners:
         outputs:
           search_result:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - query
-                - request_id
-                - sources
-                - returned_count
-                - duplicate_count
-                - unusable_count
-                - reported_cost_usd
-                - coverage
-              properties:
-                decision:
-                  enum:
-                    - sources_found
-                    - no_results
-                    - unusable_results
-                query:
-                  type: string
-                  minLength: 1
-                  maxLength: 2000
-                request_id:
-                  type:
-                    - string
-                    - "null"
-                sources:
-                  type: array
-                  maxItems: 20
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required:
-                      - url
-                      - title
-                      - published_at
-                      - excerpt
-                      - content_status
-                    properties:
-                      url:
-                        type: string
-                        format: uri
-                        pattern: ^https?://
-                        maxLength: 8000
-                      title:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
-                      published_at:
-                        type:
-                          - string
-                          - "null"
-                        description: Unverified provider publication metadata.
-                      excerpt:
-                        type:
-                          - string
-                          - "null"
-                        maxLength: 4000
-                      content_status:
-                        const: not_fetched
-                returned_count:
-                  type: integer
-                  minimum: 0
-                  maximum: 20
-                duplicate_count:
-                  type: integer
-                  minimum: 0
-                  maximum: 20
-                unusable_count:
-                  type: integer
-                  minimum: 0
-                  maximum: 20
-                reported_cost_usd:
-                  type:
-                    - number
-                    - "null"
-                  minimum: 0
-                coverage:
-                  const: one_query
-        artifacts:
-          named_emits:
-            search_result: search_result
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases:
-    - name: invalid-publication-time-stops-before-provider
-      runner: search
-      inputs:
-        query: Current exact release docs
-        start_published_at: not-a-date
-      expect:
-        status: failure
-        receipt:
-          schema: runx.receipt.v1
-          outcome: failed
+            additionalProperties: false
+            required:
+              - decision
+              - query
+              - request_id
+              - sources
+              - returned_count
+              - duplicate_count
+              - unusable_count
+              - reported_cost_usd
+              - coverage
+            properties:
+              decision:
+                enum:
+                  - sources_found
+                  - no_results
+                  - unusable_results
+              query:
+                type: string
+                minLength: 1
+                maxLength: 2000
+              request_id:
+                type:
+                  - string
+                  - "null"
+              sources:
+                type: array
+                maxItems: 20
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - url
+                    - title
+                    - published_at
+                    - excerpt
+                    - content_status
+                  properties:
+                    url:
+                      type: string
+                      format: uri
+                      pattern: ^https?://
+                      maxLength: 8000
+                    title:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    published_at:
+                      type:
+                        - string
+                        - "null"
+                      description: Unverified provider publication metadata.
+                    excerpt:
+                      type:
+                        - string
+                        - "null"
+                      maxLength: 4000
+                    content_status:
+                      const: not_fetched
+              returned_count:
+                type: integer
+                minimum: 0
+                maximum: 20
+              duplicate_count:
+                type: integer
+                minimum: 0
+                maximum: 20
+              unusable_count:
+                type: integer
+                minimum: 0
+                maximum: 20
+              reported_cost_usd:
+                type:
+                  - number
+                  - "null"
+                minimum: 0
+              coverage:
+                const: one_query

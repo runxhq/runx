@@ -1,0 +1,36 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: triage
+        skill: ../..#scan
+        inputs:
+          target: example/service
+          evidence:
+            findings:
+              - ecosystem: npm
+                dependency: example-lib
+                exact_version: 1.2.3
+                advisory_id: GHSA-example-1234
+                summary: Synthetic exact-version fixture advisory.
+                dependency_paths:
+                  - node_modules/example-lib
+                affected:
+                  - package:
+                      ecosystem: npm
+                      name: example-lib
+                    ranges:
+                      - events:
+                          - introduced: "0"
+                          - fixed: 1.2.4
+      - id: advisory
+        skill: ../..#advisory
+        inputs:
+          triage_packet: $steps.triage.vulnerability_review
+          audience: affected_users
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.advisory.vulnerability_advisory_packet

@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/social
-name: Fixture Social
+name: fixture/social
+title: Fixture Social
 description: Read accounts and posts on a social fixture.
-runtime_capability: false
 auth:
   credentials:
     user:
@@ -42,7 +41,7 @@ operations:
         allowed_hosts: [social.fixture.invalid]
         auth: {user: {type: oauth1}}
         requests:
-          - method: GET
+          - http_method: GET
             url: "https://social.fixture.invalid/2/users/me"
             query:
               user.fields: "created_at,description,public_metrics"

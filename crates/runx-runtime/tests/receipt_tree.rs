@@ -5,7 +5,7 @@
 use runx_contracts::{JsonObject, Receipt};
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_receipts::{ReceiptFindingCode, ReceiptTreeConfig, canonical_receipt_body_digest};
-use runx_runtime::receipts::{RuntimeReceiptSignaturePolicy, graph_receipt, step_receipt};
+use runx_runtime::receipts::{RuntimeReceiptSignaturePolicy, step_receipt, workflow_receipt};
 use runx_runtime::{
     Ed25519ReceiptSigner, Ed25519ReceiptVerifier, EphemeralValue, FIXTURE_RECEIPT_SEED,
     InvocationOutput, InvocationStatus, RuntimeReceiptSigner, StepRun,
@@ -19,7 +19,7 @@ fn selected_tree_scopes_unreadable_files_without_ignoring_a_corrupt_child()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let store = runx_runtime::LocalReceiptStore::new(directory.path());
-    let (root, children) = graph_with_steps("selected-tree", &["read"])?;
+    let (root, children) = workflow_with_steps("selected-tree", &["read"])?;
     for receipt in children.iter().chain(std::iter::once(&root)) {
         store.write_receipt(receipt, crate::support::fixture_policy()?)?;
     }
@@ -50,8 +50,9 @@ fn selected_tree_scopes_unreadable_files_without_ignoring_a_corrupt_child()
 }
 
 #[test]
-fn runtime_tree_verifies_graph_receipt_with_children() -> Result<(), Box<dyn std::error::Error>> {
-    let (root, children) = graph_with_steps("tree_runtime_graph", &["plan", "apply"])?;
+fn runtime_tree_verifies_workflow_receipt_with_children() -> Result<(), Box<dyn std::error::Error>>
+{
+    let (root, children) = workflow_with_steps("tree_runtime_workflow", &["plan", "apply"])?;
 
     assert!(
         validate_runtime_receipt_tree(
@@ -67,7 +68,7 @@ fn runtime_tree_verifies_graph_receipt_with_children() -> Result<(), Box<dyn std
 
 #[test]
 fn runtime_tree_rejects_bare_id_child_ref() -> Result<(), Box<dyn std::error::Error>> {
-    let (mut root, children) = graph_with_steps("tree_runtime_exact", &["child"])?;
+    let (mut root, children) = workflow_with_steps("tree_runtime_exact", &["child"])?;
     root.lineage.children[0].uri = children[0].id.clone();
     refresh_local_digest_and_signature(&mut root)?;
 
@@ -89,7 +90,7 @@ fn runtime_tree_rejects_bare_id_child_ref() -> Result<(), Box<dyn std::error::Er
 #[test]
 fn runtime_resolver_reuses_identical_content_addressed_children()
 -> Result<(), Box<dyn std::error::Error>> {
-    let (root, mut children) = graph_with_steps("tree_runtime_ambiguous", &["child"])?;
+    let (root, mut children) = workflow_with_steps("tree_runtime_ambiguous", &["child"])?;
     children.push(children[0].clone());
 
     let verification = verify_runtime_receipt_tree(
@@ -106,9 +107,9 @@ fn runtime_resolver_reuses_identical_content_addressed_children()
 #[test]
 fn runtime_resolver_reports_conflicting_same_id_children() -> Result<(), Box<dyn std::error::Error>>
 {
-    let (root, mut children) = graph_with_steps("tree_runtime_ambiguous", &["child"])?;
+    let (root, mut children) = workflow_with_steps("tree_runtime_ambiguous", &["child"])?;
     let mut conflicting = children[0].clone();
-    conflicting.seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
+    conflicting.seal.reason = Some(runx_contracts::SealReason::WorkflowBlocked);
     children.push(conflicting);
 
     let verification = verify_runtime_receipt_tree(
@@ -133,7 +134,7 @@ fn runtime_resolver_reports_conflicting_same_id_children() -> Result<(), Box<dyn
 
 #[test]
 fn runtime_tree_rejects_missing_child_receipt() -> Result<(), Box<dyn std::error::Error>> {
-    let (root, _children) = graph_with_steps("tree_runtime_missing_child", &["child"])?;
+    let (root, _children) = workflow_with_steps("tree_runtime_missing_child", &["child"])?;
 
     let verification = verify_runtime_receipt_tree(
         &root,
@@ -152,7 +153,7 @@ fn runtime_tree_rejects_missing_child_receipt() -> Result<(), Box<dyn std::error
 
 #[test]
 fn runtime_tree_rejects_extra_child_receipt() -> Result<(), Box<dyn std::error::Error>> {
-    let (root, mut children) = graph_with_steps("tree_runtime_extra_child", &["child"])?;
+    let (root, mut children) = workflow_with_steps("tree_runtime_extra_child", &["child"])?;
     children.push(step_receipt(
         scope("tree_runtime_extra_child"),
         "orphan",
@@ -181,8 +182,8 @@ fn runtime_tree_rejects_extra_child_receipt() -> Result<(), Box<dyn std::error::
 #[test]
 fn runtime_tree_rejects_structurally_valid_child_proof_tamper()
 -> Result<(), Box<dyn std::error::Error>> {
-    let (root, mut children) = graph_with_steps("tree_runtime_child_tamper", &["child"])?;
-    children[0].seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
+    let (root, mut children) = workflow_with_steps("tree_runtime_child_tamper", &["child"])?;
+    children[0].seal.reason = Some(runx_contracts::SealReason::WorkflowBlocked);
 
     let verification = verify_runtime_receipt_tree(
         &root,
@@ -207,9 +208,9 @@ fn runtime_tree_rejects_structurally_valid_child_proof_tamper()
 #[test]
 fn runtime_tree_rejects_valid_alternate_child_with_same_id()
 -> Result<(), Box<dyn std::error::Error>> {
-    let (root, children) = graph_with_steps("tree_runtime_child_digest", &["child"])?;
+    let (root, children) = workflow_with_steps("tree_runtime_child_digest", &["child"])?;
     let mut alternate = children[0].clone();
-    alternate.seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
+    alternate.seal.reason = Some(runx_contracts::SealReason::WorkflowBlocked);
     refresh_local_digest_and_signature(&mut alternate)?;
 
     let verification = verify_runtime_receipt_tree(
@@ -230,7 +231,8 @@ fn runtime_tree_rejects_valid_alternate_child_with_same_id()
 #[test]
 fn runtime_tree_rejects_child_ref_without_digest_locator() -> Result<(), Box<dyn std::error::Error>>
 {
-    let (mut root, children) = graph_with_steps("tree_runtime_missing_child_digest", &["child"])?;
+    let (mut root, children) =
+        workflow_with_steps("tree_runtime_missing_child_digest", &["child"])?;
     root.lineage.children[0].locator = None;
     refresh_local_digest_and_signature(&mut root)?;
 
@@ -252,7 +254,7 @@ fn runtime_tree_rejects_child_ref_without_digest_locator() -> Result<(), Box<dyn
 #[test]
 fn runtime_tree_accepts_reusable_child_without_parent_link()
 -> Result<(), Box<dyn std::error::Error>> {
-    let (root, children) = graph_with_steps("tree_runtime_reusable_child", &["child"])?;
+    let (root, children) = workflow_with_steps("tree_runtime_reusable_child", &["child"])?;
 
     assert!(
         verify_runtime_receipt_tree(
@@ -269,7 +271,7 @@ fn runtime_tree_accepts_reusable_child_without_parent_link()
 
 #[test]
 fn tree_rejects_another_homes_key() -> Result<(), Box<dyn std::error::Error>> {
-    let (root, children) = graph_with_steps("tree_runtime_other_home", &["child"])?;
+    let (root, children) = workflow_with_steps("tree_runtime_other_home", &["child"])?;
     let other_home = Ed25519ReceiptSigner::local(&[0x07; 32])?;
     let verifier = Ed25519ReceiptVerifier::new([other_home.trusted_key()]);
 
@@ -290,7 +292,7 @@ fn tree_rejects_another_homes_key() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn tree_verifies_under_the_key_that_sealed_it() -> Result<(), Box<dyn std::error::Error>> {
-    let (root, children) = graph_with_steps("tree_runtime_sealing_key", &["plan", "apply"])?;
+    let (root, children) = workflow_with_steps("tree_runtime_sealing_key", &["plan", "apply"])?;
 
     assert!(
         validate_runtime_receipt_tree(
@@ -306,7 +308,7 @@ fn tree_verifies_under_the_key_that_sealed_it() -> Result<(), Box<dyn std::error
 
 #[test]
 fn tree_with_no_trusted_key_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
-    let (root, children) = graph_with_steps("tree_runtime_no_trust", &["child"])?;
+    let (root, children) = workflow_with_steps("tree_runtime_no_trust", &["child"])?;
     let verifier = Ed25519ReceiptVerifier::default();
 
     let verification = verify_runtime_receipt_tree(
@@ -324,16 +326,16 @@ fn tree_with_no_trusted_key_fails_closed() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-fn graph_with_steps(
-    graph_name: &str,
+fn workflow_with_steps(
+    workflow_name: &str,
     step_ids: &[&str],
 ) -> Result<(Receipt, Vec<Receipt>), Box<dyn std::error::Error>> {
     let steps = step_ids
         .iter()
-        .map(|step_id| step_run(graph_name, step_id, InvocationStatus::Success))
+        .map(|step_id| step_run(workflow_name, step_id, InvocationStatus::Success))
         .collect::<Result<Vec<_>, _>>()?;
-    let root = graph_receipt(
-        scope(graph_name),
+    let root = workflow_receipt(
+        scope(workflow_name),
         &steps,
         CREATED_AT,
         crate::support::fixture_policy()?,
@@ -346,13 +348,13 @@ fn child_receipts(steps: &[StepRun]) -> Vec<Receipt> {
 }
 
 fn step_run(
-    graph_name: &str,
+    workflow_name: &str,
     step_id: &str,
     status: InvocationStatus,
 ) -> Result<StepRun, Box<dyn std::error::Error>> {
     let output = skill_output(status);
     let receipt = step_receipt(
-        scope(graph_name),
+        scope(workflow_name),
         step_id,
         1,
         &output,
@@ -413,9 +415,9 @@ fn assert_finding(
     );
 }
 
-fn scope(graph_name: &str) -> runx_runtime::receipts::RunScope<'_> {
+fn scope(workflow_name: &str) -> runx_runtime::receipts::RunScope<'_> {
     runx_runtime::receipts::RunScope {
         run_id: "run_test",
-        graph_name,
+        workflow_name,
     }
 }

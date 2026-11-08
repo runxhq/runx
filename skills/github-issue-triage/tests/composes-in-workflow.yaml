@@ -1,0 +1,15 @@
+name: github-issue-triage-composes-in-graph
+package: fixtures/composed
+host:
+  answers:
+    select:
+      issue_candidates:
+        - id: runxhq/runx#241
+          reason: A factual clarification can unblock the reporter.
+      selection_rationale:
+        chosen_issue: runxhq/runx#241
+        rationale: Higher unblock value than the cosmetic typo.
+expect:
+  status: sealed
+  steps: [github-issue-triage, digest]
+  receipt: {schema: runx.receipt.v1}

@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { validateRunnerManifestYaml } from "../../scripts/lib/native-parser.mjs";
+import { validateMethodManifestYaml } from "../../scripts/lib/native-parser.mjs";
 
 const hostedPaymentSkills = [
   "charge",
@@ -26,7 +26,7 @@ describe("payment ownership boundary", () => {
   it("keeps real payment effects behind hosted provider contracts", async () => {
     for (const skill of hostedPaymentSkills) {
       const source = await readFile(path.resolve("skills", skill, "run.yaml"), "utf8");
-      const manifest = validateRunnerManifestYaml(source).raw.document as {
+      const manifest = validateMethodManifestYaml(source).raw.document as {
         readonly catalog?: Record<string, unknown>;
         readonly runners: Record<string, {
           readonly steps: readonly {
@@ -80,12 +80,12 @@ describe("payment ownership boundary", () => {
     for (const skill of localPaymentSimulators) {
       const profile = await readFile(path.resolve("fixtures/skills", skill, "run.yaml"), "utf8");
       const implementation = await readFile(path.resolve("fixtures/skills", skill, `${skill}.mjs`), "utf8");
-      const manifest = validateRunnerManifestYaml(profile).raw.document as {
+      const manifest = validateMethodManifestYaml(profile).raw.document as {
         readonly catalog?: Record<string, unknown>;
       };
 
       expect(manifest.catalog?.visibility, `${skill} visibility`).toBe("internal");
-      expect(manifest.catalog?.role, `${skill} role`).toBe("harness-fixture");
+      expect(manifest.catalog?.role, `${skill} role`).toBe("test-fixture");
       expect(profile, `${skill} local JavaScript`).toMatch(/tool: \{ module: /);
       expect(profile, `${skill} provider access`).not.toMatch(/provider\.(?:mutate|read)/);
       expect(implementation, `${skill} simulated result`).toContain('status: "simulated"');

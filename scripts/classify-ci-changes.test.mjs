@@ -102,7 +102,7 @@ test("the core skills are the twelve the binary bundles", () => {
   const names = bundledCoreSkills();
   assert.equal(names.length, 12);
   assert.ok(names.includes("skill-build"));
-  assert.ok(names.includes("agent-session"));
+  assert.ok(names.includes("agent"));
   assert.ok(names.includes("revert"));
   assert.ok(!names.includes("reddit"));
 });

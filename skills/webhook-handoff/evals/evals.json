@@ -1,0 +1,41 @@
+{
+  "skill_name": "webhook-handoff",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Hand this governed Runx payload to the configured n8n workflow.",
+      "expected_output": "Validate context, bind scoped auth and idempotency, and return the exact provider-neutral webhook handoff contract.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Hand this governed Runx payload to the configured Zapier Catch Hook.",
+      "expected_output": "Validate context, scoped auth, idempotency, and receipt expectations for the exact webhook handoff.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Hand this governed Runx payload to the configured n8n workflow.",
+      "expected_output": "Prepare, approve, and deliver one idempotent webhook request with the receiver response captured.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Hand this governed Runx payload to the configured Zapier Catch Hook.",
+      "expected_output": "Prepare, approve, and deliver one idempotent hook request with the receiver response captured.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Hand this governed Runx payload to the configured n8n workflow.",
+      "expected_output": "Prepare the exact idempotent handoff, bind it at one approval request, and stop without delivering it.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Hand this payload to my n8n workflow.",
+      "expected_output": "Refuse before approval, because an n8n handoff names the workspace host its webhook lives on.",
+      "files": []
+    }
+  ]
+}

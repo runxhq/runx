@@ -63,13 +63,13 @@ pub(super) struct ValidateInput {
     pub(super) skill_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) candidate_files: Option<Vec<JsonValue>>,
-    pub(super) allow_execute_harness: bool,
+    pub(super) allow_execute_test: bool,
 }
 
 impl CapabilityInput for ValidateInput {
     fn defaults() -> JsonObject {
         let mut defaults = root_default();
-        defaults.insert("allow_execute_harness".to_owned(), JsonValue::Bool(false));
+        defaults.insert("allow_execute_test".to_owned(), JsonValue::Bool(false));
         defaults
     }
 }
@@ -125,7 +125,7 @@ pub(super) const VALIDATE_FIELDS: &[CapabilityField] = &[
         "Bounded standalone candidate package files.",
     ),
     field(
-        "allow_execute_harness",
+        "allow_execute_test",
         "Explicitly permit harnessing a package classified as execute.",
     ),
 ];

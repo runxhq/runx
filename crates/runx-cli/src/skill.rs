@@ -409,7 +409,7 @@ fn write_skill_inspection(
 /// The skill's inspection with its readiness here, and where it came from.
 fn inspect_skill(
     skill_path: &Path,
-    selected_runner: Option<&str>,
+    selected_method: Option<&str>,
     inputs: Option<&JsonObject>,
     provenance: Option<JsonObject>,
     authority: Option<&runx_runtime::RunAuthority>,
@@ -418,7 +418,7 @@ fn inspect_skill(
 ) -> Result<(JsonValue, Vec<Readiness>), String> {
     let mut inspection = runx_runtime::inspect_skill_readiness(
         skill_path,
-        selected_runner,
+        selected_method,
         inputs,
         authority,
         env,

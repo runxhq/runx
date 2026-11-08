@@ -6,20 +6,20 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::{CallAct, JsonObject, JsonValue};
-use runx_core::state_machine::SequentialGraphStepDefinition;
+use runx_core::state_machine::SequentialWorkflowStepDefinition;
 use runx_parser::{
-    Binding, ExecutionGraph, GraphStep, Operand, SkillRunnerDefinition, SkillRunnerManifest,
-    SkillTarget, Source, StepKind, parse_graph_yaml, validate_graph,
+    Binding, Operand, SkillMethodDefinition, SkillMethodManifest, SkillTarget, Source, StepKind,
+    Workflow, WorkflowStep, parse_workflow_yaml, validate_workflow,
 };
 
 use crate::RuntimeError;
 use crate::registry::split_skill_id;
 
-use super::graph_index::PriorRunIndex;
+use super::workflow_index::PriorRunIndex;
 
 #[derive(Clone)]
 pub(crate) struct LoadedStepSkill {
-    pub(crate) runner: SkillRunnerDefinition,
+    pub(crate) runner: SkillMethodDefinition,
     /// The package's version, as its `run.yaml` states it.
     pub(crate) version: Option<String>,
     /// The offer the runner is sold under, when its package sells it.
@@ -69,14 +69,14 @@ pub(crate) struct StepSkillCache {
 impl StepSkillCache {
     pub(crate) fn load(
         &mut self,
-        graph_dir: &Path,
-        step: &GraphStep,
+        workflow_dir: &Path,
+        step: &WorkflowStep,
         options: StepSkillLoadOptions<'_>,
     ) -> Result<LoadedStepSkill, RuntimeError> {
         if let Some(skill) = self.loaded.get(&step.id) {
             return Ok(skill.clone());
         }
-        let skill = load_step_skill(graph_dir, step, options)?;
+        let skill = load_step_skill(workflow_dir, step, options)?;
         self.loaded.insert(step.id.clone(), skill.clone());
         Ok(skill)
     }
@@ -108,11 +108,11 @@ impl<'a> StepSkillLoadOptions<'a> {
     }
 }
 
-pub(crate) fn load_graph(graph_path: &Path) -> Result<ExecutionGraph, RuntimeError> {
-    let source = fs::read_to_string(graph_path)
+pub(crate) fn load_workflow(workflow_path: &Path) -> Result<Workflow, RuntimeError> {
+    let source = fs::read_to_string(workflow_path)
         .map_err(|source| RuntimeError::io("reading graph file", source))?;
-    let raw = parse_graph_yaml(&source)?;
-    validate_graph(raw).map_err(RuntimeError::from)
+    let raw = parse_workflow_yaml(&source)?;
+    validate_workflow(raw).map_err(RuntimeError::from)
 }
 
 /// The parent step's provenance, carried to the nested graph's steps that
@@ -120,7 +120,7 @@ pub(crate) fn load_graph(graph_path: &Path) -> Result<ExecutionGraph, RuntimeErr
 /// to. Values a nested step reads from its own graph's steps keep their own
 /// provenance.
 pub(crate) fn inherited_step_provenance(
-    graph: &ExecutionGraph,
+    graph: &Workflow,
     parent: &[runx_contracts::ProvenanceEntry],
 ) -> BTreeMap<String, Vec<runx_contracts::ProvenanceEntry>> {
     if parent.is_empty() {
@@ -136,11 +136,11 @@ pub(crate) fn inherited_step_provenance(
                     continue;
                 };
                 match (path.first(), binding.at.first()) {
-                    (Some(runner_input), Some(key)) => {
-                        inherit_provenance(parent, runner_input, key, &mut entries);
+                    (Some(method_input), Some(key)) => {
+                        inherit_provenance(parent, method_input, key, &mut entries);
                     }
-                    (Some(runner_input), None) => {
-                        inherit_provenance(parent, runner_input, runner_input, &mut entries);
+                    (Some(method_input), None) => {
+                        inherit_provenance(parent, method_input, method_input, &mut entries);
                     }
                     (None, key) => {
                         entries.extend(parent.iter().map(|entry| runx_contracts::ProvenanceEntry {
@@ -159,14 +159,14 @@ pub(crate) fn inherited_step_provenance(
 
 fn inherit_provenance(
     parent: &[runx_contracts::ProvenanceEntry],
-    runner_input: &str,
+    method_input: &str,
     input: &str,
     entries: &mut Vec<runx_contracts::ProvenanceEntry>,
 ) {
     entries.extend(
         parent
             .iter()
-            .filter(|entry| entry.input.as_ref() == runner_input)
+            .filter(|entry| entry.input.as_ref() == method_input)
             .map(|entry| runx_contracts::ProvenanceEntry {
                 input: input.into(),
                 ..entry.clone()
@@ -177,9 +177,9 @@ fn inherit_provenance(
 /// Bind only caller-supplied input facts for inspection. Run identity, acts
 /// and preceding step outputs are deliberately unknown before execution.
 pub(crate) fn bind_known_inputs(
-    mut graph: ExecutionGraph,
+    mut graph: Workflow,
     inputs: &JsonObject,
-) -> Result<ExecutionGraph, RuntimeError> {
+) -> Result<Workflow, RuntimeError> {
     let input = JsonValue::Object(inputs.clone());
     for step in &mut graph.steps {
         step.bindings = bind_invoked(
@@ -211,12 +211,12 @@ pub(crate) fn bind_known_inputs(
 /// step without one. References to earlier steps stay for the step to bind
 /// when it runs.
 pub(crate) fn bind_run_inputs(
-    mut graph: ExecutionGraph,
-    graph_inputs: &JsonObject,
+    mut graph: Workflow,
+    workflow_inputs: &JsonObject,
     act: Option<&CallAct>,
     run_id: &str,
-) -> Result<ExecutionGraph, RuntimeError> {
-    let run_input = JsonValue::Object(graph_inputs.clone());
+) -> Result<Workflow, RuntimeError> {
+    let run_input = JsonValue::Object(workflow_inputs.clone());
     let run_act = act
         .map(JsonValue::from_serialize)
         .transpose()
@@ -433,17 +433,17 @@ fn put(value: &mut JsonValue, path: &[String], new: Option<JsonValue>) -> bool {
 }
 
 pub(crate) fn load_step_skill(
-    graph_dir: &Path,
-    step: &GraphStep,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
     options: StepSkillLoadOptions<'_>,
 ) -> Result<LoadedStepSkill, RuntimeError> {
-    let resolved = load_step_skill_package(graph_dir, step, options)?;
+    let resolved = load_step_skill_package(workflow_dir, step, options)?;
     step_skill(step, resolved, options.env)
 }
 
 /// The skill `step` runs, from the package it resolved to.
 pub(crate) fn step_skill(
-    step: &GraphStep,
+    step: &WorkflowStep,
     resolved: LoadedStepSkillPackage,
     env: &BTreeMap<String, String>,
 ) -> Result<LoadedStepSkill, RuntimeError> {
@@ -457,7 +457,7 @@ pub(crate) fn step_skill(
                 package.directory.display()
             ),
         })?;
-    let runner = select_step_runner(
+    let runner = select_step_method(
         manifest,
         step.skill().and_then(|target| target.runner.as_deref()),
     )?
@@ -499,13 +499,13 @@ pub(crate) fn step_skill(
 /// The graph a purchase runs: one step that calls `runner` of `skill`, the
 /// registry selector the skill was reached by, with the run's inputs. The
 /// step reaches a runner the registry sells, so the kernel buys it (S10).
-pub(crate) fn purchase_graph(skill: &str, runner: &str, inputs: &JsonObject) -> ExecutionGraph {
-    ExecutionGraph {
+pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) -> Workflow {
+    Workflow {
         name: format!("purchase {skill}#{runner}"),
         publisher: None,
         result_from: vec![PURCHASE_STEP.to_owned()],
         policy: None,
-        steps: vec![GraphStep {
+        steps: vec![WorkflowStep {
             id: PURCHASE_STEP.to_owned(),
             label: None,
             kind: StepKind::Skill(SkillTarget {
@@ -522,7 +522,7 @@ pub(crate) fn purchase_graph(skill: &str, runner: &str, inputs: &JsonObject) -> 
             when: None,
             duplicates: None,
         }],
-        raw: runx_parser::RawGraphIr {
+        raw: runx_parser::RawWorkflowIr {
             document: JsonObject::new(),
         },
     }
@@ -534,14 +534,14 @@ pub(crate) const PURCHASE_STEP: &str = "purchase";
 /// The child skills `step` may run, each as the skill step that runs it: a
 /// skill step its own target, and an agent turn one step per child skill its
 /// allowance names, resolved exactly as the turn's call to it is.
-pub(crate) fn child_skill_steps(step: &GraphStep) -> Vec<Cow<'_, GraphStep>> {
+pub(crate) fn child_skill_steps(step: &WorkflowStep) -> Vec<Cow<'_, WorkflowStep>> {
     match &step.kind {
         StepKind::Skill(_) => vec![Cow::Borrowed(step)],
         StepKind::Agent(agent) => agent
             .allowance
             .named_skills()
             .map(|skill| {
-                Cow::Owned(GraphStep {
+                Cow::Owned(WorkflowStep {
                     id: step.id.clone(),
                     label: None,
                     kind: StepKind::Skill(turn_skill_target(skill.as_str())),
@@ -572,18 +572,18 @@ pub(crate) fn turn_skill_target(skill: &str) -> SkillTarget {
 }
 
 pub(crate) fn load_step_skill_package(
-    graph_dir: &Path,
-    step: &GraphStep,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
     options: StepSkillLoadOptions<'_>,
 ) -> Result<LoadedStepSkillPackage, RuntimeError> {
-    let resolved = resolve_step_skill_directory(graph_dir, step, options)?;
+    let resolved = resolve_step_skill_directory(workflow_dir, step, options)?;
     let package = match options.packages {
         Some(admitted) => admitted.get(&resolved.directory)?,
         None => Arc::new(crate::load_validated_skill_package(&resolved.directory)?),
     };
     let registry = match resolved.registry_ref {
         Some(reference) => {
-            let paths = crate::RunxPaths::resolve(options.env, graph_dir);
+            let paths = crate::RunxPaths::resolve(options.env, workflow_dir);
             crate::registry::installed_origin(&paths, &package)
                 .map_err(|reason| RuntimeError::InvalidRunStep {
                     step_id: step.id.clone(),
@@ -613,13 +613,13 @@ fn registry_provenance(
     }
 }
 
-pub(crate) fn select_step_runner<'a>(
-    manifest: &'a SkillRunnerManifest,
-    requested_runner: Option<&str>,
-) -> Result<&'a SkillRunnerDefinition, RuntimeError> {
-    if let Some(runner) = requested_runner {
+pub(crate) fn select_step_method<'a>(
+    manifest: &'a SkillMethodManifest,
+    requested_method: Option<&str>,
+) -> Result<&'a SkillMethodDefinition, RuntimeError> {
+    if let Some(runner) = requested_method {
         return manifest.runners.get(runner).ok_or_else(|| {
-            RuntimeError::UnsupportedRunnerSelection {
+            RuntimeError::UnsupportedMethodSelection {
                 runner: runner.to_owned(),
             }
         });
@@ -632,24 +632,24 @@ pub(crate) fn select_step_runner<'a>(
     match defaults.as_slice() {
         [runner] => Ok(*runner),
         [] if manifest.runners.len() == 1 => manifest.runners.values().next().ok_or_else(|| {
-            RuntimeError::UnsupportedRunnerSelection {
+            RuntimeError::UnsupportedMethodSelection {
                 runner: "default".to_owned(),
             }
         }),
-        [] => Err(RuntimeError::UnsupportedRunnerSelection {
+        [] => Err(RuntimeError::UnsupportedMethodSelection {
             runner: "default".to_owned(),
         }),
-        _ => Err(RuntimeError::UnsupportedRunnerSelection {
+        _ => Err(RuntimeError::UnsupportedMethodSelection {
             runner: "default".to_owned(),
         }),
     }
 }
 
-pub(crate) fn step_definitions(graph: &ExecutionGraph) -> Vec<SequentialGraphStepDefinition> {
+pub(crate) fn step_definitions(graph: &Workflow) -> Vec<SequentialWorkflowStepDefinition> {
     graph
         .steps
         .iter()
-        .map(|step| SequentialGraphStepDefinition {
+        .map(|step| SequentialWorkflowStepDefinition {
             id: step.id.clone(),
             context_from: context_from(step),
         })
@@ -657,17 +657,17 @@ pub(crate) fn step_definitions(graph: &ExecutionGraph) -> Vec<SequentialGraphSte
 }
 
 fn resolve_step_skill_directory(
-    graph_dir: &Path,
-    step: &GraphStep,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
     options: StepSkillLoadOptions<'_>,
 ) -> Result<ResolvedStepSkillDirectory, RuntimeError> {
     if let Some(skill) = step.skill().map(|target| target.skill.as_str()) {
         if runx_parser::registry_ref(skill).is_some() {
-            let paths = crate::RunxPaths::resolve(options.env, graph_dir);
+            let paths = crate::RunxPaths::resolve(options.env, workflow_dir);
             // The user's own copy takes precedence over what runx added,
             // whatever version the ref names (core-shape §6.5); a bundle's
             // descriptor owns its children.
-            let in_bundle = crate::registry::package_bundle::package_bundle_root(graph_dir)
+            let in_bundle = crate::registry::package_bundle::package_bundle_root(workflow_dir)
                 .map_err(|reason| RuntimeError::InvalidRunStep {
                     step_id: step.id.clone(),
                     reason,
@@ -692,30 +692,31 @@ fn resolve_step_skill_directory(
                 ),
             });
         }
-        if let Some(directory) = crate::registry::package_bundle::resolve_bundled_skill(
-            graph_dir, skill,
-        )
-        .map_err(|reason| RuntimeError::InvalidRunStep {
-            step_id: step.id.clone(),
-            reason,
-        })? {
+        if let Some(directory) =
+            crate::registry::package_bundle::resolve_bundled_skill(workflow_dir, skill).map_err(
+                |reason| RuntimeError::InvalidRunStep {
+                    step_id: step.id.clone(),
+                    reason,
+                },
+            )?
+        {
             return Ok(ResolvedStepSkillDirectory {
                 directory,
                 registry_ref: None,
             });
         }
-        let directory = graph_dir.join(skill);
+        let directory = workflow_dir.join(skill);
         // An installed package's descriptor owns its dependency identities.
         // Only source packages may discover additional local or bundled skills.
         if !directory.exists()
-            && crate::registry::package_bundle::package_bundle_root(graph_dir)
+            && crate::registry::package_bundle::package_bundle_root(workflow_dir)
                 .map_err(|reason| RuntimeError::InvalidRunStep {
                     step_id: step.id.clone(),
                     reason,
                 })?
                 .is_none()
         {
-            let paths = crate::RunxPaths::resolve(options.env, graph_dir);
+            let paths = crate::RunxPaths::resolve(options.env, workflow_dir);
             if let Some(directory) = crate::resolve_local_skill_reference(
                 &paths,
                 Path::new(skill),
@@ -814,7 +815,7 @@ pub(crate) fn installed_registry_skill(
 /// A step's values when it runs: each reference to an earlier step takes
 /// that step's result. An operation step's act is one of its call's fields.
 pub(crate) fn materialize_step_invocation_inputs_with_index(
-    step: &GraphStep,
+    step: &WorkflowStep,
     prior_run_index: &PriorRunIndex<'_>,
 ) -> Result<JsonObject, RuntimeError> {
     let mut inputs = bind_earlier_steps(step, &step.inputs, &step.bindings, "", prior_run_index)?;
@@ -829,7 +830,7 @@ pub(crate) fn materialize_step_invocation_inputs_with_index(
 /// A step's act when it runs: an operation step's call's, or the `$act` a
 /// skill step's child run takes.
 pub(crate) fn materialize_step_act_with_index(
-    step: &GraphStep,
+    step: &WorkflowStep,
     prior_run_index: &PriorRunIndex<'_>,
 ) -> Result<Option<JsonObject>, RuntimeError> {
     step.act
@@ -839,7 +840,7 @@ pub(crate) fn materialize_step_act_with_index(
 }
 
 fn bind_earlier_steps(
-    step: &GraphStep,
+    step: &WorkflowStep,
     values: &JsonObject,
     bindings: &[Binding],
     root: &str,
@@ -862,7 +863,7 @@ fn bind_earlier_steps(
 }
 
 pub(crate) fn materialize_step_invocation_provenance_with_index(
-    step: &GraphStep,
+    step: &WorkflowStep,
     prior_run_index: &PriorRunIndex<'_>,
 ) -> Result<Vec<runx_contracts::ProvenanceEntry>, RuntimeError> {
     step.bindings
@@ -885,7 +886,7 @@ fn binding_label(binding: &Binding) -> String {
     }
 }
 
-fn context_from(step: &GraphStep) -> Option<Vec<String>> {
+fn context_from(step: &WorkflowStep) -> Option<Vec<String>> {
     let reads = step.reads();
     (!reads.is_empty()).then(|| reads.into_iter().map(str::to_owned).collect())
 }
@@ -893,12 +894,12 @@ fn context_from(step: &GraphStep) -> Option<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use runx_contracts::{JsonObject, JsonValue};
-    use runx_parser::{ExecutionGraph, Operand, parse_graph_yaml, validate_graph};
+    use runx_parser::{Operand, Workflow, parse_workflow_yaml, validate_workflow};
 
     use super::bind_run_inputs;
 
-    fn graph(source: &str) -> Result<ExecutionGraph, String> {
-        validate_graph(parse_graph_yaml(source).map_err(|error| error.to_string())?)
+    fn graph(source: &str) -> Result<Workflow, String> {
+        validate_workflow(parse_workflow_yaml(source).map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())
     }
 

@@ -366,7 +366,7 @@ fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
         "profile_digest": publication.profile.map(|profile| sha256_prefixed(profile.as_bytes())),
         "package_files": files,
         "bundle_digest": bundle_digest(&files)?,
-        "runner_names": package
+        "method_names": package
             .root_manifest()
             .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default(),
@@ -803,7 +803,7 @@ fn search_skills(state: &State, query: &BTreeMap<String, String>) -> Result<Vec<
                 "version": record["version"],
                 "digest": record["digest"],
                 "profile_mode": if record["profile_document"].is_string() { "profiled" } else { "portable" },
-                "runner_names": record["runner_names"],
+                "method_names": record["method_names"],
                 "profile_digest": record["profile_digest"],
                 "required_scopes": record["required_scopes"],
                 "tags": record["tags"],
@@ -860,7 +860,7 @@ fn detail(record: &Value) -> Value {
             "package_files",
             "bundle_digest",
             "paid_listing",
-            "runner_names",
+            "method_names",
             "trust_tier",
             "required_scopes",
             "tags",
@@ -889,7 +889,7 @@ fn acquisition(record: &Value) -> Value {
             "package_files",
             "bundle_digest",
             "paid_listing",
-            "runner_names",
+            "method_names",
             "trust_tier",
             "publisher",
         ],

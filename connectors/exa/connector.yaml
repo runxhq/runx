@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: exa
-name: Exa
+name: exa
+title: Exa
 description: Search public web sources within explicit query and result limits.
 category: search
-runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -46,7 +45,7 @@ operations:
         allowed_hosts: [api.exa.ai]
         auth: {api_key: {type: bearer, field: api_key}}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://api.exa.ai/search
             headers: {accept: application/json}
             body:

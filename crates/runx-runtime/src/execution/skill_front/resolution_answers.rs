@@ -244,7 +244,7 @@ fn check_lane(
                 "{address} is a person's to answer: only an entry under approvals carries a host-attested human decision"
             )))
         }
-        ResolutionRequest::AgentAct { .. } if entry.human => Err(invalid(format!(
+        ResolutionRequest::Turn { .. } if entry.human => Err(invalid(format!(
             "{address} is an agent's to answer, under answers"
         ))),
         // Questions are the person's, answered against them.

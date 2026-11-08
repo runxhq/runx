@@ -1,0 +1,11 @@
+{
+  "skill_name": "sign-receipt",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Seal an auditable attestation for this manual provider refund without claiming Runx verified the refund itself.",
+      "expected_output": "Return a signed Runx receipt that binds the exact claim to opaque evidence locators and states the external proof boundary truthfully.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "skill_name": "nws-weather",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Fetch the National Weather Service forecast for gridpoint LWX 97,71.",
+      "expected_output": "Return bounded NWS forecast evidence with provider provenance for downstream planning.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Read the NWS forecast for the supplied US point.",
+      "expected_output": "Read actual points, bind its returned office/grid and fetch that forecast without manual grid construction.",
+      "files": []
+    }
+  ]
+}

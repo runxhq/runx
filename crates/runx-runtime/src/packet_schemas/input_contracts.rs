@@ -30,11 +30,11 @@ pub(crate) fn hydrate_packet_input_contracts(
             &format!("{profile_path} input_definitions"),
             &catalog,
         )?;
-        for (runner_name, runner) in &mut manifest.runners {
-            let declared_by = format!("{profile_path} runner {runner_name}");
+        for (method_name, runner) in &mut manifest.runners {
+            let declared_by = format!("{profile_path} runner {method_name}");
             hydrate_inputs(&mut runner.inputs, &declared_by, &catalog)?;
             validate_input_examples(
-                &format!("runners.{runner_name}.examples"),
+                &format!("runners.{method_name}.examples"),
                 &runner.examples,
                 &runner.inputs,
             )

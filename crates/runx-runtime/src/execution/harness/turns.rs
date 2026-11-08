@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use runx_contracts::{JsonValue, TurnCallOutcome};
-use runx_parser::harness_fixture::HarnessTurnScript;
+use runx_parser::test_fixture::TestTurnCalls;
 
 use super::json_assertions::assert_json_expectation;
 use crate::Host;
@@ -23,7 +23,7 @@ use crate::execution::runner::turn::{Turn, call_tool};
 pub(super) fn work_scripted_turn(
     turn: &mut dyn Turn,
     host: &mut dyn Host,
-    scripts: &BTreeMap<String, HarnessTurnScript>,
+    scripts: &BTreeMap<String, TestTurnCalls>,
     answered: bool,
 ) -> Result<Option<JsonValue>, RuntimeError> {
     let address = turn.invocation().id.as_str().to_owned();

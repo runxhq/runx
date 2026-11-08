@@ -39,9 +39,7 @@ Inputs are `transcript`, `crm_records`, and `crm_schema`. The caller selects the
 
 The downstream CRM writer is selected by the operator. Before a write it must reread the target, compare the original snapshot and each before value, validate the proposed value against the provider field schema, and apply its native authority and approval policy. A sealed proposal is not permission or evidence that any field changed. Do not lose a supported change merely because no writer is configured: retain this reviewable proposal until one is selected.
 
-## Agent task contracts
-
-### `crm-update-plan-reconcile`
+## Agent task: crm-update-plan-reconcile
 
 Read `transcript`, `crm_records`, and `crm_schema` from step inputs. Return
 `update_draft` with `updates`: an array of `record_id`, `field`, `to`, and

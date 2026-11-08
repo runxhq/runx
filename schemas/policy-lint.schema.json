@@ -153,7 +153,7 @@
                     "minLength": 1,
                     "type": "string"
                   },
-                  "runner_id": {
+                  "method_id": {
                     "type": "string"
                   },
                   "scafld_required": {
@@ -165,7 +165,7 @@
                       "disabled",
                       "maintenance"
                     ],
-                    "title": "OperationalPolicyRunnerState",
+                    "title": "OperationalPolicyMethodState",
                     "type": "string"
                   },
                   "target_repos": {
@@ -176,14 +176,14 @@
                   }
                 },
                 "required": [
-                  "runner_id",
+                  "method_id",
                   "kind",
                   "state",
                   "target_repos",
                   "allowed_actions",
                   "scafld_required"
                 ],
-                "title": "OperationalPolicyRunnerReadback",
+                "title": "OperationalPolicyMethodReadback",
                 "type": "object"
               },
               "type": "array"
@@ -274,7 +274,7 @@
                     },
                     "type": "array"
                   },
-                  "available_runner_count": {
+                  "available_method_count": {
                     "minimum": 0,
                     "type": "integer"
                   },
@@ -288,7 +288,7 @@
                   "repo": {
                     "type": "string"
                   },
-                  "runner_ids": {
+                  "method_ids": {
                     "items": {
                       "type": "string"
                     },
@@ -300,12 +300,12 @@
                 },
                 "required": [
                   "repo",
-                  "runner_ids",
+                  "method_ids",
                   "default_owner_route",
                   "owner_count",
                   "allowed_actions",
                   "scafld_required",
-                  "available_runner_count"
+                  "available_method_count"
                 ],
                 "title": "OperationalPolicyTargetReadback",
                 "type": "object"

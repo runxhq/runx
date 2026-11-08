@@ -584,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn skill_without_inputs_executes_default_runner() -> Result<(), String> {
+    fn skill_without_inputs_executes_default_method() -> Result<(), String> {
         let args = ["skill", "skills/nws-weather"]
             .into_iter()
             .map(std::ffi::OsString::from)
@@ -601,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn positional_runner_without_inputs_executes_runner() -> Result<(), String> {
+    fn positional_method_without_inputs_executes_method() -> Result<(), String> {
         let args = ["skill", "skills/nws-weather", "normalize"]
             .into_iter()
             .map(std::ffi::OsString::from)
@@ -631,7 +631,7 @@ mod tests {
     }
 
     #[test]
-    fn positional_runner_with_inputs_executes_runner() -> Result<(), String> {
+    fn positional_method_with_inputs_executes_method() -> Result<(), String> {
         let args = [
             "skill",
             "skills/nws-weather",

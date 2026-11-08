@@ -1,0 +1,11 @@
+{
+  "skill_name": "redact-pii",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Remove names, emails, and phone numbers from this support text before it crosses a trust boundary.",
+      "expected_output": "Return usable scrubbed content only after deterministic residual scanning passes.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+name: refuses-unproved-array-compatibility
+inputs:
+  current_schema:
+    type: array
+    items:
+      type: number
+  proposed_schema:
+    type: array
+    items:
+      type: number
+      minimum: 0
+  sample_payloads:
+    - - 1
+      - 2
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: sealed
+  steps:
+    - digest-current
+    - digest-proposed
+    - digest-samples
+    - validate-current
+    - validate-proposed
+    - check
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: refused
+  receipt:
+    schema: runx.receipt.v1

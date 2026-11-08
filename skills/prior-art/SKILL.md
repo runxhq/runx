@@ -86,9 +86,7 @@ validation: object
 
 Inputs are `objective`, optional `decomposition`, `graph_purpose`, `audience`, `artifact_contract`, and bounded `source_paths`.
 
-## Agent task contracts
-
-### `prior-art-research`
+## Agent task: prior-art-research
 
 Use the retained native source text in `inspected_bundle` and the catalog descriptions in
 `evidence_index`. No direct filesystem tools are needed in this judgment phase.

@@ -1,0 +1,17 @@
+{
+  "skill_name": "operations-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Inspect this workspace and tell me the next safe operational action.",
+      "expected_output": "Return a bounded state summary, prioritized risk, and exact next governed lane from the local projection.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Review the remaining invoice-payment gap and choose the next bounded step.",
+      "expected_output": "Return one useful existing read-only route with preserved source context and no dispatch or payment.",
+      "files": []
+    }
+  ]
+}

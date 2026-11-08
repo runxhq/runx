@@ -2,7 +2,9 @@ use runx_contracts::{JsonValue, json_string_field};
 use serde::Deserialize;
 
 use crate::policy::ScopeGrantPolicy;
-use crate::state_machine::{SequentialGraph, SequentialGraphEvent, SequentialGraphStepDefinition};
+use crate::state_machine::{
+    SequentialWorkflow, SequentialWorkflowEvent, SequentialWorkflowStepDefinition,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
@@ -13,20 +15,20 @@ pub(super) enum KernelInput {
         requested_scope: String,
         policy: ScopeGrantPolicy,
     },
-    #[serde(rename = "state-machine.createSequentialGraph")]
-    CreateSequentialGraphState {
-        graph_id: String,
-        steps: Vec<SequentialGraphStepDefinition>,
+    #[serde(rename = "state-machine.createSequentialWorkflow")]
+    CreateSequentialWorkflowState {
+        workflow_id: String,
+        steps: Vec<SequentialWorkflowStepDefinition>,
     },
-    #[serde(rename = "state-machine.planSequentialGraphTransition")]
-    PlanSequentialGraphTransition {
-        state: SequentialGraph,
-        steps: Vec<SequentialGraphStepDefinition>,
+    #[serde(rename = "state-machine.planSequentialWorkflowTransition")]
+    PlanSequentialWorkflowTransition {
+        state: SequentialWorkflow,
+        steps: Vec<SequentialWorkflowStepDefinition>,
     },
-    #[serde(rename = "state-machine.transitionSequentialGraph")]
-    TransitionSequentialGraph {
-        state: SequentialGraph,
-        event: SequentialGraphEvent,
+    #[serde(rename = "state-machine.transitionSequentialWorkflow")]
+    TransitionSequentialWorkflow {
+        state: SequentialWorkflow,
+        event: SequentialWorkflowEvent,
     },
 }
 
@@ -41,8 +43,8 @@ pub(super) fn is_supported_kernel_kind(kind: &str) -> bool {
     matches!(
         kind,
         "policy.scopeGrantAllows"
-            | "state-machine.createSequentialGraph"
-            | "state-machine.planSequentialGraphTransition"
-            | "state-machine.transitionSequentialGraph"
+            | "state-machine.createSequentialWorkflow"
+            | "state-machine.planSequentialWorkflowTransition"
+            | "state-machine.transitionSequentialWorkflow"
     )
 }

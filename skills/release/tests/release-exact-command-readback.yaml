@@ -1,0 +1,35 @@
+name: release-exact-command-readback
+package: fixtures/release-fixture
+host:
+  answers:
+    draft-notes:
+      release_notes:
+        headline: Fixture 1.2.3
+        summary: Publishes the fixture through the project-owned command profile.
+        changelog:
+          added: []
+          fixed:
+            - Prove independent release readback.
+          changed: []
+          removed: []
+          breaking: []
+        upgrade_guidance: No migration is required.
+        risks: []
+  approvals:
+    release#release.publish.approval: true
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - setup
+    - release
+  step_outputs:
+    release:
+      subset:
+        verification:
+          data:
+            phase: verify
+            status: verified
+            version: 1.2.3
+            channel: fixture

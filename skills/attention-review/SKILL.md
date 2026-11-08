@@ -28,7 +28,7 @@ and say that the needed work is held.
 
 Use `review` after the source-owning skills have produced a bounded, current page. Supply only the charter, confirmed preferences, exact non-mutating candidates and source evidence needed for this decision. Inspect the sealed attention packet and its validation before admitting work or private delivery. A held packet is a request to correct evidence or configuration, not authority to retry with a broader source or action roster.
 
-## Agent task contract
+## Agent task: attention-review-review
 
 ### `turn_complete`
 

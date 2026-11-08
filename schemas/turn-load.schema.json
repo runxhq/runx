@@ -147,7 +147,7 @@
                 "type",
                 "required"
               ],
-              "title": "LoadedRunnerInput",
+              "title": "LoadedMethodInput",
               "type": "object"
             },
             "type": "array"
@@ -167,7 +167,7 @@
           "inputs",
           "bound"
         ],
-        "title": "LoadedRunner",
+        "title": "LoadedMethod",
         "type": "object"
       },
       "minItems": 1,

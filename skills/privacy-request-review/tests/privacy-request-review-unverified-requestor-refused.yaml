@@ -1,0 +1,59 @@
+name: privacy-request-review-unverified-requestor-refused
+inputs:
+  request_packet:
+    type: erasure
+    subject_id: subject:alice
+    scope:
+      request_id: dsr-002
+      data_classes:
+        - profile
+  requestor_proof:
+    identity_provider: idp:unknown
+    verified_at: 2026-08-01T10:00:00Z
+    assertion:
+      subject_id: subject:bob
+      assertion_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  policy:
+    jurisdiction: GDPR
+    trusted_identity_providers:
+      - idp:acme
+    lawful_bases:
+      erasure: art17_right_to_erasure
+    scope_bounds:
+      data_classes:
+        - profile
+        - activity
+      erasure_allowed:
+        - profile
+      export_allowed:
+        - profile
+  data_source_uri: tenant://privacy/sqlite-requests
+  resource: subject_requests
+  aggregate_id: subject:alice:dsr-002
+  expected_version: 0
+  idempotency_key: dsr-002:verdict:v1
+expect:
+  status: sealed
+  steps:
+    - digest-request
+    - digest-policy
+    - judge
+    - persist-verdict
+    - readback-verdict
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        subject_request_verdict:
+          data:
+            decision:
+              eligible: false
+            escalation:
+              required: true
+              lane: human_privacy_review
+            handoff: null
+            persistence:
+              append_status: committed
+              after_version: 1
+  receipt:
+    schema: runx.receipt.v1

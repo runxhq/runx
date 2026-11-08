@@ -1,26 +1,26 @@
 use runx_parser::{
     AgentTask, AskGate, InputMode, StepKind, ToolTarget, ValidateSkillMode, ValidateSkillOptions,
-    parse_runner_manifest_yaml, parse_skill_markdown, validate_runner_manifest, validate_skill,
+    parse_method_manifest_yaml, parse_skill_markdown, validate_method_manifest, validate_skill,
     validate_skill_with_options,
 };
 
 /// One runner named `main` with the given steps (each line indented for a
 /// step list item).
-fn runner(steps: &str) -> Result<runx_parser::SkillRunnerDefinition, String> {
-    runner_with("", steps)
+fn runner(steps: &str) -> Result<runx_parser::SkillMethodDefinition, String> {
+    method_with("", steps)
 }
 
-fn runner_with(extra: &str, steps: &str) -> Result<runx_parser::SkillRunnerDefinition, String> {
+fn method_with(extra: &str, steps: &str) -> Result<runx_parser::SkillMethodDefinition, String> {
     let yaml = format!("skill: demo\nrunners:\n  main:\n{extra}    steps:\n{steps}");
-    let raw = parse_runner_manifest_yaml(&yaml).map_err(|error| error.to_string())?;
-    let mut manifest = validate_runner_manifest(raw).map_err(|error| error.to_string())?;
+    let raw = parse_method_manifest_yaml(&yaml).map_err(|error| error.to_string())?;
+    let mut manifest = validate_method_manifest(raw).map_err(|error| error.to_string())?;
     manifest
         .runners
         .remove("main")
         .ok_or_else(|| "runner main is missing".to_owned())
 }
 
-fn only_step(runner: &runx_parser::SkillRunnerDefinition) -> &runx_parser::GraphStep {
+fn only_step(runner: &runx_parser::SkillMethodDefinition) -> &runx_parser::WorkflowStep {
     &runner.graph.steps[0]
 }
 
@@ -82,7 +82,7 @@ fn environment_rejects_duplicates_invalid_names_and_runtime_owned_names() {
 
 #[test]
 fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
-    let runner = runner_with(
+    let runner = method_with(
         "    inputs:\n      archive_file: {type: string, required: true}\n      archive_base: {type: string, required: true}\n",
         "      - id: run\n        tool:\n          module: domain.mjs\n          pages:\n            path_from: archive_file\n            path_scope_from: archive_base\n            media_type: application/javascript\n            framing: json_array\n            page_bytes: 524288\n",
     )?;
@@ -104,7 +104,7 @@ fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
 
 #[test]
 fn a_worker_parses_an_already_admitted_artifact_source() -> Result<(), String> {
-    let runner = runner_with(
+    let runner = method_with(
         "    inputs:\n      snapshot: {type: string, required: true}\n",
         "      - id: run\n        scopes: [fs.read]\n        tool:\n          module: domain.mjs\n          pages:\n            artifact_from: snapshot\n            framing: json_array\n            page_bytes: 65536\n",
     )?;
@@ -211,8 +211,8 @@ fn an_ask_step_yields_the_approval_decision_packet() -> Result<(), String> {
 #[test]
 fn an_operation_step_carries_its_call_on_the_step() -> Result<(), String> {
     let yaml = "skill: demo\nconnectors:\n  slack:\n    operations: [channel.post]\nrunners:\n  main:\n    steps:\n      - id: post\n        operation: slack/channel.post\n        idempotency_key: $input.key\n        input: {channel_locator: $input.channel}\n        result_fields: [message_locator]\n";
-    let raw = parse_runner_manifest_yaml(yaml).map_err(|error| error.to_string())?;
-    let manifest = validate_runner_manifest(raw).map_err(|error| error.to_string())?;
+    let raw = parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?;
+    let manifest = validate_method_manifest(raw).map_err(|error| error.to_string())?;
     let step = &manifest.runners["main"].graph.steps[0];
     assert!(step.inputs.contains_key("input"));
     assert!(step.inputs.contains_key("result_fields"));
@@ -232,13 +232,13 @@ fn an_operation_step_carries_its_call_on_the_step() -> Result<(), String> {
         "        input: {channel_locator: $input.channel}\n",
         "        inputs: {input: {channel_locator: $input.channel}}\n",
     );
-    let raw = parse_runner_manifest_yaml(&wrapped).map_err(|error| error.to_string())?;
-    assert!(validate_runner_manifest(raw).is_err());
+    let raw = parse_method_manifest_yaml(&wrapped).map_err(|error| error.to_string())?;
+    assert!(validate_method_manifest(raw).is_err());
     Ok(())
 }
 
 #[test]
-fn a_runner_result_defaults_to_its_last_step() -> Result<(), String> {
+fn a_method_result_defaults_to_its_last_step() -> Result<(), String> {
     let runner = runner(
         "      - id: first\n        tool: {module: one.mjs}\n      - id: second\n        tool: {module: two.mjs}\n",
     )?;
@@ -249,7 +249,7 @@ fn a_runner_result_defaults_to_its_last_step() -> Result<(), String> {
 }
 
 #[test]
-fn a_runner_takes_only_runner_fields() {
+fn a_method_takes_only_method_fields() {
     for extra in [
         "    type: graph\n",
         "    graph: {name: main}\n",
@@ -258,7 +258,7 @@ fn a_runner_takes_only_runner_fields() {
         "    runx: {scopes: [repo:read]}\n",
     ] {
         assert!(
-            runner_with(extra, "      - id: run\n        tool: {module: one.mjs}\n").is_err(),
+            method_with(extra, "      - id: run\n        tool: {module: one.mjs}\n").is_err(),
             "runner field passed: {extra}"
         );
     }
@@ -293,12 +293,12 @@ fn skill_markdown_carries_only_manual_fields() -> Result<(), String> {
 }
 
 /// A runner whose steps may call `tracker/item.update`.
-fn acting(steps: &str) -> Result<runx_parser::SkillRunnerDefinition, String> {
+fn acting(steps: &str) -> Result<runx_parser::SkillMethodDefinition, String> {
     let yaml = format!(
         "skill: demo\nconnectors:\n  tracker:\n    operations: [item.update]\nrunners:\n  main:\n    inputs:\n      item: {{type: string, required: true}}\n    steps:\n{steps}"
     );
-    let raw = parse_runner_manifest_yaml(&yaml).map_err(|error| error.to_string())?;
-    let mut manifest = validate_runner_manifest(raw).map_err(|error| error.to_string())?;
+    let raw = parse_method_manifest_yaml(&yaml).map_err(|error| error.to_string())?;
+    let mut manifest = validate_method_manifest(raw).map_err(|error| error.to_string())?;
     manifest
         .runners
         .remove("main")
@@ -410,7 +410,7 @@ fn an_act_states_its_purpose() -> Result<(), String> {
 
 #[test]
 fn an_input_cannot_take_the_name_of_the_invokers_act() -> Result<(), String> {
-    let Err(error) = runner_with(
+    let Err(error) = method_with(
         "    inputs:\n      act: {type: string}\n",
         "      - id: note\n        tool: {module: note.mjs}\n",
     ) else {

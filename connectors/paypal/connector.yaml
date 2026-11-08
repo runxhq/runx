@@ -1,10 +1,8 @@
 schema: runx.connector.v1
-id: paypal
-name: PayPal
-description: Create checkout orders, collect approved payments and refund original captures with
-  exact merchant binding and independent processor readback.
+name: paypal
+title: PayPal
+description: Create checkout orders, collect approved payments and refund original captures with exact merchant binding and independent processor readback.
 category: payments
-runtime_capability: false
 auth:
   credentials:
     app:
@@ -29,8 +27,7 @@ placements:
       - credentials
 operations:
   payment.paypal.order.create:
-    description: Create one merchant checkout order and read its exact terms back. Creating an order
-      does not approve or collect a payment; return the provider approval link to the buyer.
+    description: Create one merchant checkout order and read its exact terms back. Creating an order does not approve or collect a payment; return the provider approval link to the buyer.
     verb: write
     scopes:
       - payment.paypal.order.create
@@ -118,8 +115,7 @@ operations:
           enum:
             - api-m.paypal.com
             - api-m.sandbox.paypal.com
-          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
-            implicit live fallback.
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an implicit live fallback.
       allOf:
         - if:
             properties:
@@ -151,7 +147,6 @@ operations:
       - currency
       - reference
       - links
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -169,7 +164,7 @@ operations:
             client_secret: client_secret
         requests:
           - id: order
-            method: POST
+            http_method: POST
             url:
               $concat:
                 - https://
@@ -211,7 +206,7 @@ operations:
         readbacks:
           - request:
               id: order_read
-              method: GET
+              http_method: GET
               url:
                 $concat:
                   - https://
@@ -265,8 +260,7 @@ operations:
     approval: required
     idempotency_key_format: uuid
   payment.paypal.order.read:
-    description: Read the state, merchant and exact terms of one single-unit order. An order awaiting
-      buyer action is not payment confirmation.
+    description: Read the state, merchant and exact terms of one single-unit order. An order awaiting buyer action is not payment confirmation.
     verb: read
     scopes:
       - payment.paypal.order.read
@@ -292,8 +286,7 @@ operations:
           enum:
             - api-m.paypal.com
             - api-m.sandbox.paypal.com
-          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
-            implicit live fallback.
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an implicit live fallback.
     result_fields:
       - order_id
       - order_status
@@ -303,7 +296,6 @@ operations:
       - currency
       - reference
       - links
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -321,7 +313,7 @@ operations:
             client_secret: client_secret
         requests:
           - id: order
-            method: GET
+            http_method: GET
             url:
               $concat:
                 - https://
@@ -352,9 +344,7 @@ operations:
           reference: acknowledgement.reference
           links: acknowledgement.links
   payment.paypal:
-    description: Capture one buyer-approved, single-unit order on the selected merchant. Confirmation
-      requires independent order and capture reads matching the approved identity, amount and
-      currency.
+    description: Capture one buyer-approved, single-unit order on the selected merchant. Confirmation requires independent order and capture reads matching the approved identity, amount and currency.
     verb: write
     scopes:
       - payment.paypal
@@ -434,8 +424,7 @@ operations:
           enum:
             - api-m.paypal.com
             - api-m.sandbox.paypal.com
-          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
-            implicit live fallback.
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an implicit live fallback.
       allOf:
         - if:
             properties:
@@ -466,7 +455,6 @@ operations:
       - currency
       - status
       - reference
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -484,7 +472,7 @@ operations:
             client_secret: client_secret
         requests:
           - id: capture
-            method: POST
+            http_method: POST
             url:
               $concat:
                 - https://
@@ -506,7 +494,7 @@ operations:
         preconditions:
           - request:
               id: approved_order
-              method: GET
+              http_method: GET
               url:
                 $concat:
                   - https://
@@ -559,7 +547,7 @@ operations:
         readbacks:
           - request:
               id: captured_order
-              method: GET
+              http_method: GET
               url:
                 $concat:
                   - https://
@@ -631,7 +619,7 @@ operations:
                 observed: order_id
           - request:
               id: capture_read
-              method: GET
+              http_method: GET
               url:
                 $concat:
                   - https://
@@ -684,8 +672,7 @@ operations:
     approval: required
     idempotency_key_format: uuid
   payment.paypal.read:
-    description: Read one capture and report its actual merchant, order, amount, currency and processor
-      state without payer details.
+    description: Read one capture and report its actual merchant, order, amount, currency and processor state without payer details.
     verb: read
     scopes:
       - payment.paypal.read
@@ -711,8 +698,7 @@ operations:
           enum:
             - api-m.paypal.com
             - api-m.sandbox.paypal.com
-          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
-            implicit live fallback.
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an implicit live fallback.
     result_fields:
       - payment_id
       - order_id
@@ -720,7 +706,6 @@ operations:
       - amount_decimal
       - currency
       - status
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -738,7 +723,7 @@ operations:
             client_secret: client_secret
         requests:
           - id: capture
-            method: GET
+            http_method: GET
             url:
               $concat:
                 - https://
@@ -763,9 +748,7 @@ operations:
           currency: acknowledgement.currency
           status: acknowledgement.status
   payment.paypal.refund:
-    description: Refund an original capture on its merchant and currency. PayPal enforces the remaining
-      balance; independent readback must confirm the refund terms and its exact original-capture
-      relationship.
+    description: Refund an original capture on its merchant and currency. PayPal enforces the remaining balance; independent readback must confirm the refund terms and its exact original-capture relationship.
     verb: write
     scopes:
       - payment.paypal.refund
@@ -851,8 +834,7 @@ operations:
           enum:
             - api-m.paypal.com
             - api-m.sandbox.paypal.com
-          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
-            implicit live fallback.
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an implicit live fallback.
       allOf:
         - if:
             properties:
@@ -881,7 +863,6 @@ operations:
       - currency
       - status
       - relationships
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -899,7 +880,7 @@ operations:
             client_secret: client_secret
         requests:
           - id: refund
-            method: POST
+            http_method: POST
             url:
               $concat:
                 - https://
@@ -929,7 +910,7 @@ operations:
         preconditions:
           - request:
               id: original_capture
-              method: GET
+              http_method: GET
               url:
                 $concat:
                   - https://
@@ -967,7 +948,7 @@ operations:
         readbacks:
           - request:
               id: refund_read
-              method: GET
+              http_method: GET
               url:
                 $concat:
                   - https://
@@ -1038,8 +1019,7 @@ operations:
       currency:
         $argument: /currency
   payment.paypal.refund.read:
-    description: Read one refund, its processor state and original-capture relationship. A pending
-      refund is not completed.
+    description: Read one refund, its processor state and original-capture relationship. A pending refund is not completed.
     verb: read
     scopes:
       - payment.paypal.refund.read
@@ -1065,15 +1045,13 @@ operations:
           enum:
             - api-m.paypal.com
             - api-m.sandbox.paypal.com
-          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
-            implicit live fallback.
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an implicit live fallback.
     result_fields:
       - refund_id
       - amount_decimal
       - currency
       - status
       - relationships
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -1091,7 +1069,7 @@ operations:
             client_secret: client_secret
         requests:
           - id: refund
-            method: GET
+            http_method: GET
             url:
               $concat:
                 - https://
@@ -1114,9 +1092,7 @@ operations:
           status: acknowledgement.status
           relationships: acknowledgement.relationships
   payment.paypal.lookup:
-    description: Observe the capture already recorded on one single-unit order after an uncertain
-      submission. A missing capture never proves the order was not captured; this operation never
-      submits a payment.
+    description: Observe the capture already recorded on one single-unit order after an uncertain submission. A missing capture never proves the order was not captured; this operation never submits a payment.
     verb: read
     scopes:
       - payment.paypal.lookup
@@ -1142,8 +1118,7 @@ operations:
           enum:
             - api-m.paypal.com
             - api-m.sandbox.paypal.com
-          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an
-            implicit live fallback.
+          description: Explicit PayPal API environment. Use a matching app credential; sandbox is never an implicit live fallback.
     result_fields:
       - order_id
       - order_status
@@ -1153,7 +1128,6 @@ operations:
       - currency
       - status
       - reference
-    hosted: {}
     implementation:
       http:
         allowed_hosts:
@@ -1171,7 +1145,7 @@ operations:
             client_secret: client_secret
         requests:
           - id: order
-            method: GET
+            http_method: GET
             url:
               $concat:
                 - https://

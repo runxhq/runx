@@ -63,8 +63,8 @@ fn publish_skill_rejects_an_unsuccessful_success_status_envelope()
 }
 
 #[test]
-fn publish_admin_sends_publisher_and_harness_and_no_upsert()
--> Result<(), Box<dyn std::error::Error>> {
+fn publish_admin_sends_publisher_and_test_and_no_upsert() -> Result<(), Box<dyn std::error::Error>>
+{
     let transport = StubTransport::new(RuntimeHttpResponse::new(
         200,
         serde_json::json!({
@@ -89,14 +89,14 @@ fn publish_admin_sends_publisher_and_harness_and_no_upsert()
         path: "run.mjs".to_owned(),
         content: "console.log('hello');\n".to_owned(),
     }];
-    let harness = RegistryPublishHarnessReport {
+    let harness = RegistryPublishTestReport {
         status: "passed".to_owned(),
         case_count: 1,
         assertion_error_count: 0,
         assertion_errors: Vec::new(),
         case_names: vec!["smoke".to_owned()],
-        receipt_ids: vec!["rx_harness_1".to_owned()],
-        graph_case_count: 0,
+        receipt_ids: vec!["rx_test_1".to_owned()],
+        workflow_case_count: 0,
     };
     let result = publish_hosted_admin_skill(
         &transport,

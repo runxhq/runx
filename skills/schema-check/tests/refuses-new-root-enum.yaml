@@ -1,0 +1,29 @@
+name: refuses-new-root-enum
+inputs:
+  current_schema:
+    type: string
+  proposed_schema:
+    type: string
+    enum:
+      - only
+  sample_payloads:
+    - only
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: sealed
+  steps:
+    - digest-current
+    - digest-proposed
+    - digest-samples
+    - validate-current
+    - validate-proposed
+    - check
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: refused
+  receipt:
+    schema: runx.receipt.v1

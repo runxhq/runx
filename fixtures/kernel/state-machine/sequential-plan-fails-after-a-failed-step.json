@@ -9,9 +9,9 @@
     }
   },
   "input": {
-    "kind": "state-machine.planSequentialGraphTransition",
+    "kind": "state-machine.planSequentialWorkflowTransition",
     "state": {
-      "graphId": "gx_fixture",
+      "workflowId": "gx_fixture",
       "state": "running",
       "steps": [
         {

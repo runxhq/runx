@@ -1,73 +1,51 @@
-skill: skill-adopt
 version: "0.4.9"
+minimum_runx: 0.12.0
+default_method: adopt
 catalog:
-  publisher: runx
-  kind: graph
-  audience: builder
   visibility: public
   category: authoring
-  role: canonical
-  execution: execute
-  completion: runtime_receipt
-  approval: none
-runners:
+methods:
   adopt:
-    default: true
-    description: Capture local third-party source and apply a complete validated Runx package through the
-      canonical authoring engine.
+    description: Capture local third-party source and apply a complete validated Runx package through the canonical authoring engine.
     inputs:
-      objective:
-        definition: objective
-      repo_root:
-        definition: repo_root
-      target_dir:
-        definition: target_dir
-      package_name:
-        definition: package_name
-      project_context:
-        definition: project_context
-      provenance:
-        definition: provenance
+      objective: {}
+      repo_root: {}
+      target_dir: {}
+      package_name: {}
+      project_context: {}
+      provenance: {}
       source_paths:
         type: array
-        required: true
-        description: Repository-relative source files, including SKILL.md and known supporting resources; use
-          from-source to reuse an existing capture.
-        schema:
-          minItems: 1
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
+        description: Repository-relative source files, including SKILL.md and known supporting resources; use from-source to reuse an existing capture.
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
       source_byte_budget:
         type: integer
-        required: false
         default: 524288
         description: Fresh native read budget; missing or truncated sources stop before authoring.
-        schema:
-          minimum: 1
-      validation_byte_budget:
-        definition: validation_byte_budget
+        minimum: 1
+        optional: true
+      validation_byte_budget: {}
     result_from:
       - adopt
     examples:
       - objective: Summarize a pull request for its reviewers.
         source_paths:
-        - vendor/pr-summary/SKILL.md
+          - vendor/pr-summary/SKILL.md
         target_dir: skills/pr-summary
     steps:
       - id: read
         tool: fs.read_bundle
-        scopes:
-          - fs.read
         inputs:
           repo_root: $input.repo_root
           paths: $input.source_paths
           max_bytes: $input.source_byte_budget
           on_missing: report
       - id: adopt
-        skill: .
-        runner: from-source
+        skill: .#from-source
         inputs:
           objective: $input.objective
           repo_root: $input.repo_root
@@ -78,37 +56,24 @@ runners:
           source_snapshot: $steps.read.file_read_bundle
           validation_byte_budget: $input.validation_byte_budget
   from-source:
-    description: Adopt already captured upstream source without another acquisition; canonical skill-build owns
-      validation and atomic application.
+    description: Adopt already captured upstream source without another acquisition; canonical skill-build owns validation and atomic application.
     inputs:
-      objective:
-        definition: objective
-      repo_root:
-        definition: repo_root
-      target_dir:
-        definition: target_dir
-      package_name:
-        definition: package_name
-      project_context:
-        definition: project_context
-      provenance:
-        definition: provenance
+      objective: {}
+      repo_root: {}
+      target_dir: {}
+      package_name: {}
+      project_context: {}
+      provenance: {}
       source_snapshot:
-        type: json
         packet: runx.fs.file_read_bundle.v1
-        required: true
-        description: Previously captured source bundle to reuse instead of rereading source_paths; provenance remains
-          caller evidence.
-      validation_byte_budget:
-        definition: validation_byte_budget
+        description: Previously captured source bundle to reuse instead of rereading source_paths; provenance remains caller evidence.
+      validation_byte_budget: {}
     result_from:
       - stop
       - build
     steps:
       - id: source-store
         tool: artifact.store
-        scopes:
-          - artifact.write
         inputs:
           value: $input.source_snapshot
       - id: source-check
@@ -153,29 +118,25 @@ runners:
         outputs:
           adoption_context:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - blockers
-                - source_mode
-              properties:
-                decision:
-                  enum:
-                    - build
-                    - hold
-                blockers:
-                  type: array
-                  items:
-                    type: string
-                    minLength: 1
-                source_mode:
-                  const: snapshot
-                project_context:
+            additionalProperties: false
+            required:
+              - decision
+              - blockers
+              - source_mode
+            properties:
+              decision:
+                enum:
+                  - build
+                  - hold
+              blockers:
+                type: array
+                items:
                   type: string
-        artifacts:
-          named_emits:
-            adoption_context: adoption_context
+                  minLength: 1
+              source_mode:
+                const: snapshot
+              project_context:
+                type: string
       - id: stop
         when:
           value: $steps.context.adoption_context.decision
@@ -188,94 +149,81 @@ runners:
         outputs:
           adoption_result:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - blockers
-                - source_mode
-                - applied
-                - published
-              properties:
-                decision:
-                  const: blocked
-                blockers:
-                  type: array
-                  items:
-                    type: string
-                    minLength: 1
-                source_mode:
-                  const: snapshot
-                applied:
-                  const: false
-                published:
-                  const: false
+            additionalProperties: false
+            required:
+              - decision
+              - blockers
+              - source_mode
+              - applied
+              - published
+            properties:
+              decision:
+                const: blocked
+              blockers:
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+              source_mode:
+                const: snapshot
+              applied:
+                const: false
+              published:
+                const: false
       - id: build
         when:
           value: $steps.context.adoption_context.decision
           equals: build
-        skill: skill-build
-        runner: build
+        skill: skill-build#build
         inputs:
           objective: $input.objective
           repo_root: $input.repo_root
           target_dir: $input.target_dir
           package_name: $input.package_name
           project_context: $steps.context.adoption_context.project_context
-harness:
-  files:
-    - fixtures/upstream/decision-note/SKILL.md
-    - fixtures/support/composed.graph
-  cases: []
-input_definitions:
+shared_inputs:
   objective:
     type: string
-    required: true
     description: The useful operator job the adopted package must perform.
-    schema:
-      minLength: 1
+    minLength: 1
   repo_root:
     type: string
-    required: false
     default: .
     description: Local repository containing source_paths and target_dir.
+    optional: true
   target_dir:
     type: string
-    required: true
     description: Exact repository-relative package destination.
-    schema:
-      minLength: 1
+    minLength: 1
   package_name:
     type: string
-    required: false
     description: Explicit adopted package name, when selected by the operator.
+    optional: true
   project_context:
     type: string
-    required: false
     description: Product constraints, intended use and source limitations.
+    optional: true
   provenance:
     type: object
-    required: false
     description: Optional upstream attribution claims; these do not confer identity or trust.
-    schema:
-      additionalProperties: false
-      properties:
-        source_url:
-          type: string
-          format: uri
-        revision:
-          type: string
-          minLength: 1
-        license:
-          type: string
-          minLength: 1
-        notes:
-          type: string
-          minLength: 1
+    additionalProperties: false
+    properties:
+      source_url:
+        type: string
+        format: uri
+      revision:
+        type: string
+        minLength: 1
+      license:
+        type: string
+        minLength: 1
+      notes:
+        type: string
+        minLength: 1
+    optional: true
   validation_byte_budget:
     type: integer
-    required: false
     default: 33554432
     description: Serialized snapshot budget for native metadata validation; data.validate owns the upper bound.
-    schema:
-      minimum: 1
+    minimum: 1
+    optional: true

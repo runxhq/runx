@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: google/search-console
-name: Google Search Console
+name: google/search-console
+title: Google Search Console
 description: Read Search Console performance, URL inspections and sitemaps, and submit sitemaps.
 category: analytics
-runtime_capability: false
 auth:
   delegated: {principal: {url: "https://openidconnect.googleapis.com/v1/userinfo", id: sub, login: sub}}
 placements:
@@ -17,8 +16,7 @@ operations:
     target:
       template: "google-search-console://sites"
     result_fields: [sites]
-    hosted:
-      provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
+    provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
   search.analytics.query:
     description: Query search performance rows for a property.
     verb: read
@@ -26,8 +24,7 @@ operations:
     target:
       template: {"$argument": "/property"}
     result_fields: [property, start_date, end_date, dimensions, search_type, data_state, rows, row_count, aggregation_type, metadata, pagination, fetched_at]
-    hosted:
-      provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
+    provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
   url.inspect:
     description: Inspect the index status of one URL within a property.
     verb: read
@@ -35,8 +32,7 @@ operations:
     target:
       template: {"$argument": "/inspection_url"}
     result_fields: [property, inspection_url, verdict, coverage_state, robots_txt_state, indexing_state, page_fetch_state, crawled_as, last_crawl_time, referring_urls, sitemap, amp, mobile_usability, rich_results, inspection_link, fetched_at]
-    hosted:
-      provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
+    provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
   sitemaps.list:
     description: List the sitemaps submitted for a property.
     verb: read
@@ -44,8 +40,7 @@ operations:
     target:
       template: {"$argument": "/property"}
     result_fields: [property, sitemaps]
-    hosted:
-      provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
+    provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
   sitemaps.get:
     description: Read the status of one sitemap within a property.
     verb: read
@@ -53,8 +48,7 @@ operations:
     target:
       template: {"$argument": "/sitemap_url"}
     result_fields: [property, sitemap_url, status, last_submitted, last_downloaded, error_count, warning_count]
-    hosted:
-      provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
+    provider_scopes: ["https://www.googleapis.com/auth/webmasters.readonly", "openid"]
   sitemaps.submit:
     description: Submit a sitemap for a property.
     verb: write
@@ -62,5 +56,4 @@ operations:
     target:
       template: {"$argument": "/sitemap_url"}
     result_fields: [property, sitemap_url, accepted_at, idempotency_key]
-    hosted:
-      provider_scopes: ["https://www.googleapis.com/auth/webmasters", "openid"]
+    provider_scopes: ["https://www.googleapis.com/auth/webmasters", "openid"]

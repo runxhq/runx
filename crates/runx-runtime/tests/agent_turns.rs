@@ -6,7 +6,7 @@ use runx_contracts::{
     TurnCallResult, TurnStatus,
 };
 use runx_runtime::{
-    LocalOrchestrator, ManagedAgentPolicy, PackageHarnessRequest, ResumeRequest, RunResult,
+    LocalOrchestrator, ManagedAgentPolicy, PackageTestRequest, ResumeRequest, RunResult,
     SkillRunRequest, TurnRequest, TurnSession,
 };
 use tempfile::tempdir;
@@ -296,7 +296,7 @@ fn request_id(request: &ResolutionRequest) -> &str {
     match request {
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
-        | ResolutionRequest::AgentAct { id, .. }
+        | ResolutionRequest::Turn { id, .. }
         | ResolutionRequest::Retry { id, .. }
         | ResolutionRequest::Purchase { id, .. } => id.as_str(),
     }
@@ -618,7 +618,7 @@ fn a_run_answered_later_seals_at_the_time_it_closes() -> TestResult {
 
 /// A runner with no steps is one agent turn, handed the run's inputs.
 #[test]
-fn a_one_turn_runner_hands_its_agent_the_run_inputs() -> TestResult {
+fn a_one_turn_method_hands_its_agent_the_run_inputs() -> TestResult {
     let temp = tempdir()?;
     let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
     let session = paused.open()?;
@@ -1039,10 +1039,10 @@ runners:
     Ok(skill_dir)
 }
 
-fn run_case(root: &Path, skill_dir: PathBuf) -> TestResult<runx_runtime::PackageHarnessReport> {
+fn run_case(root: &Path, skill_dir: PathBuf) -> TestResult<runx_runtime::PackageTestReport> {
     Ok(LocalOrchestrator::default()
         .with_environment(env(root))
-        .run_package_harness(&PackageHarnessRequest {
+        .run_package_test(&PackageTestRequest {
             skill_path: skill_dir,
             receipt_dir: Some(root.join("receipts")),
         })?)
@@ -1103,7 +1103,7 @@ runners:
 }
 
 #[test]
-fn a_harness_case_works_a_turn_call_by_call() -> TestResult {
+fn a_test_case_works_a_turn_call_by_call() -> TestResult {
     let temp = tempdir()?;
     let report = run_case(
         temp.path(),
@@ -1368,7 +1368,7 @@ fn run_page_fixture(
 }
 
 #[test]
-fn admitted_artifact_pages_run_through_real_store_open_and_child_graphs() -> TestResult {
+fn admitted_artifact_pages_run_through_real_store_open_and_child_workflows() -> TestResult {
     let temp = tempdir()?;
     let child = temp.path().join("admitted-child");
     crate::support::write_test_skill_package(
@@ -1439,7 +1439,7 @@ runners:
 }
 
 #[test]
-fn paged_file_reads_keep_the_real_graph_callers_bounds() -> TestResult {
+fn paged_file_reads_keep_the_real_workflow_callers_bounds() -> TestResult {
     let temp = tempdir()?;
     std::fs::write(temp.path().join("ordinary.json"), "[{}]")?;
     std::fs::write(temp.path().join(".env.page-proof"), "[{}]")?;
@@ -1524,7 +1524,7 @@ fn paged_file_reads_keep_bounds_when_an_agent_calls_a_child_skill() -> TestResul
 }
 
 #[test]
-fn a_runner_excludes_provider_calls_before_connector_authentication() -> TestResult {
+fn a_method_excludes_provider_calls_before_connector_authentication() -> TestResult {
     for operation_limit in ["", "    operations: []\n"] {
         let temp = tempdir()?;
         crate::support::plugin_with_fixture_connectors(temp.path(), &["fixture/forge"])?;
@@ -1942,7 +1942,7 @@ fn an_agent_asks_the_person_questions_and_reads_their_answers() -> TestResult {
 }
 
 #[test]
-fn the_floor_holds_a_skills_graph_step_before_it_is_claimed() -> TestResult {
+fn the_floor_holds_a_skills_workflow_step_before_it_is_claimed() -> TestResult {
     let temp = tempdir()?;
     let root = temp.path();
     let skill_dir = root.join("write-step");

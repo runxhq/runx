@@ -115,9 +115,7 @@ replays the failed work.
 - `receipt_rows`: native-projection rows for deterministic replay only; live
   runs resolve `receipt_id` from the configured receipt store.
 
-## Agent task contracts
-
-### `diagnose-skill-run`
+## Agent task: diagnose-skill-run
 
 Return a `diagnosis` object with verdict, failure_summary, improvement_proposals
 and next_harness_checks. Optional `evidence` entries are exact source references;

@@ -1,0 +1,28 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: capture
+        skill: ../..#capture
+        inputs:
+          account_id: acct_northstar
+          dispute_id: du_case42
+          evidence: []
+      - id: prepare
+        skill: ../..#from-evidence
+        inputs:
+          account_id: acct_northstar
+          dispute_id: du_case42
+          case_evidence: $steps.capture.case_context.case_evidence
+          charge_evidence: $steps.capture.case_context.charge_evidence
+          evidence:
+            - id: delivery-42
+              kind: delivery
+              content: Report 42 was downloaded by the buyer at 2026-11-03T01:00:00Z.
+              source: merchant://orders/42/access-log
+      - id: file
+        skill: ../..#file
+        inputs:
+          prepared_response: $steps.prepare.prepared_response

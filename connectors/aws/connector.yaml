@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: aws
-name: AWS
+name: aws
+title: AWS
 description: Store and read S3 objects and run Textract and Transcribe jobs in one AWS account.
 category: cloud-infrastructure
-runtime_capability: false
 auth:
   credentials:
     access_key:
@@ -29,7 +28,6 @@ operations:
     target:
       template: {"$argument": "/target"}
     result_fields: [object_uri, content_digest, size_bytes, version_id, recovered]
-    hosted: {}
   aws.s3.head:
     description: Read the metadata of one S3 object.
     verb: read
@@ -37,7 +35,6 @@ operations:
     target:
       template: {"$argument": "/target"}
     result_fields: [object_uri, content_digest, size_bytes, version_id]
-    hosted: {}
   aws.s3.get:
     description: Read the bytes of one S3 object of at most 10 MiB.
     verb: read
@@ -45,7 +42,6 @@ operations:
     target:
       template: {"$argument": "/target"}
     result_fields: [object_uri, content_digest, size_bytes, version_id, data_base64]
-    hosted: {}
   aws.s3.delete:
     description: Delete one object from an S3 bucket.
     verb: write
@@ -53,7 +49,6 @@ operations:
     target:
       template: {"$argument": "/target"}
     result_fields: [object_uri, size_bytes, version_id, recovered]
-    hosted: {}
   aws.textract.detect:
     description: Detect the text lines in one document of at most 5 MiB with Textract.
     verb: read
@@ -61,7 +56,6 @@ operations:
     target:
       template: {"$argument": "/target"}
     result_fields: [document_uri, lines]
-    hosted: {}
   aws.textract.analysis.start:
     description: Start a Textract document analysis job on one S3 object.
     verb: write
@@ -71,7 +65,6 @@ operations:
     guarantees:
       provider_idempotency: enforced
     result_fields: [job_uri, status, blocks]
-    hosted: {}
   aws.textract.analysis.inspect:
     description: Read the status and blocks of a Textract analysis job.
     verb: read
@@ -79,7 +72,6 @@ operations:
     target:
       template: {"$argument": "/target"}
     result_fields: [job_uri, status, blocks, next_token, failure_reason]
-    hosted: {}
   aws.transcribe.start:
     description: Start a Transcribe job on one S3 media object.
     verb: write
@@ -89,7 +81,6 @@ operations:
     guarantees:
       provider_idempotency: enforced
     result_fields: [job_uri, status, output_available, failure_reason, recovered]
-    hosted: {}
   aws.transcribe.inspect:
     description: Read the status of a Transcribe job.
     verb: read
@@ -97,4 +88,3 @@ operations:
     target:
       template: {"$argument": "/target"}
     result_fields: [job_uri, status, output_available, failure_reason]
-    hosted: {}

@@ -1,0 +1,40 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: schema-check
+        skill: ../..#check
+        inputs:
+          current_schema:
+            $defs:
+              id:
+                type: integer
+                minimum: 1
+            type: array
+            items:
+              $ref: "#/$defs/id"
+            minItems: 2
+            maxItems: 5
+          proposed_schema:
+            $defs:
+              id:
+                type: number
+                minimum: 0
+            type: array
+            items:
+              $ref: "#/$defs/id"
+            minItems: 1
+            maxItems: 10
+          sample_payloads:
+            - - 1
+              - 2
+            - - 3
+              - 4
+          compatibility_policy:
+            breaking_allowed: false
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.schema-check

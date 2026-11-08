@@ -11,7 +11,7 @@ use crate::skill::{ArtifactPageSource, InputMode, SkillArtifactContract};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RawGraphIr {
+pub struct RawWorkflowIr {
     pub document: JsonObject,
 }
 
@@ -19,7 +19,7 @@ pub struct RawGraphIr {
 /// when `value` does not hold.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct GraphGuard {
+pub struct WorkflowGuard {
     pub step: String,
     pub value: Operand,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -30,8 +30,8 @@ pub struct GraphGuard {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GraphPolicy {
-    pub guards: Vec<GraphGuard>,
+pub struct WorkflowPolicy {
+    pub guards: Vec<WorkflowGuard>,
 }
 
 /// Per-step conditional selection. When present and the condition does not hold
@@ -40,7 +40,7 @@ pub struct GraphPolicy {
 /// a `when` never blocks the run, it selects.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct GraphWhen {
+pub struct WorkflowWhen {
     pub value: Operand,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub equals: Option<JsonValue>,
@@ -193,7 +193,7 @@ pub struct SkillTarget {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct GraphStep {
+pub struct WorkflowStep {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
@@ -221,13 +221,13 @@ pub struct GraphStep {
     pub context_skills: Vec<String>,
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub when: Option<GraphWhen>,
+    pub when: Option<WorkflowWhen>,
     /// Whether this use tolerates a visible duplicate.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duplicates: Option<DuplicatePolicy>,
 }
 
-impl GraphStep {
+impl WorkflowStep {
     #[must_use]
     pub fn operation(&self) -> Option<&OperationStepTarget> {
         match &self.kind {
@@ -315,7 +315,7 @@ pub enum DuplicatePolicy {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ExecutionGraph {
+pub struct Workflow {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publisher: Option<String>,
@@ -324,8 +324,8 @@ pub struct ExecutionGraph {
     /// and workflows that intentionally return both an act result and its
     /// durable readback. Diagnostic/base fields are never exported.
     pub result_from: Vec<String>,
-    pub steps: Vec<GraphStep>,
+    pub steps: Vec<WorkflowStep>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy: Option<GraphPolicy>,
-    pub raw: RawGraphIr,
+    pub policy: Option<WorkflowPolicy>,
+    pub raw: RawWorkflowIr,
 }

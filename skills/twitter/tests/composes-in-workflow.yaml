@@ -1,0 +1,6 @@
+name: twitter-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps: [twitter, digest]
+  receipt: {schema: runx.receipt.v1}

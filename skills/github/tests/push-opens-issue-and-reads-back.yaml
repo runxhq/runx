@@ -1,0 +1,54 @@
+name: github-push-opens-issue-and-reads-back
+method: push
+setup:
+  sessions: [github]
+inputs:
+  repo: runxhq/runx
+  resources:
+    kind: issues
+    mutations:
+      - path: issues
+        op: create
+        payload: {title: Harness cases for issue creation, body: Cover the create and readback path., labels: [triage]}
+  idempotency_key: runxhq/runx:issues:create:harness-cases
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+providers:
+  http:
+    - request:
+        method: POST
+        url: https://api.github.com/repos/runxhq/runx/issues
+        body:
+          json:
+            title: Harness cases for issue creation
+            body: Cover the create and readback path.
+            labels: [triage]
+      response:
+        status: 201
+        headers: {content-type: application/json}
+        body: '{"number": 512, "title": "Harness cases for issue creation", "body": "Cover the create and readback path.", "state": "open", "labels": [{"name": "triage"}], "assignees": [], "milestone": null}'
+    - request: {method: GET, url: "https://api.github.com/user", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"id": 7, "login": "operator"}'
+    - request: {method: GET, url: "https://api.github.com/repos/runxhq/runx/issues/512", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"number": 512, "title": "Harness cases for issue creation", "body": "Cover the create and readback path.", "state": "open", "labels": [{"name": "triage"}], "assignees": [], "milestone": null}'
+expect:
+  status: sealed
+  steps: [plan, apply]
+  output:
+    subset:
+      provider_operation:
+        data:
+          status: success
+          operation: issues.create
+          finality: confirmed
+          result:
+            issues:
+              - status: applied
+                acknowledgement: {number: 512, title: Harness cases for issue creation}
+  receipt: {schema: runx.receipt.v1}

@@ -1,0 +1,27 @@
+name: accepts-integers-as-jsonschema-numbers
+inputs:
+  current_schema:
+    type: number
+  proposed_schema:
+    type: number
+  sample_payloads:
+    - 2
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: sealed
+  steps:
+    - digest-current
+    - digest-proposed
+    - digest-samples
+    - validate-current
+    - validate-proposed
+    - check
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: compatible
+  receipt:
+    schema: runx.receipt.v1

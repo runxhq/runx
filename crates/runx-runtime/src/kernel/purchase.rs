@@ -51,14 +51,14 @@ const PURCHASE_TERM: &str = "runx:purchase";
 
 /// A runner the registry sells, reached by a call.
 #[derive(Clone, Debug)]
-pub(crate) struct PaidRunner {
+pub(crate) struct PaidMethod {
     pub skill_id: String,
     pub version: Option<String>,
     pub runner: String,
     pub terms: PaidSkillOfferTerms,
 }
 
-impl PaidRunner {
+impl PaidMethod {
     /// The runner a call reaches through `reference`, when the registry
     /// sells it: a `registry:` reference whose runner carries an offer. A
     /// package run from its own source is its author's, and is run, not
@@ -95,7 +95,7 @@ impl PaidRunner {
 
 /// One call that buys a paid runner.
 pub(crate) struct PurchaseCall<'a> {
-    pub paid: &'a PaidRunner,
+    pub paid: &'a PaidMethod,
     pub inputs: &'a JsonObject,
     /// The run the call is made in; its root's ledger holds the reservation.
     pub run_id: &'a str,

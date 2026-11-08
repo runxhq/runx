@@ -1,0 +1,24 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: procurement-policy-check
+        skill: ../..#decide
+        inputs:
+          procurement_request:
+            payee: sourcey
+            amount: 125
+            currency: USD
+            purpose: generate public llms.txt docs for a maintained OSS project
+          procurement_policy:
+            currency: USD
+            remaining_budget: 300
+            request_cap: 200
+            approved_payees: [sourcey, runx]
+            approval_threshold: 200
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.procurement-policy-check

@@ -128,7 +128,7 @@ impl BundledSkill {
             version: Some(version.to_owned()),
             signed_manifest: None,
             profile_digest,
-            runner_names: self.package.metadata.runner_names.clone(),
+            method_names: self.package.metadata.method_names.clone(),
             trust_tier: None,
             manifest_source_authority: None,
         };

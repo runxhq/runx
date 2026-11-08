@@ -5,7 +5,7 @@
 //! both run through this one engine.
 //!
 //! The public surface lives here: [`Runtime`], [`RuntimeOptions`], [`StepRun`]
-//! and [`GraphRun`]. Every run records into its own stream
+//! and [`WorkflowRun`]. Every run records into its own stream
 //! ([`super::run_record`]) and continues from it. The internal state machine
 //! and the per-step execution helpers live in private submodules.
 
@@ -14,11 +14,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use runx_contracts::{JsonObject, JsonValue, Receipt, RunOutcome, SealReason};
-use runx_core::state_machine::{GraphState, SequentialGraph, StepAdmissionWitness};
-use runx_parser::ExecutionGraph;
+use runx_core::state_machine::{SequentialWorkflow, StepAdmissionWitness, WorkflowState};
+use runx_parser::Workflow;
 use serde::{Deserialize, Serialize};
 
-use super::graph::load_graph;
+use super::graph::load_workflow;
 use super::run_record::{RunLog, RunRecord};
 use crate::RuntimeError;
 use crate::adapter::{
@@ -29,18 +29,18 @@ use crate::host::{Host, NoopHost};
 use crate::lifecycle::LifecycleEvent;
 use crate::receipts::signing::strip_receipt_signing_env;
 use crate::receipts::{
-    GraphClosure, RunScope, RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy,
-    graph_receipt_with_closure,
+    RunScope, RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy, WorkflowEnding,
+    workflow_receipt_with_ending,
 };
 
 mod admission;
 mod dispatch;
 pub(crate) mod floor;
-mod graph_engine;
 mod step_handlers;
 pub mod turn;
+mod workflow_engine;
 
-use graph_engine::GraphExecution;
+use workflow_engine::WorkflowExecution;
 
 pub const RUNX_RUN_ID_ENV: &str = "RUNX_RUN_ID";
 
@@ -86,8 +86,8 @@ pub(crate) fn unsettled_retry(
 /// serve it resends safely. A process, and anything runx cannot resolve
 /// here, cannot.
 pub(crate) fn resend_of(
-    step: &runx_parser::GraphStep,
-    graph_dir: &Path,
+    step: &runx_parser::WorkflowStep,
+    workflow_dir: &Path,
     env: &std::collections::BTreeMap<String, String>,
 ) -> runx_contracts::RetryResend {
     use runx_parser::{StepKind, ToolTarget};
@@ -95,7 +95,7 @@ pub(crate) fn resend_of(
         StepKind::Tool(ToolTarget::Catalog(tool)) => {
             crate::tool_catalogs::native::resends_safely(tool)
         }
-        StepKind::Operation(target) => operation_resends(step, target, graph_dir, env),
+        StepKind::Operation(target) => operation_resends(step, target, workflow_dir, env),
         _ => false,
     };
     if safe {
@@ -106,17 +106,17 @@ pub(crate) fn resend_of(
 }
 
 fn operation_resends(
-    step: &runx_parser::GraphStep,
+    step: &runx_parser::WorkflowStep,
     target: &runx_parser::OperationStepTarget,
-    graph_dir: &Path,
+    workflow_dir: &Path,
     env: &std::collections::BTreeMap<String, String>,
 ) -> bool {
     let (Some(operation), Ok(scope)) = (
         target.operation.as_ref(),
         crate::kernel::connectors::ConnectorScope::of_operation(
             target,
-            graph_dir,
-            &crate::paths::RunxPaths::resolve(env, graph_dir),
+            workflow_dir,
+            &crate::paths::RunxPaths::resolve(env, workflow_dir),
         ),
     ) else {
         return false;
@@ -394,10 +394,10 @@ impl StepRun {
 }
 
 #[derive(Clone, Debug)]
-pub struct GraphRun {
-    pub graph: ExecutionGraph,
+pub struct WorkflowRun {
+    pub graph: Workflow,
     /// Where the run is: the graph's state and each step's.
-    pub progress: SequentialGraph,
+    pub progress: SequentialWorkflow,
     pub steps: Vec<StepRun>,
     pub receipt: Receipt,
     /// Why a governed stop (a denial, a block, a pending resolution) stopped
@@ -423,7 +423,7 @@ pub struct Runtime<A> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum GraphTerminalOutcome {
+enum WorkflowTerminalOutcome {
     Propagate,
     SealReceipt,
 }
@@ -440,7 +440,7 @@ pub(crate) const fn is_governed_step_closure(outcome: &RunOutcome) -> bool {
 /// A graph's public result. A graph that a step's own governed closure
 /// stopped returns that step's declared outputs; any other graph returns its
 /// result producers' outputs.
-pub(crate) fn graph_terminal_result(run: &GraphRun) -> Result<JsonValue, RuntimeError> {
+pub(crate) fn workflow_terminal_result(run: &WorkflowRun) -> Result<JsonValue, RuntimeError> {
     let outcome = &run.receipt.seal.outcome;
     let closing_step = run.steps.last().filter(|step| {
         is_governed_step_closure(outcome)
@@ -449,14 +449,14 @@ pub(crate) fn graph_terminal_result(run: &GraphRun) -> Result<JsonValue, Runtime
     });
     match closing_step {
         Some(step) => Ok(JsonValue::Object(step.contract.clone())),
-        None => graph_run_result(run),
+        None => workflow_run_result(run),
     }
 }
 
 /// The graph step a sealable fault belongs to: its own step id, or the step
 /// a failed step run names.
-pub(crate) fn failed_step_id(graph: &ExecutionGraph, error: &RuntimeError) -> Option<String> {
-    error.graph_step_id().map(str::to_owned).or_else(|| {
+pub(crate) fn failed_step_id(graph: &Workflow, error: &RuntimeError) -> Option<String> {
+    error.workflow_step_id().map(str::to_owned).or_else(|| {
         let RuntimeError::SkillFailed { skill_name, .. } = error else {
             return None;
         };
@@ -470,7 +470,7 @@ pub(crate) fn failed_step_id(graph: &ExecutionGraph, error: &RuntimeError) -> Op
 
 /// A run sealed where it stopped short of completion.
 pub(crate) struct Stopped {
-    pub(crate) run: GraphRun,
+    pub(crate) run: WorkflowRun,
     /// What the run returns: the failure's public projection when a step
     /// failed, else what its steps produced.
     pub(crate) result: JsonValue,
@@ -486,7 +486,7 @@ enum StopKind {
 /// Where and why `error` stops a run it seals, and how the run closes;
 /// `None` when the error leaves the run open.
 fn sealing_stop(
-    graph: &ExecutionGraph,
+    graph: &Workflow,
     error: &RuntimeError,
 ) -> Result<Option<(String, Option<SealReason>, StopKind)>, RuntimeError> {
     Ok(Some(match error {
@@ -499,9 +499,9 @@ fn sealing_stop(
             reason,
             ..
         } => (step_id.clone(), *reason, StopKind::Closed(*outcome)),
-        RuntimeError::GraphBlocked { step_id, .. } => (
+        RuntimeError::WorkflowBlocked { step_id, .. } => (
             step_id.clone(),
-            Some(SealReason::GraphBlocked),
+            Some(SealReason::WorkflowBlocked),
             StopKind::Blocked,
         ),
         RuntimeError::AuthorityDenied { step_id, .. } => (
@@ -524,7 +524,7 @@ fn sealing_stop(
                 context: "sealing graph step failure",
                 message: format!("sealable graph error has no authoritative step: {error}"),
             })?,
-            Some(SealReason::GraphStepFailed),
+            Some(SealReason::WorkflowStepFailed),
             StopKind::Failed,
         ),
     }))
@@ -533,13 +533,15 @@ fn sealing_stop(
 /// The closure a governed stop seals: a policy block, an authority denial, a
 /// pending resolution, or a step's own closure with an outcome other than
 /// `completed`. Any other error is a fault, not a stop.
-pub(crate) fn graph_stop_closure(
+pub(crate) fn workflow_stop_ending(
     error: &RuntimeError,
-) -> Option<(String, crate::receipts::GraphClosure)> {
+) -> Option<(String, crate::receipts::WorkflowEnding)> {
     let (step_id, outcome, reason) = match error {
-        RuntimeError::GraphBlocked { step_id, .. } => {
-            (step_id, RunOutcome::Blocked, Some(SealReason::GraphBlocked))
-        }
+        RuntimeError::WorkflowBlocked { step_id, .. } => (
+            step_id,
+            RunOutcome::Blocked,
+            Some(SealReason::WorkflowBlocked),
+        ),
         RuntimeError::AuthorityDenied { step_id, .. } => (
             step_id,
             RunOutcome::Blocked,
@@ -565,7 +567,7 @@ pub(crate) fn graph_stop_closure(
     };
     Some((
         step_id.clone(),
-        crate::receipts::GraphClosure { outcome, reason },
+        crate::receipts::WorkflowEnding { outcome, reason },
     ))
 }
 
@@ -626,58 +628,78 @@ where
         self.javascript.session_stats()
     }
 
-    pub fn run_graph_file(&self, graph_path: &Path) -> Result<GraphRun, RuntimeError> {
+    pub fn run_workflow_file(&self, workflow_path: &Path) -> Result<WorkflowRun, RuntimeError> {
         let mut host = NoopHost;
-        self.run_graph_file_with_host(graph_path, &mut host)
+        self.run_workflow_file_with_host(workflow_path, &mut host)
     }
 
-    /// Run, or continue, this runtime's run of the graph at `graph_path`.
-    pub fn run_graph_file_with_host(
+    /// Run, or continue, this runtime's run of the graph at `workflow_path`.
+    pub fn run_workflow_file_with_host(
         &self,
-        graph_path: &Path,
+        workflow_path: &Path,
         host: &mut dyn Host,
-    ) -> Result<GraphRun, RuntimeError> {
-        let graph_path = self.resolved_graph_path(graph_path)?;
-        let graph = load_graph(&graph_path)?;
-        let graph_dir = graph_path.parent().unwrap_or_else(|| Path::new("/"));
-        self.run_graph_with_host_outcome(graph_dir, graph, host, GraphTerminalOutcome::Propagate)
+    ) -> Result<WorkflowRun, RuntimeError> {
+        let workflow_path = self.resolved_workflow_path(workflow_path)?;
+        let graph = load_workflow(&workflow_path)?;
+        let workflow_dir = workflow_path.parent().unwrap_or_else(|| Path::new("/"));
+        self.run_workflow_with_host_outcome(
+            workflow_dir,
+            graph,
+            host,
+            WorkflowTerminalOutcome::Propagate,
+        )
     }
 
-    pub(crate) fn run_graph_file_for_harness(
+    pub(crate) fn run_workflow_file_for_test(
         &self,
-        graph_path: &Path,
+        workflow_path: &Path,
         host: &mut dyn Host,
-    ) -> Result<GraphRun, RuntimeError> {
-        let graph_path = self.resolved_graph_path(graph_path)?;
-        let graph = load_graph(&graph_path)?;
-        let graph_dir = graph_path.parent().unwrap_or_else(|| Path::new("/"));
-        self.run_graph_with_host_outcome(graph_dir, graph, host, GraphTerminalOutcome::SealReceipt)
+    ) -> Result<WorkflowRun, RuntimeError> {
+        let workflow_path = self.resolved_workflow_path(workflow_path)?;
+        let graph = load_workflow(&workflow_path)?;
+        let workflow_dir = workflow_path.parent().unwrap_or_else(|| Path::new("/"));
+        self.run_workflow_with_host_outcome(
+            workflow_dir,
+            graph,
+            host,
+            WorkflowTerminalOutcome::SealReceipt,
+        )
     }
 
     /// Run, or continue, this runtime's run of `graph`. A run with recorded
     /// steps continues from its record: completed steps are not run again, and
     /// a suspended step resumes its attempt.
-    pub fn run_graph_with_host(
+    pub fn run_workflow_with_host(
         &self,
-        graph_dir: &Path,
-        graph: ExecutionGraph,
+        workflow_dir: &Path,
+        graph: Workflow,
         host: &mut dyn Host,
-    ) -> Result<GraphRun, RuntimeError> {
-        self.run_graph_with_host_outcome(graph_dir, graph, host, GraphTerminalOutcome::Propagate)
+    ) -> Result<WorkflowRun, RuntimeError> {
+        self.run_workflow_with_host_outcome(
+            workflow_dir,
+            graph,
+            host,
+            WorkflowTerminalOutcome::Propagate,
+        )
     }
 
-    pub(crate) fn run_graph_for_harness(
+    pub(crate) fn run_workflow_for_test(
         &self,
-        graph_dir: &Path,
-        graph: ExecutionGraph,
+        workflow_dir: &Path,
+        graph: Workflow,
         host: &mut dyn Host,
-    ) -> Result<GraphRun, RuntimeError> {
-        self.run_graph_with_host_outcome(graph_dir, graph, host, GraphTerminalOutcome::SealReceipt)
+    ) -> Result<WorkflowRun, RuntimeError> {
+        self.run_workflow_with_host_outcome(
+            workflow_dir,
+            graph,
+            host,
+            WorkflowTerminalOutcome::SealReceipt,
+        )
     }
 
-    fn resolved_graph_path(&self, graph_path: &Path) -> Result<PathBuf, RuntimeError> {
-        if graph_path.is_absolute() {
-            return Ok(crate::path_util::lexical_normalize(graph_path));
+    fn resolved_workflow_path(&self, workflow_path: &Path) -> Result<PathBuf, RuntimeError> {
+        if workflow_path.is_absolute() {
+            return Ok(crate::path_util::lexical_normalize(workflow_path));
         }
         let workspace = self
             .options
@@ -687,7 +709,7 @@ where
             .ok_or_else(|| RuntimeError::InvalidProcessInvocation {
                 message: format!(
                     "relative graph path '{}' requires RUNX_CWD",
-                    graph_path.display()
+                    workflow_path.display()
                 ),
             })?;
         if !workspace.is_absolute() {
@@ -699,41 +721,41 @@ where
             });
         }
         Ok(crate::path_util::lexical_normalize(
-            &workspace.join(graph_path),
+            &workspace.join(workflow_path),
         ))
     }
 
     // Function rationale: graph execution drives one ordered
     // ready-node loop (admit, dispatch to host, fold outcomes, advance frontier)
     // whose step sequencing must stay in a single scope to keep the run auditable.
-    fn run_graph_with_host_outcome(
+    fn run_workflow_with_host_outcome(
         &self,
-        graph_dir: &Path,
-        graph: ExecutionGraph,
+        workflow_dir: &Path,
+        graph: Workflow,
         host: &mut dyn Host,
-        terminal_outcome: GraphTerminalOutcome,
-    ) -> Result<GraphRun, RuntimeError> {
+        terminal_outcome: WorkflowTerminalOutcome,
+    ) -> Result<WorkflowRun, RuntimeError> {
         let mut execution = self.open_execution(&graph)?;
-        match execution.run(self, graph_dir, &graph, host) {
+        match execution.run(self, workflow_dir, &graph, host) {
             Ok(()) => {
-                let receipt = graph_receipt_with_closure(
+                let receipt = workflow_receipt_with_ending(
                     self.scope(&graph.name),
                     &execution.runs,
                     &self.options.clock.now(),
-                    GraphClosure::completed(),
+                    WorkflowEnding::completed(),
                     self.options.signature_policy(),
                 )?;
                 execution.record_lifecycle(
                     host,
-                    LifecycleEvent::graph_completed(&graph.name, &receipt),
+                    LifecycleEvent::workflow_completed(&graph.name, &receipt),
                 )?;
                 Ok(execution.finish(graph, receipt))
             }
-            Err(error) if terminal_outcome == GraphTerminalOutcome::SealReceipt => {
-                let Some((step_id, closure)) = graph_stop_closure(&error) else {
-                    return self.seal_failed_graph_in_place(execution, graph, error, host);
+            Err(error) if terminal_outcome == WorkflowTerminalOutcome::SealReceipt => {
+                let Some((step_id, closure)) = workflow_stop_ending(&error) else {
+                    return self.seal_failed_workflow_in_place(execution, graph, error, host);
                 };
-                let receipt = graph_receipt_with_closure(
+                let receipt = workflow_receipt_with_ending(
                     self.scope(&graph.name),
                     &execution.runs,
                     &self.options.clock.now(),
@@ -742,7 +764,7 @@ where
                 )?;
                 execution.record_lifecycle(
                     host,
-                    LifecycleEvent::graph_stopped(&graph.name, &step_id, &receipt),
+                    LifecycleEvent::workflow_stopped(&graph.name, &step_id, &receipt),
                 )?;
                 Ok(execution.finish_stopped(graph, receipt, error.to_string()))
             }
@@ -752,7 +774,7 @@ where
 
     /// The run's execution state, replayed from its record. Its owner starts
     /// the run before the engine runs it.
-    fn open_execution(&self, graph: &ExecutionGraph) -> Result<GraphExecution, RuntimeError> {
+    fn open_execution(&self, graph: &Workflow) -> Result<WorkflowExecution, RuntimeError> {
         match self.options.run.load()? {
             None => Err(RuntimeError::EngineInvariant {
                 context: "running a graph",
@@ -764,28 +786,28 @@ where
 
     fn replay_execution(
         &self,
-        graph: &ExecutionGraph,
+        graph: &Workflow,
         record: &RunRecord,
-    ) -> Result<GraphExecution, RuntimeError> {
+    ) -> Result<WorkflowExecution, RuntimeError> {
         if record.sealed.is_some() {
             return Err(RuntimeError::EngineInvariant {
                 context: "continuing a run",
                 message: format!("run {} is already sealed", self.options.run.run_id()),
             });
         }
-        GraphExecution::from_record(graph, record)
+        WorkflowExecution::from_record(graph, record)
     }
 
     /// Seal a graph whose step faulted, in place: the same failed closure
     /// a stopped run seals from its record. A fault with no step to own it is
     /// returned unsealed.
-    fn seal_failed_graph_in_place(
+    fn seal_failed_workflow_in_place(
         &self,
-        mut execution: GraphExecution,
-        graph: ExecutionGraph,
+        mut execution: WorkflowExecution,
+        graph: Workflow,
         error: RuntimeError,
         host: &mut dyn Host,
-    ) -> Result<GraphRun, RuntimeError> {
+    ) -> Result<WorkflowRun, RuntimeError> {
         let Some(step_id) = (!error.is_fatal_step_fault())
             .then(|| failed_step_id(&graph, &error))
             .flatten()
@@ -811,20 +833,20 @@ where
                 error,
             )?)
         };
-        execution.fail_graph_at(self, host, &step_id, fault_run)?;
-        let receipt = graph_receipt_with_closure(
+        execution.fail_workflow_at(self, host, &step_id, fault_run)?;
+        let receipt = workflow_receipt_with_ending(
             self.scope(&graph.name),
             &execution.runs,
             &self.options.clock.now(),
-            crate::receipts::GraphClosure {
+            crate::receipts::WorkflowEnding {
                 outcome: RunOutcome::Failed,
-                reason: Some(SealReason::GraphStepFailed),
+                reason: Some(SealReason::WorkflowStepFailed),
             },
             self.options.signature_policy(),
         )?;
         execution.record_lifecycle(
             host,
-            LifecycleEvent::graph_stopped(&graph.name, &step_id, &receipt),
+            LifecycleEvent::workflow_stopped(&graph.name, &step_id, &receipt),
         )?;
         Ok(execution.finish(graph, receipt))
     }
@@ -837,7 +859,7 @@ where
     /// readback still pending, or a fault no step owns.
     pub(crate) fn seal_stop(
         &self,
-        graph: ExecutionGraph,
+        graph: Workflow,
         error: RuntimeError,
         host: &mut dyn Host,
     ) -> Result<Stopped, RuntimeError> {
@@ -853,7 +875,7 @@ where
         };
         let (mut run, failure, refusal) = match stop {
             StopKind::Failed => {
-                let closure = crate::receipts::GraphClosure {
+                let closure = crate::receipts::WorkflowEnding {
                     outcome: RunOutcome::Failed,
                     reason,
                 };
@@ -861,7 +883,7 @@ where
                 (run, Some(projection), None)
             }
             StopKind::Blocked => {
-                let closure = crate::receipts::GraphClosure {
+                let closure = crate::receipts::WorkflowEnding {
                     outcome: RunOutcome::Blocked,
                     reason,
                 };
@@ -869,7 +891,7 @@ where
                 (run, None, Some(projection))
             }
             StopKind::Closed(outcome) => {
-                let closure = crate::receipts::GraphClosure { outcome, reason };
+                let closure = crate::receipts::WorkflowEnding { outcome, reason };
                 let run = self.seal_stopped_with_host(graph, &step_id, closure, host)?;
                 (run, None, carried)
             }
@@ -878,7 +900,7 @@ where
         run.refusal = refusal;
         let result = match failure {
             Some(failure) => JsonValue::Object(failure),
-            None => graph_terminal_result(&run)?,
+            None => workflow_terminal_result(&run)?,
         };
         Ok(Stopped { run, result })
     }
@@ -887,13 +909,13 @@ where
     /// blocked, deferred, or closed by a step's governed closure.
     pub(crate) fn seal_stopped_with_host(
         &self,
-        graph: ExecutionGraph,
+        graph: Workflow,
         step_id: &str,
-        closure: crate::receipts::GraphClosure,
+        closure: crate::receipts::WorkflowEnding,
         host: &mut dyn Host,
-    ) -> Result<GraphRun, RuntimeError> {
+    ) -> Result<WorkflowRun, RuntimeError> {
         let mut execution = self.open_execution(&graph)?;
-        let receipt = graph_receipt_with_closure(
+        let receipt = workflow_receipt_with_ending(
             self.scope(&graph.name),
             &execution.runs,
             &self.options.clock.now(),
@@ -902,7 +924,7 @@ where
         )?;
         execution.record_lifecycle(
             host,
-            LifecycleEvent::graph_stopped(&graph.name, step_id, &receipt),
+            LifecycleEvent::workflow_stopped(&graph.name, step_id, &receipt),
         )?;
         Ok(execution.finish(graph, receipt))
     }
@@ -911,12 +933,12 @@ where
     /// recorded as that step's run, then the run is sealed failed.
     pub(crate) fn seal_failed_with_host(
         &self,
-        graph: ExecutionGraph,
+        graph: Workflow,
         step_id: &str,
         error: RuntimeError,
-        mut closure: crate::receipts::GraphClosure,
+        mut closure: crate::receipts::WorkflowEnding,
         host: &mut dyn Host,
-    ) -> Result<GraphRun, RuntimeError> {
+    ) -> Result<WorkflowRun, RuntimeError> {
         if closure.outcome != RunOutcome::Failed {
             return Err(RuntimeError::ReceiptInvalid {
                 message: "a failed run requires a failed closure".to_owned(),
@@ -931,7 +953,7 @@ where
             if let Some(reason) = execution.sealed_reason(step_id) {
                 closure.reason = Some(reason);
             }
-            execution.fail_graph_at(self, host, step_id, None)?;
+            execution.fail_workflow_at(self, host, step_id, None)?;
         } else {
             let step = graph
                 .steps
@@ -945,7 +967,7 @@ where
                 step_handlers::runtime_error_step_run(self, &graph.name, step, attempt, error)?;
             execution.record_terminal_step_failure(self, host, step_id, failed_run)?;
         }
-        let receipt = graph_receipt_with_closure(
+        let receipt = workflow_receipt_with_ending(
             self.scope(&graph.name),
             &execution.runs,
             &self.options.clock.now(),
@@ -954,7 +976,7 @@ where
         )?;
         execution.record_lifecycle(
             host,
-            LifecycleEvent::graph_stopped(&graph.name, step_id, &receipt),
+            LifecycleEvent::workflow_stopped(&graph.name, step_id, &receipt),
         )?;
         Ok(execution.finish(graph, receipt))
     }
@@ -980,19 +1002,19 @@ impl<A: Clone> Runtime<A> {
 
 impl<A> Runtime<A> {
     /// The run this runtime's receipts name, for the graph it runs.
-    pub(crate) fn scope<'a>(&'a self, graph_name: &'a str) -> RunScope<'a> {
+    pub(crate) fn scope<'a>(&'a self, workflow_name: &'a str) -> RunScope<'a> {
         RunScope {
             run_id: self.options.run.run_id(),
-            graph_name,
+            workflow_name,
         }
     }
 }
 
 /// The run a sealed record holds: its recorded steps and its graph receipt.
-pub(crate) fn sealed_graph_run(
-    graph: ExecutionGraph,
+pub(crate) fn sealed_workflow_run(
+    graph: Workflow,
     record: RunRecord,
-) -> Result<GraphRun, RuntimeError> {
+) -> Result<WorkflowRun, RuntimeError> {
     let sealed = record
         .sealed
         .clone()
@@ -1000,7 +1022,7 @@ pub(crate) fn sealed_graph_run(
             context: "restoring a sealed run",
             message: "the run has no seal".to_owned(),
         })?;
-    let mut execution = GraphExecution::from_record(&graph, &record)?;
+    let mut execution = WorkflowExecution::from_record(&graph, &record)?;
     execution.seal_state(sealed.outcome);
     Ok(execution.finish(graph, sealed.receipt))
 }
@@ -1012,7 +1034,7 @@ pub(crate) fn sealed_graph_run(
 /// envelopes are the addressable contract consumed by parent graphs. Mutually
 /// exclusive terminal branches may name the same output because only one runs;
 /// two successful producers emitting the same key are ambiguous and fail.
-pub(crate) fn graph_run_result(run: &GraphRun) -> Result<JsonValue, RuntimeError> {
+pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, RuntimeError> {
     let runs = run
         .steps
         .iter()
@@ -1051,7 +1073,7 @@ pub(crate) fn graph_run_result(run: &GraphRun) -> Result<JsonValue, RuntimeError
         }
     }
 
-    if run.progress.state == GraphState::Succeeded && contributing_steps == 0 {
+    if run.progress.state == WorkflowState::Succeeded && contributing_steps == 0 {
         return Err(RuntimeError::SkillFailed {
             skill_name: run.graph.name.clone(),
             message: "graph succeeded without running a declared result producer".to_owned(),
@@ -1063,7 +1085,7 @@ pub(crate) fn graph_run_result(run: &GraphRun) -> Result<JsonValue, RuntimeError
 
 /// The outputs of the graph's result that are artifacts: those its result
 /// producers hold in packet envelopes.
-pub(crate) fn graph_run_result_artifacts(run: &GraphRun) -> BTreeSet<String> {
+pub(crate) fn workflow_run_result_artifacts(run: &WorkflowRun) -> BTreeSet<String> {
     let runs = run
         .steps
         .iter()
@@ -1078,7 +1100,7 @@ pub(crate) fn graph_run_result_artifacts(run: &GraphRun) -> BTreeSet<String> {
         .collect()
 }
 
-pub(crate) fn graph_run_ephemeral_result(run: &GraphRun) -> JsonValue {
+pub(crate) fn workflow_run_ephemeral_result(run: &WorkflowRun) -> JsonValue {
     let runs = run
         .steps
         .iter()
@@ -1109,7 +1131,7 @@ pub(crate) fn graph_run_ephemeral_result(run: &GraphRun) -> JsonValue {
 /// Preserve every declared semantic step output for the caller without
 /// repeating transport stdout, parsed claims, stderr, or status diagnostics.
 /// Typed invocation diagnostics remain on each step outcome and signed receipt.
-pub(crate) fn graph_run_context(run: &GraphRun) -> JsonValue {
+pub(crate) fn workflow_run_context(run: &WorkflowRun) -> JsonValue {
     let step_outputs = run
         .steps
         .iter()
@@ -1131,7 +1153,7 @@ fn declared_step_outputs(step: &StepRun) -> JsonObject {
 /// Compact graph provenance for the public skill-run envelope. Declared step
 /// outputs remain in graph state and their claims are bound by signed receipts;
 /// callers need stable step and receipt references, not another payload copy.
-pub(crate) fn graph_run_trace(run: &GraphRun) -> JsonValue {
+pub(crate) fn workflow_run_trace(run: &WorkflowRun) -> JsonValue {
     let mut trace = JsonObject::new();
     trace.insert(
         "graph".to_owned(),
@@ -1171,23 +1193,23 @@ pub(crate) fn graph_run_trace(run: &GraphRun) -> JsonValue {
     JsonValue::Object(trace)
 }
 
-pub(crate) fn graph_run_skill_output(
+pub(crate) fn workflow_run_skill_output(
     result: &JsonValue,
-    run: &GraphRun,
+    run: &WorkflowRun,
 ) -> Result<InvocationOutput, RuntimeError> {
-    let mut output = if run.progress.state == GraphState::Succeeded {
+    let mut output = if run.progress.state == WorkflowState::Succeeded {
         InvocationOutput::runtime_success(result.clone(), 0)
     } else {
-        InvocationOutput::runtime_failure(result.clone(), graph_failure(run), 0)
+        InvocationOutput::runtime_failure(result.clone(), workflow_failure(run), 0)
     };
-    output.set_ephemeral(graph_run_ephemeral_result(run));
+    output.set_ephemeral(workflow_run_ephemeral_result(run));
     Ok(output)
 }
 
 /// Why a graph did not succeed: the first step that failed, and its error.
-pub(crate) fn graph_failure(run: &GraphRun) -> String {
+pub(crate) fn workflow_failure(run: &WorkflowRun) -> String {
     let failed = run.progress.steps.iter().find_map(|step| {
-        (step.state == runx_core::state_machine::GraphStepState::Failed)
+        (step.state == runx_core::state_machine::WorkflowStepState::Failed)
             .then_some((step.step_id.as_str(), step.error.as_deref()))
     });
     match failed {
@@ -1213,20 +1235,20 @@ pub(crate) fn graph_failure(run: &GraphRun) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        GraphRun, RuntimeOptions, StepRun, graph_run_context, graph_run_ephemeral_result,
-        graph_run_result,
+        RuntimeOptions, StepRun, WorkflowRun, workflow_run_context, workflow_run_ephemeral_result,
+        workflow_run_result,
     };
     use crate::adapter::{EphemeralValue, InvocationOutput};
     use crate::execution::run_record::scratch_log;
     use crate::paths::{RUNX_HOME_ENV, RunxPaths};
     use crate::receipts::{
         RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV, RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV,
-        RUNX_RECEIPT_SIGN_KID_ENV, RunScope, RuntimeReceiptSignatureConfig, graph_receipt,
-        step_receipt,
+        RUNX_RECEIPT_SIGN_KID_ENV, RunScope, RuntimeReceiptSignatureConfig, step_receipt,
+        workflow_receipt,
     };
     use runx_contracts::{JsonObject, JsonValue, ReceiptIssuerType};
-    use runx_core::state_machine::{GraphState, SequentialGraph, StepAdmissionWitness};
-    use runx_parser::{ExecutionGraph, RawGraphIr};
+    use runx_core::state_machine::{SequentialWorkflow, StepAdmissionWitness, WorkflowState};
+    use runx_parser::{RawWorkflowIr, Workflow};
     use std::collections::BTreeMap;
 
     const TEST_CREATED_AT: &str = "2026-07-24T00:00:00Z";
@@ -1249,7 +1271,7 @@ mod tests {
         let receipt = step_receipt(
             RunScope {
                 run_id: "run_options",
-                graph_name: "options",
+                workflow_name: "options",
             },
             "seal",
             1,
@@ -1374,7 +1396,7 @@ mod tests {
     }
 
     #[test]
-    fn graph_result_preserves_declared_packet_and_context_preserves_prior_contracts()
+    fn workflow_result_preserves_declared_packet_and_context_preserves_prior_contracts()
     -> Result<(), Box<dyn std::error::Error>> {
         let packet = JsonValue::Object(JsonObject::from([
             (
@@ -1389,11 +1411,11 @@ mod tests {
                 )])),
             ),
         ]));
-        let run = test_graph_run(
+        let run = test_workflow_run(
             vec!["deliver"],
             vec![
                 test_step(
-                    "graph-result",
+                    "workflow-result",
                     "research",
                     JsonObject::from([(
                         "research_packet".to_owned(),
@@ -1401,15 +1423,15 @@ mod tests {
                     )]),
                 )?,
                 test_step(
-                    "graph-result",
+                    "workflow-result",
                     "deliver",
                     JsonObject::from([("delivery_receipt".to_owned(), packet.clone())]),
                 )?,
             ],
-            GraphState::Succeeded,
+            WorkflowState::Succeeded,
         )?;
 
-        let result = graph_run_result(&run)?;
+        let result = workflow_run_result(&run)?;
         assert_eq!(
             result
                 .as_object()
@@ -1422,7 +1444,7 @@ mod tests {
                 .is_some_and(|value| !value.contains_key("research_packet"))
         );
 
-        let context = graph_run_context(&run);
+        let context = workflow_run_context(&run);
         let step_outputs = context
             .as_object()
             .and_then(|value| value.get("step_outputs"))
@@ -1447,26 +1469,26 @@ mod tests {
     /// with no failed step and no stop says only that it did not succeed.
     #[test]
     fn a_governed_stop_states_why_it_stopped() -> Result<(), Box<dyn std::error::Error>> {
-        let mut run = test_graph_run(Vec::new(), Vec::new(), GraphState::Failed)?;
+        let mut run = test_workflow_run(Vec::new(), Vec::new(), WorkflowState::Failed)?;
         assert_eq!(
-            super::graph_failure(&run),
-            "graph test-graph did not succeed"
+            super::workflow_failure(&run),
+            "graph test-workflow did not succeed"
         );
         run.stop = Some(
             "authority Create denied graph step 'provision': a mutation needs an idempotency_key"
                 .to_owned(),
         );
         assert_eq!(
-            super::graph_failure(&run),
-            "graph test-graph stopped: authority Create denied graph step 'provision': a mutation needs an idempotency_key"
+            super::workflow_failure(&run),
+            "graph test-workflow stopped: authority Create denied graph step 'provision': a mutation needs an idempotency_key"
         );
         Ok(())
     }
 
     #[test]
-    fn graph_result_accepts_one_executed_conditional_producer()
+    fn workflow_result_accepts_one_executed_conditional_producer()
     -> Result<(), Box<dyn std::error::Error>> {
-        let run = test_graph_run(
+        let run = test_workflow_run(
             vec!["skipped_branch", "selected_branch"],
             vec![test_step(
                 "conditional-result",
@@ -1476,11 +1498,11 @@ mod tests {
                     JsonValue::String("selected".to_owned()),
                 )]),
             )?],
-            GraphState::Succeeded,
+            WorkflowState::Succeeded,
         )?;
 
         assert_eq!(
-            graph_run_result(&run)?
+            workflow_run_result(&run)?
                 .as_object()
                 .and_then(|value| value.get("decision"))
                 .and_then(JsonValue::as_str),
@@ -1490,9 +1512,9 @@ mod tests {
     }
 
     #[test]
-    fn graph_result_rejects_duplicate_keys_from_successful_producers()
+    fn workflow_result_rejects_duplicate_keys_from_successful_producers()
     -> Result<(), Box<dyn std::error::Error>> {
-        let run = test_graph_run(
+        let run = test_workflow_run(
             vec!["first", "second"],
             vec![
                 test_step(
@@ -1506,10 +1528,10 @@ mod tests {
                     JsonObject::from([("result".to_owned(), JsonValue::Bool(false))]),
                 )?,
             ],
-            GraphState::Succeeded,
+            WorkflowState::Succeeded,
         )?;
 
-        let error = graph_run_result(&run)
+        let error = workflow_run_result(&run)
             .err()
             .ok_or("duplicate result keys unexpectedly succeeded")?;
         assert!(
@@ -1521,19 +1543,19 @@ mod tests {
     }
 
     #[test]
-    fn succeeded_graph_requires_a_contributing_result_producer()
+    fn succeeded_workflow_requires_a_contributing_result_producer()
     -> Result<(), Box<dyn std::error::Error>> {
-        let run = test_graph_run(
+        let run = test_workflow_run(
             vec!["conditional_branch"],
             vec![test_step(
                 "missing-result",
                 "setup",
                 JsonObject::from([("setup".to_owned(), JsonValue::Bool(true))]),
             )?],
-            GraphState::Succeeded,
+            WorkflowState::Succeeded,
         )?;
 
-        let error = graph_run_result(&run)
+        let error = workflow_run_result(&run)
             .err()
             .ok_or("graph without a result unexpectedly succeeded")?;
         assert!(
@@ -1547,7 +1569,7 @@ mod tests {
     #[test]
     fn the_run_record_holds_each_step_contract_and_never_its_ephemeral_overlay()
     -> Result<(), Box<dyn std::error::Error>> {
-        let mut run = test_graph_run(
+        let mut run = test_workflow_run(
             vec!["result"],
             vec![test_step(
                 "record-shape",
@@ -1557,14 +1579,14 @@ mod tests {
                     JsonValue::String("complete".to_owned()),
                 )]),
             )?],
-            GraphState::Succeeded,
+            WorkflowState::Succeeded,
         )?;
         const SENTINEL: &str = "auc_secret_capability";
         run.steps[0].ephemeral_contract = EphemeralValue::from_value(JsonValue::Object(
             JsonObject::from([("result".to_owned(), JsonValue::String(SENTINEL.to_owned()))]),
         ));
-        assert!(!serde_json::to_string(&graph_run_context(&run))?.contains(SENTINEL));
-        assert!(serde_json::to_string(&graph_run_ephemeral_result(&run))?.contains(SENTINEL));
+        assert!(!serde_json::to_string(&workflow_run_context(&run))?.contains(SENTINEL));
+        assert!(serde_json::to_string(&workflow_run_ephemeral_result(&run))?.contains(SENTINEL));
 
         let (root, log) = scratch_log("run_record_shape");
         log.record_step(&run.steps[0], &[])?;
@@ -1589,8 +1611,8 @@ mod tests {
     fn a_recorded_run_continues_without_running_its_recorded_steps_again()
     -> Result<(), Box<dyn std::error::Error>> {
         use crate::adapters::process_tool::ProcessToolAdapter;
-        let graph_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/hello-graph/graph.yaml")
+        let workflow_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/hello-workflow/graph.yaml")
             .canonicalize()?;
         let (_first_root, first_log) = scratch_log("run_hello_first");
         let first = super::Runtime::new(
@@ -1601,8 +1623,8 @@ mod tests {
                 first_log,
             ),
         )
-        .run_graph_file(&graph_path)?;
-        assert_eq!(first.progress.state, GraphState::Succeeded);
+        .run_workflow_file(&workflow_path)?;
+        assert_eq!(first.progress.state, WorkflowState::Succeeded);
 
         // A second run whose record already holds the first step, as a
         // process that stopped after it would have left it.
@@ -1616,8 +1638,8 @@ mod tests {
                 log,
             ),
         )
-        .run_graph_file(&graph_path)?;
-        assert_eq!(continued.progress.state, GraphState::Succeeded);
+        .run_workflow_file(&workflow_path)?;
+        assert_eq!(continued.progress.state, WorkflowState::Succeeded);
         assert_eq!(
             continued
                 .steps
@@ -1631,7 +1653,7 @@ mod tests {
     }
 
     fn test_step(
-        graph_name: &str,
+        workflow_name: &str,
         step_id: &str,
         contract: JsonObject,
     ) -> Result<StepRun, Box<dyn std::error::Error>> {
@@ -1639,7 +1661,7 @@ mod tests {
         let receipt = step_receipt(
             RunScope {
                 run_id: "run_test",
-                graph_name,
+                workflow_name,
             },
             step_id,
             1,
@@ -1665,34 +1687,34 @@ mod tests {
         })
     }
 
-    fn test_graph_run(
+    fn test_workflow_run(
         result_from: Vec<&str>,
         steps: Vec<StepRun>,
-        state: GraphState,
-    ) -> Result<GraphRun, Box<dyn std::error::Error>> {
-        let name = "test-graph".to_owned();
-        let receipt = graph_receipt(
+        state: WorkflowState,
+    ) -> Result<WorkflowRun, Box<dyn std::error::Error>> {
+        let name = "test-workflow".to_owned();
+        let receipt = workflow_receipt(
             RunScope {
                 run_id: "run_test",
-                graph_name: &name,
+                workflow_name: &name,
             },
             &steps,
             TEST_CREATED_AT,
             RuntimeReceiptSignatureConfig::fixture()?.signature_policy(),
         )?;
-        Ok(GraphRun {
-            graph: ExecutionGraph {
+        Ok(WorkflowRun {
+            graph: Workflow {
                 name: name.clone(),
                 publisher: None,
                 result_from: result_from.into_iter().map(str::to_owned).collect(),
                 policy: None,
                 steps: Vec::new(),
-                raw: RawGraphIr {
+                raw: RawWorkflowIr {
                     document: JsonObject::new(),
                 },
             },
-            progress: SequentialGraph {
-                graph_id: name,
+            progress: SequentialWorkflow {
+                workflow_id: name,
                 state,
                 steps: Vec::new(),
             },

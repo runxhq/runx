@@ -85,9 +85,7 @@ approved pages, but it cannot make “automates everything” safe merely becaus
 draft said it. A later writing run carries the exact packet digest into its own
 receipt.
 
-## Agent task contract
-
-### `brand-voice-synthesize`
+## Agent task: brand-voice-synthesize
 
 Derive the voice guide only from the supplied source index. Every released
 principle and safe claim must bind to an admitted source reference, and safe claims

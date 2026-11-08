@@ -1,0 +1,12 @@
+name: lead-qualify-composes-in-graph
+package: fixtures/composed
+host:
+  answers:
+    assess:
+      assessment_draft:
+        assessments:
+        - {criterion_id: industry, status: met, rationale: The admitted company industry is B2B software., fact_fields: [company.industry]}
+expect:
+  status: sealed
+  steps: [lead-qualify, digest]
+  receipt: {schema: runx.receipt.v1}

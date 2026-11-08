@@ -1,0 +1,29 @@
+{
+  "skill_name": "google-calendar",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Check whether a selected Google Calendar is free during the next day.",
+      "expected_output": "Mark an incomplete provider result partial, without proposing availability.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Continue the next page of this quarter of calendar events.",
+      "expected_output": "Read exactly the selected cursor without claiming the tail covers the entire window.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Read my Google Calendar events without a connected Calendar account.",
+      "expected_output": "Refuse before claiming event evidence or making a provider request.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Read the next day of events on my selected Google Calendar.",
+      "expected_output": "Read exact selected calendar once and return bounded evidence with provider readback and complete coverage.",
+      "files": []
+    }
+  ]
+}

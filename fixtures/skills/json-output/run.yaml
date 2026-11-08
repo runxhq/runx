@@ -1,32 +1,32 @@
-skill: json-output
 version: "0.1.0"
-runners:
+minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     inputs:
       message:
         type: string
-        required: false
+        optional: true
       recommendation:
         type: string
-        required: false
+        optional: true
       confidence:
         type: number
-        required: false
+        optional: true
       risk_score:
         type: number
-        required: false
+        optional: true
       budget:
         type: string
-        required: false
+        optional: true
     steps:
       - id: default
-        tool: { command: sh, args: [./run.sh], timeout_seconds: 10 }
+        tool: {command: sh, args: [./run.sh], timeout_seconds: 10}
         inputs:
           message: $input.message
           recommendation: $input.recommendation
           confidence: $input.confidence
           risk_score: $input.risk_score
           budget: $input.budget
-        artifacts:
-          wrap_as: result
+        outputs:
+          result: {}
+        result_as: result

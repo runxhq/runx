@@ -1,0 +1,5 @@
+name: echo-alpha
+inputs:
+  message: alpha
+expect:
+  status: sealed

@@ -1552,7 +1552,7 @@ mod tests {
         step_receipt(
             runx_runtime::receipts::RunScope {
                 run_id: "run_cli-home",
-                graph_name: "cli-home",
+                workflow_name: "cli-home",
             },
             "home-signed",
             1,
@@ -1688,7 +1688,7 @@ mod tests {
         step_receipt(
             runx_runtime::receipts::RunScope {
                 run_id: "run_cli-verify",
-                graph_name: "cli-verify",
+                workflow_name: "cli-verify",
             },
             "production-verified",
             1,

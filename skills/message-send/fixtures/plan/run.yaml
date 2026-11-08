@@ -1,0 +1,29 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: plan
+        skill: ../..#plan
+        inputs:
+          objective: Schedule the June newsletter to the subscribers list.
+          principal: account:growth-demo
+          provider_context:
+            provider: slack
+            account_id: acct_demo
+            runtime_path: provider.send
+            domain_verified: true
+          audience:
+            type: list
+            locator: newsletter-subscribers
+          content:
+            draft_uri: campaign:jun-newsletter
+            digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            subject_or_title: June product update
+          consent_basis: Subscribers opted in to the newsletter list.
+          operator_context: Live delivery requires explicit operator approval.
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.plan

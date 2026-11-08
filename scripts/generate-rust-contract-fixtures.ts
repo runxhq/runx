@@ -571,7 +571,7 @@ function buildHostProtocolFixtures(): readonly ContractFixture[] {
     ...eventFixtures(),
     hostFixture("resolution-input-request", "resolution_request", inputResolutionRequest()),
     hostFixture("resolution-approval-request", "resolution_request", approvalResolutionRequest()),
-    hostFixture("resolution-agent-act-request", "resolution_request", agentActResolutionRequest()),
+    hostFixture("resolution-agent-act-request", "resolution_request", turnResolutionRequest()),
     hostFixture("resolution-response", "resolution_response", {
       actor: "human",
       payload: {
@@ -649,10 +649,10 @@ function approvalResolutionRequest(): Readonly<Record<string, unknown>> {
   };
 }
 
-function agentActResolutionRequest(): Readonly<Record<string, unknown>> {
+function turnResolutionRequest(): Readonly<Record<string, unknown>> {
   return {
     id: "req_act",
-    kind: "agent_act",
+    kind: "turn",
     invocation: {
       id: "act_1",
       role: "analyst",

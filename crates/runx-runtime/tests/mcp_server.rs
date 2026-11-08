@@ -507,7 +507,7 @@ fn a_skill_server_works_no_run_another_server_opened() -> Result<(), Box<dyn std
 
 #[test]
 #[cfg(feature = "mcp")]
-fn mcp_server_graph_approval_pauses_with_request() -> Result<(), Box<dyn std::error::Error>> {
+fn mcp_server_workflow_approval_pauses_with_request() -> Result<(), Box<dyn std::error::Error>> {
     let responses = run_server_with_options(
         vec![request(
             1,
@@ -515,13 +515,13 @@ fn mcp_server_graph_approval_pauses_with_request() -> Result<(), Box<dyn std::er
             [
                 (
                     "name".to_owned(),
-                    JsonValue::String("mcp-approval-graph".to_owned()),
+                    JsonValue::String("mcp-approval-workflow".to_owned()),
                 ),
                 ("arguments".to_owned(), JsonValue::Object(JsonObject::new())),
             ]
             .into(),
         )],
-        approval_graph_server_options()?,
+        approval_workflow_server_options()?,
     )?;
 
     assert_no_json_rpc_error(&responses[0]);
@@ -847,9 +847,9 @@ fn skill_server_options_with_receipt_dir(
 }
 
 #[cfg(feature = "mcp")]
-fn approval_graph_server_options() -> Result<McpServerOptions, Box<dyn std::error::Error>> {
+fn approval_workflow_server_options() -> Result<McpServerOptions, Box<dyn std::error::Error>> {
     Ok(McpServerOptions::from_skill_paths_with_execution(
-        &[repo_root()?.join("fixtures/skills/mcp-approval-graph")],
+        &[repo_root()?.join("fixtures/skills/mcp-approval-workflow")],
         "runx-cli",
         "0.0.0",
         mcp_server_execution_options(None)?,

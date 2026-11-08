@@ -14,7 +14,7 @@ use std::path::Path;
 use thiserror::Error;
 
 use super::{
-    RegistryPackageFile, RegistryPackageMetadata, RegistryPublishHarnessReport,
+    RegistryPackageFile, RegistryPackageMetadata, RegistryPublishTestReport,
     package_metadata::project_registry_package_metadata,
 };
 use crate::{LoadedSkillPackage, LocalOrchestrator, RuntimeError};
@@ -49,7 +49,7 @@ pub struct RegistryPublishPackage {
     profile_document: Option<String>,
     package_files: Vec<RegistryPackageFile>,
     metadata: RegistryPackageMetadata,
-    harness: Option<harness::PublishHarnessPackage>,
+    harness: Option<harness::PublishTestPackage>,
 }
 
 impl RegistryPublishPackage {
@@ -74,17 +74,17 @@ impl RegistryPublishPackage {
         &self.package_files
     }
 
-    pub fn run_harness(
+    pub fn run_test(
         &self,
         orchestrator: &LocalOrchestrator,
         env: &BTreeMap<String, String>,
-    ) -> Result<RegistryPublishHarnessReport, RegistryPublishPackageError> {
+    ) -> Result<RegistryPublishTestReport, RegistryPublishPackageError> {
         let harness = self.harness.as_ref().ok_or_else(|| {
             RegistryPublishPackageError::invalid(
                 "publish requires a skill execution profile and at least one harness case",
             )
         })?;
-        harness::run_publish_harness(orchestrator, harness.path(), env)
+        harness::run_publish_test(orchestrator, harness.path(), env)
     }
 
     #[must_use]
@@ -186,8 +186,7 @@ fn prepare_loaded_package(
     } = bundle::collect_bundle_files(loaded, &local_closure, env, cwd)?;
     let metadata =
         project_registry_package_metadata(&loaded.package.skill, loaded.manifest(), connectors);
-    let harness =
-        harness::stage_publish_harness(loaded, profile_document.as_deref(), &package_files)?;
+    let harness = harness::stage_publish_test(loaded, profile_document.as_deref(), &package_files)?;
     Ok(RegistryPublishPackage {
         version: loaded
             .manifest()
@@ -346,20 +345,20 @@ runners:
         assert!(paths.contains(&"tools/example/echo/src/run.mjs"));
         assert!(paths.contains(&"tools/example/echo/src/echo.mjs"));
 
-        let harness_path = package
+        let test_path = package
             .harness
             .as_ref()
             .ok_or("staged harness missing")?
             .path()
             .to_path_buf();
-        assert!(harness_path.join("fixtures/helper.mjs").is_file());
+        assert!(test_path.join("fixtures/helper.mjs").is_file());
         drop(package);
-        assert!(!harness_path.exists());
+        assert!(!test_path.exists());
         Ok(())
     }
 
     #[test]
-    fn publish_harness_preserves_local_sibling_execution_closure()
+    fn publish_test_preserves_local_sibling_execution_closure()
     -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir()?;
         fs::write(temp.path().join("pnpm-workspace.yaml"), "packages: []\n")?;
@@ -477,19 +476,15 @@ runners:
                 .iter()
                 .any(|path| path.contains("provider/SKILL.md"))
         );
-        let harness_path = package
+        let test_path = package
             .harness
             .as_ref()
             .ok_or("staged harness missing")?
             .path();
-        assert!(harness_path.join("dependencies/1/SKILL.md").is_file());
-        assert!(harness_path.join("dependencies/1/run.yaml").is_file());
-        assert!(
-            harness_path
-                .join("packets/sibling.v1.schema.json")
-                .is_file()
-        );
-        let report = package.run_harness(&crate::LocalOrchestrator::default(), &BTreeMap::new())?;
+        assert!(test_path.join("dependencies/1/SKILL.md").is_file());
+        assert!(test_path.join("dependencies/1/run.yaml").is_file());
+        assert!(test_path.join("packets/sibling.v1.schema.json").is_file());
+        let report = package.run_test(&crate::LocalOrchestrator::default(), &BTreeMap::new())?;
         assert_eq!(report.status, "passed");
         assert_eq!(report.case_names, ["sibling"]);
         Ok(())

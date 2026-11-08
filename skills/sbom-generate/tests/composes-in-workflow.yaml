@@ -1,0 +1,16 @@
+name: completed-inventory-reused
+package: fixtures/composed
+expect:
+  status: sealed
+  steps:
+    - inventory
+    - generate
+    - same
+  step_outputs:
+    same:
+      subset:
+        comparison:
+          data:
+            equal: true
+  receipt:
+    schema: runx.receipt.v1

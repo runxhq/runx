@@ -1,11 +1,11 @@
 // Module rationale: state-machine wire types stay colocated so the
-// sequential-graph serde surface is reviewed together.
+// sequential-workflow serde surface is reviewed together.
 use runx_contracts::{AuthorityVerb, JsonObject, Reference};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum GraphState {
+pub enum WorkflowState {
     Pending,
     Running,
     Succeeded,
@@ -14,13 +14,13 @@ pub enum GraphState {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum GraphStepState {
+pub enum WorkflowStepState {
     Pending,
     Running,
     Succeeded,
     Failed,
     /// A `when` condition the runtime resolved to false selected this step out;
-    /// it never runs and counts as terminal for graph-completion purposes.
+    /// it never runs and counts as terminal for workflow-completion purposes.
     Skipped,
 }
 
@@ -71,7 +71,7 @@ impl StepAdmissionWitness {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SequentialGraphStepDefinition {
+pub struct SequentialWorkflowStepDefinition {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_from: Option<Vec<String>>,
@@ -79,9 +79,9 @@ pub struct SequentialGraphStepDefinition {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SequentialGraphStep {
+pub struct SequentialWorkflowStep {
     pub step_id: String,
-    pub state: GraphStepState,
+    pub state: WorkflowStepState,
     pub attempts: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub started_at: Option<String>,
@@ -97,10 +97,10 @@ pub struct SequentialGraphStep {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SequentialGraph {
-    pub graph_id: String,
-    pub state: GraphState,
-    pub steps: Vec<SequentialGraphStep>,
+pub struct SequentialWorkflow {
+    pub workflow_id: String,
+    pub state: WorkflowState,
+    pub steps: Vec<SequentialWorkflowStep>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -109,7 +109,7 @@ pub struct SequentialGraph {
     rename_all = "snake_case",
     rename_all_fields = "camelCase"
 )]
-pub enum SequentialGraphEvent {
+pub enum SequentialWorkflowEvent {
     StartStep {
         step_id: String,
         at: String,
@@ -130,7 +130,7 @@ pub enum SequentialGraphEvent {
         at: String,
     },
     Complete,
-    FailGraph {
+    FailWorkflow {
         error: String,
     },
 }
@@ -141,7 +141,7 @@ pub enum SequentialGraphEvent {
     rename_all = "snake_case",
     rename_all_fields = "camelCase"
 )]
-pub enum SequentialGraphPlan {
+pub enum SequentialWorkflowPlan {
     RunStep {
         step_id: String,
         attempt: u32,

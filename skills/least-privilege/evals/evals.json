@@ -1,0 +1,11 @@
+{
+  "skill_name": "least-privilege",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review the grant without treating replayed authority labels as native proof.",
+      "expected_output": "Retain the grant and request verified attributable evidence; unrecorded scopes are not proved removable.",
+      "files": []
+    }
+  ]
+}

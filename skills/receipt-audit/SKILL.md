@@ -94,9 +94,7 @@ findings and actual readbacks forward. Do not run the original action again.
 - `receipt_summary`: supplemental context, never primary verification.
 - `receipt_rows`, `receipt_details`: explicit replay-only projections.
 
-## Agent task contracts
-
-### `receipt-audit`
+## Agent task: receipt-audit
 
 Return `receipt_audit` using the existing packet's inner assessment shape. Use
 `supplied_evidence` when present, otherwise `receipt_evidence`. Identify the

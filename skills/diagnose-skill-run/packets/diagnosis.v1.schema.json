@@ -7,7 +7,7 @@
     "verdict": { "type": "string" },
     "failure_summary": { "type": "string" },
     "improvement_proposals": { "type": "array" },
-    "next_harness_checks": { "type": "array" },
+    "next_test_checks": { "type": "array" },
     "evidence": { "type": "array" }
   },
   "additionalProperties": true

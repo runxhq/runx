@@ -1,0 +1,24 @@
+name: zero-threshold-can-require-review-for-every-request
+inputs:
+  procurement_request:
+    payee: selected-vendor
+    amount: 0
+    currency: USD
+  procurement_policy:
+    currency: USD
+    remaining_budget: 0
+    request_cap: 0
+    approved_payees:
+      - selected-vendor
+    approval_threshold: 0
+    human_lane: procurement-owner
+expect:
+  status: sealed
+  step_outputs:
+    decide:
+      subset:
+        procurement_approval:
+          data:
+            decision: needs_human
+            amount: 0
+            spend_executed: false

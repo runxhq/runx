@@ -1,0 +1,40 @@
+version: "0.1.6"
+minimum_runx: 0.12.0
+default_method: read
+catalog:
+  visibility: public
+  category: code
+
+methods:
+  read:
+    examples:
+      - {}
+    description: Work a turn that reads, searches and asks, across the workspace's files and git history, the web and the catalog, and changes nothing.
+    steps:
+      - id: read
+        agent: read
+        calls:
+          tools: [fs.read, fs.read_bundle, fs.list, fs.search, git.status, git.current_branch, git.diff_name_only, git.log, git.show, git.diff, registry.search, registry.inspect]
+          operations: [web/page.read, exa/search.query]
+          load: [{catalog: {trust: verified}}, {project: true}]
+          ask: true
+        inputs: $input
+        outputs:
+          summary:
+            type: string
+            description: What the turn did and found, what is still open, and what waits on the person.
+  develop:
+    description: Work a turn that may also change the workspace, editing and writing files and running commands, each waiting on the person unless a standing approval covers it.
+    steps:
+      - id: develop
+        agent: develop
+        calls:
+          tools: [fs.read, fs.read_bundle, fs.list, fs.search, git.status, git.current_branch, git.diff_name_only, git.log, git.show, git.diff, registry.search, registry.inspect, fs.edit, fs.write, fs.apply_bundle, command.execute]
+          operations: [web/page.read, exa/search.query]
+          load: [{catalog: {trust: verified}}, {project: true}]
+          ask: true
+        inputs: $input
+        outputs:
+          summary:
+            type: string
+            description: What the turn did and found, what is still open, and what waits on the person.

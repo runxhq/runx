@@ -1,0 +1,69 @@
+name: postmortem-draft-publishable-seals
+inputs:
+  incident_id: inc-checkout-2026-08-09
+  incident_fragments:
+    - id: frag-1
+      source: pagerduty
+      text: "03:12 UTC alert fired: checkout 5xx rate crossed 8 percent."
+    - id: frag-2
+      source: deploy-log
+      text: 03:02 UTC deploy 2026.08.09.3 rolled out a connection pool change to checkout-api.
+    - id: frag-3
+      source: slack-incident
+      text: 03:40 UTC rollback of 2026.08.09.3 completed and 5xx rate returned to baseline.
+    - id: frag-4
+      source: incident-investigation
+      text: 04:20 UTC investigation confirmed the pool maximum was reduced to one connection while 100 workers were active; saturation caused checkout timeouts. platform-oncall owns pool saturation alerting.
+host:
+  answers:
+    draft:
+      postmortem_draft:
+        summary: A connection pool change in deploy 2026.08.09.3 degraded checkout until rollback.
+        impact:
+          status: known
+          statement: Checkout requests failed above the alert threshold until rollback.
+          scope: checkout-api
+          fragment_id: frag-1
+          quote: checkout 5xx rate crossed 8 percent
+        timeline:
+          - entry: Deploy 2026.08.09.3 shipped a connection pool change.
+            fragment_id: frag-2
+            quote: deploy 2026.08.09.3 rolled out a connection pool change
+          - entry: Checkout 5xx rate crossed the alert threshold.
+            fragment_id: frag-1
+            quote: checkout 5xx rate crossed 8 percent
+          - entry: Rollback restored baseline.
+            fragment_id: frag-3
+            quote: rollback of 2026.08.09.3 completed and 5xx rate returned to baseline
+        root_cause:
+          status: known
+          statement: Reducing the pool maximum to one connection with 100 active workers caused checkout timeouts.
+          fragment_id: frag-4
+          quote: the pool maximum was reduced to one connection while 100 workers were active; saturation caused checkout timeouts
+        unknowns: []
+        action_items:
+          - action: Add pool saturation alerting before the next pool change ships.
+            owner: platform-oncall
+expect:
+  status: sealed
+  steps:
+    - digest-fragments
+    - draft
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            schema: runx/postmortem-draft.postmortem.v1
+            decision: publishable
+            publish_proposal:
+              gate: human-approver
+              delivery_skill: message-send
+              sent: false
+            publish_performed: false
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

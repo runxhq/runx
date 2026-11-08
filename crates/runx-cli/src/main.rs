@@ -6,9 +6,9 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use runx_cli::router::{HarnessPlan, RouterAction, command_help_text, help_text};
+use runx_cli::router::{RouterAction, TestPlan, command_help_text, help_text};
 
-const HARNESS_STALE_RECEIPT_STORE_HINT: &str = "runx: hint: the receipt store contains entries that do not verify with the current issuer; retry with --receipt-dir .runx/harness-receipts for an isolated project-local harness run.";
+const TEST_STALE_RECEIPT_STORE_HINT: &str = "runx: hint: the receipt store contains entries that do not verify with the current issuer; retry with --receipt-dir .runx/test-receipts for an isolated project-local harness run.";
 
 fn main() -> ExitCode {
     let args: Vec<OsString> = env::args_os().skip(1).collect();
@@ -89,7 +89,7 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunList(plan) => run_native_list(plan, workspace),
         RouterAction::RunLogin(plan) => runx_cli::login::run_native_login(plan, workspace),
         RouterAction::RunMcp(plan) => runx_cli::mcp::run_native_mcp_with_workspace(plan, workspace),
-        RouterAction::RunHarness(plan) => run_native_harness(plan, workspace),
+        RouterAction::RunTest(plan) => run_native_test(plan, workspace),
         RouterAction::RunConfig(plan) => run_native_config(plan, workspace),
         RouterAction::RunConnector(plan) => {
             runx_cli::connector::run_native_connector(plan, workspace)
@@ -249,7 +249,7 @@ fn run_native_config(
     }
 }
 
-fn run_native_harness(plan: HarnessPlan, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
+fn run_native_test(plan: TestPlan, workspace: &runx_runtime::WorkspaceEnv) -> ExitCode {
     if contains_skill_package(&plan.fixture_paths) {
         let [target] = plan.fixture_paths.as_slice() else {
             let _ignored = write_stderr_line(
@@ -257,12 +257,12 @@ fn run_native_harness(plan: HarnessPlan, workspace: &runx_runtime::WorkspaceEnv)
             );
             return ExitCode::from(64);
         };
-        return run_package_harness(Path::new(target), plan.receipt_dir.as_ref(), workspace);
+        return run_package_test(Path::new(target), plan.receipt_dir.as_ref(), workspace);
     }
-    run_standalone_harness(plan.fixture_paths, plan.receipt_dir, workspace)
+    run_standalone_test(plan.fixture_paths, plan.receipt_dir, workspace)
 }
 
-fn run_standalone_harness(
+fn run_standalone_test(
     fixture_paths: Vec<OsString>,
     receipt_dir: Option<OsString>,
     workspace: &runx_runtime::WorkspaceEnv,
@@ -278,11 +278,11 @@ fn run_standalone_harness(
         }
     };
     for fixture_path in fixture_paths {
-        let request = runx_runtime::HarnessRunRequest {
+        let request = runx_runtime::TestRunRequest {
             fixture_path: PathBuf::from(fixture_path),
             receipt_dir: receipt_dir.as_ref().map(PathBuf::from),
         };
-        match orchestrator.run_harness_fixture(&request) {
+        match orchestrator.run_test_fixture(&request) {
             Ok(output) => {
                 outputs.push(
                     match serde_json::to_value(&output.receipt)
@@ -308,10 +308,10 @@ fn run_standalone_harness(
             }
         }
     }
-    write_harness_receipts(outputs)
+    write_test_receipts(outputs)
 }
 
-fn write_harness_receipts(mut outputs: Vec<runx_contracts::JsonValue>) -> ExitCode {
+fn write_test_receipts(mut outputs: Vec<runx_contracts::JsonValue>) -> ExitCode {
     let output = if outputs.len() == 1 {
         outputs.pop().unwrap_or(runx_contracts::JsonValue::Null)
     } else {
@@ -346,12 +346,12 @@ fn is_skill_package(path: &Path) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case("SKILL.md"))
 }
 
-fn run_package_harness(
+fn run_package_test(
     skill_path: &Path,
     receipt_dir: Option<&OsString>,
     workspace: &runx_runtime::WorkspaceEnv,
 ) -> ExitCode {
-    let request = runx_runtime::PackageHarnessRequest {
+    let request = runx_runtime::PackageTestRequest {
         skill_path: skill_path.to_path_buf(),
         receipt_dir: receipt_dir.map(PathBuf::from),
     };
@@ -364,7 +364,7 @@ fn run_package_harness(
             return ExitCode::from(1);
         }
     };
-    let report = match orchestrator.run_package_harness(&request) {
+    let report = match orchestrator.run_package_test(&request) {
         Ok(report) => report,
         Err(error) => {
             let error_message = error.to_string();
@@ -376,7 +376,7 @@ fn run_package_harness(
         }
     };
     if report.status == "failed"
-        && let Some(hint) = package_harness_report_hint(&report)
+        && let Some(hint) = package_test_report_hint(&report)
     {
         let _ignored = write_stderr_line(hint);
     }
@@ -399,15 +399,13 @@ fn run_package_harness(
     }
 }
 
-fn package_harness_report_hint(
-    report: &runx_runtime::PackageHarnessReport,
-) -> Option<&'static str> {
+fn package_test_report_hint(report: &runx_runtime::PackageTestReport) -> Option<&'static str> {
     if report
         .assertion_errors
         .iter()
         .any(|error| error.contains("receipt store index is stale"))
     {
-        return Some(HARNESS_STALE_RECEIPT_STORE_HINT);
+        return Some(TEST_STALE_RECEIPT_STORE_HINT);
     }
     None
 }
@@ -466,26 +464,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn package_harness_report_hint_recognizes_stale_receipt_store() {
-        let report = failed_package_harness_report(
+    fn package_test_report_hint_recognizes_stale_receipt_store() {
+        let report = failed_package_test_report(
             "smoke: receipt store index is stale: receipt proof is invalid for sha256:abc",
         );
 
         assert_eq!(
-            package_harness_report_hint(&report),
-            Some(HARNESS_STALE_RECEIPT_STORE_HINT)
+            package_test_report_hint(&report),
+            Some(TEST_STALE_RECEIPT_STORE_HINT)
         );
     }
 
-    fn failed_package_harness_report(error: &str) -> runx_runtime::PackageHarnessReport {
-        runx_runtime::PackageHarnessReport {
+    fn failed_package_test_report(error: &str) -> runx_runtime::PackageTestReport {
+        runx_runtime::PackageTestReport {
             status: "failed",
             case_count: 1,
             assertion_error_count: 1,
             assertion_errors: vec![error.to_owned()],
             case_names: vec!["smoke".to_owned()],
             receipt_ids: Vec::new(),
-            graph_case_count: 0,
+            workflow_case_count: 0,
         }
     }
 }

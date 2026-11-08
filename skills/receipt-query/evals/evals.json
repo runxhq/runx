@@ -1,0 +1,11 @@
+{
+  "skill_name": "receipt-query",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Which spend runs completed for the ops principal in this ledger slice?",
+      "expected_output": "Return the matched receipts and a deterministic verification result for their chain.",
+      "files": []
+    }
+  ]
+}

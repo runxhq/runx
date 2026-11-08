@@ -7,14 +7,14 @@ use runx_contracts::{
 const PROVIDER_LIKE: &str = include_str!("../../../fixtures/operational-policy/provider-like.json");
 const MINIMAL_SINGLE_REPO: &str =
     include_str!("../../../fixtures/operational-policy/minimal-single-repo.json");
-const INVALID_UNKNOWN_RUNNER: &str =
-    include_str!("../../../fixtures/operational-policy/invalid-unknown-runner.json");
+const INVALID_UNKNOWN_METHOD: &str =
+    include_str!("../../../fixtures/operational-policy/invalid-unknown-method.json");
 const INVALID_OWNER_ROUTE_MISMATCH: &str =
     include_str!("../../../fixtures/operational-policy/invalid-owner-route-mismatch.json");
 const INVALID_SOURCE_THREAD_MISSING: &str =
     include_str!("../../../fixtures/operational-policy/invalid-source-thread-missing.json");
-const INVALID_NO_AVAILABLE_RUNNER: &str =
-    include_str!("../../../fixtures/operational-policy/invalid-no-available-runner.json");
+const INVALID_NO_AVAILABLE_METHOD: &str =
+    include_str!("../../../fixtures/operational-policy/invalid-no-available-method.json");
 const INVALID_NOT_SCAFLD_TARGET: &str =
     include_str!("../../../fixtures/operational-policy/invalid-not-scafld-target.json");
 const INVALID_SCHEMA_LITERAL: &str =
@@ -41,10 +41,10 @@ fn positive_operational_policy_fixtures_are_valid() -> Result<(), Box<dyn std::e
 #[test]
 fn semantic_fixture_findings_are_stable() -> Result<(), Box<dyn std::error::Error>> {
     for (fixture, code) in [
-        (INVALID_UNKNOWN_RUNNER, "unknown_runner"),
+        (INVALID_UNKNOWN_METHOD, "unknown_method"),
         (INVALID_OWNER_ROUTE_MISMATCH, "owner_route_target_mismatch"),
         (INVALID_SOURCE_THREAD_MISSING, "source_thread_required"),
-        (INVALID_NO_AVAILABLE_RUNNER, "target_action_without_runner"),
+        (INVALID_NO_AVAILABLE_METHOD, "target_action_without_method"),
         (INVALID_NOT_SCAFLD_TARGET, "mutation_without_scafld"),
     ] {
         let policy: OperationalPolicy = serde_json::from_str(fixture)?;

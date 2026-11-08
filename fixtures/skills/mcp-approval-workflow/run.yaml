@@ -1,0 +1,9 @@
+version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
+  default:
+    result_from:
+      - approve
+    steps:
+      - id: approve
+        ask: {gate: mcp-approval, reason: Approve the MCP graph run.}

@@ -19,12 +19,12 @@ fn package(files: impl IntoIterator<Item = (&'static str, String)>) -> SkillPack
 }
 
 #[test]
-fn catalog_enforcement_keeps_explicit_internal_mock_runners_admissible() {
+fn catalog_enforcement_keeps_explicit_internal_mock_methods_admissible() {
     let source = package([
         ("SKILL.md", manual("mock-pay")),
         (
             "run.yaml",
-            "skill: mock-pay\ncatalog:\n  kind: skill\n  audience: system\n  visibility: internal\n  role: harness-fixture\n  part_of: [runx/spend]\n  execution: execute\n  completion: runtime_receipt\n  approval: none\nrunners:\n  mock:\n    default: true\n    steps:\n      - id: mock\n        tool: { module: main.mjs }\n"
+            "skill: mock-pay\ncatalog:\n  kind: skill\n  audience: system\n  visibility: internal\n  role: test-fixture\n  part_of: [runx/spend]\n  execution: execute\n  completion: runtime_receipt\n  approval: none\nrunners:\n  mock:\n    default: true\n    steps:\n      - id: mock\n        tool: { module: main.mjs }\n"
                 .to_owned(),
         ),
         (
@@ -167,7 +167,7 @@ runners:
 }
 
 #[test]
-fn skill_package_allows_explicit_selection_from_multiple_non_default_runners() {
+fn skill_package_allows_explicit_selection_from_multiple_non_default_methods() {
     let source = package([
         ("SKILL.md", manual("explicit-selection")),
         (
@@ -334,7 +334,7 @@ fn skill_package_qualifies_nested_package_errors() {
 }
 
 #[test]
-fn skill_package_parses_owned_harness_fixtures() {
+fn skill_package_parses_owned_test_fixtures() {
     let source = package([
         ("SKILL.md", manual("operator")),
         (
@@ -358,7 +358,7 @@ expect:
 
     let validated = validate_skill_package(source).expect("fixture package must validate");
     let fixture = validated
-        .harness_fixtures
+        .test_fixtures
         .get("fixtures/inspect.yaml")
         .expect("owned fixture must be in the aggregate");
 
@@ -367,7 +367,7 @@ expect:
 }
 
 #[test]
-fn skill_package_consumes_conventional_graph_harness_closure() {
+fn skill_package_consumes_conventional_workflow_test_closure() {
     let source = package([
         ("SKILL.md", manual("operator")),
         (
@@ -414,7 +414,7 @@ steps:
 }
 
 #[test]
-fn skill_package_admits_explicit_profile_relative_harness_files() {
+fn skill_package_admits_explicit_profile_relative_test_files() {
     let source = package([
         ("SKILL.md", manual("operator")),
         (
@@ -470,7 +470,7 @@ harness:
     let validated = validate_skill_package(source).expect("harness files must validate");
 
     assert_eq!(
-        validated.harness_files,
+        validated.test_files,
         BTreeSet::from([
             "fixtures/root-helper.mjs".to_owned(),
             "graph/plan/fixtures/plan-helper.mjs".to_owned(),
@@ -479,7 +479,7 @@ harness:
 }
 
 #[test]
-fn skill_package_rejects_missing_or_unsafe_harness_files() {
+fn skill_package_rejects_missing_or_unsafe_test_files() {
     for declared in [
         "fixtures/missing.mjs",
         "../outside.mjs",

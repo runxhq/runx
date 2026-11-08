@@ -1,0 +1,64 @@
+# The effect-key golden comes from the native, unapproved intent for these exact terms.
+# Update only with an intentional operation-contract change; keep exact wire matching.
+name: refund-stripe-exact-original-payment
+method: refund
+setup:
+  credentials:
+    - stripe
+inputs:
+  connector: stripe
+  request:
+    account_id: acct_northstar
+    payment_id: pi_northstar
+    amount_minor: 100
+    currency: usd
+  idempotency_seed: northstar-refund-42
+env:
+  STRIPE_API_KEY: fixture-stripe-key
+host:
+  approvals:
+    stripe: true
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/payment_intents/pi_northstar
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"pi_northstar","amount":150,"amount_received":150,"currency":"usd","status":"succeeded","latest_charge":"ch_northstar"}'
+    - request:
+        method: POST
+        url: https://api.stripe.com/v1/refunds
+        body:
+          text: amount=100&metadata%5Brunx_effect_key%5D=runx%3Asha256%3Aa6c0b5bc6b4307d7292f5a1677071394f1b389830198fa4d1fa37a09005eb7ec&payment_intent=pi_northstar
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"re_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/refunds/re_northstar
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"re_northstar","payment_intent":"pi_northstar","amount":100,"currency":"usd","status":"succeeded"}'
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+    outcome: completed

@@ -115,7 +115,7 @@ mod tests {
     {
         for value in [
             serde_json::json!({"status": "failure", "error": {"code": "skill_error"}}),
-            serde_json::json!({"schema": "runx.skill_run.v1", "status": "sealed", "outcome": "blocked", "seal_reason": "graph_blocked", "skill_name": "echo", "runner": "default"}),
+            serde_json::json!({"schema": "runx.skill_run.v1", "status": "sealed", "outcome": "blocked", "seal_reason": "workflow_blocked", "skill_name": "echo", "runner": "default"}),
             serde_json::json!({"schema": "runx.skill_run.v1", "status": "needs_agent", "run_id": "rx_1", "requests": [], "next": "runx resume rx_1 - --json", "entry_provenance": {"kind": "local"}}),
             serde_json::json!({"schema": "runx.skill_run.v1", "status": "payment_required", "outcome": "deferred", "result": {"payment_required": {}}}),
         ] {

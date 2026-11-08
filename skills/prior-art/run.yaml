@@ -1,201 +1,51 @@
-skill: prior-art
 version: "0.2.14"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: builder
   visibility: public
   category: authoring
-  role: context
-  execution: read
-  completion: runtime_receipt
-  approval: none
-harness:
-  files:
-    - fixtures/workspace/skills/moltbook/SKILL.md
-    - fixtures/workspace/skills/moltbook/run.yaml
-    - fixtures/support/composed.graph
-  cases:
-    - name: prior-art-recommends-catalog-reuse
-      operator_journeys:
-        - mode: standalone
-          confusors:
-            - research
-            - knowledge-router
-          request: Inspect prior art for this design before I create anything new.
-          expected_outcome: Return bounded citation-backed findings and a reuse, amend, new-work, or stop recommendation.
-        - mode: composed
-          request: Continue this design decision from the supplied repository and catalog evidence.
-          expected_outcome: Reuse the bounded source set and return a prior-art recommendation without broad repository
-            rediscovery.
-          prior_evidence:
-            - The explicit source paths, objective, and catalog evidence supplied in the fixture.
-          must_not_repeat:
-            - Do not enumerate or grep the whole repository again.
-            - Do not reacquire catalog evidence already included in the bounded source set.
-      inputs:
-        objective: Add a Moltbook opportunity scan to an existing governed pipeline.
-        repo_root: fixtures/workspace
-        source_paths:
-          - skills/moltbook/run.yaml
-        decomposition:
-          objective_summary: Add a Moltbook opportunity scan step.
-          orchestration_steps:
-            - id: scan
-              skill: ../moltbook
-              runner: scan
-          required_skills:
-            - name: moltbook
-              exists: true
-      caller:
-        answers:
-          research:
-            prior_art_draft:
-              decision: ready
-              findings:
-                - claim: The existing Moltbook package owns the opportunity scan boundary.
-                  source: skills/moltbook/run.yaml
-                  relevance: Reuse avoids a duplicate public scanner.
-                  confidence: verified
-              catalog_fit:
-                decision: reuse
-                adjacent_skills:
-                  - moltbook
-                rationale: Compose the existing scan runner and add only pipeline glue.
-              quality_bar:
-                audience: Runx skill maintainers
-                artifact: A source-bound reuse decision.
-                evidence: Cite the inspected manifest.
-                stop_conditions:
-                  - Stop if the runner cannot be verified.
-              recommended_flow:
-                - step: scan
-                  rationale: Reuse the existing Moltbook scan runner.
-              sources:
-                - path: skills/moltbook/run.yaml
-                  kind: skill-manifest
-              risks: []
-      expect:
-        status: sealed
-        steps:
-          - plan
-          - catalog
-          - read
-          - index
-          - research
-          - validate
-        step_outputs:
-          validate:
-            subset:
-              decision: ready
-              catalog_fit:
-                decision: reuse
-                adjacent_skills:
-                  - moltbook
-              evidence:
-                cited_paths:
-                  - skills/moltbook/run.yaml
-              validation:
-                status: pass
-                findings: []
-        receipt:
-          schema: runx.receipt.v1
-    - name: prior-art-missing-source-stops
-      inputs:
-        objective: Verify a nonexistent local design note.
-        repo_root: fixtures/workspace
-        source_paths:
-          - docs/does-not-exist.md
-      caller:
-        answers:
-          research:
-            prior_art_draft:
-              decision: ready
-              findings:
-                - claim: The missing note defines the required protocol.
-                  source: docs/does-not-exist.md
-                  relevance: It would constrain the design if it existed.
-                  confidence: verified
-              catalog_fit:
-                decision: new_work
-                adjacent_skills: []
-                rationale: No reusable package was identified.
-              quality_bar: {}
-              recommended_flow: []
-              sources:
-                - path: docs/does-not-exist.md
-                  kind: repo-document
-              risks: []
-      expect:
-        status: sealed
-        steps:
-          - plan
-          - catalog
-          - read
-          - index
-          - research
-          - validate
-        step_outputs:
-          validate:
-            subset:
-              decision: needs_more_evidence
-              validation:
-                status: hold
-                findings:
-                  - code: source.missing
-                    path: docs/does-not-exist.md
-        receipt:
-          schema: runx.receipt.v1
-runners:
+methods:
   prior-art-agent:
-    default: true
     inputs:
       objective:
         type: string
-        required: true
         description: Build, content, or operator objective being researched.
-        schema:
-          minLength: 1
-          pattern: \S
+        minLength: 1
+        pattern: \S
       decomposition:
-        type: json
-        required: false
         description: Structured decomposition output from code-plan.
+        optional: true
       graph_purpose:
         type: string
-        required: false
         description: Downstream purpose such as skill proposal, docs, content, issue, or release.
+        optional: true
       audience:
         type: string
-        required: false
         description: Reader or operator who will use the downstream artifact.
+        optional: true
       artifact_contract:
-        type: json
-        required: false
         description: Expected downstream output shape.
+        optional: true
       source_paths:
         type: array
-        required: false
         default: []
-        description: Exact repo-relative files selected by the host or parent; at most sixteen files after
-          decomposition-derived manifests are included.
-        schema:
-          maxItems: 16
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
+        description: Exact repo-relative files selected by the host or parent; at most sixteen files after decomposition-derived manifests are included.
+        maxItems: 16
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+        optional: true
       repo_root:
         type: string
-        required: false
         default: .
         description: Workspace root used for native catalog and bounded file inspection.
+        optional: true
     result_from:
       - validate
     examples:
       - objective: Check whether this repository already has a retry helper before adding one.
     steps:
       - id: plan
-        label: derive the bounded source set
         inputs:
           decomposition: $input.decomposition
           source_paths: $input.source_paths
@@ -203,160 +53,142 @@ runners:
           module: prior-art.mjs
           export: planSources
         outputs:
-          paths: array
-          limits: object
-        artifacts:
-          named_emits:
-            paths: paths
-            limits: limits
+          paths: {type: array}
+          limits: {type: object}
       - id: catalog
-        label: inspect the native skill catalog
         tool: runx.skill.inspect
-        scopes:
-          - fs.read
         inputs:
           repo_root: $input.repo_root
       - id: read
-        label: read and digest the bounded source set
         tool: fs.read_bundle
-        scopes:
-          - fs.read
         inputs:
           repo_root: $input.repo_root
           max_bytes: 262144
           on_missing: report
           paths: $steps.plan.paths
       - id: index
-        label: bind catalog and file evidence
         tool:
           module: prior-art.mjs
           export: indexSources
         outputs:
-          evidence_index: object
+          evidence_index: {type: object}
         inputs:
           limits: $steps.plan.limits
           authoring_context: $steps.catalog.authoring_context
           file_read_bundle: $steps.read.file_read_bundle
-        artifacts:
-          named_emits:
-            evidence_index: evidence_index
       - id: research
-        label: compare inspected prior art
-        agent:
-          role: researcher
-          task: prior-art-research
+        agent: prior-art-research
         outputs:
           prior_art_draft:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - findings
-                - catalog_fit
-                - quality_bar
-                - recommended_flow
-                - sources
-                - risks
-              properties:
-                decision:
-                  enum:
-                    - ready
-                    - needs_more_evidence
-                findings:
-                  type: array
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required:
-                      - claim
-                      - source
-                      - relevance
-                      - confidence
-                    properties:
-                      claim:
-                        type: string
-                        minLength: 1
-                      source:
-                        type: string
-                        minLength: 1
-                      relevance:
-                        type: string
-                        minLength: 1
-                      confidence:
-                        enum:
-                          - verified
-                          - likely
-                          - unverified
-                catalog_fit:
+            additionalProperties: false
+            required:
+              - decision
+              - findings
+              - catalog_fit
+              - quality_bar
+              - recommended_flow
+              - sources
+              - risks
+            properties:
+              decision:
+                enum:
+                  - ready
+                  - needs_more_evidence
+              findings:
+                type: array
+                items:
                   type: object
                   additionalProperties: false
                   required:
-                    - decision
-                    - adjacent_skills
-                    - rationale
+                    - claim
+                    - source
+                    - relevance
+                    - confidence
                   properties:
-                    decision:
-                      enum:
-                        - reuse
-                        - amend
-                        - new_work
-                        - stop
-                    adjacent_skills:
-                      type: array
-                      items:
-                        type: string
-                        minLength: 1
-                    rationale:
+                    claim:
                       type: string
                       minLength: 1
-                quality_bar:
+                    source:
+                      type: string
+                      minLength: 1
+                    relevance:
+                      type: string
+                      minLength: 1
+                    confidence:
+                      enum:
+                        - verified
+                        - likely
+                        - unverified
+              catalog_fit:
+                type: object
+                additionalProperties: false
+                required:
+                  - decision
+                  - adjacent_skills
+                  - rationale
+                properties:
+                  decision:
+                    enum:
+                      - reuse
+                      - amend
+                      - new_work
+                      - stop
+                  adjacent_skills:
+                    type: array
+                    items:
+                      type: string
+                      minLength: 1
+                  rationale:
+                    type: string
+                    minLength: 1
+              quality_bar:
+                type: object
+                additionalProperties: true
+                properties:
+                  audience:
+                    type: string
+                  artifact:
+                    type: string
+                  evidence:
+                    type: string
+                  stop_conditions:
+                    type: array
+                    items:
+                      type: string
+              recommended_flow:
+                type: array
+                items:
                   type: object
                   additionalProperties: true
                   properties:
-                    audience:
+                    step:
                       type: string
-                    artifact:
+                    rationale:
                       type: string
-                    evidence:
+              sources:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - path
+                  properties:
+                    path:
                       type: string
-                    stop_conditions:
-                      type: array
-                      items:
-                        type: string
-                recommended_flow:
-                  type: array
-                  items:
-                    type: object
-                    additionalProperties: true
-                    properties:
-                      step:
-                        type: string
-                      rationale:
-                        type: string
-                sources:
-                  type: array
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required:
-                      - path
-                    properties:
-                      path:
-                        type: string
-                        minLength: 1
-                      kind:
-                        type: string
-                risks:
-                  type: array
-                  items:
-                    type: object
-                    additionalProperties: true
-                    properties:
-                      risk:
-                        type: string
-                      mitigation:
-                        type: string
+                      minLength: 1
+                    kind:
+                      type: string
+              risks:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                  properties:
+                    risk:
+                      type: string
+                    mitigation:
+                      type: string
         inputs:
           objective: $input.objective
           decomposition: $input.decomposition
@@ -367,11 +199,7 @@ runners:
           source_paths: $input.source_paths
           repo_root: $input.repo_root
           inspected_bundle: $steps.read.file_read_bundle
-        artifacts:
-          named_emits:
-            prior_art_draft: prior_art_draft
       - id: validate
-        label: validate citations and catalog fit
         inputs:
           evidence_index: $steps.index.evidence_index
           prior_art_draft: $steps.research.prior_art_draft
@@ -379,15 +207,14 @@ runners:
           module: prior-art.mjs
           export: validatePriorArt
         outputs:
-          decision: string
-          findings: array
-          catalog_fit: object
-          quality_bar: object
-          recommended_flow: array
-          sources: array
-          risks: array
-          evidence: object
-          validation: object
-        artifacts:
-          wrap_as: prior_art_report
-          packet: runx/prior-art.report.v1
+          decision: {type: string}
+          findings: {type: array}
+          catalog_fit: {type: object}
+          quality_bar: {type: object}
+          recommended_flow: {type: array}
+          sources: {type: array}
+          risks: {type: array}
+          evidence: {type: object}
+          validation: {type: object}
+          prior_art_report: {packet: runx/prior-art.report.v1}
+        result_as: prior_art_report

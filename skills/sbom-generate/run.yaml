@@ -1,215 +1,59 @@
-skill: sbom-generate
 version: "0.1.9"
+minimum_runx: 0.12.0
+default_method: generate
 catalog:
-  kind: graph
-  audience: public
   visibility: public
   category: security
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
-harness:
-  files:
-    - fixtures/support/composed.graph
-    - fixtures/input/package-lock.json
-    - fixtures/input/pnpm-lock.txt
-    - fixtures/input/Cargo.lock
-  cases:
-    - name: local-npm-default
-      operator_journeys:
-        - mode: standalone
-          confusors:
-            - cve-audit
-            - extract
-          request: Generate an SBOM from this repository lockfile.
-          expected_outcome: Return a usable standard CycloneDX document, source-byte provenance and honest coverage.
-        - mode: composed
-          request: Render the completed inventory and pass it to the vulnerability audit without repeating source
-            acquisition.
-          expected_outcome: Reuse the exact inventory, retaining scope, identities and gaps.
-          prior_evidence:
-            - The completed typed inventory and its native source identity.
-          must_not_repeat:
-            - Do not read or parse the source again.
-            - Do not install dependencies or query providers while rendering the SBOM.
-      inputs:
-        path: fixtures/input/package-lock.json
-        path_scope: skill
-      expect:
-        status: sealed
-        steps:
-          - inventory
-          - generate
-        step_outputs:
-          generate:
-            subset:
-              sbom_result:
-                data:
-                  schema: runx/sbom-generate.sbom.v1
-                  decision: generated
-                  component_count: 2
-                  source:
-                    digest_encoding: source_bytes
-                  license_summary:
-                    missing_evidence: 1
-        receipt:
-          schema: runx.receipt.v1
-    - name: local-pnpm-default
-      inputs:
-        path: fixtures/input/pnpm-lock.txt
-        path_scope: skill
-        lockfile_type: pnpm
-      expect:
-        status: sealed
-        step_outputs:
-          generate:
-            subset:
-              sbom_result:
-                data:
-                  component_count: 1
-                  decision: generated
-    - name: local-cargo-default
-      inputs:
-        path: fixtures/input/Cargo.lock
-        path_scope: skill
-      expect:
-        status: sealed
-        step_outputs:
-          generate:
-            subset:
-              sbom_result:
-                data:
-                  component_count: 2
-                  decision: generated
-                  license_summary:
-                    missing_evidence: 2
-    - name: parsed-input-keeps-canonical-provenance
-      runner: make
-      inputs:
-        lockfile:
-          name: fixture-project
-          lockfileVersion: 3
-          packages:
-            "":
-              name: fixture-project
-              dependencies:
-                alias: npm:@scope/real@1.2.3
-                local: workspace:*
-            node_modules/alias:
-              name: "@scope/real"
-              version: 1.2.3
-              license: MIT
-              resolved: https://registry.npmjs.org/@scope/real/-/real-1.2.3.tgz
-            node_modules/local:
-              resolved: packages/local
-              link: true
-      expect:
-        status: sealed
-        step_outputs:
-          generate:
-            subset:
-              sbom_result:
-                data:
-                  source:
-                    digest_encoding: canonical_json
-    - name: partial-unknown-version-survives
-      runner: make
-      inputs:
-        lockfile:
-          lockfileVersion: 3
-          packages:
-            "": {}
-            node_modules/range:
-              version: ^1.0.0
-      expect:
-        status: sealed
-        step_outputs:
-          generate:
-            subset:
-              sbom_result:
-                data:
-                  decision: partial
-                  component_count: 1
-    - name: truncated-source-is-not-inventoried
-      inputs:
-        path: fixtures/input/package-lock.json
-        path_scope: skill
-        max_bytes: 20
-      expect:
-        status: failure
-    - name: unsupported-format-refused
-      runner: make
-      inputs:
-        lockfile:
-          lockfileVersion: 99
-          packages:
-            "": {}
-      expect:
-        status: failure
-    - name: cargo-direct-needs-metadata
-      inputs:
-        path: fixtures/input/Cargo.lock
-        path_scope: skill
-        scope: direct-production
-      expect:
-        status: failure
-runners:
+methods:
   generate:
-    default: true
     description: Generate a CycloneDX document and reusable inventory from one admitted local lockfile.
     inputs:
       repo_root:
         type: string
-        required: false
         description: Authorized workspace root.
         default: .
+        optional: true
       path:
         type: string
-        required: true
         description: Workspace-relative lockfile path.
       path_scope:
         type: string
-        required: false
         description: Workspace or owning-skill input root.
         default: workspace
-        schema:
-          enum:
-            - workspace
-            - skill
+        enum:
+          - workspace
+          - skill
+        optional: true
       max_bytes:
         type: number
-        required: false
         description: Complete admitted UTF-8 read budget; native resource ceilings apply.
+        optional: true
       lockfile_type:
         type: string
-        required: false
         description: Infer from the conventional filename, or explicitly select a supported lockfile type.
         default: ""
-        schema:
-          enum:
-            - ""
-            - package-lock
-            - npm-shrinkwrap
-            - pnpm
-            - cargo
+        enum:
+          - ""
+          - package-lock
+          - npm-shrinkwrap
+          - pnpm
+          - cargo
+        optional: true
       scope:
         type: string
-        required: false
         description: Locked declarations, or npm/pnpm direct production dependencies. No claim about installed state.
         default: all-locked
-        schema:
-          enum:
-            - all-locked
-            - direct-production
+        enum:
+          - all-locked
+          - direct-production
+        optional: true
     result_from:
       - generate
     examples:
       - path: package-lock.json
     steps:
       - id: inventory
-        skill: .
-        runner: inventory-file
+        skill: .#inventory-file
         inputs:
           repo_root: $input.repo_root
           path: $input.path
@@ -218,8 +62,7 @@ runners:
           lockfile_type: $input.lockfile_type
           scope: $input.scope
       - id: generate
-        skill: .
-        runner: from-inventory
+        skill: .#from-inventory
         inputs:
           inventory: $steps.inventory.inventory
   inventory-file:
@@ -227,54 +70,48 @@ runners:
     inputs:
       repo_root:
         type: string
-        required: false
         description: Authorized workspace root.
         default: .
+        optional: true
       path:
         type: string
-        required: true
         description: Workspace-relative lockfile path.
       path_scope:
         type: string
-        required: false
         description: Workspace or owning-skill input root.
         default: workspace
-        schema:
-          enum:
-            - workspace
-            - skill
+        enum:
+          - workspace
+          - skill
+        optional: true
       max_bytes:
         type: number
-        required: false
         description: Complete admitted UTF-8 read budget; native resource ceilings apply.
+        optional: true
       lockfile_type:
         type: string
-        required: false
         description: Infer from the conventional filename, or explicitly select a supported lockfile type.
         default: ""
-        schema:
-          enum:
-            - ""
-            - package-lock
-            - npm-shrinkwrap
-            - pnpm
-            - cargo
+        enum:
+          - ""
+          - package-lock
+          - npm-shrinkwrap
+          - pnpm
+          - cargo
+        optional: true
       scope:
         type: string
-        required: false
         description: Locked declarations, or npm/pnpm direct production dependencies. No claim about installed state.
         default: all-locked
-        schema:
-          enum:
-            - all-locked
-            - direct-production
+        enum:
+          - all-locked
+          - direct-production
+        optional: true
     result_from:
       - inventory
     steps:
       - id: admit
         tool: artifact.admit
-        scopes:
-          - fs.read
         inputs:
           repo_root: $input.repo_root
           path: $input.path
@@ -282,8 +119,6 @@ runners:
           media_type: text/plain
       - id: read
         tool: artifact.read
-        scopes:
-          - fs.read
         inputs:
           artifact_uri: $steps.admit.local_artifact.artifact_uri
           encoding: utf8
@@ -300,44 +135,35 @@ runners:
           lockfile_type: $input.lockfile_type
           scope: $input.scope
         outputs:
-          inventory: object
-        artifacts:
-          named_emits:
-            inventory: inventory
-          packets:
-            inventory: runx/sbom-generate.inventory.v1
+          inventory: {type: object, packet: runx/sbom-generate.inventory.v1}
   inventory-source:
     description: Normalize already-acquired text, binding its exact UTF-8 bytes without another file or network read.
     inputs:
       source_text:
         type: string
-        required: true
         description: Complete previously acquired lockfile text.
       source_label:
         type: string
-        required: true
         description: Source identity to retain.
       lockfile_type:
         type: string
-        required: false
         description: Infer from the conventional filename, or explicitly select a supported lockfile type.
         default: ""
-        schema:
-          enum:
-            - ""
-            - package-lock
-            - npm-shrinkwrap
-            - pnpm
-            - cargo
+        enum:
+          - ""
+          - package-lock
+          - npm-shrinkwrap
+          - pnpm
+          - cargo
+        optional: true
       scope:
         type: string
-        required: false
         description: Locked declarations, or npm/pnpm direct production dependencies. No claim about installed state.
         default: all-locked
-        schema:
-          enum:
-            - all-locked
-            - direct-production
+        enum:
+          - all-locked
+          - direct-production
+        optional: true
     result_from:
       - inventory
     steps:
@@ -359,41 +185,31 @@ runners:
           lockfile_type: $input.lockfile_type
           scope: $input.scope
         outputs:
-          inventory: object
-        artifacts:
-          named_emits:
-            inventory: inventory
-          packets:
-            inventory: runx/sbom-generate.inventory.v1
+          inventory: {type: object, packet: runx/sbom-generate.inventory.v1}
   make:
-    description: Generate from an already-parsed lockfile. Its canonical JSON digest is explicitly not the
-      original file digest.
+    description: Generate from an already-parsed lockfile. Its canonical JSON digest is explicitly not the original file digest.
     inputs:
       lockfile:
-        type: json
-        required: true
         description: Already-parsed supported lockfile object.
       lockfile_type:
         type: string
-        required: false
         description: Infer from the conventional filename, or explicitly select a supported lockfile type.
         default: package-lock
-        schema:
-          enum:
-            - ""
-            - package-lock
-            - npm-shrinkwrap
-            - pnpm
-            - cargo
+        enum:
+          - ""
+          - package-lock
+          - npm-shrinkwrap
+          - pnpm
+          - cargo
+        optional: true
       scope:
         type: string
-        required: false
         description: Locked declarations, or npm/pnpm direct production dependencies. No claim about installed state.
         default: all-locked
-        schema:
-          enum:
-            - all-locked
-            - direct-production
+        enum:
+          - all-locked
+          - direct-production
+        optional: true
     result_from:
       - generate
     steps:
@@ -411,23 +227,15 @@ runners:
           lockfile_type: $input.lockfile_type
           scope: $input.scope
         outputs:
-          inventory: object
-        artifacts:
-          named_emits:
-            inventory: inventory
-          packets:
-            inventory: runx/sbom-generate.inventory.v1
+          inventory: {type: object, packet: runx/sbom-generate.inventory.v1}
       - id: generate
-        skill: .
-        runner: from-inventory
+        skill: .#from-inventory
         inputs:
           inventory: $steps.inventory.inventory
   from-inventory:
     description: Render a previously completed inventory without reading or parsing the source again.
     inputs:
       inventory:
-        type: json
-        required: true
         description: Completed shared lockfile inventory.
         packet: runx/sbom-generate.inventory.v1
     result_from:
@@ -445,32 +253,22 @@ runners:
           inventory: $input.inventory
           inventory_digest: $steps.digest.digest_result.digest
         outputs:
-          inventory: object
-          sbom_result: object
-        artifacts:
-          named_emits:
-            inventory: inventory
-            sbom_result: sbom_result
-          packets:
-            inventory: runx/sbom-generate.inventory.v1
-            sbom_result: runx/sbom-generate.sbom.v1
+          inventory: {type: object, packet: runx/sbom-generate.inventory.v1}
+          sbom_result: {type: object, packet: runx/sbom-generate.sbom.v1}
   save:
     description: Write only the CycloneDX document to a new workspace file; never overwrite an existing file.
     inputs:
       sbom_result:
-        type: json
-        required: true
         description: Previously completed SBOM report.
         packet: runx/sbom-generate.sbom.v1
       path:
         type: string
-        required: true
         description: New workspace-relative output filename, normally sbom.cdx.json.
       repo_root:
         type: string
-        required: false
         description: Authorized workspace root.
         default: .
+        optional: true
     result_from:
       - write
     steps:
@@ -481,11 +279,9 @@ runners:
         inputs:
           sbom_result: $input.sbom_result
         outputs:
-          contents: string
+          contents: {type: string}
       - id: write
         tool: fs.write
-        scopes:
-          - fs.write
         inputs:
           repo_root: $input.repo_root
           path: $input.path

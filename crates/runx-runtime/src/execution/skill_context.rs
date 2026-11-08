@@ -19,7 +19,7 @@ const MAX_CONTEXT_SKILLS_TOTAL_BYTES: usize = 4 * 1024 * 1024;
 
 pub fn load_context_skills(
     step_id: &str,
-    graph_dir: &Path,
+    workflow_dir: &Path,
     refs: &[String],
     env: &BTreeMap<String, String>,
     created_at: &str,
@@ -44,7 +44,7 @@ pub fn load_context_skills(
                     reason: format!("context skill '{reference}' is declared more than once"),
                 });
             }
-            let entry = load_context_skill(step_id, graph_dir, reference, env, created_at)?;
+            let entry = load_context_skill(step_id, workflow_dir, reference, env, created_at)?;
             let entry_bytes =
                 usize::try_from(entry.meta.size_bytes).map_err(|_| RuntimeError::InvalidRunStep {
                     step_id: step_id.to_owned(),
@@ -74,13 +74,13 @@ pub fn load_context_skills(
 
 fn load_context_skill(
     step_id: &str,
-    graph_dir: &Path,
+    workflow_dir: &Path,
     reference: &str,
     env: &BTreeMap<String, String>,
     created_at: &str,
 ) -> Result<ContextEntry, RuntimeError> {
     if runx_parser::registry_ref(reference).is_some() {
-        let paths = crate::paths::RunxPaths::resolve(env, graph_dir);
+        let paths = crate::paths::RunxPaths::resolve(env, workflow_dir);
         if let Some(directory) =
             crate::execution::graph::installed_registry_skill(reference, &paths)?
         {
@@ -104,7 +104,7 @@ fn load_context_skill(
     load_context_skill_directory(
         step_id,
         reference,
-        &graph_dir.join(reference),
+        &workflow_dir.join(reference),
         None,
         env,
         created_at,
@@ -211,7 +211,7 @@ fn load_context_skill_directory(
 
 fn insert_catalog_summary(
     data: &mut JsonObject,
-    manifest: Option<&runx_parser::SkillRunnerManifest>,
+    manifest: Option<&runx_parser::SkillMethodManifest>,
 ) -> Result<(), RuntimeError> {
     let Some(catalog) = manifest.and_then(|manifest| manifest.catalog.as_ref()) else {
         return Ok(());

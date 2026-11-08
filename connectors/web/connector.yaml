@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: web
-name: Web
+name: web
+title: Web
 description: Read public web pages over HTTP(S).
 category: search
-runtime_capability: true
 auth:
   none: {}
 placements:

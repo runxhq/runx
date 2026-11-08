@@ -1,0 +1,11 @@
+{
+  "skill_name": "crm-update-plan",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Reconcile this call transcript against the CRM records and propose the field updates.",
+      "expected_output": "Return allowlisted field updates, each traced to a verbatim transcript quote, with no CRM write performed.",
+      "files": []
+    }
+  ]
+}

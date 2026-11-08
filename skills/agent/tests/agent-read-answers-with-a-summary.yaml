@@ -1,0 +1,8 @@
+name: agent-session-read-answers-with-a-summary
+method: read
+host:
+  answers:
+    read:
+      summary: The project builds with cargo; the workspace manifest is crates/Cargo.toml.
+expect:
+  status: sealed

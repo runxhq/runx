@@ -1,7 +1,0 @@
-name: google-analytics-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [google-analytics, digest]
-  receipt: { schema: runx.receipt.v1 }

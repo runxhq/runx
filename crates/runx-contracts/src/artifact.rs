@@ -27,7 +27,7 @@ pub struct ArtifactProducedBy {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub receipt_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub harness_ref: Option<Reference>,
+    pub run_ref: Option<Reference>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub act: Option<ActAddress>,
     #[serde(skip_serializing_if = "Option::is_none")]

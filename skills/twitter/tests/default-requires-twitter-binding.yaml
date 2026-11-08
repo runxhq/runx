@@ -1,0 +1,32 @@
+name: twitter-default-requires-account-binding
+setup:
+  credentials: [twitter]
+inputs:
+  query: snapshot
+  max_items: 200
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+        body: none
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"data":{"id":"42","username":"runx","name":"Runx","created_at":"2026-01-01T00:00:00Z","description":"Governed runtime for agent skills","public_metrics":{"followers_count":100,"following_count":20,"tweet_count":50,"listed_count":3}}}'
+expect:
+  status: sealed
+  steps: [prepare, request, normalize, digest, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        twitter_evidence:
+          data:
+            decision: ok
+            source: live
+            account: {id: "42", username: runx, name: Runx, description: Governed runtime for agent skills, metrics: {followers: 100, following: 20, posts: 50}}
+            items: []
+            item_count: 0
+            truncated: false

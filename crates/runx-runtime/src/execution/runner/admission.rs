@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::{AuthorityVerb, JsonObject, Receipt};
-use runx_parser::GraphStep;
+use runx_parser::WorkflowStep;
 
 use crate::RuntimeError;
 use crate::adapter::InvocationOutput;
@@ -50,7 +50,7 @@ pub(super) fn prepare_effect_execution(
 }
 
 pub(super) fn prepare_effect_output_before_gate(
-    step: &GraphStep,
+    step: &WorkflowStep,
     authority: Option<&StepAuthorityContext>,
     claim: &JsonObject,
     output: &mut InvocationOutput,
@@ -96,7 +96,7 @@ pub(super) fn persist_effect_state_for_step(
 }
 
 pub(super) fn authority_denied(
-    step: &GraphStep,
+    step: &WorkflowStep,
     verb: AuthorityVerb,
     reason: String,
 ) -> RuntimeError {
@@ -108,8 +108,8 @@ pub(super) fn authority_denied(
 }
 
 pub(super) struct EffectReceiptContext<'a> {
-    pub(super) step: &'a GraphStep,
-    pub(super) graph_dir: &'a Path,
+    pub(super) step: &'a WorkflowStep,
+    pub(super) workflow_dir: &'a Path,
     pub(super) authority: Option<&'a StepAuthorityContext>,
     pub(super) claim: &'a JsonObject,
     pub(super) output: &'a mut InvocationOutput,
@@ -125,7 +125,7 @@ fn effect_receipt_request<'a>(
 ) -> EffectReceiptRequest<'a> {
     EffectReceiptRequest {
         step: context.step,
-        graph_dir: context.graph_dir,
+        workflow_dir: context.workflow_dir,
         admission: &authority.admission,
         claim: context.claim,
         output: context.output,
@@ -135,7 +135,7 @@ fn effect_receipt_request<'a>(
     }
 }
 
-fn runtime_effect_error(step: &GraphStep, source: RuntimeEffectError) -> RuntimeError {
+fn runtime_effect_error(step: &WorkflowStep, source: RuntimeEffectError) -> RuntimeError {
     match source {
         RuntimeEffectError::Denied { verb, message, .. } => authority_denied(step, verb, message),
         RuntimeEffectError::CostLimitExceeded { message, .. } => RuntimeError::CostLimitExceeded {

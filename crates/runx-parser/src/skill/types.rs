@@ -88,7 +88,7 @@ pub struct ValidatedSkill {
 /// One runner: the steps it runs and its inputs.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SkillRunnerDefinition {
+pub struct SkillMethodDefinition {
     pub name: String,
     /// What the runner does and when to use it rather than the skill's other
     /// runners: the purpose a model chooses it by.
@@ -107,11 +107,11 @@ pub struct SkillRunnerDefinition {
     pub examples: Vec<JsonObject>,
     /// The runner's steps, as the graph the engine runs. Its name is the
     /// runner's.
-    pub graph: crate::ExecutionGraph,
+    pub graph: crate::Workflow,
     pub raw: JsonObject,
 }
 
-impl SkillRunnerDefinition {
+impl SkillMethodDefinition {
     /// The complete scope ceiling declared by this runner's steps. Consumers
     /// must use this typed projection rather than scan the raw manifest tree.
     #[must_use]

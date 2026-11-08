@@ -711,9 +711,9 @@ fn the_model_key_from_a_reference_keeps_only_the_reference()
 }
 
 #[test]
-fn harness_process_results_never_start_a_host_process_or_escape_into_live_runs()
+fn test_process_results_never_start_a_host_process_or_escape_into_live_runs()
 -> Result<(), Box<dyn std::error::Error>> {
-    let root = crate::support::temp_root("runx-process-harness-stand-in");
+    let root = crate::support::temp_root("runx-process-test-stand-in");
     let home = root.join("home");
     write_notes_plugin(&root)?;
     let marker = root.join("must-not-exist");

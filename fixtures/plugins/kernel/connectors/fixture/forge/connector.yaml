@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/forge
-name: Fixture Forge
+name: fixture/forge
+title: Fixture Forge
 description: Read and update issues in repositories of a forge fixture, and push branches to them.
-runtime_capability: false
 auth:
   delegated: {principal: {url: "https://api.forge.fixture.invalid/user", id: id, login: login}}
   credentials:
@@ -71,14 +70,14 @@ operations:
         repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
         number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
     result_fields: [issue]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.forge.fixture.invalid]
         auth: {token: {type: bearer}}
         requests:
           - id: issue
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.forge.fixture.invalid/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}]}
             headers: {accept: application/json}
 
@@ -97,7 +96,7 @@ operations:
         repository: {type: string, pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"}
         numbers: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}}
     result_fields: [issues]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.forge.fixture.invalid]
@@ -105,7 +104,7 @@ operations:
         requests:
           - id: issue
             each: {"$argument": "/numbers"}
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.forge.fixture.invalid/repos/", {"$argument": "/repository"}, "/issues/", {"$item": ""}]}
             headers: {accept: application/json}
 
@@ -151,7 +150,7 @@ operations:
       kind: thread
       each: {"$result": "/updates"}
       locator: {"$concat": ["forge://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.forge.fixture.invalid]
@@ -159,14 +158,14 @@ operations:
         requests:
           - id: update
             each: {"$argument": "/updates"}
-            method: PATCH
+            http_method: PATCH
             url: {"$concat": ["https://api.forge.fixture.invalid/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
             headers: {accept: application/json}
             body: {"$item": "/patch"}
         readbacks:
           - request:
               id: issue
-              method: GET
+              http_method: GET
               url: {"$concat": ["https://api.forge.fixture.invalid/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
               headers: {accept: application/json}
             matches:

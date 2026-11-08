@@ -62,7 +62,7 @@ description: Doctor fixture with an execution profile and no harness proof.
 
 # Uncovered
 
-Exercise the missing-harness diagnostic for a valid skill package.
+Exercise the missing-test diagnostic for a valid skill package.
 `),
       file("skills/uncovered/run.yaml", `skill: uncovered
 runners:

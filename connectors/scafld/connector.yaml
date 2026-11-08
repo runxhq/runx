@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: scafld
 name: scafld
+title: scafld
 description: Verify signed scafld receipts with the scafld CLI installed on this host.
 category: dev-tools
-runtime_capability: false
 auth:
   none: {}
 placements:

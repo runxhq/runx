@@ -370,7 +370,7 @@ impl<'a> ConnectorSetup<'a> {
         self.session()?
             .connect(HostedConnectAction::Revoke { grant_id: name })
             .map_err(|error| format!("{name} is no instance or grant here: {error}"))?;
-        self.revoke_holding(|instance| grant_of(instance) == Some(name))?;
+        self.revoke_lease(|instance| grant_of(instance) == Some(name))?;
         Ok(Revoked::Grant(name.to_owned()))
     }
 
@@ -892,7 +892,7 @@ impl<'a> ConnectorSetup<'a> {
             .session(self.workspace.env(), self.workspace.cwd())
     }
 
-    fn revoke_holding(&self, holds: impl Fn(&ConnectorInstance) -> bool) -> Result<(), String> {
+    fn revoke_lease(&self, holds: impl Fn(&ConnectorInstance) -> bool) -> Result<(), String> {
         for record in self.instances.list().map_err(|error| error.to_string())? {
             if !record.revoked && holds(&record.instance) {
                 self.instances

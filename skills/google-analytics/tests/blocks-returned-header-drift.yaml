@@ -1,0 +1,47 @@
+name: blocks-returned-header-drift
+method: normalize-report
+inputs:
+  request:
+    property: properties/123456
+    report_type: standard
+    date_ranges:
+      - start_date: 2026-06-01
+        end_date: 2026-06-30
+    dimensions:
+      - landingPage
+    metrics:
+      - sessions
+  provider_result:
+    property: properties/123456
+    dimension_headers:
+      - name: landingPage
+    metric_headers:
+      - name: totalUsers
+        type: TYPE_INTEGER
+    rows:
+      - dimension_values:
+          - /
+        metric_values:
+          - "100"
+    row_count: 1
+    pagination:
+      complete: true
+      returned_rows: 1
+expect:
+  status: sealed
+  steps:
+    - normalize
+    - compare-query
+    - bind-query
+    - digest
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        report_evidence:
+          data:
+            decision: blocked
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

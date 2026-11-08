@@ -1,0 +1,14 @@
+name: empty-usage-stops-for-evidence
+method: audit
+inputs:
+  subject: research/research-brief
+  granted_scopes:
+    - web:read
+    - repo:read
+  receipt_ids: []
+  receipt_rows: []
+  objective: Audit a newly published skill with no runs.
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

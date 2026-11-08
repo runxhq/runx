@@ -1,0 +1,8 @@
+name: agent-session-develop-answers-with-a-summary
+method: develop
+host:
+  answers:
+    develop:
+      summary: Fixed the typo in README.md.
+expect:
+  status: sealed

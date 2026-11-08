@@ -282,17 +282,15 @@ fn not_sent(code: &'static str, reason: impl Into<String>) -> Unperformed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http::{
-        HarnessExchanges, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody,
-    };
+    use crate::http::{RuntimeTestHttpExchange, RuntimeTestHttpRequestBody, TestExchanges};
 
     const URL: &str = "https://fixture.runx.invalid/page";
 
     fn read(env: &BTreeMap<String, String>) -> Result<Observed, Unperformed> {
-        let exchanges = HarnessExchanges::new(vec![RuntimeHarnessHttpExchange {
+        let exchanges = TestExchanges::new(vec![RuntimeTestHttpExchange {
             method: crate::http::HttpMethod::Get,
             url: URL.to_owned(),
-            body: RuntimeHarnessHttpRequestBody::None,
+            body: RuntimeTestHttpRequestBody::None,
             response: RuntimeHttpResponse::new(200, "0123456789"),
         }]);
         let input = JsonValue::Object(JsonObject::from([(

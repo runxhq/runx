@@ -23,11 +23,11 @@
       },
       "evidence": {
         "fixture_count": 0,
-        "harness_case_count": 0
+        "test_case_count": 0
       },
       "repairs": [
         {
-          "id": "add_inline_harness_case",
+          "id": "add_inline_test_case",
           "kind": "manual",
           "confidence": "medium",
           "risk": "low",

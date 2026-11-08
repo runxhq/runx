@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/wallet
-name: Fixture Wallet
+name: fixture/wallet
+title: Fixture Wallet
 description: Pay challenges for HTTPS resources from a wallet fixture and read the payments back.
-runtime_capability: false
 auth:
   credentials:
     wallet:
@@ -17,7 +16,7 @@ placements:
   hosted:
     auth: credential
     credential: wallet
-pays:
+payment:
   x402:
     networks: ["eip155:8453"]
 operations:
@@ -34,4 +33,3 @@ operations:
       units: {"$argument": "/payment_signal/amount_minor"}
       currency: {"$argument": "/parent_payment_authority/currency"}
     result_fields: [payment_ref, challenge_id, amount_minor, currency, status, transaction, network, payer, pay_to, purchase_id, payment_required_digest, payment_response_digest, resource_status, resource_result, finality, block_number]
-    hosted: {}

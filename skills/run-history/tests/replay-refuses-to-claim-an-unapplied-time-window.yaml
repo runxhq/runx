@@ -1,0 +1,11 @@
+name: replay-refuses-to-claim-an-unapplied-time-window
+inputs:
+  objective: Do not relabel supplied rows as a fresh 7-day view.
+  period: 7d
+  runs: []
+  catalog_items: []
+expect:
+  status: failure
+  receipt:
+    schema: runx.receipt.v1
+    outcome: failed

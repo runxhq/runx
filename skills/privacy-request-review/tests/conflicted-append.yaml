@@ -1,0 +1,4 @@
+name: conflicted-append-never-reports-a-committed-verdict
+package: fixtures/conflicted-append
+expect:
+  status: failure

@@ -120,9 +120,9 @@ mod tests {
     };
 
     const SUCCESS_RECEIPT: &str =
-        include_str!("../../../fixtures/contracts/harness-spine/receipt-success.json");
+        include_str!("../../../fixtures/contracts/run-spine/receipt-success.json");
     const ABNORMAL_RECEIPT: &str =
-        include_str!("../../../fixtures/contracts/harness-spine/receipt-abnormal.json");
+        include_str!("../../../fixtures/contracts/run-spine/receipt-abnormal.json");
     const RECEIPT_ORACLE: &str = include_str!(
         "../../../fixtures/contracts/canonical-json/runx-receipt-c14n-v1.oracles.json"
     );
@@ -221,8 +221,8 @@ mod tests {
 
     fn fixture_by_path(path: &str) -> Result<Receipt, ReceiptError> {
         let json = match path {
-            "harness-spine/receipt-abnormal.json" => ABNORMAL_RECEIPT,
-            "harness-spine/receipt-success.json" => SUCCESS_RECEIPT,
+            "run-spine/receipt-abnormal.json" => ABNORMAL_RECEIPT,
+            "run-spine/receipt-success.json" => SUCCESS_RECEIPT,
             _ => {
                 return Err(ReceiptError::Serialization {
                     message: format!("unknown receipt oracle fixture: {path}"),

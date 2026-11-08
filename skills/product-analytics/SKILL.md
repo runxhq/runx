@@ -98,9 +98,7 @@ Native evidence verification binds the resulting review to the exact measurement
 context. The calling application owns continuing work, scheduling and approved
 changes.
 
-## Agent task contract
-
-### `product-analytics-analyze`
+## Agent task: product-analytics-analyze
 
 Return `analytics_candidate` with `decision: ready` or `needs_more_evidence`, the exact `objective`, a
 concise `summary`, `findings` and `limitations`. Each finding has `claim`, `kind`
@@ -110,7 +108,7 @@ verified through the same native claim binding. Cite only admitted digests. Expl
 denominators and uncertainty plainly. Return `needs_more_evidence` when the
 bounded evidence cannot support useful recommendations. Never claim execution.
 
-### `product-analytics-collect`
+## Agent task: product-analytics-collect
 
 Return `selection` with `current`, `baseline` and `notes`. Each source is the exact
 native ProjectArtifact descriptor from a successful offered `posthog/insight.read`

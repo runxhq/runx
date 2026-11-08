@@ -1,0 +1,77 @@
+name: accepts-local-retrieval-route-without-reading-sources
+inputs:
+  question: Which existing source and owner should I inspect before changing artifact lifetime across CLI process exits?
+  available_sources:
+    sources:
+      - id: artifact-store
+        kind: code
+        summary: Native local artifact admission, immutable snapshots and run-scoped reads.
+        locator: crates/runx-runtime/src/services/workspace_files/artifacts.rs
+      - id: author-contract
+        kind: docs
+        summary: Declared artifact URI lifetime and page-consumption contract.
+        locator: docs/skill-author-runtime-contract.md
+      - id: registry-pages
+        kind: docs
+        summary: Catalog product presentation and review status.
+        locator: docs/core-skill-review.md
+    owners:
+      - id: native-runtime
+        domains:
+          - artifact-lifetime
+          - local-execution
+      - id: skill-authoring
+        domains:
+          - skill-authoring
+    skills:
+      - id: prior-art
+        purpose: Inspect bounded local sources and return an evidence-bound reuse or amendment recommendation.
+      - id: research
+        purpose: Research admitted external sources.
+  constraints:
+    allowed_sources:
+      - artifact-store
+      - author-contract
+    allowed_owners:
+      - native-runtime
+    allowed_skills:
+      - prior-art
+host:
+  answers:
+    propose:
+      route_proposal:
+        verdict: routed
+        route:
+          domain: artifact-lifetime
+          rationale: Inspect the artifact owner and its execution contract before changing lifecycle behavior.
+          source_ids:
+            - artifact-store
+            - author-contract
+        source_matches:
+          - source_id: artifact-store
+            matching_signal: CLI process exit and snapshot lifetime
+            reason: Contains the owning artifact admission and page service.
+          - source_id: author-contract
+            matching_signal: Artifact URI lifetime
+            reason: Defines the public execution contract that must match the owner.
+        owner_recommendation:
+          owner_id: native-runtime
+          rationale: This catalog assigns artifact-lifetime to the native runtime owner.
+          escalation_required: false
+        next_skill:
+          skill: prior-art
+          rationale: Inspect the two exact local sources without rediscovery or a provider.
+expect:
+  status: sealed
+  step_outputs:
+    validate:
+      subset:
+        knowledge_route:
+          data:
+            verdict: routed
+            route:
+              source_ids:
+                - artifact-store
+                - author-contract
+            validation:
+              valid: true

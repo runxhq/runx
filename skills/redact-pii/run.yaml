@@ -1,34 +1,18 @@
-skill: redact-pii
 version: "0.2.10"
+minimum_runx: 0.12.0
+default_method: redact-pii
 catalog:
-  kind: graph
-  audience: public
   visibility: public
   category: security
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
-runners:
+methods:
   redact-pii:
-    default: true
-    description: Detect and remove selected personal data from the supplied content using semantic review and
-      deterministic exact text selection; block policy skips the model.
-    operations: []
-    tools: []
-    skills: []
-    asks: false
+    description: Detect and remove selected personal data from the supplied content using semantic review and deterministic exact text selection; block policy skips the model.
     inputs:
-      content:
-        definition: content
-      classes:
-        definition: classes
-      mode:
-        definition: mode
-      locale:
-        definition: locale
-      operator_context:
-        definition: operator_context
+      content: {}
+      classes: {}
+      mode: {}
+      locale: {}
+      operator_context: {}
     result_from:
       - block
       - apply
@@ -42,9 +26,7 @@ runners:
         when:
           value: $steps.block-policy.comparison.equal
           equals: false
-        agent:
-          role: reviewer
-          task: redact-pii-detect
+        agent: redact-pii-detect
         inputs:
           content: $input.content
           classes: $input.classes
@@ -54,75 +36,73 @@ runners:
         outputs:
           redaction_draft:
             type: object
-            schema:
-              required:
-                - decision
-                - detected
-                - residual_risk
-              properties:
-                decision:
-                  enum:
-                    - ready
-                    - needs_review
-                    - blocked
-                detected:
-                  type: array
-                  items:
-                    type: object
-                    required:
-                      - class
-                      - selector
-                      - confidence
-                    properties:
-                      class:
-                        type: string
-                        minLength: 1
-                      selector:
-                        type: object
-                        required:
-                          - quote
-                        properties:
-                          quote:
-                            type: string
-                            minLength: 1
-                          all:
-                            type: boolean
-                          occurrence:
-                            type: integer
-                            minimum: 1
-                          prefix:
-                            type: string
-                          suffix:
-                            type: string
-                        additionalProperties: false
-                      confidence:
-                        type: number
-                        minimum: 0
-                        maximum: 1
-                    additionalProperties: false
-                residual_risk:
+            required:
+              - decision
+              - detected
+              - residual_risk
+            properties:
+              decision:
+                enum:
+                  - ready
+                  - needs_review
+                  - blocked
+              detected:
+                type: array
+                items:
                   type: object
                   required:
-                    - level
-                    - reason_code
+                    - class
+                    - selector
+                    - confidence
                   properties:
-                    level:
-                      enum:
-                        - low
-                        - medium
-                        - high
-                    reason_code:
-                      enum:
-                        - none
-                        - ambiguous_semantics
-                        - scrubbing_destroys_meaning
-                        - policy_block
-                        - insufficient_context
+                    class:
+                      type: string
+                      minLength: 1
+                    selector:
+                      type: object
+                      required:
+                        - quote
+                      properties:
+                        quote:
+                          type: string
+                          minLength: 1
+                        all:
+                          type: boolean
+                        occurrence:
+                          type: integer
+                          minimum: 1
+                        prefix:
+                          type: string
+                        suffix:
+                          type: string
+                      additionalProperties: false
+                    confidence:
+                      type: number
+                      minimum: 0
+                      maximum: 1
                   additionalProperties: false
-              additionalProperties: false
+              residual_risk:
+                type: object
+                required:
+                  - level
+                  - reason_code
+                properties:
+                  level:
+                    enum:
+                      - low
+                      - medium
+                      - high
+                  reason_code:
+                    enum:
+                      - none
+                      - ambiguous_semantics
+                      - scrubbing_destroys_meaning
+                      - policy_block
+                      - insufficient_context
+                additionalProperties: false
+            additionalProperties: false
       - id: block
-        skill: .
-        runner: from-detections
+        skill: .#from-detections
         inputs:
           content: $input.content
           classes: $input.classes
@@ -138,8 +118,7 @@ runners:
           value: $steps.block-policy.comparison.equal
           equals: true
       - id: apply
-        skill: .
-        runner: from-detections
+        skill: .#from-detections
         inputs:
           content: $input.content
           classes: $input.classes
@@ -154,23 +133,13 @@ runners:
         operator_context: Prepare a private support export.
         mode: redact
   from-detections:
-    description: Reuse reviewed source selections and semantic risk, apply the chosen treatment, scan the selected
-      classes and bind the unchanged public report to native source/residual digests.
-    operations: []
-    tools: []
-    skills: []
-    asks: false
+    description: Reuse reviewed source selections and semantic risk, apply the chosen treatment, scan the selected classes and bind the unchanged public report to native source/residual digests.
     inputs:
-      content:
-        definition: content
-      classes:
-        definition: classes
-      mode:
-        definition: mode
-      locale:
-        definition: locale
-      redaction_draft:
-        definition: redaction_draft
+      content: {}
+      classes: {}
+      mode: {}
+      locale: {}
+      redaction_draft: {}
     result_from:
       - finalize
     steps:
@@ -180,7 +149,6 @@ runners:
           value: $input.content
           encoding: utf8_text
       - id: scrub
-        label: scrub and scan residual content
         inputs:
           content: $input.content
           classes: $input.classes
@@ -193,132 +161,127 @@ runners:
         outputs:
           redaction_candidate:
             type: object
-            schema:
-              required:
-                - decision
-                - detected
-                - redacted_content
-                - residual_risk
-                - scanner
-                - policy
-              properties:
-                decision:
-                  type: string
-                  enum:
-                    - ready
-                    - needs_review
-                    - blocked
-                detected:
-                  type: array
-                  items:
-                    type: object
-                    required:
-                      - class
-                      - span
-                      - confidence
-                    properties:
-                      class:
-                        type: string
-                        minLength: 1
-                      span:
-                        type: array
-                        items:
-                          type: integer
-                          minimum: 0
-                        minItems: 2
-                        maxItems: 2
-                      confidence:
-                        type: number
+            required:
+              - decision
+              - detected
+              - redacted_content
+              - residual_risk
+              - scanner
+              - policy
+            properties:
+              decision:
+                type: string
+                enum:
+                  - ready
+                  - needs_review
+                  - blocked
+              detected:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - class
+                    - span
+                    - confidence
+                  properties:
+                    class:
+                      type: string
+                      minLength: 1
+                    span:
+                      type: array
+                      items:
+                        type: integer
                         minimum: 0
-                        maximum: 1
-                    additionalProperties: false
-                redacted_content:
-                  type: string
-                residual_risk:
-                  type: object
-                  required:
-                    - level
-                    - reason_code
-                    - reason
-                  properties:
-                    level:
-                      type: string
-                      enum:
-                        - low
-                        - medium
-                        - high
-                    reason_code:
+                      minItems: 2
+                      maxItems: 2
+                    confidence:
+                      type: number
+                      minimum: 0
+                      maximum: 1
+                  additionalProperties: false
+              redacted_content:
+                type: string
+              residual_risk:
+                type: object
+                required:
+                  - level
+                  - reason_code
+                  - reason
+                properties:
+                  level:
+                    type: string
+                    enum:
+                      - low
+                      - medium
+                      - high
+                  reason_code:
+                    type: string
+                    minLength: 1
+                  reason:
+                    type: string
+                additionalProperties: false
+              scanner:
+                type: object
+                required:
+                  - status
+                  - findings
+                properties:
+                  status:
+                    enum:
+                      - pass
+                      - hold
+                      - block
+                  findings:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - class
+                        - span
+                        - rule
+                      properties:
+                        class:
+                          type: string
+                        span:
+                          type: array
+                          minItems: 2
+                          maxItems: 2
+                          items:
+                            type: integer
+                            minimum: 0
+                        rule:
+                          type: string
+                      additionalProperties: false
+                additionalProperties: false
+              policy:
+                type: object
+                required:
+                  - classes
+                  - mode
+                  - locale
+                properties:
+                  classes:
+                    type: array
+                    items:
                       type: string
                       minLength: 1
-                    reason:
-                      type: string
-                  additionalProperties: false
-                scanner:
-                  type: object
-                  required:
-                    - status
-                    - findings
-                  properties:
-                    status:
-                      enum:
-                        - pass
-                        - hold
-                        - block
-                    findings:
-                      type: array
-                      items:
-                        type: object
-                        required:
-                          - class
-                          - span
-                          - rule
-                        properties:
-                          class:
-                            type: string
-                          span:
-                            type: array
-                            minItems: 2
-                            maxItems: 2
-                            items:
-                              type: integer
-                              minimum: 0
-                          rule:
-                            type: string
-                        additionalProperties: false
-                  additionalProperties: false
-                policy:
-                  type: object
-                  required:
-                    - classes
-                    - mode
-                    - locale
-                  properties:
-                    classes:
-                      type: array
-                      items:
-                        type: string
-                        minLength: 1
-                    mode:
-                      type: string
-                      enum:
-                        - redact
-                        - tokenize
-                        - block
-                    locale:
-                      type: string
-                      minLength: 1
-                  additionalProperties: false
-              additionalProperties: false
-        artifacts:
-          named_emits:
-            redaction_candidate: redaction_candidate
+                  mode:
+                    type: string
+                    enum:
+                      - redact
+                      - tokenize
+                      - block
+                  locale:
+                    type: string
+                    minLength: 1
+                additionalProperties: false
+            additionalProperties: false
       - id: digest-redacted
         tool: data.digest
         inputs:
           encoding: utf8_text
           value: $steps.scrub.redaction_candidate.redacted_content
       - id: finalize
-        label: bind native content digests and release the report
         inputs:
           redaction_candidate: $steps.scrub.redaction_candidate
           source_digest: $steps.digest-source.digest_result.digest
@@ -327,13 +290,8 @@ runners:
           module: redact-pii.mjs
           export: finalizeRedaction
         outputs:
-          redaction_report: object
-          redacted_content: string
-        artifacts:
-          named_emits:
-            redaction_report: redaction_report
-          packets:
-            redaction_report: runx/redact-pii.report.v1
+          redaction_report: {type: object, packet: runx/redact-pii.report.v1}
+          redacted_content: {type: string}
     examples:
       - content: Email jane@example.test.
         redaction_draft:
@@ -347,115 +305,103 @@ runners:
             level: low
             reason_code: none
         mode: redact
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases: []
-input_definitions:
+shared_inputs:
   content:
     type: string
-    required: true
     description: Content to inspect and scrub before it crosses a trust boundary.
   classes:
     type: array
-    required: false
-    description: Selected personal-data class labels; omission uses the broad default policy. Custom
-      sensitive-data classes are supported.
-    schema:
-      minItems: 1
-      uniqueItems: true
-      items:
-        type: string
-        minLength: 1
+    description: Selected personal-data class labels; omission uses the broad default policy. Custom sensitive-data classes are supported.
+    minItems: 1
+    uniqueItems: true
+    items:
+      type: string
+      minLength: 1
+    optional: true
   mode:
     type: string
-    required: false
     default: redact
     description: Redact values, use stable per-document tokens, or block without a detector turn.
-    schema:
-      enum:
-        - redact
-        - tokenize
-        - block
+    enum:
+      - redact
+      - tokenize
+      - block
+    optional: true
   locale:
     type: string
-    required: false
     default: und
     description: Locale for semantic identifier judgment; und means unspecified.
-    schema:
-      minLength: 1
+    minLength: 1
+    optional: true
   operator_context:
     type: string
-    required: false
     description: Boundary purpose and risk posture for the review pass.
+    optional: true
   redaction_draft:
     type: object
-    required: true
-    description: Existing private semantic review and exact quote selectors for this source. The phase locates the
-      selected text and computes the public spans itself.
-    schema:
-      required:
-        - decision
-        - detected
-        - residual_risk
-      properties:
-        decision:
-          enum:
-            - ready
-            - needs_review
-            - blocked
-        detected:
-          type: array
-          items:
-            type: object
-            required:
-              - class
-              - selector
-              - confidence
-            properties:
-              class:
-                type: string
-                minLength: 1
-              selector:
-                type: object
-                required:
-                  - quote
-                properties:
-                  quote:
-                    type: string
-                    minLength: 1
-                  all:
-                    type: boolean
-                  occurrence:
-                    type: integer
-                    minimum: 1
-                  prefix:
-                    type: string
-                  suffix:
-                    type: string
-                additionalProperties: false
-              confidence:
-                type: number
-                minimum: 0
-                maximum: 1
-            additionalProperties: false
-        residual_risk:
+    description: Existing private semantic review and exact quote selectors for this source. The phase locates the selected text and computes the public spans itself.
+    required:
+      - decision
+      - detected
+      - residual_risk
+    properties:
+      decision:
+        enum:
+          - ready
+          - needs_review
+          - blocked
+      detected:
+        type: array
+        items:
           type: object
           required:
-            - level
-            - reason_code
+            - class
+            - selector
+            - confidence
           properties:
-            level:
-              enum:
-                - low
-                - medium
-                - high
-            reason_code:
-              enum:
-                - none
-                - ambiguous_semantics
-                - scrubbing_destroys_meaning
-                - policy_block
-                - insufficient_context
+            class:
+              type: string
+              minLength: 1
+            selector:
+              type: object
+              required:
+                - quote
+              properties:
+                quote:
+                  type: string
+                  minLength: 1
+                all:
+                  type: boolean
+                occurrence:
+                  type: integer
+                  minimum: 1
+                prefix:
+                  type: string
+                suffix:
+                  type: string
+              additionalProperties: false
+            confidence:
+              type: number
+              minimum: 0
+              maximum: 1
           additionalProperties: false
-      additionalProperties: false
+      residual_risk:
+        type: object
+        required:
+          - level
+          - reason_code
+        properties:
+          level:
+            enum:
+              - low
+              - medium
+              - high
+          reason_code:
+            enum:
+              - none
+              - ambiguous_semantics
+              - scrubbing_destroys_meaning
+              - policy_block
+              - insufficient_context
+        additionalProperties: false
+    additionalProperties: false

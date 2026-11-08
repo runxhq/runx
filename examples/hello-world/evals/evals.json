@@ -1,0 +1,11 @@
+{
+  "skill_name": "hello-world",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Print this exact greeting through the example skill.",
+      "expected_output": "Return the supplied greeting from the advertised default runner in a sealed receipt.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "skill_name": "agent",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Find out how this project builds and tell me.",
+      "expected_output": "Read the project, without changing it, and end the turn with a summary of what it found.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Fix the typo in the README and tell me what you changed.",
+      "expected_output": "Change the workspace through approved calls and end the turn with a summary of the change.",
+      "files": []
+    }
+  ]
+}

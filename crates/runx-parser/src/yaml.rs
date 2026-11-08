@@ -534,7 +534,7 @@ mod tests {
             "runners:\n  one:\n    runx:\n      <<: *shared",
             "runners:\n  one:\n    type: !custom graph",
         ] {
-            let result = assert_execution_profile_yaml_subset("runner_manifest", literal);
+            let result = assert_execution_profile_yaml_subset("method_manifest", literal);
             assert!(result.is_err(), "expected rejection, got {result:?}");
         }
     }
@@ -542,14 +542,14 @@ mod tests {
     #[test]
     fn execution_profile_subset_rejects_duplicate_keys_but_allows_sequence_reuse() {
         let result =
-            assert_execution_profile_yaml_subset("runner_manifest", "skill: one\nskill: two\n");
+            assert_execution_profile_yaml_subset("method_manifest", "skill: one\nskill: two\n");
         assert!(
             result.is_err(),
             "expected duplicate key rejection, got {result:?}"
         );
 
         let sequence_result = assert_execution_profile_yaml_subset(
-            "runner_manifest",
+            "method_manifest",
             r#"
 skill: demo
 runners:
@@ -571,7 +571,7 @@ runners:
     fn execution_profile_subset_reads_quoted_keys_as_keys() {
         // A quoted key closes the mapping before it, so its children are its own.
         let nested = assert_execution_profile_yaml_subset(
-            "runner_manifest",
+            "method_manifest",
             r#"
 turns:
   answer:
@@ -587,7 +587,7 @@ turns:
 
         // A quoted key and the same plain key are one key.
         let duplicate =
-            assert_execution_profile_yaml_subset("runner_manifest", "skill: one\n\"skill\": two\n");
+            assert_execution_profile_yaml_subset("method_manifest", "skill: one\n\"skill\": two\n");
         assert!(
             duplicate.is_err(),
             "expected duplicate key rejection, got {duplicate:?}"

@@ -165,10 +165,10 @@ function validateShim(name, inspection, source) {
   // A skill whose agent makes calls runs on the local MCP server, which binds
   // the package and closure when it starts. Its shim carries no shell command.
   if (contents.includes("MCP server rather than the shell")) return;
-  const defaultRunner = inspection.semantic_report?.defaultRunner;
-  const runner = inspection.runner_inspections?.find((entry) => entry.runner?.name === defaultRunner);
+  const defaultMethod = inspection.semantic_report?.defaultMethod;
+  const runner = inspection.method_inspections?.find((entry) => entry.runner?.name === defaultMethod);
   const closureDigest = runner?.execution_closure?.closure_digest;
-  if (!defaultRunner || !isDigest(closureDigest)) {
+  if (!defaultMethod || !isDigest(closureDigest)) {
     fail(`${name}: inspected default runner has no exact execution closure`);
   } else if (!contents.includes(`--execution-closure-digest ${closureDigest}`)) {
     fail(`${name}: default invocation is not bound to ${closureDigest}`);

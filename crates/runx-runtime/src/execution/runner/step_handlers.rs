@@ -1,4 +1,4 @@
-// Step handlers implement the concrete approval, agent, nested-graph, tool,
+// Step handlers implement the concrete approval, agent, nested-workflow, tool,
 // and sub-skill acts behind the typed dispatch boundary.
 
 mod host_resolution;
@@ -17,7 +17,7 @@ use runx_contracts::{
     Reference, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RunOutcome,
 };
 use runx_core::state_machine::StepAdmissionWitness;
-use runx_parser::{AskGate, GraphStep, SkillArtifactContract, StepKind, ToolTarget};
+use runx_parser::{AskGate, SkillArtifactContract, StepKind, ToolTarget, WorkflowStep};
 
 use self::host_resolution::resolve_step_approval;
 pub(super) use self::load::resolve_loaded;
@@ -32,8 +32,8 @@ use super::admission::{
 };
 use super::turn::{OpenTurn, TurnScope};
 use super::{
-    GraphRun, Runtime, StepRun, graph_run_ephemeral_result, graph_run_result_artifacts,
-    graph_run_skill_output,
+    Runtime, StepRun, WorkflowRun, workflow_run_ephemeral_result, workflow_run_result_artifacts,
+    workflow_run_skill_output,
 };
 use crate::RuntimeError;
 use crate::adapter::{
@@ -41,7 +41,7 @@ use crate::adapter::{
     SkillInvocation,
 };
 use crate::agent_contract::agent_contract_checks_with_artifacts;
-use crate::agent_invocation::agent_act_resolution_request;
+use crate::agent_invocation::turn_resolution_request;
 use crate::approval::ApprovalResolution;
 use crate::effects::EffectStepRequest;
 use crate::effects::ResolvedEffectTarget;
@@ -49,8 +49,8 @@ use crate::execution::outcome::agent_answer_outcome_or_completed;
 use crate::execution::output_projection::{StepOutputProjection, project_step_claim};
 use crate::host::Host;
 use crate::observations::ContractChecks;
-use crate::output_contract::runner_contract_checks;
-use crate::receipts::{RuntimeReceiptSignaturePolicy, StepSeal, StepSealClosure, seal_step};
+use crate::output_contract::method_contract_checks;
+use crate::receipts::{RuntimeReceiptSignaturePolicy, StepSeal, StepSealEnding, seal_step};
 use crate::services::merge_inferred_tool_roots;
 
 struct RegularSkillStepOutput {
@@ -67,8 +67,8 @@ struct StepReceiptLineage {
 }
 
 impl StepReceiptLineage {
-    fn from_graph(run: GraphRun) -> Self {
-        let GraphRun { steps, receipt, .. } = run;
+    fn from_workflow(run: WorkflowRun) -> Self {
+        let WorkflowRun { steps, receipt, .. } = run;
         let mut descendants = Vec::new();
         for mut step in steps {
             descendants.append(&mut step.nested_receipts);
@@ -100,9 +100,9 @@ impl StepReceiptLineage {
 
 pub(super) struct StepRunRequest<'a, A> {
     pub(super) runtime: &'a Runtime<A>,
-    pub(super) graph_dir: &'a Path,
-    pub(super) graph_name: &'a str,
-    pub(super) step: &'a GraphStep,
+    pub(super) workflow_dir: &'a Path,
+    pub(super) workflow_name: &'a str,
+    pub(super) step: &'a WorkflowStep,
     pub(super) attempt: u32,
     pub(super) inputs: JsonObject,
     /// The act a skill step gives its child run, which the child reads as
@@ -115,9 +115,9 @@ pub(super) struct StepRunRequest<'a, A> {
 
 struct StepHandlerCtx<'a, A> {
     runtime: &'a Runtime<A>,
-    graph_dir: &'a Path,
-    graph_name: &'a str,
-    step: &'a GraphStep,
+    workflow_dir: &'a Path,
+    workflow_name: &'a str,
+    step: &'a WorkflowStep,
     attempt: u32,
     inputs: JsonObject,
     child_act: Option<CallAct>,
@@ -130,16 +130,16 @@ struct StepHandlerCtx<'a, A> {
 
 struct RegularSkillSeal<'a, A> {
     runtime: &'a Runtime<A>,
-    graph_dir: &'a Path,
-    graph_name: &'a str,
-    step: &'a GraphStep,
+    workflow_dir: &'a Path,
+    workflow_name: &'a str,
+    step: &'a WorkflowStep,
     attempt: u32,
     skill_name: String,
     authority: Option<&'a StepAuthorityContext>,
     admission_refs: Vec<Reference>,
     /// How the step closes when its output does not say: a skill step whose
     /// child stopped short closes as its child sealed.
-    closure: Option<StepSealClosure>,
+    closure: Option<StepSealEnding>,
     /// Why a guard or an authority refused the step's child run, when one
     /// did.
     refusal: Option<JsonObject>,
@@ -183,8 +183,8 @@ where
 {
     let StepRunRequest {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         inputs,
@@ -200,7 +200,7 @@ where
         },
         inputs: &inputs,
         env: &runtime.options.env,
-        graph_dir,
+        workflow_dir,
         run_id: runtime.options.run.run_id(),
         run_authority: runtime.options.run_authority.as_ref(),
     };
@@ -209,8 +209,8 @@ where
         prepare_effect_execution(effect_request, authority, host, &runtime.options.effects)?;
     run_registered_step(StepHandlerCtx {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         inputs,
@@ -232,14 +232,14 @@ fn run_loaded_skill_step<A>(
 where
     A: SkillAdapter,
 {
-    let inputs = crate::input_contract::materialize_nested_runner_inputs(
+    let inputs = crate::input_contract::materialize_nested_method_inputs(
         &skill.runner.inputs,
         &request.inputs,
     )
     .map_err(crate::input_contract::InputContractError::into_runtime_error)?;
     // A runner the registry sells is bought from its seller, never run here.
     if let Some(paid) = request.step.skill().and_then(|target| {
-        crate::kernel::purchase::PaidRunner::reached(
+        crate::kernel::purchase::PaidMethod::reached(
             &target.skill,
             skill.version.as_deref(),
             &skill.runner.name,
@@ -255,14 +255,14 @@ where
         &env,
         &skill.directory,
     )?;
-    run_nested_graph_skill_step(StepHandlerCtx { inputs, ..request }, skill, env)
+    run_nested_workflow_skill_step(StepHandlerCtx { inputs, ..request }, skill, env)
 }
 
 /// A call that reaches a runner the registry sells: the kernel buys it
 /// (S10). The step's output is the purchase as its buyer reads it, and the
 /// act settles with the step's receipt.
 fn run_purchase_step<A>(
-    paid: crate::kernel::purchase::PaidRunner,
+    paid: crate::kernel::purchase::PaidMethod,
     request: StepHandlerCtx<'_, A>,
 ) -> Result<StepRun, RuntimeError>
 where
@@ -271,8 +271,8 @@ where
     use crate::kernel::purchase::{Bought, PurchaseCall};
     let StepHandlerCtx {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         inputs,
@@ -297,7 +297,7 @@ where
                 .as_ref()
                 .and_then(|authority| authority.max_cost_micro),
             env: &runtime.options.env,
-            cwd: graph_dir,
+            cwd: workflow_dir,
             hosted: &hosted,
         },
         host,
@@ -330,8 +330,8 @@ where
     let mut run = seal_effect_step(
         EffectStepSeal {
             runtime,
-            graph_dir,
-            graph_name,
+            workflow_dir,
+            workflow_name,
             step,
             attempt,
             admission_refs,
@@ -348,7 +348,7 @@ where
     Ok(run)
 }
 
-fn run_nested_graph_skill_step<A>(
+fn run_nested_workflow_skill_step<A>(
     request: StepHandlerCtx<'_, A>,
     skill: LoadedStepSkill,
     env: std::collections::BTreeMap<String, String>,
@@ -358,10 +358,10 @@ where
 {
     let skill_name = skill.runner.name.clone();
     let admission_refs = request.admission_refs.clone();
-    let run = execute_nested_graph(
+    let run = execute_nested_workflow(
         request.runtime,
         request.host,
-        NestedGraph {
+        NestedWorkflow {
             step_id: &request.step.id,
             skill: &skill_name,
             graph: skill.runner.graph,
@@ -376,15 +376,19 @@ where
     // The step closes as its child sealed: a child that stopped short
     // stops its step with the same closure, carrying every receipt it made.
     let child_seal = &run.receipt.seal;
-    let closure = (child_seal.outcome != RunOutcome::Completed).then_some(StepSealClosure {
+    let closure = (child_seal.outcome != RunOutcome::Completed).then_some(StepSealEnding {
         outcome: child_seal.outcome,
         reason: child_seal.reason,
     });
-    let result = super::graph_terminal_result(&run)?;
-    let ephemeral_result = graph_run_ephemeral_result(&run);
-    let mut output = graph_run_skill_output(&result, &run)?;
+    let result = super::workflow_terminal_result(&run)?;
+    let ephemeral_result = workflow_run_ephemeral_result(&run);
+    let mut output = workflow_run_skill_output(&result, &run)?;
     let mut projection = build_step_output_projection(request.step, &output, None, None)?;
-    adopt_nested_graph_result(&result, &graph_run_result_artifacts(&run), &mut projection);
+    adopt_nested_workflow_result(
+        &result,
+        &workflow_run_result_artifacts(&run),
+        &mut projection,
+    );
     let mut ephemeral_contract = JsonObject::new();
     if let JsonValue::Object(ephemeral) = ephemeral_result {
         ephemeral_contract.extend(ephemeral);
@@ -404,16 +408,16 @@ where
         output.observations.contract = crate::output_contract::artifact_contract_checks(
             &projection.outputs,
             request.step.artifacts.as_ref(),
-            request.graph_dir,
+            request.workflow_dir,
         )?;
     }
     let refusal = run.refusal.clone();
-    let receipt_lineage = StepReceiptLineage::from_graph(run);
+    let receipt_lineage = StepReceiptLineage::from_workflow(run);
     seal_regular_skill_step(
         RegularSkillSeal {
             runtime: request.runtime,
-            graph_dir: request.graph_dir,
-            graph_name: request.graph_name,
+            workflow_dir: request.workflow_dir,
+            workflow_name: request.workflow_name,
             step: request.step,
             attempt: request.attempt,
             skill_name,
@@ -432,11 +436,11 @@ where
 }
 
 /// A child skill's graph and what it runs with.
-struct NestedGraph<'a> {
+struct NestedWorkflow<'a> {
     /// The parent step the child runs as.
     step_id: &'a str,
     skill: &'a str,
-    graph: runx_parser::ExecutionGraph,
+    graph: runx_parser::Workflow,
     inputs: &'a JsonObject,
     /// The act the parent step gives the child.
     act: Option<&'a CallAct>,
@@ -453,11 +457,11 @@ struct NestedGraph<'a> {
 /// Run the child run a nested skill step runs as, or continue it from its
 /// record. A child sealed before its parent step was recorded returns its
 /// sealed run; a suspension inside it names the child run that holds it.
-fn execute_nested_graph<A>(
+fn execute_nested_workflow<A>(
     runtime: &Runtime<A>,
     host: &mut dyn Host,
-    nested: NestedGraph<'_>,
-) -> Result<GraphRun, RuntimeError>
+    nested: NestedWorkflow<'_>,
+) -> Result<WorkflowRun, RuntimeError>
 where
     A: SkillAdapter,
 {
@@ -483,7 +487,7 @@ where
         &runtime.options.clock.now(),
     )?;
     if let Some(record) = existing.filter(|record| record.sealed.is_some()) {
-        return super::sealed_graph_run(graph, record);
+        return super::sealed_workflow_run(graph, record);
     }
     let mut child_options = runtime.options.as_ref().clone();
     child_options.env = nested.env.clone();
@@ -500,7 +504,7 @@ where
         runtime.local_artifacts.clone(),
     )
     .with_inherited_provenance(inherited);
-    match child_runtime.run_graph_with_host(nested.skill_directory, graph.clone(), host) {
+    match child_runtime.run_workflow_with_host(nested.skill_directory, graph.clone(), host) {
         Ok(run) => {
             log.record_sealed(&run.receipt, None)?;
             Ok(run)
@@ -531,7 +535,7 @@ where
 /// graph returns, and which of its outputs are artifacts. This keeps
 /// composition and direct invocation on one output contract without
 /// re-reading the nested graph's diagnostic step state.
-fn adopt_nested_graph_result(
+fn adopt_nested_workflow_result(
     result: &JsonValue,
     artifacts: &BTreeSet<String>,
     projection: &mut StepOutputProjection,
@@ -551,7 +555,7 @@ fn adopt_nested_graph_result(
 
 fn invoke_regular_skill_step<A>(
     runtime: &Runtime<A>,
-    step: &GraphStep,
+    step: &WorkflowStep,
     invocation: SkillInvocation,
     extra_artifacts: Option<&SkillArtifactContract>,
     authority: Option<&StepAuthorityContext>,
@@ -594,7 +598,7 @@ where
     let ephemeral_contract =
         build_ephemeral_step_output(step, &output, raw_output.as_ref(), extra_artifacts);
     if output.succeeded() {
-        output.observations.contract = runner_contract_checks(
+        output.observations.contract = method_contract_checks(
             &skill_name,
             &output.value,
             raw_output.as_ref(),
@@ -633,7 +637,7 @@ where
         .unwrap_or_default();
     let receipt = seal_executed_step(
         StepSeal {
-            scope: context.runtime.scope(context.graph_name),
+            scope: context.runtime.scope(context.workflow_name),
             step_id: &context.step.id,
             attempt: context.attempt,
             output: &output,
@@ -650,7 +654,7 @@ where
     )?;
     finalize_effect_output_before_success(EffectReceiptContext {
         step: context.step,
-        graph_dir: context.graph_dir,
+        workflow_dir: context.workflow_dir,
         authority: context.authority,
         claim: effect_claim,
         output: &mut output,
@@ -662,7 +666,7 @@ where
     .map_err(|source| RuntimeError::engine("finalizing a sealed provider effect", source))?;
     let settlement = persist_effect_state_for_step(EffectReceiptContext {
         step: context.step,
-        graph_dir: context.graph_dir,
+        workflow_dir: context.workflow_dir,
         authority: context.authority,
         claim: effect_claim,
         output: &mut output,
@@ -697,17 +701,17 @@ where
 fn loaded_skill_or_load(
     loaded_skill: Option<LoadedStepSkill>,
     options: &super::RuntimeOptions,
-    graph_dir: &Path,
-    step: &GraphStep,
+    workflow_dir: &Path,
+    step: &WorkflowStep,
 ) -> Result<LoadedStepSkill, RuntimeError> {
     loaded_skill.map_or_else(
-        || load_step_skill(graph_dir, step, StepSkillLoadOptions::of_run(options)),
+        || load_step_skill(workflow_dir, step, StepSkillLoadOptions::of_run(options)),
         Ok,
     )
 }
 
 /// The child runner a skill step names, if any.
-fn step_runner(step: &GraphStep) -> Option<String> {
+fn step_runner(step: &WorkflowStep) -> Option<String> {
     step.skill().and_then(|target| target.runner.clone())
 }
 
@@ -747,7 +751,7 @@ where
     let skill = loaded_skill_or_load(
         request.loaded_skill.take(),
         &request.runtime.options,
-        request.graph_dir,
+        request.workflow_dir,
         request.step,
     )?;
     run_loaded_skill_step(skill, request)
@@ -761,8 +765,8 @@ where
 {
     let StepHandlerCtx {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         inputs,
@@ -797,7 +801,7 @@ where
         resolved_inputs: JsonObject::new(),
         current_context: Vec::new(),
         provenance,
-        skill_directory: graph_dir.to_path_buf(),
+        skill_directory: workflow_dir.to_path_buf(),
         env: runtime.options.env.clone(),
         credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
@@ -808,8 +812,8 @@ where
     seal_regular_skill_step(
         RegularSkillSeal {
             runtime,
-            graph_dir,
-            graph_name,
+            workflow_dir,
+            workflow_name,
             step,
             attempt,
             skill_name: step.id.clone(),
@@ -824,9 +828,9 @@ where
 
 // The close for an agent act: a resolved host response becomes the step's
 // output, projection, and sealed receipt.
-struct AgentActStepSeal<'a> {
-    graph_name: &'a str,
-    step: &'a GraphStep,
+struct TurnStepSeal<'a> {
+    workflow_name: &'a str,
+    step: &'a WorkflowStep,
     attempt: u32,
     skill_name: String,
     response: ResolutionResponse,
@@ -837,12 +841,12 @@ struct AgentActStepSeal<'a> {
     calls: Vec<&'a StepRun>,
 }
 
-fn seal_agent_act_step<A>(
+fn seal_turn_step<A>(
     runtime: &Runtime<A>,
-    request: AgentActStepSeal<'_>,
+    request: TurnStepSeal<'_>,
 ) -> Result<StepRun, RuntimeError> {
-    let AgentActStepSeal {
-        graph_name,
+    let TurnStepSeal {
+        workflow_name,
         step,
         attempt,
         skill_name,
@@ -868,7 +872,7 @@ fn seal_agent_act_step<A>(
     output.observations.contract = contract_checks;
     let receipt = seal_executed_step(
         StepSeal {
-            scope: runtime.scope(graph_name),
+            scope: runtime.scope(workflow_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -879,7 +883,7 @@ fn seal_agent_act_step<A>(
             admission_refs: Vec::new(),
             child_receipts: &lineage.direct_children,
             descendant_receipts: &lineage.descendants,
-            closure: Some(StepSealClosure {
+            closure: Some(StepSealEnding {
                 outcome,
                 reason: None,
             }),
@@ -912,8 +916,8 @@ where
 {
     let StepHandlerCtx {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         inputs,
@@ -951,13 +955,13 @@ where
         resolved_inputs: JsonObject::new(),
         current_context: load_context_skills(
             &step.id,
-            graph_dir,
+            workflow_dir,
             &step.context_skills,
             &runtime.options.env,
             &admitted_at,
         )?,
         provenance,
-        skill_directory: graph_dir.to_path_buf(),
+        skill_directory: workflow_dir.to_path_buf(),
         env: runtime.options.env.clone(),
         credential_delivery: crate::credentials::CredentialDelivery::none(),
     };
@@ -971,8 +975,7 @@ where
     let package = runtime.options.package(&invocation.skill_directory)?;
     // The act carries why its run exists.
     let act = runtime.options.run.load()?.and_then(|record| record.act);
-    let request =
-        agent_act_resolution_request(&invocation, &package, act.as_ref(), request_id.clone())?;
+    let request = turn_resolution_request(&invocation, &package, act.as_ref(), request_id.clone())?;
     host.report(ExecutionEvent::ResolutionRequested {
         message: format!("agent step '{}' requested resolution", step.id),
         data: Some(resolution_event_data(step, &request)?),
@@ -982,8 +985,8 @@ where
     let mut turn = OpenTurn::open(
         TurnScope {
             runtime,
-            graph_dir,
-            graph_name,
+            workflow_dir,
+            workflow_name,
             step_id: &step.id,
             attempt,
             agent,
@@ -1018,7 +1021,7 @@ where
                 &request,
                 &response.payload,
                 step.artifacts.as_ref(),
-                graph_dir,
+                workflow_dir,
             )
             .map_err(|error| match error {
                 RuntimeError::SkillFailed { message, .. } => RuntimeError::ContinuationRejected {
@@ -1027,10 +1030,10 @@ where
                 error => error,
             })?
         };
-    seal_agent_act_step(
+    seal_turn_step(
         runtime,
-        AgentActStepSeal {
-            graph_name,
+        TurnStepSeal {
+            workflow_name,
             step,
             attempt,
             skill_name: format!("agent:{}", agent.task),
@@ -1044,7 +1047,7 @@ where
 }
 
 fn step_requirements(
-    step: &GraphStep,
+    step: &WorkflowStep,
     executable: &Executable,
 ) -> runx_contracts::ExecutionRequirements {
     let environment = match executable {
@@ -1066,8 +1069,8 @@ where
 {
     let StepHandlerCtx {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         inputs,
@@ -1096,7 +1099,7 @@ where
         resolved_inputs: Cow::Owned(JsonObject::new()),
         scopes: &step.scopes,
         env: &runtime.options.env,
-        skill_directory: graph_dir,
+        skill_directory: workflow_dir,
         credential_delivery: &crate::credentials::CredentialDelivery::none(),
         local_artifacts: &runtime.local_artifacts,
         skill_name: tool,
@@ -1126,8 +1129,8 @@ where
     seal_effect_step(
         EffectStepSeal {
             runtime,
-            graph_dir,
-            graph_name,
+            workflow_dir,
+            workflow_name,
             step,
             attempt,
             admission_refs,
@@ -1143,9 +1146,9 @@ where
 /// Everything a step owned by an effect seals with.
 struct EffectStepSeal<'a, A> {
     runtime: &'a Runtime<A>,
-    graph_dir: &'a Path,
-    graph_name: &'a str,
-    step: &'a GraphStep,
+    workflow_dir: &'a Path,
+    workflow_name: &'a str,
+    step: &'a WorkflowStep,
     attempt: u32,
     admission_refs: Vec<Reference>,
     authority: Option<&'a StepAuthorityContext>,
@@ -1166,8 +1169,8 @@ where
 {
     let EffectStepSeal {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         admission_refs,
@@ -1192,7 +1195,7 @@ where
             crate::packet_validation::verify_declared_packets(
                 &projection.outputs,
                 step.artifacts.as_ref().or(artifacts),
-                graph_dir,
+                workflow_dir,
             )?;
     }
     let ephemeral_contract = build_ephemeral_step_output(step, &output, None, artifacts);
@@ -1203,7 +1206,7 @@ where
         .unwrap_or_default();
     let receipt = seal_executed_step(
         StepSeal {
-            scope: runtime.scope(graph_name),
+            scope: runtime.scope(workflow_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -1225,7 +1228,7 @@ where
     ] {
         let request = EffectReceiptContext {
             step,
-            graph_dir,
+            workflow_dir,
             authority,
             claim: effect_claim,
             output: &mut output,
@@ -1266,7 +1269,7 @@ where
 /// the credential it received, whatever the run returned.
 struct StepTools<'a, A> {
     runtime: &'a Runtime<A>,
-    graph_dir: &'a Path,
+    workflow_dir: &'a Path,
     observed: std::cell::RefCell<crate::observations::Observations>,
 }
 
@@ -1282,7 +1285,7 @@ where
         scopes: &[String],
         delivery: &crate::credentials::CredentialDelivery,
     ) -> Result<runx_contracts::JsonValue, crate::kernel::operation::confirm::Unperformed> {
-        let directory = manifest.parent().unwrap_or(self.graph_dir);
+        let directory = manifest.parent().unwrap_or(self.workflow_dir);
         let output = crate::tool_catalogs::dispatch::dispatch_connector_tool(
             manifest,
             &crate::tool_catalogs::dispatch::ToolDispatchRequest {
@@ -1330,8 +1333,8 @@ where
 {
     let StepHandlerCtx {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         admission_refs,
@@ -1351,7 +1354,7 @@ where
         })?;
     let tools = StepTools {
         runtime,
-        graph_dir,
+        workflow_dir,
         observed: Default::default(),
     };
     let started = Instant::now();
@@ -1361,7 +1364,7 @@ where
         context,
         &step.id,
         &runtime.options.env,
-        graph_dir,
+        workflow_dir,
         &tools,
         &mut dispatched,
     );
@@ -1407,8 +1410,8 @@ where
     seal_effect_step(
         EffectStepSeal {
             runtime,
-            graph_dir,
-            graph_name,
+            workflow_dir,
+            workflow_name,
             step,
             attempt,
             admission_refs,
@@ -1448,7 +1451,7 @@ fn agent_task_output(
 }
 
 fn resolution_event_data(
-    step: &GraphStep,
+    step: &WorkflowStep,
     request: &ResolutionRequest,
 ) -> Result<JsonValue, RuntimeError> {
     let request_value = serde_json::to_value(request)
@@ -1461,7 +1464,7 @@ fn resolution_event_data(
 }
 
 fn agent_answer_outcome_value(
-    step: &GraphStep,
+    step: &WorkflowStep,
     answer: &JsonValue,
 ) -> Result<RunOutcome, RuntimeError> {
     agent_answer_outcome_or_completed(answer).map_err(|error| RuntimeError::InvalidRunStep {
@@ -1481,8 +1484,8 @@ where
 {
     let StepHandlerCtx {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         inputs,
@@ -1490,7 +1493,7 @@ where
         ..
     } = request;
     if ask.gate_type.as_deref() == Some(QUESTIONS_GATE) {
-        return run_question_step(runtime, graph_name, step, ask, attempt, &inputs, host);
+        return run_question_step(runtime, workflow_name, step, ask, attempt, &inputs, host);
     }
     let mut gate = approval_gate(ask, &inputs);
     // What the person approves is the reason they are asked.
@@ -1500,7 +1503,7 @@ where
             "reason".to_owned(),
             JsonValue::String(ask.reason.clone()),
         )])),
-        &crate::paths::RunxPaths::resolve(&runtime.options.env, graph_dir).artifacts(),
+        &crate::paths::RunxPaths::resolve(&runtime.options.env, workflow_dir).artifacts(),
         runtime.options.run.run_id(),
     )
     .map_err(|message| RuntimeError::effect_state("carrying an ask", message))?;
@@ -1518,7 +1521,7 @@ where
     let projection = project_step_claim(outputs, step.artifacts.as_ref());
     let receipt = seal_executed_step(
         StepSeal {
-            scope: runtime.scope(graph_name),
+            scope: runtime.scope(workflow_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -1624,8 +1627,8 @@ pub(super) fn ask_questions(value: &JsonValue) -> Result<Vec<runx_contracts::Que
 /// answered in the person's lane and checked against them.
 fn run_question_step<A>(
     runtime: &Runtime<A>,
-    graph_name: &str,
-    step: &GraphStep,
+    workflow_name: &str,
+    step: &WorkflowStep,
     ask: &AskGate,
     attempt: u32,
     inputs: &JsonObject,
@@ -1671,7 +1674,7 @@ where
     let projection = project_step_claim(outputs, step.artifacts.as_ref());
     let receipt = seal_executed_step(
         StepSeal {
-            scope: runtime.scope(graph_name),
+            scope: runtime.scope(workflow_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -1705,7 +1708,7 @@ where
 }
 
 fn completed_approval_resolution(
-    step: &GraphStep,
+    step: &WorkflowStep,
     gate: &ApprovalGate,
     request_id: &str,
     resolution: ApprovalResolution,
@@ -1738,7 +1741,7 @@ pub(super) fn approval_gate(ask: &AskGate, inputs: &JsonObject) -> ApprovalGate 
 }
 
 pub(super) fn approval_outputs(
-    step: &GraphStep,
+    step: &WorkflowStep,
     gate: &ApprovalGate,
     resolution: &ApprovalResolution,
 ) -> Result<JsonObject, RuntimeError> {
@@ -1805,7 +1808,7 @@ pub(super) fn actor_name(actor: &ResolutionResponseActor) -> String {
     }
 }
 
-pub(super) fn artifact_wrap_as(step: &GraphStep) -> Result<&str, RuntimeError> {
+pub(super) fn artifact_wrap_as(step: &WorkflowStep) -> Result<&str, RuntimeError> {
     let Some(artifacts) = &step.artifacts else {
         return Ok("approval");
     };
@@ -1813,7 +1816,7 @@ pub(super) fn artifact_wrap_as(step: &GraphStep) -> Result<&str, RuntimeError> {
 }
 
 pub(super) fn artifact_packet(
-    step: &GraphStep,
+    step: &WorkflowStep,
 ) -> Result<Option<runx_contracts::PacketId>, RuntimeError> {
     Ok(step
         .artifacts
@@ -1823,8 +1826,8 @@ pub(super) fn artifact_packet(
 
 pub(super) fn runtime_error_step_run<A>(
     runtime: &Runtime<A>,
-    graph_name: &str,
-    step: &GraphStep,
+    workflow_name: &str,
+    step: &WorkflowStep,
     attempt: u32,
     error: RuntimeError,
 ) -> Result<StepRun, RuntimeError>
@@ -1834,7 +1837,7 @@ where
     // A managed agent that stopped seals why it stopped.
     let closure = match &error {
         #[cfg(feature = "agent")]
-        RuntimeError::ManagedAgentResolution { source, .. } => Some(StepSealClosure {
+        RuntimeError::ManagedAgentResolution { source, .. } => Some(StepSealEnding {
             outcome: RunOutcome::Failed,
             reason: Some(source.reason()),
         }),
@@ -1862,7 +1865,7 @@ where
     let projection = project_step_claim(JsonObject::new(), None);
     let receipt = seal_step(
         StepSeal {
-            scope: runtime.scope(graph_name),
+            scope: runtime.scope(workflow_name),
             step_id: &step.id,
             attempt,
             output: &output,
@@ -1925,14 +1928,14 @@ fn step_admission_witness(
 
 #[cfg(test)]
 mod step_requirements {
-    use runx_parser::{StepKind, ToolTarget, parse_graph_yaml, validate_graph};
+    use runx_parser::{StepKind, ToolTarget, parse_workflow_yaml, validate_workflow};
 
     use crate::adapter::Executable;
 
     #[test]
     fn a_worker_step_projects_scopes_and_environment_without_interpretation()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = validate_graph(parse_graph_yaml(
+        let graph = validate_workflow(parse_workflow_yaml(
             r#"
 name: worker-requirements
 steps:

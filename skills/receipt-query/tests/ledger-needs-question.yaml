@@ -1,0 +1,7 @@
+name: ledger-needs-question
+method: read
+inputs: {}
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

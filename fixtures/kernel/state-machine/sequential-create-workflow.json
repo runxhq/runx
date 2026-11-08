@@ -1,0 +1,38 @@
+{
+  "$schema": "../schema/state-machine.schema.json",
+  "expected": {
+    "kind": "output",
+    "value": {
+      "workflowId": "gx_fixture",
+      "state": "pending",
+      "steps": [
+        {
+          "attempts": 0,
+          "state": "pending",
+          "stepId": "first"
+        },
+        {
+          "attempts": 0,
+          "state": "pending",
+          "stepId": "second"
+        }
+      ]
+    }
+  },
+  "input": {
+    "workflowId": "gx_fixture",
+    "kind": "state-machine.createSequentialWorkflow",
+    "steps": [
+      {
+        "id": "first"
+      },
+      {
+        "contextFrom": [
+          "first"
+        ],
+        "id": "second"
+      }
+    ]
+  },
+  "name": "sequential-create-workflow"
+}

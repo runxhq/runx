@@ -1,0 +1,24 @@
+name: holds-wrong-entity
+method: enrich
+inputs:
+  subject: {id: 'lead:example', kind: person}
+  as_of: '2026-10-10T00:00:00Z'
+  requested_fields: [company.industry, person.title]
+  sources:
+  - source_id: crm:lead
+    source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    subject_id: lead:another
+    observed_at: '2026-10-09T00:00:00Z'
+    match_confidence: high
+    facts:
+    - {field: company.industry, value: B2B software}
+    - {field: person.title, value: Head of Engineering}
+expect:
+  status: sealed
+  steps: [enrich]
+  step_outputs:
+    enrich:
+      subset:
+        lead_enrichment_packet:
+          data: {decision: needs_more_evidence, facts: []}
+  receipt: {schema: runx.receipt.v1}

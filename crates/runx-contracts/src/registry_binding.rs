@@ -19,7 +19,7 @@ pub enum RegistryBindingSchema {
 pub enum RegistryBindingState {
     RegistryBindingDrafted,
     RegistryBound,
-    HarnessVerified,
+    TestVerified,
     Published,
 }
 
@@ -70,10 +70,10 @@ impl TrustTier {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum RegistryHarnessState {
+pub enum RegistryTestState {
     Pending,
     Failed,
-    HarnessVerified,
+    TestVerified,
 }
 
 /// The skill identity for a registry binding. Open (`additionalProperties:
@@ -164,8 +164,8 @@ impl RunxSchema for RegistryBindingRegistry {
 
 /// Where a binding's harness verification is. Open.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-pub struct RegistryBindingHarness {
-    pub state: RegistryHarnessState,
+pub struct RegistryBindingTest {
+    pub state: RegistryTestState,
     pub case_count: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assertion_count: Option<f64>,
@@ -181,7 +181,7 @@ pub struct RegistryBinding {
     pub skill: RegistryBindingSkill,
     pub upstream: RegistryBindingUpstream,
     pub registry: RegistryBindingRegistry,
-    pub harness: RegistryBindingHarness,
+    pub harness: RegistryBindingTest,
 }
 
 #[cfg(test)]
@@ -216,7 +216,7 @@ mod tests {
                 "materialized_package_is_registry_artifact": true
             },
             "harness": {
-                "state": "harness_verified",
+                "state": "test_verified",
                 "case_count": 1
             }
         })

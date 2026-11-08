@@ -1469,12 +1469,12 @@ export const runxSchemaArtifacts = {
                       "envelope",
                       "allowance"
                     ],
-                    "title": "AgentActInvocation",
+                    "title": "TurnInvocation",
                     "type": "object",
-                    "x-runx-schema": "runx.agent_act_invocation.v1"
+                    "x-runx-schema": "runx.turn_invocation.v1"
                   },
                   "kind": {
-                    "const": "agent_act",
+                    "const": "turn",
                     "type": "string"
                   }
                 },
@@ -3008,9 +3008,9 @@ export const runxSchemaArtifacts = {
       "envelope",
       "allowance"
     ],
-    "title": "AgentActInvocation",
+    "title": "TurnInvocation",
     "type": "object",
-    "x-runx-schema": "runx.agent_act_invocation.v1"
+    "x-runx-schema": "runx.turn_invocation.v1"
   } as JsonSchema,
   "agent-context-envelope.schema.json": {
     "$id": "https://schemas.runx.ai/runx/agent-context-envelope/v1.json",
@@ -4431,7 +4431,7 @@ export const runxSchemaArtifacts = {
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
-          "harness_ref": {
+          "run_ref": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -8686,7 +8686,7 @@ export const runxSchemaArtifacts = {
                     "refresh",
                     "release"
                   ],
-                  "title": "HoldAction",
+                  "title": "LeaseAction",
                   "type": "string"
                 },
                 "credential": {
@@ -8716,7 +8716,7 @@ export const runxSchemaArtifacts = {
                 "credential",
                 "target"
               ],
-              "title": "OperationHold",
+              "title": "OperationLease",
               "type": "object"
             },
             "hosted": {
@@ -10907,7 +10907,7 @@ export const runxSchemaArtifacts = {
         "title": "CredentialDeliveryMode",
         "type": "string"
       },
-      "harness_ref": {
+      "run_ref": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11205,7 +11205,7 @@ export const runxSchemaArtifacts = {
       "observation_id",
       "request_id",
       "status",
-      "harness_ref",
+      "run_ref",
       "profile_id",
       "provider",
       "purpose",
@@ -17138,11 +17138,11 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.git.status.v1"
   } as JsonSchema,
-  "harness-context.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/control/harness-context/v1.json",
+  "run-context.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/control/run-context/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "What `control.capture_harness_context` returns: the harness, signal and decision packets a run was given, held as explicit context.",
+    "description": "What `control.capture_run_context` returns: the harness, signal and decision packets a run was given, held as explicit context.",
     "properties": {
       "captured": {
         "type": "boolean"
@@ -17163,10 +17163,10 @@ export const runxSchemaArtifacts = {
     "required": [
       "captured"
     ],
-    "title": "HarnessContext",
+    "title": "RunContext",
     "type": "object",
     "x-runx-packet": true,
-    "x-runx-schema": "runx.control.harness_context.v1"
+    "x-runx-schema": "runx.control.run_context.v1"
   } as JsonSchema,
   "ledger-entry.schema.json": {
     "$id": "https://schemas.runx.ai/runx/ledger-entry/v1.json",
@@ -17419,7 +17419,7 @@ export const runxSchemaArtifacts = {
               "minimum": 0,
               "type": "integer"
             },
-            "harness_cases": {
+            "test_cases": {
               "minimum": 0,
               "type": "integer"
             },
@@ -17456,7 +17456,7 @@ export const runxSchemaArtifacts = {
                 "required": [
                   "name"
                 ],
-                "title": "CatalogRunner",
+                "title": "CatalogMethod",
                 "type": "object"
               },
               "type": "array"
@@ -17860,7 +17860,7 @@ export const runxSchemaArtifacts = {
               "minLength": 1,
               "type": "string"
             },
-            "runner_id": {
+            "method_id": {
               "minLength": 1,
               "pattern": "^[A-Za-z0-9_.:-]+$",
               "type": "string"
@@ -17874,7 +17874,7 @@ export const runxSchemaArtifacts = {
                 "disabled",
                 "maintenance"
               ],
-              "title": "OperationalPolicyRunnerState",
+              "title": "OperationalPolicyMethodState",
               "type": "string"
             },
             "target_repos": {
@@ -17888,14 +17888,14 @@ export const runxSchemaArtifacts = {
             }
           },
           "required": [
-            "runner_id",
+            "method_id",
             "kind",
             "state",
             "allowed_actions",
             "target_repos",
             "scafld_required"
           ],
-          "title": "OperationalPolicyRunnerRule",
+          "title": "OperationalPolicyMethodRule",
           "type": "object"
         },
         "minItems": 1,
@@ -18048,7 +18048,7 @@ export const runxSchemaArtifacts = {
               "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
               "type": "string"
             },
-            "runner_ids": {
+            "method_ids": {
               "items": {
                 "minLength": 1,
                 "pattern": "^[A-Za-z0-9_.:-]+$",
@@ -18063,7 +18063,7 @@ export const runxSchemaArtifacts = {
           },
           "required": [
             "repo",
-            "runner_ids",
+            "method_ids",
             "allowed_actions",
             "default_owner_route",
             "scafld_required"
@@ -19872,7 +19872,7 @@ export const runxSchemaArtifacts = {
             "currency",
             "accepted_settlement_families"
           ],
-          "title": "PaidSkillRunnerOffer",
+          "title": "PaidSkillMethodOffer",
           "type": "object"
         },
         "maxProperties": 64,
@@ -20118,7 +20118,7 @@ export const runxSchemaArtifacts = {
                       "minLength": 1,
                       "type": "string"
                     },
-                    "runner_id": {
+                    "method_id": {
                       "type": "string"
                     },
                     "scafld_required": {
@@ -20130,7 +20130,7 @@ export const runxSchemaArtifacts = {
                         "disabled",
                         "maintenance"
                       ],
-                      "title": "OperationalPolicyRunnerState",
+                      "title": "OperationalPolicyMethodState",
                       "type": "string"
                     },
                     "target_repos": {
@@ -20141,14 +20141,14 @@ export const runxSchemaArtifacts = {
                     }
                   },
                   "required": [
-                    "runner_id",
+                    "method_id",
                     "kind",
                     "state",
                     "target_repos",
                     "allowed_actions",
                     "scafld_required"
                   ],
-                  "title": "OperationalPolicyRunnerReadback",
+                  "title": "OperationalPolicyMethodReadback",
                   "type": "object"
                 },
                 "type": "array"
@@ -20239,7 +20239,7 @@ export const runxSchemaArtifacts = {
                       },
                       "type": "array"
                     },
-                    "available_runner_count": {
+                    "available_method_count": {
                       "minimum": 0,
                       "type": "integer"
                     },
@@ -20253,7 +20253,7 @@ export const runxSchemaArtifacts = {
                     "repo": {
                       "type": "string"
                     },
-                    "runner_ids": {
+                    "method_ids": {
                       "items": {
                         "type": "string"
                       },
@@ -20265,12 +20265,12 @@ export const runxSchemaArtifacts = {
                   },
                   "required": [
                     "repo",
-                    "runner_ids",
+                    "method_ids",
                     "default_owner_route",
                     "owner_count",
                     "allowed_actions",
                     "scafld_required",
-                    "available_runner_count"
+                    "available_method_count"
                   ],
                   "title": "OperationalPolicyTargetReadback",
                   "type": "object"
@@ -20982,7 +20982,7 @@ export const runxSchemaArtifacts = {
             "expires_at",
             "value_digest"
           ],
-          "title": "PurchaseHold",
+          "title": "PurchaseLease",
           "type": "object"
         },
         "minItems": 1,
@@ -27108,8 +27108,8 @@ export const runxSchemaArtifacts = {
             "enum": [
               "preflight_refused",
               "input_contract_invalid",
-              "graph_step_failed",
-              "graph_blocked",
+              "workflow_step_failed",
+              "workflow_blocked",
               "authority_denied",
               "cost_limit_exceeded",
               "resolution_pending",
@@ -27479,9 +27479,9 @@ export const runxSchemaArtifacts = {
             "enum": [
               "pending",
               "failed",
-              "harness_verified"
+              "test_verified"
             ],
-            "title": "RegistryHarnessState",
+            "title": "RegistryTestState",
             "type": "string"
           }
         },
@@ -27489,7 +27489,7 @@ export const runxSchemaArtifacts = {
           "state",
           "case_count"
         ],
-        "title": "RegistryBindingHarness",
+        "title": "RegistryBindingTest",
         "type": "object"
       },
       "registry": {
@@ -27560,7 +27560,7 @@ export const runxSchemaArtifacts = {
         "enum": [
           "registry_binding_drafted",
           "registry_bound",
-          "harness_verified",
+          "test_verified",
           "published"
         ],
         "title": "RegistryBindingState",
@@ -28015,7 +28015,7 @@ export const runxSchemaArtifacts = {
                   },
                   "type": "array"
                 },
-                "exercises_runner": {
+                "exercises_method": {
                   "type": "string"
                 },
                 "expected_outcome": {
@@ -28237,10 +28237,10 @@ export const runxSchemaArtifacts = {
               "declared_result_packets",
               "requirements"
             ],
-            "title": "RunnerInspection",
+            "title": "MethodInspection",
             "type": "object"
           },
-          "runner_inspections": {
+          "method_inspections": {
             "description": "Each runner with the execution closure it binds.",
             "items": {
               "additionalProperties": false,
@@ -28389,7 +28389,7 @@ export const runxSchemaArtifacts = {
                     "declared_result_packets",
                     "requirements"
                   ],
-                  "title": "RunnerInspection",
+                  "title": "MethodInspection",
                   "type": "object"
                 }
               },
@@ -28397,7 +28397,7 @@ export const runxSchemaArtifacts = {
                 "runner",
                 "execution_closure"
               ],
-              "title": "RunnerInspectionEntry",
+              "title": "MethodInspectionEntry",
               "type": "object"
             },
             "minItems": 1,
@@ -28788,7 +28788,7 @@ export const runxSchemaArtifacts = {
                 "required": [
                   "name"
                 ],
-                "title": "CatalogRunner",
+                "title": "CatalogMethod",
                 "type": "object"
               },
               "minItems": 1,
@@ -30056,12 +30056,12 @@ export const runxSchemaArtifacts = {
               "envelope",
               "allowance"
             ],
-            "title": "AgentActInvocation",
+            "title": "TurnInvocation",
             "type": "object",
-            "x-runx-schema": "runx.agent_act_invocation.v1"
+            "x-runx-schema": "runx.turn_invocation.v1"
           },
           "kind": {
-            "const": "agent_act",
+            "const": "turn",
             "type": "string"
           }
         },
@@ -33769,12 +33769,12 @@ export const runxSchemaArtifacts = {
                         "envelope",
                         "allowance"
                       ],
-                      "title": "AgentActInvocation",
+                      "title": "TurnInvocation",
                       "type": "object",
-                      "x-runx-schema": "runx.agent_act_invocation.v1"
+                      "x-runx-schema": "runx.turn_invocation.v1"
                     },
                     "kind": {
-                      "const": "agent_act",
+                      "const": "turn",
                       "type": "string"
                     }
                   },
@@ -37174,7 +37174,7 @@ export const runxSchemaArtifacts = {
               "minimum": 0,
               "type": "integer"
             },
-            "harness_cases": {
+            "test_cases": {
               "minimum": 0,
               "type": "integer"
             },
@@ -37237,7 +37237,7 @@ export const runxSchemaArtifacts = {
               "minimum": 0,
               "type": "integer"
             },
-            "harness_cases": {
+            "test_cases": {
               "minimum": 0,
               "type": "integer"
             },
@@ -38471,7 +38471,7 @@ export const runxSchemaArtifacts = {
               },
               "type": "array"
             },
-            "exercises_runner": {
+            "exercises_method": {
               "type": "string"
             },
             "expected_outcome": {
@@ -38693,10 +38693,10 @@ export const runxSchemaArtifacts = {
           "declared_result_packets",
           "requirements"
         ],
-        "title": "RunnerInspection",
+        "title": "MethodInspection",
         "type": "object"
       },
-      "runner_inspections": {
+      "method_inspections": {
         "description": "Each runner with the execution closure it binds.",
         "items": {
           "additionalProperties": false,
@@ -38845,7 +38845,7 @@ export const runxSchemaArtifacts = {
                 "declared_result_packets",
                 "requirements"
               ],
-              "title": "RunnerInspection",
+              "title": "MethodInspection",
               "type": "object"
             }
           },
@@ -38853,7 +38853,7 @@ export const runxSchemaArtifacts = {
             "runner",
             "execution_closure"
           ],
-          "title": "RunnerInspectionEntry",
+          "title": "MethodInspectionEntry",
           "type": "object"
         },
         "minItems": 1,
@@ -39101,8 +39101,8 @@ export const runxSchemaArtifacts = {
         "enum": [
           "preflight_refused",
           "input_contract_invalid",
-          "graph_step_failed",
-          "graph_blocked",
+          "workflow_step_failed",
+          "workflow_blocked",
           "authority_denied",
           "cost_limit_exceeded",
           "resolution_pending",
@@ -39382,7 +39382,7 @@ export const runxSchemaArtifacts = {
         "description": "How far validating a package got.",
         "enum": [
           "tested",
-          "needs_consequential_harness_approval",
+          "needs_consequential_test_approval",
           "validation_failed"
         ],
         "title": "SkillValidationVerdict",
@@ -41720,12 +41720,12 @@ export const runxSchemaArtifacts = {
                             "envelope",
                             "allowance"
                           ],
-                          "title": "AgentActInvocation",
+                          "title": "TurnInvocation",
                           "type": "object",
-                          "x-runx-schema": "runx.agent_act_invocation.v1"
+                          "x-runx-schema": "runx.turn_invocation.v1"
                         },
                         "kind": {
-                          "const": "agent_act",
+                          "const": "turn",
                           "type": "string"
                         }
                       },
@@ -42491,7 +42491,7 @@ export const runxSchemaArtifacts = {
                   "type",
                   "required"
                 ],
-                "title": "LoadedRunnerInput",
+                "title": "LoadedMethodInput",
                 "type": "object"
               },
               "type": "array"
@@ -42511,7 +42511,7 @@ export const runxSchemaArtifacts = {
             "inputs",
             "bound"
           ],
-          "title": "LoadedRunner",
+          "title": "LoadedMethod",
           "type": "object"
         },
         "minItems": 1,
@@ -44081,12 +44081,12 @@ export const runxSchemaArtifacts = {
                                   "envelope",
                                   "allowance"
                                 ],
-                                "title": "AgentActInvocation",
+                                "title": "TurnInvocation",
                                 "type": "object",
-                                "x-runx-schema": "runx.agent_act_invocation.v1"
+                                "x-runx-schema": "runx.turn_invocation.v1"
                               },
                               "kind": {
-                                "const": "agent_act",
+                                "const": "turn",
                                 "type": "string"
                               }
                             },
@@ -45394,7 +45394,7 @@ export const runxSchemaArtifacts = {
               "provenance",
               "trust_boundary"
             ],
-            "title": "TurnEnvelope",
+            "title": "TurnViewEnvelope",
             "type": "object"
           },
           "id": {
@@ -45416,7 +45416,7 @@ export const runxSchemaArtifacts = {
           "task",
           "envelope"
         ],
-        "title": "TurnInvocation",
+        "title": "TurnView",
         "type": "object"
       },
       "tools": {

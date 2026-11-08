@@ -1,17 +1,9 @@
-skill: moltbook
 version: "0.0.0"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: operator
   visibility: internal
-  role: harness-fixture
-  part_of: [runx/prior-art]
-  execution: read
-  completion: runtime_receipt
-  approval: none
-runners:
+methods:
   scan:
-    default: true
     result_from: [digest]
     steps:
       - id: digest

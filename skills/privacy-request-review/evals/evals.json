@@ -1,0 +1,11 @@
+{
+  "skill_name": "privacy-request-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Judge this erasure request against policy and record the verdict durably before any downstream action.",
+      "expected_output": "Return a sealed eligibility verdict appended to the subject request stream, with no erasure performed.",
+      "files": []
+    }
+  ]
+}

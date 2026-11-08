@@ -1,0 +1,47 @@
+{
+  "skill_name": "charge",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Do not collect the payment.",
+      "expected_output": "Refuse before calling the merchant provider.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Settle this buyer's payment for my resource.",
+      "expected_output": "Use the selected merchant account to settle and independently read back the exact supplied x402 authorization.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Collect the buyer-approved Northstar PayPal order.",
+      "expected_output": "Approve the exact sandbox account and terms, capture once and independently confirm both original order and capture.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Collect the buyer-approved Northstar PayPal order.",
+      "expected_output": "Approve the exact sandbox account and terms, capture once and independently confirm both original order and capture.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Collect the buyer-approved Northstar PayPal order.",
+      "expected_output": "Approve the exact sandbox account and terms, capture once and independently confirm both original order and capture.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Quote what a buyer pays for this resource.",
+      "expected_output": "Return the x402 payment requirements for the exact resource and price without moving money.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Collect the Northstar invoice on this Stripe merchant account.",
+      "expected_output": "Approve once, submit the exact form, and independently confirm the original account, amount, currency and reference.",
+      "files": []
+    }
+  ]
+}

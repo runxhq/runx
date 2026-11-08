@@ -1,0 +1,40 @@
+name: reddit-native-pre-effect-refusal
+package: fixtures/publish
+setup:
+  sessions:
+  - reddit
+  parameters:
+    reddit:
+      account: example_builder
+      profile: reddit-builder
+inputs: {}
+host:
+  approvals:
+    publish#request: true
+providers:
+  processes:
+  - tool: reddit.brave
+    arguments:
+      operation: session
+      parameters:
+        account: example_builder
+        profile: reddit-builder
+    result:
+      id: example_builder
+      login: example_builder
+  - tool: reddit.brave
+    arguments:
+      operation: comment-create
+      account: example_builder
+      target_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
+      body: does the error happen before the request reaches the server? the network tab should show whether it was sent.
+      session_account: example_builder
+      parameters:
+        account: example_builder
+        profile: reddit-builder
+      phase: perform
+      idempotency_key: runx:sha256:0528de0403b41fa3f5769467324acde4fb756a231d6fbad3a23e58e98c4c1b9d
+    result:
+      refused: native_session_account_mismatch
+expect:
+  status: failure

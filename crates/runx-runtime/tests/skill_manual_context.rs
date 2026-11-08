@@ -56,11 +56,11 @@ impl Host for MisidentifiedManagedFailureHost {
         request: ResolutionRequest,
     ) -> Result<Option<runx_contracts::ResolutionResponse>, RuntimeError> {
         let request_id = match request {
-            ResolutionRequest::AgentAct { id, .. } => id.as_str().to_owned(),
+            ResolutionRequest::Turn { id, .. } => id.as_str().to_owned(),
             _ => "managed-agent".to_owned(),
         };
         Err(RuntimeError::ManagedAgentResolution {
-            step_id: "referenced-agent-runner".to_owned(),
+            step_id: "referenced-agent-method".to_owned(),
             request_id,
             source: Box::new(ManagedAgentError::bounded_failure(
                 runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted,
@@ -77,7 +77,7 @@ impl Host for MisidentifiedManagedFailureHost {
 
 #[cfg(feature = "agent")]
 #[test]
-fn graph_execution_binds_managed_failure_to_the_owning_step()
+fn workflow_execution_binds_managed_failure_to_the_owning_step()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
     fs::write(
@@ -96,7 +96,7 @@ fn graph_execution_binds_managed_failure_to_the_owning_step()
         )?,
     );
 
-    let error = match runtime.run_graph_file_with_host(
+    let error = match runtime.run_workflow_file_with_host(
         &temp.path().join("graph.yaml"),
         &mut MisidentifiedManagedFailureHost,
     ) {
@@ -143,7 +143,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
 
     let mut summary_host = RecordingHost::default();
     let result =
-        runtime.run_graph_file_with_host(&temp.path().join("context.yaml"), &mut summary_host);
+        runtime.run_workflow_file_with_host(&temp.path().join("context.yaml"), &mut summary_host);
     assert!(
         matches!(
             result,
@@ -213,7 +213,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     );
     let mut invoked_host = RecordingHost::default();
     let result =
-        invoking.run_graph_file_with_host(&temp.path().join("invoke.yaml"), &mut invoked_host);
+        invoking.run_workflow_file_with_host(&temp.path().join("invoke.yaml"), &mut invoked_host);
     assert!(
         matches!(
             result,
@@ -236,7 +236,7 @@ fn agent_envelope(
     request: &ResolutionRequest,
 ) -> Result<&runx_contracts::AgentContextEnvelope, Box<dyn std::error::Error>> {
     match request {
-        ResolutionRequest::AgentAct { invocation, .. } => Ok(&invocation.envelope),
+        ResolutionRequest::Turn { invocation, .. } => Ok(&invocation.envelope),
         _ => Err("expected agent resolution request".into()),
     }
 }

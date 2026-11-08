@@ -1,0 +1,23 @@
+name: release-rejects-a-different-long-provider-version
+package: fixtures/release-wrong-version
+host:
+  answers:
+    draft-notes:
+      release_notes:
+        headline: Long-version identity check
+        summary: Prove that the exact requested release version survives independent verification.
+        changelog:
+          added: []
+          fixed: []
+          changed: []
+          removed: []
+          breaking: []
+        upgrade_guidance: None.
+        risks: []
+  approvals:
+    release#release.publish.approval: true
+expect:
+  status: failure
+  receipt:
+    schema: runx.receipt.v1
+    outcome: failed

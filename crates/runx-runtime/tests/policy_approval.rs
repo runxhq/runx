@@ -4,7 +4,7 @@ use runx_contracts::{
     ExecutionEvent, JsonValue, ReferenceType, ResolutionRequest, ResolutionResponse,
     ResolutionResponseActor,
 };
-use runx_parser::{parse_graph_yaml, validate_graph};
+use runx_parser::{parse_workflow_yaml, validate_workflow};
 use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::{Host, Runtime, RuntimeError};
 
@@ -14,11 +14,11 @@ const CREATED_AT: &str = "2026-08-27T00:00:00Z";
 fn explicit_approval_guard_binds_its_receipt_to_the_governed_step()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
-    let graph = policy_write_graph(workspace.path(), true)?;
+    let graph = policy_write_workflow(workspace.path(), true)?;
     let runtime = runtime(workspace.path(), "run_explicit_guard")?;
     let mut host = ApprovalHost::new(true);
 
-    let run = runtime.run_graph_with_host(workspace.path(), graph, &mut host)?;
+    let run = runtime.run_workflow_with_host(workspace.path(), graph, &mut host)?;
     assert_eq!(
         std::fs::read_to_string(workspace.path().join("approved.txt"))?,
         "approved"
@@ -50,10 +50,10 @@ fn explicit_approval_guard_binds_its_receipt_to_the_governed_step()
 fn scoped_write_does_not_invent_approval_and_an_explicit_denied_guard_still_blocks()
 -> Result<(), Box<dyn std::error::Error>> {
     let routine_workspace = tempfile::tempdir()?;
-    let routine_graph = policy_write_graph(routine_workspace.path(), false)?;
-    runtime(routine_workspace.path(), "run_routine_write")?.run_graph_with_host(
+    let routine_workflow = policy_write_workflow(routine_workspace.path(), false)?;
+    runtime(routine_workspace.path(), "run_routine_write")?.run_workflow_with_host(
         routine_workspace.path(),
-        routine_graph,
+        routine_workflow,
         &mut ApprovalHost::new(false),
     )?;
     assert_eq!(
@@ -62,12 +62,13 @@ fn scoped_write_does_not_invent_approval_and_an_explicit_denied_guard_still_bloc
     );
 
     let guarded_workspace = tempfile::tempdir()?;
-    let guarded_graph = policy_write_graph(guarded_workspace.path(), true)?;
-    let error = match runtime(guarded_workspace.path(), "run_guarded_write")?.run_graph_with_host(
-        guarded_workspace.path(),
-        guarded_graph,
-        &mut ApprovalHost::new(false),
-    ) {
+    let guarded_workflow = policy_write_workflow(guarded_workspace.path(), true)?;
+    let error = match runtime(guarded_workspace.path(), "run_guarded_write")?
+        .run_workflow_with_host(
+            guarded_workspace.path(),
+            guarded_workflow,
+            &mut ApprovalHost::new(false),
+        ) {
         Err(error) => error,
         Ok(_) => return Err("an explicit denied approval guard did not fail closed".into()),
     };
@@ -87,8 +88,8 @@ fn parent_approval_binds_the_composite_step_without_becoming_child_authority()
         child.join("SKILL.md"),
         "---\nname: child-policy-write\ndescription: nested policy fixture\n---\n# Child\n",
     )?;
-    let child_graph = child_policy_graph(workspace.path());
-    let indented_graph = child_graph
+    let child_workflow = child_policy_workflow(workspace.path());
+    let indented_workflow = child_workflow
         .lines()
         .filter(|line| !line.starts_with("name:"))
         .map(|line| format!("    {line}"))
@@ -101,11 +102,11 @@ fn parent_approval_binds_the_composite_step_without_becoming_child_authority()
 runners:
   write:
     default: true
-{indented_graph}
+{indented_workflow}
 "#,
         ),
     )?;
-    let parent = validate_graph(parse_graph_yaml(
+    let parent = validate_workflow(parse_workflow_yaml(
         r#"name: parent-policy-write
 result_from: [child]
 steps:
@@ -123,7 +124,7 @@ policy:
     )?)?;
 
     let mut host = ApprovalHost::new(true);
-    let run = runtime(workspace.path(), "run_nested_parent")?.run_graph_with_host(
+    let run = runtime(workspace.path(), "run_nested_parent")?.run_workflow_with_host(
         workspace.path(),
         parent,
         &mut host,
@@ -150,16 +151,16 @@ policy:
         })
     }));
 
-    let child_graph = validate_graph(parse_graph_yaml(&child_graph)?)?;
-    runtime(workspace.path(), "run_nested_child")?.run_graph_with_host(
+    let child_workflow = validate_workflow(parse_workflow_yaml(&child_workflow)?)?;
+    runtime(workspace.path(), "run_nested_child")?.run_workflow_with_host(
         &child,
-        child_graph,
+        child_workflow,
         &mut ApprovalHost::new(true),
     )?;
     Ok(())
 }
 
-fn child_policy_graph(workspace: &std::path::Path) -> String {
+fn child_policy_workflow(workspace: &std::path::Path) -> String {
     format!(
         r#"name: child-policy-write
 result_from: [write]
@@ -175,10 +176,10 @@ steps:
     )
 }
 
-fn policy_write_graph(
+fn policy_write_workflow(
     workspace: &std::path::Path,
     with_guard: bool,
-) -> Result<runx_parser::ExecutionGraph, Box<dyn std::error::Error>> {
+) -> Result<runx_parser::Workflow, Box<dyn std::error::Error>> {
     let policy = if with_guard {
         r#"policy:
   guards:
@@ -189,7 +190,7 @@ fn policy_write_graph(
     } else {
         ""
     };
-    Ok(validate_graph(parse_graph_yaml(&format!(
+    Ok(validate_workflow(parse_workflow_yaml(&format!(
         r#"name: policy-write
 result_from: [write]
 steps:

@@ -1,0 +1,37 @@
+name: invented-product-evidence-withholds-draft
+inputs:
+  support_request:
+    source: thread:domain-1
+    subject: How do I verify my sending domain?
+    body: I added the DNS records. What should I check next?
+  product_evidence:
+  - source_id: docs:domain-verification
+    text: Open Settings > Domains and select Verify. Pending records may take up to 24 hours to resolve.
+host:
+  answers:
+    judge:
+      draft:
+        classification: how_to
+        severity: low
+        recommended_path: reply_draft
+        rationale: The customer asks for a documented next step.
+        evidence:
+        - source_id: thread:domain-1
+          quote: I added the DNS records.
+        - source_id: docs:domain-verification
+          quote: Change your DNS records to an invented value.
+        missing_context: []
+        operator_notes:
+        - No account state was read.
+        draft_email:
+          subject: 'Re: How do I verify my sending domain?'
+          body: Open Settings > Domains and select Verify.
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        support_triage_packet:
+          data:
+            decision: held
+            delivery_status: not_sent

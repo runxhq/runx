@@ -1,0 +1,11 @@
+{
+  "skill_name": "conversation-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review this grounded email conversation and prepare the next response.",
+      "expected_output": "Produce an unsent reply without opening an engineering intake or work plan.",
+      "files": []
+    }
+  ]
+}

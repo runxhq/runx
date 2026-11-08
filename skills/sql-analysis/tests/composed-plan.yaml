@@ -1,0 +1,26 @@
+name: sql-analysis-reuses-an-upstream-query-catalog
+package: fixtures/composed-plan
+host:
+  answers:
+    choose:
+      choice:
+        decision: ready
+        query_id: qualified_trials_by_campaign
+        parameters:
+          since: '2026-10-01'
+        reason: The declared query ranks qualified trials for the requested period.
+        missing_context: []
+expect:
+  status: sealed
+  steps:
+  - plan
+  step_outputs:
+    plan:
+      subset:
+        sql_analysis_plan:
+          data:
+            decision: ready
+            executed: false
+            max_rows: 50
+  receipt:
+    schema: runx.receipt.v1

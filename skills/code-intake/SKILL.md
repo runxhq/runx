@@ -67,9 +67,7 @@ and retain the request packet. Re-run against the clarified actual inputs;
 changed inputs intentionally receive a different identity. This package stores
 no operator state and requires no hosted service or connector.
 
-## Agent task contracts
-
-### code-intake
+## Agent task: code-intake
 
 Return intake_draft with category (bug, feature_request, docs, billing, account,
 question or other), severity (low, medium, high or critical), summary,

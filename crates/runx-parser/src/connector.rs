@@ -10,9 +10,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use runx_contracts::connector::{
     AmountRule, ApprovalFloor, ConnectorAuth, ConnectorManifest, ConnectorOperation,
-    CredentialDeclaration, CredentialName, Digest, HoldAction, HostedAuth, HttpAuth,
-    HttpBodyEncoding, HttpImplementation, HttpMethod, HttpPageCursorLocation, HttpReadback,
-    HttpRequest, Implementation, LocalAuth, McpServer, OperationAccess, OperationName,
+    CredentialDeclaration, CredentialName, Digest, HostedAuth, HttpAuth, HttpBodyEncoding,
+    HttpImplementation, HttpMethod, HttpPageCursorLocation, HttpReadback, HttpRequest,
+    Implementation, LeaseAction, LocalAuth, McpServer, OperationAccess, OperationName,
     OperationVerb, PrincipalRequest, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee,
     ReadbackMatch, ReferenceDeclaration, SessionAuth, Template, json_pointer_segments,
     manifest_digest, operation_digest,
@@ -61,7 +61,7 @@ pub fn validate_connector_manifest(
     validate_mcp_multiplexing(&manifest, &mut errors);
     validate_references(&manifest.references, &mut errors);
     validate_effects(&manifest, &mut errors);
-    validate_holds(&manifest, &mut errors);
+    validate_leases(&manifest, &mut errors);
     validate_enforced(&manifest, &mut errors);
     validate_purchase_binding(&manifest, &mut errors);
     errors.finish()?;
@@ -1088,7 +1088,7 @@ fn validate_effects(manifest: &ConnectorManifest, errors: &mut Errors) {
 /// takes it from the seller's answer to the operation that holds it, keeps it
 /// per resource for the purchase's buyer, and presents it only to the hosted
 /// requests of operations on that resource, so the kernel never sees it.
-fn validate_holds(manifest: &ConnectorManifest, errors: &mut Errors) {
+fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
     let auth = &manifest.auth;
     let purchase = |credential: &CredentialName| {
         auth.credentials
@@ -1129,7 +1129,7 @@ fn validate_holds(manifest: &ConnectorManifest, errors: &mut Errors) {
             operation
                 .holds
                 .as_ref()
-                .is_some_and(|hold| hold.action == HoldAction::Take && &hold.credential == name)
+                .is_some_and(|hold| hold.action == LeaseAction::Take && &hold.credential == name)
         });
         if !taken {
             errors.push(
@@ -1216,7 +1216,7 @@ fn validate_holds(manifest: &ConnectorManifest, errors: &mut Errors) {
                 .is_some_and(|template| template.result_pointer().is_some())
         };
         match hold.action {
-            HoldAction::Take => {
+            LeaseAction::Take => {
                 if !(operation.target.template.is_literal()
                     || acts_on_arguments(&operation.target.template))
                 {
@@ -1302,7 +1302,7 @@ fn validate_holds(manifest: &ConnectorManifest, errors: &mut Errors) {
                     }
                 }
             }
-            HoldAction::Refresh | HoldAction::Release => {
+            LeaseAction::Refresh | LeaseAction::Release => {
                 if !acts_on_arguments(&hold.target) {
                     errors.push(
                         &format!("{field}.target"),
@@ -1313,11 +1313,11 @@ fn validate_holds(manifest: &ConnectorManifest, errors: &mut Errors) {
                     errors.push(&format!("{field}.fields"), "only a take fills fields");
                 }
                 match hold.action {
-                    HoldAction::Refresh if !single_result(&hold.expires_at) => errors.push(
+                    LeaseAction::Refresh if !single_result(&hold.expires_at) => errors.push(
                         &format!("{field}.expires_at"),
                         "a refresh states the new expiry as one $result binding",
                     ),
-                    HoldAction::Release if hold.expires_at.is_some() => errors.push(
+                    LeaseAction::Release if hold.expires_at.is_some() => errors.push(
                         &format!("{field}.expires_at"),
                         "a release ends the hold; it states no expiry",
                     ),

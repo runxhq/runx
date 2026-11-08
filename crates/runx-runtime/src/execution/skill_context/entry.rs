@@ -10,7 +10,7 @@ use crate::RuntimeError;
 
 const CONTEXT_ENTRY_TYPE: &str = "runx.skill.context";
 const CONTEXT_PRODUCER_SKILL: &str = "runx-runtime";
-const CONTEXT_PRODUCER_RUNNER: &str = "skill-context";
+const CONTEXT_PRODUCER_METHOD: &str = "skill-context";
 const PENDING_RUN_ID: &str = "rx_pending";
 
 pub(super) struct SkillContextEntryInput<'a> {
@@ -59,7 +59,7 @@ pub(super) fn skill_context_entry(
             step_id: Some(non_empty(input.step_id)?),
             producer: ContextArtifactProducer {
                 skill: non_empty(CONTEXT_PRODUCER_SKILL)?,
-                runner: non_empty(CONTEXT_PRODUCER_RUNNER)?,
+                runner: non_empty(CONTEXT_PRODUCER_METHOD)?,
             },
             created_at: non_empty(input.created_at)?,
             digest: non_empty(input.digest)?,

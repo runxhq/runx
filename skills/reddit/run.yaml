@@ -1,90 +1,52 @@
-skill: reddit
 version: "0.1.10"
+minimum_runx: 0.12.0
+default_method: reddit
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
   category: growth
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: conditional
-connectors:
-  store:
-    operations:
-    - events.append
-    - events.read
-    - heads.list
-  reddit:
-    operations:
-    - account.inspect
-    - page.navigate
-    - feed.read
-    - rules.read
-    - thread.read
-    - composer.read
-    - comment.readback
-    - comment.create
-    - post.create
-    - vote.upvote
-input_definitions:
+shared_inputs:
   account_id:
     type: string
-    required: true
     description: Explicit lowercase Reddit username; never infer from the active browser account.
-    schema:
-      minLength: 3
-      maxLength: 20
-      pattern: ^[a-z0-9_-]{3,20}$
-runners:
+    minLength: 3
+    maxLength: 20
+    pattern: ^[a-z0-9_-]{3,20}$
+methods:
   reddit:
-    operations:
-      - reddit/account.inspect
-      - reddit/page.navigate
-      - reddit/feed.read
-      - reddit/rules.read
-      - reddit/thread.read
-      - reddit/composer.read
-      - reddit/comment.readback
     description: Research, draft, reply to or diagnose posts for one configured account, read-only. Submits nothing.
     inputs:
-      account_id:
-        definition: account_id
+      account_id: {}
       objective:
         type: string
-        required: true
-        description: Bounded target-discovery, read, draft, reply or diagnosis objective; never an implicit publish
-          request.
-        schema:
-          minLength: 1
-          maxLength: 4000
+        description: Bounded target-discovery, read, draft, reply or diagnosis objective; never an implicit publish request.
+        minLength: 1
+        maxLength: 4000
       prior_evidence:
         type: array
-        required: false
         description: Prior bounded evidence; freshness and provenance remain explicit.
-        schema:
-          maxItems: 20
-          items:
-            type: object
-            required:
-            - source_url
-            - observed_at
-            - summary
-            additionalProperties: false
-            properties:
-              source_url:
-                type: string
-                minLength: 1
-                maxLength: 2048
-              observed_at:
-                type: string
-                minLength: 1
-                maxLength: 40
-              summary:
-                type: string
-                minLength: 1
-                maxLength: 3000
         default: []
+        maxItems: 20
+        items:
+          type: object
+          required:
+          - source_url
+          - observed_at
+          - summary
+          additionalProperties: false
+          properties:
+            source_url:
+              type: string
+              minLength: 1
+              maxLength: 2048
+            observed_at:
+              type: string
+              minLength: 1
+              maxLength: 40
+            summary:
+              type: string
+              minLength: 1
+              maxLength: 3000
+        optional: true
     examples:
     - account_id: example_builder
       objective: Read this thread and draft two useful replies; do not submit.
@@ -97,7 +59,7 @@ runners:
     steps:
     - id: account-state
       operation: store/events.read
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.account_id
@@ -109,301 +71,298 @@ runners:
       outputs:
         account:
           type: object
-          schema:
-            required:
-            - account_id
-            - version
-            - config
-            additionalProperties: false
-            properties:
-              account_id:
-                type: string
-                minLength: 3
-                maxLength: 20
-                pattern: ^[a-z0-9_-]{3,20}$
-              version:
-                type: integer
-                minimum: 0
-              config:
-                type: object
-                required:
-                - voice
-                additionalProperties: false
-                properties:
-                  voice:
-                    type: object
-                    required:
-                    - casing
-                    - principles
-                    - examples
-                    additionalProperties: false
-                    properties:
-                      casing:
+          required:
+          - account_id
+          - version
+          - config
+          additionalProperties: false
+          properties:
+            account_id:
+              type: string
+              minLength: 3
+              maxLength: 20
+              pattern: ^[a-z0-9_-]{3,20}$
+            version:
+              type: integer
+              minimum: 0
+            config:
+              type: object
+              required:
+              - voice
+              additionalProperties: false
+              properties:
+                voice:
+                  type: object
+                  required:
+                  - casing
+                  - principles
+                  - examples
+                  additionalProperties: false
+                  properties:
+                    casing:
+                      type: string
+                      enum:
+                      - lowercase
+                      - sentence_case
+                      - preserve
+                    principles:
+                      type: array
+                      maxItems: 12
+                      items:
                         type: string
-                        enum:
-                        - lowercase
-                        - sentence_case
-                        - preserve
-                      principles:
-                        type: array
-                        maxItems: 12
-                        items:
-                          type: string
-                          minLength: 1
-                          maxLength: 500
-                      examples:
-                        type: array
-                        maxItems: 5
-                        items:
-                          type: string
-                          minLength: 1
-                          maxLength: 1200
+                        minLength: 1
+                        maxLength: 500
+                    examples:
+                      type: array
+                      maxItems: 5
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 1200
       inputs:
         account_id: $input.account_id
         account_state: $steps.account-state.provider_operation.result
     - id: research
-      agent:
-        role: operator
-        task: reddit-research
+      agent: reddit-research
+      calls:
+        operations: [reddit/account.inspect, reddit/page.navigate, reddit/feed.read, reddit/rules.read, reddit/thread.read, reddit/composer.read, reddit/comment.readback]
       outputs:
         research:
           type: object
-          schema:
-            required:
-            - status
-            - account_id
-            - observations
-            - target_candidates
-            - drafts
-            - unknowns
-            - next_step
-            - effect_status
-            additionalProperties: false
-            properties:
-              status:
-                type: string
-                enum:
-                - drafted
-                - provisional
-                - analyzed
-                - needs_browser
-                - held
-                - needs_input
-              account_id:
-                type: string
-                minLength: 3
-                maxLength: 20
-                pattern: ^[a-z0-9_-]{3,20}$
-              observations:
-                type: array
-                maxItems: 20
-                items:
-                  type: object
-                  required:
-                  - source_url
-                  - observed_at
-                  - summary
-                  additionalProperties: false
-                  properties:
-                    source_url:
-                      type: string
-                      minLength: 1
-                      maxLength: 2048
-                    observed_at:
-                      type: string
-                      minLength: 1
-                      maxLength: 40
-                    summary:
-                      type: string
-                      minLength: 1
-                      maxLength: 3000
-              target_candidates:
-                type: array
-                maxItems: 12
-                description: Compared community destinations for original posts and live thread destinations for
-                  comments; may be empty for diagnosis or when no suitable target is observable.
-                items:
-                  type: object
-                  required:
-                  - intent
-                  - decision
-                  - subreddit
-                  - target_url
-                  - observed_at
-                  - rule_status
-                  - account_eligibility
-                  - activity_samples
-                  - contribution_gap
-                  - rationale
-                  - risk
-                  - source_urls
-                  additionalProperties: false
-                  properties:
-                    intent:
-                      type: string
-                      enum:
-                      - post
-                      - comment
-                    decision:
-                      type: string
-                      enum:
-                      - selected
-                      - alternate
-                      - rejected
-                    subreddit:
-                      type: string
-                      minLength: 2
-                      maxLength: 21
-                      pattern: ^[A-Za-z0-9_]+$
-                    target_url:
-                      type: string
-                      minLength: 1
-                      maxLength: 2048
-                    observed_at:
-                      type: string
-                      minLength: 1
-                      maxLength: 40
-                    rule_status:
-                      type: string
-                      enum:
-                      - allowed
-                      - unknown
-                      - disallowed
-                    account_eligibility:
-                      type: string
-                      enum:
-                      - eligible
-                      - unknown
-                      - ineligible
-                    activity_samples:
-                      type: array
-                      maxItems: 5
-                      items:
-                        type: object
-                        required:
-                        - source_url
-                        - observed_at
-                        - age_label
-                        - score_label
-                        - reply_count_label
-                        additionalProperties: false
-                        properties:
-                          source_url:
-                            type: string
-                            minLength: 1
-                            maxLength: 2048
-                          observed_at:
-                            type: string
-                            minLength: 1
-                            maxLength: 40
-                          age_label:
-                            type: string
-                            minLength: 1
-                            maxLength: 100
-                          score_label:
-                            type: string
-                            minLength: 1
-                            maxLength: 100
-                          reply_count_label:
-                            type: string
-                            minLength: 1
-                            maxLength: 100
-                    contribution_gap:
-                      type: string
-                      minLength: 1
-                      maxLength: 1200
-                    rationale:
-                      type: string
-                      minLength: 1
-                      maxLength: 1200
-                    risk:
-                      type: string
-                      minLength: 1
-                      maxLength: 1200
-                    source_urls:
-                      type: array
-                      maxItems: 10
-                      items:
-                        type: string
-                        minLength: 1
-                        maxLength: 2048
-              drafts:
-                type: array
-                maxItems: 5
-                items:
-                  type: object
-                  required:
-                  - action
-                  - why_useful
-                  - source_urls
-                  additionalProperties: false
-                  properties:
-                    action:
+          required:
+          - status
+          - account_id
+          - observations
+          - target_candidates
+          - drafts
+          - unknowns
+          - next_step
+          - effect_status
+          additionalProperties: false
+          properties:
+            status:
+              type: string
+              enum:
+              - drafted
+              - provisional
+              - analyzed
+              - needs_browser
+              - held
+              - needs_input
+            account_id:
+              type: string
+              minLength: 3
+              maxLength: 20
+              pattern: ^[a-z0-9_-]{3,20}$
+            observations:
+              type: array
+              maxItems: 20
+              items:
+                type: object
+                required:
+                - source_url
+                - observed_at
+                - summary
+                additionalProperties: false
+                properties:
+                  source_url:
+                    type: string
+                    minLength: 1
+                    maxLength: 2048
+                  observed_at:
+                    type: string
+                    minLength: 1
+                    maxLength: 40
+                  summary:
+                    type: string
+                    minLength: 1
+                    maxLength: 3000
+            target_candidates:
+              type: array
+              maxItems: 12
+              description: Compared community destinations for original posts and live thread destinations for comments; may be empty for diagnosis or when no suitable target is observable.
+              items:
+                type: object
+                required:
+                - intent
+                - decision
+                - subreddit
+                - target_url
+                - observed_at
+                - rule_status
+                - account_eligibility
+                - activity_samples
+                - contribution_gap
+                - rationale
+                - risk
+                - source_urls
+                additionalProperties: false
+                properties:
+                  intent:
+                    type: string
+                    enum:
+                    - post
+                    - comment
+                  decision:
+                    type: string
+                    enum:
+                    - selected
+                    - alternate
+                    - rejected
+                  subreddit:
+                    type: string
+                    minLength: 2
+                    maxLength: 21
+                    pattern: ^[A-Za-z0-9_]+$
+                  target_url:
+                    type: string
+                    minLength: 1
+                    maxLength: 2048
+                  observed_at:
+                    type: string
+                    minLength: 1
+                    maxLength: 40
+                  rule_status:
+                    type: string
+                    enum:
+                    - allowed
+                    - unknown
+                    - disallowed
+                  account_eligibility:
+                    type: string
+                    enum:
+                    - eligible
+                    - unknown
+                    - ineligible
+                  activity_samples:
+                    type: array
+                    maxItems: 5
+                    items:
                       type: object
                       required:
-                      - kind
-                      - subreddit
-                      - target_url
-                      - title
-                      - body
-                      - allow_bare_urls
-                      - target_author
+                      - source_url
+                      - observed_at
+                      - age_label
+                      - score_label
+                      - reply_count_label
                       additionalProperties: false
                       properties:
-                        kind:
-                          type: string
-                          enum:
-                          - post
-                          - comment
-                        subreddit:
-                          type: string
-                          minLength: 2
-                          maxLength: 21
-                          pattern: ^[A-Za-z0-9_]+$
-                        target_url:
+                        source_url:
                           type: string
                           minLength: 1
                           maxLength: 2048
-                        title:
-                          type: string
-                          minLength: 0
-                          maxLength: 300
-                        body:
+                        observed_at:
                           type: string
                           minLength: 1
-                          maxLength: 10000
-                        allow_bare_urls:
-                          type: boolean
-                        target_author:
+                          maxLength: 40
+                        age_label:
                           type: string
-                          minLength: 0
-                          maxLength: 20
-                          pattern: ^[a-z0-9_-]*$
-                    why_useful:
+                          minLength: 1
+                          maxLength: 100
+                        score_label:
+                          type: string
+                          minLength: 1
+                          maxLength: 100
+                        reply_count_label:
+                          type: string
+                          minLength: 1
+                          maxLength: 100
+                  contribution_gap:
+                    type: string
+                    minLength: 1
+                    maxLength: 1200
+                  rationale:
+                    type: string
+                    minLength: 1
+                    maxLength: 1200
+                  risk:
+                    type: string
+                    minLength: 1
+                    maxLength: 1200
+                  source_urls:
+                    type: array
+                    maxItems: 10
+                    items:
                       type: string
                       minLength: 1
-                      maxLength: 1200
-                    source_urls:
-                      type: array
-                      maxItems: 10
-                      items:
+                      maxLength: 2048
+            drafts:
+              type: array
+              maxItems: 5
+              items:
+                type: object
+                required:
+                - action
+                - why_useful
+                - source_urls
+                additionalProperties: false
+                properties:
+                  action:
+                    type: object
+                    required:
+                    - kind
+                    - subreddit
+                    - target_url
+                    - title
+                    - body
+                    - allow_bare_urls
+                    - target_author
+                    additionalProperties: false
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                        - post
+                        - comment
+                      subreddit:
+                        type: string
+                        minLength: 2
+                        maxLength: 21
+                        pattern: ^[A-Za-z0-9_]+$
+                      target_url:
                         type: string
                         minLength: 1
                         maxLength: 2048
-              unknowns:
-                type: array
-                maxItems: 12
-                items:
-                  type: string
-                  minLength: 1
-                  maxLength: 1000
-              next_step:
+                      title:
+                        type: string
+                        minLength: 0
+                        maxLength: 300
+                      body:
+                        type: string
+                        minLength: 1
+                        maxLength: 10000
+                      allow_bare_urls:
+                        type: boolean
+                      target_author:
+                        type: string
+                        minLength: 0
+                        maxLength: 20
+                        pattern: ^[a-z0-9_-]*$
+                  why_useful:
+                    type: string
+                    minLength: 1
+                    maxLength: 1200
+                  source_urls:
+                    type: array
+                    maxItems: 10
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 2048
+            unknowns:
+              type: array
+              maxItems: 12
+              items:
                 type: string
                 minLength: 1
-                maxLength: 2000
-              effect_status:
-                type: string
-                const: not_submitted
+                maxLength: 1000
+            next_step:
+              type: string
+              minLength: 1
+              maxLength: 2000
+            effect_status:
+              type: string
+              const: not_submitted
       inputs:
         objective: $input.objective
         prior_evidence: $input.prior_evidence
@@ -414,81 +373,74 @@ runners:
         module: reddit.mjs
         export: validateResearch
       outputs:
-        research: object
+        research: {type: object}
         target_review:
           type: object
-          schema:
-            required:
-            - admitted
-            - reason
-            - candidate_count
-            - draft_count
-            additionalProperties: false
-            properties:
-              admitted:
-                type: boolean
-              reason:
-                type: string
-                minLength: 0
-                maxLength: 1000
-              candidate_count:
-                type: integer
-                minimum: 0
-              draft_count:
-                type: integer
-                minimum: 0
+          required:
+          - admitted
+          - reason
+          - candidate_count
+          - draft_count
+          additionalProperties: false
+          properties:
+            admitted:
+              type: boolean
+            reason:
+              type: string
+              minLength: 0
+              maxLength: 1000
+            candidate_count:
+              type: integer
+              minimum: 0
+            draft_count:
+              type: integer
+              minimum: 0
       inputs:
         research: $steps.research.research
         account: $steps.load.account
-    default: true
   configure:
     description: Store a non-secret binding for one Reddit account.
     inputs:
-      account_id:
-        definition: account_id
+      account_id: {}
       config:
         type: object
-        required: true
         description: Non-secret profile and voice settings. Login material stays with the browser.
-        schema:
-          required:
-          - voice
-          additionalProperties: false
-          properties:
-            voice:
-              type: object
-              required:
-              - casing
-              - principles
-              - examples
-              additionalProperties: false
-              properties:
-                casing:
+        required:
+        - voice
+        additionalProperties: false
+        properties:
+          voice:
+            type: object
+            required:
+            - casing
+            - principles
+            - examples
+            additionalProperties: false
+            properties:
+              casing:
+                type: string
+                enum:
+                - lowercase
+                - sentence_case
+                - preserve
+              principles:
+                type: array
+                maxItems: 12
+                items:
                   type: string
-                  enum:
-                  - lowercase
-                  - sentence_case
-                  - preserve
-                principles:
-                  type: array
-                  maxItems: 12
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 500
-                examples:
-                  type: array
-                  maxItems: 5
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 1200
+                  minLength: 1
+                  maxLength: 500
+              examples:
+                type: array
+                maxItems: 5
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 1200
       expected_version:
         type: integer
-        required: true
         description: Current account stream version; zero only for a new account.
-        schema:
-          minimum: 0
+        minimum: 0
     examples:
     - account_id: example_builder
       config:
@@ -508,106 +460,104 @@ runners:
       outputs:
         configuration:
           type: object
-          schema:
-            required:
-            - account_id
-            - config
-            - expected_version
-            additionalProperties: false
-            properties:
-              account_id:
-                type: string
-                minLength: 3
-                maxLength: 20
-                pattern: ^[a-z0-9_-]{3,20}$
-              config:
-                type: object
-                required:
-                - voice
-                additionalProperties: false
-                properties:
-                  voice:
-                    type: object
-                    required:
-                    - casing
-                    - principles
-                    - examples
-                    additionalProperties: false
-                    properties:
-                      casing:
+          required:
+          - account_id
+          - config
+          - expected_version
+          additionalProperties: false
+          properties:
+            account_id:
+              type: string
+              minLength: 3
+              maxLength: 20
+              pattern: ^[a-z0-9_-]{3,20}$
+            config:
+              type: object
+              required:
+              - voice
+              additionalProperties: false
+              properties:
+                voice:
+                  type: object
+                  required:
+                  - casing
+                  - principles
+                  - examples
+                  additionalProperties: false
+                  properties:
+                    casing:
+                      type: string
+                      enum:
+                      - lowercase
+                      - sentence_case
+                      - preserve
+                    principles:
+                      type: array
+                      maxItems: 12
+                      items:
                         type: string
-                        enum:
-                        - lowercase
-                        - sentence_case
-                        - preserve
-                      principles:
-                        type: array
-                        maxItems: 12
-                        items:
-                          type: string
-                          minLength: 1
-                          maxLength: 500
-                      examples:
-                        type: array
-                        maxItems: 5
-                        items:
-                          type: string
-                          minLength: 1
-                          maxLength: 1200
-              expected_version:
-                type: integer
-                minimum: 0
+                        minLength: 1
+                        maxLength: 500
+                    examples:
+                      type: array
+                      maxItems: 5
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 1200
+            expected_version:
+              type: integer
+              minimum: 0
         event:
           type: object
-          schema:
-            required:
-            - type
-            - account_id
-            - config
-            additionalProperties: false
-            properties:
-              type:
-                type: string
-                const: reddit.account
-              account_id:
-                type: string
-                minLength: 3
-                maxLength: 20
-                pattern: ^[a-z0-9_-]{3,20}$
-              config:
-                type: object
-                required:
-                - voice
-                additionalProperties: false
-                properties:
-                  voice:
-                    type: object
-                    required:
-                    - casing
-                    - principles
-                    - examples
-                    additionalProperties: false
-                    properties:
-                      casing:
+          required:
+          - type
+          - account_id
+          - config
+          additionalProperties: false
+          properties:
+            type:
+              type: string
+              const: reddit.account
+            account_id:
+              type: string
+              minLength: 3
+              maxLength: 20
+              pattern: ^[a-z0-9_-]{3,20}$
+            config:
+              type: object
+              required:
+              - voice
+              additionalProperties: false
+              properties:
+                voice:
+                  type: object
+                  required:
+                  - casing
+                  - principles
+                  - examples
+                  additionalProperties: false
+                  properties:
+                    casing:
+                      type: string
+                      enum:
+                      - lowercase
+                      - sentence_case
+                      - preserve
+                    principles:
+                      type: array
+                      maxItems: 12
+                      items:
                         type: string
-                        enum:
-                        - lowercase
-                        - sentence_case
-                        - preserve
-                      principles:
-                        type: array
-                        maxItems: 12
-                        items:
-                          type: string
-                          minLength: 1
-                          maxLength: 500
-                      examples:
-                        type: array
-                        maxItems: 5
-                        items:
-                          type: string
-                          minLength: 1
-                          maxLength: 1200
+                        minLength: 1
+                        maxLength: 500
+                    examples:
+                      type: array
+                      maxItems: 5
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 1200
       inputs:
         account_id: $input.account_id
         config: $input.config
@@ -619,7 +569,7 @@ runners:
     - id: save
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.account_id
@@ -630,11 +580,10 @@ runners:
     inputs:
       cursor:
         type: string
-        required: false
         description: Opaque continuation cursor from a prior page.
-        schema:
-          minLength: 0
-          maxLength: 2048
+        minLength: 0
+        maxLength: 2048
+        optional: true
     examples:
     - {}
     result_from:
@@ -642,61 +591,57 @@ runners:
     steps:
     - id: list
       operation: store/heads.list
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_accounts
         limit: 20
         cursor: $input.cursor
   publish:
-    description: Submit one exact contribution through the selected connector, with native approval and independent
-      readback.
+    description: Submit one exact contribution through the selected connector, with native approval and independent readback.
     inputs:
-      account_id:
-        definition: account_id
+      account_id: {}
       action:
         type: object
-        required: true
         description: One exact post or comment; the native gate approves these bytes and target.
-        schema:
-          required:
-          - kind
-          - subreddit
-          - target_url
-          - title
-          - body
-          - allow_bare_urls
-          - target_author
-          additionalProperties: false
-          properties:
-            kind:
-              type: string
-              enum:
-              - post
-              - comment
-            subreddit:
-              type: string
-              minLength: 2
-              maxLength: 21
-              pattern: ^[A-Za-z0-9_]+$
-            target_url:
-              type: string
-              minLength: 1
-              maxLength: 2048
-            title:
-              type: string
-              minLength: 0
-              maxLength: 300
-            body:
-              type: string
-              minLength: 1
-              maxLength: 10000
-            allow_bare_urls:
-              type: boolean
-            target_author:
-              type: string
-              minLength: 0
-              maxLength: 20
-              pattern: ^[a-z0-9_-]*$
+        required:
+        - kind
+        - subreddit
+        - target_url
+        - title
+        - body
+        - allow_bare_urls
+        - target_author
+        additionalProperties: false
+        properties:
+          kind:
+            type: string
+            enum:
+            - post
+            - comment
+          subreddit:
+            type: string
+            minLength: 2
+            maxLength: 21
+            pattern: ^[A-Za-z0-9_]+$
+          target_url:
+            type: string
+            minLength: 1
+            maxLength: 2048
+          title:
+            type: string
+            minLength: 0
+            maxLength: 300
+          body:
+            type: string
+            minLength: 1
+            maxLength: 10000
+          allow_bare_urls:
+            type: boolean
+          target_author:
+            type: string
+            minLength: 0
+            maxLength: 20
+            pattern: ^[a-z0-9_-]*$
     examples:
     - account_id: example_builder
       action:
@@ -704,8 +649,7 @@ runners:
         subreddit: learnprogramming
         target_url: https://www.reddit.com/r/learnprogramming/comments/abc123/example/
         title: ''
-        body: does the error happen before the request reaches the server? the network tab should show whether it
-          was sent.
+        body: does the error happen before the request reaches the server? the network tab should show whether it was sent.
         allow_bare_urls: false
         target_author: ''
     result_from:
@@ -715,7 +659,7 @@ runners:
     steps:
     - id: account-state
       operation: store/events.read
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.account_id
@@ -728,14 +672,14 @@ runners:
         account_id: $input.account_id
         action: $input.action
       outputs:
-        identity: object
+        identity: {type: object}
     - id: digest
       tool: data.digest
       inputs:
         value: $steps.identify.identity
     - id: history
       operation: store/events.read
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_contributions
         aggregate_id: $steps.digest.digest_result.digest
@@ -751,11 +695,13 @@ runners:
         action_id: $steps.digest.digest_result.digest
         history: $steps.history.provider_operation.result
       outputs:
-        admission: object
+        admission: {type: object}
     - id: request
-      operation: reddit
-      operation_name: $steps.prepare.admission.operation
-      input: $steps.prepare.admission.input
+      operation:
+        connector: reddit
+        choose: $steps.prepare.admission.operation
+        from: [account.inspect, page.navigate, feed.read, rules.read, thread.read, composer.read, comment.readback, comment.create, post.create, vote.upvote]
+      inputs: $steps.prepare.admission.input
       idempotency_key: $steps.digest.digest_result.digest
       when:
         value: $steps.prepare.admission.admitted
@@ -768,14 +714,14 @@ runners:
         provider_operation: $steps.request.provider_operation
         admission: $steps.prepare.admission
       outputs:
-        contribution: object
+        contribution: {type: object}
       when:
         value: $steps.prepare.admission.admitted
         equals: true
     - id: record
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_contributions
         aggregate_id: $steps.digest.digest_result.digest
@@ -793,7 +739,7 @@ runners:
         contribution: $steps.finish.contribution
         record: $steps.record.provider_operation.result
       outputs:
-        result: object
+        result: {type: object}
       when:
         value: $steps.prepare.admission.admitted
         equals: true
@@ -806,58 +752,55 @@ runners:
         action: $input.action
         reason: $steps.prepare.admission.reason
       outputs:
-        result: object
+        result: {type: object}
       when:
         value: $steps.prepare.admission.admitted
         equals: false
   vote:
     description: Upvote one exact non-managed target through the selected connector with native approval and readback.
     inputs:
-      account_id:
-        definition: account_id
+      account_id: {}
       action:
         type: object
-        required: true
         description: One exact upvote target, author and observed target text; this is not a posting quota.
-        schema:
-          required:
-          - kind
-          - subreddit
-          - target_url
-          - title
-          - body
-          - allow_bare_urls
-          - target_author
-          additionalProperties: false
-          properties:
-            kind:
-              type: string
-              enum:
-              - upvote
-            subreddit:
-              type: string
-              minLength: 2
-              maxLength: 21
-              pattern: ^[A-Za-z0-9_]+$
-            target_url:
-              type: string
-              minLength: 1
-              maxLength: 2048
-            title:
-              type: string
-              minLength: 0
-              maxLength: 300
-            body:
-              type: string
-              minLength: 1
-              maxLength: 10000
-            allow_bare_urls:
-              type: boolean
-            target_author:
-              type: string
-              minLength: 3
-              maxLength: 20
-              pattern: ^[a-z0-9_-]{3,20}$
+        required:
+        - kind
+        - subreddit
+        - target_url
+        - title
+        - body
+        - allow_bare_urls
+        - target_author
+        additionalProperties: false
+        properties:
+          kind:
+            type: string
+            enum:
+            - upvote
+          subreddit:
+            type: string
+            minLength: 2
+            maxLength: 21
+            pattern: ^[A-Za-z0-9_]+$
+          target_url:
+            type: string
+            minLength: 1
+            maxLength: 2048
+          title:
+            type: string
+            minLength: 0
+            maxLength: 300
+          body:
+            type: string
+            minLength: 1
+            maxLength: 10000
+          allow_bare_urls:
+            type: boolean
+          target_author:
+            type: string
+            minLength: 3
+            maxLength: 20
+            pattern: ^[a-z0-9_-]{3,20}$
     examples:
     - account_id: example_builder
       action:
@@ -875,14 +818,14 @@ runners:
     steps:
     - id: account-state
       operation: store/events.read
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.account_id
         limit: 1
     - id: target-account
       operation: store/events.read
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_accounts
         aggregate_id: $input.action.target_author
@@ -895,14 +838,14 @@ runners:
         account_id: $input.account_id
         action: $input.action
       outputs:
-        identity: object
+        identity: {type: object}
     - id: digest
       tool: data.digest
       inputs:
         value: $steps.identify.identity
     - id: history
       operation: store/events.read
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_contributions
         aggregate_id: $steps.digest.digest_result.digest
@@ -919,11 +862,13 @@ runners:
         history: $steps.history.provider_operation.result
         target_account_state: $steps.target-account.provider_operation.result
       outputs:
-        admission: object
+        admission: {type: object}
     - id: request
-      operation: reddit
-      operation_name: $steps.prepare.admission.operation
-      input: $steps.prepare.admission.input
+      operation:
+        connector: reddit
+        choose: $steps.prepare.admission.operation
+        from: [account.inspect, page.navigate, feed.read, rules.read, thread.read, composer.read, comment.readback, comment.create, post.create, vote.upvote]
+      inputs: $steps.prepare.admission.input
       idempotency_key: $steps.digest.digest_result.digest
       when:
         value: $steps.prepare.admission.admitted
@@ -936,14 +881,14 @@ runners:
         provider_operation: $steps.request.provider_operation
         admission: $steps.prepare.admission
       outputs:
-        contribution: object
+        contribution: {type: object}
       when:
         value: $steps.prepare.admission.admitted
         equals: true
     - id: record
       operation: store/events.append
       idempotency_key: $steps.digest.digest_result.digest
-      input:
+      inputs:
         data_source_uri: local://reddit
         resource: reddit_contributions
         aggregate_id: $steps.digest.digest_result.digest
@@ -961,7 +906,7 @@ runners:
         contribution: $steps.finish.contribution
         record: $steps.record.provider_operation.result
       outputs:
-        result: object
+        result: {type: object}
       when:
         value: $steps.prepare.admission.admitted
         equals: true
@@ -974,31 +919,28 @@ runners:
         action: $input.action
         reason: $steps.prepare.admission.reason
       outputs:
-        result: object
+        result: {type: object}
       when:
         value: $steps.prepare.admission.admitted
         equals: false
   read:
     description: Read one named account through a fixed connector command; never publish or vote.
     inputs:
-      account_id:
-        definition: account_id
+      account_id: {}
       operation:
         type: string
-        required: true
         description: Bounded read command.
-        schema:
-          enum:
-          - inspect
-          - navigate
-          - feed
-          - rules
-          - thread
-          - composer
+        enum:
+        - inspect
+        - navigate
+        - feed
+        - rules
+        - thread
+        - composer
       url:
         type: string
-        required: false
         description: Exact Reddit URL for navigate.
+        optional: true
     examples:
     - account_id: example_builder
       operation: inspect
@@ -1014,19 +956,10 @@ runners:
         operation: $input.operation
         url: $input.url
       outputs:
-        read: object
+        read: {type: object}
     - id: request
-      operation: reddit
-      operation_name: $steps.plan.read.operation
-      input: $steps.plan.read.input
-harness:
-  files:
-  - fixtures/support/session.graph
-  - fixtures/support/discovery.graph
-  - fixtures/support/publish.graph
-  - fixtures/support/admission.graph
-  - fixtures/support/vote-admission.graph
-  - fixtures/support/duplicate.graph
-  - fixtures/support/managed-vote.graph
-  - fixtures/support/post.graph
-  cases: []
+      operation:
+        connector: reddit
+        choose: $steps.plan.read.operation
+        from: [account.inspect, page.navigate, feed.read, rules.read, thread.read, composer.read, comment.readback, comment.create, post.create, vote.upvote]
+      inputs: $steps.plan.read.input

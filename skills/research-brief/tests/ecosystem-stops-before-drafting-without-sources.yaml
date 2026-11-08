@@ -1,0 +1,30 @@
+name: ecosystem-stops-before-drafting-without-sources
+method: ecosystem
+inputs:
+  objective: Decide whether the supplied claim is ready.
+  audience: operators
+  channel: brief
+  source_packets: []
+  as_of: "2026-07-17T12:00:00Z"
+  max_age_hours: 24
+expect:
+  status: sealed
+  steps:
+    - freshness
+    - research-topic
+  step_outputs:
+    freshness:
+      subset:
+        freshness_report:
+          data:
+            decision: needs_more_evidence
+            accepted_count: 0
+    research-topic:
+      subset:
+        research_packet:
+          data:
+            decision: needs_more_evidence
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

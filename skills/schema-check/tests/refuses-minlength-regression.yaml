@@ -1,0 +1,28 @@
+name: refuses-minlength-regression
+inputs:
+  current_schema:
+    type: string
+  proposed_schema:
+    type: string
+    minLength: 10
+  sample_payloads:
+    - x
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: sealed
+  steps:
+    - digest-current
+    - digest-proposed
+    - digest-samples
+    - validate-current
+    - validate-proposed
+    - check
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: refused
+  receipt:
+    schema: runx.receipt.v1

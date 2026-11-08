@@ -97,9 +97,9 @@ pub use effects::{
 };
 pub use error::RuntimeError;
 pub use harness::{
-    HarnessExpectedStatus, HarnessFixtureError, HarnessFixtureKind, HarnessOptions,
-    HarnessReplayError, HarnessReplayOutput, PackageHarnessReport, load_harness_fixture,
-    replay_harness_fixture, run_harness_fixture, run_harness_fixture_with_adapter,
+    PackageTestReport, TestExpectedStatus, TestFixtureError, TestFixtureKind, TestOptions,
+    TestReplayError, TestReplayOutput, load_test_fixture, replay_test_fixture, run_test_fixture,
+    run_test_fixture_with_adapter,
 };
 pub use host::{Host, NoopHost};
 pub use hosted_api::{
@@ -131,9 +131,9 @@ pub use list::{
 };
 pub use observations::Observations;
 pub use orchestrator::{
-    DEFAULT_MANAGED_AGENT_MAX_ROUNDS, HarnessRunRequest, LocalOrchestrator,
-    MANAGED_AGENT_MAX_ROUNDS_LIMIT, ManagedAgentPolicy, OrchestratorError, PackageHarnessRequest,
-    ResumeRequest, RunResult, RunStatus, SkillRunRequest, TurnRequest,
+    DEFAULT_MANAGED_AGENT_MAX_ROUNDS, LocalOrchestrator, MANAGED_AGENT_MAX_ROUNDS_LIMIT,
+    ManagedAgentPolicy, OrchestratorError, PackageTestRequest, ResumeRequest, RunResult, RunStatus,
+    SkillRunRequest, TestRunRequest, TurnRequest,
 };
 pub use paths::{
     RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,
@@ -166,13 +166,13 @@ pub use receipts::{
 };
 pub use run_record::{RunLog, RunRecordError, RunState};
 pub use runner::{
-    GraphRun, RUNX_RUN_ID_ENV, RunClock, Runtime, RuntimeOptions, StepOutcome, StepRun,
+    RUNX_RUN_ID_ENV, RunClock, Runtime, RuntimeOptions, StepOutcome, StepRun, WorkflowRun,
 };
 pub use runx_core::kernel_eval;
 pub use runx_core::policy::{ScopeGrantPolicy, scope_grant_allows};
 pub use runx_parser::{
-    PROFILE_FILE, SkillArtifactContract, SkillPackageSource, SkillRunnerDefinition,
-    SkillRunnerManifest, ValidatedSkillPackage,
+    PROFILE_FILE, SkillArtifactContract, SkillMethodDefinition, SkillMethodManifest,
+    SkillPackageSource, ValidatedSkillPackage,
 };
 pub use runx_receipts::ReceiptTreeConfig;
 pub use services::{

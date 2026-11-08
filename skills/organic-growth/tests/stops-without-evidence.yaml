@@ -1,0 +1,19 @@
+name: stops-without-evidence
+method: analyze
+inputs:
+  objective: Maximize organic growth.
+  site_url: https://example.com/
+expect:
+  status: sealed
+  steps: [admit, reject]
+  step_outputs:
+    reject:
+      subset:
+        organic_growth_packet:
+          data:
+            decision: needs_more_evidence
+            objective: Maximize organic growth.
+            site_url: https://example.com/
+            external_status: not_executed
+            validation: {status: fail}
+  receipt: {schema: runx.receipt.v1}

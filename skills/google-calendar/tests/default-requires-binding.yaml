@@ -1,0 +1,7 @@
+name: google-calendar-default-requires-binding
+inputs:
+  calendar_id: primary
+  time_min: "2026-10-04T00:00:00Z"
+  time_max: "2026-10-05T00:00:00Z"
+expect:
+  status: policy_denied

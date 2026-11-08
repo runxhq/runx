@@ -1,0 +1,99 @@
+name: failure-remains-visible-after-later-success
+package: fixtures/failure-continuation
+setup:
+  credentials:
+  - twitter
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+host:
+  approvals:
+    batch1#request: true
+    batch2#request: true
+providers:
+  http:
+  - &id001
+    request:
+      method: GET
+      url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":2,"tweet_count":1}}}'
+  - request:
+      method: DELETE
+      url: https://api.x.com/2/tweets/7001
+      body: none
+    response:
+      status: 400
+      headers:
+        content-type: application/json
+      body: '{"title":"Invalid Request","detail":"The reviewed post cannot be deleted."}'
+  - *id001
+  - request:
+      method: DELETE
+      url: https://api.x.com/2/tweets/7002
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"deleted":true}}'
+expect:
+  status: sealed
+  step_outputs:
+    batch1:
+      subset:
+        twitter_execution:
+          data:
+            decision: partial
+            counts:
+              processed: 1
+              succeeded: 0
+              failed: 1
+            results:
+            - status: failed
+    status1:
+      subset:
+        twitter_status:
+          decision: ready
+          counts:
+            processed: 1
+            succeeded: 0
+            failed: 1
+          last_failure:
+            act_id: act-delete-1
+            reason: The reviewed post cannot be deleted.
+    batch2:
+      subset:
+        twitter_execution:
+          data:
+            decision: completed_with_failures
+            counts:
+              processed: 2
+              succeeded: 1
+              failed: 1
+    status2:
+      subset:
+        twitter_status:
+          decision: complete_with_failures
+          counts:
+            processed: 2
+            succeeded: 1
+            failed: 1
+          remaining_count: 0
+          next_input: null
+          last_failure:
+            act_id: act-delete-1
+    complete:
+      subset:
+        twitter_execution:
+          data:
+            decision: noop
+            counts:
+              processed: 2
+              succeeded: 1
+              failed: 1
+            success_checkpoint:
+              milestone: plan_completed_with_failures

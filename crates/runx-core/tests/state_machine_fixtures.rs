@@ -1,6 +1,7 @@
 use runx_core::state_machine::{
-    SequentialGraph, SequentialGraphEvent, SequentialGraphStepDefinition, create_sequential_graph,
-    plan_sequential_graph_transition, transition_sequential_graph,
+    SequentialWorkflow, SequentialWorkflowEvent, SequentialWorkflowStepDefinition,
+    create_sequential_workflow, plan_sequential_workflow_transition,
+    transition_sequential_workflow,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -33,27 +34,27 @@ enum Expected {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all_fields = "camelCase")]
 enum StateMachineInput {
-    #[serde(rename = "state-machine.createSequentialGraph")]
-    CreateSequentialGraphState {
-        graph_id: String,
-        steps: Vec<SequentialGraphStepDefinition>,
+    #[serde(rename = "state-machine.createSequentialWorkflow")]
+    CreateSequentialWorkflowState {
+        workflow_id: String,
+        steps: Vec<SequentialWorkflowStepDefinition>,
     },
-    #[serde(rename = "state-machine.planSequentialGraphTransition")]
-    PlanSequentialGraphTransition {
-        state: SequentialGraph,
-        steps: Vec<SequentialGraphStepDefinition>,
+    #[serde(rename = "state-machine.planSequentialWorkflowTransition")]
+    PlanSequentialWorkflowTransition {
+        state: SequentialWorkflow,
+        steps: Vec<SequentialWorkflowStepDefinition>,
     },
-    #[serde(rename = "state-machine.transitionSequentialGraph")]
-    TransitionSequentialGraph {
-        state: SequentialGraph,
-        event: SequentialGraphEvent,
+    #[serde(rename = "state-machine.transitionSequentialWorkflow")]
+    TransitionSequentialWorkflow {
+        state: SequentialWorkflow,
+        event: SequentialWorkflowEvent,
     },
 }
 
 #[test]
-fn fixture_sequential_create_graph() -> TestResult {
+fn fixture_sequential_create_workflow() -> TestResult {
     assert_fixture(include_str!(
-        "../../../fixtures/kernel/state-machine/sequential-create-graph.json"
+        "../../../fixtures/kernel/state-machine/sequential-create-workflow.json"
     ))
 }
 
@@ -95,14 +96,14 @@ fn assert_fixture(json: &str) -> TestResult {
 
 fn evaluate_input(input: StateMachineInput) -> Result<Value, String> {
     match input {
-        StateMachineInput::CreateSequentialGraphState { graph_id, steps } => {
-            to_value(create_sequential_graph(graph_id, &steps))
+        StateMachineInput::CreateSequentialWorkflowState { workflow_id, steps } => {
+            to_value(create_sequential_workflow(workflow_id, &steps))
         }
-        StateMachineInput::PlanSequentialGraphTransition { state, steps } => {
-            to_value(plan_sequential_graph_transition(&state, &steps))
+        StateMachineInput::PlanSequentialWorkflowTransition { state, steps } => {
+            to_value(plan_sequential_workflow_transition(&state, &steps))
         }
-        StateMachineInput::TransitionSequentialGraph { state, event } => {
-            to_value(transition_sequential_graph(&state, &event))
+        StateMachineInput::TransitionSequentialWorkflow { state, event } => {
+            to_value(transition_sequential_workflow(&state, &event))
         }
     }
 }

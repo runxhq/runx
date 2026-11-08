@@ -1,13 +1,13 @@
 use serde::Deserialize;
 
 use runx_parser::{
-    ExecutionGraph, SkillInstallOrigin, SkillRunnerManifest, ValidatedSkill, ValidatedSkillInstall,
-    ValidatedTool, parse_graph_yaml, parse_runner_manifest_yaml, parse_skill_markdown,
-    parse_tool_manifest_json, parse_tool_manifest_yaml, validate_graph, validate_runner_manifest,
-    validate_skill, validate_skill_install, validate_tool_manifest,
+    SkillInstallOrigin, SkillMethodManifest, ValidatedSkill, ValidatedSkillInstall, ValidatedTool,
+    Workflow, parse_method_manifest_yaml, parse_skill_markdown, parse_tool_manifest_json,
+    parse_tool_manifest_yaml, parse_workflow_yaml, validate_method_manifest, validate_skill,
+    validate_skill_install, validate_tool_manifest, validate_workflow,
 };
 
-const GRAPH_FIXTURES: &[&str] = &[
+const WORKFLOW_FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/parser/graphs/parse-malformed-yaml.json"),
     include_str!("../../../fixtures/parser/graphs/sequential-references.json"),
     include_str!("../../../fixtures/parser/graphs/step-kinds.json"),
@@ -21,13 +21,11 @@ const SKILL_FIXTURES: &[&str] = &[
     include_str!("../../../fixtures/parser/skills/validation-manual-inputs.json"),
 ];
 
-const RUNNER_MANIFEST_FIXTURES: &[&str] = &[
-    include_str!("../../../fixtures/parser/runner-manifests/harness-basic.json"),
+const METHOD_MANIFEST_FIXTURES: &[&str] = &[
+    include_str!("../../../fixtures/parser/method-manifests/test-basic.json"),
+    include_str!("../../../fixtures/parser/method-manifests/validation-test-unknown-method.json"),
     include_str!(
-        "../../../fixtures/parser/runner-manifests/validation-harness-unknown-runner.json"
-    ),
-    include_str!(
-        "../../../fixtures/parser/runner-manifests/validation-invalid-reflect-policy.json"
+        "../../../fixtures/parser/method-manifests/validation-invalid-reflect-policy.json"
     ),
 ];
 
@@ -41,9 +39,9 @@ const INSTALL_FIXTURES: &[&str] = &[include_str!(
 )];
 
 #[derive(Debug, Deserialize)]
-struct GraphFixture {
+struct WorkflowFixture {
     input: YamlInput,
-    expected: GraphExpected,
+    expected: WorkflowExpected,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,9 +51,9 @@ struct SkillFixture {
 }
 
 #[derive(Debug, Deserialize)]
-struct RunnerManifestFixture {
+struct MethodManifestFixture {
     input: YamlInput,
-    expected: RunnerManifestExpected,
+    expected: MethodManifestExpected,
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,8 +91,8 @@ struct InstallInput {
 }
 
 #[derive(Debug, Deserialize)]
-struct GraphExpected {
-    validated: Option<ExecutionGraph>,
+struct WorkflowExpected {
+    validated: Option<Workflow>,
     rejection: Option<Rejection>,
 }
 
@@ -105,8 +103,8 @@ struct SkillExpected {
 }
 
 #[derive(Debug, Deserialize)]
-struct RunnerManifestExpected {
-    validated: Option<SkillRunnerManifest>,
+struct MethodManifestExpected {
+    validated: Option<SkillMethodManifest>,
     rejection: Option<Rejection>,
 }
 
@@ -135,11 +133,11 @@ enum RejectionKind {
 }
 
 #[test]
-fn graph_fixtures_match_expected() -> Result<(), String> {
-    for fixture_json in GRAPH_FIXTURES {
-        let fixture: GraphFixture =
+fn workflow_fixtures_match_expected() -> Result<(), String> {
+    for fixture_json in WORKFLOW_FIXTURES {
+        let fixture: WorkflowFixture =
             serde_json::from_str(fixture_json).map_err(|error| error.to_string())?;
-        assert_graph_fixture(fixture)?;
+        assert_workflow_fixture(fixture)?;
     }
     Ok(())
 }
@@ -156,8 +154,8 @@ fn skill_fixtures_match_expected() -> Result<(), String> {
 
 #[test]
 fn catalog_carries_category_tags_publisher_and_links() -> Result<(), String> {
-    let manifest = validate_runner_manifest(
-        parse_runner_manifest_yaml(
+    let manifest = validate_method_manifest(
+        parse_method_manifest_yaml(
             r#"
 skill: docs-demo
 catalog:
@@ -199,12 +197,12 @@ fn catalog_rejects_noncanonical_publisher_and_non_https_links() -> Result<(), St
         ("links", "{source: http://example.com/repo}"),
         ("tags", "[docs, docs]"),
     ] {
-        let raw = parse_runner_manifest_yaml(&format!(
+        let raw = parse_method_manifest_yaml(&format!(
             "skill: docs-demo\ncatalog:\n  kind: skill\n  audience: public\n  visibility: public\n  role: canonical\n  {field}: {value}\nrunners:\n  main:\n    steps:\n      - id: write\n        agent: {{ role: writer, task: write }}\n"
         ))
         .map_err(|error| error.to_string())?;
         assert!(
-            validate_runner_manifest(raw).is_err(),
+            validate_method_manifest(raw).is_err(),
             "catalog.{field}: {value} should be rejected"
         );
     }
@@ -244,11 +242,11 @@ fn strict_frontmatter_applies_the_agent_skills_rules() -> Result<(), String> {
 }
 
 #[test]
-fn runner_manifest_fixtures_match_expected() -> Result<(), String> {
-    for fixture_json in RUNNER_MANIFEST_FIXTURES {
-        let fixture: RunnerManifestFixture =
+fn method_manifest_fixtures_match_expected() -> Result<(), String> {
+    for fixture_json in METHOD_MANIFEST_FIXTURES {
+        let fixture: MethodManifestFixture =
             serde_json::from_str(fixture_json).map_err(|error| error.to_string())?;
-        assert_runner_manifest_fixture(fixture)?;
+        assert_method_manifest_fixture(fixture)?;
     }
     Ok(())
 }
@@ -273,10 +271,10 @@ fn install_fixtures_match_expected() -> Result<(), String> {
     Ok(())
 }
 
-fn assert_graph_fixture(fixture: GraphFixture) -> Result<(), String> {
+fn assert_workflow_fixture(fixture: WorkflowFixture) -> Result<(), String> {
     if let Some(expected) = fixture.expected.validated {
-        let actual = validate_graph(
-            parse_graph_yaml(&fixture.input.yaml).map_err(|error| error.to_string())?,
+        let actual = validate_workflow(
+            parse_workflow_yaml(&fixture.input.yaml).map_err(|error| error.to_string())?,
         )
         .map_err(|error| error.to_string())?;
         assert_json_eq(actual, expected)?;
@@ -287,7 +285,7 @@ fn assert_graph_fixture(fixture: GraphFixture) -> Result<(), String> {
         .expected
         .rejection
         .ok_or_else(|| "fixture must declare validated or rejection".to_owned())?;
-    assert_graph_rejection(&fixture.input.yaml, rejection)
+    assert_workflow_rejection(&fixture.input.yaml, rejection)
 }
 
 fn assert_skill_fixture(fixture: SkillFixture) -> Result<(), String> {
@@ -307,10 +305,10 @@ fn assert_skill_fixture(fixture: SkillFixture) -> Result<(), String> {
     assert_skill_rejection(&fixture.input.markdown, rejection)
 }
 
-fn assert_runner_manifest_fixture(fixture: RunnerManifestFixture) -> Result<(), String> {
+fn assert_method_manifest_fixture(fixture: MethodManifestFixture) -> Result<(), String> {
     if let Some(expected) = fixture.expected.validated {
-        let actual = validate_runner_manifest(
-            parse_runner_manifest_yaml(&fixture.input.yaml).map_err(|error| error.to_string())?,
+        let actual = validate_method_manifest(
+            parse_method_manifest_yaml(&fixture.input.yaml).map_err(|error| error.to_string())?,
         )
         .map_err(|error| error.to_string())?;
         assert_json_eq(actual, expected)?;
@@ -321,7 +319,7 @@ fn assert_runner_manifest_fixture(fixture: RunnerManifestFixture) -> Result<(), 
         .expected
         .rejection
         .ok_or_else(|| "fixture must declare validated or rejection".to_owned())?;
-    assert_runner_manifest_rejection(&fixture.input.yaml, rejection)
+    assert_method_manifest_rejection(&fixture.input.yaml, rejection)
 }
 
 fn assert_tool_manifest_fixture(fixture: ToolManifestFixture) -> Result<(), String> {
@@ -349,15 +347,15 @@ fn assert_install_fixture(fixture: InstallFixture) -> Result<(), String> {
     assert_json_eq(actual, expected)
 }
 
-fn assert_graph_rejection(yaml: &str, rejection: Rejection) -> Result<(), String> {
+fn assert_workflow_rejection(yaml: &str, rejection: Rejection) -> Result<(), String> {
     match rejection.kind {
         RejectionKind::Parse => {
-            assert!(parse_graph_yaml(yaml).is_err());
+            assert!(parse_workflow_yaml(yaml).is_err());
             Ok(())
         }
         RejectionKind::Validation => {
-            let raw = parse_graph_yaml(yaml).map_err(|error| error.to_string())?;
-            let error = validate_graph(raw).err().ok_or_else(|| {
+            let raw = parse_workflow_yaml(yaml).map_err(|error| error.to_string())?;
+            let error = validate_workflow(raw).err().ok_or_else(|| {
                 format!(
                     "graph fixture unexpectedly passed; expected validation error: {}",
                     rejection.message
@@ -389,15 +387,15 @@ fn assert_skill_rejection(markdown: &str, rejection: Rejection) -> Result<(), St
     }
 }
 
-fn assert_runner_manifest_rejection(yaml: &str, rejection: Rejection) -> Result<(), String> {
+fn assert_method_manifest_rejection(yaml: &str, rejection: Rejection) -> Result<(), String> {
     match rejection.kind {
         RejectionKind::Parse => {
-            assert!(parse_runner_manifest_yaml(yaml).is_err());
+            assert!(parse_method_manifest_yaml(yaml).is_err());
             Ok(())
         }
         RejectionKind::Validation => {
-            let raw = parse_runner_manifest_yaml(yaml).map_err(|error| error.to_string())?;
-            let error = validate_runner_manifest(raw).err().ok_or_else(|| {
+            let raw = parse_method_manifest_yaml(yaml).map_err(|error| error.to_string())?;
+            let error = validate_method_manifest(raw).err().ok_or_else(|| {
                 format!(
                     "runner manifest fixture unexpectedly passed; expected validation error: {}",
                     rejection.message

@@ -155,12 +155,12 @@ pub(super) fn validation_result(
     after_metrics: SkillPackageMetrics,
     checks: CandidateValidation,
 ) -> SkillValidationResult {
-    let harness_status = checks
+    let test_status = checks
         .harness
         .get("status")
         .and_then(JsonValue::as_str)
         .unwrap_or("passed");
-    let check_results = validation_checks(harness_status);
+    let check_results = validation_checks(test_status);
     let delta = package_delta(&before_metrics, &after_metrics);
     SkillValidationResult {
         schema: SkillValidationResultSchema::V1,
@@ -176,13 +176,13 @@ pub(super) fn validation_result(
     }
 }
 
-fn validation_checks(harness_status: &str) -> Vec<SkillValidationCheck> {
+fn validation_checks(test_status: &str) -> Vec<SkillValidationCheck> {
     vec![
         passed_check("package_contract", "aggregate package validation passed"),
         passed_check("package_inspection", "package inspection passed"),
         passed_check(
-            "focused_harness",
-            if harness_status == "passed" {
+            "focused_test",
+            if test_status == "passed" {
                 "focused package harness passed"
             } else {
                 "focused package harness completed without failure"

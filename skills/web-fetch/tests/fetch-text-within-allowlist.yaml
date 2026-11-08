@@ -1,0 +1,16 @@
+name: fetch-text-with-default-public-hosts
+method: web-fetch
+inputs:
+  url: https://fixture.runx.invalid/rfc9110
+  extract: text
+providers:
+  http:
+    - request: {method: GET, url: "https://fixture.runx.invalid/rfc9110", body: none}
+      response:
+        status: 200
+        headers: {content-type: text/plain}
+        body: HTTP Semantics defines interoperable request and response behavior.
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

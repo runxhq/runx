@@ -1,0 +1,17 @@
+name: diagnose-empty-inputs-requires-exact-evidence
+inputs: {}
+expect:
+  status: sealed
+  steps:
+    - select
+    - evidence
+    - review-queried
+  output:
+    subset:
+      failure_packet:
+        data:
+          verdict: blocked
+          improvement_proposals: []
+  receipt:
+    schema: runx.receipt.v1
+    outcome: completed

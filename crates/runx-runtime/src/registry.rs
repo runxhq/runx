@@ -35,7 +35,7 @@ pub(crate) use install_record::{
     InstalledOrigin, TrustRecord, installed_origin, record_trust, trusted,
 };
 pub use package_metadata::{
-    RegistryConnectorMetadata, RegistryHarnessCaseMetadata, RegistryPackageMetadata,
+    RegistryConnectorMetadata, RegistryPackageMetadata, RegistryTestCaseMetadata,
 };
 pub use payload::VersionPage;
 pub use publish::{
@@ -69,7 +69,7 @@ pub use trust_anchor::{
 pub use types::{
     AcquiredRegistrySkill, ProfileMode, RegistryAttestation, RegistryConnectorDetail,
     RegistryConnectorOperation, RegistryConnectorSearchResult, RegistryManifestSignature,
-    RegistryManifestSigner, RegistryPackageFile, RegistryPublishHarnessReport, RegistryPublisher,
+    RegistryManifestSigner, RegistryPackageFile, RegistryPublishTestReport, RegistryPublisher,
     RegistrySearchResult, RegistrySignedManifest, RegistrySkillDetail, RegistrySkillVersion,
     RegistrySourceMetadata, RegistrySubject, RegistrySubjectKind, TrustSignal, TrustTier,
     UnreadVersion,

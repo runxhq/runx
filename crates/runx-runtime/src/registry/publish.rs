@@ -1,7 +1,7 @@
 use runx_contracts::CopyableCommand;
 use serde::{Deserialize, Serialize};
 
-use super::{RegistryPackageFile, RegistryPublishHarnessReport};
+use super::{RegistryPackageFile, RegistryPublishTestReport};
 use crate::hosted_api::{HostedApiOperationError, request::send_json};
 use crate::http::{HttpMethod, RuntimeHttpTransport};
 
@@ -30,7 +30,7 @@ pub struct HostedAdminSkillPublishRequest<'a> {
     pub version: Option<&'a str>,
     #[serde(skip_serializing_if = "slice_empty")]
     pub package_files: &'a [RegistryPackageFile],
-    pub harness: &'a RegistryPublishHarnessReport,
+    pub harness: &'a RegistryPublishTestReport,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

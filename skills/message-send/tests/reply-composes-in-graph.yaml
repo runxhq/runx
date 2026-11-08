@@ -1,0 +1,6 @@
+name: reply-composes-in-graph
+package: fixtures/reply
+expect:
+  status: sealed
+  steps: [reply, digest]
+  receipt: {schema: runx.receipt.v1}

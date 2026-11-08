@@ -1,0 +1,11 @@
+{
+  "skill_name": "knowledge-router",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Route this question to the validated knowledge source, owner, and next skill.",
+      "expected_output": "Return exact source, ownership, escalation, and follow-up references from the supplied catalog.",
+      "files": []
+    }
+  ]
+}

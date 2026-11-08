@@ -66,24 +66,24 @@ pub(crate) fn encode_package_bundle(
 }
 
 pub(crate) fn resolve_bundled_skill(
-    graph_directory: &Path,
+    workflow_directory: &Path,
     reference: &str,
 ) -> Result<Option<PathBuf>, String> {
-    let Some((bundle_root, descriptor)) = find_bundle(graph_directory)? else {
+    let Some((bundle_root, descriptor)) = find_bundle(workflow_directory)? else {
         return Ok(None);
     };
-    let graph_directory = graph_directory.canonicalize().map_err(|error| {
+    let workflow_directory = workflow_directory.canonicalize().map_err(|error| {
         format!(
             "failed to resolve graph directory {} for registry package bundle: {error}",
-            graph_directory.display()
+            workflow_directory.display()
         )
     })?;
-    let source_directory = graph_directory
+    let source_directory = workflow_directory
         .strip_prefix(&bundle_root)
         .map_err(|_| {
             format!(
                 "graph directory {} is outside registry package bundle {}",
-                graph_directory.display(),
+                workflow_directory.display(),
                 bundle_root.display()
             )
         })?
@@ -115,7 +115,7 @@ pub(crate) fn resolve_bundled_skill(
         }
         return Ok(Some(target));
     }
-    if reference_escapes_bundle(&bundle_root, &graph_directory, reference) {
+    if reference_escapes_bundle(&bundle_root, &workflow_directory, reference) {
         return Err(format!(
             "registry package bundle has no dependency mapping for {source_directory}:{reference}"
         ));
@@ -195,9 +195,9 @@ pub(crate) fn bundle_package_dirs(directory: &Path) -> Result<Option<Vec<PathBuf
 }
 
 fn find_bundle(
-    graph_directory: &Path,
+    workflow_directory: &Path,
 ) -> Result<Option<(PathBuf, PackageBundleDescriptor)>, String> {
-    for ancestor in graph_directory.ancestors() {
+    for ancestor in workflow_directory.ancestors() {
         let path = ancestor.join(PACKAGE_BUNDLE_FILE);
         let metadata = match fs::metadata(&path) {
             Ok(metadata) => metadata,
@@ -293,8 +293,12 @@ fn validate_bundle_relative_path(path: &str, allow_dot: bool) -> Result<(), Stri
     Ok(())
 }
 
-fn reference_escapes_bundle(bundle_root: &Path, graph_directory: &Path, reference: &str) -> bool {
-    let Ok(relative_directory) = graph_directory.strip_prefix(bundle_root) else {
+fn reference_escapes_bundle(
+    bundle_root: &Path,
+    workflow_directory: &Path,
+    reference: &str,
+) -> bool {
+    let Ok(relative_directory) = workflow_directory.strip_prefix(bundle_root) else {
         return true;
     };
     let mut depth = relative_directory

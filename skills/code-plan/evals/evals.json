@@ -1,0 +1,17 @@
+{
+  "skill_name": "code-plan",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Turn this bounded issue intake into a dependency-safe Runx work plan.",
+      "expected_output": "Return a validated execution plan with evidence preservation, mutation boundaries, and explicit owners.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Turn this bounded issue intake into a dependency-safe Runx work plan.",
+      "expected_output": "Return a validated execution plan with evidence preservation, mutation boundaries, and explicit owners.",
+      "files": []
+    }
+  ]
+}

@@ -6,29 +6,29 @@ use super::helpers::{
     optional_string, optional_string_array, required_array, required_object, required_string,
     validation_error,
 };
-use super::policy::validate_graph_policy;
+use super::policy::validate_workflow_policy;
 use super::step::validate_step;
-use super::types::{ExecutionGraph, RawGraphIr};
+use super::types::{RawWorkflowIr, Workflow};
 use crate::{ParseError, ValidationError, assert_yaml_supported_subset};
 
-pub fn parse_graph_yaml(source: &str) -> Result<RawGraphIr, ParseError> {
+pub fn parse_workflow_yaml(source: &str) -> Result<RawWorkflowIr, ParseError> {
     assert_yaml_supported_subset("graph", source)?;
     let document: JsonObject =
         serde_norway::from_str(source).map_err(|error| ParseError::InvalidYaml {
             field: "graph".to_owned(),
             message: error.to_string(),
         })?;
-    Ok(RawGraphIr { document })
+    Ok(RawWorkflowIr { document })
 }
 
-pub fn validate_graph(raw: RawGraphIr) -> Result<ExecutionGraph, ValidationError> {
-    validate_graph_document(raw.document.clone(), Some(raw))
+pub fn validate_workflow(raw: RawWorkflowIr) -> Result<Workflow, ValidationError> {
+    validate_workflow_document(raw.document.clone(), Some(raw))
 }
 
-pub fn validate_graph_document(
+pub fn validate_workflow_document(
     document: JsonObject,
-    raw: Option<RawGraphIr>,
-) -> Result<ExecutionGraph, ValidationError> {
+    raw: Option<RawWorkflowIr>,
+) -> Result<Workflow, ValidationError> {
     reject_unsupported_top_level(&document)?;
 
     let name = required_string(document.get("name"), "name")?;
@@ -53,16 +53,16 @@ pub fn validate_graph_document(
         .iter()
         .map(|step| step.id.as_str())
         .collect::<Vec<_>>();
-    let policy = validate_graph_policy(document.get("policy"), &order, "policy")?;
+    let policy = validate_workflow_policy(document.get("policy"), &order, "policy")?;
     validate_ask_addresses(&steps, &seen_step_ids)?;
 
-    Ok(ExecutionGraph {
+    Ok(Workflow {
         name,
         publisher,
         result_from,
         steps,
         policy,
-        raw: raw.unwrap_or(RawGraphIr { document }),
+        raw: raw.unwrap_or(RawWorkflowIr { document }),
     })
 }
 
@@ -94,7 +94,7 @@ fn validate_result_producers(
 /// An ask is addressed by its gate and an operation's approval by its step, in
 /// one run, so a gate names one ask and no step: one answer never clears two.
 fn validate_ask_addresses(
-    steps: &[crate::GraphStep],
+    steps: &[crate::WorkflowStep],
     step_ids: &BTreeSet<String>,
 ) -> Result<(), ValidationError> {
     let mut gates = BTreeSet::new();
@@ -121,7 +121,7 @@ fn validate_ask_addresses(
 /// A step with no gate of its own that reads a gated step's output can never
 /// run when that step is skipped, so the graph would block there instead of
 /// finishing. It must carry a gate.
-fn validate_gated_context(steps: &[crate::GraphStep]) -> Result<(), ValidationError> {
+fn validate_gated_context(steps: &[crate::WorkflowStep]) -> Result<(), ValidationError> {
     let gated = steps
         .iter()
         .filter(|step| step.when.is_some())
@@ -146,12 +146,12 @@ fn validate_gated_context(steps: &[crate::GraphStep]) -> Result<(), ValidationEr
 }
 
 /// The fields of a standalone graph document.
-const GRAPH_FIELDS: &[&str] = &["name", "publisher", "result_from", "steps", "policy"];
+const WORKFLOW_FIELDS: &[&str] = &["name", "publisher", "result_from", "steps", "policy"];
 
 fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationError> {
     match document
         .keys()
-        .find(|key| !GRAPH_FIELDS.contains(&key.as_str()))
+        .find(|key| !WORKFLOW_FIELDS.contains(&key.as_str()))
     {
         Some(key) => Err(validation_error(format!("{key} is not a graph field."))),
         None => Ok(()),
@@ -160,7 +160,7 @@ fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationE
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_graph_yaml, validate_graph};
+    use super::{parse_workflow_yaml, validate_workflow};
 
     #[test]
     fn a_step_reads_earlier_steps_and_the_run_input_by_reference() -> Result<(), String> {
@@ -231,7 +231,7 @@ steps:
     }
 
     #[test]
-    fn typed_graph_ir_preserves_step_output_contracts() -> Result<(), String> {
+    fn typed_workflow_ir_preserves_step_output_contracts() -> Result<(), String> {
         let graph = validate_yaml(
             r#"
 name: typed-step-outputs
@@ -393,14 +393,14 @@ steps:
         Ok(())
     }
 
-    fn validate_yaml(source: &str) -> Result<crate::ExecutionGraph, String> {
-        let raw = parse_graph_yaml(source).map_err(|error| error.to_string())?;
-        validate_graph(raw).map_err(|error| error.to_string())
+    fn validate_yaml(source: &str) -> Result<crate::Workflow, String> {
+        let raw = parse_workflow_yaml(source).map_err(|error| error.to_string())?;
+        validate_workflow(raw).map_err(|error| error.to_string())
     }
 
     fn validate_err(source: &str) -> Result<String, String> {
-        let raw = parse_graph_yaml(source).map_err(|error| error.to_string())?;
-        validate_graph(raw)
+        let raw = parse_workflow_yaml(source).map_err(|error| error.to_string())?;
+        validate_workflow(raw)
             .err()
             .map(|error| error.to_string())
             .ok_or_else(|| "graph unexpectedly validated".to_owned())

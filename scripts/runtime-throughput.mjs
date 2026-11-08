@@ -29,15 +29,15 @@ const nativeCliSampleCount = 20;
 let cachedNativeCliProbe;
 const runtimeBench = {
   package: "runx-runtime",
-  bench: "graph_throughput",
+  bench: "workflow_throughput",
   features: "agent",
   workloads: new Set([
-    "graph_planning",
-    "graph_receipt_sealing",
+    "workflow_planning",
+    "workflow_receipt_sealing",
     "receipt_store_append",
     "receipt_store_index",
     "native_capability_dispatch",
-    "graph_context_to_module",
+    "workflow_context_to_module",
     "pure_module_cold_start",
     "pure_module_session_reuse",
     "pure_module_large_input",
@@ -93,14 +93,14 @@ const receiptBench = {
   ]),
 };
 const defaultWorkloads = [
-  "graph_planning",
+  "workflow_planning",
   "native_cli_launch",
   "receipt_canonicalization",
-  "graph_receipt_sealing",
+  "workflow_receipt_sealing",
   "receipt_store_append",
   "receipt_store_index",
   "native_capability_dispatch",
-  "graph_context_to_module",
+  "workflow_context_to_module",
   "pure_module_cold_start",
   "pure_module_session_reuse",
   "pure_module_large_input",

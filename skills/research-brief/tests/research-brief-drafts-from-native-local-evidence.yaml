@@ -1,0 +1,64 @@
+name: research-brief-drafts-from-native-local-evidence
+method: local-files
+inputs:
+  objective: Decide where generic evidence admission belongs.
+  paths: [fixtures/local-architecture-evidence.txt]
+  path_scope: skill
+  audience: operators
+  channel: brief
+host:
+  answers:
+    synthesize:
+      research_candidate:
+        decision: ready
+        research_brief:
+          objective: Decide where generic evidence admission belongs.
+          scope: supplied architecture evidence
+          summary: Generic evidence admission belongs in the native runtime, while skills own domain judgment.
+          open_questions: []
+        evidence_log:
+          - claim: Generic evidence admission belongs in the native runtime.
+            source_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
+            content_digest: sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45
+            confidence: verified
+            relevance: Establishes the reusable ownership boundary.
+        decision_support:
+          - option: Keep evidence admission native and domain interpretation in skills.
+            rationale: The admitted local evidence states that boundary directly.
+            source_digests: [sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45]
+        risks: []
+    author:
+      content_draft:
+        decision: ready
+        content_brief:
+          objective: Decide where generic evidence admission belongs.
+          audience: operators
+          channel: brief
+        draft:
+          title: Keep generic evidence admission native
+          body: Runx should admit and bind evidence once, while skills supply domain judgment.
+          claims:
+            - claim: Generic evidence admission belongs in the native runtime.
+              source_digests: [sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45]
+        review_checklist: [Preserve the native ownership boundary.]
+        distribution_notes: {primary_channel: brief}
+        context_binding: {applied: []}
+expect:
+  status: sealed
+  steps: [research-topic, draft-brief]
+  step_outputs:
+    research-topic:
+      subset:
+        research_packet:
+          data:
+            decision: ready
+            validation: {status: pass}
+            source_evidence:
+              - source_kind: local_file
+    draft-brief:
+      subset:
+        content_draft_packet:
+          data:
+            decision: ready
+            validation: {status: pass}
+  receipt: {schema: runx.receipt.v1}

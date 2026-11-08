@@ -1,0 +1,31 @@
+name: procurement-policy-check-refuses-unapproved-payee
+inputs:
+  procurement_request:
+    payee: unknown-ai-tool
+    amount: 450
+    currency: USD
+    purpose: buy unreviewed credits
+  procurement_policy:
+    currency: USD
+    remaining_budget: 300
+    request_cap: 200
+    approved_payees:
+      - sourcey
+      - runx
+    approval_threshold: 200
+expect:
+  status: sealed
+  steps:
+    - digest-request
+    - digest-policy
+    - decide
+  step_outputs:
+    decide:
+      subset:
+        procurement_approval:
+          data:
+            decision: refused
+            refused_reason: unapproved_payee
+            spend_executed: false
+  receipt:
+    schema: runx.receipt.v1

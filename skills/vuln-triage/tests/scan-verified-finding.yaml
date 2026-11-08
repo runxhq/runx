@@ -1,0 +1,55 @@
+name: source-bound-findings-default
+inputs:
+  target: example/service
+  evidence:
+    findings:
+      - ecosystem: npm
+        dependency: example-lib
+        exact_version: 1.2.3
+        advisory_id: GHSA-example-1234
+        summary: Synthetic exact-version fixture advisory.
+        dependency_paths:
+          - node_modules/example-lib
+        affected:
+          - package:
+              ecosystem: npm
+              name: example-lib
+            ranges:
+              - events:
+                  - introduced: "0"
+                  - fixed: 1.2.4
+host:
+  answers:
+    assess:
+      risk_assessment_draft:
+        decision: remediate
+        advisory_assessments:
+          - finding_key: '["npm","example-lib","1.2.3","GHSA-example-1234"]'
+            priority: high
+            exposure: not_established
+            confidence: medium
+            exposure_evidence: []
+            rationale: The source matches the exact dependency version, but no call-site or runtime trace establishes reachability.
+            recommendation: Test the advisory-declared fixed version, then verify deployment and vulnerable call sites.
+            fixed_version: 1.2.4
+        operator_summary:
+          summary: Prioritize a tested dependency update; verify actual deployment exposure.
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        vulnerability_review:
+          data:
+            schema: runx/vuln-triage.scan.v1
+            decision: remediate
+            validation:
+              status: pass
+            advisories:
+              - advisory_id: GHSA-example-1234
+                assessment:
+                  exposure: not_established
+                  fixed_version: 1.2.4
+                  evidence_status: source_bound
+  receipt:
+    schema: runx.receipt.v1

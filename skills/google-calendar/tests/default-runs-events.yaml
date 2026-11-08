@@ -1,0 +1,53 @@
+name: google-calendar-default-runs-live-events
+inputs:
+  calendar_id: primary
+  time_min: 2026-10-04T00:00:00Z
+  time_max: 2026-10-05T00:00:00Z
+providers:
+  hosted:
+    principal_id: operator-fixture
+    grant:
+      grant_id: calendar-events-fixture
+      provider: google/calendar
+      scopes:
+        - events.read
+    operations:
+      - operation: events.list
+        target: primary
+        access: read
+        result:
+          calendar_id: primary
+          time_min: 2026-10-04T00:00:00Z
+          time_max: 2026-10-05T00:00:00Z
+          fetched_at: 2026-10-04T01:00:00Z
+          complete: true
+          events:
+            - event_id: instance-1
+              revision: v1
+              status: confirmed
+              visibility: default
+              transparency: opaque
+              summary: Review
+              all_day: false
+              start: 2026-10-04T09:00:00Z
+              end: 2026-10-04T10:00:00Z
+          page_token: ""
+          next_page_token: ""
+expect:
+  status: sealed
+  steps:
+    - read
+    - normalize
+  step_outputs:
+    normalize:
+      subset:
+        calendar_context:
+          data:
+            decision: ready
+            coverage: complete
+            provider_status: readback_verified
+            calendar_id: primary
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

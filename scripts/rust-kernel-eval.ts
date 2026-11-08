@@ -6,8 +6,8 @@ import { rustExampleBinary } from "./lib/rust-example.mjs";
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 
-export type GraphState = "pending" | "running" | "succeeded" | "failed";
-export type GraphStepState = "pending" | "running" | "succeeded" | "failed" | "skipped";
+export type WorkflowState = "pending" | "running" | "succeeded" | "failed";
+export type WorkflowStepState = "pending" | "running" | "succeeded" | "failed" | "skipped";
 
 export interface StepAdmissionWitness {
   readonly stepId: string;
@@ -15,14 +15,14 @@ export interface StepAdmissionWitness {
   readonly authority?: unknown;
 }
 
-export interface SequentialGraphStepDefinition {
+export interface SequentialWorkflowStepDefinition {
   readonly id: string;
   readonly contextFrom?: readonly string[];
 }
 
-export interface SequentialGraphStep {
+export interface SequentialWorkflowStep {
   readonly stepId: string;
-  readonly state: GraphStepState;
+  readonly state: WorkflowStepState;
   readonly attempts: number;
   readonly startedAt?: string;
   readonly completedAt?: string;
@@ -31,13 +31,13 @@ export interface SequentialGraphStep {
   readonly error?: string;
 }
 
-export interface SequentialGraph {
-  readonly graphId: string;
-  readonly state: GraphState;
-  readonly steps: readonly SequentialGraphStep[];
+export interface SequentialWorkflow {
+  readonly workflowId: string;
+  readonly state: WorkflowState;
+  readonly steps: readonly SequentialWorkflowStep[];
 }
 
-export type SequentialGraphEvent =
+export type SequentialWorkflowEvent =
   | { readonly type: "start_step"; readonly stepId: string; readonly at: string }
   | {
       readonly type: "step_succeeded";
@@ -49,7 +49,7 @@ export type SequentialGraphEvent =
     }
   | { readonly type: "step_failed"; readonly stepId: string; readonly at: string; readonly error: string }
   | { readonly type: "complete" }
-  | { readonly type: "fail_graph"; readonly error: string };
+  | { readonly type: "fail_workflow"; readonly error: string };
 
 export interface RustKernelEvalOptions {
   readonly cwd?: string;

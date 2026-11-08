@@ -1,11 +1,11 @@
 import { generatedSchema, validateContractSchema } from "../internal.js";
 import type {
-  AgentActInvocationContract,
+  TurnInvocationContract,
   ApprovalGateContract,
   QuestionContract,
 } from "../generated/contract-types.js";
 
-export const agentActInvocationSchema = generatedSchema<AgentActInvocationContract>(
+export const turnInvocationSchema = generatedSchema<TurnInvocationContract>(
   "agent-act-invocation.schema.json",
 );
 
@@ -13,11 +13,11 @@ export const questionSchema = generatedSchema<QuestionContract>("question.schema
 
 export const approvalGateSchema = generatedSchema<ApprovalGateContract>("approval-gate.schema.json");
 
-export function validateAgentActInvocationContract(
+export function validateTurnInvocationContract(
   value: unknown,
-  label = "agent_act_invocation",
-): AgentActInvocationContract {
-  return validateContractSchema(agentActInvocationSchema, value, label);
+  label = "turn_invocation",
+): TurnInvocationContract {
+  return validateContractSchema(turnInvocationSchema, value, label);
 }
 
 export function validateQuestionContract(value: unknown, label = "question"): QuestionContract {

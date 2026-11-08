@@ -105,23 +105,23 @@ export function validateSkillMarkdownBatch(markdowns, env = process.env) {
   );
 }
 
-export function validateRunnerManifestYamlBatch(documents, env = process.env) {
+export function validateMethodManifestYamlBatch(documents, env = process.env) {
   return evaluateParserRequests(
-    documents.map((yaml) => ({ kind: "parser.validateRunnerManifestYaml", yaml })),
+    documents.map((yaml) => ({ kind: "parser.validateMethodManifestYaml", yaml })),
     env,
   );
 }
 
-export function validateGraphYamlBatch(documents, env = process.env) {
+export function validateWorkflowYamlBatch(documents, env = process.env) {
   return evaluateParserRequests(
-    documents.map((yaml) => ({ kind: "parser.validateGraphYaml", yaml })),
+    documents.map((yaml) => ({ kind: "parser.validateWorkflowYaml", yaml })),
     env,
   );
 }
 
-export function validateHarnessFixtureYamlBatch(documents, env = process.env) {
+export function validateTestFixtureYamlBatch(documents, env = process.env) {
   return evaluateParserRequests(
-    documents.map((yaml) => ({ kind: "parser.validateHarnessFixtureYaml", yaml })),
+    documents.map((yaml) => ({ kind: "parser.validateTestFixtureYaml", yaml })),
     env,
   );
 }
@@ -141,16 +141,16 @@ export function validateSkillMarkdown(markdown, env = process.env) {
   return validateSkillMarkdownBatch([markdown], env)[0];
 }
 
-export function validateRunnerManifestYaml(yaml, env = process.env) {
-  return validateRunnerManifestYamlBatch([yaml], env)[0];
+export function validateMethodManifestYaml(yaml, env = process.env) {
+  return validateMethodManifestYamlBatch([yaml], env)[0];
 }
 
-export function validateGraphYaml(yaml, env = process.env) {
-  return validateGraphYamlBatch([yaml], env)[0];
+export function validateWorkflowYaml(yaml, env = process.env) {
+  return validateWorkflowYamlBatch([yaml], env)[0];
 }
 
-export function validateHarnessFixtureYaml(yaml, env = process.env) {
-  return validateHarnessFixtureYamlBatch([yaml], env)[0];
+export function validateTestFixtureYaml(yaml, env = process.env) {
+  return validateTestFixtureYamlBatch([yaml], env)[0];
 }
 
 export function parsePacketSchemaDocument(document, env = process.env) {

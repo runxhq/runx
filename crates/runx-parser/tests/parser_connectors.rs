@@ -1,6 +1,6 @@
 //! The execution profile's `connectors:` block and its operation steps.
 
-use runx_parser::{parse_runner_manifest_yaml, validate_runner_manifest};
+use runx_parser::{parse_method_manifest_yaml, validate_method_manifest};
 
 fn profile(connectors: &str, step: &str) -> String {
     format!(
@@ -18,9 +18,9 @@ runners:
 
 const SLACK: &str = "connectors:\n  slack:\n    operations: [channel.post, channel.post.read]";
 
-fn validate(source: &str) -> Result<runx_parser::SkillRunnerManifest, String> {
-    let raw = parse_runner_manifest_yaml(source).map_err(|error| error.to_string())?;
-    validate_runner_manifest(raw).map_err(|error| error.to_string())
+fn validate(source: &str) -> Result<runx_parser::SkillMethodManifest, String> {
+    let raw = parse_method_manifest_yaml(source).map_err(|error| error.to_string())?;
+    validate_method_manifest(raw).map_err(|error| error.to_string())
 }
 
 #[test]

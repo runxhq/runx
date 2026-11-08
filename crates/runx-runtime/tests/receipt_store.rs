@@ -648,12 +648,12 @@ fn abnormal_receipt() -> Result<Receipt, Box<dyn std::error::Error>> {
 }
 
 fn runtime_receipt(
-    graph_name: &str,
+    workflow_name: &str,
     step_id: &str,
     status: InvocationStatus,
 ) -> Result<Receipt, Box<dyn std::error::Error>> {
     step_receipt(
-        scope(graph_name),
+        scope(workflow_name),
         step_id,
         1,
         &skill_output(status),
@@ -731,10 +731,10 @@ fn assert_redacts_external_path(text: &str) {
     assert!(!text.contains("runx-receipts"));
 }
 
-fn scope(graph_name: &str) -> runx_runtime::receipts::RunScope<'_> {
+fn scope(workflow_name: &str) -> runx_runtime::receipts::RunScope<'_> {
     runx_runtime::receipts::RunScope {
         run_id: "run_test",
-        graph_name,
+        workflow_name,
     }
 }
 

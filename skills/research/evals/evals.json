@@ -1,0 +1,23 @@
+{
+  "skill_name": "research",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Research this question from the bounded local sources and return a source-backed packet.",
+      "expected_output": "Read the admitted sources once and return bounded findings with exact provenance and caveats.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Research this architecture question from the named local source.",
+      "expected_output": "Open an acquisition turn with native reader tools; do not pretend the source was read before the host calls them.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Research this bounded question from the supplied governed source packets.",
+      "expected_output": "Return a citation-bound research packet from the default runner without rediscovering or reacquiring the sources.",
+      "files": []
+    }
+  ]
+}

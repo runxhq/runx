@@ -1,0 +1,42 @@
+name: holds-identity-conflict
+setup:
+  credentials:
+    - apollo
+inputs:
+  subject:
+    id: lead:fixture
+    kind: company
+  selector:
+    domain: example.com
+  requested_fields:
+    - company.name
+env:
+  APOLLO_API_KEY: harness-apollo-key
+host:
+  approvals:
+    company: true
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://api.apollo.io/api/v1/organizations/enrich?domain=example.com
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"organization":{"id":"org-2","name":"Other","primary_domain":"other.example"}}'
+expect:
+  status: sealed
+  step_outputs:
+    normalize-company:
+      subset:
+        lookup_evidence:
+          data:
+            decision: identity_conflict
+        lead_enrichment_packet:
+          data:
+            decision: needs_more_evidence
+            facts: []
+  receipt:
+    schema: runx.receipt.v1

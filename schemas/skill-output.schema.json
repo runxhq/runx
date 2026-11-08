@@ -195,8 +195,8 @@
       "enum": [
         "preflight_refused",
         "input_contract_invalid",
-        "graph_step_failed",
-        "graph_blocked",
+        "workflow_step_failed",
+        "workflow_blocked",
         "authority_denied",
         "cost_limit_exceeded",
         "resolution_pending",

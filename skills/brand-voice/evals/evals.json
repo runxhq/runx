@@ -1,0 +1,11 @@
+{
+  "skill_name": "brand-voice",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Build a Runx homepage voice packet from these approved and rejected examples.",
+      "expected_output": "Return a scoped voice packet with evidence-bound rules, safe claims, and explicit anti-patterns.",
+      "files": []
+    }
+  ]
+}

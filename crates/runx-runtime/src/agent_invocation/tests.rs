@@ -8,7 +8,7 @@ use runx_contracts::{
 };
 use runx_parser::{AgentTask, SkillArtifactContract};
 
-use super::build_agent_act_invocation;
+use super::build_turn_invocation;
 use super::profiles::{BUNDLED_VOICE_PROFILE_CONTENT, bundled_profile};
 use crate::{CredentialDelivery, Executable, SkillInvocation};
 
@@ -89,7 +89,7 @@ fn agent_invocation_requires_declared_outputs() -> Result<(), Box<dyn std::error
     let request = invocation(skill.path().to_path_buf(), None);
 
     let Err(error) =
-        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())
+        build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())
     else {
         return Err("missing outputs must fail".into());
     };
@@ -104,7 +104,7 @@ fn agent_invocation_pins_voice_and_output_contracts() -> Result<(), Box<dyn std:
     let request = invocation(skill.path().to_path_buf(), Some(outputs()));
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+        build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
 
     assert!(resolved.envelope.voice_profile.is_some());
     assert_eq!(
@@ -144,7 +144,7 @@ fn agent_invocation_hydrates_the_exact_declared_packet_schema()
     });
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+        build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
     let output_schema = resolved
         .envelope
         .output_schema
@@ -218,7 +218,7 @@ fn agent_invocation_applies_a_wrapped_packet_to_the_complete_result()
     });
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+        build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
     let output_schema = resolved
         .envelope
         .output_schema
@@ -281,7 +281,7 @@ fn agent_context_carries_exact_non_secret_requirements_and_environment_readiness
     ]);
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+        build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
     assert_eq!(
         resolved.envelope.requirements.declaration,
         request.requirements
@@ -324,7 +324,7 @@ fn agent_step_instructions_are_the_complete_canonical_skill_document()
     }];
 
     let resolved =
-        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+        build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
 
     assert_eq!(resolved.envelope.instructions.as_ref(), manual);
     assert_eq!(
@@ -371,7 +371,7 @@ fn an_act_carries_the_projects_conventions_and_never_its_memory()
     ]);
 
     let invocation =
-        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+        build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
     let profiles = invocation
         .envelope
         .context
@@ -406,7 +406,7 @@ fn the_act_carries_the_projects_instructions_from_the_repository_root_down()
     )]);
 
     let invocation =
-        build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+        build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
     let instructions = invocation
         .envelope
         .context
@@ -438,7 +438,7 @@ fn the_act_carries_the_projects_instructions_from_the_repository_root_down()
         fs::remove_file(workspace.join("CLAUDE.md"))?;
         std::os::unix::fs::symlink("../CLAUDE.md", workspace.join("CLAUDE.md"))?;
         let refused =
-            build_agent_act_invocation(&request, &package_of(&request)?, None, "agent".to_owned())
+            build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())
                 .err()
                 .map(|error| error.to_string())
                 .unwrap_or_default();

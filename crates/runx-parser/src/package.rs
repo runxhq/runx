@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    ParseError, SkillRunnerManifest, ValidatedSkill, ValidatedTool, ValidationError,
-    harness_fixture::HarnessFixture,
+    ParseError, SkillMethodManifest, ValidatedSkill, ValidatedTool, ValidationError,
+    test_fixture::TestFixture,
 };
 
 pub use validate::validate_skill_package;
@@ -116,7 +116,7 @@ pub struct ValidatedSkillPackage {
     pub skill: ValidatedSkill,
     /// Every execution profile owned by this manual, keyed by package-relative
     /// path (`run.yaml` for the root profile, `graph/plan/run.yaml` for a stage).
-    pub profiles: BTreeMap<String, SkillRunnerManifest>,
+    pub profiles: BTreeMap<String, SkillMethodManifest>,
     /// Exact `SKILL.md` bytes presented to an operating agent.
     pub manual_markdown: String,
     pub manual_digest: String,
@@ -133,12 +133,12 @@ pub struct ValidatedSkillPackage {
     pub execution_files: BTreeSet<String>,
     /// Explicit, parser-validated files needed only while replaying the inline
     /// package harness. These are never inferred from arbitrary input values.
-    pub harness_files: BTreeSet<String>,
+    pub test_files: BTreeSet<String>,
     /// Complete parser-owned package material, including runtime dependencies,
     /// operator references, and nested manual packages. Registry projection
     /// uses this instead of walking or interpreting package source again.
     pub consumed_files: BTreeSet<String>,
-    pub harness_fixtures: BTreeMap<String, HarnessFixture>,
+    pub test_fixtures: BTreeMap<String, TestFixture>,
     pub context_skills: Vec<String>,
     /// Every packet schema in `packets/`, by id.
     pub packets: BTreeMap<runx_contracts::PacketId, PackagePacket>,
@@ -157,12 +157,12 @@ impl ValidatedSkillPackage {
     }
 
     #[must_use]
-    pub fn root_manifest(&self) -> Option<&SkillRunnerManifest> {
+    pub fn root_manifest(&self) -> Option<&SkillMethodManifest> {
         self.profiles.get(PROFILE_FILE)
     }
 
     #[must_use]
-    pub fn manifest_at(&self, path: &str) -> Option<&SkillRunnerManifest> {
+    pub fn manifest_at(&self, path: &str) -> Option<&SkillMethodManifest> {
         self.profiles.get(path)
     }
 }

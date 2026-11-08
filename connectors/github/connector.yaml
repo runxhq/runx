@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: github
-name: GitHub
+name: github
+title: GitHub
 description: Read and update issues, pull requests and comments in GitHub repositories, and push branches to them.
 category: dev-tools
-runtime_capability: false
 auth:
   delegated: {principal: {url: "https://api.github.com/user", id: id, login: login}}
   credentials:
@@ -47,14 +46,14 @@ operations:
         repository: {type: string, pattern: "^(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*/(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*$"}
         number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
     result_fields: [issue]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
           - id: issue
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}]}
             headers: {accept: application/vnd.github+json}
   issues.list:
@@ -79,14 +78,14 @@ operations:
         sort: {enum: [created, updated, comments]}
         direction: {enum: [asc, desc]}
     result_fields: [issues]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
           - id: issues
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues"]}
             query:
               state: {"$argument": "/state"}
@@ -113,7 +112,7 @@ operations:
         repository: {type: string, pattern: "^(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*/(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*$"}
         numbers: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}}
     result_fields: [issues]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -121,7 +120,7 @@ operations:
         requests:
           - id: issue
             each: {"$argument": "/numbers"}
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": ""}]}
             headers: {accept: application/vnd.github+json}
   issues.update:
@@ -167,7 +166,7 @@ operations:
       kind: thread
       each: {"$result": "/updates"}
       locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -175,14 +174,14 @@ operations:
         requests:
           - id: update
             each: {"$argument": "/updates"}
-            method: PATCH
+            http_method: PATCH
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
             headers: {accept: application/vnd.github+json}
             body: {"$item": "/patch"}
         readbacks:
           - request:
               id: issue
-              method: GET
+              http_method: GET
               url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
               headers: {accept: application/vnd.github+json}
             matches:
@@ -196,7 +195,7 @@ operations:
               - {expected: {source: item, path: patch.milestone}, observed: milestone.number}
   issues.create:
     description: Open issues in a repository, one issue per item.
-    verb: create
+    verb: write
     cost: {usd_micro: 0, per: request, source: observed}
     scopes: [repo.write]
     credentials: [token]
@@ -227,7 +226,7 @@ operations:
       kind: thread
       each: {"$result": "/issues"}
       locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}]}
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -235,14 +234,14 @@ operations:
         requests:
           - id: create
             each: {"$argument": "/issues"}
-            method: POST
+            http_method: POST
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues"]}
             headers: {accept: application/vnd.github+json}
             body: {"$item": ""}
         readbacks:
           - request:
               id: issue
-              method: GET
+              http_method: GET
               url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$response": "write.json.number"}]}
               headers: {accept: application/vnd.github+json}
             matches:
@@ -274,14 +273,14 @@ operations:
         per_page: {type: integer, minimum: 1, maximum: 100}
         page: {type: integer, minimum: 1}
     result_fields: [pulls]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
           - id: pulls
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls"]}
             query:
               state: {"$argument": "/state"}
@@ -308,7 +307,7 @@ operations:
         repository: {type: string, pattern: "^(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*/(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*$"}
         numbers: {type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}}
     result_fields: [pulls]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -316,7 +315,7 @@ operations:
         requests:
           - id: pull
             each: {"$argument": "/numbers"}
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$item": ""}]}
             headers: {accept: application/vnd.github+json}
   pullrequest.read:
@@ -335,14 +334,14 @@ operations:
         repository: {type: string, pattern: "^(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*/(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*$"}
         number: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
     result_fields: [pull]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
           - id: pull
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$argument": "/number"}]}
             headers: {accept: application/vnd.github+json}
   pullrequests.update:
@@ -386,7 +385,7 @@ operations:
       kind: change_request
       each: {"$result": "/updates"}
       locator: {"$concat": ["github://", {"$argument": "/repository"}, "/pulls/", {"$item": "/number"}]}
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -394,14 +393,14 @@ operations:
         requests:
           - id: update
             each: {"$argument": "/updates"}
-            method: PATCH
+            http_method: PATCH
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$item": "/number"}]}
             headers: {accept: application/vnd.github+json}
             body: {"$item": "/patch"}
         readbacks:
           - request:
               id: pull
-              method: GET
+              http_method: GET
               url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$item": "/number"}]}
               headers: {accept: application/vnd.github+json}
             matches:
@@ -434,14 +433,14 @@ operations:
     effect:
       kind: change_request
       locator: {"$concat": ["github://", {"$argument": "/repository"}, "/pulls/", {"$result": "/pull/number"}]}
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
           - id: open
-            method: POST
+            http_method: POST
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls"]}
             headers: {accept: application/vnd.github+json}
             body:
@@ -453,7 +452,7 @@ operations:
         readbacks:
           - request:
               id: pull
-              method: GET
+              http_method: GET
               url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/pulls/", {"$response": "write.json.number"}]}
               headers: {accept: application/vnd.github+json}
             matches:
@@ -484,14 +483,14 @@ operations:
         per_page: {type: integer, minimum: 1, maximum: 100}
         page: {type: integer, minimum: 1}
     result_fields: [comments]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
           - id: comments
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$argument": "/number"}, "/comments"]}
             query:
               per_page: {"$argument": "/per_page"}
@@ -513,19 +512,19 @@ operations:
         repository: {type: string, pattern: "^(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*/(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*$"}
         comment_id: {type: [integer, string], minimum: 1, pattern: "^[1-9][0-9]{0,9}$"}
     result_fields: [comment]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
           - id: comment
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$argument": "/comment_id"}]}
             headers: {accept: application/vnd.github+json}
   comments.create:
     description: Comment on issues or pull requests, one comment per item.
-    verb: comment
+    verb: write
     cost: {usd_micro: 0, per: request, source: observed}
     scopes: [issue.comment]
     credentials: [token]
@@ -553,7 +552,7 @@ operations:
       kind: comment
       each: {"$result": "/comments"}
       locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/id"}]}
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -561,7 +560,7 @@ operations:
         requests:
           - id: create
             each: {"$argument": "/comments"}
-            method: POST
+            http_method: POST
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/", {"$item": "/number"}, "/comments"]}
             headers: {accept: application/vnd.github+json}
             body:
@@ -569,7 +568,7 @@ operations:
         readbacks:
           - request:
               id: comment
-              method: GET
+              http_method: GET
               url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$response": "write.json.id"}]}
               headers: {accept: application/vnd.github+json}
             matches:
@@ -607,7 +606,7 @@ operations:
       kind: comment
       each: {"$result": "/comments"}
       locator: {"$concat": ["github://", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/id"}]}
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
@@ -615,7 +614,7 @@ operations:
         requests:
           - id: update
             each: {"$argument": "/comments"}
-            method: PATCH
+            http_method: PATCH
             url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/comment_id"}]}
             headers: {accept: application/vnd.github+json}
             body:
@@ -623,7 +622,7 @@ operations:
         readbacks:
           - request:
               id: comment
-              method: GET
+              http_method: GET
               url: {"$concat": ["https://api.github.com/repos/", {"$argument": "/repository"}, "/issues/comments/", {"$item": "/comment_id"}]}
               headers: {accept: application/vnd.github+json}
             matches:
@@ -657,7 +656,7 @@ operations:
             - {expected: {source: argument, path: branch}, observed: branch}
   pullrequest.merge:
     description: Merge a pull request.
-    verb: merge
+    verb: write
     cost: {usd_micro: 0, per: request, source: observed}
     scopes: [pr.merge]
     target:
@@ -680,13 +679,13 @@ operations:
         base: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
         head: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
     result_fields: [comparison]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/compare/', {$argument: /base}, '...', {$argument: /head}]}
             query: {per_page: 1, page: 1}
             headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
@@ -708,13 +707,13 @@ operations:
         per_page: {type: integer, minimum: 1, maximum: 100}
         page: {type: integer, minimum: 1}
     result_fields: [checks]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/commits/', {$argument: /commit}, '/check-runs']}
             query: {filter: latest, per_page: {$argument: /per_page}, page: {$argument: /page}}
             headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
@@ -734,13 +733,13 @@ operations:
         repository: {type: string, maxLength: 201, pattern: '^(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*/(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*$'}
         commit: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
     result_fields: [commit]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/git/commits/', {$argument: /commit}]}
             headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
   git.tree.read:
@@ -759,13 +758,13 @@ operations:
         repository: {type: string, maxLength: 201, pattern: '^(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*/(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*$'}
         tree: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
     result_fields: [tree]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/git/trees/', {$argument: /tree}]}
             headers: {accept: application/vnd.github+json, X-GitHub-Api-Version: '2026-03-10'}
   git.blob.read:
@@ -784,13 +783,13 @@ operations:
         repository: {type: string, maxLength: 201, pattern: '^(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*/(?:[.]{0,2}[A-Za-z0-9_-]|[.]{3})[A-Za-z0-9_.-]*$'}
         blob: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
     result_fields: [content]
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
     implementation:
       http:
         allowed_hosts: [api.github.com]
         auth: {token: {type: bearer}}
         decode: [{op: text}]
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://api.github.com/repos/', {$argument: /repository}, '/git/blobs/', {$argument: /blob}]}
             headers: {accept: application/vnd.github.raw+json, X-GitHub-Api-Version: '2026-03-10'}

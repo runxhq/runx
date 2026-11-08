@@ -1,0 +1,38 @@
+name: fetch-example-metadata
+method: web-fetch
+inputs:
+  url: https://fixture.runx.invalid/example
+  allowlist:
+    - fixture.runx.invalid
+  extract: metadata
+providers:
+  http:
+    - request: {method: GET, url: "https://fixture.runx.invalid/example", body: none}
+      response:
+        status: 200
+        headers: {content-type: text/html}
+        body: '<html lang="en"><head><title>Example Domain</title><meta name="description" content="Example fixture"><link rel="canonical" href="https://fixture.runx.invalid/example"></head><body>Example Domain</body></html>'
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  steps:
+    - fetch
+  step_outputs:
+    fetch:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: web
+            operation: page.read
+            target: https://fixture.runx.invalid/example
+            transport: local_web
+            result:
+              status: 200
+              final_url: https://fixture.runx.invalid/example
+              extract_mode: metadata
+              extracted:
+                title: Example Domain
+                content_type: text/html
+                declared_language: en

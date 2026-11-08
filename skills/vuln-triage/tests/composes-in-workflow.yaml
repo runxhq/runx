@@ -1,0 +1,36 @@
+name: review-to-advisory-in-open-graph
+package: fixtures/composed
+host:
+  answers:
+    assess:
+      risk_assessment_draft:
+        decision: remediate
+        advisory_assessments:
+          - finding_key: '["npm","example-lib","1.2.3","GHSA-example-1234"]'
+            priority: high
+            exposure: not_established
+            confidence: medium
+            exposure_evidence: []
+            rationale: The source matches the exact dependency version, but no call-site or runtime trace establishes reachability.
+            recommendation: Test the advisory-declared fixed version, then verify deployment and vulnerable call sites.
+            fixed_version: 1.2.4
+        operator_summary:
+          summary: Prioritize a tested dependency update; verify actual deployment exposure.
+    draft:
+      advisory_draft:
+        title: Example dependency advisory
+        summary: An exact dependency match requires a tested upgrade.
+        body: example/service declares example-lib 1.2.3. The source associates GHSA-example-1234 with that version and declares 1.2.4 fixed. Test the update and confirm deployment; code-path reachability has not been established.
+        affected_advisory_ids:
+          - GHSA-example-1234
+        disclosure_checklist:
+          - Validate compatibility and deploy the fixed version.
+          - Confirm actual deployment exposure.
+expect:
+  status: sealed
+  steps:
+    - triage
+    - advisory
+    - digest
+  receipt:
+    schema: runx.receipt.v1

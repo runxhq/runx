@@ -1,0 +1,11 @@
+{
+  "skill_name": "support-triage",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Triage this customer domain-verification question using the supplied product guide and draft a supported reply.",
+      "expected_output": "Return a source-bound support route and unsent draft, keeping operator checks outside customer copy.",
+      "files": []
+    }
+  ]
+}

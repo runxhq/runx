@@ -1,0 +1,25 @@
+name: procurement-policy-check-refuses-missing-policy
+inputs:
+  procurement_request:
+    payee: sourcey
+    amount: 125
+    currency: USD
+  procurement_policy:
+    currency: USD
+expect:
+  status: sealed
+  steps:
+    - digest-request
+    - digest-policy
+    - decide
+  step_outputs:
+    decide:
+      subset:
+        procurement_approval:
+          data:
+            decision: refused
+            refused_reason: missing_policy_authority
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

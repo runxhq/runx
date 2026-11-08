@@ -1,0 +1,11 @@
+{
+  "skill_name": "github-issue-to-pr",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Fix issue 442 in this checkout, run the tests, finalize once, and stop before an unauthorized PR.",
+      "expected_output": "Resolve the repository, inspect the issue locally, preserve host edit and test results, finalize once, and return a compact blocked-before-publish result.",
+      "files": []
+    }
+  ]
+}

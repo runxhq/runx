@@ -1,0 +1,48 @@
+name: direct-leakage-stops
+method: redact-pii
+inputs:
+  content: Email dana@example.com or call 415-555-0188.
+  classes:
+    - email
+    - phone
+  mode: redact
+host:
+  answers:
+    detect:
+      redaction_draft:
+        decision: ready
+        detected:
+          - class: phone
+            selector:
+              quote: 415-555-0188
+            confidence: 0.99
+        residual_risk:
+          level: low
+          reason_code: none
+expect:
+  status: sealed
+  steps:
+    - block-policy
+    - detect
+    - apply
+  step_outputs:
+    apply:
+      subset:
+        redaction_report:
+          data:
+            decision: needs_review
+            redacted_digest: null
+            residual_risk:
+              level: medium
+              reason_code: deterministic_residual_detected
+            scanner:
+              status: hold
+              findings:
+                - class: email
+                  span:
+                    - 6
+                    - 22
+                  rule: direct_email
+        redacted_content: ""
+  receipt:
+    schema: runx.receipt.v1

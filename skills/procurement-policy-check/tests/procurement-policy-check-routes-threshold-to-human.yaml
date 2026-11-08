@@ -1,0 +1,32 @@
+name: procurement-policy-check-routes-threshold-to-human
+inputs:
+  procurement_request:
+    payee: runx
+    amount: 200
+    currency: USD
+    purpose: annual plan renewal
+  procurement_policy:
+    currency: USD
+    remaining_budget: 500
+    request_cap: 400
+    approved_payees:
+      - sourcey
+      - runx
+    approval_threshold: 200
+    human_lane: finance-review
+expect:
+  status: sealed
+  steps:
+    - digest-request
+    - digest-policy
+    - decide
+  step_outputs:
+    decide:
+      subset:
+        procurement_approval:
+          data:
+            decision: needs_human
+            human_lane: finance-review
+            spend_executed: false
+  receipt:
+    schema: runx.receipt.v1

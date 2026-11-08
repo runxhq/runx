@@ -1,0 +1,37 @@
+name: moltbook-scan-binds-fresh-opportunity
+method: scan
+inputs:
+  objective: Find one useful post for Runx builders.
+  community_context: OSS operators evaluating governed agent workflows.
+  as_of: "2026-07-17T12:00:00Z"
+  max_age_hours: 48
+  feed_snapshot:
+    - {source_id: changelog_1, topic: package skills, summary: Runx now enforces package-rooted skills., observed_at: "2026-07-16T10:00:00Z"}
+    - {source_id: feedback_1, topic: migration, summary: Builders requested clearer migration guidance., observed_at: "2026-07-16T11:00:00Z"}
+host:
+  answers:
+    analyze:
+      scan_draft:
+        decision: ready
+        opportunity_report:
+          topic: package skill migration
+          rationale: Current product change and operator demand support a practical migration post.
+          source_ids: [changelog_1, feedback_1]
+        post_outline:
+          headline: How to move a Runx skill into a package root
+          beats: [What changed, How to migrate, How to verify]
+          source_ids: [changelog_1, feedback_1]
+        moderation_notes: {sensitivity: low, tone: direct and useful}
+        follow_up_plan: {monitor_for: [migration questions]}
+expect:
+  status: sealed
+  steps: [admit, digest, analyze, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        moltbook_scan_packet:
+          data:
+            decision: ready
+            delivery_status: not_posted
+            validation: {status: pass}
+  receipt: {schema: runx.receipt.v1}

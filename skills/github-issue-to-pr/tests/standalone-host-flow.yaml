@@ -1,0 +1,82 @@
+name: github-issue-to-pr-standalone-host-flow
+setup:
+  sessions:
+    - github
+inputs:
+  repository: runxhq/runx
+  issue_number: "442"
+  objective: Make the issue-to-PR lane operator-first.
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+host:
+  answers:
+    host-work:
+      host_result:
+        schema: runx/github-issue-to-pr.host_result.v1
+        status: completed
+        repository: runxhq/runx
+        issue_number: "442"
+        repo_root: .
+        branch: fix/442-operator-first
+        commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        files:
+          - oss/skills/github-issue-to-pr/run.yaml
+        tests:
+          - command: cargo test -p runx-cli --test integration issue_to_pr_journey
+            status: passed
+            evidence: receipt:test:github-issue-to-pr-standalone
+        publication:
+          decision: hold
+          title: ""
+          body: ""
+          head: ""
+          base: ""
+          draft: false
+          idempotency_key: ""
+        errors: []
+        summary: Implement the issue workflow correction and preserve the exact candidate.
+        governance:
+          kind: scafld
+          reason: The fixture explicitly exercises repository-required finalization.
+          receipt_path: fixtures/scafld-pass.json
+          contract_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://api.github.com/user
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":7,"login":"operator"}'
+    - request:
+        method: GET
+        url: https://api.github.com/repos/runxhq/runx/issues/442
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"number":442,"title":"Make issue-to-PR operator-first","state":"open","body":"Use normal host editing and test tools, then govern only publication.","html_url":"https://github.com/runxhq/runx/issues/442","labels":[{"name":"operator-experience"}],"assignees":[]}'
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+  output:
+    subset:
+      issue_to_pr_result:
+        data:
+          schema: runx/github-issue-to-pr.result.v1
+          status: completed
+          outcome: local_change
+          repository: runxhq/runx
+          issue_number: "442"
+          commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          publication:
+            status: not_requested
+          test_assurance: host_reported
+          governance:
+            kind: scafld
+            status: verified

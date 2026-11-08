@@ -37,7 +37,7 @@ interface ReceiptOracleCase {
   readonly body_digest: string;
 }
 
-interface HarnessSpineFixture {
+interface RunSpineFixture {
   readonly expected: unknown;
 }
 
@@ -138,7 +138,7 @@ describe("runx.receipt.c14n.v1 conformance", () => {
   it.each(receiptOracle.cases.map((testCase) => [testCase.name, testCase] as const))(
     "matches Rust full receipt canonical JSON and digest for %s",
     (_name, testCase) => {
-      const fixture = readHarnessSpineFixture(testCase.fixture);
+      const fixture = readRunSpineFixture(testCase.fixture);
       const actual = canonicalJsonStringify(fixture.expected);
 
       expect(actual).toBe(testCase.full_canonical_json);
@@ -149,7 +149,7 @@ describe("runx.receipt.c14n.v1 conformance", () => {
   it.each(receiptOracle.cases.map((testCase) => [testCase.name, testCase] as const))(
     "matches Rust body receipt canonical JSON and digest for %s",
     (_name, testCase) => {
-      const fixture = readHarnessSpineFixture(testCase.fixture);
+      const fixture = readRunSpineFixture(testCase.fixture);
       const actual = canonicalJsonStringify(stripBodyProofFields(fixture.expected, true));
 
       expect(actual).toBe(testCase.body_canonical_json);
@@ -167,9 +167,9 @@ function captureErrorMessage(action: () => unknown): string {
   throw new Error("expected action to throw");
 }
 
-function readHarnessSpineFixture(fixture: string): HarnessSpineFixture {
+function readRunSpineFixture(fixture: string): RunSpineFixture {
   const fixtureUrl = new URL(`../../../fixtures/contracts/${fixture}`, import.meta.url);
-  return JSON.parse(readFileSync(fixtureUrl, "utf8")) as HarnessSpineFixture;
+  return JSON.parse(readFileSync(fixtureUrl, "utf8")) as RunSpineFixture;
 }
 
 function stripBodyProofFields(value: unknown, isRoot: boolean): unknown {

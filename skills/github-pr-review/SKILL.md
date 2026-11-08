@@ -100,16 +100,14 @@ reads have their own linked native receipts. No output is a publication approval
 A separate publisher must recheck the current head, obtain its own authority and
 read back any posted review.
 
-## Agent task contracts
-
-### `github-pr-review-assess-live`
+## Agent task: github-pr-review-assess-live
 
 Assess only the selected immutable head. Read exact Git objects when needed to
 resolve a concrete caller/configuration question. Check runs must name this head;
 failed or incomplete reads become limitations. Do not request another PR snapshot
 or comparison. Return the same concise, source-bound review draft as below.
 
-### `github-pr-review-assess`
+## Agent task: github-pr-review-assess
 
 Use the already prepared evidence without acquiring sources. Return a concise
 summary, concrete findings and material limitations. Every finding cites an

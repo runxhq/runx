@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/hooks
-name: Fixture Hooks
+name: fixture/hooks
+title: Fixture Hooks
 description: Deliver a governed handoff to a workflow webhook fixture.
-runtime_capability: false
 auth:
   credentials:
     webhook:
@@ -47,7 +46,7 @@ operations:
         auth:
           webhook: {type: url, field: url}
         requests:
-          - method: POST
+          - http_method: POST
             url: {"$concat": ["https://", {"$argument": "/webhook_host"}, "/webhook/"]}
             headers:
               accept: application/json

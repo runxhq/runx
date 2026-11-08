@@ -1,0 +1,10 @@
+name: reddit-managed-account-vote-refused
+package: fixtures/managed-vote
+inputs: {}
+expect:
+  status: sealed
+  step_outputs:
+    vote:
+      subset:
+        result:
+          status: refused

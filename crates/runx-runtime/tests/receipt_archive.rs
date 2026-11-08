@@ -20,7 +20,7 @@ const ADMITTED_ACTOR: &str = "runx:principal:operator";
 const SIGNED_RUNTIME_SUBJECT: &str = "runx:run:run_receipt-archive#strict-proof";
 const SCOPE: RunScope<'static> = RunScope {
     run_id: "run_receipt-archive",
-    graph_name: "receipt-archive",
+    workflow_name: "receipt-archive",
 };
 
 fn paths(workspace: &Path) -> RunxPaths {

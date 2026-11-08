@@ -237,7 +237,7 @@ fn skill_authoring_workspace_inspection_includes_base_digest()
         .expect("existing skill inspection must include its resolved contract");
     assert!(
         target_inspection
-            .get("runner_inspections")
+            .get("method_inspections")
             .and_then(JsonValue::as_array)
             .is_some_and(|runners| !runners.is_empty())
     );

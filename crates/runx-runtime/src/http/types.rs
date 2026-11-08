@@ -107,15 +107,15 @@ pub struct RuntimeHttpResponse {
 /// One request-sensitive response available only through the private harness
 /// registry. Live transports never construct or consume this type.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct RuntimeHarnessHttpExchange {
+pub(crate) struct RuntimeTestHttpExchange {
     pub method: HttpMethod,
     pub url: String,
-    pub body: RuntimeHarnessHttpRequestBody,
+    pub body: RuntimeTestHttpRequestBody,
     pub response: RuntimeHttpResponse,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum RuntimeHarnessHttpRequestBody {
+pub(crate) enum RuntimeTestHttpRequestBody {
     None,
     Json(JsonValue),
     Text(String),

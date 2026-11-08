@@ -108,7 +108,7 @@ fn local_artifacts_survive_separate_cli_calls_in_their_logical_run() -> TestResu
 }
 
 #[test]
-fn a_paused_graph_reads_its_original_snapshot_after_process_exit() -> TestResult {
+fn a_paused_workflow_reads_its_original_snapshot_after_process_exit() -> TestResult {
     let root = crate::support::temp_root("runx-operator-artifact-resume");
     let skill = root.join("skills/artifact-pause");
     fs::create_dir_all(&skill)?;
@@ -256,7 +256,7 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
         serde_json::json!({
             "turn": "answer",
             "tool": "receipt_read",
-            "call_id": "read-graph",
+            "call_id": "read-workflow",
             "input": {"receipt_id": completed_receipt},
         }),
     )?;
@@ -307,7 +307,7 @@ fn receipt_claims_follow_their_verified_run_records_across_processes() -> TestRe
 }
 
 #[test]
-fn skill_author_journey_discovers_harnesses_runs_verifies_and_reads_history() -> TestResult {
+fn skill_author_journey_discovers_tests_runs_verifies_and_reads_history() -> TestResult {
     let root = crate::support::temp_root("runx-operator-author-journey");
     let skills_dir = root.join("skills");
     let skill_dir = skills_dir.join("digest-note");
@@ -700,7 +700,7 @@ fn stdin_resume_reuses_run_and_rejects_digest_drift() -> TestResult {
 }
 
 #[test]
-fn nested_graph_resume_preserves_completed_effects() -> TestResult {
+fn nested_workflow_resume_preserves_completed_effects() -> TestResult {
     for topology in ["nested", "deep"] {
         let root = crate::support::temp_root(&format!("runx-{topology}-resume-effects"));
         let skill_dir = root.join("skills/nested-resume");

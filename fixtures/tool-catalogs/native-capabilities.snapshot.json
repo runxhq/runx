@@ -106,7 +106,7 @@
       "execution_boundary": "native_capability"
     },
     {
-      "id": "control.capture_harness_context",
+      "id": "control.capture_run_context",
       "source": "runx-runtime/control",
       "scopes": [
         "runx:control:read"
@@ -115,8 +115,8 @@
       "approval": "none",
       "artifacts": {
         "kind": "named",
-        "output": "harness_context",
-        "packet": "runx.control.harness_context.v1"
+        "output": "run_context",
+        "packet": "runx.control.run_context.v1"
       },
       "execution_boundary": "native_capability"
     },

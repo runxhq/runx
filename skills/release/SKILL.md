@@ -114,9 +114,7 @@ seal only after registry readback names the requested version. If the publish
 command changes between preparation and approval or verification cannot find
 the version, the run does not claim a successful release.
 
-## Agent task contracts
-
-### `release-notes`
+## Agent task: release-notes
 
 Draft only consumer-facing release notes from the admitted profile, exact version, preparation
 checks, last tag, and operator context. Return headline, summary, changelog with

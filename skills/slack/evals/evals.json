@@ -1,0 +1,29 @@
+{
+  "skill_name": "slack",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Find the bounded Slack messages about release readiness.",
+      "expected_output": "Search the configured Slack account once and return bounded provider evidence.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Find Slack messages about release readiness without configuring a Slack account.",
+      "expected_output": "Refuse immediately with one binding message before claiming message evidence.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Find the bounded Slack messages about release readiness.",
+      "expected_output": "Search the configured Slack account once and return bounded provider evidence.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Find release signals mentioning this teammate in the selected operations channel.",
+      "expected_output": "Read one bounded exact channel/member query, preserving provider evidence and no send authority.",
+      "files": []
+    }
+  ]
+}

@@ -132,13 +132,13 @@ pub use external_job::{
 };
 pub use fixture::{Fixture, FixtureLane};
 pub use host_protocol::{
-    AgentActInvocation, AllowedOperation, ApprovalGate, BoundClosure, CatalogRule, CatalogTrust,
-    ExecutionEvent, LoadedPackage, LoadedRunner, LoadedRunnerInput, PURCHASE_BALANCE_CHOICE,
-    PurchaseMethod, PurchasePaymentOption, PurchaseQuote, PurchaseRequest, Question,
-    QuestionOption, ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RetryResend,
-    SkillAllowance, SkillManual, TURN_READ_PAGE_CHARS, TurnAllowance, TurnCallOutcome,
-    TurnCallResult, TurnContextLine, TurnEnvelope, TurnInvocation, TurnLoad, TurnLocator,
-    TurnReadPage, TurnStatus, TurnTarget, TurnTool, check_answer,
+    AllowedOperation, ApprovalGate, BoundClosure, CatalogRule, CatalogTrust, ExecutionEvent,
+    LoadedMethod, LoadedMethodInput, LoadedPackage, PURCHASE_BALANCE_CHOICE, PurchaseMethod,
+    PurchasePaymentOption, PurchaseQuote, PurchaseRequest, Question, QuestionOption,
+    ResolutionRequest, ResolutionResponse, ResolutionResponseActor, RetryResend, SkillAllowance,
+    SkillManual, TURN_READ_PAGE_CHARS, TurnAllowance, TurnCallOutcome, TurnCallResult,
+    TurnContextLine, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage, TurnStatus, TurnTarget,
+    TurnTool, TurnView, TurnViewEnvelope, check_answer,
 };
 pub use json::{JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_string_field};
 pub use ledger::{
@@ -157,7 +157,7 @@ pub use native_packets::{
     AttestationDecision, AttestationEvidence, AttestationGap, AttestationProofBoundary,
     AttestationSchema, CLI_HELP_MAX_ARGS, COMMAND_MAX_ENV, COMMAND_MAX_ERRORS,
     COMMAND_MAX_TIMEOUT_MS, COMMAND_MIN_TIMEOUT_MS, COMMAND_OUTPUT_MAX_BYTES, CatalogHit,
-    CatalogPackageKind, CatalogRunner, CatalogSource, CliHelp, CliHelpFlag, CommandDecision,
+    CatalogMethod, CatalogPackageKind, CatalogSource, CliHelp, CliHelpFlag, CommandDecision,
     CommandError, CommandExecution, CommandExecutionSchema, CommandOutputMode, CommandPlan,
     CommandPlanSchema, ConnectorInspection, DataComparison, DataDigest, DataOperationResult,
     DataOperationStatus, DataStopCondition, DataValidation, DataValidationIssue,
@@ -167,23 +167,23 @@ pub use native_packets::{
     FileDeleteStatus, FileEdit, FileEntryKind, FileInverseBundle, FileList, FileListEntry,
     FileRead, FileReadBundle, FileSearch, FileSearchMatch, FileWrite, GIT_LOG_MAX_COMMITS,
     GitBlobDigest, GitBranch, GitCommit, GitDiff, GitLog, GitPatch, GitShow, GitStatus,
-    HarnessContext, InspectedOperation, LocalArtifact, LocalArtifactPage, MatchedReceipt,
-    MissingFile, PROCESS_ENV_NAME_PATTERN, PolicyLint, PolicyLintEngine, PolicyLintStatus,
-    ProcessEnvName, ProcessExit, ProcessExitReason, ProcessKind, ProcessList, ProcessOutput,
-    ProcessOutputChunk, ProcessState, ProcessStream, ProviderNotCalled, RECEIPT_TOOL_MAX_RECEIPTS,
-    RUN_LIST_MAX_RUNS, ReceiptProof, ReceiptProofDecision, ReceiptProofSchema, ReceiptProofStore,
+    InspectedOperation, LocalArtifact, LocalArtifactPage, MatchedReceipt, MissingFile,
+    PROCESS_ENV_NAME_PATTERN, PolicyLint, PolicyLintEngine, PolicyLintStatus, ProcessEnvName,
+    ProcessExit, ProcessExitReason, ProcessKind, ProcessList, ProcessOutput, ProcessOutputChunk,
+    ProcessState, ProcessStream, ProviderNotCalled, RECEIPT_TOOL_MAX_RECEIPTS, RUN_LIST_MAX_RUNS,
+    ReceiptProof, ReceiptProofDecision, ReceiptProofSchema, ReceiptProofStore,
     ReceiptProofVerification, ReceiptQuery, ReceiptQuerySchema, ReceiptQuerySource,
     ReceiptQueryVerification, ReceiptRead, ReceiptReadSchema, ReceiptReadStatus,
-    RegistryInspection, RegistrySearchPacket, RunList, RunListEntry, RunListSchema,
+    RegistryInspection, RegistrySearchPacket, RunContext, RunList, RunListEntry, RunListSchema,
     RuntimeSealPending, RunxProcess, TerminalSize,
 };
 pub use operational_policy::{
     OperationalPolicy, OperationalPolicyAction, OperationalPolicyAutomationPermissions,
     OperationalPolicyDedupePolicy, OperationalPolicyDedupeStrategy,
-    OperationalPolicyDuplicateBehavior, OperationalPolicyError, OperationalPolicyMissingBehavior,
+    OperationalPolicyDuplicateBehavior, OperationalPolicyError, OperationalPolicyMethodReadback,
+    OperationalPolicyMethodRule, OperationalPolicyMethodState, OperationalPolicyMissingBehavior,
     OperationalPolicyOutcomeCloseMode, OperationalPolicyOutcomePolicy, OperationalPolicyOwnerRoute,
-    OperationalPolicyPublishMode, OperationalPolicyReadback, OperationalPolicyRunnerReadback,
-    OperationalPolicyRunnerRule, OperationalPolicyRunnerState, OperationalPolicySchema,
+    OperationalPolicyPublishMode, OperationalPolicyReadback, OperationalPolicySchema,
     OperationalPolicySourceReadback, OperationalPolicySourceRule,
     OperationalPolicySourceThreadPolicy, OperationalPolicyTargetReadback,
     OperationalPolicyTargetRule, OperationalPolicyValidationFinding,
@@ -212,7 +212,7 @@ pub use packet_id::{
 pub use packet_lock::{PacketLock, PacketLockEntry, PacketLockSchema};
 pub use paid_skill_listing::{
     PAID_SKILL_LISTING_SCHEMA, PaidSkillActsOn, PaidSkillExecutorBinding, PaidSkillListing,
-    PaidSkillOfferTerms, PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase, PaidSkillRunnerOffer,
+    PaidSkillMethodOffer, PaidSkillOfferTerms, PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase,
     PriceChoice, PriceError,
 };
 pub use provider_operation::ProviderOperationPacket;
@@ -224,7 +224,7 @@ pub use purchase::{
     GET_PURCHASE_RESULT_SCHEMA, GetPurchaseRequest, GetPurchaseResult,
     OFFER_VERSION_BINDING_SCHEMA, OfferVersionBinding, PURCHASE_READ_SCHEMA, PURCHASE_SCHEMA,
     PaymentIdempotencyBinding, PaymentReference, PortableAmountMinor, PrincipalReference, Purchase,
-    PurchaseAdmission, PurchaseCanonicalizerVersion, PurchaseExecutionState, PurchaseHold,
+    PurchaseAdmission, PurchaseCanonicalizerVersion, PurchaseExecutionState, PurchaseLease,
     PurchaseOutcomeGate, PurchasePaymentChallenge, PurchasePaymentMethod,
     PurchasePaymentOptionBinding, PurchasePaymentState, PurchaseRead, PurchaseRefusalCode,
     PurchaseRefusalReason, QUOTE_PURCHASE, QUOTE_PURCHASE_REQUEST_SCHEMA,
@@ -249,8 +249,8 @@ pub use reference::{
     RunxPrincipalId,
 };
 pub use registry_binding::{
-    RegistryBinding, RegistryBindingHarness, RegistryBindingRegistry, RegistryBindingSchema,
-    RegistryBindingSkill, RegistryBindingState, RegistryBindingUpstream, RegistryHarnessState,
+    RegistryBinding, RegistryBindingRegistry, RegistryBindingSchema, RegistryBindingSkill,
+    RegistryBindingState, RegistryBindingTest, RegistryBindingUpstream, RegistryTestState,
     TrustTier,
 };
 pub use registry_signed_manifest::{
@@ -316,8 +316,8 @@ pub use x402::{
 
 pub use skill_inspection::{
     EnvironmentReadiness, EnvironmentReadinessStatus, InspectedInput, InspectedOutput,
-    InspectionReadiness, InspectionReadinessStatus, InspectionResume, OperatorJourney,
-    RunnerInspection, RunnerInspectionEntry, SkillCapabilities, SkillCatalog, SkillInspection,
+    InspectionReadiness, InspectionReadinessStatus, InspectionResume, MethodInspection,
+    MethodInspectionEntry, OperatorJourney, SkillCapabilities, SkillCatalog, SkillInspection,
     SkillInspectionSchema, SkillInspectionStatus,
 };
 pub use skill_output::{ProjectArtifact, SkillOutput};

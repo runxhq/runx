@@ -1,0 +1,31 @@
+name: plan-word-does-not-force-billing
+inputs:
+  support_request:
+    source: thread:content-plan
+    body: How do I plan a content calendar?
+  product_evidence: []
+host:
+  answers:
+    judge:
+      draft:
+        classification: how_to
+        severity: low
+        recommended_path: request_info
+        rationale: No product documentation was supplied.
+        evidence:
+        - source_id: thread:content-plan
+          quote: How do I plan a content calendar?
+        missing_context:
+        - Which product and documented calendar workflow?
+        operator_notes:
+        - No account state was read.
+        draft_email: null
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        support_triage_packet:
+          data:
+            decision: ready
+            delivery_status: not_sent

@@ -159,7 +159,7 @@ const REGISTRY_SELECTION_ENV: [&str; 6] = [
 /// The environment a candidate's harness runs in: the repo as its workspace,
 /// a home and project directory of its own under `scratch`, and the registry
 /// its operator selects.
-pub(super) fn isolated_harness_env(
+pub(super) fn isolated_test_env(
     repo_root: &Path,
     env: &BTreeMap<String, String>,
     scratch: &Path,
@@ -319,14 +319,14 @@ impl Drop for CandidateStage {
 
 #[cfg(test)]
 mod tests {
-    use super::isolated_harness_env;
+    use super::isolated_test_env;
     use std::collections::BTreeMap;
 
     /// A candidate's harness reads the registry its operator selects, and
     /// nothing else of the operator's crosses into it: no credential, home,
     /// project or other setting.
     #[test]
-    fn the_isolated_harness_carries_the_registry_selection_and_nothing_else()
+    fn the_isolated_test_carries_the_registry_selection_and_nothing_else()
     -> Result<(), Box<dyn std::error::Error>> {
         let workspace = tempfile::tempdir()?;
         let selection = [
@@ -353,7 +353,7 @@ mod tests {
             .collect::<BTreeMap<_, _>>();
         let scratch = workspace.path().join("scratch");
 
-        let isolated = isolated_harness_env(workspace.path(), &operator, &scratch);
+        let isolated = isolated_test_env(workspace.path(), &operator, &scratch);
 
         let mut expected = selection
             .iter()

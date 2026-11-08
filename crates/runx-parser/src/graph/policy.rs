@@ -6,16 +6,16 @@ use super::binding::{parse_literal, parse_operand};
 use super::helpers::{
     optional_object, required_array, required_object, required_string, validation_error,
 };
-use super::types::{GraphGuard, GraphPolicy};
+use super::types::{WorkflowGuard, WorkflowPolicy};
 use crate::ValidationError;
 
 /// The graph's guards. `steps` is the graph's step ids in order: a guard
 /// gates one of them and reads only the steps before it.
-pub fn validate_graph_policy(
+pub fn validate_workflow_policy(
     value: Option<&JsonValue>,
     steps: &[&str],
     field: &str,
-) -> Result<Option<GraphPolicy>, ValidationError> {
+) -> Result<Option<WorkflowPolicy>, ValidationError> {
     let Some(policy) = optional_object(value, field)? else {
         return Ok(None);
     };
@@ -40,14 +40,14 @@ pub fn validate_graph_policy(
         .enumerate()
         .map(|(index, raw_gate)| guard(raw_gate, steps, &format!("{field}.guards.{index}")))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Some(GraphPolicy { guards }))
+    Ok(Some(WorkflowPolicy { guards }))
 }
 
 fn guard(
     raw_gate: &JsonValue,
     steps: &[&str],
     gate_field: &str,
-) -> Result<GraphGuard, ValidationError> {
+) -> Result<WorkflowGuard, ValidationError> {
     let gate = required_object(Some(raw_gate), gate_field)?;
     if let Some(key) = gate
         .keys()
@@ -88,7 +88,7 @@ fn guard(
     let value = gate
         .get("value")
         .ok_or_else(|| validation_error(format!("{gate_field}.value is required.")))?;
-    Ok(GraphGuard {
+    Ok(WorkflowGuard {
         value: parse_operand(value, &earlier, &format!("{gate_field}.value"))?,
         step,
         equals,
@@ -112,11 +112,14 @@ mod tests {
         let policy = policy_value(
             r#"{"transitions":[{"step":"fulfill","value":"$steps.approve-spend.approval_decision.approved","equals":true}]}"#,
         )?;
-        let error =
-            match validate_graph_policy(Some(&policy), &["approve-spend", "fulfill"], "policy") {
-                Ok(_) => return Err("unknown policy field must be rejected".to_owned()),
-                Err(error) => error,
-            };
+        let error = match validate_workflow_policy(
+            Some(&policy),
+            &["approve-spend", "fulfill"],
+            "policy",
+        ) {
+            Ok(_) => return Err("unknown policy field must be rejected".to_owned()),
+            Err(error) => error,
+        };
         assert!(
             error.to_string().contains("transitions"),
             "error should name the unknown field, got: {error}"
@@ -129,12 +132,15 @@ mod tests {
         let policy = policy_value(
             r#"{"guards":[{"step":"fulfill","value":"$steps.approve-spend.approval_decision.approved","equals":true}]}"#,
         )?;
-        let parsed =
-            match validate_graph_policy(Some(&policy), &["approve-spend", "fulfill"], "policy") {
-                Ok(Some(parsed)) => parsed,
-                Ok(None) => return Err("guards present".to_owned()),
-                Err(error) => return Err(format!("a guards policy must parse: {error}")),
-            };
+        let parsed = match validate_workflow_policy(
+            Some(&policy),
+            &["approve-spend", "fulfill"],
+            "policy",
+        ) {
+            Ok(Some(parsed)) => parsed,
+            Ok(None) => return Err("guards present".to_owned()),
+            Err(error) => return Err(format!("a guards policy must parse: {error}")),
+        };
         assert_eq!(parsed.guards.len(), 1);
         Ok(())
     }
@@ -144,9 +150,10 @@ mod tests {
         let policy = policy_value(
             r#"{"guards":[{"step":"approve-spend","value":"$steps.fulfill.data.ok","equals":true}]}"#,
         )?;
-        let error = validate_graph_policy(Some(&policy), &["approve-spend", "fulfill"], "policy")
-            .err()
-            .ok_or("a guard reading a later step must be refused")?;
+        let error =
+            validate_workflow_policy(Some(&policy), &["approve-spend", "fulfill"], "policy")
+                .err()
+                .ok_or("a guard reading a later step must be refused")?;
         assert!(
             error
                 .to_string()
@@ -156,7 +163,7 @@ mod tests {
         let stale = policy_value(
             r#"{"guards":[{"step":"fulfill","field":"approve-spend.data.approved","equals":true}]}"#,
         )?;
-        let error = validate_graph_policy(Some(&stale), &["approve-spend", "fulfill"], "policy")
+        let error = validate_workflow_policy(Some(&stale), &["approve-spend", "fulfill"], "policy")
             .err()
             .ok_or("a guard's field key is not a reference")?;
         assert!(

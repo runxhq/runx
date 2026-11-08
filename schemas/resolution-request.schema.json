@@ -1214,12 +1214,12 @@
             "envelope",
             "allowance"
           ],
-          "title": "AgentActInvocation",
+          "title": "TurnInvocation",
           "type": "object",
-          "x-runx-schema": "runx.agent_act_invocation.v1"
+          "x-runx-schema": "runx.turn_invocation.v1"
         },
         "kind": {
-          "const": "agent_act",
+          "const": "turn",
           "type": "string"
         }
       },

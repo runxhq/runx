@@ -1,0 +1,22 @@
+name: refuses-general-indexing-request
+method: plan-indexing
+inputs:
+  url: https://example.com/blog/new-post
+  resource_type: article
+  reason: Ask Google to index a newly published article.
+expect:
+  status: sealed
+  steps:
+    - classify
+  step_outputs:
+    classify:
+      subset:
+        indexing_admission:
+          data:
+            schema: runx/google-search-console.indexing_admission.v1
+            decision: refused
+            reason_code: unsupported_resource_type
+            provider_status: not_called
+            external_status: not_requested
+  receipt:
+    schema: runx.receipt.v1

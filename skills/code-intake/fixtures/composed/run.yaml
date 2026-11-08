@@ -1,0 +1,24 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: code-intake
+        skill: ../..#intake
+        inputs:
+          request: The README install example is stale. It needs to match the current CLI help.
+          project_context: Runx OSS documentation
+          source_context:
+            thread_locator: github://example/project/issues/101
+            issue_locator: https://github.com/example/project/issues/101
+            artifact:
+              opaque_id: adapter-source-101
+              hydration:
+                status: complete
+              evidence:
+                - quote: The README install example is stale.
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.code-intake.request_packet

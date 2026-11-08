@@ -8,7 +8,6 @@
 //! - `skill_front`: the skill front; compiles a skill run into an execution and seals it through the act engine.
 
 pub(crate) mod graph;
-pub(crate) mod graph_index;
 pub mod harness;
 pub(crate) mod operator_context;
 pub mod orchestrator;
@@ -19,3 +18,4 @@ pub mod run_record;
 pub mod runner;
 pub(crate) mod skill_context;
 pub mod skill_front;
+pub(crate) mod workflow_index;

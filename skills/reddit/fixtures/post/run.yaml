@@ -1,0 +1,29 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+    - id: configure
+      skill: ../..#configure
+      inputs:
+        account_id: example_builder
+        config:
+          voice:
+            casing: lowercase
+            principles:
+            - answer the actual question; no closing punchline
+            examples: []
+        expected_version: 0
+    - id: publish
+      skill: ../..#publish
+      inputs:
+        account_id: example_builder
+        action:
+          kind: post
+          subreddit: learnprogramming
+          target_url: https://old.reddit.com/r/learnprogramming/submit
+          title: How do you trace a request across services?
+          body: Which request identifiers do you keep across retries?
+          allow_bare_urls: false
+          target_author: ''

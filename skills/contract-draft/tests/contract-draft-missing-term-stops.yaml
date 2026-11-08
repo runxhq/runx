@@ -1,0 +1,35 @@
+name: contract-draft-missing-term-stops
+inputs:
+  template:
+    id: msa-basic-v1
+    version: "1.0"
+    title: Services Agreement
+    required_terms:
+      - fee_usd
+      - services
+    clauses:
+      - id: fees
+        heading: Fees and Payment
+        baseline: Customer will pay USD {{terms.fee_usd}} for {{terms.services}}.
+  parties:
+    customer:
+      legal_name: Globex LLC
+  terms:
+    fee_usd: 4000
+expect:
+  status: sealed
+  steps:
+    - admit
+    - stop
+  step_outputs:
+    stop:
+      subset:
+        contract_draft:
+          data:
+            decision: refused
+            document: null
+            send_proposal: null
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

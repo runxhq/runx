@@ -1,0 +1,28 @@
+name: ghostwrite-packages-without-claiming-delivery
+method: package
+inputs:
+  channel: blog
+  draft:
+    decision: ready
+    content_brief: {objective: Explain Runx., audience: operators, channel: blog}
+    draft:
+      title: Evidence-bound execution
+      body: Receipts bind operator actions to evidence.
+      claims:
+        - {claim: Receipts bind actions., source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111]}
+    review_checklist: []
+    distribution_notes: {}
+    evidence_binding: {evidence_packet_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222, source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111]}
+    validation: {status: pass, findings: []}
+expect:
+  status: sealed
+  output:
+    subset:
+      content_publish_packet:
+        data:
+          decision: ready_for_handoff
+          delivery_status: not_sent
+          channel: blog
+          evidence_binding:
+            evidence_packet_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+  receipt: {schema: runx.receipt.v1}

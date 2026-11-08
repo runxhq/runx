@@ -1,0 +1,11 @@
+{
+  "skill_name": "attention-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Decide whether these new personal mailbox and chat observations warrant a private update.",
+      "expected_output": "Return source-bound attention and an undelivered private brief intent.",
+      "files": []
+    }
+  ]
+}

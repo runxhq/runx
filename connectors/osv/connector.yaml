@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: osv
-name: OSV
+name: osv
+title: OSV
 description: Query the OSV open source vulnerability database by exact package version and read advisory records.
 category: dev-tools
-runtime_capability: false
 auth:
   none: {}
 placements:
@@ -74,7 +73,7 @@ operations:
         requests:
           - each:
               $argument: /batches
-            method: POST
+            http_method: POST
             url: https://api.osv.dev/v1/querybatch
             body:
               queries:
@@ -109,14 +108,13 @@ operations:
         requests:
           - each:
               $argument: /ids
-            method: GET
+            http_method: GET
             url:
               $concat:
                 - https://api.osv.dev/v1/vulns/
                 - $item: ""
   vulnerabilities.query_pages:
-    description: Read full OSV vulnerability records for exact package versions, continuing each query with its
-      own body cursor. Preserve native partial and unstarted outcomes.
+    description: Read full OSV vulnerability records for exact package versions, continuing each query with its own body cursor. Preserve native partial and unstarted outcomes.
     verb: read
     cost: {usd_micro: 0, per: request, source: observed}
     scopes:
@@ -172,12 +170,10 @@ operations:
         requests:
           - each:
               $argument: /queries
-            method: POST
+            http_method: POST
             url: https://api.osv.dev/v1/query
             body:
               $item: ""
             pages:
-              in: body
-              param: /page_token
-              cursor: next_page_token
               items: vulns
+              next: {cursor: next_page_token, param: /page_token, in: body}

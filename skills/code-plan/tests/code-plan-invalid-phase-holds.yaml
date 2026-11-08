@@ -1,0 +1,56 @@
+name: code-plan-invalid-phase-holds
+inputs:
+  objective: Plan a bounded docs update.
+host:
+  answers:
+    draft:
+      work_plan_draft:
+        decision: ready
+        plan_kind: workspace_change
+        change_set:
+          change_set_id: change_set_docs
+          thread_locator: objective://docs
+          summary: Plan a bounded docs update.
+          category: docs
+          severity: low
+          recommended_lane: code-plan
+          commence_decision: approve
+          action_decision: proceed_to_plan
+          target_surfaces: []
+          shared_invariants: []
+          success_criteria:
+            - Documentation is updated.
+        objective_summary: Plan a bounded docs update.
+        workspace_change_plan:
+          plan_id: plan_docs
+          change_set_id: change_set_docs
+          objective_summary: Plan a bounded docs update.
+          shared_invariants: []
+          success_criteria:
+            - Documentation is updated.
+          phases:
+            - id: update-docs
+              name: Update docs
+              depends_on:
+                - missing-phase
+              parallelizable: false
+              repo_change_requests: []
+          integration_checks:
+            - Documentation build passes.
+          open_questions: []
+        orchestration_steps: []
+        required_skills: []
+        open_questions: []
+expect:
+  status: sealed
+  step_outputs:
+    validate:
+      subset:
+        decision: blocked
+        workspace_change_plan: {}
+        orchestration_steps: []
+        validation:
+          status: hold
+          findings:
+            - code: phase.unknown_dependency
+              path: workspace_change_plan.phases[0].depends_on[0]

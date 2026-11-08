@@ -8,12 +8,12 @@
 mod credential_delivery_fixtures;
 mod doctor_fixtures;
 mod fixture_support;
-mod harness_spine_fixtures;
 mod host_protocol_fixtures;
 mod operational_policy;
 mod operational_proposal_fixtures;
 mod purchase;
 mod reference;
+mod run_spine_fixtures;
 mod schema_validation;
 mod schema_wire_conformance;
 mod x402;

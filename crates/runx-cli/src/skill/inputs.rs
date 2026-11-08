@@ -29,7 +29,7 @@ impl CliInputs {
         if self.texts.is_empty() {
             return Ok(BTreeMap::new());
         }
-        runx_runtime::skill_front::runner_inputs_from_text(skill_path, runner, &self.texts)
+        runx_runtime::skill_front::method_inputs_from_text(skill_path, runner, &self.texts)
             .map_err(|error| error.to_string())
     }
 

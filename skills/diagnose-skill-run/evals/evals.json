@@ -1,0 +1,23 @@
+{
+  "skill_name": "diagnose-skill-run",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Diagnose why this Skill Lab run failed and propose the smallest fix.",
+      "expected_output": "Return an evidence-bound failure diagnosis and bounded improvement proposal without replaying the failed run.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Diagnose a problem without any selected receipt or failure material.",
+      "expected_output": "Return the precise missing evidence without a ledger scan, reviewer act or proposed repair.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Explain this failed invocation from the exact input-contract error.",
+      "expected_output": "Diagnose the caller input and make no unrelated receipt lookup or failed-operation replay.",
+      "files": []
+    }
+  ]
+}

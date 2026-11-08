@@ -588,7 +588,7 @@
                   "refresh",
                   "release"
                 ],
-                "title": "HoldAction",
+                "title": "LeaseAction",
                 "type": "string"
               },
               "credential": {
@@ -618,7 +618,7 @@
               "credential",
               "target"
             ],
-            "title": "OperationHold",
+            "title": "OperationLease",
             "type": "object"
           },
           "hosted": {

@@ -1,0 +1,26 @@
+name: redact-pii-blocked
+method: redact-pii
+inputs:
+  content: Patient Avery Chen, born 1987-04-12, lives at 14 King Street.
+  mode: block
+  locale: en-US
+expect:
+  status: sealed
+  steps:
+    - block-policy
+    - block
+  step_outputs:
+    block:
+      subset:
+        redaction_report:
+          data:
+            decision: blocked
+            redacted_digest: null
+            residual_risk:
+              level: high
+              reason_code: policy_block
+            scanner:
+              status: block
+        redacted_content: ""
+  receipt:
+    schema: runx.receipt.v1

@@ -1,0 +1,35 @@
+{
+  "skill_name": "lead-enrichment",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Enrich this identified company for the requested professional facts.",
+      "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Enrich this identified person for the requested professional facts.",
+      "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Enrich this identified person for the requested professional facts.",
+      "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Enrich this identified company for the requested professional facts.",
+      "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Enrich this identified person for the requested professional facts.",
+      "expected_output": "Return the actual match outcome and factual availability without qualification or outreach; retain native charging and readback evidence.",
+      "files": []
+    }
+  ]
+}

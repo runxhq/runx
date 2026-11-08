@@ -1,0 +1,8 @@
+name: google-analytics-default-requires-provider-binding
+inputs:
+  property: properties/123456
+  date_ranges: [{start_date: 30daysAgo, end_date: yesterday}]
+  dimensions: [landingPagePlusQueryString]
+  metrics: [sessions, keyEvents]
+expect:
+  status: policy_denied

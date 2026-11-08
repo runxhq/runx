@@ -1,0 +1,33 @@
+name: conversation-review-holds-incomplete-thread
+inputs:
+  source_locator: nitrosend://example/3/4
+  source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  thread_locator: nitrosend://example/3
+  title: Review the deployment
+  body: Please review the deployment.
+  thread:
+    source_locator: nitrosend://example/3/4
+    source_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    thread_locator: nitrosend://example/3
+    coverage_incomplete: true
+    messages: [{text: Please review the deployment.}]
+  source_complete: false
+host:
+  answers:
+    judge:
+      draft:
+        kind: coding
+        summary: A deployment review is requested.
+        reason: The visible message mentions a review.
+        draft_message: ""
+        request_quote: Please review the deployment.
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        conversation_packet:
+          data:
+            status: needs_context
+            validation: {status: pass, findings: []}
+  receipt: {schema: runx.receipt.v1}

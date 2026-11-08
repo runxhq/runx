@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use runx_contracts::{JsonNumber, JsonValue};
 
-use super::runner_inputs_from_text;
+use super::method_inputs_from_text;
 
 /// A skill whose runner declares a string code and an integer count.
 fn skill() -> tempfile::TempDir {
@@ -32,7 +32,7 @@ fn texts(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
 #[test]
 fn each_text_is_read_by_its_declared_type() {
     let skill = skill();
-    let inputs = runner_inputs_from_text(
+    let inputs = method_inputs_from_text(
         skill.path(),
         None,
         &texts(&[("code", "007"), ("count", "7")]),
@@ -45,11 +45,11 @@ fn each_text_is_read_by_its_declared_type() {
 #[test]
 fn a_text_that_is_not_its_type_or_not_declared_is_refused() {
     let skill = skill();
-    let wrong = runner_inputs_from_text(skill.path(), None, &texts(&[("count", "seven")]))
+    let wrong = method_inputs_from_text(skill.path(), None, &texts(&[("count", "seven")]))
         .unwrap_err()
         .to_string();
     assert!(wrong.contains("input count is integer"), "{wrong}");
-    let undeclared = runner_inputs_from_text(skill.path(), None, &texts(&[("limit", "3")]))
+    let undeclared = method_inputs_from_text(skill.path(), None, &texts(&[("limit", "3")]))
         .unwrap_err()
         .to_string();
     assert!(

@@ -50,9 +50,7 @@ the plan.
 
 Inputs are `objective`, optional `project_context`, `thread_locator`, `thread`, `change_set`, and `harness_context`. `harness_context` is passed through from the caller; the agent does not reconstruct or advance it.
 
-## Agent task contracts
-
-### `code-plan-draft`
+## Agent task: code-plan-draft
 
 Return work_plan_draft with decision, plan_kind, change_set, objective_summary,
 workspace_change_plan, orchestration_steps, required_skills, and open_questions. Preserve a

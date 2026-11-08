@@ -1,0 +1,59 @@
+name: account-refusal-requires-review
+package: fixtures/account-stop
+setup:
+  credentials:
+  - twitter
+env:
+  TWITTER_USER_AUTH: '{"consumer_key":"harness-consumer","consumer_secret":"harness-secret","access_token":"harness-access","access_secret":"harness-access-secret"}'
+host:
+  approvals:
+    batch1#request: true
+providers:
+  http:
+  - request:
+      method: GET
+      url: https://api.x.com/2/users/me?user.fields=created_at%2Cdescription%2Cpublic_metrics
+      body: none
+    response:
+      status: 200
+      headers:
+        content-type: application/json
+      body: '{"data":{"id":"42","username":"example","name":"Example","description":"","public_metrics":{"followers_count":1,"following_count":2,"tweet_count":1}}}'
+  - request:
+      method: DELETE
+      url: https://api.x.com/2/tweets/7001
+      body: none
+    response:
+      status: 401
+      headers:
+        content-type: application/json
+      body: '{"title":"Unauthorized","detail":"The user credential is no longer valid."}'
+expect:
+  status: sealed
+  step_outputs:
+    batch1:
+      subset:
+        twitter_execution:
+          data:
+            decision: stopped
+            counts:
+              processed: 0
+              succeeded: 0
+              failed: 0
+            stop:
+              action: review
+              code: unauthorized
+            last_failure: null
+    status1:
+      subset:
+        twitter_status:
+          decision: stopped
+          counts:
+            processed: 0
+            succeeded: 0
+            failed: 0
+          next_input: null
+          stop:
+            action: review
+            code: unauthorized
+          last_failure: null

@@ -1,0 +1,10 @@
+name: reddit-self-vote-refused
+package: fixtures/vote-admission
+inputs: {}
+expect:
+  status: sealed
+  step_outputs:
+    vote:
+      subset:
+        result:
+          status: refused

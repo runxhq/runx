@@ -1,0 +1,17 @@
+{
+  "skill_name": "organic-growth",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Prioritize SEO and answer-engine growth work from this bounded search, analytics, site, and market evidence.",
+      "expected_output": "Return evidence-bound priorities, actions, and a measurement plan without guaranteed-ranking claims.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Prioritize SEO and answer-engine growth work from this bounded search, analytics, site, and market evidence.",
+      "expected_output": "Return evidence-bound priorities, actions, and a measurement plan without guaranteed-ranking claims.",
+      "files": []
+    }
+  ]
+}

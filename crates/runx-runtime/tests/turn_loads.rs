@@ -23,7 +23,7 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 const TURN: &str = "work";
 
 /// A runner's body that digests its value.
-const DIGEST_RUNNER: &str = "    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n";
+const DIGEST_METHOD: &str = "    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n";
 
 /// A project whose registry publishes `acme/echo` at each tier asked.
 struct Project {
@@ -42,18 +42,18 @@ impl Project {
     /// Publish `acme/<name>@<version>` at `tier`: one runner, `say`, that
     /// digests its value.
     fn publish(&self, name: &str, version: &str, tier: TrustTier, note: &str) -> TestResult {
-        self.publish_runners(
+        self.publish_methods(
             name,
             version,
             tier,
             note,
-            &format!("  say:\n    default: true\n{DIGEST_RUNNER}"),
+            &format!("  say:\n    default: true\n{DIGEST_METHOD}"),
         )
     }
 
     /// Publish `acme/<name>@<version>` at `tier` with the `runners` of its
     /// profile.
-    fn publish_runners(
+    fn publish_methods(
         &self,
         name: &str,
         version: &str,
@@ -402,16 +402,16 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
 }
 
 #[test]
-fn a_skill_of_several_runners_is_read_without_trust_and_binds_the_runner_named() -> TestResult {
+fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named() -> TestResult {
     let temp = tempdir()?;
     let project = Project::new(temp.path())?;
-    project.publish_runners(
+    project.publish_methods(
         "voice",
         "1.0.0",
         TrustTier::Community,
         "",
         &format!(
-            "  say:\n    default: true\n    description: Say the value as given.\n{DIGEST_RUNNER}  shout:\n    description: Say the value loudly, when the person asks for emphasis.\n{DIGEST_RUNNER}"
+            "  say:\n    default: true\n    description: Say the value as given.\n{DIGEST_METHOD}  shout:\n    description: Say the value loudly, when the person asks for emphasis.\n{DIGEST_METHOD}"
         ),
     )?;
     let run_id =

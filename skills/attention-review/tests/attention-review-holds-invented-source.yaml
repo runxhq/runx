@@ -1,0 +1,34 @@
+name: attention-review-holds-invented-source
+inputs:
+  objective: Check new personal observations.
+  as_of: "2026-10-02T10:00:00Z"
+  evidence:
+    - source_id: chat-1
+      source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      source_kind: chat
+      observed_at: "2026-10-02T09:55:00Z"
+      summary: A routine status update.
+  current_actions: []
+  allowed_action_ids: [private_update]
+  min_check_minutes: 15
+  max_check_minutes: 60
+host:
+  answers:
+    judge:
+      draft:
+        decision: brief
+        items: [{source_id: invented, priority: high}]
+        recommended_action_ids: [private_update]
+        next_check_minutes: 20
+expect:
+  status: sealed
+  steps: [judge, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        attention_packet:
+          data:
+            decision: held
+            delivery_status: not_sent
+            validation: {status: fail}
+  receipt: {schema: runx.receipt.v1}

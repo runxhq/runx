@@ -406,7 +406,7 @@ pub enum SkillValidationSchema {
 #[serde(rename_all = "snake_case")]
 pub enum SkillValidationVerdict {
     Tested,
-    NeedsConsequentialHarnessApproval,
+    NeedsConsequentialTestApproval,
     ValidationFailed,
 }
 
@@ -470,7 +470,7 @@ pub struct SkillCatalogEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fixtures: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub harness_cases: Option<u64>,
+    pub test_cases: Option<u64>,
 }
 
 #[cfg(test)]

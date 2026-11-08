@@ -496,7 +496,7 @@ pub(crate) fn build_local_provision_observation(
         request_id: format!("local-credential-provision/{material_id_hex}").into(),
         response_id: None,
         status: CredentialDeliveryObservationStatus::Delivered,
-        harness_ref: Reference::with_uri(
+        run_ref: Reference::with_uri(
             ReferenceType::Harness,
             "runx:harness:local-credential-provision",
         ),

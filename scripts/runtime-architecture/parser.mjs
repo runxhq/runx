@@ -29,15 +29,15 @@ export function checkCanonicalParserOwnership(findings) {
     }
   }
 
-  const runtimeHarnessFixturePath = path.join(
+  const runtimeTestFixturePath = path.join(
     workspaceRoot,
     "crates/runx-runtime/src/execution/harness/fixtures.rs",
   );
-  const runtimeHarnessFixture = existsSync(runtimeHarnessFixturePath)
-    ? productionRustSource(readFileSync(runtimeHarnessFixturePath, "utf8"))
+  const runtimeTestFixture = existsSync(runtimeTestFixturePath)
+    ? productionRustSource(readFileSync(runtimeTestFixturePath, "utf8"))
     : "";
-  if (/pub\s+fn\s+parse_harness_fixture|\bproject_parser_error\b|HarnessFixtureError::(?:Required|Empty|Invalid|UnknownReceiptField)/u.test(runtimeHarnessFixture)) {
-    findings.push(`${relative(runtimeHarnessFixturePath)} mirrors parser-owned harness parsing or diagnostics`);
+  if (/pub\s+fn\s+parse_test_fixture|\bproject_parser_error\b|TestFixtureError::(?:Required|Empty|Invalid|UnknownReceiptField)/u.test(runtimeTestFixture)) {
+    findings.push(`${relative(runtimeTestFixturePath)} mirrors parser-owned harness parsing or diagnostics`);
   }
   const runtimeConfigPath = path.join(workspaceRoot, "crates/runx-runtime/src/config.rs");
   const runtimeConfig = existsSync(runtimeConfigPath)
@@ -82,8 +82,8 @@ export function checkCanonicalParserOwnership(findings) {
   const parserBridge = existsSync(parserBridgePath) ? readFileSync(parserBridgePath, "utf8") : "";
   for (const token of [
     "rustExampleBinary(\"runx-parser\", \"parser_eval\"",
-    "validateRunnerManifestYamlBatch",
-    "validateHarnessFixtureYamlBatch",
+    "validateMethodManifestYamlBatch",
+    "validateTestFixtureYamlBatch",
     "parsePacketSchemaDocumentsBatch",
   ]) {
     if (!parserBridge.includes(token)) {
@@ -102,7 +102,7 @@ export function checkCanonicalParserOwnership(findings) {
     'schema["x-runx-schema"]',
     'path.join(workspaceRoot, "schemas")',
     '["list", "packets", "--json"]',
-    "validateRunnerManifestYamlBatch",
+    "validateMethodManifestYamlBatch",
   ]) {
     if (!packetCollector.includes(token)) {
       findings.push(`${relative(packetCollectorPath)} must read packets through the Rust contracts and the native parser`);
@@ -126,7 +126,7 @@ export function checkCanonicalParserOwnership(findings) {
   const skillFixtureGenerator = existsSync(skillFixtureGeneratorPath)
     ? readFileSync(skillFixtureGeneratorPath, "utf8")
     : "";
-  if (!skillFixtureGenerator.includes("validateRunnerManifestYamlBatch")) {
+  if (!skillFixtureGenerator.includes("validateMethodManifestYamlBatch")) {
     findings.push(`${relative(skillFixtureGeneratorPath)} must consume parser-owned typed runner structure`);
   }
 
@@ -149,13 +149,13 @@ export function checkCanonicalParserOwnership(findings) {
       findings.push(`${relative(packetCatalogPath)} lacks canonical packet catalog token ${token}`);
     }
   }
-  const graphTypesPath = path.join(workspaceRoot, "crates/runx-parser/src/graph/types.rs");
-  const graphTypes = existsSync(graphTypesPath) ? readFileSync(graphTypesPath, "utf8") : "";
-  if (!/pub\s+artifacts:\s+Option<SkillArtifactContract>/u.test(graphTypes)) {
-    findings.push(`${relative(graphTypesPath)} must expose parser-validated graph artifact contracts`);
+  const workflowTypesPath = path.join(workspaceRoot, "crates/runx-parser/src/graph/types.rs");
+  const workflowTypes = existsSync(workflowTypesPath) ? readFileSync(workflowTypesPath, "utf8") : "";
+  if (!/pub\s+artifacts:\s+Option<SkillArtifactContract>/u.test(workflowTypes)) {
+    findings.push(`${relative(workflowTypesPath)} must expose parser-validated graph artifact contracts`);
   }
-  if (!/pub\s+kind:\s+StepKind/u.test(graphTypes)) {
-    findings.push(`${relative(graphTypesPath)} must expose parser-validated step kinds`);
+  if (!/pub\s+kind:\s+StepKind/u.test(workflowTypes)) {
+    findings.push(`${relative(workflowTypesPath)} must expose parser-validated step kinds`);
   }
   for (const filePath of rustFiles("crates")) {
     if (filePath.startsWith(`${parserRoot}${path.sep}`)) continue;
@@ -177,8 +177,8 @@ export function checkCanonicalParserOwnership(findings) {
   const operatorContext = existsSync(operatorContextPath)
     ? productionRustSource(readFileSync(operatorContextPath, "utf8"))
     : "";
-  if (!/struct\s+SkillOperatorContextStep[\s\S]*?pub\s+definition:\s+GraphStep/u.test(operatorContext)) {
-    findings.push(`${relative(operatorContextPath)} must retain GraphStep as the typed graph-step owner`);
+  if (!/struct\s+SkillOperatorContextStep[\s\S]*?pub\s+definition:\s+WorkflowStep/u.test(operatorContext)) {
+    findings.push(`${relative(operatorContextPath)} must retain WorkflowStep as the typed workflow-step owner`);
   }
   const preparedSkillPath = path.join(
     workspaceRoot,
@@ -188,6 +188,6 @@ export function checkCanonicalParserOwnership(findings) {
     ? productionRustSource(readFileSync(preparedSkillPath, "utf8"))
     : "";
   if (/step\.raw|json_field\s*\(\s*&step\.|collect_string_values\s*\(\s*&step\./u.test(preparedSkill)) {
-    findings.push(`${relative(preparedSkillPath)} reparses serialized graph steps instead of using GraphStep`);
+    findings.push(`${relative(preparedSkillPath)} reparses serialized graph steps instead of using WorkflowStep`);
   }
 }

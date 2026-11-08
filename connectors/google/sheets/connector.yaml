@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: google/sheets
-name: Google Sheets
+name: google/sheets
+title: Google Sheets
 description: Read selected spreadsheet metadata and one explicitly bounded cell range.
 category: productivity
-runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -35,7 +34,7 @@ operations:
         allowed_hosts: [sheets.googleapis.com]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://sheets.googleapis.com/v4/spreadsheets/', {$argument: /spreadsheet_id}]}
             headers: {accept: application/json}
             query:
@@ -66,7 +65,7 @@ operations:
         allowed_hosts: [sheets.googleapis.com]
         auth: {access_token: {type: bearer, field: access_token}}
         requests:
-          - method: GET
+          - http_method: GET
             url: {$concat: ['https://sheets.googleapis.com/v4/spreadsheets/', {$argument: /spreadsheet_id}, '/values:batchGet']}
             headers: {accept: application/json}
             query:

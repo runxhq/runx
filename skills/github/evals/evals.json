@@ -1,0 +1,47 @@
+{
+  "skill_name": "github",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "What changed in runxhq/runx since 8am yesterday, Sydney time?",
+      "expected_output": "Read the issues and pull requests updated since then once, with the signed-in gh session and no approval, and return each in a few fields, newest change first.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Post this exact review comment to the selected GitHub pull request.",
+      "expected_output": "Post the approved comment once and return independent GitHub readback for the exact body.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Post this review comment without a local or hosted GitHub binding.",
+      "expected_output": "Refuse with one actionable grant error before mutating GitHub.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Read issue 241 in runxhq/runx.",
+      "expected_output": "Read the exact issue with the signed-in account; no synchronization direction, requested scope, store write or mutation.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "List the open triage issues in runxhq/runx using the GitHub account already authenticated on this machine.",
+      "expected_output": "Read the bounded issue list once with the signed-in gh session, without approval, and return GitHub's issues as provider evidence.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Label issue 241 in runxhq/runx as triage using the GitHub account signed in on this machine.",
+      "expected_output": "Apply the one approved label update and confirm it by reading the issue back.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Open an issue in runxhq/runx titled \"Harness cases for issue creation\", labelled triage, using the GitHub account signed in on this machine.",
+      "expected_output": "Open the one approved issue and confirm it by reading the new issue back.",
+      "files": []
+    }
+  ]
+}

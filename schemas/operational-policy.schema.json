@@ -180,7 +180,7 @@
             "minLength": 1,
             "type": "string"
           },
-          "runner_id": {
+          "method_id": {
             "minLength": 1,
             "pattern": "^[A-Za-z0-9_.:-]+$",
             "type": "string"
@@ -194,7 +194,7 @@
               "disabled",
               "maintenance"
             ],
-            "title": "OperationalPolicyRunnerState",
+            "title": "OperationalPolicyMethodState",
             "type": "string"
           },
           "target_repos": {
@@ -208,14 +208,14 @@
           }
         },
         "required": [
-          "runner_id",
+          "method_id",
           "kind",
           "state",
           "allowed_actions",
           "target_repos",
           "scafld_required"
         ],
-        "title": "OperationalPolicyRunnerRule",
+        "title": "OperationalPolicyMethodRule",
         "type": "object"
       },
       "minItems": 1,
@@ -368,7 +368,7 @@
             "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
             "type": "string"
           },
-          "runner_ids": {
+          "method_ids": {
             "items": {
               "minLength": 1,
               "pattern": "^[A-Za-z0-9_.:-]+$",
@@ -383,7 +383,7 @@
         },
         "required": [
           "repo",
-          "runner_ids",
+          "method_ids",
           "allowed_actions",
           "default_owner_route",
           "scafld_required"

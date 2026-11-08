@@ -1,0 +1,42 @@
+name: blocks-hourly-data-without-hour-dimension
+method: normalize-performance
+inputs:
+  request:
+    property: https://example.com/
+    start_date: 2026-07-19
+    end_date: 2026-07-20
+    dimensions:
+      - page
+    search_type: web
+    data_state: hourly_all
+  provider_result:
+    property: https://example.com/
+    start_date: 2026-07-19
+    end_date: 2026-07-20
+    dimensions:
+      - page
+    search_type: web
+    data_state: hourly_all
+    rows: []
+    row_count: 0
+    pagination:
+      complete: true
+      returned_rows: 0
+expect:
+  status: sealed
+  steps:
+    - normalize
+    - digest
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        performance_evidence:
+          data:
+            decision: blocked
+            validation:
+              status: fail
+              findings:
+                - code: gsc.hourly_all.hour_dimension_missing
+  receipt:
+    schema: runx.receipt.v1

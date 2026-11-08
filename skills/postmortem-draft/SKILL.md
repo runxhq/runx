@@ -61,7 +61,7 @@ reviewed content remains with `message-send` and its native approval and
 provider readback. Incident tasks remain with the selected task owner.
 `publish_performed` is always false.
 
-## Agent task contract
+## Agent task: postmortem-draft-draft
 
 For `postmortem-draft-draft`, return exactly `postmortem_draft` with
 `summary`, `impact`, `timeline` (entry, fragment_id, quote), `root_cause`,

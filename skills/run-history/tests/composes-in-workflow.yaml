@@ -1,0 +1,6 @@
+name: run-history-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps: [run-history, digest]
+  receipt: {schema: runx.receipt.v1}

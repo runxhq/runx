@@ -1,0 +1,39 @@
+name: attention-review-uses-verified-work-result
+inputs:
+  objective: Reassess the observed request using a verified pull-request status.
+  as_of: "2026-10-02T10:05:00Z"
+  evidence:
+    - source_id: chat-1
+      source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      thread_locator: https://github.com/example/project/pull/12
+      source_kind: chat
+      observed_at: "2026-10-02T09:55:00Z"
+      summary: A colleague asks to review a pull request.
+  current_actions: [{source_id: chat-1, state: open}]
+  allowed_action_ids: []
+  work_routes: []
+  work_results:
+    - {source_id: chat-1, source_digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route_id: pr_status, target_locator: 'https://github.com/example/project/pull/12', kind: github_pr_status, status: closed, summary: 'Pull request closed: Example change', source_complete: true, checked_at: '2026-10-02T10:04:00Z', receipt: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}
+  min_check_minutes: 15
+  max_check_minutes: 60
+host:
+  answers:
+    judge:
+      draft:
+        decision: idle
+        items: []
+        recommended_action_ids: []
+        work_proposals: []
+        next_check_minutes: 60
+expect:
+  status: sealed
+  steps: [judge, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        attention_packet:
+          data:
+            decision: idle
+            work_proposals: []
+            validation: {status: pass}
+  receipt: {schema: runx.receipt.v1}

@@ -1,0 +1,57 @@
+name: rejects-invented-recommendation-evidence
+method: analyze
+inputs:
+  objective: Improve the guide.
+  site_url: https://example.com/
+  site_evidence:
+    - source_uri: https://example.com/guides/runx
+      kind: first_party_page
+      content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      summary: The page contains an installation guide.
+host:
+  answers:
+    analyze:
+      growth_candidate:
+        decision: ready
+        objective: Improve the guide.
+        site_url: https://example.com/
+        executive_summary: Add unsupported material.
+        observations: []
+        hypotheses: []
+        opportunities: []
+        recommended_actions:
+          - id: invented
+            title: Publish an invented benchmark.
+            rationale: Unsupported.
+            priority: high
+            confidence: high
+            effort: low
+            expected_signal: More traffic.
+            verification: Observe traffic.
+            stop_condition: None.
+            source_digests: [sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd]
+        geo_review: {assessment: "", source_digests: []}
+        measurement_plan:
+          baseline: Current traffic.
+          leading_signals: Traffic.
+          business_outcomes: Revenue.
+          comparison_window: Later.
+          reconsideration_trigger: No change.
+        claims:
+          - claim: An invented benchmark will improve traffic.
+            source_digests: [sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd]
+        risks: []
+        missing_evidence: []
+        external_status: not_executed
+expect:
+  status: sealed
+  steps: [admit, analyze, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        organic_growth_packet:
+          data:
+            decision: needs_more_evidence
+            validation: {status: fail}
+            external_status: not_executed
+  receipt: {schema: runx.receipt.v1}

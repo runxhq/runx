@@ -1,51 +1,40 @@
-skill: receipt-audit
 version: "0.3.13"
+minimum_runx: 0.12.0
+default_method: audit
 catalog:
-  publisher: runx
-  kind: graph
-  audience: operator
   visibility: public
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: security
-tools: [receipt.read, receipt.prove]
 
-runners:
+methods:
   audit:
     description: "Read selected receipt evidence or reuse a supplied ledger packet, then assess only the recorded authority and claims."
-    default: true
     inputs:
       receipt_evidence:
         type: object
-        required: false
         default: {}
         description: Completed ledger packet to reuse without repeating the query.
+        optional: true
       receipt_id:
         type: string
-        required: false
         description: Exact receipt id to resolve through the native ledger.
+        optional: true
       receipt_summary:
         type: string
-        required: false
         description: Sanitized authority, act, approval, refusal, and material-reference summary.
+        optional: true
       granted_scopes:
-        type: json
-        required: false
         description: Operator grant baseline to compare with the receipt's native exercised authority.
+        optional: true
       objective:
         type: string
-        required: false
         description: Operator intent focusing the audit.
+        optional: true
       receipt_rows:
-        type: json
-        required: false
         description: Explicit native-projection rows for deterministic replay only.
+        optional: true
       receipt_details:
-        type: json
-        required: false
         description: Explicit native redacted receipt details for deterministic replay only.
+        optional: true
     result_from: [review-queried, review-supplied]
     examples:
       - receipt_id: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -55,8 +44,7 @@ runners:
         inputs: {actual: $input.receipt_evidence, expected: {}}
       - id: evidence
         when: {value: $steps.select-evidence.comparison.equal, equals: true}
-        skill: ../receipt-query
-        runner: read
+        skill: ../receipt-query#read
         inputs:
           question: Resolve the exact receipt referenced by this governance audit.
           receipt_ids: [$input.receipt_id]
@@ -65,8 +53,7 @@ runners:
           receipt_details: $input.receipt_details
       - id: review-queried
         when: {value: $steps.select-evidence.comparison.equal, equals: true}
-        skill: .
-        runner: from-evidence
+        skill: .#from-evidence
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
@@ -75,8 +62,7 @@ runners:
           receipt_evidence: $steps.evidence.ledger_answer_packet
       - id: review-supplied
         when: {value: $steps.select-evidence.comparison.equal, equals: false}
-        skill: .
-        runner: from-evidence
+        skill: .#from-evidence
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
@@ -88,19 +74,18 @@ runners:
     description: Review a completed ledger packet without resolving it again or replaying the original action.
     inputs:
       receipt_evidence:
-        type: json
-        required: true
         packet: runx/receipt-query.answer.v1
         description: Completed ledger evidence; preserve its verification and source posture.
-      receipt_id: {type: string, required: false}
-      granted_scopes: {type: json, required: false}
-      objective: {type: string, required: false}
-      receipt_summary: {type: string, required: false}
+      receipt_id: {type: string, optional: true}
+      granted_scopes: {optional: true}
+      objective: {type: string, optional: true}
+      receipt_summary: {type: string, optional: true}
     result_from: [finalize]
     steps:
       - id: audit
-        label: assess recorded governance evidence
-        agent: {role: reviewer, task: receipt-audit}
+        agent: receipt-audit
+        calls:
+          tools: [receipt.read, receipt.prove]
         inputs:
           receipt_id: $input.receipt_id
           receipt_summary: $input.receipt_summary
@@ -110,56 +95,55 @@ runners:
         outputs:
           receipt_audit:
             type: object
-            schema:
-              properties:
-                decision:
+            properties:
+              decision:
+                type: string
+              receipt_id:
+                type: string
+              granted_scopes:
+                type: array
+                items:
                   type: string
-                receipt_id:
+              exercised_scopes:
+                type: array
+                items:
                   type: string
-                granted_scopes:
-                  type: array
-                  items:
-                    type: string
-                exercised_scopes:
-                  type: array
-                  items:
-                    type: string
-                refusals:
-                  type: array
-                findings:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                      severity:
-                        type: string
-                      message:
-                        type: string
-                verdict:
-                  type: string
-                rationale:
-                  type: string
-                recommendations:
-                  type: array
-                  items:
-                    type: string
-                success_checkpoint:
+              refusals:
+                type: array
+              findings:
+                type: array
+                items:
                   type: object
                   properties:
-                    milestone:
+                    id:
                       type: string
-                    description:
+                    severity:
                       type: string
-              required:
-              - decision
-              if:
+                    message:
+                      type: string
+              verdict:
+                type: string
+              rationale:
+                type: string
+              recommendations:
+                type: array
+                items:
+                  type: string
+              success_checkpoint:
+                type: object
                 properties:
-                  decision:
-                    pattern: ^ready
-              then:
-                required:
+                  milestone:
+                    type: string
+                  description:
+                    type: string
+            required:
+              - decision
+            if:
+              properties:
+                decision:
+                  pattern: ^ready
+            then:
+              required:
                 - receipt_id
                 - granted_scopes
                 - exercised_scopes
@@ -170,18 +154,11 @@ runners:
                 - recommendations
                 - success_checkpoint
       - id: finalize
-        label: bind assessment to observable evidence
         tool: {module: receipt-audit.mjs}
         inputs:
           receipt_id: $input.receipt_id
           granted_scopes: $input.granted_scopes
           supplied_evidence: $input.receipt_evidence
           candidate: $steps.audit.receipt_audit
-        outputs: {receipt_audit: object}
-        artifacts:
-          wrap_as: receipt_audit_packet
-          packet: runx/receipt-audit.audit.v1
-
-harness:
-  files: [fixtures/support/composed.graph]
-  cases: []
+        outputs: {receipt_audit: {type: object}, receipt_audit_packet: {packet: runx/receipt-audit.audit.v1}}
+        result_as: receipt_audit_packet

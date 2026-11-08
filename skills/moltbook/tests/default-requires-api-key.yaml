@@ -1,0 +1,8 @@
+name: moltbook-default-requires-api-key
+inputs:
+  objective: Find one useful post for Runx builders.
+  as_of: "2026-07-17T12:00:00Z"
+  max_age_hours: 48
+  max_items: 50
+expect:
+  status: policy_denied

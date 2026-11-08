@@ -42,7 +42,7 @@
               "required": [
                 "name"
               ],
-              "title": "CatalogRunner",
+              "title": "CatalogMethod",
               "type": "object"
             },
             "minItems": 1,

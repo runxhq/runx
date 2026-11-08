@@ -1,0 +1,41 @@
+{
+  "skill_name": "refund",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Refund this settled charge.",
+      "expected_output": "Use the original merchant account and payment, approve the exact refund and independently confirm settlement.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Refund this settled charge.",
+      "expected_output": "Use the original merchant account and payment, approve the exact refund and independently confirm settlement.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Refund one dollar of this original Northstar collection.",
+      "expected_output": "Approve the exact outgoing amount and independently confirm its original account, payment and currency.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Refund one dollar of this original Northstar collection.",
+      "expected_output": "Approve the exact outgoing amount and independently confirm its original account, payment and currency.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Refund one dollar of this original Northstar collection.",
+      "expected_output": "Approve the exact outgoing amount and independently confirm its original account, payment and currency.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Refund one dollar of this original Northstar collection.",
+      "expected_output": "Approve the exact outgoing amount and independently confirm its original account, payment and currency.",
+      "files": []
+    }
+  ]
+}

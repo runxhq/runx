@@ -57,7 +57,7 @@ pub(crate) fn materialize_tool_inputs(
 /// Materialize the declared boundary of a nested runner from the parent
 /// graph's ambient parameter map. Parent-only parameters are not child input;
 /// explicitly mapped values still receive the child's complete validation.
-pub(crate) fn materialize_nested_runner_inputs(
+pub(crate) fn materialize_nested_method_inputs(
     declared: &BTreeMap<String, SkillInput>,
     supplied: &JsonObject,
 ) -> Result<JsonObject, InputContractError> {
@@ -73,7 +73,7 @@ pub(crate) fn materialize_nested_runner_inputs(
 
 /// Validate and normalize all values already supplied by a caller while
 /// preserving absent required inputs for the existing resolution flow.
-pub(crate) fn materialize_present_runner_inputs(
+pub(crate) fn materialize_present_method_inputs(
     declared: &BTreeMap<String, SkillInput>,
     supplied: &JsonObject,
 ) -> Result<JsonObject, InputContractError> {
@@ -93,7 +93,7 @@ pub(crate) fn materialize_present_runner_inputs(
 /// enough to return a blocked context and refusal receipt, execution and
 /// harness replay must receive every required value and must reject ambient,
 /// undeclared inputs.
-pub(crate) fn materialize_complete_runner_inputs(
+pub(crate) fn materialize_complete_method_inputs(
     declared: &BTreeMap<String, SkillInput>,
     supplied: &JsonObject,
 ) -> Result<JsonObject, InputContractError> {
@@ -401,8 +401,8 @@ mod tests {
     use runx_contracts::{InputDefinition, JsonNumber, JsonObject, JsonValue};
 
     use super::{
-        materialize_complete_runner_inputs, materialize_nested_runner_inputs,
-        materialize_present_runner_inputs,
+        materialize_complete_method_inputs, materialize_nested_method_inputs,
+        materialize_present_method_inputs,
     };
 
     fn string_input(required: bool) -> InputDefinition {
@@ -418,7 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn nested_runner_projects_its_contract_from_parent_graph_parameters()
+    fn nested_method_projects_its_contract_from_parent_workflow_parameters()
     -> Result<(), Box<dyn std::error::Error>> {
         let declared = BTreeMap::from([("objective".to_owned(), string_input(true))]);
         let supplied = JsonObject::from([
@@ -432,13 +432,13 @@ mod tests {
             ),
         ]);
 
-        let nested = materialize_nested_runner_inputs(&declared, &supplied)?;
+        let nested = materialize_nested_method_inputs(&declared, &supplied)?;
         assert_eq!(nested.len(), 1);
         assert_eq!(
             nested.get("objective").and_then(JsonValue::as_str),
             Some("Bounded question")
         );
-        assert!(materialize_present_runner_inputs(&declared, &supplied).is_err());
+        assert!(materialize_present_method_inputs(&declared, &supplied).is_err());
         Ok(())
     }
 
@@ -496,7 +496,7 @@ mod tests {
             )])),
         )]);
 
-        let Err(error) = materialize_present_runner_inputs(&declared, &supplied) else {
+        let Err(error) = materialize_present_method_inputs(&declared, &supplied) else {
             return Err("out-of-range nested input must fail".into());
         };
         let error = error.into_runtime_error();
@@ -518,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn complete_runner_rejects_missing_required_and_conditional_nested_values()
+    fn complete_method_rejects_missing_required_and_conditional_nested_values()
     -> Result<(), Box<dyn std::error::Error>> {
         let resources = InputDefinition {
             input_type: "object".to_owned(),
@@ -589,7 +589,7 @@ mod tests {
             )])),
         )]);
         assert!(
-            materialize_complete_runner_inputs(&declared, &missing_direction).is_err(),
+            materialize_complete_method_inputs(&declared, &missing_direction).is_err(),
             "execution admission must not preserve missing required inputs"
         );
 
@@ -603,7 +603,7 @@ mod tests {
                 ])),
             ),
         ]);
-        let Err(error) = materialize_complete_runner_inputs(&declared, &invalid_conditional) else {
+        let Err(error) = materialize_complete_method_inputs(&declared, &invalid_conditional) else {
             return Err("conditional nested schemas must be enforced".into());
         };
         let error = error.into_runtime_error();

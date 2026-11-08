@@ -5,29 +5,29 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use runx_contracts::RunOutcome;
 use runx_runtime::{
-    HarnessExpectedStatus, HarnessOptions, InvocationOutput, SkillAdapter, SkillInvocation,
-    run_harness_fixture_with_adapter,
+    InvocationOutput, SkillAdapter, SkillInvocation, TestExpectedStatus, TestOptions,
+    run_test_fixture_with_adapter,
 };
 
 const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 
 #[test]
-fn harness_blocks_closure_and_seals_graph_receipt() -> Result<(), Box<dyn std::error::Error>> {
+fn test_blocks_ending_and_seals_workflow_receipt() -> Result<(), Box<dyn std::error::Error>> {
     let case = TempCase::new("abnormal-seal")?;
     case.write_skill("act", "act", "approved: boolean")?;
     case.write_skill("closure", "closure", "closed: boolean")?;
-    case.write_graph()?;
-    case.write_harness()?;
+    case.write_workflow()?;
+    case.write_test()?;
 
     let adapter = RecordingAdapter::default();
     let output =
-        run_harness_fixture_with_adapter(case.harness_path(), adapter.clone(), runtime_options()?)?;
+        run_test_fixture_with_adapter(case.test_path(), adapter.clone(), runtime_options()?)?;
 
-    assert_eq!(output.status, HarnessExpectedStatus::PolicyDenied);
+    assert_eq!(output.status, TestExpectedStatus::PolicyDenied);
     assert_eq!(output.receipt.seal.outcome, RunOutcome::Blocked);
     assert_eq!(
         output.receipt.seal.reason,
-        Some(runx_contracts::SealReason::GraphBlocked)
+        Some(runx_contracts::SealReason::WorkflowBlocked)
     );
     assert_eq!(output.step_receipts.len(), 1);
     assert_eq!(output.step_receipts[0].seal.outcome, RunOutcome::Completed);
@@ -112,7 +112,7 @@ impl TempCase {
         Ok(Self { root })
     }
 
-    fn harness_path(&self) -> PathBuf {
+    fn test_path(&self) -> PathBuf {
         self.root.join("harness.yaml")
     }
 
@@ -146,7 +146,7 @@ runners:
         )
     }
 
-    fn write_graph(&self) -> Result<(), std::io::Error> {
+    fn write_workflow(&self) -> Result<(), std::io::Error> {
         fs::write(
             self.root.join("graph.yaml"),
             r#"name: abnormal-seal-gate
@@ -165,9 +165,9 @@ policy:
         )
     }
 
-    fn write_harness(&self) -> Result<(), std::io::Error> {
+    fn write_test(&self) -> Result<(), std::io::Error> {
         fs::write(
-            self.harness_path(),
+            self.test_path(),
             r#"name: abnormal-seal
 kind: graph
 target: graph.yaml
@@ -177,7 +177,7 @@ expect:
     schema: runx.receipt.v1
     state: sealed
     outcome: blocked
-    reason: graph_blocked
+    reason: workflow_blocked
   steps:
     - act
 "#,
@@ -191,8 +191,8 @@ impl Drop for TempCase {
     }
 }
 
-fn runtime_options() -> Result<HarnessOptions, runx_runtime::RuntimeError> {
-    let mut options = HarnessOptions::new(std::env::vars().collect())?;
+fn runtime_options() -> Result<TestOptions, runx_runtime::RuntimeError> {
+    let mut options = TestOptions::new(std::env::vars().collect())?;
     options.clock = runx_runtime::RunClock::Fixed(FIXTURE_CREATED_AT.to_owned());
     Ok(options)
 }

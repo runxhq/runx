@@ -3,14 +3,14 @@
 use std::path::Path;
 
 use runx_contracts::Reference;
-use runx_parser::GraphStep;
+use runx_parser::WorkflowStep;
 
 use super::super::graph::{
     LoadedStepSkill, materialize_step_act_with_index,
     materialize_step_invocation_inputs_with_index,
     materialize_step_invocation_provenance_with_index,
 };
-use super::super::graph_index::PriorRunIndex;
+use super::super::workflow_index::PriorRunIndex;
 use super::step_handlers::{StepRunRequest, run_step_with_inputs};
 use super::{Runtime, StepRun};
 use crate::RuntimeError;
@@ -19,9 +19,9 @@ use crate::host::Host;
 
 pub(super) struct LoadedStepExecutionRequest<'a, A: SkillAdapter> {
     pub(super) runtime: &'a Runtime<A>,
-    pub(super) graph_dir: &'a Path,
-    pub(super) graph_name: &'a str,
-    pub(super) step: &'a GraphStep,
+    pub(super) workflow_dir: &'a Path,
+    pub(super) workflow_name: &'a str,
+    pub(super) step: &'a WorkflowStep,
     pub(super) attempt: u32,
     pub(super) loaded_skill: Option<LoadedStepSkill>,
     pub(super) admission_refs: Vec<Reference>,
@@ -68,8 +68,8 @@ where
 {
     let LoadedStepExecutionRequest {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         loaded_skill,
@@ -78,8 +78,8 @@ where
     } = request;
     let request = StepRunRequest {
         runtime,
-        graph_dir,
-        graph_name,
+        workflow_dir,
+        workflow_name,
         step,
         attempt,
         inputs,

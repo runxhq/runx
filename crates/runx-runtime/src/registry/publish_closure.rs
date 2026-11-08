@@ -231,7 +231,7 @@ fn candidate_from_record(
         version: Some(record.version),
         signed_manifest: record.signed_manifest,
         profile_digest: record.profile_digest,
-        runner_names: record.runner_names,
+        method_names: record.method_names,
         trust_tier: Some(record.trust_tier),
         manifest_source_authority: Some(source_authority),
     }

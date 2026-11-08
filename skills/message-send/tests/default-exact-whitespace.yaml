@@ -1,0 +1,81 @@
+name: message-default-preserves-exact-whitespace
+inputs:
+  channel_locator: slack://T123/C456
+  text: |2
+      Preserve this formatting.
+  principal: runx:principal:release-bot
+  provider_context:
+    provider: slack
+    connector_status: ready
+  idempotency_key: slack-release-0-8-2-live
+host:
+  answers:
+    plan:
+      send_plan:
+        decision: ready
+        action_family: message-send
+        principal:
+          type: account
+          uri: runx:principal:release-bot
+        provider:
+          name: slack
+          account_id: workspace:T123
+          runtime_path: slack
+        send_class: status
+        channel: chat
+        audience:
+          type: channel
+          locator: slack://T123/C456
+          requires_reconfirmation: false
+        content:
+          draft_uri: inline:sha256:3af28b8eaecd1e85d1eb3d8be9e533f683626927351b60587c487803f03111c8
+          digest: sha256:3af28b8eaecd1e85d1eb3d8be9e533f683626927351b60587c487803f03111c8
+          subject_or_title: Release notice
+        gates:
+          preflight_required: true
+          human_approval_required: true
+          approval_id: message-send.post.approval
+        blockers: []
+        provider_actions:
+          - channel.post
+        evidence_locators: []
+        success_checkpoint:
+          milestone: provider_delivery_required
+          description: The exact Slack notification is ready for provider delivery.
+  approvals:
+    deliver#deliver: true
+providers:
+  hosted:
+    principal_id: operator-fixture
+    grant:
+      grant_id: message-send-fixture
+      provider: slack
+      scopes:
+        - channel.post
+        - channel.post.read
+    operations:
+      - operation: channel.post
+        target: slack://T123/C456
+        access: mutate
+        result:
+          message_locator: slack://T123/C456/1750000000.000001
+          conversation_locator: slack://T123/C456
+          content_digest: sha256:3af28b8eaecd1e85d1eb3d8be9e533f683626927351b60587c487803f03111c8
+          occurred_at: 2026-08-11T00:00:00Z
+      - operation: channel.post.read
+        target: slack://T123/C456
+        access: read
+        result:
+          message_locator: slack://T123/C456/1750000000.000001
+          conversation_locator: slack://T123/C456
+          content_digest: sha256:3af28b8eaecd1e85d1eb3d8be9e533f683626927351b60587c487803f03111c8
+          occurred_at: 2026-08-11T00:00:00Z
+expect:
+  status: sealed
+  steps:
+    - plan
+    - deliver
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

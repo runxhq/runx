@@ -17,7 +17,7 @@ const policy = {
   ],
   runners: [
     {
-      runner_id: "review",
+      method_id: "review",
       kind: "local",
       state: "available",
       allowed_actions: ["issue-intake"],
@@ -29,7 +29,7 @@ const policy = {
   targets: [
     {
       repo: "test/repo",
-      runner_ids: ["review"],
+      method_ids: ["review"],
       allowed_actions: ["issue-intake"],
       default_owner_route: "maintainers",
       scafld_required: true,

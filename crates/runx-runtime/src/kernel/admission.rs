@@ -279,7 +279,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // Instance: the one binding the call runs under, with its pins current.
     // An operation on a held resource runs under what a purchase holds for
     // it, found by the target its arguments name, never a selected instance.
-    let instance = match held_resource(evaluation, &connector, operation_spec) {
+    let instance = match leased_resource(evaluation, &connector, operation_spec) {
         Some(Ok(instance)) => instance,
         Some(Err(detail)) => return Err(reasons.refuse(AdmissionCheck::Instance, detail)),
         None => match standing_instance(evaluation.context, &connector, evaluation.run_authority) {
@@ -646,7 +646,7 @@ fn held(
 pub fn skill_readiness(
     skill_dir: &Path,
     requirements: &BTreeMap<String, ConnectorRequirement>,
-    calls: &[runx_parser::GraphStep],
+    calls: &[runx_parser::WorkflowStep],
     authority: Option<&RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -684,7 +684,7 @@ pub fn connector_readiness(
 fn project(
     scope: &ConnectorScope,
     requirements: &BTreeMap<String, ConnectorRequirement>,
-    calls: &[runx_parser::GraphStep],
+    calls: &[runx_parser::WorkflowStep],
     authority: Option<&RunAuthority>,
     env: &BTreeMap<String, String>,
     cwd: &Path,
@@ -762,7 +762,7 @@ fn readiness(
     reference: &str,
     requirement: &ConnectorRequirement,
     operation: &OperationName,
-    calls: &[runx_parser::GraphStep],
+    calls: &[runx_parser::WorkflowStep],
     authority: Option<&RunAuthority>,
     context: Context<'_>,
 ) -> Readiness {
@@ -1166,7 +1166,7 @@ fn pins_current(
 /// What a purchase holds for the call's resource, pinned for this call: the
 /// operation's purchase credential on the target its arguments render. None
 /// for an operation a connector instance serves.
-fn held_resource(
+fn leased_resource(
     evaluation: &Evaluation<'_>,
     connector: &LoadedConnector,
     operation: &ConnectorOperation,

@@ -106,7 +106,7 @@ pub struct RegistrySearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_label: Option<String>,
     pub profile_mode: ProfileMode,
-    pub runner_names: Vec<String>,
+    pub method_names: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -143,7 +143,7 @@ pub struct RegistrySkillVersion {
     pub bundle_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
-    pub runner_names: Vec<String>,
+    pub method_names: Vec<String>,
     pub trust_tier: TrustTier,
     #[serde(default)]
     pub maturity: MaturityTier,
@@ -160,24 +160,24 @@ pub struct RegistrySkillVersion {
     pub required_scopes: Vec<String>,
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub harness_cases: Vec<super::RegistryHarnessCaseMetadata>,
+    pub test_cases: Vec<super::RegistryTestCaseMetadata>,
     pub publisher: RegistryPublisher,
     pub created_at: String,
     pub updated_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegistryPublishHarnessReport {
+pub struct RegistryPublishTestReport {
     pub status: String,
     pub case_count: usize,
     pub assertion_error_count: usize,
     pub assertion_errors: Vec<String>,
     pub case_names: Vec<String>,
     pub receipt_ids: Vec<String>,
-    pub graph_case_count: usize,
+    pub workflow_case_count: usize,
 }
 
-impl RegistryPublishHarnessReport {
+impl RegistryPublishTestReport {
     #[must_use]
     pub fn failed(&self) -> bool {
         self.status == "failed"
@@ -205,7 +205,7 @@ pub struct RegistrySkillDetail {
     pub bundle_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
-    pub runner_names: Vec<String>,
+    pub method_names: Vec<String>,
     pub trust_tier: TrustTier,
     pub required_scopes: Vec<String>,
     pub tags: Vec<String>,
@@ -236,7 +236,7 @@ pub struct AcquiredRegistrySkill {
     pub bundle_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_listing: Option<PaidSkillListing>,
-    pub runner_names: Vec<String>,
+    pub method_names: Vec<String>,
     pub trust_tier: TrustTier,
     pub publisher: RegistryPublisher,
     #[serde(skip_serializing_if = "Option::is_none")]

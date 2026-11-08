@@ -84,7 +84,7 @@ pub struct RunxListItem {
     /// A skill's runners, each with its purpose when its `run.yaml` states
     /// one.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub runners: Option<Vec<crate::CatalogRunner>>,
+    pub runners: Option<Vec<crate::CatalogMethod>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,7 +94,7 @@ pub struct RunxListItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixtures: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub harness_cases: Option<u64>,
+    pub test_cases: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub steps: Option<u64>,
 }

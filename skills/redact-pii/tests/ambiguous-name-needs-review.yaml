@@ -1,0 +1,41 @@
+name: ambiguous-name-needs-review
+method: redact-pii
+inputs:
+  content: Dana from the north office approved the draft.
+  classes:
+    - name
+  mode: redact
+host:
+  answers:
+    detect:
+      redaction_draft:
+        decision: needs_review
+        detected:
+          - class: name
+            selector:
+              quote: Dana
+            confidence: 0.7
+        residual_risk:
+          level: medium
+          reason_code: ambiguous_semantics
+expect:
+  status: sealed
+  steps:
+    - block-policy
+    - detect
+    - apply
+  step_outputs:
+    apply:
+      subset:
+        redaction_report:
+          data:
+            decision: needs_review
+            redacted_digest: null
+            residual_risk:
+              level: medium
+              reason_code: ambiguous_semantics
+            scanner:
+              status: hold
+        redacted_content: ""
+  receipt:
+    schema: runx.receipt.v1

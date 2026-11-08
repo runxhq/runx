@@ -1,55 +1,55 @@
 use proptest::prelude::*;
 use runx_core::state_machine::{
-    GraphState, GraphStepState, SequentialGraph, SequentialGraphEvent, SequentialGraphPlan,
-    SequentialGraphStep, SequentialGraphStepDefinition, StepAdmissionWitness,
-    plan_sequential_graph_transition, transition_sequential_graph,
+    SequentialWorkflow, SequentialWorkflowEvent, SequentialWorkflowPlan, SequentialWorkflowStep,
+    SequentialWorkflowStepDefinition, StepAdmissionWitness, WorkflowState, WorkflowStepState,
+    plan_sequential_workflow_transition, transition_sequential_workflow,
 };
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
     #[test]
-    fn sequential_graph_transitions_are_deterministic(
-        state in sequential_graph_state(),
-        event in sequential_graph_event(),
+    fn sequential_workflow_transitions_are_deterministic(
+        state in sequential_workflow_state(),
+        event in sequential_workflow_event(),
     ) {
-        let left = transition_sequential_graph(&state, &event);
-        let right = transition_sequential_graph(&state, &event);
+        let left = transition_sequential_workflow(&state, &event);
+        let right = transition_sequential_workflow(&state, &event);
 
         prop_assert_eq!(left, right);
     }
 
     #[test]
-    fn failing_the_graph_is_unconditional(
-        state in sequential_graph_state(),
+    fn failing_the_workflow_is_unconditional(
+        state in sequential_workflow_state(),
         error in safe_string(),
     ) {
-        let failed = transition_sequential_graph(&state, &SequentialGraphEvent::FailGraph { error });
+        let failed = transition_sequential_workflow(&state, &SequentialWorkflowEvent::FailWorkflow { error });
 
-        prop_assert_eq!(failed.state, GraphState::Failed);
+        prop_assert_eq!(failed.state, WorkflowState::Failed);
     }
 
     #[test]
     fn complete_only_succeeds_when_no_steps_are_pending_or_running(
-        mut state in sequential_graph_state(),
+        mut state in sequential_workflow_state(),
         has_blocking_step in any::<bool>(),
     ) {
         if has_blocking_step {
-            state.steps[0].state = GraphStepState::Pending;
-            let next = transition_sequential_graph(&state, &SequentialGraphEvent::Complete);
+            state.steps[0].state = WorkflowStepState::Pending;
+            let next = transition_sequential_workflow(&state, &SequentialWorkflowEvent::Complete);
 
             prop_assert_eq!(next, state);
         } else {
             for (index, step) in state.steps.iter_mut().enumerate() {
                 step.state = if index % 2 == 0 {
-                    GraphStepState::Succeeded
+                    WorkflowStepState::Succeeded
                 } else {
-                    GraphStepState::Failed
+                    WorkflowStepState::Failed
                 };
             }
             let mut expected = state.clone();
-            expected.state = GraphState::Succeeded;
-            let next = transition_sequential_graph(&state, &SequentialGraphEvent::Complete);
+            expected.state = WorkflowState::Succeeded;
+            let next = transition_sequential_workflow(&state, &SequentialWorkflowEvent::Complete);
 
             prop_assert_eq!(next, expected);
         }
@@ -59,16 +59,16 @@ proptest! {
 
 #[test]
 fn a_pending_step_is_planned_as_its_first_attempt() {
-    let steps = vec![SequentialGraphStepDefinition {
+    let steps = vec![SequentialWorkflowStepDefinition {
         id: "first".to_owned(),
         context_from: None,
     }];
-    let state = SequentialGraph {
-        graph_id: "graph".to_owned(),
-        state: GraphState::Pending,
-        steps: vec![SequentialGraphStep {
+    let state = SequentialWorkflow {
+        workflow_id: "graph".to_owned(),
+        state: WorkflowState::Pending,
+        steps: vec![SequentialWorkflowStep {
             step_id: "first".to_owned(),
-            state: GraphStepState::Pending,
+            state: WorkflowStepState::Pending,
             attempts: 0,
             started_at: None,
             completed_at: None,
@@ -78,11 +78,11 @@ fn a_pending_step_is_planned_as_its_first_attempt() {
         }],
     };
 
-    let plan = plan_sequential_graph_transition(&state, &steps);
+    let plan = plan_sequential_workflow_transition(&state, &steps);
 
     assert_eq!(
         plan,
-        SequentialGraphPlan::RunStep {
+        SequentialWorkflowPlan::RunStep {
             step_id: "first".to_owned(),
             attempt: 1,
             context_from: Vec::new(),
@@ -90,23 +90,23 @@ fn a_pending_step_is_planned_as_its_first_attempt() {
     );
 }
 
-fn sequential_graph_state() -> impl Strategy<Value = SequentialGraph> {
+fn sequential_workflow_state() -> impl Strategy<Value = SequentialWorkflow> {
     (
         safe_string(),
-        graph_state(),
+        workflow_state(),
         prop::collection::vec(sequential_step_state(), 1..4),
     )
-        .prop_map(|(graph_id, state, steps)| SequentialGraph {
-            graph_id,
+        .prop_map(|(workflow_id, state, steps)| SequentialWorkflow {
+            workflow_id,
             state,
             steps,
         })
 }
 
-fn sequential_step_state() -> impl Strategy<Value = SequentialGraphStep> {
+fn sequential_step_state() -> impl Strategy<Value = SequentialWorkflowStep> {
     (
         safe_string(),
-        graph_step_state(),
+        workflow_step_state(),
         0_u32..4,
         prop::option::of(safe_string()),
         prop::option::of(safe_string()),
@@ -115,7 +115,7 @@ fn sequential_step_state() -> impl Strategy<Value = SequentialGraphStep> {
     )
         .prop_map(
             |(step_id, state, attempts, started_at, completed_at, receipt_id, error)| {
-                SequentialGraphStep {
+                SequentialWorkflowStep {
                     step_id,
                     state,
                     attempts,
@@ -129,12 +129,12 @@ fn sequential_step_state() -> impl Strategy<Value = SequentialGraphStep> {
         )
 }
 
-fn sequential_graph_event() -> impl Strategy<Value = SequentialGraphEvent> {
+fn sequential_workflow_event() -> impl Strategy<Value = SequentialWorkflowEvent> {
     prop_oneof![
         (safe_string(), safe_string())
-            .prop_map(|(step_id, at)| { SequentialGraphEvent::StartStep { step_id, at } }),
+            .prop_map(|(step_id, at)| { SequentialWorkflowEvent::StartStep { step_id, at } }),
         (safe_string(), safe_string(), safe_string()).prop_map(|(step_id, at, receipt_id)| {
-            SequentialGraphEvent::StepSucceeded {
+            SequentialWorkflowEvent::StepSucceeded {
                 admission_witness: Box::new(StepAdmissionWitness::local_runtime(
                     &step_id,
                     &receipt_id,
@@ -144,28 +144,28 @@ fn sequential_graph_event() -> impl Strategy<Value = SequentialGraphEvent> {
             }
         }),
         (safe_string(), safe_string(), safe_string()).prop_map(|(step_id, at, error)| {
-            SequentialGraphEvent::StepFailed { step_id, at, error }
+            SequentialWorkflowEvent::StepFailed { step_id, at, error }
         }),
-        Just(SequentialGraphEvent::Complete),
-        safe_string().prop_map(|error| SequentialGraphEvent::FailGraph { error }),
+        Just(SequentialWorkflowEvent::Complete),
+        safe_string().prop_map(|error| SequentialWorkflowEvent::FailWorkflow { error }),
     ]
 }
 
-fn graph_state() -> impl Strategy<Value = GraphState> {
+fn workflow_state() -> impl Strategy<Value = WorkflowState> {
     prop_oneof![
-        Just(GraphState::Pending),
-        Just(GraphState::Running),
-        Just(GraphState::Succeeded),
-        Just(GraphState::Failed),
+        Just(WorkflowState::Pending),
+        Just(WorkflowState::Running),
+        Just(WorkflowState::Succeeded),
+        Just(WorkflowState::Failed),
     ]
 }
 
-fn graph_step_state() -> impl Strategy<Value = GraphStepState> {
+fn workflow_step_state() -> impl Strategy<Value = WorkflowStepState> {
     prop_oneof![
-        Just(GraphStepState::Pending),
-        Just(GraphStepState::Running),
-        Just(GraphStepState::Succeeded),
-        Just(GraphStepState::Failed),
+        Just(WorkflowStepState::Pending),
+        Just(WorkflowStepState::Running),
+        Just(WorkflowStepState::Succeeded),
+        Just(WorkflowStepState::Failed),
     ]
 }
 

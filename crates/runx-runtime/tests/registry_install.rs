@@ -751,7 +751,7 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
         version: Some("1.0.0".to_owned()),
         signed_manifest: None,
         profile_digest: None,
-        runner_names: vec!["default".to_owned()],
+        method_names: vec!["default".to_owned()],
         trust_tier: Some(TrustTier::Community),
         manifest_source_authority: Some(RegistryManifestSourceAuthority::RegistrySource(
             "test-registry".to_owned(),

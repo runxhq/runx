@@ -1,15 +1,8 @@
-skill: echo
-harness:
-  cases:
-    - name: agent-boundary
-      runner: default
-      expect:
-        status: needs_agent
-runners:
+minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     steps:
       - id: default
-        agent: { role: fixture, task: echo }
+        agent: echo
         outputs:
-          result: object
+          result: {type: object}

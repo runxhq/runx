@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/advisories
-name: Fixture Advisories
+name: fixture/advisories
+title: Fixture Advisories
 description: Read advisory records from an advisory fixture by id.
-runtime_capability: false
 auth:
   none: {}
 placements:
@@ -31,5 +30,5 @@ operations:
         allowed_hosts: [advisories.fixture.invalid]
         requests:
           - each: {"$argument": "/ids"}
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://advisories.fixture.invalid/v1/vulns/", {"$item": ""}]}

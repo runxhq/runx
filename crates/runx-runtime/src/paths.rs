@@ -224,16 +224,16 @@ impl RunxPaths {
     /// Where a harness keeps the receipts of passing cases: the directory
     /// asked for, else `RUNX_RECEIPT_DIR`, else the project's own.
     #[must_use]
-    pub fn harness_receipts(&self, requested: Option<&Path>) -> PathBuf {
+    pub fn test_receipts(&self, requested: Option<&Path>) -> PathBuf {
         match (requested, &self.receipts) {
             (Some(dir), _) => self.in_workspace(dir),
             (None, Some(dir)) => dir.clone(),
-            (None, None) => self.project.join("harness-receipts"),
+            (None, None) => self.project.join("test-receipts"),
         }
     }
 
     #[must_use]
-    pub fn harness_runs(&self) -> PathBuf {
+    pub fn test_runs(&self) -> PathBuf {
         self.project.join("harness")
     }
 

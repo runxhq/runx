@@ -4,7 +4,7 @@ use super::KernelEvalError;
 use super::input::KernelInput;
 use crate::policy::scope_grant_allows;
 use crate::state_machine::{
-    create_sequential_graph, plan_sequential_graph_transition, transition_sequential_graph,
+    create_sequential_workflow, plan_sequential_workflow_transition, transition_sequential_workflow,
 };
 
 pub(super) fn evaluate_kernel_input(input: KernelInput) -> Result<JsonValue, KernelEvalError> {
@@ -14,14 +14,14 @@ pub(super) fn evaluate_kernel_input(input: KernelInput) -> Result<JsonValue, Ker
             requested_scope,
             policy,
         } => to_value(scope_grant_allows(&granted_scope, &requested_scope, policy)),
-        KernelInput::CreateSequentialGraphState { graph_id, steps } => {
-            to_value(create_sequential_graph(graph_id, &steps))
+        KernelInput::CreateSequentialWorkflowState { workflow_id, steps } => {
+            to_value(create_sequential_workflow(workflow_id, &steps))
         }
-        KernelInput::PlanSequentialGraphTransition { state, steps } => {
-            to_value(plan_sequential_graph_transition(&state, &steps))
+        KernelInput::PlanSequentialWorkflowTransition { state, steps } => {
+            to_value(plan_sequential_workflow_transition(&state, &steps))
         }
-        KernelInput::TransitionSequentialGraph { state, event } => {
-            to_value(transition_sequential_graph(&state, &event))
+        KernelInput::TransitionSequentialWorkflow { state, event } => {
+            to_value(transition_sequential_workflow(&state, &event))
         }
     }
 }

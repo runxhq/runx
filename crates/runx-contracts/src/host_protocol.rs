@@ -87,9 +87,9 @@ pub enum ResolutionRequest {
         id: NonEmptyString,
         gate: Box<ApprovalGate>,
     },
-    AgentAct {
+    Turn {
         id: NonEmptyString,
-        invocation: Box<AgentActInvocation>,
+        invocation: Box<TurnInvocation>,
     },
     /// A step or call waits to run again. A bounded retry
     /// (`retry_after_seconds` above zero) is runx's own: the driver that
@@ -315,8 +315,8 @@ pub struct ApprovalGate {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.agent_act_invocation.v1")]
-pub struct AgentActInvocation {
+#[runx_schema(id = "runx.turn_invocation.v1")]
+pub struct TurnInvocation {
     pub id: NonEmptyString,
     /// The kind of agent the step asks for.
     pub role: NonEmptyString,
@@ -467,7 +467,7 @@ pub struct TurnLoad {
     /// Every runner of a loaded skill, as a model chooses one, and whether
     /// this load bound it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub runners: Vec<LoadedRunner>,
+    pub runners: Vec<LoadedMethod>,
     /// One per bound runner, or per operation of a loaded connector, as the
     /// turn offers it from then on.
     pub tools: Vec<TurnTool>,
@@ -492,12 +492,12 @@ pub struct SkillManual {
 /// One runner of a loaded skill, as a model chooses it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct LoadedRunner {
+pub struct LoadedMethod {
     pub name: NonEmptyString,
     /// What it does and when to use it, as its package states it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purpose: Option<NonEmptyString>,
-    pub inputs: Vec<LoadedRunnerInput>,
+    pub inputs: Vec<LoadedMethodInput>,
     /// Whether this load bound it, so the turn offers it as a tool.
     pub bound: bool,
 }
@@ -505,7 +505,7 @@ pub struct LoadedRunner {
 /// One input of a loaded skill's runner.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct LoadedRunnerInput {
+pub struct LoadedMethodInput {
     pub name: NonEmptyString,
     #[serde(rename = "type")]
     pub input_type: NonEmptyString,
@@ -607,7 +607,7 @@ pub struct TurnTool {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.turn_status.v1")]
 pub struct TurnStatus {
-    pub invocation: TurnInvocation,
+    pub invocation: TurnView,
     pub tools: Vec<TurnTool>,
     pub calls: Vec<TurnCallResult>,
 }
@@ -618,16 +618,16 @@ pub struct TurnStatus {
 /// not the name a call takes (`fs_read`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct TurnInvocation {
+pub struct TurnView {
     pub id: NonEmptyString,
     pub role: NonEmptyString,
     pub task: NonEmptyString,
-    pub envelope: TurnEnvelope,
+    pub envelope: TurnViewEnvelope,
 }
 
-impl From<&AgentActInvocation> for TurnInvocation {
-    fn from(invocation: &AgentActInvocation) -> Self {
-        let AgentActInvocation {
+impl From<&TurnInvocation> for TurnView {
+    fn from(invocation: &TurnInvocation) -> Self {
+        let TurnInvocation {
             id,
             role,
             task,
@@ -638,7 +638,7 @@ impl From<&AgentActInvocation> for TurnInvocation {
             id: id.clone(),
             role: role.clone(),
             task: task.clone(),
-            envelope: TurnEnvelope::from(envelope),
+            envelope: TurnViewEnvelope::from(envelope),
         }
     }
 }
@@ -649,7 +649,7 @@ impl From<&AgentActInvocation> for TurnInvocation {
 /// also reads by its ref.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct TurnEnvelope {
+pub struct TurnViewEnvelope {
     pub run_id: NonEmptyString,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub step_id: Option<NonEmptyString>,
@@ -676,7 +676,7 @@ pub struct TurnEnvelope {
     pub trust_boundary: NonEmptyString,
 }
 
-impl From<&AgentContextEnvelope> for TurnEnvelope {
+impl From<&AgentContextEnvelope> for TurnViewEnvelope {
     fn from(envelope: &AgentContextEnvelope) -> Self {
         let AgentContextEnvelope {
             run_id,

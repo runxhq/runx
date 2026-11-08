@@ -729,7 +729,7 @@ pub struct PurchaseRead {
     pub result: Option<JsonValue>,
     /// Each resource runx holds for the purchase's buyer, once fulfilment won.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub holds: Vec<PurchaseHold>,
+    pub holds: Vec<PurchaseLease>,
     /// Why a refund won. Present only after refund won.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure: Option<PurchaseFailure>,
@@ -744,7 +744,7 @@ pub struct PurchaseRead {
 /// held value, which tells holds apart without showing one.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct PurchaseHold {
+pub struct PurchaseLease {
     pub connector: NonEmptyString,
     pub credential: NonEmptyString,
     pub target: NonEmptyString,

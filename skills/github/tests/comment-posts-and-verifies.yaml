@@ -1,0 +1,51 @@
+name: github-comment-posts-and-verifies
+method: comment
+setup:
+  sessions: [github]
+inputs:
+  repository: runxhq/runx
+  pr_number: "42"
+  body: The reviewed path is sound; please add the missing harness case.
+  idempotency_key: runxhq-runx-pr-42-connect-note-v1
+env:
+  PATH: fixtures/bin:/usr/bin:/bin
+providers:
+  http:
+    - request:
+        method: POST
+        url: https://api.github.com/repos/runxhq/runx/issues/42/comments
+        body:
+          json:
+            body: The reviewed path is sound; please add the missing harness case.
+      response:
+        status: 201
+        headers: {content-type: application/json}
+        body: '{"id": 1001, "body": "The reviewed path is sound; please add the missing harness case.", "html_url": "https://github.com/runxhq/runx/pull/42#issuecomment-1001"}'
+    - request: {method: GET, url: "https://api.github.com/user", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"id": 7, "login": "operator-fixture"}'
+    - request: {method: GET, url: "https://api.github.com/repos/runxhq/runx/issues/comments/1001", body: none}
+      response:
+        status: 200
+        headers: {content-type: application/json}
+        body: '{"id": 1001, "body": "The reviewed path is sound; please add the missing harness case.", "html_url": "https://github.com/runxhq/runx/pull/42#issuecomment-1001"}'
+expect:
+  status: sealed
+  steps: [post-comment]
+  step_outputs:
+    post-comment:
+      subset:
+        provider_operation:
+          data:
+            status: success
+            provider: github
+            operation: comments.create
+            finality: confirmed
+            result:
+              comments:
+                - status: applied
+                  acknowledgement:
+                    id: 1001
+  receipt: {schema: runx.receipt.v1, state: sealed, outcome: completed}

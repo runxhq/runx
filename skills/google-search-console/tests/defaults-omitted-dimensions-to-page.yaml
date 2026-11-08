@@ -1,0 +1,51 @@
+name: defaults-omitted-dimensions-to-page
+method: normalize-performance
+inputs:
+  request:
+    property: https://example.com/
+    start_date: 2026-06-01
+    end_date: 2026-06-30
+    search_type: web
+    data_state: final
+  provider_result:
+    property: https://example.com/
+    start_date: 2026-06-01
+    end_date: 2026-06-30
+    dimensions:
+      - page
+    search_type: web
+    data_state: final
+    aggregation_type: byPage
+    rows:
+      - keys:
+          - https://example.com/default-page
+        clicks: 2
+        impressions: 20
+        ctr: 0.1
+        position: 3.5
+    row_count: 1
+    pagination:
+      complete: true
+      returned_rows: 1
+expect:
+  status: sealed
+  steps:
+    - normalize
+    - digest
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        performance_evidence:
+          data:
+            decision: usable_with_caveats
+            request:
+              dimensions:
+                - page
+            rows:
+              - dimensions:
+                  page: https://example.com/default-page
+            validation:
+              status: pass
+  receipt:
+    schema: runx.receipt.v1

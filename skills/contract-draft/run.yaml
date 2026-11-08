@@ -1,435 +1,88 @@
-skill: contract-draft
 version: "0.1.10"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
   category: content
-  role: canonical
-  execution: plan
-  completion: runtime_receipt
-  approval: none
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases:
-    - name: contract-draft-complete-draft-seals
-      operator_journeys:
-        - mode: standalone
-          confusors:
-            - ghostwrite
-            - message-send
-          request: Draft this services agreement from the approved template with every
-            required term bound.
-          expected_outcome: Return a sealed draft where every clause reconciles with the
-            rendered template and delivery stays behind a human gate.
-        - mode: composed
-          request: Draft the agreement from the already admitted versioned template,
-            parties and deal terms.
-          expected_outcome: Return the complete reconciled document and its source
-            bindings without acquiring sources, negotiating terms or sending it.
-          prior_evidence:
-            - The exact approved template, parties and terms supplied by the
-              upstream contract intake.
-          must_not_repeat:
-            - Do not reacquire the template or party evidence, renegotiate the
-              supplied terms, or send the draft.
-      inputs:
-        template:
-          id: msa-basic-v1
-          version: "1.0"
-          title: Services Agreement
-          required_terms:
-            - services
-            - fee_usd
-          clauses:
-            - id: parties
-              heading: Parties
-              baseline: This Services Agreement is between {{provider.legal_name}} and
-                {{customer.legal_name}}.
-            - id: fees
-              heading: Fees and Payment
-              baseline: Customer will pay USD {{terms.fee_usd}} for {{terms.services}}.
-        parties:
-          provider:
-            legal_name: Acme Pty Ltd
-          customer:
-            legal_name: Globex LLC
-        terms:
-          services: monthly platform maintenance
-          fee_usd: 4000
-      caller:
-        answers:
-          assemble:
-            draft_doc:
-              title: Services Agreement
-              clauses:
-                - id: parties
-                  heading: Parties
-                  text: This Services Agreement is between Acme Pty Ltd and Globex LLC.
-                - id: fees
-                  heading: Fees and Payment
-                  text: Customer will pay USD 4000 for monthly platform maintenance.
-              deviations: []
-      expect:
-        status: sealed
-        steps:
-          - admit
-          - digest-template
-          - digest-parties
-          - digest-terms
-          - assemble
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              contract_draft:
-                data:
-                  schema: runx/contract-draft.draft.v1
-                  decision: drafted
-                  deviations: []
-                  send_proposal:
-                    gate: human-approver
-                    delivery_skill: message-send
-                    sent: false
-                  delivery_performed: false
-                  validation:
-                    status: pass
-                    findings: []
-        receipt:
-          schema: runx.receipt.v1
-    - name: contract-draft-declared-deviation-seals
-      inputs:
-        template:
-          id: msa-basic-v1
-          version: "1.0"
-          title: Services Agreement
-          required_terms:
-            - fee_usd
-          clauses:
-            - id: fees
-              heading: Fees and Payment
-              baseline: Customer will pay USD {{terms.fee_usd}} within 30 days after invoice.
-        parties:
-          customer:
-            legal_name: Globex LLC
-        terms:
-          fee_usd: 4000
-      caller:
-        answers:
-          assemble:
-            draft_doc:
-              title: Services Agreement
-              clauses:
-                - id: fees
-                  heading: Fees and Payment
-                  text: Customer will pay USD 4000 within 45 days after invoice.
-              deviations:
-                - clause_id: fees
-                  reason: Customer requested 45-day payment terms and the operator approved the
-                    extension.
-      expect:
-        status: sealed
-        steps:
-          - admit
-          - digest-template
-          - digest-parties
-          - digest-terms
-          - assemble
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              contract_draft:
-                data:
-                  decision: drafted
-                  validation:
-                    status: pass
-                    findings: []
-        receipt:
-          schema: runx.receipt.v1
-    - name: contract-draft-undeclared-deviation-refuses
-      inputs:
-        template:
-          id: msa-basic-v1
-          version: "1.0"
-          title: Services Agreement
-          required_terms:
-            - fee_usd
-          clauses:
-            - id: fees
-              heading: Fees and Payment
-              baseline: Customer will pay USD {{terms.fee_usd}} within 30 days after invoice.
-        parties:
-          customer:
-            legal_name: Globex LLC
-        terms:
-          fee_usd: 4000
-      caller:
-        answers:
-          assemble:
-            draft_doc:
-              title: Services Agreement
-              clauses:
-                - id: fees
-                  heading: Fees and Payment
-                  text: Customer will pay USD 9000 within 90 days after invoice.
-              deviations: []
-      expect:
-        status: sealed
-        steps:
-          - admit
-          - digest-template
-          - digest-parties
-          - digest-terms
-          - assemble
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              contract_draft:
-                data:
-                  decision: refused
-                  document: null
-                  send_proposal: null
-                  validation:
-                    status: fail
-        receipt:
-          schema: runx.receipt.v1
-    - name: contract-draft-missing-term-stops
-      inputs:
-        template:
-          id: msa-basic-v1
-          version: "1.0"
-          title: Services Agreement
-          required_terms:
-            - fee_usd
-            - services
-          clauses:
-            - id: fees
-              heading: Fees and Payment
-              baseline: Customer will pay USD {{terms.fee_usd}} for {{terms.services}}.
-        parties:
-          customer:
-            legal_name: Globex LLC
-        terms:
-          fee_usd: 4000
-      expect:
-        status: sealed
-        steps:
-          - admit
-          - stop
-        step_outputs:
-          stop:
-            subset:
-              contract_draft:
-                data:
-                  decision: refused
-                  document: null
-                  send_proposal: null
-                  validation:
-                    status: fail
-        receipt:
-          schema: runx.receipt.v1
-    - name: refuses-unknown-clause
-      inputs:
-        template:
-          id: northstar-support
-          version: 2026-11
-          title: Support Services Agreement
-          required_terms:
-            - service
-            - fee
-            - currency
-            - start_date
-          clauses:
-            - id: parties
-              heading: Parties
-              baseline: "{{provider.legal_name}} provides services to
-                {{customer.legal_name}}."
-            - id: service
-              heading: Services
-              baseline: "Services: {{terms.service}}"
-            - id: fees
-              heading: Fees
-              baseline: Customer pays {{terms.currency}} {{terms.fee}} per month.
-            - id: start
-              heading: Commencement
-              baseline: Services begin {{terms.start_date}}.
-        parties:
-          provider:
-            legal_name: Northstar Services Ltd (fixture)
-          customer:
-            legal_name: Example Product Co (fixture)
-        terms:
-          service: Inbox triage and a weekly support report.
-          fee: "1200.00"
-          currency: USD
-          start_date: 2026-12-01
-      caller:
-        answers:
-          assemble:
-            draft_doc:
-              title: Support Services Agreement
-              clauses:
-                - id: parties
-                  heading: Parties
-                  text: Northstar Services Ltd (fixture) provides services to Example Product Co
-                    (fixture).
-                - id: service
-                  heading: Services
-                  text: "Services: Inbox triage and a weekly support report."
-                - id: fees
-                  heading: Fees
-                  text: Customer pays USD 1200.00 per month.
-                - id: start
-                  heading: Commencement
-                  text: Services begin 2026-12-01.
-                - id: extra
-                  heading: Unapproved
-                  text: An unapproved clause.
-              deviations: []
-      expect:
-        status: sealed
-        step_outputs:
-          finalize:
-            subset:
-              contract_draft:
-                data:
-                  decision: refused
-                  document: null
-                  delivery_performed: false
-    - name: missing-placeholder-evidence-stops-before-agent
-      inputs:
-        template:
-          id: northstar-support
-          version: 2026-11
-          title: Support Services Agreement
-          required_terms:
-            - service
-            - fee
-            - currency
-            - start_date
-          clauses:
-            - id: parties
-              heading: Parties
-              baseline: "{{provider.legal_name}} provides services to
-                {{customer.legal_name}}."
-            - id: service
-              heading: Services
-              baseline: "Services: {{terms.service}}"
-            - id: fees
-              heading: Fees
-              baseline: Customer pays {{terms.currency}} {{terms.fee}} per month.
-            - id: start
-              heading: Commencement
-              baseline: Services begin {{terms.start_date}}.
-        parties:
-          customer:
-            legal_name: Example Product Co (fixture)
-        terms:
-          service: Inbox triage and a weekly support report.
-          fee: "1200.00"
-          currency: USD
-          start_date: 2026-12-01
-      expect:
-        status: sealed
-        step_outputs:
-          stop:
-            subset:
-              contract_draft:
-                data:
-                  decision: refused
-                  document: null
-runners:
+methods:
   draft:
-    default: true
     inputs:
       template:
         type: object
-        required: true
-        description: Versioned contract template with stable clause baselines and
-          required term keys.
-        schema:
-          additionalProperties: false
-          required:
-            - id
-            - version
-            - title
-            - required_terms
-            - clauses
-          properties:
-            id:
+        description: Versioned contract template with stable clause baselines and required term keys.
+        additionalProperties: false
+        required:
+          - id
+          - version
+          - title
+          - required_terms
+          - clauses
+        properties:
+          id:
+            type: string
+            minLength: 1
+            maxLength: 500
+            pattern: \S
+          version:
+            type: string
+            minLength: 1
+            maxLength: 100
+            pattern: \S
+          title:
+            type: string
+            minLength: 1
+            maxLength: 500
+            pattern: \S
+          required_terms:
+            type: array
+            maxItems: 200
+            uniqueItems: true
+            items:
               type: string
               minLength: 1
-              maxLength: 500
+              maxLength: 200
               pattern: \S
-            version:
-              type: string
-              minLength: 1
-              maxLength: 100
-              pattern: \S
-            title:
-              type: string
-              minLength: 1
-              maxLength: 500
-              pattern: \S
-            required_terms:
-              type: array
-              maxItems: 200
-              uniqueItems: true
-              items:
-                type: string
-                minLength: 1
-                maxLength: 200
-                pattern: \S
-            clauses:
-              type: array
-              minItems: 1
-              maxItems: 200
-              items:
-                type: object
-                additionalProperties: false
-                required:
-                  - id
-                  - heading
-                  - baseline
-                properties:
-                  id:
-                    type: string
-                    minLength: 1
-                    maxLength: 200
-                    pattern: \S
-                  heading:
-                    type: string
-                    minLength: 1
-                    maxLength: 500
-                    pattern: \S
-                  baseline:
-                    type: string
-                    minLength: 1
-                    maxLength: 20000
-                    pattern: \S
+          clauses:
+            type: array
+            minItems: 1
+            maxItems: 200
+            items:
+              type: object
+              additionalProperties: false
+              required:
+                - id
+                - heading
+                - baseline
+              properties:
+                id:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  pattern: \S
+                heading:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                  pattern: \S
+                baseline:
+                  type: string
+                  minLength: 1
+                  maxLength: 20000
+                  pattern: \S
       parties:
         type: object
-        required: true
-        description: Explicit party records referenced by template placeholders; no
-          party may be inferred.
-        schema:
+        description: Explicit party records referenced by template placeholders; no party may be inferred.
+        minProperties: 1
+        propertyNames:
+          not:
+            const: terms
+        additionalProperties:
+          type: object
           minProperties: 1
-          propertyNames:
-            not:
-              const: terms
-          additionalProperties:
-            type: object
-            minProperties: 1
-            additionalProperties: true
+          additionalProperties: true
       terms:
         type: object
-        required: true
         description: Explicit deal terms; every template required term must be supplied.
-        schema:
-          additionalProperties: true
+        additionalProperties: true
     examples:
       - template:
           id: msa-basic-v1
@@ -451,7 +104,6 @@ runners:
       - finalize
     steps:
       - id: admit
-        label: admit only complete template, party, and term evidence
         inputs:
           template: $input.template
           parties: $input.parties
@@ -460,7 +112,7 @@ runners:
           module: contract-draft.mjs
           export: admitRequest
         outputs:
-          draft_context: object
+          draft_context: {type: object}
       - id: stop
         when:
           value: $steps.admit.draft_context.path
@@ -474,12 +126,7 @@ runners:
           module: contract-draft.mjs
           export: finalizeDraft
         outputs:
-          contract_draft: object
-        artifacts:
-          named_emits:
-            contract_draft: contract_draft
-          packets:
-            contract_draft: runx/contract-draft.draft.v1
+          contract_draft: {type: object, packet: runx/contract-draft.draft.v1}
       - id: digest-template
         when:
           value: $steps.admit.draft_context.path
@@ -502,84 +149,76 @@ runners:
         inputs:
           value: $input.terms
       - id: assemble
-        label: draft clauses from the template under declared-deviation rules
         when:
           value: $steps.admit.draft_context.path
           equals: draft
-        agent:
-          role: reviewer
-          task: contract-draft-assemble
+        agent: contract-draft-assemble
         outputs:
           draft_doc:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - title
-                - clauses
-                - deviations
-              properties:
-                title:
-                  type: string
-                  minLength: 1
-                  maxLength: 500
-                  pattern: \S
-                clauses:
-                  type: array
-                  minItems: 1
-                  maxItems: 200
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required:
-                      - id
-                      - heading
-                      - text
-                    properties:
-                      id:
-                        type: string
-                        minLength: 1
-                        maxLength: 200
-                        pattern: \S
-                      heading:
-                        type: string
-                        minLength: 1
-                        maxLength: 500
-                        pattern: \S
-                      text:
-                        type: string
-                        minLength: 1
-                        maxLength: 20000
-                        pattern: \S
-                deviations:
-                  type: array
-                  maxItems: 200
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required:
-                      - clause_id
-                      - reason
-                    properties:
-                      clause_id:
-                        type: string
-                        minLength: 1
-                        maxLength: 200
-                        pattern: \S
-                      reason:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
-                        pattern: \S
+            additionalProperties: false
+            required:
+              - title
+              - clauses
+              - deviations
+            properties:
+              title:
+                type: string
+                minLength: 1
+                maxLength: 500
+                pattern: \S
+              clauses:
+                type: array
+                minItems: 1
+                maxItems: 200
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - id
+                    - heading
+                    - text
+                  properties:
+                    id:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                      pattern: \S
+                    heading:
+                      type: string
+                      minLength: 1
+                      maxLength: 500
+                      pattern: \S
+                    text:
+                      type: string
+                      minLength: 1
+                      maxLength: 20000
+                      pattern: \S
+              deviations:
+                type: array
+                maxItems: 200
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - clause_id
+                    - reason
+                  properties:
+                    clause_id:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                      pattern: \S
+                    reason:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                      pattern: \S
         inputs:
           template: $input.template
           parties: $input.parties
           terms: $input.terms
-        artifacts:
-          named_emits:
-            draft_doc: draft_doc
       - id: finalize
-        label: reconcile the draft against the rendered template deterministically
         when:
           value: $steps.admit.draft_context.path
           equals: draft
@@ -598,8 +237,4 @@ runners:
         outputs:
           contract_draft:
             type: object
-        artifacts:
-          named_emits:
-            contract_draft: contract_draft
-          packets:
-            contract_draft: runx/contract-draft.draft.v1
+            packet: runx/contract-draft.draft.v1

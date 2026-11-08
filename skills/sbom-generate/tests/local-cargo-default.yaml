@@ -1,0 +1,15 @@
+name: local-cargo-default
+inputs:
+  path: fixtures/input/Cargo.lock
+  path_scope: skill
+expect:
+  status: sealed
+  step_outputs:
+    generate:
+      subset:
+        sbom_result:
+          data:
+            component_count: 2
+            decision: generated
+            license_summary:
+              missing_evidence: 2

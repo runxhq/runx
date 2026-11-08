@@ -1,16 +1,8 @@
-skill: review-subject
 version: "0.1.0"
+minimum_runx: 0.12.0
 
-harness:
-  cases:
-    - name: review-subject-digests
-      runner: default
-      expect:
-        status: sealed
-
-runners:
+methods:
   default:
-    default: true
     result_from: [digest]
     steps:
       - id: digest

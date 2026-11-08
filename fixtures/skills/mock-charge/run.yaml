@@ -1,38 +1,14 @@
-skill: mock-charge
 version: "0.5.0"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: builder
   visibility: internal
-  role: harness-fixture
-  part_of: [runx/charge]
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: payments
-harness:
-  cases:
-    - name: mock-charge-remains-local
-      inputs:
-        mcp_tool_call: { tool: search.paid, arguments: { query: runx } }
-        provider_policy: { price_minor: 125, currency: USD, merchant: merchant:demo }
-        idempotency_seed: mock-charge-001
-      expect:
-        status: sealed
-        steps: [simulate]
-        step_outputs:
-          simulate:
-            subset:
-              charge_result:
-                data: { status: simulated, settlement_family: mock, amount_minor: 125, currency: USD }
-        receipt: { schema: runx.receipt.v1 }
-runners:
+methods:
   mock:
-    default: true
     inputs:
-      mcp_tool_call: { type: json, required: true }
-      provider_policy: { type: json, required: true }
-      idempotency_seed: { type: string, required: true }
+      mcp_tool_call: {}
+      provider_policy: {}
+      idempotency_seed: {type: string}
     result_from: [simulate]
     steps:
       - id: simulate
@@ -40,8 +16,6 @@ runners:
           mcp_tool_call: $input.mcp_tool_call
           provider_policy: $input.provider_policy
           idempotency_seed: $input.idempotency_seed
-        tool: { module: mock-charge.mjs, export: simulateCharge }
+        tool: {module: mock-charge.mjs, export: simulateCharge}
         outputs:
-          charge_result: object
-        artifacts:
-          named_emits: { charge_result: charge_result }
+          charge_result: {type: object}

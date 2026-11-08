@@ -1,0 +1,40 @@
+name: diagnose-skill-run-passes-on-paused-graph
+inputs:
+  receipt_id: rcpt_paused
+  receipt_rows:
+    - receipt_id: rcpt_paused
+      skill: skills/research
+      outcome: deferred
+      created_at: 2026-07-16T00:00:00Z
+      verification_status: verified
+  receipt_details:
+    - id: rcpt_paused
+      receipt_uri: runx:receipt:rcpt_paused
+      subject_kind: graph
+      subject_uri: skills/research
+      created_at: 2026-07-16T00:00:00Z
+      outcome: deferred
+      verification:
+        status: verified
+      authority:
+        exercised_scopes: []
+      decisions: []
+      acts: []
+      artifact_uris: []
+      lineage_uris: []
+      seal_reason: resolution_pending
+  harness_output: needs_agent
+  skill_path: skills/research
+host:
+  answers:
+    diagnose:
+      diagnosis:
+        verdict: pass
+        failure_summary: No failure. The graph paused as designed while awaiting caller cognitive work.
+        improvement_proposals: []
+        next_harness_checks:
+          - target skill completes when a valid agent response is supplied
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

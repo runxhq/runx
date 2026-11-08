@@ -1248,9 +1248,9 @@ fn publish(
 /// bundle that is its own plugin, its cases reaching the connectors it
 /// carries.
 #[test]
-fn a_skill_whose_harness_grants_a_plugin_connector_publishes()
--> Result<(), Box<dyn std::error::Error>> {
-    let root = temp_root("registry-publish-plugin-harness");
+fn a_skill_whose_test_grants_a_plugin_connector_publishes() -> Result<(), Box<dyn std::error::Error>>
+{
+    let root = temp_root("registry-publish-plugin-test");
     let skill_dir = hosted_records(&root)?;
     let published = publish(&skill_dir, &LoopbackRegistry::serve()?, None)?;
     assert_success_contains(&published, &["\"action\": \"publish\""])?;
@@ -1399,7 +1399,7 @@ fn a_case_grant_refuses_a_connector_its_closure_carries_twice()
 #[test]
 fn a_packages_tests_read_the_registry_children_its_project_holds()
 -> Result<(), Box<dyn std::error::Error>> {
-    let root = temp_root("registry-harness-children");
+    let root = temp_root("registry-test-children");
     let registry = LoopbackRegistry::serve()?;
     publish_echo(&registry, "1.0.0", "Echo")?;
     let parent = root.join("parent");
@@ -1453,9 +1453,9 @@ fn a_packages_tests_read_the_registry_children_its_project_holds()
 /// A graph case runs its composed skill's operations under the provider
 /// grant its caller answers for, bound from the graph file's directory.
 #[test]
-fn a_graph_case_binds_the_grant_its_composed_skill_calls() -> Result<(), Box<dyn std::error::Error>>
-{
-    let root = temp_root("harness-graph-binding");
+fn a_workflow_case_binds_the_grant_its_composed_skill_calls()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_root("test-workflow-binding");
     let skill_dir = hosted_records(&root)?;
     let support = skill_dir.join("fixtures/support");
     fs::create_dir_all(&support)?;
@@ -1463,11 +1463,11 @@ fn a_graph_case_binds_the_grant_its_composed_skill_calls() -> Result<(), Box<dyn
         support.join("live.graph"),
         "name: records-live\nsteps:\n  - id: records\n    skill: ../..\n    runner: list\n",
     )?;
-    let case = skill_dir.join("fixtures/graph-binds-grant.yaml");
+    let case = skill_dir.join("fixtures/workflow-binds-grant.yaml");
     fs::write(
         &case,
         format!(
-            "name: records-graph-binds-grant\nkind: graph\ntarget: support/live.graph\nexpect:\n  status: sealed\ncaller:\n{}",
+            "name: records-workflow-binds-grant\nkind: graph\ntarget: support/live.graph\nexpect:\n  status: sealed\ncaller:\n{}",
             records_provider(2)
         ),
     )?;

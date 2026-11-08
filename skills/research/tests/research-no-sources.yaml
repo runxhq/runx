@@ -1,0 +1,22 @@
+name: research-no-sources-stops-before-synthesis
+method: research
+inputs:
+  objective: Decide whether a claim is safe to publish.
+  source_packets: []
+expect:
+  status: sealed
+  steps:
+    - index
+    - analyze
+  step_outputs:
+    analyze:
+      subset:
+        research_packet:
+          data:
+            decision: needs_more_evidence
+            evidence_log: []
+            decision_support: []
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

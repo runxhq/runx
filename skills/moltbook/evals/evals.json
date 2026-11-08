@@ -1,0 +1,29 @@
+{
+  "skill_name": "moltbook",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Scan Moltbook for credible opportunities relevant to this operator objective.",
+      "expected_output": "Return fresh evidence-bound opportunities with credibility and source caveats explicit.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Scan Moltbook for current credible opportunities relevant to Runx builders.",
+      "expected_output": "Judge the feed at the time it was read, so old posts are stale without the caller stating a time.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Scan Moltbook without a Moltbook API key configured.",
+      "expected_output": "Refuse before reading the feed and claim no feed evidence.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Scan Moltbook for current credible opportunities relevant to Runx builders.",
+      "expected_output": "Read the configured feed once and return a fresh evidence-bound opportunity packet without posting.",
+      "files": []
+    }
+  ]
+}

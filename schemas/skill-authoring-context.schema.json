@@ -28,7 +28,7 @@
             "minimum": 0,
             "type": "integer"
           },
-          "harness_cases": {
+          "test_cases": {
             "minimum": 0,
             "type": "integer"
           },
@@ -91,7 +91,7 @@
             "minimum": 0,
             "type": "integer"
           },
-          "harness_cases": {
+          "test_cases": {
             "minimum": 0,
             "type": "integer"
           },

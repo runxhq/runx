@@ -10,9 +10,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use runx_runtime::{
-    HarnessExpectedStatus, HarnessReplayError, HarnessReplayOutput, run_harness_fixture,
-};
+use runx_runtime::{TestExpectedStatus, TestReplayError, TestReplayOutput, run_test_fixture};
 
 const CONNECTOR: &str = r#"schema: runx.connector.v1
 id: sales
@@ -98,7 +96,7 @@ fn run(
     name: &str,
     purchase: Option<&str>,
     status: &str,
-) -> Result<HarnessReplayOutput, HarnessReplayError> {
+) -> Result<TestReplayOutput, TestReplayError> {
     std::fs::write(root.join("plugin.json"), r#"{"namespace":"acme"}"#).unwrap();
     std::fs::create_dir_all(root.join("connectors/sales")).unwrap();
     std::fs::write(root.join("connectors/sales/connector.yaml"), CONNECTOR).unwrap();
@@ -138,16 +136,16 @@ caller:
         .ok()
         .map(|path| BTreeMap::from([("PATH".to_owned(), path)]))
         .unwrap_or_default();
-    run_harness_fixture(path, env)
+    run_test_fixture(path, env)
 }
 
 #[test]
-fn a_hosted_declared_write_sends_the_purchase_connect_holds() {
+fn a_hosted_declared_write_sends_the_purchase_connect_leases() {
     let root = tempfile::tempdir().unwrap();
     let output =
         run(root.path(), "sells", Some("purchase_sale_1"), "sealed").expect("the sale seals");
 
-    assert_eq!(output.status, HarnessExpectedStatus::Sealed);
+    assert_eq!(output.status, TestExpectedStatus::Sealed);
     assert!(
         output.unrequested.is_empty(),
         "Connect sent exactly the declared request: {:?}",
@@ -172,7 +170,7 @@ fn a_declared_write_that_sends_the_purchase_fails_closed_without_one() {
     let root = tempfile::tempdir().unwrap();
     let output = run(root.path(), "unbound", None, "failure").expect("the sale fails closed");
 
-    assert_eq!(output.status, HarnessExpectedStatus::Failure);
+    assert_eq!(output.status, TestExpectedStatus::Failure);
     // Connect refused it before sending: the case answers no request, so
     // one that left would have failed as unanswered instead.
     let failure = format!("{:?}", output.skill_output);

@@ -14,14 +14,14 @@ use std::path::Path;
 use runx_contracts::connector::{OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
-    AgentActInvocation, AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject,
-    JsonValue, LoadedPackage, ProjectArtifact, ProvenanceEntry, Reference, ReferenceType,
-    ResolutionRequest, RunCallOutput, TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad,
-    TurnLocator, TurnReadPage, TurnStatus, TurnTarget, TurnTool,
+    AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject, JsonValue, LoadedPackage,
+    ProjectArtifact, ProvenanceEntry, Reference, ReferenceType, ResolutionRequest, RunCallOutput,
+    TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage,
+    TurnStatus, TurnTarget, TurnTool, TurnView,
 };
 use runx_parser::{
-    AgentTask, AskGate, ConnectorRequirement, GraphStep, LoadStep, LoadTarget, OperationStepTarget,
-    SkillTarget, StepKind, ToolTarget,
+    AgentTask, AskGate, ConnectorRequirement, LoadStep, LoadTarget, OperationStepTarget,
+    SkillTarget, StepKind, ToolTarget, WorkflowStep,
 };
 
 use super::super::graph::{
@@ -32,10 +32,10 @@ use super::super::run_record::{
     Answer, CallOutcome, CallRecord, PendingRequest, RecordedCall, call_step_id, request_digest,
     waiting_requests,
 };
-use super::graph_engine::AnsweringHost;
 use super::step_handlers::{
     StepRunRequest, output_error, run_step_with_inputs, run_step_with_loaded_skill_inputs,
 };
+use super::workflow_engine::AnsweringHost;
 use super::{Runtime, StepRun};
 use crate::RuntimeError;
 use crate::adapter::SkillAdapter;
@@ -44,7 +44,7 @@ use crate::host::Host;
 /// The turn an unanswered agent act holds open, as its host works it.
 pub trait Turn {
     /// The act the turn answers; its id is the turn's address.
-    fn invocation(&self) -> &AgentActInvocation;
+    fn invocation(&self) -> &TurnInvocation;
 
     /// The agent step that holds the turn.
     fn step_id(&self) -> &str;
@@ -59,7 +59,7 @@ pub trait Turn {
     /// The turn as its agent reads it, its act's context as an index.
     fn status(&self) -> Result<TurnStatus, RuntimeError> {
         Ok(TurnStatus {
-            invocation: TurnInvocation::from(self.invocation()),
+            invocation: TurnView::from(self.invocation()),
             tools: self.tools()?,
             calls: self.calls()?,
         })
@@ -218,8 +218,8 @@ const CALL_ID_BYTES: usize = 200;
 /// Where a turn runs: the agent step, its attempt, and its runtime.
 pub(super) struct TurnScope<'a, A> {
     pub(super) runtime: &'a Runtime<A>,
-    pub(super) graph_dir: &'a Path,
-    pub(super) graph_name: &'a str,
+    pub(super) workflow_dir: &'a Path,
+    pub(super) workflow_name: &'a str,
     pub(super) step_id: &'a str,
     pub(super) attempt: u32,
     pub(super) agent: &'a AgentTask,
@@ -229,7 +229,7 @@ pub(super) struct TurnScope<'a, A> {
 /// the calls made in it so far.
 pub(super) struct OpenTurn<'a, A> {
     scope: TurnScope<'a, A>,
-    invocation: &'a AgentActInvocation,
+    invocation: &'a TurnInvocation,
     /// The act as the run records it.
     request: PendingRequest,
     /// The calls the run records for this turn, read when first needed.
@@ -262,7 +262,7 @@ impl Made {
 
 /// The step a call runs as, with what rides beside its inputs.
 struct CallStep {
-    step: GraphStep,
+    step: WorkflowStep,
     /// A skill call's act, which becomes its child run's.
     act: Option<CallAct>,
     /// The inputs the call gave by reference.
@@ -329,7 +329,7 @@ where
         scope: TurnScope<'a, A>,
         request: &'a ResolutionRequest,
     ) -> Result<Self, RuntimeError> {
-        let ResolutionRequest::AgentAct { invocation, .. } = request else {
+        let ResolutionRequest::Turn { invocation, .. } = request else {
             return Err(RuntimeError::EngineInvariant {
                 context: "opening an agent turn",
                 message: "an agent step asked for something other than its act".to_owned(),
@@ -505,7 +505,7 @@ where
         };
         let admitted = match super::floor::hold(
             self.scope.runtime,
-            self.scope.graph_dir,
+            self.scope.workflow_dir,
             &call.step,
             &call.step.inputs,
             host,
@@ -665,11 +665,15 @@ where
     /// What a claimed call waits on until it settles: the person's
     /// acknowledgement to run it again with the same input, when it can be
     /// sent again.
-    fn retry(&self, index: u32, step: &GraphStep) -> Result<PendingRequest, RuntimeError> {
+    fn retry(&self, index: u32, step: &WorkflowStep) -> Result<PendingRequest, RuntimeError> {
         pending_request(&super::unsettled_retry(
             self.retry_id(index),
             &format!("call {index}"),
-            super::resend_of(step, self.scope.graph_dir, &self.scope.runtime.options.env),
+            super::resend_of(
+                step,
+                self.scope.workflow_dir,
+                &self.scope.runtime.options.env,
+            ),
         ))
     }
 
@@ -749,7 +753,7 @@ where
     ) -> Result<Vec<RunCallOutput>, RuntimeError> {
         let options = &self.scope.runtime.options;
         let artifacts =
-            crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir).artifacts();
+            crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
         let label = call_step_id(self.scope.step_id, index);
         let persist = |label: &str, value: &JsonValue| {
             crate::services::persist_json_artifact(
@@ -858,8 +862,8 @@ where
         admission_refs.extend(call.fed.iter().map(|fed| fed.artifact.clone()));
         let request = StepRunRequest {
             runtime: scope.runtime,
-            graph_dir: scope.graph_dir,
-            graph_name: scope.graph_name,
+            workflow_dir: scope.workflow_dir,
+            workflow_name: scope.workflow_name,
             step,
             attempt: 1,
             inputs: step.inputs.clone(),
@@ -875,7 +879,7 @@ where
                 .bound_skill(step, bound)
                 .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
             TurnTarget::Skill { .. } => load_step_skill(
-                scope.graph_dir,
+                scope.workflow_dir,
                 step,
                 StepSkillLoadOptions::of_run(&scope.runtime.options),
             )
@@ -1006,7 +1010,7 @@ where
                 )
             }
         };
-        let mut step = GraphStep {
+        let mut step = WorkflowStep {
             id: step_id,
             label: Some(label(target)),
             kind,
@@ -1036,7 +1040,7 @@ where
     /// provenance names the call.
     fn admit_references(
         &self,
-        step: &mut GraphStep,
+        step: &mut WorkflowStep,
         target: &TurnTarget,
     ) -> Result<Vec<Fed>, String> {
         let given = step
@@ -1051,7 +1055,7 @@ where
         let (declared_by, declared) = self.declared_inputs(step, target)?;
         let options = &self.scope.runtime.options;
         let artifacts =
-            crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir).artifacts();
+            crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir).artifacts();
         let recorded = self.recorded().map_err(|error| error.to_string())?;
         let mut fed = Vec::new();
         for name in given {
@@ -1141,7 +1145,7 @@ where
     /// declare none.
     fn declared_inputs(
         &self,
-        step: &GraphStep,
+        step: &WorkflowStep,
         target: &TurnTarget,
     ) -> Result<(&'static str, BTreeMap<String, InputDefinition>), String> {
         let options = &self.scope.runtime.options;
@@ -1149,7 +1153,7 @@ where
             TurnTarget::Tool { tool } => crate::tool_catalogs::dispatch::inspect_catalog_tool(
                 tool.as_str(),
                 &options.env,
-                self.scope.graph_dir,
+                self.scope.workflow_dir,
                 &options.effects,
             )
             .map(|inspected| ("tool", inspected.inputs))
@@ -1163,7 +1167,7 @@ where
                 .map(|loaded| ("runner", loaded.runner.inputs))
                 .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
             TurnTarget::Skill { skill, .. } => load_step_skill(
-                self.scope.graph_dir,
+                self.scope.workflow_dir,
                 step,
                 StepSkillLoadOptions::of_run(options),
             )
@@ -1231,7 +1235,7 @@ where
             .call_step(0, &target, &JsonObject::new())
             .map_err(|reason| RuntimeError::effect_state("describing a child skill", reason))?;
         let loaded = load_step_skill(
-            self.scope.graph_dir,
+            self.scope.workflow_dir,
             &call.step,
             StepSkillLoadOptions::of_run(&self.scope.runtime.options),
         )?;
@@ -1346,10 +1350,10 @@ where
     /// The connectors the turn's skill may use, within its project.
     fn connector_scope(&self) -> Result<crate::kernel::connectors::ConnectorScope, RuntimeError> {
         crate::kernel::connectors::ConnectorScope::in_project(
-            self.scope.graph_dir,
+            self.scope.workflow_dir,
             &crate::paths::RunxPaths::resolve(
                 &self.scope.runtime.options.env,
-                self.scope.graph_dir,
+                self.scope.workflow_dir,
             ),
         )
         .map_err(|error| {
@@ -1362,7 +1366,7 @@ where
     /// packages its closure binds for its child run to execute.
     fn bound_skill(
         &self,
-        step: &GraphStep,
+        step: &WorkflowStep,
         bound: &BoundClosure,
     ) -> Result<LoadedStepSkill, RuntimeError> {
         let options = &self.scope.runtime.options;
@@ -1384,7 +1388,7 @@ where
                 target.skill
             ),
         };
-        let paths = crate::paths::RunxPaths::resolve(&options.env, self.scope.graph_dir);
+        let paths = crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir);
         let directory = super::step_handlers::resolve_loaded(&target.skill, &paths, &options.env)
             .map_err(changed)?
             .runnable_path;
@@ -1418,7 +1422,7 @@ where
         let inspected = crate::tool_catalogs::dispatch::inspect_catalog_tool(
             tool.as_str(),
             &self.scope.runtime.options.env,
-            self.scope.graph_dir,
+            self.scope.workflow_dir,
             &self.scope.runtime.options.effects,
         )?;
         Ok(offered(
@@ -1438,7 +1442,7 @@ where
         crate::tool_catalogs::dispatch::inspect_catalog_tool(
             tool,
             &self.scope.runtime.options.env,
-            self.scope.graph_dir,
+            self.scope.workflow_dir,
             &self.scope.runtime.options.effects,
         )
         .map(|inspected| inspected.scopes)
@@ -1450,7 +1454,7 @@ impl<A> Turn for OpenTurn<'_, A>
 where
     A: SkillAdapter,
 {
-    fn invocation(&self) -> &AgentActInvocation {
+    fn invocation(&self) -> &TurnInvocation {
         self.invocation
     }
 
@@ -1775,7 +1779,7 @@ pub(super) fn operation_descriptor(
 pub(super) fn skill_descriptor(
     name: &str,
     skill_description: Option<String>,
-    runner: &runx_parser::SkillRunnerDefinition,
+    runner: &runx_parser::SkillMethodDefinition,
     target: TurnTarget,
 ) -> Result<TurnTool, RuntimeError> {
     let describing =
@@ -1994,7 +1998,7 @@ fn pending_request(request: &ResolutionRequest) -> Result<PendingRequest, Runtim
     let id = match request {
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
-        | ResolutionRequest::AgentAct { id, .. }
+        | ResolutionRequest::Turn { id, .. }
         | ResolutionRequest::Retry { id, .. }
         | ResolutionRequest::Purchase { id, .. } => id.to_string(),
     };

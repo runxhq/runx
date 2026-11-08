@@ -104,10 +104,10 @@ fn collect_source_bundle_files(
         .skill_edges
         .iter()
         .map(|edge| {
-            let from = bundled_graph_directory(
+            let from = bundled_workflow_directory(
                 &package_paths,
                 &edge.source_package_root,
-                &edge.graph_directory,
+                &edge.workflow_directory,
             )?;
             let target = package_path(&package_paths, &edge.target_package_root)?.to_owned();
             Ok(PackageBundleDependency {
@@ -192,17 +192,17 @@ fn collect_materialized_bundle_files(
     Ok(files.into_values().collect())
 }
 
-fn bundled_graph_directory(
+fn bundled_workflow_directory(
     package_paths: &BTreeMap<PathBuf, String>,
     source_package_root: &Path,
-    graph_directory: &Path,
+    workflow_directory: &Path,
 ) -> Result<String, RegistryPublishPackageError> {
-    let relative = graph_directory
+    let relative = workflow_directory
         .strip_prefix(source_package_root)
         .map_err(|_| {
             RegistryPublishPackageError::invalid(format!(
                 "graph directory {} is outside source package {}",
-                graph_directory.display(),
+                workflow_directory.display(),
                 source_package_root.display()
             ))
         })?;
@@ -310,7 +310,7 @@ fn portable_package_paths(
             .iter()
             .filter(|edge| edge.source_package_root == source)
             .map(|edge| {
-                let graph = edge.graph_directory.strip_prefix(&source).map_err(|_| {
+                let graph = edge.workflow_directory.strip_prefix(&source).map_err(|_| {
                     RegistryPublishPackageError::invalid(
                         "publish graph directory is outside its source package",
                     )

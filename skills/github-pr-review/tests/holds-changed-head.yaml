@@ -1,0 +1,39 @@
+name: holds-changed-head
+setup:
+  credentials:
+    - github
+inputs:
+  repository: example/project
+  number: 42
+  expected_head: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+env:
+  GITHUB_TOKEN: harness-github-token
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://api.github.com/repos/example/project/pulls/42
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"number":42,"head":{"sha":"cccccccccccccccccccccccccccccccccccccccc"},"base":{"sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","repo":{"full_name":"example/project"}},"title":"Use account token","body":"Authenticate the request with its account token.","changed_files":1}'
+expect:
+  status: sealed
+  steps:
+    - capture
+    - select
+    - assess
+  step_outputs:
+    assess:
+      subset:
+        pr_review:
+          data:
+            decision: needs_more_evidence
+            head_sha: cccccccccccccccccccccccccccccccccccccccc
+            publication_status: not_posted
+            execution_status: not_tested
+            findings: []
+  receipt:
+    schema: runx.receipt.v1

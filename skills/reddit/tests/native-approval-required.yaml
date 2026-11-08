@@ -1,0 +1,26 @@
+name: reddit-native-approval-required
+package: fixtures/publish
+setup:
+  sessions:
+  - reddit
+  parameters:
+    reddit:
+      account: example_builder
+      profile: reddit-builder
+inputs: {}
+host:
+  approvals:
+    publish#request: false
+providers:
+  processes:
+  - tool: reddit.brave
+    arguments:
+      operation: session
+      parameters:
+        account: example_builder
+        profile: reddit-builder
+    result:
+      id: example_builder
+      login: example_builder
+expect:
+  status: policy_denied

@@ -47,7 +47,7 @@ pub(super) fn validate_skill(
         &validation_root,
         &resolved_path,
         candidate_files,
-        invocation.inputs.allow_execute_harness,
+        invocation.inputs.allow_execute_test,
         invocation.env,
         invocation.effects,
     )?;

@@ -1,0 +1,11 @@
+{
+  "skill_name": "taste-profile",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Build a product-UI taste profile from these likes and dislikes.",
+      "expected_output": "Return scoped design preferences, anti-patterns, and decision rules grounded in the supplied examples.",
+      "files": []
+    }
+  ]
+}

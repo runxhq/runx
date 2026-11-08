@@ -94,7 +94,7 @@ mod tests {
     use super::{ReceiptDecodeError, decode_receipt_value};
 
     const RECEIPT: &str =
-        include_str!("../../../fixtures/contracts/harness-spine/receipt-success.json");
+        include_str!("../../../fixtures/contracts/run-spine/receipt-success.json");
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 

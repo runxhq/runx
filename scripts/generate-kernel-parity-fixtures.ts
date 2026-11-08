@@ -4,9 +4,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   evaluateRustKernelInputSync,
-  type SequentialGraphEvent,
-  type SequentialGraph,
-  type SequentialGraphStepDefinition,
+  type SequentialWorkflowEvent,
+  type SequentialWorkflow,
+  type SequentialWorkflowStepDefinition,
 } from "./rust-kernel-eval.js";
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -134,7 +134,7 @@ export async function validateKernelFixture(fixture: KernelFixture): Promise<Val
   const errors = [
     ...schemaErrors(envelopeSchema, fixture, "fixture.schema.json"),
     ...schemaErrors(concreteSchema, fixture, schemaFile),
-    ...runnerFixtureErrors(fixture),
+    ...methodFixtureErrors(fixture),
   ];
   return {
     valid: errors.length === 0,
@@ -142,7 +142,7 @@ export async function validateKernelFixture(fixture: KernelFixture): Promise<Val
   };
 }
 
-export function isRunnerKernelFixture(fixture: KernelFixture): boolean {
+export function isMethodKernelFixture(fixture: KernelFixture): boolean {
   return fixture.expected.kind === "error" && fixture.expected.code === "kernel.fixture.evaluation_failed";
 }
 
@@ -152,12 +152,12 @@ function kernelFixtureSchemaFile(schemaRef: unknown): string | undefined {
     : undefined;
 }
 
-function runnerFixtureErrors(fixture: KernelFixture): readonly string[] {
-  const isRunnerFixture = isRunnerKernelFixture(fixture);
-  if (isRunnerFixture && !fixture.name.startsWith("runner-")) {
+function methodFixtureErrors(fixture: KernelFixture): readonly string[] {
+  const isMethodFixture = isMethodKernelFixture(fixture);
+  if (isMethodFixture && !fixture.name.startsWith("runner-")) {
     return [`fixture.name: runner ingestion fixtures must use the 'runner-' prefix`];
   }
-  if (!isRunnerFixture && fixture.name.startsWith("runner-")) {
+  if (!isMethodFixture && fixture.name.startsWith("runner-")) {
     return [`fixture.name: only kernel.fixture.evaluation_failed error fixtures may use the 'runner-' prefix`];
   }
   return [];
@@ -175,26 +175,26 @@ function evaluateKernelFixtureInputUnchecked(input: KernelFixture["input"]): unk
   return evaluateRustKernelInputSync(input);
 }
 
-function createSequentialGraph(
-  graphId: string,
-  steps: readonly SequentialGraphStepDefinition[],
-): SequentialGraph {
+function createSequentialWorkflow(
+  workflowId: string,
+  steps: readonly SequentialWorkflowStepDefinition[],
+): SequentialWorkflow {
   return evaluateRustKernelInputSync({
-    kind: "state-machine.createSequentialGraph",
-    graphId,
+    kind: "state-machine.createSequentialWorkflow",
+    workflowId,
     steps,
-  }) as SequentialGraph;
+  }) as SequentialWorkflow;
 }
 
-function transitionSequentialGraph(
-  state: SequentialGraph,
-  event: SequentialGraphEvent,
-): SequentialGraph {
+function transitionSequentialWorkflow(
+  state: SequentialWorkflow,
+  event: SequentialWorkflowEvent,
+): SequentialWorkflow {
   return evaluateRustKernelInputSync({
-    kind: "state-machine.transitionSequentialGraph",
+    kind: "state-machine.transitionSequentialWorkflow",
     state,
     event,
-  }) as SequentialGraph;
+  }) as SequentialWorkflow;
 }
 
 export function normalizeForFixture(value: unknown): unknown {
@@ -260,17 +260,17 @@ async function main(): Promise<void> {
 }
 
 function fixtureCases(): readonly KernelFixtureCase[] {
-  const linearSteps: readonly SequentialGraphStepDefinition[] = [
+  const linearSteps: readonly SequentialWorkflowStepDefinition[] = [
     { id: "first" },
     { id: "second", contextFrom: ["first"] },
   ];
-  const pendingGraph = createSequentialGraph("gx_fixture", linearSteps);
-  const startedGraph = transitionSequentialGraph(pendingGraph, {
+  const pendingWorkflow = createSequentialWorkflow("gx_fixture", linearSteps);
+  const startedWorkflow = transitionSequentialWorkflow(pendingWorkflow, {
     type: "start_step",
     stepId: "first",
     at: "2026-04-10T00:00:00.000Z",
   });
-  const failedOnceGraph = transitionSequentialGraph(startedGraph, {
+  const failedOnceWorkflow = transitionSequentialWorkflow(startedWorkflow, {
     type: "step_failed",
     stepId: "first",
     at: "2026-04-10T00:00:01.000Z",
@@ -342,26 +342,26 @@ function fixtureCases(): readonly KernelFixtureCase[] {
       },
     },
     {
-      name: "sequential-create-graph",
+      name: "sequential-create-workflow",
       input: {
-        kind: "state-machine.createSequentialGraph",
-        graphId: "gx_fixture",
+        kind: "state-machine.createSequentialWorkflow",
+        workflowId: "gx_fixture",
         steps: linearSteps,
       },
     },
     {
       name: "sequential-plan-first-step",
       input: {
-        kind: "state-machine.planSequentialGraphTransition",
-        state: pendingGraph,
+        kind: "state-machine.planSequentialWorkflowTransition",
+        state: pendingWorkflow,
         steps: linearSteps,
       },
     },
     {
       name: "sequential-transition-step-succeeded",
       input: {
-        kind: "state-machine.transitionSequentialGraph",
-        state: startedGraph,
+        kind: "state-machine.transitionSequentialWorkflow",
+        state: startedWorkflow,
         event: {
           type: "step_succeeded",
           stepId: "first",
@@ -381,17 +381,17 @@ function fixtureCases(): readonly KernelFixtureCase[] {
     {
       name: "sequential-plan-fails-after-a-failed-step",
       input: {
-        kind: "state-machine.planSequentialGraphTransition",
-        state: failedOnceGraph,
+        kind: "state-machine.planSequentialWorkflowTransition",
+        state: failedOnceWorkflow,
         steps: [{ id: "first" }],
       },
     },
     {
-      name: "runner-rejects-malformed-state",
+      name: "method-rejects-malformed-state",
       description:
-        "Pins the fixture-runner ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
+        "Pins the fixture-method ingestion error envelope for invalid but schema-shaped input; this is not a state-machine decision fixture.",
       input: {
-        kind: "state-machine.planSequentialGraphTransition",
+        kind: "state-machine.planSequentialWorkflowTransition",
         state: {},
         steps: [{ id: "first" }],
       },
@@ -405,7 +405,7 @@ function fixtureCases(): readonly KernelFixtureCase[] {
 }
 
 function fixtureDirectory(fixture: KernelFixture): string {
-  if (isRunnerKernelFixture(fixture)) {
+  if (isMethodKernelFixture(fixture)) {
     return path.join(fixtureRoot, "runner");
   }
   return path.join(fixtureRoot, fixture.input.kind.startsWith("state-machine.") ? "state-machine" : "policy");

@@ -23,9 +23,9 @@
           "enum": [
             "pending",
             "failed",
-            "harness_verified"
+            "test_verified"
           ],
-          "title": "RegistryHarnessState",
+          "title": "RegistryTestState",
           "type": "string"
         }
       },
@@ -33,7 +33,7 @@
         "state",
         "case_count"
       ],
-      "title": "RegistryBindingHarness",
+      "title": "RegistryBindingTest",
       "type": "object"
     },
     "registry": {
@@ -104,7 +104,7 @@
       "enum": [
         "registry_binding_drafted",
         "registry_bound",
-        "harness_verified",
+        "test_verified",
         "published"
       ],
       "title": "RegistryBindingState",

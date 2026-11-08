@@ -37,7 +37,7 @@ fn evaluates_raw_input_document() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn rejects_oversized_documents_fail_closed() {
     let source = format!(
-        r#"{{"kind":"state-machine.createSequentialGraph","graphId":"{}","steps":[]}}"#,
+        r#"{{"kind":"state-machine.createSequentialWorkflow","workflowId":"{}","steps":[]}}"#,
         "a".repeat(1024 * 1024)
     );
 
@@ -47,7 +47,7 @@ fn rejects_oversized_documents_fail_closed() {
 #[test]
 fn rejects_deeply_nested_documents_fail_closed() {
     let source = format!(
-        r#"{{"kind":"state-machine.planSequentialGraphTransition","decision":{}}}"#,
+        r#"{{"kind":"state-machine.planSequentialWorkflowTransition","decision":{}}}"#,
         nested_json_object(65)
     );
 
@@ -61,7 +61,7 @@ fn rejects_wide_documents_fail_closed() {
         .collect::<Vec<_>>()
         .join(",");
     let source = format!(
-        r#"{{"kind":"state-machine.planSequentialGraphTransition","decision":{{{fields}}}}}"#
+        r#"{{"kind":"state-machine.planSequentialWorkflowTransition","decision":{{{fields}}}}}"#
     );
 
     assert_invalid_input_contains(&source, "object exceeds 512 fields");

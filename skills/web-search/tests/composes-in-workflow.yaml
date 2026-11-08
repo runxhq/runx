@@ -1,0 +1,4 @@
+name: web-search-composes-in-graph
+package: fixtures/composed
+expect:
+  status: policy_denied

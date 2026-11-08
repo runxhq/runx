@@ -16,7 +16,7 @@ pub struct SkillInstallOrigin {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub runner_names: Option<Vec<String>>,
+    pub method_names: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trust_tier: Option<String>,
 }

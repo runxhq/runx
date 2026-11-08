@@ -8,8 +8,8 @@ use runx_contracts::decision::Decision;
 use runx_contracts::doctor::DoctorReport;
 use runx_contracts::fixture::Fixture;
 use runx_contracts::host_protocol::{
-    AgentActInvocation, ApprovalGate, Question, ResolutionRequest, ResolutionResponse,
-    TurnCallResult, TurnStatus,
+    ApprovalGate, Question, ResolutionRequest, ResolutionResponse, TurnCallResult, TurnInvocation,
+    TurnStatus,
 };
 use runx_contracts::ledger::LedgerEntry;
 use runx_contracts::list::RunxListReport;
@@ -158,8 +158,8 @@ pub(super) fn covered() -> Vec<Covered> {
         },
         Covered {
             file_name: "agent-act-invocation.schema.json",
-            emitted: AgentActInvocation::json_schema(),
-            corpus: agent_act_invocation_corpus(),
+            emitted: TurnInvocation::json_schema(),
+            corpus: turn_invocation_corpus(),
         },
         Covered {
             file_name: "turn-call.schema.json",

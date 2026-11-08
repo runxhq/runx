@@ -5,21 +5,21 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  validateHarnessFixtureYamlBatch,
-  validateRunnerManifestYaml as validateNativeRunnerManifestYaml,
-  validateRunnerManifestYamlBatch as validateNativeRunnerManifestYamlBatch,
+  validateTestFixtureYamlBatch,
+  validateMethodManifestYaml as validateNativeMethodManifestYaml,
+  validateMethodManifestYamlBatch as validateNativeMethodManifestYamlBatch,
   validateSkillMarkdownBatch as validateNativeSkillMarkdownBatch,
 } from "../../scripts/lib/native-parser.mjs";
 
-type SkillRunner = {
+type SkillMethod = {
   readonly name: string;
   readonly default: boolean;
   readonly graph: { readonly steps: readonly unknown[] };
 };
 
-type SkillRunnerManifest = {
+type SkillMethodManifest = {
   readonly catalog?: Record<string, unknown>;
-  readonly runners: Readonly<Record<string, SkillRunner>>;
+  readonly runners: Readonly<Record<string, SkillMethod>>;
   readonly harness?: {
     readonly cases: readonly {
       readonly name: string;
@@ -53,9 +53,9 @@ describe("runx-maintained skill catalog", () => {
     const skills = validateNativeSkillMarkdownBatch(packages.map((entry) => entry.markdown)) as Array<{
       readonly name: string;
     }>;
-    const manifests = validateNativeRunnerManifestYamlBatch(
+    const manifests = validateNativeMethodManifestYamlBatch(
       packages.map((entry) => entry.profile),
-    ) as SkillRunnerManifest[];
+    ) as SkillMethodManifest[];
     for (const [index, { skillName }] of packages.entries()) {
       const skill = skills[index];
       const manifest = manifests[index];
@@ -67,7 +67,7 @@ describe("runx-maintained skill catalog", () => {
 
   it("keeps static agent instructions exclusively in SKILL.md", () => {
     for (const manifestPath of skillManifestPaths(path.resolve("skills"))) {
-      const manifest = validateRunnerManifestYaml(readFileSync(manifestPath, "utf8")).raw.document;
+      const manifest = validateMethodManifestYaml(readFileSync(manifestPath, "utf8")).raw.document;
       expect(findObjectKeyPaths(manifest, "instructions"), manifestPath).toEqual([]);
 
       if (findAgentTasks(manifest).length === 0) {
@@ -86,7 +86,7 @@ describe("runx-maintained skill catalog", () => {
       if (catalogRole(skillName) === "context") {
         continue;
       }
-      const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
+      const manifest = validateMethodManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
       const fixtures = publicSkillFixtureCases(skillName);
       const inlineCases = manifest.harness?.cases ?? [];
 
@@ -170,13 +170,13 @@ function findAgentTasks(value: unknown): readonly string[] {
 }
 
 function catalogVisibility(skillName: string): "public" | "internal" {
-  const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
+  const manifest = validateMethodManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
   const catalog = manifest.catalog as { readonly visibility?: "public" | "internal" } | undefined;
   return catalog?.visibility ?? "public";
 }
 
 function catalogRole(skillName: string): string | undefined {
-  const manifest = validateRunnerManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
+  const manifest = validateMethodManifestYaml(readFileSync(path.resolve("skills", skillName, "run.yaml"), "utf8"));
   const catalog = manifest.catalog as { readonly role?: string } | undefined;
   return catalog?.role;
 }
@@ -196,9 +196,9 @@ function publicSkillFixtureCases(skillName: string): readonly PublicSkillFixture
     .filter((entry) => entry.endsWith(".yaml") || entry.endsWith(".yml"))
     .sort()
     .map((entry) => readFileSync(path.join(fixturesDir, entry), "utf8"));
-  return validateHarnessFixtureYamlBatch(documents) as PublicSkillFixtureCase[];
+  return validateTestFixtureYamlBatch(documents) as PublicSkillFixtureCase[];
 }
 
-function validateRunnerManifestYaml(profileDocument: string): SkillRunnerManifest {
-  return validateNativeRunnerManifestYaml(profileDocument);
+function validateMethodManifestYaml(profileDocument: string): SkillMethodManifest {
+  return validateNativeMethodManifestYaml(profileDocument);
 }

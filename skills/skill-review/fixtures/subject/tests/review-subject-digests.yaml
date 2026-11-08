@@ -1,0 +1,4 @@
+name: review-subject-digests
+method: default
+expect:
+  status: sealed

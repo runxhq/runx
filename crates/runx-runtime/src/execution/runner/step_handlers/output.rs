@@ -3,7 +3,7 @@
 //! downstream graph state machines and receipt sealers consume.
 
 use runx_contracts::JsonObject;
-use runx_parser::{GraphStep, SkillArtifactContract};
+use runx_parser::{SkillArtifactContract, WorkflowStep};
 
 use crate::RuntimeError;
 use crate::adapter::InvocationOutput;
@@ -17,7 +17,7 @@ use crate::output_contract::{project_artifact_outputs, project_declared_output_c
 /// effective artifact contract is the step's own inline `artifacts` when present,
 /// otherwise `extra_artifacts` (the invoked sub-skill / tool runner contract).
 pub(super) fn build_step_output_projection(
-    step: &GraphStep,
+    step: &WorkflowStep,
     output: &InvocationOutput,
     extra_outputs: Option<&JsonObject>,
     extra_artifacts: Option<&SkillArtifactContract>,
@@ -48,7 +48,7 @@ pub(super) fn contract_output_claim(projection: &StepOutputProjection) -> &JsonO
 /// Project only caller-only values that are actually present. Ephemeral output
 /// is an overlay, so it never owes the complete durable output contract.
 pub(super) fn build_ephemeral_step_output(
-    step: &GraphStep,
+    step: &WorkflowStep,
     output: &InvocationOutput,
     extra_outputs: Option<&JsonObject>,
     extra_artifacts: Option<&SkillArtifactContract>,
@@ -76,7 +76,7 @@ pub(super) fn build_ephemeral_step_output(
 #[cfg(test)]
 mod tests {
     use runx_contracts::{JsonObject, JsonValue};
-    use runx_parser::{GraphStep, parse_graph_yaml, validate_graph};
+    use runx_parser::{WorkflowStep, parse_workflow_yaml, validate_workflow};
 
     use super::build_step_output_projection;
     use crate::RuntimeError;
@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn successful_invocation_may_omit_an_optional_declared_output()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = validate_graph(parse_graph_yaml(
+        let graph = validate_workflow(parse_workflow_yaml(
             r#"
 name: optional-output-contract
 steps:
@@ -152,8 +152,8 @@ steps:
         Ok(())
     }
 
-    fn declared_output_step() -> Result<GraphStep, Box<dyn std::error::Error>> {
-        let graph = validate_graph(parse_graph_yaml(
+    fn declared_output_step() -> Result<WorkflowStep, Box<dyn std::error::Error>> {
+        let graph = validate_workflow(parse_workflow_yaml(
             r#"
 name: output-contract
 steps:

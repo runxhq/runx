@@ -34,7 +34,7 @@ impl McpServerOptions {
                 waiting
                     .into_iter()
                     .filter_map(|request| match request {
-                        ResolutionRequest::AgentAct { id, .. } => Some(id.to_string()),
+                        ResolutionRequest::Turn { id, .. } => Some(id.to_string()),
                         _ => None,
                     })
                     .collect::<Vec<_>>()
@@ -281,7 +281,7 @@ impl Waiting {
         let mut requests = Vec::new();
         for request in waiting {
             match request {
-                ResolutionRequest::AgentAct { id, invocation } => turns.push(OpenTurn {
+                ResolutionRequest::Turn { id, invocation } => turns.push(OpenTurn {
                     turn: id.to_string(),
                     skill: invocation.envelope.skill.to_string(),
                     role: invocation.role.to_string(),

@@ -24,8 +24,8 @@
   ],
   "runnable_preview": [
     {
-      "path": "examples/hello-graph",
-      "command": "runx harness examples/hello-graph/harness.yaml"
+      "path": "examples/hello-workflow",
+      "command": "runx harness examples/hello-workflow/harness.yaml"
     },
     {
       "path": "examples/managed-agent",

@@ -1,0 +1,45 @@
+name: extracts-complete-native-file-artifact
+method: from-file
+inputs:
+  source_id: document:invoice-104
+  objective: Extract invoice id, total and customer. Do not infer missing fields.
+  schema:
+    type: object
+    required:
+    - invoice_id
+    - total_usd
+    - customer
+    additionalProperties: false
+    properties:
+      invoice_id:
+        type: string
+        minLength: 3
+      total_usd:
+        type: number
+        minimum: 0
+      customer:
+        type: string
+  path: fixtures/invoice.txt
+  path_scope: skill
+host:
+  answers:
+    extract#extract:
+      value:
+        invoice_id: INV-104
+        total_usd: 125
+        customer: Northstar
+      citations:
+      - pointer: /invoice_id
+        quote: INV-104
+      - pointer: /total_usd
+        quote: '125'
+      - pointer: /customer
+        quote: Northstar
+      missing_fields: []
+expect:
+  status: sealed
+  steps:
+  - admit
+  - read
+  - complete
+  - extract

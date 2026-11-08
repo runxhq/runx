@@ -1,0 +1,25 @@
+name: plans-http-prefix-sitemap-without-submitting
+method: plan-sitemap
+inputs:
+  property: http://example.com/
+  sitemap_url: http://example.com/sitemap.xml
+expect:
+  status: sealed
+  steps:
+    - prepare
+    - digest
+    - bind
+  step_outputs:
+    bind:
+      subset:
+        sitemap_plan:
+          data:
+            decision: ready_for_execution
+            property: http://example.com/
+            sitemap_url: http://example.com/sitemap.xml
+            provider_status: not_called
+            external_status: not_submitted
+            validation:
+              status: pass
+  receipt:
+    schema: runx.receipt.v1

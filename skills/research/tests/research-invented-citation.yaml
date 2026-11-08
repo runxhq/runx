@@ -1,0 +1,55 @@
+name: research-invented-citation-fails-closed
+method: research
+inputs:
+  objective: Assess the supplied receipt claim.
+  source_packets:
+    - decision: ready
+      final_url: https://example.com/receipt-note
+      status: 200
+      content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      extracted: A single supplied source says the project uses signed receipts.
+      provenance:
+        fetched_at: "2026-07-17T00:00:00Z"
+        bytes: 63
+        redirects: []
+host:
+  answers:
+    synthesize:
+      research_candidate:
+        decision: ready
+        research_brief:
+          objective: Assess the supplied receipt claim.
+          scope: supplied evidence
+          summary: The project uses signed receipts and has external certification.
+          open_questions: []
+        evidence_log:
+          - claim: The project has external certification.
+            source_digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+            content_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+            confidence: verified
+            relevance: Would materially strengthen the claim.
+        decision_support:
+          - option: Publish the certification claim.
+            rationale: The invented citation appears to support it.
+            source_digests:
+              - sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+        risks: []
+expect:
+  status: sealed
+  steps:
+    - index
+    - analyze
+  step_outputs:
+    analyze:
+      subset:
+        research_packet:
+          data:
+            decision: needs_more_evidence
+            research_brief:
+              summary: ""
+            evidence_log: []
+            decision_support: []
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

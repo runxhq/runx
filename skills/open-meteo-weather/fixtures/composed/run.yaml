@@ -1,0 +1,15 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+    - id: open-meteo-weather
+      skill: ../..#air_quality
+      inputs:
+        latitude: '31.2222'
+        longitude: '121.4581'
+    - id: digest
+      tool: data.digest
+      inputs:
+        value: $steps.open-meteo-weather

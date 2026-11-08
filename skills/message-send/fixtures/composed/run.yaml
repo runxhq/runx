@@ -1,0 +1,19 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: message-send
+        skill: ../..#plan_post
+        inputs:
+          channel: "#ops"
+          content:
+            message: Deploy completed and health checks are green.
+          principal: team:operations
+          provider_context:
+            connector: unavailable
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.message-send

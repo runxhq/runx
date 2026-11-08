@@ -7,7 +7,7 @@
   },
   "skill_name": "code-intake",
   "manifest_hash": "sha256:092018bd8de896d930ffd6c3e205aaa75f47ac931c620e823e2af9a4c5b9f416",
-  "harness_schema": "runx.receipt.v1",
+  "test_schema": "runx.receipt.v1",
   "case_names": [
     "bounded-docs-fix",
     "feature-needs-decomposition",

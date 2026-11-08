@@ -8,12 +8,12 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use runx_contracts::JsonObject;
-use runx_parser::RunnerHarnessCase;
+use runx_parser::MethodTestCase;
 use serde::Serialize;
 
-use super::fixtures::{HarnessFixture, HarnessSetup};
-use super::runner::{load_harness_case, run_harness_case_with_adapter};
-use super::{HarnessExpectedStatus, HarnessFixtureKind, HarnessOptions, HarnessReplayError};
+use super::fixtures::{TestFixture, TestSetup};
+use super::runner::{load_test_case, run_test_case_with_adapter};
+use super::{TestExpectedStatus, TestFixtureKind, TestOptions, TestReplayError};
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::skill_front::{ExecutableAdapter, SkillRunError};
@@ -21,21 +21,21 @@ use crate::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths};
 use crate::services::ReceiptServices;
 
 /// Aggregate result of running a package's inline and conventional fixture
-/// cases. Mirrors the publish-harness summary the registry records: a status,
+/// cases. Mirrors the publish-test summary the registry records: a status,
 /// counts, per-case assertion failures, case names, sealed receipt ids, and how
 /// many `kind: graph` fixtures proved the skill composes into a graph.
 #[derive(Clone, Debug, Serialize)]
-pub struct PackageHarnessReport {
+pub struct PackageTestReport {
     pub status: &'static str,
     pub case_count: usize,
     pub assertion_error_count: usize,
     pub assertion_errors: Vec<String>,
     pub case_names: Vec<String>,
     pub receipt_ids: Vec<String>,
-    pub graph_case_count: usize,
+    pub workflow_case_count: usize,
 }
 
-impl PackageHarnessReport {
+impl PackageTestReport {
     fn not_declared() -> Self {
         Self {
             status: "not_declared",
@@ -44,30 +44,30 @@ impl PackageHarnessReport {
             assertion_errors: Vec::new(),
             case_names: Vec::new(),
             receipt_ids: Vec::new(),
-            graph_case_count: 0,
+            workflow_case_count: 0,
         }
     }
 }
 
 /// A case as loaded: its fixture and target, or why it could not be read.
-type LoadedCase = Result<(HarnessFixture, PathBuf), String>;
+type LoadedCase = Result<(TestFixture, PathBuf), String>;
 
 /// Run every harness case a skill package owns, its runners' inline
 /// `harness.cases` and its conventional `fixtures/*.yaml` files, each as a
 /// case through the one harness engine. Discovery is deterministic, and this
 /// is the single package entry point the CLI and publishing use.
-pub(crate) fn run_package_harness_with_effects(
+pub(crate) fn run_package_test_with_effects(
     skill_path: &Path,
     receipt_dir: Option<&Path>,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
-) -> Result<PackageHarnessReport, SkillRunError> {
+) -> Result<PackageTestReport, SkillRunError> {
     let loaded = crate::load_validated_skill_package(skill_path)?;
     let workspace = crate::WorkspaceEnv::from_admitted(env.clone()).map_err(RuntimeError::from)?;
     let mut base_env = workspace.env().clone();
     let credentials = super::credential_variables(&loaded.directory, &base_env)?;
-    super::isolate_harness_environment(&mut base_env, &credentials);
-    let harness = PackageHarnessEnvironment::prepare(
+    super::isolate_test_environment(&mut base_env, &credentials);
+    let harness = PackageTestEnvironment::prepare(
         base_env,
         workspace.paths(),
         &loaded.directory,
@@ -76,11 +76,10 @@ pub(crate) fn run_package_harness_with_effects(
     harness.stage_declared_files(&loaded)?;
     harness.stage_installed_connectors(&loaded, workspace.paths())?;
     harness.stage_installed_skills(&loaded, workspace.env())?;
-    let mut report = PackageHarnessReport::not_declared();
+    let mut report = PackageTestReport::not_declared();
     let mut cases = inline_cases(&loaded)?;
     for path in conventional_fixture_paths(&loaded.directory)? {
-        cases
-            .push(load_harness_case(&path).map_err(|error| format!("{}: {error}", path.display())));
+        cases.push(load_test_case(&path).map_err(|error| format!("{}: {error}", path.display())));
     }
     replay_cases(cases, &harness, effects, &mut report)?;
     finalize_report(&mut report);
@@ -109,13 +108,13 @@ fn inline_cases(loaded: &crate::LoadedSkillPackage) -> Result<Vec<LoadedCase>, S
         .collect())
 }
 
-fn inline_fixture(case: &RunnerHarnessCase) -> HarnessFixture {
-    HarnessFixture {
+fn inline_fixture(case: &MethodTestCase) -> TestFixture {
+    TestFixture {
         name: case.name.clone(),
-        kind: HarnessFixtureKind::Skill,
+        kind: TestFixtureKind::Skill,
         target: ".".to_owned(),
         runner: case.runner.clone(),
-        setup: HarnessSetup::default(),
+        setup: TestSetup::default(),
         inputs: case.inputs.clone(),
         env: case.env.clone(),
         caller: case.caller.clone(),
@@ -127,14 +126,14 @@ fn inline_fixture(case: &RunnerHarnessCase) -> HarnessFixture {
 
 fn replay_cases(
     cases: Vec<LoadedCase>,
-    harness: &PackageHarnessEnvironment,
+    harness: &PackageTestEnvironment,
     effects: &RuntimeEffectRegistry,
-    report: &mut PackageHarnessReport,
+    report: &mut PackageTestReport,
 ) -> Result<(), SkillRunError> {
     if cases.is_empty() {
         return Ok(());
     }
-    let mut base_options = HarnessOptions::new(harness.env.clone())?;
+    let mut base_options = TestOptions::new(harness.env.clone())?;
     base_options.effects = effects.clone();
     let receipt_services =
         ReceiptServices::from_signature_config(base_options.receipt_signature.clone());
@@ -156,20 +155,20 @@ fn replay_cases(
                 .into_owned(),
         );
         let name = fixture.name.clone();
-        let is_graph = matches!(fixture.kind, HarnessFixtureKind::Graph);
-        let denial_expected = fixture.expect.status == Some(HarnessExpectedStatus::PolicyDenied);
-        match run_harness_case_with_adapter(fixture, target_path, ExecutableAdapter, options) {
+        let is_workflow = matches!(fixture.kind, TestFixtureKind::Graph);
+        let denial_expected = fixture.expect.status == Some(TestExpectedStatus::PolicyDenied);
+        match run_test_case_with_adapter(fixture, target_path, ExecutableAdapter, options) {
             Ok(output) => {
                 persist_fixture_receipts(&receipt_services, &harness.receipt_dir, &output)?;
-                if is_graph {
-                    report.graph_case_count += 1;
+                if is_workflow {
+                    report.workflow_case_count += 1;
                 }
                 report.case_names.push(output.fixture.name);
                 report.receipt_ids.push(output.receipt.id.to_string());
             }
             Err(error) if denial_expected && is_authority_denial(&error) => {
-                if is_graph {
-                    report.graph_case_count += 1;
+                if is_workflow {
+                    report.workflow_case_count += 1;
                 }
                 report.case_names.push(name);
             }
@@ -184,17 +183,17 @@ fn replay_cases(
 /// of as the front's sealed terminal envelope. Only that exact refusal stands
 /// for a case that expects `policy_denied`; a broad `failure` expectation
 /// never hides a parser, harness or runtime-invariant defect.
-fn is_authority_denial(error: &HarnessReplayError) -> bool {
+fn is_authority_denial(error: &TestReplayError) -> bool {
     matches!(
         error,
-        HarnessReplayError::Runtime(RuntimeError::AuthorityDenied { .. })
+        TestReplayError::Runtime(RuntimeError::AuthorityDenied { .. })
     )
 }
 
 fn persist_fixture_receipts(
     receipt_services: &ReceiptServices,
     receipt_dir: &Path,
-    output: &super::HarnessReplayOutput,
+    output: &super::TestReplayOutput,
 ) -> Result<(), SkillRunError> {
     receipt_services.write_local_receipts(
         output
@@ -211,7 +210,7 @@ fn persist_fixture_receipts(
     Ok(())
 }
 
-fn finalize_report(report: &mut PackageHarnessReport) {
+fn finalize_report(report: &mut PackageTestReport) {
     report.assertion_error_count = report.assertion_errors.len();
     report.status = if report.case_count == 0 {
         "not_declared"
@@ -222,14 +221,14 @@ fn finalize_report(report: &mut PackageHarnessReport) {
     };
 }
 
-struct PackageHarnessEnvironment {
+struct PackageTestEnvironment {
     env: BTreeMap<String, String>,
     receipt_dir: PathBuf,
     scratch_root: PathBuf,
     workspace: PathBuf,
 }
 
-impl PackageHarnessEnvironment {
+impl PackageTestEnvironment {
     fn prepare(
         mut env: BTreeMap<String, String>,
         operator: &RunxPaths,
@@ -248,7 +247,7 @@ impl PackageHarnessEnvironment {
                 source,
             )
         })?;
-        let receipt_dir = operator.harness_receipts(receipt_dir);
+        let receipt_dir = operator.test_receipts(receipt_dir);
         env.insert(
             RUNX_RECEIPT_DIR_ENV.to_owned(),
             receipt_dir.to_string_lossy().into_owned(),
@@ -287,13 +286,13 @@ impl PackageHarnessEnvironment {
             );
             let contents = loaded.package.file_bytes(&source_path).ok_or_else(|| {
                 RuntimeError::SkillFailed {
-                    skill_name: "package-harness".to_owned(),
+                    skill_name: "package-test".to_owned(),
                     message: format!(
                         "validated harness support file {source_path:?} is unavailable"
                     ),
                 }
             })?;
-            self.stage_file(declared, contents, is_declared_harness_executable(declared))?;
+            self.stage_file(declared, contents, is_declared_test_executable(declared))?;
         }
         Ok(())
     }
@@ -307,7 +306,7 @@ impl PackageHarnessEnvironment {
         operator: &RunxPaths,
     ) -> Result<(), SkillRunError> {
         let failed = |message: String| RuntimeError::SkillFailed {
-            skill_name: "package-harness".to_owned(),
+            skill_name: "package-test".to_owned(),
             message: format!("staging an installed connector failed: {message}"),
         };
         let staged = RunxPaths::resolve(&self.env, &self.workspace).added_connectors();
@@ -333,7 +332,7 @@ impl PackageHarnessEnvironment {
     ) -> Result<(), SkillRunError> {
         stage_installed_registry_skills(loaded, operator_env, &self.env).map_err(|message| {
             RuntimeError::SkillFailed {
-                skill_name: "package-harness".to_owned(),
+                skill_name: "package-test".to_owned(),
                 message: format!("staging an installed registry skill failed: {message}"),
             }
             .into()
@@ -453,7 +452,7 @@ pub(super) fn bound_installed_connectors(
     Ok(bound)
 }
 
-fn is_declared_harness_executable(relative: &str) -> bool {
+fn is_declared_test_executable(relative: &str) -> bool {
     let mut segments = relative.split('/');
     matches!(segments.next(), Some("fixtures"))
         && matches!(segments.next(), Some("bin"))
@@ -465,11 +464,11 @@ fn unique_scratch_root(operator: &RunxPaths) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_nanos());
     operator
-        .harness_runs()
+        .test_runs()
         .join(format!("run-{}-{nanos}", std::process::id()))
 }
 
-impl Drop for PackageHarnessEnvironment {
+impl Drop for PackageTestEnvironment {
     fn drop(&mut self) {
         let _ignored = fs::remove_dir_all(&self.scratch_root);
     }
@@ -516,12 +515,12 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     use super::{
-        PackageHarnessEnvironment, PackageHarnessReport, RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV,
-        RunxPaths, finalize_report, is_authority_denial, run_package_harness_with_effects,
+        PackageTestEnvironment, PackageTestReport, RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,
+        finalize_report, is_authority_denial, run_package_test_with_effects,
     };
 
     #[test]
-    fn package_harness_proves_missing_native_scope_is_refused()
+    fn package_test_proves_missing_native_scope_is_refused()
     -> Result<(), Box<dyn std::error::Error>> {
         let operator_workspace = unique_test_root("permission-claim")?;
         let skill_dir = operator_workspace.join("skills/permission-claim");
@@ -561,7 +560,7 @@ runners:
             operator_workspace.to_string_lossy().into_owned(),
         )]);
 
-        let report = run_package_harness_with_effects(
+        let report = run_package_test_with_effects(
             &skill_dir,
             None,
             &env,
@@ -621,7 +620,7 @@ runners:
             operator_workspace.to_string_lossy().into_owned(),
         )]);
 
-        let report = run_package_harness_with_effects(
+        let report = run_package_test_with_effects(
             &skill_dir,
             None,
             &env,
@@ -643,7 +642,7 @@ runners:
 
     #[test]
     fn only_a_native_authority_denial_stands_for_an_expected_policy_denial() {
-        let denial = crate::execution::harness::HarnessReplayError::Runtime(
+        let denial = crate::execution::harness::TestReplayError::Runtime(
             crate::RuntimeError::AuthorityDenied {
                 verb: runx_contracts::AuthorityVerb::Read,
                 step_id: "provider-read".to_owned(),
@@ -651,18 +650,17 @@ runners:
             },
         );
         assert!(is_authority_denial(&denial));
-        let unrelated = crate::execution::harness::HarnessReplayError::Runtime(
-            crate::RuntimeError::SkillFailed {
+        let unrelated =
+            crate::execution::harness::TestReplayError::Runtime(crate::RuntimeError::SkillFailed {
                 skill_name: "provider-read".to_owned(),
                 message: "unexpected adapter defect".to_owned(),
-            },
-        );
+            });
         assert!(!is_authority_denial(&unrelated));
     }
 
     #[test]
-    fn empty_package_harness_remains_not_declared() {
-        let mut report = PackageHarnessReport::not_declared();
+    fn empty_package_test_remains_not_declared() {
+        let mut report = PackageTestReport::not_declared();
 
         finalize_report(&mut report);
 
@@ -671,12 +669,12 @@ runners:
     }
 
     #[test]
-    fn package_harness_uses_disposable_workspace_owned_runx_state()
+    fn package_test_uses_disposable_workspace_owned_runx_state()
     -> Result<(), Box<dyn std::error::Error>> {
         let operator_workspace = unique_test_root("isolated")?;
         fs::create_dir_all(&operator_workspace)?;
         let skill_dir = operator_workspace.join("skills/demo");
-        let harness = PackageHarnessEnvironment::prepare(
+        let harness = PackageTestEnvironment::prepare(
             BTreeMap::new(),
             &operator(&operator_workspace),
             &skill_dir,
@@ -695,14 +693,14 @@ runners:
         assert_eq!(harness.workspace, workspace);
         assert_eq!(
             harness.receipt_dir,
-            operator_workspace.join(".runx").join("harness-receipts")
+            operator_workspace.join(".runx").join("test-receipts")
         );
         assert_eq!(
             harness.env.get(RUNX_RECEIPT_DIR_ENV),
             Some(
                 &operator_workspace
                     .join(".runx")
-                    .join("harness-receipts")
+                    .join("test-receipts")
                     .to_string_lossy()
                     .into_owned()
             )
@@ -722,8 +720,8 @@ runners:
     }
 
     #[test]
-    fn explicit_harness_workspace_owns_disposable_run_state()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn explicit_test_workspace_owns_disposable_run_state() -> Result<(), Box<dyn std::error::Error>>
+    {
         let operator_workspace = unique_test_root("explicit-operator")?;
         fs::create_dir_all(&operator_workspace)?;
         let mut env = BTreeMap::new();
@@ -732,12 +730,8 @@ runners:
             operator_workspace.to_string_lossy().into_owned(),
         );
         let skill_dir = operator_workspace.join("skills/demo");
-        let harness = PackageHarnessEnvironment::prepare(
-            env,
-            &operator(&operator_workspace),
-            &skill_dir,
-            None,
-        )?;
+        let harness =
+            PackageTestEnvironment::prepare(env, &operator(&operator_workspace), &skill_dir, None)?;
         let scratch_root = harness.scratch_root.clone();
 
         assert!(scratch_root.starts_with(operator_workspace.join(".runx").join("harness")));
@@ -761,7 +755,7 @@ runners:
     -> Result<(), Box<dyn std::error::Error>> {
         let operator_workspace = unique_test_root("explicit-receipts")?;
         fs::create_dir_all(&operator_workspace)?;
-        let harness = PackageHarnessEnvironment::prepare(
+        let harness = PackageTestEnvironment::prepare(
             BTreeMap::new(),
             &operator(&operator_workspace),
             &operator_workspace.join("skills/demo"),
@@ -780,7 +774,7 @@ runners:
     }
 
     #[test]
-    fn package_harness_keeps_workspace_tool_catalogs_after_cwd_isolation()
+    fn package_test_keeps_workspace_tool_catalogs_after_cwd_isolation()
     -> Result<(), Box<dyn std::error::Error>> {
         let operator_workspace = unique_test_root("tool-roots")?;
         let skill_dir = operator_workspace.join("skills/demo");
@@ -788,7 +782,7 @@ runners:
         fs::create_dir_all(&skill_dir)?;
         fs::create_dir_all(&tools_dir)?;
 
-        let harness = PackageHarnessEnvironment::prepare(
+        let harness = PackageTestEnvironment::prepare(
             BTreeMap::new(),
             &operator(&operator_workspace),
             &skill_dir,
@@ -807,7 +801,7 @@ runners:
     }
 
     #[test]
-    fn package_harness_stages_only_declared_profile_relative_files()
+    fn package_test_stages_only_declared_profile_relative_files()
     -> Result<(), Box<dyn std::error::Error>> {
         let operator_workspace = unique_test_root("staged-files")?;
         let skill_dir = operator_workspace.join("skills/demo");
@@ -839,7 +833,7 @@ runners:
         fs::write(skill_dir.join("fixtures/declared.txt"), "declared")?;
         fs::write(skill_dir.join("fixtures/undeclared.txt"), "undeclared")?;
         let loaded = crate::load_validated_skill_package(&skill_dir)?;
-        let harness = PackageHarnessEnvironment::prepare(
+        let harness = PackageTestEnvironment::prepare(
             BTreeMap::new(),
             &operator(&operator_workspace),
             &skill_dir,
@@ -860,7 +854,7 @@ runners:
 
     #[cfg(unix)]
     #[test]
-    fn package_harness_marks_declared_fixture_bin_files_executable()
+    fn package_test_marks_declared_fixture_bin_files_executable()
     -> Result<(), Box<dyn std::error::Error>> {
         let operator_workspace = unique_test_root("staged-executable")?;
         let skill_dir = operator_workspace.join("skills/demo");
@@ -894,7 +888,7 @@ runners:
             "#!/bin/sh\nexit 0\n",
         )?;
         let loaded = crate::load_validated_skill_package(&skill_dir)?;
-        let harness = PackageHarnessEnvironment::prepare(
+        let harness = PackageTestEnvironment::prepare(
             BTreeMap::new(),
             &operator(&operator_workspace),
             &skill_dir,
@@ -925,7 +919,7 @@ runners:
             .duration_since(UNIX_EPOCH)
             .map_or(0, |duration| duration.as_nanos());
         Ok(std::env::temp_dir().join(format!(
-            "runx-package-harness-{label}-{}-{nanos}",
+            "runx-package-test-{label}-{}-{nanos}",
             std::process::id()
         )))
     }

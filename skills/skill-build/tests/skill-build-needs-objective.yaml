@@ -1,0 +1,5 @@
+name: skill-build-needs-objective
+method: design
+inputs: {}
+expect:
+  status: failure

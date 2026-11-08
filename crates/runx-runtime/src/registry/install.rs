@@ -40,7 +40,7 @@ pub struct InstallCandidate {
     pub version: Option<String>,
     pub signed_manifest: Option<RegistrySignedManifest>,
     pub profile_digest: Option<String>,
-    pub runner_names: Vec<String>,
+    pub method_names: Vec<String>,
     pub trust_tier: Option<TrustTier>,
     pub manifest_source_authority: Option<RegistryManifestSourceAuthority>,
 }
@@ -76,7 +76,7 @@ pub struct InstallLocalSkillResult {
     pub version: Option<String>,
     pub digest: String,
     pub profile_digest: Option<String>,
-    pub runner_names: Vec<String>,
+    pub method_names: Vec<String>,
     pub trust_tier: Option<TrustTier>,
     /// The newest published version, when this runx does not read it and
     /// installed this one in its place.
@@ -139,11 +139,11 @@ pub enum InstallError {
         skill_name: String,
     },
     #[error("runner manifest runners do not match advertised runner metadata for skill '{0}'")]
-    RunnerMetadataMismatch(String),
+    MethodMetadataMismatch(String),
     #[error("skill install destination already exists with different content: {0}")]
     ConflictingSkill(PathBuf),
     #[error("skill install runner manifest already exists with different content: {0}")]
-    ConflictingRunnerManifest(PathBuf),
+    ConflictingMethodManifest(PathBuf),
     #[error("skill install package file already exists with different content: {0}")]
     ConflictingPackageFile(PathBuf),
     #[error("a connector the skill package carries could not be added to the project: {0}")]
@@ -223,7 +223,7 @@ fn install_skill(
         version: validated.install.origin.version,
         digest: validated.actual_digest,
         profile_digest: validated.profile_digest,
-        runner_names: validated.runner_names,
+        method_names: validated.method_names,
         trust_tier: candidate.trust_tier,
         newest_unread: None,
     })
@@ -407,19 +407,19 @@ fn add_carried_connectors(
 struct ValidatedLocalInstall {
     actual_digest: String,
     profile_digest: Option<String>,
-    runner_names: Vec<String>,
+    method_names: Vec<String>,
     install: ValidatedSkillInstall,
 }
 
 struct InstallPaths {
     package_root: PathBuf,
     destination: PathBuf,
-    runner_manifest_path: Option<PathBuf>,
+    method_manifest_path: Option<PathBuf>,
 }
 
 struct InstallWritePlan {
     writes_skill: bool,
-    writes_runner_manifest: bool,
+    writes_method_manifest: bool,
     package_files: Vec<PackageFileWritePlan>,
 }
 
@@ -432,7 +432,7 @@ struct PackageFileWritePlan {
 impl InstallWritePlan {
     fn status(&self) -> InstallStatus {
         if self.writes_skill
-            || self.writes_runner_manifest
+            || self.writes_method_manifest
             || self.package_files.iter().any(|file| file.write)
         {
             InstallStatus::Installed
@@ -492,8 +492,8 @@ fn stage_new_version(
     let root = versions.join(format!(".staging-{}", unique_suffix()));
     let staged = InstallPaths {
         destination: root.join("SKILL.md"),
-        runner_manifest_path: paths
-            .runner_manifest_path
+        method_manifest_path: paths
+            .method_manifest_path
             .as_ref()
             .map(|_| root.join(runx_parser::PROFILE_FILE)),
         package_root: root,
@@ -562,15 +562,15 @@ fn validate_install_candidate(
         &candidate.package_files,
     )
     .map_err(|error| unreadable(error.to_string()))?;
-    let runner_names = validate_install_binding_manifest(
+    let method_names = validate_install_binding_manifest(
         &install.skill.name,
         package.root_manifest(),
-        &candidate.runner_names,
+        &candidate.method_names,
     )?;
     Ok(ValidatedLocalInstall {
         actual_digest,
         profile_digest,
-        runner_names,
+        method_names,
         install,
     })
 }
@@ -838,7 +838,7 @@ fn install_origin(
         version: candidate.version.clone(),
         digest: Some(actual_digest.to_owned()),
         profile_digest: profile_digest.map(ToOwned::to_owned),
-        runner_names: Some(candidate.runner_names.clone()),
+        method_names: Some(candidate.method_names.clone()),
         trust_tier: candidate.trust_tier.as_ref().map(trust_tier_string),
     }
 }
@@ -856,14 +856,14 @@ fn install_paths(
             path.join(part)
         });
     let destination = package_root.join("SKILL.md");
-    let runner_manifest_path = candidate
+    let method_manifest_path = candidate
         .profile_document
         .as_ref()
         .map(|_| package_root.join(runx_parser::PROFILE_FILE));
     InstallPaths {
         package_root,
         destination,
-        runner_manifest_path,
+        method_manifest_path,
     }
 }
 
@@ -880,7 +880,7 @@ fn prepare_install_write_plan(
         ref_name,
     } = *documents;
     let existing = read_optional(&paths.destination)?;
-    let existing_runner_manifest = match &paths.runner_manifest_path {
+    let existing_method_manifest = match &paths.method_manifest_path {
         Some(path) => read_optional(path)?,
         None => None,
     };
@@ -890,12 +890,12 @@ fn prepare_install_write_plan(
         return Err(InstallError::ConflictingSkill(paths.destination.clone()));
     }
     if let (Some(path), Some(existing), Some(next)) = (
-        &paths.runner_manifest_path,
-        &existing_runner_manifest,
+        &paths.method_manifest_path,
+        &existing_method_manifest,
         profile_document,
     ) && existing != next
     {
-        return Err(InstallError::ConflictingRunnerManifest(path.clone()));
+        return Err(InstallError::ConflictingMethodManifest(path.clone()));
     }
     let mut seen_package_paths = BTreeSet::new();
     let mut package_file_plans = Vec::with_capacity(package_files.len());
@@ -927,8 +927,8 @@ fn prepare_install_write_plan(
     }
     Ok(InstallWritePlan {
         writes_skill: existing.is_none(),
-        writes_runner_manifest: paths.runner_manifest_path.is_some()
-            && existing_runner_manifest.is_none(),
+        writes_method_manifest: paths.method_manifest_path.is_some()
+            && existing_method_manifest.is_none(),
         package_files: package_file_plans,
     })
 }
@@ -953,8 +953,8 @@ fn commit_install_write_plan(
         write_atomic(&paths.destination, markdown)?;
     }
     if let (Some(path), true, Some(document)) = (
-        &paths.runner_manifest_path,
-        write_plan.writes_runner_manifest,
+        &paths.method_manifest_path,
+        write_plan.writes_method_manifest,
         profile_document,
     ) {
         write_atomic(path, document)?;
@@ -976,11 +976,11 @@ fn commit_install_write_plan(
 
 fn validate_install_binding_manifest(
     skill_name: &str,
-    manifest: Option<&runx_parser::SkillRunnerManifest>,
-    advertised_runner_names: &[String],
+    manifest: Option<&runx_parser::SkillMethodManifest>,
+    advertised_method_names: &[String],
 ) -> Result<Vec<String>, InstallError> {
     let Some(manifest) = manifest else {
-        return Ok(advertised_runner_names.to_vec());
+        return Ok(advertised_method_names.to_vec());
     };
     if manifest.skill != skill_name {
         return Err(InstallError::ManifestSkillMismatch {
@@ -988,11 +988,11 @@ fn validate_install_binding_manifest(
             skill_name: skill_name.to_owned(),
         });
     }
-    let runner_names = manifest.runners.keys().cloned().collect::<Vec<_>>();
-    if !advertised_runner_names.is_empty() && advertised_runner_names != runner_names {
-        return Err(InstallError::RunnerMetadataMismatch(skill_name.to_owned()));
+    let method_names = manifest.runners.keys().cloned().collect::<Vec<_>>();
+    if !advertised_method_names.is_empty() && advertised_method_names != method_names {
+        return Err(InstallError::MethodMetadataMismatch(skill_name.to_owned()));
     }
-    Ok(runner_names)
+    Ok(method_names)
 }
 
 fn write_atomic(destination: &Path, contents: &str) -> Result<(), InstallError> {

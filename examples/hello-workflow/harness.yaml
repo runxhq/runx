@@ -1,0 +1,14 @@
+name: hello-workflow
+kind: graph
+target: ./graph.yaml
+expect:
+  status: sealed
+  steps:
+    - first
+    - second
+  receipt:
+    schema: runx.receipt.v1
+    subject_uri: runx:run:test-workflow
+    state: sealed
+    outcome: completed
+    child_receipt_count: 2

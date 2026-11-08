@@ -1,0 +1,23 @@
+name: moltbook-post-refuses-an-unready-scan
+method: post
+inputs:
+  scan_packet:
+    decision: needs_more_evidence
+    delivery_status: not_posted
+    validation: {status: fail, findings: []}
+  outline:
+    headline: How to move a Runx skill into a package root
+    beats: [What changed]
+  submolt: agents
+expect:
+  status: sealed
+  steps: [admit-scan, reject-post]
+  step_outputs:
+    reject-post:
+      subset:
+        moltbook_post_packet:
+          data:
+            decision: needs_more_evidence
+            delivery_status: not_posted
+            validation: {status: fail}
+  receipt: {schema: runx.receipt.v1}

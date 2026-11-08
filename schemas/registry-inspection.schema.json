@@ -383,7 +383,7 @@
                 },
                 "type": "array"
               },
-              "exercises_runner": {
+              "exercises_method": {
                 "type": "string"
               },
               "expected_outcome": {
@@ -605,10 +605,10 @@
             "declared_result_packets",
             "requirements"
           ],
-          "title": "RunnerInspection",
+          "title": "MethodInspection",
           "type": "object"
         },
-        "runner_inspections": {
+        "method_inspections": {
           "description": "Each runner with the execution closure it binds.",
           "items": {
             "additionalProperties": false,
@@ -757,7 +757,7 @@
                   "declared_result_packets",
                   "requirements"
                 ],
-                "title": "RunnerInspection",
+                "title": "MethodInspection",
                 "type": "object"
               }
             },
@@ -765,7 +765,7 @@
               "runner",
               "execution_closure"
             ],
-            "title": "RunnerInspectionEntry",
+            "title": "MethodInspectionEntry",
             "type": "object"
           },
           "minItems": 1,

@@ -1,0 +1,26 @@
+name: refund-denied-approval
+method: refund
+inputs:
+  connector: coinbase/cdp
+  request:
+    resource: https://seller.example/v1/reports/launch
+    payment_id: x402pay_test_001
+    amount_minor: 125
+    currency: USD
+    reason: The report was not delivered.
+  idempotency_seed: refund-test-0000001
+host:
+  approvals:
+    refund: false
+providers:
+  hosted:
+    principal_id: refund-fixture
+    grant:
+      grant_id: refund-fixture
+      provider: coinbase/cdp
+      scopes:
+        - payment.x402.merchant.read
+        - payment.x402.merchant.write
+    operations: []
+expect:
+  status: policy_denied

@@ -315,10 +315,11 @@ fn resume_loads_workspace_env_from_discovered_project_root()
 }
 
 #[test]
-fn inline_graph_process_tool_preserves_timeout_policy() -> Result<(), Box<dyn std::error::Error>> {
-    let temp = crate::support::temp_root("runx-cli-inline-graph-timeout");
+fn inline_workflow_process_tool_preserves_timeout_policy() -> Result<(), Box<dyn std::error::Error>>
+{
+    let temp = crate::support::temp_root("runx-cli-inline-workflow-timeout");
     fs::create_dir_all(&temp)?;
-    let skill_dir = write_inline_graph_timeout_skill(&temp)?;
+    let skill_dir = write_inline_workflow_timeout_skill(&temp)?;
 
     let started = Instant::now();
     let output = native_command()?
@@ -544,17 +545,17 @@ runners:
     Ok(skill_dir)
 }
 
-fn write_inline_graph_timeout_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let skill_dir = root.join("inline-graph-timeout");
+fn write_inline_workflow_timeout_skill(root: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let skill_dir = root.join("inline-workflow-timeout");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: inline-graph-timeout\ndescription: inline-graph-timeout fixture.\n---\n# Inline Graph Timeout\n",
+        "---\nname: inline-workflow-timeout\ndescription: inline-workflow-timeout fixture.\n---\n# Inline Graph Timeout\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
         r#"
-skill: inline-graph-timeout
+skill: inline-workflow-timeout
 runners:
   timeout:
     default: true

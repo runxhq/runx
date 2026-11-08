@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/automation
-name: Fixture Automation
+name: fixture/automation
+title: Fixture Automation
 description: Deliver a governed handoff to an automation hook fixture.
-runtime_capability: false
 auth:
   credentials:
     catch_hook:
@@ -46,7 +45,7 @@ operations:
         auth:
           catch_hook: {type: url, field: url}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://automation.fixture.invalid/hooks/catch/
             headers:
               accept: application/json

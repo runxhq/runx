@@ -1,0 +1,21 @@
+name: read-archive-audit
+method: read-archive
+inputs:
+  query: posts
+  archive_file: fixtures/data/archive-tweets.js
+  archive_base: skill
+  max_items: 10
+expect:
+  status: sealed
+  steps: [prepare, normalize, digest, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        twitter_evidence:
+          data:
+            decision: ok
+            source: archive
+            item_count: 5
+            truncated: false
+  receipt:
+    schema: runx.receipt.v1

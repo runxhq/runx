@@ -2,12 +2,11 @@ use std::fmt;
 
 use crate::{
     ParseError, SkillInstallError, SkillInstallOrigin, ValidateSkillMode, ValidateSkillOptions,
-    ValidationError,
-    harness_fixture::{HarnessFixtureError, parse_harness_fixture},
-    parse_graph_yaml, parse_packet_schema_document, parse_runner_manifest_yaml,
-    parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml, validate_graph,
-    validate_runner_manifest, validate_skill_artifact_contract, validate_skill_install,
-    validate_skill_with_options, validate_tool_manifest,
+    ValidationError, parse_method_manifest_yaml, parse_packet_schema_document,
+    parse_skill_markdown, parse_tool_manifest_json, parse_tool_manifest_yaml, parse_workflow_yaml,
+    test_fixture::{TestFixtureError, parse_test_fixture},
+    validate_method_manifest, validate_skill_artifact_contract, validate_skill_install,
+    validate_skill_with_options, validate_tool_manifest, validate_workflow,
 };
 use runx_contracts::{JsonObject, JsonValue, json_string_field};
 use serde::{Deserialize, Serialize};
@@ -72,8 +71,8 @@ impl From<SkillInstallError> for ParserEvalError {
     }
 }
 
-impl From<HarnessFixtureError> for ParserEvalError {
-    fn from(error: HarnessFixtureError) -> Self {
+impl From<TestFixtureError> for ParserEvalError {
+    fn from(error: TestFixtureError) -> Self {
         Self::Validation(error.to_string())
     }
 }
@@ -106,12 +105,12 @@ fn is_supported_parser_kind(kind: &str) -> bool {
     matches!(
         kind,
         "parser.validateSkillMarkdown"
-            | "parser.validateRunnerManifestYaml"
+            | "parser.validateMethodManifestYaml"
             | "parser.validateConnectorManifestYaml"
-            | "parser.validateGraphYaml"
+            | "parser.validateWorkflowYaml"
             | "parser.validateToolManifestYaml"
             | "parser.validateToolManifestJson"
-            | "parser.validateHarnessFixtureYaml"
+            | "parser.validateTestFixtureYaml"
             | "parser.parsePacketSchemaDocument"
             | "parser.validateSkillArtifactContract"
             | "parser.validateSkillInstall"
@@ -138,18 +137,18 @@ enum ParserInput {
         #[serde(default)]
         mode: ParserSkillMode,
     },
-    #[serde(rename = "parser.validateRunnerManifestYaml")]
-    ValidateRunnerManifestYaml { yaml: String },
+    #[serde(rename = "parser.validateMethodManifestYaml")]
+    ValidateMethodManifestYaml { yaml: String },
     #[serde(rename = "parser.validateConnectorManifestYaml")]
     ValidateConnectorManifestYaml { yaml: String },
-    #[serde(rename = "parser.validateGraphYaml")]
-    ValidateGraphYaml { yaml: String },
+    #[serde(rename = "parser.validateWorkflowYaml")]
+    ValidateWorkflowYaml { yaml: String },
     #[serde(rename = "parser.validateToolManifestYaml")]
     ValidateToolManifestYaml { yaml: String },
     #[serde(rename = "parser.validateToolManifestJson")]
     ValidateToolManifestJson { json: String },
-    #[serde(rename = "parser.validateHarnessFixtureYaml")]
-    ValidateHarnessFixtureYaml { yaml: String },
+    #[serde(rename = "parser.validateTestFixtureYaml")]
+    ValidateTestFixtureYaml { yaml: String },
     #[serde(rename = "parser.parsePacketSchemaDocument")]
     ParsePacketSchemaDocument { path: String, source: String },
     #[serde(rename = "parser.validateSkillArtifactContract")]
@@ -249,9 +248,9 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
             let raw = parse_skill_markdown(&markdown)?;
             to_json_value(validate_skill_with_options(raw, mode.into())?)
         }
-        ParserInput::ValidateRunnerManifestYaml { yaml } => {
-            let raw = parse_runner_manifest_yaml(&yaml)?;
-            to_json_value(validate_runner_manifest(raw)?)
+        ParserInput::ValidateMethodManifestYaml { yaml } => {
+            let raw = parse_method_manifest_yaml(&yaml)?;
+            to_json_value(validate_method_manifest(raw)?)
         }
         ParserInput::ValidateConnectorManifestYaml { yaml } => {
             let raw = crate::parse_connector_manifest(&yaml)?;
@@ -266,9 +265,9 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
             })?;
             to_json_value(validated.manifest)
         }
-        ParserInput::ValidateGraphYaml { yaml } => {
-            let raw = parse_graph_yaml(&yaml)?;
-            to_json_value(validate_graph(raw)?)
+        ParserInput::ValidateWorkflowYaml { yaml } => {
+            let raw = parse_workflow_yaml(&yaml)?;
+            to_json_value(validate_workflow(raw)?)
         }
         ParserInput::ValidateToolManifestYaml { yaml } => {
             let raw = parse_tool_manifest_yaml(&yaml)?;
@@ -278,9 +277,7 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
             let raw = parse_tool_manifest_json(&json)?;
             to_json_value(validate_tool_manifest(raw)?)
         }
-        ParserInput::ValidateHarnessFixtureYaml { yaml } => {
-            to_json_value(parse_harness_fixture(&yaml)?)
-        }
+        ParserInput::ValidateTestFixtureYaml { yaml } => to_json_value(parse_test_fixture(&yaml)?),
         ParserInput::ParsePacketSchemaDocument { path, source } => {
             let parsed = parse_packet_schema_document(path, &source)
                 .map_err(|error| ParserEvalError::Validation(error.to_string()))?;
@@ -396,10 +393,10 @@ mod tests {
     }
 
     #[test]
-    fn evaluates_harness_fixture_validation() -> Result<(), String> {
+    fn evaluates_test_fixture_validation() -> Result<(), String> {
         let output = evaluate_parser_document_str(
             r#"{
-              "kind": "parser.validateHarnessFixtureYaml",
+              "kind": "parser.validateTestFixtureYaml",
               "yaml": "name: fixture\nkind: skill\ntarget: ..\nexpect:\n  status: sealed\n"
             }"#,
         )

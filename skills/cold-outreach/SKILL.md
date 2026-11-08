@@ -71,9 +71,7 @@ invalid address stops it. Out-of-office is not buying interest. This skill owns
 no timer, queue or send ledger. Each outward message still follows the
 configured approval policy.
 
-## Agent task contract
-
-### `cold-outreach-draft`
+## Agent task: cold-outreach-draft
 
 Write one first-contact email from `sender` to `prospect` that serves `purpose`,
 following the outreach judgment above. `offer` is the value to propose; support

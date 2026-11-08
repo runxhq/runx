@@ -1,0 +1,11 @@
+{
+  "skill_name": "contract-draft",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Draft this services agreement from the approved template with every required term bound.",
+      "expected_output": "Return a sealed draft where every clause reconciles with the rendered template and delivery stays behind a human gate.",
+      "files": []
+    }
+  ]
+}

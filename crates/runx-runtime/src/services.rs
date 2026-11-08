@@ -98,7 +98,7 @@ mod tests {
         let receipt = crate::receipts::step_receipt(
             crate::receipts::RunScope {
                 run_id: "run_services",
-                graph_name: "services",
+                workflow_name: "services",
             },
             "seal",
             1,

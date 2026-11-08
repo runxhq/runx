@@ -23,7 +23,7 @@ use runx_contracts::{
     ResolutionRequest,
 };
 use runx_core::state_machine::AuthorityAdmissionWitness;
-use runx_parser::{DuplicatePolicy, GraphStep};
+use runx_parser::{DuplicatePolicy, WorkflowStep};
 
 use super::admission::{self, AdmissionDecision, AdmitError, Admitted, Context, Evaluation};
 use super::connectors::ConnectorScope;
@@ -65,7 +65,7 @@ struct Placements {
     /// otherwise.
     http: Option<Transport>,
     /// Exact process-tool answers injected only by native harness execution.
-    process_calls: Option<Vec<runx_parser::harness_fixture::HarnessProcessCallFixture>>,
+    process_calls: Option<Vec<runx_parser::test_fixture::TestProcessCallFixture>>,
     #[cfg(feature = "mcp")]
     mcp: crate::drivers::mcp::Sessions,
     /// The principal each command session token was read as, by token
@@ -146,8 +146,8 @@ impl OperationEffect {
     /// its MCP calls answer in place of every MCP server.
     pub(crate) fn harness<T>(
         transport: T,
-        mcp_calls: &[runx_parser::HarnessMcpCallFixture],
-        process_calls: &[runx_parser::harness_fixture::HarnessProcessCallFixture],
+        mcp_calls: &[runx_parser::TestMcpCallFixture],
+        process_calls: &[runx_parser::test_fixture::TestProcessCallFixture],
     ) -> Self
     where
         T: RuntimeHttpTransport + Send + Sync + 'static,
@@ -496,17 +496,17 @@ impl RuntimeEffect for OperationEffect {
         let shape = call.shape().map_err(invalid)?;
         let store = KernelStore::for_project(&crate::paths::RunxPaths::resolve(
             request.env,
-            request.graph_dir,
+            request.workflow_dir,
         ))
         .map_err(state)?;
         let lanes = LaneInputs::of(
             request.run_id,
-            crate::paths::RunxPaths::resolve(request.env, request.graph_dir).artifacts(),
+            crate::paths::RunxPaths::resolve(request.env, request.workflow_dir).artifacts(),
         );
         let scope = ConnectorScope::of_operation(
             target,
-            request.graph_dir,
-            &crate::paths::RunxPaths::resolve(request.env, request.graph_dir),
+            request.workflow_dir,
+            &crate::paths::RunxPaths::resolve(request.env, request.workflow_dir),
         )
         .map_err(|error| invalid(error.to_string()))?;
         let instances = Instances::new(Arc::clone(&store));
@@ -523,7 +523,7 @@ impl RuntimeEffect for OperationEffect {
                 instances: &instances,
                 hosted: &self.placements.hosted,
                 env: request.env,
-                cwd: request.graph_dir,
+                cwd: request.workflow_dir,
             },
         })
         .map_err(|error| match error {
@@ -600,7 +600,7 @@ impl RuntimeEffect for OperationEffect {
 
     fn prepare_execution(
         &self,
-        step: &GraphStep,
+        step: &WorkflowStep,
         admission: EffectAdmission,
         host: &mut dyn crate::Host,
     ) -> Result<EffectPreparationOutcome, RuntimeEffectError> {
@@ -729,7 +729,7 @@ impl RuntimeEffect for OperationEffect {
         };
         crate::receipts::store::LocalReceiptStore::new(receipt_root(
             request.env,
-            request.graph_dir,
+            request.workflow_dir,
         ))
         .write_receipt(request.receipt, request.signature_policy)
         .map_err(|error| state(error.to_string()))?;
@@ -1278,7 +1278,7 @@ fn dispatch(
         held: operation
             .holds
             .as_ref()
-            .filter(|hold| hold.action == runx_contracts::connector::HoldAction::Take)
+            .filter(|hold| hold.action == runx_contracts::connector::LeaseAction::Take)
             .map(|hold| {
                 hold.fields
                     .values()
@@ -2148,7 +2148,7 @@ impl Approved {
 /// given; otherwise a person approves.
 fn approve(
     context: &OperationAdmission,
-    step: &GraphStep,
+    step: &WorkflowStep,
     host: &mut dyn crate::Host,
 ) -> Result<Lane, RuntimeEffectError> {
     if let Some(record) = context
@@ -2164,7 +2164,7 @@ fn approve(
 
 fn human(
     context: &OperationAdmission,
-    step: &GraphStep,
+    step: &WorkflowStep,
     host: &mut dyn crate::Host,
 ) -> Result<Lane, RuntimeEffectError> {
     let admitted = &context.admitted;

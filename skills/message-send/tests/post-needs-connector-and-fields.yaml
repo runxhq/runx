@@ -1,0 +1,9 @@
+name: message-send-blocks-unbound-content
+method: plan_post
+inputs:
+  channel: "#ops"
+  content:
+    content_uri: draft:mutable
+  principal: team:operations
+expect:
+  status: failure

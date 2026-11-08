@@ -1,0 +1,11 @@
+{
+  "skill_name": "postmortem-draft",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Produce the postmortem for this resolved incident from the collected fragments.",
+      "expected_output": "Return a readable source-cited document, a complete known-cause draft and an unexecuted publish proposal; quote checks do not independently prove causality.",
+      "files": []
+    }
+  ]
+}

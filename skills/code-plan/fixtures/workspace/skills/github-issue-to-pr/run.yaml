@@ -1,19 +1,11 @@
-skill: github-issue-to-pr
 version: "0.0.0"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: operator
   visibility: internal
-  role: harness-fixture
-  part_of: [runx/code-plan]
-  execution: execute
-  completion: runtime_receipt
-  approval: none
-runners:
+methods:
   execute:
-    default: true
     steps:
       - id: execute
-        agent: { role: builder, task: github-issue-to-pr-fixture }
+        agent: github-issue-to-pr-fixture
         outputs:
-          result: object
+          result: {type: object}

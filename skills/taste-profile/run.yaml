@@ -1,81 +1,66 @@
-skill: taste-profile
 version: "0.2.10"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: public
   visibility: public
-  role: context
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: authoring
 
-runners:
+methods:
   profile:
-    default: true
     inputs:
       subject:
         type: string
-        required: true
         description: Person, team, product, or audience whose taste is modeled.
       evidence:
         type: array
-        required: true
-        description: Selected preference records with exact kind, content and optional label. At least two are needed;
-          this run accepts up to 50 selected examples.
-        schema:
-          maxItems: 50
-          items:
-            type: object
-            required:
-              - kind
-              - content
-            additionalProperties: false
-            properties:
-              kind:
-                enum:
-                  - liked
-                  - disliked
-                  - correction
-                  - instruction
-              content:
-                type: string
-                minLength: 1
-                maxLength: 20000
-              label:
-                type: string
-                maxLength: 1000
+        description: Selected preference records with exact kind, content and optional label. At least two are needed; this run accepts up to 50 selected examples.
+        maxItems: 50
+        items:
+          type: object
+          required:
+            - kind
+            - content
+          additionalProperties: false
+          properties:
+            kind:
+              enum:
+                - liked
+                - disliked
+                - correction
+                - instruction
+            content:
+              type: string
+              minLength: 1
+              maxLength: 20000
+            label:
+              type: string
+              maxLength: 1000
       surface:
         type: string
-        required: false
         description: Surface where the packet applies.
+        optional: true
       audience:
         type: string
-        required: false
         description: Intended downstream audience.
+        optional: true
       constraints:
-        type: json
-        required: false
         description: Policy, accessibility, legal, or operational boundaries.
+        optional: true
     result_from: [reject, finalize]
     examples:
       - subject: Acme product team
         evidence:
-        - kind: instruction
-          content: Lead with what the reader can do, and cut the adjectives.
-        - kind: instruction
-          content: Prefer one plain sentence to three clever ones.
+          - kind: instruction
+            content: Lead with what the reader can do, and cut the adjectives.
+          - kind: instruction
+            content: Prefer one plain sentence to three clever ones.
     steps:
       - id: index
         inputs:
           subject: $input.subject
           evidence: $input.evidence
-        tool: { module: taste-profile.mjs, export: indexEvidence }
+        tool: {module: taste-profile.mjs, export: indexEvidence}
         outputs:
-          evidence_index: object
-        artifacts:
-          named_emits:
-            evidence_index: evidence_index
+          evidence_index: {type: object}
 
       - id: digest
         tool: data.digest
@@ -92,93 +77,88 @@ runners:
           audience: $input.audience
           evidence_index: $steps.index.evidence_index
           evidence_digest: $steps.digest.digest_result.digest
-        tool: { module: taste-profile.mjs, export: finalizeProfile }
+        tool: {module: taste-profile.mjs, export: finalizeProfile}
         outputs:
           taste_profile_packet:
             type: object
-        artifacts:
-          named_emits:
-            taste_profile_packet: taste_profile_packet
-          packets:
-            taste_profile_packet: runx/taste-profile.context.v1
+            packet: runx/taste-profile.context.v1
 
       - id: synthesize
         when:
           value: $steps.index.evidence_index.decision
           equals: ready
-        agent: { role: curator, task: taste-profile-synthesize }
+        agent: taste-profile-synthesize
         outputs:
           taste_profile_draft:
             type: object
-            schema:
+            properties:
+              decision:
+                type: string
+              subject:
+                type: string
+              applicability:
+                type: object
+                properties:
+                  surfaces:
+                    type: array
+                    items:
+                      type: string
+                  audience:
+                    type: string
+                  expires_when:
+                    type: array
+                    items:
+                      type: string
+              taste_profile:
+                type: object
+                properties:
+                  principles:
+                    type: array
+                    items:
+                      type: string
+                  likes:
+                    type: array
+                    items:
+                      type: string
+                  dislikes:
+                    type: array
+                    items:
+                      type: string
+                  decision_rules:
+                    type: array
+                    items:
+                      type: string
+                  examples_to_emulate:
+                    type: array
+                  examples_to_avoid:
+                    type: array
+              evidence_bindings:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    rule:
+                      type: string
+                    source_ids:
+                      type: array
+                      items:
+                        type: string
+                    confidence:
+                      type: string
+              redactions:
+                type: array
+              stop_conditions:
+                type: array
+                items:
+                  type: string
+            required:
+              - decision
+            if:
               properties:
                 decision:
-                  type: string
-                subject:
-                  type: string
-                applicability:
-                  type: object
-                  properties:
-                    surfaces:
-                      type: array
-                      items:
-                        type: string
-                    audience:
-                      type: string
-                    expires_when:
-                      type: array
-                      items:
-                        type: string
-                taste_profile:
-                  type: object
-                  properties:
-                    principles:
-                      type: array
-                      items:
-                        type: string
-                    likes:
-                      type: array
-                      items:
-                        type: string
-                    dislikes:
-                      type: array
-                      items:
-                        type: string
-                    decision_rules:
-                      type: array
-                      items:
-                        type: string
-                    examples_to_emulate:
-                      type: array
-                    examples_to_avoid:
-                      type: array
-                evidence_bindings:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      rule:
-                        type: string
-                      source_ids:
-                        type: array
-                        items:
-                          type: string
-                      confidence:
-                        type: string
-                redactions:
-                  type: array
-                stop_conditions:
-                  type: array
-                  items:
-                    type: string
+                  pattern: ^ready
+            then:
               required:
-              - decision
-              if:
-                properties:
-                  decision:
-                    pattern: ^ready
-              then:
-                required:
                 - subject
                 - applicability
                 - taste_profile
@@ -193,9 +173,6 @@ runners:
           evidence_index: $steps.index.evidence_index
           evidence_digest: $steps.digest.digest_result.digest
           evidence: $input.evidence
-        artifacts:
-          named_emits:
-            taste_profile_draft: taste_profile_draft
 
       - id: finalize
         when:
@@ -208,15 +185,6 @@ runners:
           evidence_index: $steps.index.evidence_index
           evidence_digest: $steps.digest.digest_result.digest
           taste_profile_draft: $steps.synthesize.taste_profile_draft
-        tool: { module: taste-profile.mjs, export: finalizeProfile }
+        tool: {module: taste-profile.mjs, export: finalizeProfile}
         outputs:
-          taste_profile_packet: object
-        artifacts:
-          named_emits:
-            taste_profile_packet: taste_profile_packet
-          packets:
-            taste_profile_packet: runx/taste-profile.context.v1
-
-harness:
-  files: [fixtures/support/forward-writing-context.graph]
-  cases: []
+          taste_profile_packet: {type: object, packet: runx/taste-profile.context.v1}

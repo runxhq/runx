@@ -1,17 +1,15 @@
-skill: mcp-echo
 version: "0.1.0"
-runners:
+minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     inputs:
       message:
         type: string
-        required: true
         description: Message to echo.
     steps:
       - id: default
-        tool: { module: echo.mjs }
+        tool: {module: echo.mjs}
         inputs:
           message: $input.message
         outputs:
-          message: string
+          message: {type: string}

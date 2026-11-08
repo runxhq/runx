@@ -1,0 +1,25 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: conversation-review
+        skill: ../..#review
+        inputs:
+          source_locator: nitrosend://example/1/2
+          source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          thread_locator: nitrosend://example/1
+          title: A quick call
+          body: Could we find time to talk next week?
+          thread:
+            source_locator: nitrosend://example/1/2
+            source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            thread_locator: nitrosend://example/1
+            coverage_incomplete: false
+            messages: [{text: Could we find time to talk next week?}]
+          source_complete: true
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.conversation-review

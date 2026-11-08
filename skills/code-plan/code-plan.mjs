@@ -27,7 +27,7 @@ export default function validateWorkPlan(inputs) {
     decision: ready ? "ready" : "blocked",
     plan_kind: normalized.plan_kind,
     change_set: normalized.change_set,
-    harness_context: isRecord(inputs.harness_context) ? inputs.harness_context : {},
+    run_context: isRecord(inputs.run_context) ? inputs.run_context : {},
     objective_summary: normalized.objective_summary,
     workspace_change_plan: ready ? normalized.workspace_change_plan : {},
     orchestration_steps: ready ? normalized.orchestration_steps : [],

@@ -9,7 +9,7 @@ use runx_core::state_machine::StepAdmissionWitness;
 use super::*;
 use crate::adapter::InvocationOutput;
 use crate::execution::runner::StepRun;
-use crate::receipts::{RunScope, RuntimeReceiptSignatureConfig, graph_receipt, step_receipt};
+use crate::receipts::{RunScope, RuntimeReceiptSignatureConfig, step_receipt, workflow_receipt};
 
 fn signature() -> RuntimeReceiptSignatureConfig {
     RuntimeReceiptSignatureConfig::fixture().expect("fixture signer")
@@ -29,7 +29,7 @@ fn start(log: &RunLog, inputs: &JsonObject) {
         package_digest: "sha256:package",
         execution_closure_digest: "sha256:closure",
         inputs,
-        context: &RunContext::default(),
+        context: &CallerContext::default(),
         run_authority: None,
         act: None,
         driver: RunDriver::Attached,
@@ -60,7 +60,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
     let receipt = step_receipt(
         RunScope {
             run_id,
-            graph_name: "triage",
+            workflow_name: "triage",
         },
         step_id,
         1,
@@ -88,7 +88,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
 }
 
 /// The act an agent step asks for: what opens its turn.
-fn agent_act(id: &str) -> ResolutionRequest {
+fn turn(id: &str) -> ResolutionRequest {
     let envelope = runx_contracts::AgentContextEnvelope {
         run_id: "run_turn_1".into(),
         step_id: Some("answer".into()),
@@ -114,9 +114,9 @@ fn agent_act(id: &str) -> ResolutionRequest {
         output_schema: None,
         trust_boundary: "runtime-governed".into(),
     };
-    ResolutionRequest::AgentAct {
+    ResolutionRequest::Turn {
         id: id.into(),
-        invocation: Box::new(runx_contracts::AgentActInvocation {
+        invocation: Box::new(runx_contracts::TurnInvocation {
             id: id.into(),
             role: "agent".into(),
             task: "answer".into(),
@@ -227,7 +227,7 @@ fn a_second_driver_of_the_same_run_is_refused() {
                 package_digest: "sha256:package",
                 execution_closure_digest: "sha256:closure",
                 inputs: &JsonObject::new(),
-                context: &RunContext::default(),
+                context: &CallerContext::default(),
                 run_authority: None,
                 act: None,
                 driver: RunDriver::Attached,
@@ -246,10 +246,10 @@ fn a_sealed_run_holds_its_receipt_and_waits_on_nothing() {
     start(&log, &JsonObject::new());
     let read = step("run_triage_3", "read");
     log.record_step(&read, &[]).unwrap();
-    let receipt = graph_receipt(
+    let receipt = workflow_receipt(
         RunScope {
             run_id: "run_triage_3",
-            graph_name: "triage",
+            workflow_name: "triage",
         },
         &[read],
         "2026-10-09T00:00:00.000Z",
@@ -405,7 +405,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         .unwrap();
     let log = RunLog::open(Arc::clone(&store), "run_turn_1").unwrap();
     start(&log, &JsonObject::new());
-    let turn_request = agent_act("answer");
+    let turn_request = turn("answer");
     log.record_request("answer", 1, &turn_request).unwrap();
     let turn = waiting_requests(&store, "run_turn_1").unwrap().remove(0);
     let target = TurnTarget::Tool {
@@ -505,8 +505,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
     let (_root, store) = store();
     let log = RunLog::open(Arc::clone(&store), "run_tree_1").unwrap();
     start(&log, &JsonObject::new());
-    log.record_request("answer", 1, &agent_act("answer"))
-        .unwrap();
+    log.record_request("answer", 1, &turn("answer")).unwrap();
     let root_turn = waiting_requests(&store, "run_tree_1").unwrap().remove(0);
 
     // Call 0 runs a child skill: its own turn is open, and its ask waits.
@@ -525,7 +524,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         )
         .unwrap();
     child
-        .record_request("report", 1, &agent_act(&child.address("report")))
+        .record_request("report", 1, &turn(&child.address("report")))
         .unwrap();
     let child_turn = waiting_requests(&store, child.run_id()).unwrap().remove(0);
     let ask = approval(&child.address("report/0"));
@@ -610,10 +609,10 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
     // The child seals; the process stops before the parent records its step.
     let read = step(child.run_id(), "approve");
     child.record_step(&read, &[]).unwrap();
-    let receipt = graph_receipt(
+    let receipt = workflow_receipt(
         RunScope {
             run_id: child.run_id(),
-            graph_name: "review",
+            workflow_name: "review",
         },
         &[read],
         "2026-10-09T00:00:00.000Z",

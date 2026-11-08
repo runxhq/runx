@@ -984,7 +984,7 @@ mod tests {
             "requests".to_owned(),
             JsonValue::Array(vec![JsonValue::Object(JsonObject::from([
                 ("id".to_owned(), JsonValue::String("request_1".to_owned())),
-                ("kind".to_owned(), JsonValue::String("agent_act".to_owned())),
+                ("kind".to_owned(), JsonValue::String("turn".to_owned())),
             ]))]),
         );
 

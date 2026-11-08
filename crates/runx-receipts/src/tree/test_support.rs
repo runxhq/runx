@@ -14,9 +14,9 @@ mod fixture_key;
 use fixture_key::{FIXTURE_SEED, FixtureKey};
 
 pub(super) const SUCCESS_RECEIPT: &str =
-    include_str!("../../../../fixtures/contracts/harness-spine/receipt-success.json");
+    include_str!("../../../../fixtures/contracts/run-spine/receipt-success.json");
 const ABNORMAL_RECEIPT: &str =
-    include_str!("../../../../fixtures/contracts/harness-spine/receipt-abnormal.json");
+    include_str!("../../../../fixtures/contracts/run-spine/receipt-abnormal.json");
 
 #[derive(Debug, Deserialize)]
 struct Fixture {

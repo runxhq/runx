@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::hint::black_box;
 
 const SUCCESS_RECEIPT: &str =
-    include_str!("../../../fixtures/contracts/harness-spine/receipt-success.json");
+    include_str!("../../../fixtures/contracts/run-spine/receipt-success.json");
 
 #[derive(Debug, Deserialize)]
 struct Fixture {

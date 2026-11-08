@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: google/calendar
-name: Google Calendar
+name: google/calendar
+title: Google Calendar
 description: Read Google Calendar events and busy intervals.
 category: productivity
-runtime_capability: false
 auth:
   delegated: {principal: {url: "https://openidconnect.googleapis.com/v1/userinfo", id: sub, login: sub}}
 placements:
@@ -18,8 +17,7 @@ operations:
     target:
       template: {"$argument": "/calendar_id"}
     result_fields: [calendar_id, time_min, time_max, events, page_token, complete, next_page_token, fetched_at]
-    hosted:
-      provider_scopes: ["https://www.googleapis.com/auth/calendar.events.readonly", "openid"]
+    provider_scopes: ["https://www.googleapis.com/auth/calendar.events.readonly", "openid"]
   freebusy.query:
     description: Read busy intervals on a calendar within a selected positive window.
     verb: read
@@ -28,5 +26,4 @@ operations:
     target:
       template: {"$argument": "/calendar_id"}
     result_fields: [calendar_id, time_min, time_max, complete, errors, busy, fetched_at]
-    hosted:
-      provider_scopes: ["https://www.googleapis.com/auth/calendar.events.freebusy", "openid"]
+    provider_scopes: ["https://www.googleapis.com/auth/calendar.events.freebusy", "openid"]

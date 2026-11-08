@@ -1,0 +1,7 @@
+name: github-issue-triage-default-requires-github-binding
+inputs:
+  repository: runxhq/runx
+  issue_number: "241"
+  objective: Draft the next helpful maintainer response.
+expect:
+  status: policy_denied

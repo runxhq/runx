@@ -1,0 +1,11 @@
+{
+  "skill_name": "code-intake",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Turn this noisy README bug report into a bounded request.",
+      "expected_output": "Return a useful summary, reply and host recommendation without a synthetic provider event.",
+      "files": []
+    }
+  ]
+}

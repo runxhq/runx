@@ -1,0 +1,21 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: github
+        skill: ../..#plan
+        inputs:
+          repo: runxhq/runx
+          direction: push
+          resources:
+            kind: batch
+            mutations:
+              - {path: issues/241, op: update, payload: {labels: [triage]}}
+              - {path: issues/241/comments, op: comment, payload: {body: Triaged.}}
+          scope: write
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.github

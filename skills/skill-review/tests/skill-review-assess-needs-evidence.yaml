@@ -1,0 +1,6 @@
+name: skill-review-assess-needs-evidence
+method: assess
+inputs:
+  skill: example/skill
+expect:
+  status: needs_agent

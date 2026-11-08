@@ -3,7 +3,7 @@ use crate::RuntimeError;
 pub(super) fn validate_context_manifest(
     step_id: &str,
     reference: &str,
-    manifest: Option<&runx_parser::SkillRunnerManifest>,
+    manifest: Option<&runx_parser::SkillMethodManifest>,
 ) -> Result<(), RuntimeError> {
     validate_context_catalog(
         step_id,
@@ -22,9 +22,9 @@ fn validate_context_catalog(
     };
     if matches!(
         catalog.role,
-        runx_parser::CatalogRole::GraphStage
+        runx_parser::CatalogRole::WorkflowStage
             | runx_parser::CatalogRole::RuntimePath
-            | runx_parser::CatalogRole::HarnessFixture
+            | runx_parser::CatalogRole::TestFixture
     ) {
         return Err(RuntimeError::InvalidRunStep {
             step_id: step_id.to_owned(),

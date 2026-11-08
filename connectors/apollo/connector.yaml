@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: apollo
-name: Apollo
+name: apollo
+title: Apollo
 description: Inspect the selected Apollo key and enrich a matched person or company through declared, credit-aware operations.
 category: marketing
-runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -26,14 +25,13 @@ operations:
     target: {template: 'https://api.apollo.io/api/v1/auth/health'}
     input_schema: {type: object, additionalProperties: false}
     result_fields: [auth]
-    hosted: {}
     implementation:
       http:
         allowed_hosts: [api.apollo.io]
         auth: {api_key: {type: header, name: x-api-key, field: api_key}}
         requests:
           - id: health
-            method: GET
+            http_method: GET
             url: https://api.apollo.io/api/v1/auth/health
             headers: {accept: application/json}
   person.enrich:
@@ -64,14 +62,13 @@ operations:
         - required: [first_name, last_name, domain]
         - required: [first_name, last_name, organization_name]
     result_fields: [match]
-    hosted: {}
     implementation:
       http:
         allowed_hosts: [api.apollo.io]
         auth: {api_key: {type: header, name: x-api-key, field: api_key}}
         requests:
           - id: match
-            method: POST
+            http_method: POST
             url: https://api.apollo.io/api/v1/people/match
             headers: {accept: application/json}
             query:
@@ -107,14 +104,13 @@ operations:
         - required: [linkedin_url]
         - required: [website]
     result_fields: [match]
-    hosted: {}
     implementation:
       http:
         allowed_hosts: [api.apollo.io]
         auth: {api_key: {type: header, name: x-api-key, field: api_key}}
         requests:
           - id: match
-            method: GET
+            http_method: GET
             url: https://api.apollo.io/api/v1/organizations/enrich
             headers: {accept: application/json}
             query:

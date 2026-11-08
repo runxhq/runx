@@ -1,0 +1,29 @@
+name: policy-cannot-approve-unproved-tuples
+inputs:
+  current_schema:
+    type: array
+    prefixItems:
+      - type: string
+    items:
+      type: number
+  proposed_schema:
+    type: array
+    items:
+      type: number
+  sample_payloads:
+    - []
+  compatibility_policy:
+    breaking_allowed: true
+expect:
+  status: sealed
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: refused
+            proposal: null
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

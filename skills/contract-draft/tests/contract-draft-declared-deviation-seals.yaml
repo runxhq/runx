@@ -1,0 +1,49 @@
+name: contract-draft-declared-deviation-seals
+inputs:
+  template:
+    id: msa-basic-v1
+    version: "1.0"
+    title: Services Agreement
+    required_terms:
+      - fee_usd
+    clauses:
+      - id: fees
+        heading: Fees and Payment
+        baseline: Customer will pay USD {{terms.fee_usd}} within 30 days after invoice.
+  parties:
+    customer:
+      legal_name: Globex LLC
+  terms:
+    fee_usd: 4000
+host:
+  answers:
+    assemble:
+      draft_doc:
+        title: Services Agreement
+        clauses:
+          - id: fees
+            heading: Fees and Payment
+            text: Customer will pay USD 4000 within 45 days after invoice.
+        deviations:
+          - clause_id: fees
+            reason: Customer requested 45-day payment terms and the operator approved the extension.
+expect:
+  status: sealed
+  steps:
+    - admit
+    - digest-template
+    - digest-parties
+    - digest-terms
+    - assemble
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        contract_draft:
+          data:
+            decision: drafted
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

@@ -7,8 +7,8 @@ import {
   validateSkillChangeDraftContract,
 } from "@runxhq/contracts";
 import {
-  validateHarnessFixtureYamlBatch,
-  validateRunnerManifestYaml,
+  validateTestFixtureYamlBatch,
+  validateMethodManifestYaml,
 } from "../scripts/lib/native-parser.mjs";
 
 const root = process.cwd();
@@ -44,12 +44,12 @@ describe("Skill Build authoring ownership", () => {
   });
 
   it("keeps hashes native and uses architect-plan-author-bind-apply", async () => {
-    const profile = validateRunnerManifestYaml(
+    const profile = validateMethodManifestYaml(
       await readFile(path.join(root, "skills/skill-build/run.yaml"), "utf8"),
     ).raw.document as Record<string, any>;
     expect(stepIds(profile.runners.design)).toEqual(["inspect", "architect", "plan"]);
-    for (const runnerName of ["build", "improve", "harness"]) {
-      expect(stepIds(profile.runners[runnerName])).toEqual([
+    for (const methodName of ["build", "improve", "harness"]) {
+      expect(stepIds(profile.runners[methodName])).toEqual([
         "inspect",
         "architect",
         "plan",
@@ -57,16 +57,16 @@ describe("Skill Build authoring ownership", () => {
         "bind",
         "apply",
       ]);
-      expect(step(profile.runners[runnerName], "plan").tool).toBe("runx.skill.plan");
-      expect(step(profile.runners[runnerName], "bind").tool).toBe("runx.skill.bind");
-      expect(step(profile.runners[runnerName], "apply").tool).toBe("runx.skill.apply");
-      expect(step(profile.runners[runnerName], "author").artifacts.packets.change_draft)
+      expect(step(profile.runners[methodName], "plan").tool).toBe("runx.skill.plan");
+      expect(step(profile.runners[methodName], "bind").tool).toBe("runx.skill.bind");
+      expect(step(profile.runners[methodName], "apply").tool).toBe("runx.skill.apply");
+      expect(step(profile.runners[methodName], "author").artifacts.packets.change_draft)
         .toBe("runx.skill.change_draft.v1");
     }
 
     const fixtureRoot = path.join(root, "skills/skill-build/fixtures");
     const fixtureFiles = (await readdir(fixtureRoot)).filter((entry) => entry.endsWith(".yaml"));
-    const fixtures = validateHarnessFixtureYamlBatch(
+    const fixtures = validateTestFixtureYamlBatch(
       await Promise.all(fixtureFiles.map((file) => readFile(path.join(fixtureRoot, file), "utf8"))),
     ) as Array<Record<string, any>>;
     for (const fixture of fixtures) {

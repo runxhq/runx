@@ -22,7 +22,7 @@ use crate::kernel::operation::{AdmittedCall, ToolRunner};
 /// The native harness's injected tool runner. A result matches the exact
 /// admitted tool and arguments; a missing fixture never starts a host process.
 pub(crate) struct StandIn<'a> {
-    pub calls: &'a [runx_parser::harness_fixture::HarnessProcessCallFixture],
+    pub calls: &'a [runx_parser::test_fixture::TestProcessCallFixture],
 }
 
 impl ToolRunner for StandIn<'_> {
@@ -36,7 +36,7 @@ impl ToolRunner for StandIn<'_> {
     ) -> Result<JsonValue, Unperformed> {
         let declared = crate::tool_catalogs::manifest::read(manifest).map_err(|error| {
             Unperformed::NotSent {
-                code: "harness_input",
+                code: "test_input",
                 reason: error.to_string(),
             }
         })?;
@@ -50,7 +50,7 @@ impl ToolRunner for StandIn<'_> {
             scopes,
         )
         .map_err(|error| Unperformed::NotSent {
-            code: "harness_input",
+            code: "test_input",
             reason: error.to_string(),
         })?;
         let inputs = crate::input_contract::materialize_tool_inputs(
@@ -59,7 +59,7 @@ impl ToolRunner for StandIn<'_> {
             &JsonObject::new(),
         )
         .map_err(|error| Unperformed::NotSent {
-            code: "harness_input",
+            code: "test_input",
             reason: error.to_string(),
         })?;
         self.calls
@@ -67,7 +67,7 @@ impl ToolRunner for StandIn<'_> {
             .find(|call| call.tool == tool && call.arguments == inputs)
             .map(|call| call.result.clone())
             .ok_or_else(|| Unperformed::NotSent {
-                code: "harness_result_missing",
+                code: "test_result_missing",
                 reason: format!(
                     "the harness declares no process result for {tool} with these arguments"
                 ),

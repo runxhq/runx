@@ -5,9 +5,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use runx_parser::harness_fixture::HarnessExpectedStatus;
+use runx_parser::test_fixture::TestExpectedStatus;
 use runx_parser::{
-    OperatorJourneyMode, SkillPackageSource, SkillRunnerDefinition, SkillRunnerManifest,
+    OperatorJourneyMode, SkillMethodDefinition, SkillMethodManifest, SkillPackageSource,
     ValidatedSkillPackage, validate_skill_package,
 };
 
@@ -25,7 +25,7 @@ pub(crate) use inspection::{
 pub use inspection::{
     SkillInspectionError, inspect_skill_package, inspect_skill_readiness, unheld_registry_refs_at,
 };
-pub(crate) use inspection::{inspect_loaded_execution_closure_binding, runner_makes_calls};
+pub(crate) use inspection::{inspect_loaded_execution_closure_binding, method_makes_calls};
 pub use resolve::resolve_local_skill_reference;
 
 pub(crate) const MAX_PACKAGE_FILES: usize = 500;
@@ -48,7 +48,7 @@ pub struct LoadedSkillPackage {
 
 impl LoadedSkillPackage {
     #[must_use]
-    pub fn manifest(&self) -> Option<&runx_parser::SkillRunnerManifest> {
+    pub fn manifest(&self) -> Option<&runx_parser::SkillMethodManifest> {
         self.profile_path
             .as_deref()
             .and_then(|path| self.package.manifest_at(path))
@@ -56,44 +56,44 @@ impl LoadedSkillPackage {
 }
 
 /// Each runner `manifest` declares, as a model chooses it from an index.
-pub(crate) fn catalog_runners(
-    manifest: &SkillRunnerManifest,
-) -> Vec<runx_contracts::CatalogRunner> {
+pub(crate) fn catalog_methods(
+    manifest: &SkillMethodManifest,
+) -> Vec<runx_contracts::CatalogMethod> {
     manifest
         .runners
         .values()
-        .map(|runner| runx_contracts::CatalogRunner {
+        .map(|runner| runx_contracts::CatalogMethod {
             name: runner.name.clone(),
             purpose: runner.description.clone(),
         })
         .collect()
 }
 
-pub(crate) fn runner_has_sealed_standalone_journey(
+pub(crate) fn method_has_sealed_standalone_journey(
     package: &ValidatedSkillPackage,
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
+    manifest: &SkillMethodManifest,
+    runner: &SkillMethodDefinition,
 ) -> bool {
     manifest
         .harness
         .iter()
         .flat_map(|harness| harness.cases.iter())
         .any(|case| {
-            fixture_selects_runner(case.runner.as_deref(), manifest, runner)
+            fixture_selects_method(case.runner.as_deref(), manifest, runner)
                 && usable_example_status(case.expect.status.as_ref())
                 && has_standalone_journey(&case.operator_journeys, &runner.name)
         })
-        || package.harness_fixtures.values().any(|fixture| {
-            fixture_selects_runner(fixture.runner.as_deref(), manifest, runner)
+        || package.test_fixtures.values().any(|fixture| {
+            fixture_selects_method(fixture.runner.as_deref(), manifest, runner)
                 && usable_example_status(fixture.expect.status.as_ref())
                 && has_standalone_journey(&fixture.operator_journeys, &runner.name)
         })
 }
 
-fn fixture_selects_runner(
+fn fixture_selects_method(
     selected: Option<&str>,
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
+    manifest: &SkillMethodManifest,
+    runner: &SkillMethodDefinition,
 ) -> bool {
     selected.map_or_else(
         || runner.default || manifest.runners.len() == 1,
@@ -105,14 +105,14 @@ fn has_standalone_journey(journeys: &[runx_parser::OperatorJourneyClaim], runner
     journeys.iter().any(|journey| {
         journey.mode == OperatorJourneyMode::Standalone
             && journey
-                .exercises_runner
+                .exercises_method
                 .as_deref()
                 .is_none_or(|selected| selected == runner)
     })
 }
 
-fn usable_example_status(status: Option<&HarnessExpectedStatus>) -> bool {
-    matches!(status, Some(HarnessExpectedStatus::Sealed))
+fn usable_example_status(status: Option<&TestExpectedStatus>) -> bool {
+    matches!(status, Some(TestExpectedStatus::Sealed))
 }
 
 /// The packages a run admitted, by canonical directory: its skill and every
@@ -326,7 +326,7 @@ fn collect_skill_package_roots(
             entry.is_file && entry.name == crate::registry::package_bundle::PACKAGE_BUNDLE_FILE
         }) {
             // A published bundle explicitly owns its nested packages. Source
-            // trees can instead contain separately authored graph-stage manuals
+            // trees can instead contain separately authored workflow-stage manuals
             // that list/doctor must still discover with their own metadata.
             crate::registry::package_bundle::package_bundle_root(directory).map_err(|message| {
                 RuntimeError::SkillFailed {
@@ -589,7 +589,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_discovery_excludes_nested_harness_fixture_packages() {
+    fn catalog_discovery_excludes_nested_test_fixture_packages() {
         let temp = tempfile::tempdir().expect("temporary workspace");
         let root = temp.path();
         let public = root.join("skills/prior-art");

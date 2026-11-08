@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use runx_parser::{
-    CatalogVisibility, SkillInput, SkillPackageSource, SkillRunnerManifest, ValidatedSkill,
+    CatalogVisibility, SkillInput, SkillMethodManifest, SkillPackageSource, ValidatedSkill,
     ValidatedSkillPackage, validate_skill_package,
 };
 
@@ -47,7 +47,7 @@ pub fn parse_export_binding(contents: &str) -> Option<RunxExportBinding<'_>> {
 pub struct RunxExportSkill {
     pub name: String,
     pub description: String,
-    pub runners: Vec<RunxExportRunner>,
+    pub runners: Vec<RunxExportMethod>,
     pub abs_dir: PathBuf,
     pub manual_markdown: String,
     pub manual_digest: String,
@@ -62,7 +62,7 @@ pub enum RunxExportMode {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct RunxExportRunner {
+pub struct RunxExportMethod {
     /// `None` is the unnamed SKILL.md execution front used by packages without
     /// run.yaml. Named run.yaml runners are always explicit in generated commands.
     pub name: Option<String>,
@@ -162,7 +162,7 @@ pub fn load_export_skills_with_options(
 
 fn has_agent_export_contract(
     package: &ValidatedSkillPackage,
-    manifest: Option<&SkillRunnerManifest>,
+    manifest: Option<&SkillMethodManifest>,
 ) -> bool {
     let Some(manifest) = manifest else {
         return true;
@@ -175,7 +175,7 @@ fn has_agent_export_contract(
     let report = runx_parser::analyze_package_catalog_semantics(
         &package.skill.name,
         manifest,
-        &package.harness_fixtures,
+        &package.test_fixtures,
     );
     report.diagnostics.is_empty()
         && report.readiness.evaluated
@@ -199,11 +199,11 @@ fn validate_unique_export_names(skills: &mut [RunxExportSkill]) -> Result<(), Ru
 fn export_skill(
     directory: PathBuf,
     package: ValidatedSkillPackage,
-    manifest: Option<SkillRunnerManifest>,
+    manifest: Option<SkillMethodManifest>,
     execution_env: Option<&BTreeMap<String, String>>,
 ) -> Result<RunxExportSkill, RunxExportLoadError> {
     let mode = export_mode(&package.skill, manifest.as_ref());
-    let mut runners = export_runners(&package, manifest.as_ref());
+    let mut runners = export_methods(&package, manifest.as_ref());
     let skill = package.skill;
     if mode == RunxExportMode::Delegated {
         let loaded = crate::load_validated_skill_package(&directory)
@@ -227,7 +227,7 @@ fn export_skill(
                 )));
             }
             runner.execution_closure_digest = Some(binding.digest);
-            runner.makes_calls = crate::skill_package::runner_makes_calls(
+            runner.makes_calls = crate::skill_package::method_makes_calls(
                 loaded.clone().into(),
                 name,
                 execution_env,
@@ -253,7 +253,7 @@ fn export_skill(
 fn load_export_package(
     workspace_root: &Path,
     skill_dir: &Path,
-) -> Result<(PathBuf, ValidatedSkillPackage, Option<SkillRunnerManifest>), RunxExportLoadError> {
+) -> Result<(PathBuf, ValidatedSkillPackage, Option<SkillMethodManifest>), RunxExportLoadError> {
     let workspace_root = canonicalize(workspace_root, "canonicalizing export workspace")?;
     let is_workspace_manual = skill_dir == workspace_root
         && workspace_root.join("skills").is_dir()
@@ -279,19 +279,19 @@ fn load_export_package(
     Ok((loaded.directory, loaded.package, manifest))
 }
 
-fn export_mode(_skill: &ValidatedSkill, manifest: Option<&SkillRunnerManifest>) -> RunxExportMode {
+fn export_mode(_skill: &ValidatedSkill, manifest: Option<&SkillMethodManifest>) -> RunxExportMode {
     if manifest.is_none() {
         return RunxExportMode::NativeInstructions;
     }
     RunxExportMode::Delegated
 }
 
-fn export_runners(
+fn export_methods(
     package: &ValidatedSkillPackage,
-    manifest: Option<&SkillRunnerManifest>,
-) -> Vec<RunxExportRunner> {
+    manifest: Option<&SkillMethodManifest>,
+) -> Vec<RunxExportMethod> {
     let Some(manifest) = manifest else {
-        return vec![RunxExportRunner {
+        return vec![RunxExportMethod {
             name: None,
             default: true,
             execution_closure_digest: None,
@@ -305,11 +305,11 @@ fn export_runners(
         .filter(|runner| {
             runner.default
                 || manifest.runners.len() == 1
-                || crate::skill_package::runner_has_sealed_standalone_journey(
+                || crate::skill_package::method_has_sealed_standalone_journey(
                     package, manifest, runner,
                 )
         })
-        .map(|runner| RunxExportRunner {
+        .map(|runner| RunxExportMethod {
             name: Some(runner.name.clone()),
             default: runner.default || manifest.runners.len() == 1,
             execution_closure_digest: None,
@@ -327,7 +327,7 @@ fn export_runners(
 }
 
 fn manifest_visibility(
-    manifest: &Option<runx_parser::SkillRunnerManifest>,
+    manifest: &Option<runx_parser::SkillMethodManifest>,
 ) -> Option<CatalogVisibility> {
     manifest
         .as_ref()

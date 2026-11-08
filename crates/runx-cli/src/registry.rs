@@ -388,7 +388,7 @@ fn run_publish(
         internal_error(format!("failed to initialize runtime effects: {error}"))
     })?;
     let harness = package
-        .run_harness(&orchestrator, env)
+        .run_test(&orchestrator, env)
         .map_err(|error| internal_error(error.to_string()))?;
     let result = remote_publish::publish_remote_skill_package(
         &target.registry_url,
@@ -504,7 +504,7 @@ mod tests {
                 version: Some("1.2.3".to_owned()),
                 digest: "sha256:abc".to_owned(),
                 profile_digest: None,
-                runner_names: Vec::new(),
+                method_names: Vec::new(),
                 trust_tier: Some(TrustTier::Community),
                 newest_unread: None,
             },
@@ -530,7 +530,7 @@ mod tests {
                 version: Some("1.2.3".to_owned()),
                 digest: "sha256:abc".to_owned(),
                 profile_digest: None,
-                runner_names: Vec::new(),
+                method_names: Vec::new(),
                 trust_tier: Some(TrustTier::Community),
                 newest_unread: Some(UnreadVersion {
                     version: "2.0.0".to_owned(),

@@ -1,0 +1,46 @@
+name: prior-art-missing-source-stops
+inputs:
+  objective: Verify a nonexistent local design note.
+  repo_root: fixtures/workspace
+  source_paths:
+    - docs/does-not-exist.md
+host:
+  answers:
+    research:
+      prior_art_draft:
+        decision: ready
+        findings:
+          - claim: The missing note defines the required protocol.
+            source: docs/does-not-exist.md
+            relevance: It would constrain the design if it existed.
+            confidence: verified
+        catalog_fit:
+          decision: new_work
+          adjacent_skills: []
+          rationale: No reusable package was identified.
+        quality_bar: {}
+        recommended_flow: []
+        sources:
+          - path: docs/does-not-exist.md
+            kind: repo-document
+        risks: []
+expect:
+  status: sealed
+  steps:
+    - plan
+    - catalog
+    - read
+    - index
+    - research
+    - validate
+  step_outputs:
+    validate:
+      subset:
+        decision: needs_more_evidence
+        validation:
+          status: hold
+          findings:
+            - code: source.missing
+              path: docs/does-not-exist.md
+  receipt:
+    schema: runx.receipt.v1

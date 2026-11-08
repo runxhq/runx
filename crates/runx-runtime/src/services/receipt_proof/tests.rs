@@ -136,7 +136,7 @@ fn the_home_key_proves_the_receipts_it_sealed() -> Result<(), Box<dyn std::error
     let receipt = step_receipt(
         RunScope {
             run_id: "run_home",
-            graph_name: "home",
+            workflow_name: "home",
         },
         "step",
         1,

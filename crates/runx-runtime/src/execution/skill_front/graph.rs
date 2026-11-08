@@ -12,7 +12,7 @@ use runx_contracts::{
     CallAct, JsonObject, JsonValue, ResolutionRequest, ResolutionResponse, ResolutionResponseActor,
     RunDriver, TurnCallOutcome, TurnCallResult, TurnStatus,
 };
-use runx_parser::{ExecutionGraph, SkillRunnerDefinition};
+use runx_parser::{SkillMethodDefinition, Workflow};
 
 use crate::RuntimeError;
 #[cfg(test)]
@@ -21,20 +21,20 @@ use crate::execution::graph::bind_run_inputs;
 use crate::execution::orchestrator::{RunResult, SkillRunRequest};
 use crate::execution::prepared_skill::PreparedContext;
 use crate::execution::run_record::{
-    Hold, Origin, PendingRequest, RunContext, RunLog, RunRecord, StartRequest, waiting_requests,
+    CallerContext, Hold, Origin, PendingRequest, RunLog, RunRecord, StartRequest, waiting_requests,
 };
 use crate::execution::runner::turn::{Admission, AdmittedCall, ExecutedCall, Turn, admit_tool};
 use crate::execution::runner::{
-    GraphRun, RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, graph_run_context, graph_run_result,
-    graph_run_skill_output, graph_run_trace, sealed_graph_run,
+    RUNX_RUN_ID_ENV, Runtime, RuntimeOptions, WorkflowRun, sealed_workflow_run,
+    workflow_run_context, workflow_run_result, workflow_run_skill_output, workflow_run_trace,
 };
 use crate::host::Host;
 use crate::kernel::authority::RunAuthority;
 use crate::kernel::store::KernelStore;
 use crate::services::{ReceiptServices, WorkspaceEnv};
 
+use super::method_manifest::write_skill_receipt;
 use super::resolution_answers::ResolutionAnswers;
-use super::runner_manifest::write_skill_receipt;
 
 /// How many times a run waits for an independent provider readback before
 /// it is sealed deferred.
@@ -86,11 +86,11 @@ impl BoundRun {
         let waiting = waiting_requests(log.store(), log.run_id())?;
         host.check_turn(log.run_id(), &waiting)?;
         host.answers.check_waiting(log.run_id(), &waiting)?;
-        let request_context = RunContext {
+        let request_context = CallerContext {
             current: request.current_context.clone(),
             historical: request.historical_context.clone(),
         };
-        let (graph_inputs, run_act, run_context, run_authority, prepared) = match &existing {
+        let (workflow_inputs, run_act, run_context, run_authority, prepared) = match &existing {
             Some(record) => {
                 let started = continuation_identity(
                     record,
@@ -154,9 +154,9 @@ impl BoundRun {
             return self.restore_sealed_run(&log, record.clone());
         }
         if existing.is_some() {
-            crate::input_contract::materialize_complete_runner_inputs(
+            crate::input_contract::materialize_complete_method_inputs(
                 &self.runner.inputs,
-                &graph_inputs,
+                &workflow_inputs,
             )
             .map_err(|error| error.into_runtime_error())?;
         }
@@ -181,7 +181,7 @@ impl BoundRun {
             prepared.as_ref(),
             host.gate.clone(),
         )?;
-        let graph = self.graph(&graph_inputs, run_act.as_ref(), log.run_id())?;
+        let graph = self.graph(&workflow_inputs, run_act.as_ref(), log.run_id())?;
         let run = Driven {
             bound: self,
             log: &log,
@@ -242,7 +242,7 @@ impl BoundRun {
                 Hold::Request(_) | Hold::Child(_) => {}
             }
         }
-        match runtime.run_graph_with_host(&self.skill_dir, graph.clone(), host) {
+        match runtime.run_workflow_with_host(&self.skill_dir, graph.clone(), host) {
             Ok(completed) => run.seal_completed(completed),
             Err(RuntimeError::ResolutionPending { .. }) => self.paused(&log),
             // The mutation may be applied and its readback is pending. The
@@ -309,9 +309,9 @@ impl BoundRun {
         inputs: &JsonObject,
         act: Option<&CallAct>,
         run_id: &str,
-    ) -> Result<ExecutionGraph, RuntimeError> {
+    ) -> Result<Workflow, RuntimeError> {
         match self.purchase() {
-            Some(reference) => Ok(crate::execution::graph::purchase_graph(
+            Some(reference) => Ok(crate::execution::graph::purchase_workflow(
                 reference,
                 &self.runner.name,
                 inputs,
@@ -325,7 +325,7 @@ impl BoundRun {
     fn runtime(
         &self,
         log: &RunLog,
-        context: RunContext,
+        context: CallerContext,
         run_authority: Option<RunAuthority>,
         prepared: Option<&PreparedContext>,
         effect_gate: Option<std::sync::Arc<crate::execution::runner::EffectGate>>,
@@ -409,13 +409,13 @@ impl BoundRun {
             .clone()
             .ok_or_else(|| invalid("the run has no seal"))?;
         let graph = self.graph(&record.inputs, record.act.as_ref(), log.run_id())?;
-        let run = sealed_graph_run(graph, record)?;
-        write_graph_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
+        let run = sealed_workflow_run(graph, record)?;
+        write_workflow_receipts(&self.request, &self.workspace, &self.receipts, &run)?;
         let result = match sealed.terminal_result {
             Some(result) => result,
-            None => graph_run_result(&run)?,
+            None => workflow_run_result(&run)?,
         };
-        let output = graph_run_skill_output(&result, &run)?;
+        let output = workflow_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &self.manifest.skill,
             &self.runner.name,
@@ -423,8 +423,8 @@ impl BoundRun {
             &output,
             &result,
             SkillOutputDiagnostics {
-                context: Some(graph_run_context(&run)),
-                trace: Some(graph_run_trace(&run)),
+                context: Some(workflow_run_context(&run)),
+                trace: Some(workflow_run_trace(&run)),
                 refusal: None,
             },
             &run.receipt,
@@ -438,8 +438,8 @@ impl BoundRun {
 fn continuation_identity<'a>(
     record: &'a RunRecord,
     request: &SkillRunRequest,
-    request_context: &RunContext,
-    runner: &SkillRunnerDefinition,
+    request_context: &CallerContext,
+    runner: &SkillMethodDefinition,
     package_digest: &str,
     execution_closure_digest: &str,
 ) -> Result<&'a crate::execution::run_record::Started, SkillRunError> {
@@ -487,16 +487,16 @@ struct Driven<'a> {
     bound: &'a BoundRun,
     log: &'a RunLog,
     runtime: &'a Runtime<ExecutableAdapter>,
-    graph: &'a ExecutionGraph,
+    graph: &'a Workflow,
 }
 
 impl Driven<'_> {
-    fn seal_completed(&self, run: GraphRun) -> Result<RunResult, SkillRunError> {
+    fn seal_completed(&self, run: WorkflowRun) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
-        let result = graph_run_result(&run)?;
+        let result = workflow_run_result(&run)?;
         self.log.record_sealed(&run.receipt, None)?;
-        write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
-        let output = graph_run_skill_output(&result, &run)?;
+        write_workflow_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
+        let output = workflow_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &bound.manifest.skill,
             &bound.runner.name,
@@ -504,8 +504,8 @@ impl Driven<'_> {
             &output,
             &result,
             SkillOutputDiagnostics {
-                context: Some(graph_run_context(&run)),
-                trace: Some(graph_run_trace(&run)),
+                context: Some(workflow_run_context(&run)),
+                trace: Some(workflow_run_trace(&run)),
                 refusal: None,
             },
             &run.receipt,
@@ -524,8 +524,8 @@ impl Driven<'_> {
                 .seal_stop(self.graph.clone(), error, &mut host)?;
         let refusal = run.refusal.clone();
         self.log.record_sealed(&run.receipt, Some(&result))?;
-        write_graph_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
-        let output = graph_run_skill_output(&result, &run)?;
+        write_workflow_receipts(&bound.request, &bound.workspace, &bound.receipts, &run)?;
+        let output = workflow_run_skill_output(&result, &run)?;
         Ok(sealed_output(
             &bound.manifest.skill,
             &bound.runner.name,
@@ -533,8 +533,8 @@ impl Driven<'_> {
             &output,
             &result,
             SkillOutputDiagnostics {
-                context: Some(graph_run_context(&run)),
-                trace: Some(graph_run_trace(&run)),
+                context: Some(workflow_run_context(&run)),
+                trace: Some(workflow_run_trace(&run)),
                 refusal,
             },
             &run.receipt,
@@ -684,7 +684,7 @@ impl RunHost {
         };
         if waiting
             .iter()
-            .any(|request| request.id == act.turn && is_agent_act(request))
+            .any(|request| request.id == act.turn && is_turn(request))
         {
             return Ok(());
         }
@@ -760,10 +760,10 @@ impl RunHost {
         for request in waiting {
             let id = resolution_request_id(request);
             let digest = crate::execution::run_record::request_digest(request)?;
-            let agent_act = matches!(request, ResolutionRequest::AgentAct { .. });
+            let turn = matches!(request, ResolutionRequest::Turn { .. });
             if self.answers.get(id, &digest).is_some()
                 || self.act.as_ref().is_some_and(|act| act.turn == id)
-                || (self.manages() && agent_act)
+                || (self.manages() && turn)
             {
                 return Ok(true);
             }
@@ -883,29 +883,29 @@ fn failed_act(reason: String) -> JsonValue {
     )]))
 }
 
-fn is_agent_act(request: &PendingRequest) -> bool {
+fn is_turn(request: &PendingRequest) -> bool {
     request
         .value
         .as_object()
         .and_then(|value| value.get("kind"))
-        == Some(&JsonValue::String("agent_act".to_owned()))
+        == Some(&JsonValue::String("turn".to_owned()))
 }
 
 fn resolution_request_id(request: &ResolutionRequest) -> &str {
     match request {
         ResolutionRequest::Input { id, .. }
         | ResolutionRequest::Approval { id, .. }
-        | ResolutionRequest::AgentAct { id, .. }
+        | ResolutionRequest::Turn { id, .. }
         | ResolutionRequest::Retry { id, .. }
         | ResolutionRequest::Purchase { id, .. } => id.as_str(),
     }
 }
 
-fn write_graph_receipts(
+fn write_workflow_receipts(
     request: &SkillRunRequest,
     workspace: &WorkspaceEnv,
     receipts: &ReceiptServices,
-    run: &GraphRun,
+    run: &WorkflowRun,
 ) -> Result<(), SkillRunError> {
     for step in &run.steps {
         for receipt in &step.nested_receipts {
@@ -962,9 +962,9 @@ mod tests {
     use crate::adapter::SkillAdapter;
 
     #[test]
-    fn terminal_skill_failure_uses_only_an_exact_graph_step_identity()
+    fn terminal_skill_failure_uses_only_an_exact_workflow_step_identity()
     -> Result<(), Box<dyn std::error::Error>> {
-        let graph = runx_parser::validate_graph(runx_parser::parse_graph_yaml(
+        let graph = runx_parser::validate_workflow(runx_parser::parse_workflow_yaml(
             "name: authoring\nsteps:\n  - id: apply\n    skill: ./apply\n",
         )?)?;
         let owned = RuntimeError::SkillFailed {
@@ -988,7 +988,7 @@ mod tests {
     }
 
     #[test]
-    fn the_executable_adapter_refuses_an_agent_act() {
+    fn the_executable_adapter_refuses_an_turn() {
         let invocation = SkillInvocation {
             workspace_bounds: crate::WorkspaceBounds::Operator,
             historical_context: Vec::new(),
@@ -1024,7 +1024,7 @@ mod tests {
 
     #[cfg(feature = "agent")]
     #[test]
-    fn managed_agent_graph_failure_is_typed_sealed_and_visible_in_history()
+    fn managed_agent_workflow_failure_is_typed_sealed_and_visible_in_history()
     -> Result<(), Box<dyn std::error::Error>> {
         use crate::LocalReceiptStore;
         use crate::adapters::agent::{
@@ -1032,8 +1032,8 @@ mod tests {
         };
         use crate::execution::run_record::{RunFilter, RunState, list_runs};
         use crate::receipts::archive::{ReceiptFilter, list_receipts};
-        use runx_core::state_machine::GraphState;
-        use runx_parser::{parse_graph_yaml, validate_graph};
+        use runx_core::state_machine::WorkflowState;
+        use runx_parser::{parse_workflow_yaml, validate_workflow};
 
         let signature = crate::receipts::RuntimeReceiptSignatureConfig::fixture()?;
         for suspended in [false, true] {
@@ -1043,9 +1043,9 @@ mod tests {
                 crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
                 temp.path().join(".runx").display().to_string(),
             )]);
-            let graph = validate_graph(parse_graph_yaml(
+            let graph = validate_workflow(parse_workflow_yaml(
                 r#"
-name: managed-agent-graph-failure
+name: managed-agent-workflow-failure
 steps:
   - id: compose
     skill: ./compose
@@ -1055,13 +1055,13 @@ steps:
                 KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, temp.path()))?;
             let log = RunLog::open(store, "run_managed_agent_failure")?;
             log.begin(StartRequest {
-                skill: "managed-agent-graph-failure",
+                skill: "managed-agent-workflow-failure",
                 skill_path: "skill",
                 runner: "default",
                 package_digest: "sha256:package",
                 execution_closure_digest: "sha256:closure",
                 inputs: &JsonObject::new(),
-                context: &RunContext::default(),
+                context: &CallerContext::default(),
                 run_authority: None,
                 act: None,
                 driver: RunDriver::Managed,
@@ -1102,21 +1102,21 @@ steps:
                 },
             );
             let runtime_error =
-                RuntimeError::managed_agent_resolution("referenced-agent-runner", "compose", error)
-                    .at_graph_step("compose");
+                RuntimeError::managed_agent_resolution("referenced-agent-method", "compose", error)
+                    .at_workflow_step("compose");
             let mut host = RunHost::new(ResolutionAnswers::default());
             let run = runtime.seal_failed_with_host(
                 graph,
                 "compose",
                 runtime_error,
-                crate::receipts::GraphClosure {
+                crate::receipts::WorkflowEnding {
                     outcome: RunOutcome::Failed,
                     reason: Some(runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted),
                 },
                 &mut host,
             )?;
 
-            assert_eq!(run.progress.state, GraphState::Failed);
+            assert_eq!(run.progress.state, WorkflowState::Failed);
             assert_eq!(run.receipt.seal.outcome, RunOutcome::Failed);
             assert_eq!(run.steps.len(), 1);
             assert_eq!(run.progress.steps[0].attempts, 1);
@@ -1155,7 +1155,7 @@ steps:
             };
             let workspace = WorkspaceEnv::new(Default::default(), temp.path().to_path_buf())?;
             let receipts = ReceiptServices::from_signature_config(signature.clone());
-            write_graph_receipts(&request, &workspace, &receipts, &run)?;
+            write_workflow_receipts(&request, &workspace, &receipts, &run)?;
             let store = LocalReceiptStore::new(&receipt_dir);
             let listing = list_receipts(
                 &store,
@@ -1185,8 +1185,8 @@ steps:
     }
 
     #[test]
-    fn graph_process_uses_structured_credential_redaction() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn workflow_process_uses_structured_credential_redaction()
+    -> Result<(), Box<dyn std::error::Error>> {
         const MARKER: &str = "cli-credential-redaction-sentinel";
         let workspace = tempfile::tempdir()?;
         let mut env: BTreeMap<String, String> = std::env::vars().collect();
@@ -1258,7 +1258,7 @@ steps:
         let receipt = crate::receipts::step_receipt(
             crate::receipts::RunScope {
                 run_id: "run_credential",
-                graph_name: "credential_graph",
+                workflow_name: "credential_workflow",
             },
             "credential_cli",
             1,

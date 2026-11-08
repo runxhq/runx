@@ -1,38 +1,27 @@
-skill: vuln-triage
 version: "0.3.11"
+minimum_runx: 0.12.0
+default_method: scan
 catalog:
-  kind: skill
-  audience: public
   visibility: public
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: security
-runners:
+methods:
   scan:
     description: Assess exact-coordinate vulnerability findings for exposure, priority and practical remediation.
-    default: true
     inputs:
       target:
         type: string
-        required: true
         description: Repository, deployment or package set being reviewed.
       evidence:
-        type: json
-        required: true
-        description: A cve-audit.audit.v1 packet or actual findings with source and coverage; no sealed parent receipt
-          is required.
+        description: A cve-audit.audit.v1 packet or actual findings with source and coverage; no sealed parent receipt is required.
       objective:
         type: string
-        required: false
         description: Decision the operator needs.
         default: Prioritize and propose practical remediation.
+        optional: true
       scan_context:
-        type: json
-        required: false
         description: Optional deployment evidence. Each evidence record has id, source and excerpt.
         default: {}
+        optional: true
     result_from:
       - finalize
       - finalize-empty
@@ -41,21 +30,21 @@ runners:
       - target: acme/storefront
         evidence:
           findings:
-          - ecosystem: npm
-            dependency: left-pad
-            exact_version: 1.2.3
-            advisory_id: GHSA-xxxx-yyyy-zzzz
-            summary: Denial of service on crafted input.
-            dependency_paths:
-            - node_modules/left-pad
-            affected:
-            - package:
-                ecosystem: npm
-                name: left-pad
-              ranges:
-              - events:
-                - introduced: '0'
-                - fixed: 1.2.4
+            - ecosystem: npm
+              dependency: left-pad
+              exact_version: 1.2.3
+              advisory_id: GHSA-xxxx-yyyy-zzzz
+              summary: Denial of service on crafted input.
+              dependency_paths:
+                - node_modules/left-pad
+              affected:
+                - package:
+                    ecosystem: npm
+                    name: left-pad
+                  ranges:
+                    - events:
+                        - introduced: '0'
+                        - fixed: 1.2.4
     steps:
       - id: digest-evidence
         tool: data.digest
@@ -71,58 +60,49 @@ runners:
           module: vuln-triage.mjs
           export: admitScan
         outputs:
-          triage_context: object
-        artifacts:
-          named_emits:
-            triage_context: triage_context
+          triage_context: {type: object}
       - id: assess
         when:
           value: $steps.admit.triage_context.path
           equals: assess
-        agent:
-          role: reviewer
-          task: vuln-triage-assess
+        agent: vuln-triage-assess
         outputs:
           risk_assessment_draft:
             type: object
-            schema:
-              properties:
-                decision:
-                  type: string
-                advisory_assessments:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      finding_key:
-                        type: string
-                      priority:
-                        type: string
-                      exposure:
-                        type: string
-                      confidence:
-                        type: string
-                      exposure_evidence:
-                        type: array
-                      rationale:
-                        type: string
-                      recommendation:
-                        type: string
-                      fixed_version:
-                        type: string
-                operator_summary:
+            properties:
+              decision:
+                type: string
+              advisory_assessments:
+                type: array
+                items:
                   type: object
                   properties:
-                    summary:
+                    finding_key:
                       type: string
-              required:
+                    priority:
+                      type: string
+                    exposure:
+                      type: string
+                    confidence:
+                      type: string
+                    exposure_evidence:
+                      type: array
+                    rationale:
+                      type: string
+                    recommendation:
+                      type: string
+                    fixed_version:
+                      type: string
+              operator_summary:
+                type: object
+                properties:
+                  summary:
+                    type: string
+            required:
               - decision
         inputs:
           objective: $input.objective
           triage_context: $steps.admit.triage_context
-        artifacts:
-          named_emits:
-            risk_assessment_draft: risk_assessment_draft
       - id: finalize
         when:
           value: $steps.admit.triage_context.path
@@ -134,12 +114,7 @@ runners:
           module: vuln-triage.mjs
           export: finalizeScan
         outputs:
-          vulnerability_review: object
-        artifacts:
-          named_emits:
-            vulnerability_review: vulnerability_review
-          packets:
-            vulnerability_review: runx/vuln-triage.scan.v1
+          vulnerability_review: {type: object, packet: runx/vuln-triage.scan.v1}
       - id: finalize-empty
         when:
           value: $steps.admit.triage_context.path
@@ -150,12 +125,7 @@ runners:
           module: vuln-triage.mjs
           export: finalizeScan
         outputs:
-          vulnerability_review: object
-        artifacts:
-          named_emits:
-            vulnerability_review: vulnerability_review
-          packets:
-            vulnerability_review: runx/vuln-triage.scan.v1
+          vulnerability_review: {type: object, packet: runx/vuln-triage.scan.v1}
       - id: stop
         when:
           value: $steps.admit.triage_context.path
@@ -166,25 +136,18 @@ runners:
           module: vuln-triage.mjs
           export: finalizeScan
         outputs:
-          vulnerability_review: object
-        artifacts:
-          named_emits:
-            vulnerability_review: vulnerability_review
-          packets:
-            vulnerability_review: runx/vuln-triage.scan.v1
+          vulnerability_review: {type: object, packet: runx/vuln-triage.scan.v1}
   advisory:
     description: Prepare advisory wording for a validated triage packet. Publishes nothing.
     inputs:
       triage_packet:
-        type: json
-        required: true
         packet: runx/vuln-triage.scan.v1
         description: Validated source-bound vulnerability review.
       audience:
         type: string
-        required: false
         default: affected_users
         description: Intended advisory audience.
+        optional: true
     result_from:
       - finalize
       - stop
@@ -197,37 +160,31 @@ runners:
           module: vuln-triage.mjs
           export: admitAdvisory
         outputs:
-          advisory_context: object
-        artifacts:
-          named_emits:
-            advisory_context: advisory_context
+          advisory_context: {type: object}
       - id: draft
         when:
           value: $steps.admit.advisory_context.path
           equals: draft
-        agent:
-          role: builder
-          task: vuln-triage-advisory
+        agent: vuln-triage-advisory
         outputs:
           advisory_draft:
             type: object
-            schema:
-              properties:
-                title:
+            properties:
+              title:
+                type: string
+              summary:
+                type: string
+              body:
+                type: string
+              affected_advisory_ids:
+                type: array
+                items:
                   type: string
-                summary:
+              disclosure_checklist:
+                type: array
+                items:
                   type: string
-                body:
-                  type: string
-                affected_advisory_ids:
-                  type: array
-                  items:
-                    type: string
-                disclosure_checklist:
-                  type: array
-                  items:
-                    type: string
-              required:
+            required:
               - title
               - summary
               - body
@@ -237,9 +194,6 @@ runners:
           advisory_context: $steps.admit.advisory_context
           triage_packet: $input.triage_packet
           audience: $input.audience
-        artifacts:
-          named_emits:
-            advisory_draft: advisory_draft
       - id: finalize
         when:
           value: $steps.admit.advisory_context.path
@@ -251,12 +205,7 @@ runners:
           module: vuln-triage.mjs
           export: finalizeAdvisory
         outputs:
-          vulnerability_advisory_packet: object
-        artifacts:
-          named_emits:
-            vulnerability_advisory_packet: vulnerability_advisory_packet
-          packets:
-            vulnerability_advisory_packet: runx/vuln-triage.advisory.v1
+          vulnerability_advisory_packet: {type: object, packet: runx/vuln-triage.advisory.v1}
       - id: stop
         when:
           value: $steps.admit.advisory_context.path
@@ -267,13 +216,4 @@ runners:
           module: vuln-triage.mjs
           export: finalizeAdvisory
         outputs:
-          vulnerability_advisory_packet: object
-        artifacts:
-          named_emits:
-            vulnerability_advisory_packet: vulnerability_advisory_packet
-          packets:
-            vulnerability_advisory_packet: runx/vuln-triage.advisory.v1
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases: []
+          vulnerability_advisory_packet: {type: object, packet: runx/vuln-triage.advisory.v1}

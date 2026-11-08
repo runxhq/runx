@@ -1,0 +1,17 @@
+name: cold-outreach-composes-in-graph
+package: fixtures/composed
+host:
+  answers:
+    draft:
+      content_draft:
+        decision: needs_more_evidence
+        content_brief: {objective: Offer a useful documentation review, audience: documentation maintainers, channel: email}
+        draft: {title: "", body: "", claims: []}
+        context_binding: {applied: []}
+        review_checklist:
+          - The brand voice is scoped to platform engineers on Reddit; applicability to an email for documentation maintainers has not been established.
+        distribution_notes: {}
+expect:
+  status: sealed
+  steps: [cold-outreach, digest]
+  receipt: {schema: runx.receipt.v1}

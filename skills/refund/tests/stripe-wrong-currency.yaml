@@ -1,0 +1,40 @@
+name: refund-stripe-refuse-wrong-currency
+method: refund
+setup:
+  credentials:
+    - stripe
+inputs:
+  connector: stripe
+  request:
+    account_id: acct_northstar
+    payment_id: pi_northstar
+    amount_minor: 100
+    currency: usd
+  idempotency_seed: northstar-refund-42
+env:
+  STRIPE_API_KEY: fixture-stripe-key
+host:
+  approvals:
+    stripe: true
+providers:
+  http:
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/account
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"acct_northstar"}'
+    - request:
+        method: GET
+        url: https://api.stripe.com/v1/payment_intents/pi_northstar
+        body: none
+      response:
+        status: 200
+        headers:
+          content-type: application/json
+        body: '{"id":"pi_northstar","amount":150,"amount_received":150,"currency":"eur","status":"succeeded","latest_charge":"ch_northstar"}'
+expect:
+  status: failure

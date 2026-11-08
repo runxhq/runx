@@ -1,0 +1,11 @@
+{
+  "skill_name": "product-analytics",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Find the activation drop-off and propose a bounded measurement action from supplied evidence.",
+      "expected_output": "Return the exact bounded domain result and preserve holds without outward effects.",
+      "files": []
+    }
+  ]
+}

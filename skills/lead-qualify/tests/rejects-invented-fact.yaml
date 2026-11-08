@@ -1,0 +1,40 @@
+name: rejects-invented-fact
+inputs:
+  enrichment_packet:
+    decision: enriched
+    subject: {id: 'lead:example', kind: person}
+    as_of: '2026-10-10T00:00:00Z'
+    facts:
+    - {field: company.industry, value: B2B software, source_ids: ['crm:lead']}
+    missing_fields: []
+    conflicts: []
+    sources:
+    - source_id: crm:lead
+      source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      observed_at: '2026-10-09T00:00:00Z'
+      match_confidence: high
+      provenance: caller_supplied_source_digest
+    blockers: []
+    acquisition: supplied_evidence
+  criteria:
+  - {id: industry, description: Works for a B2B software company., required: true}
+  contact_eligibility:
+    subject: {id: 'lead:example', kind: person}
+    status: eligible
+    policy_id: policy:outreach
+    evidence_ids: ['policy:assessment']
+host:
+  answers:
+    assess:
+      assessment_draft:
+        assessments:
+        - {criterion_id: industry, status: met, rationale: The admitted company industry is B2B software., fact_fields: [company.country]}
+expect:
+  status: sealed
+  steps: [digest, admit, assess, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        lead_qualification:
+          data: {decision: needs_more_evidence, external_status: not_executed}
+  receipt: {schema: runx.receipt.v1}

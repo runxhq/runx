@@ -48,7 +48,7 @@ export function finalizeHistory(inputs) {
   const outcomes = countBy(sealed, (row) => stringValue(row.outcome) || "unknown");
   const terminalCount = sealed.length;
   const refusalCount = (outcomes.blocked || 0) + (outcomes.declined || 0);
-  const testedCatalogEntries = filteredCatalog.filter((item) => numberValue(item.fixtures) + numberValue(item.harness_cases) > 0).length;
+  const testedCatalogEntries = filteredCatalog.filter((item) => numberValue(item.fixtures) + numberValue(item.test_cases) > 0).length;
   const untestedCatalogEntries = filteredCatalog.length - testedCatalogEntries;
   const decision = terminalCount === 0 && pending.length === 0 ? "needs_more_evidence" : "ready";
 

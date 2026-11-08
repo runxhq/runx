@@ -1,0 +1,31 @@
+name: redact-pii-needs-content
+method: redact-pii
+inputs:
+  content: ""
+host:
+  answers:
+    detect:
+      redaction_draft:
+        decision: blocked
+        detected: []
+        residual_risk:
+          level: high
+          reason_code: insufficient_context
+expect:
+  status: sealed
+  steps:
+    - block-policy
+    - detect
+    - apply
+  step_outputs:
+    apply:
+      subset:
+        redaction_report:
+          data:
+            decision: blocked
+            redacted_digest: null
+            scanner:
+              status: block
+        redacted_content: ""
+  receipt:
+    schema: runx.receipt.v1

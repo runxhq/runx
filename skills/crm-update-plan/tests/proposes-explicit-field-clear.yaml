@@ -1,0 +1,34 @@
+name: proposes-explicit-field-clear
+inputs:
+  transcript: Clear the secondary email; it belongs to a former employee. Keep the account owner unchanged.
+  crm_records:
+    - id: northstar
+      secondary_email: former@northstar.example
+      owner: Dana
+  crm_schema:
+    allowed_fields:
+      - secondary_email
+host:
+  answers:
+    reconcile:
+      update_draft:
+        updates:
+          - record_id: northstar
+            field: secondary_email
+            to: null
+            evidence_quote: Clear the secondary email; it belongs to a former employee.
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        crm_update_proposal:
+          data:
+            decision: proposed
+            updates:
+              - record_id: northstar
+                field: secondary_email
+                from: former@northstar.example
+                to: null
+                evidence_quote: Clear the secondary email; it belongs to a former employee.
+            write_performed: false

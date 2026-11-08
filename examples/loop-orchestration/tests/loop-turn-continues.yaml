@@ -1,0 +1,16 @@
+name: loop-turn-continues
+method: turn
+inputs:
+  loop_id: loop-harness-success
+  turn_index: 1
+  max_turns: 3
+  objective: Draft the smallest safe patch.
+  previous_summary: No prior turn.
+  requested_tool: fs.read
+  scenario: success
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

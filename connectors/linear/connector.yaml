@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: linear
-name: Linear
+name: linear
+title: Linear
 description: Read bounded team issues, selected issue context and comments through fixed GraphQL queries.
 category: dev-tools
-runtime_capability: false
 auth:
   credentials:
     access_token:
@@ -28,7 +27,6 @@ operations:
     verb: read
     scopes: [read]
     credentials: [access_token, api_key]
-    hosted: {}
     target:
       template: {$concat: ['https://api.linear.app/team/', {$argument: /team_id}, '/issues']}
     input_schema:
@@ -47,7 +45,7 @@ operations:
           access_token: {type: bearer, field: access_token}
           api_key: {type: header, name: authorization, field: api_key}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://api.linear.app/graphql
             headers: {accept: application/json}
             body:
@@ -72,7 +70,6 @@ operations:
     verb: read
     scopes: [read]
     credentials: [access_token, api_key]
-    hosted: {}
     target:
       template: {$concat: ['https://api.linear.app/issue/', {$argument: /issue_id}]}
     input_schema:
@@ -89,7 +86,7 @@ operations:
           access_token: {type: bearer, field: access_token}
           api_key: {type: header, name: authorization, field: api_key}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://api.linear.app/graphql
             headers: {accept: application/json}
             body:
@@ -111,7 +108,6 @@ operations:
     verb: read
     scopes: [read]
     credentials: [access_token, api_key]
-    hosted: {}
     target:
       template: {$concat: ['https://api.linear.app/issue/', {$argument: /issue_id}, '/comments']}
     input_schema:
@@ -130,7 +126,7 @@ operations:
           access_token: {type: bearer, field: access_token}
           api_key: {type: header, name: authorization, field: api_key}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://api.linear.app/graphql
             headers: {accept: application/json}
             body:

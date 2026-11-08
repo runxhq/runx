@@ -1,20 +1,20 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::harness_fixture::{HarnessFixture, HarnessFixtureKind};
-use crate::{ExecutionGraph, SkillRunnerManifest, StepKind, ToolTarget};
+use crate::test_fixture::{TestFixture, TestFixtureKind};
+use crate::{SkillMethodManifest, StepKind, ToolTarget, Workflow};
 
 use super::super::path::{normalize_context_ref, validate_package_path};
 use super::super::{SkillPackageError, SkillPackageSource};
 use super::contract::{text_file, validate_manual};
 
 pub(super) fn collect_package_references(
-    profiles: &BTreeMap<String, SkillRunnerManifest>,
+    profiles: &BTreeMap<String, SkillMethodManifest>,
 ) -> Result<PackageReferences, SkillPackageError> {
     let mut references = PackageReferences::default();
     for (profile_path, manifest) in profiles {
         let profile_dir = profile_directory(profile_path);
         for (name, runner) in &manifest.runners {
-            collect_graph_references(
+            collect_workflow_references(
                 &format!("{profile_path}.runners.{name}"),
                 profile_dir,
                 &runner.graph,
@@ -39,8 +39,8 @@ pub(super) struct ContextReference {
     pub(super) reference: String,
 }
 
-pub(super) fn collect_harness_fixture_references(
-    fixtures: &BTreeMap<String, HarnessFixture>,
+pub(super) fn collect_test_fixture_references(
+    fixtures: &BTreeMap<String, TestFixture>,
     package: &SkillPackageSource,
     references: &mut PackageReferences,
 ) -> Result<BTreeSet<String>, SkillPackageError> {
@@ -56,7 +56,7 @@ pub(super) fn collect_harness_fixture_references(
             }
             files.insert(receipt_path.clone());
         }
-        if fixture.kind != HarnessFixtureKind::Graph {
+        if fixture.kind != TestFixtureKind::Graph {
             continue;
         }
         let target = resolve_fixture_target(fixture_path, &fixture.target)?;
@@ -69,8 +69,8 @@ pub(super) fn collect_harness_fixture_references(
                 ),
             )
         })?;
-        let graph = crate::validate_graph(
-            crate::parse_graph_yaml(text_file(&target, contents)?).map_err(|source| {
+        let graph = crate::validate_workflow(
+            crate::parse_workflow_yaml(text_file(&target, contents)?).map_err(|source| {
                 SkillPackageError::Parse {
                     path: target.clone(),
                     source,
@@ -81,7 +81,7 @@ pub(super) fn collect_harness_fixture_references(
             path: target.clone(),
             source,
         })?;
-        collect_graph_references(
+        collect_workflow_references(
             &format!("{fixture_path}.target"),
             package_directory(&target),
             &graph,
@@ -118,10 +118,10 @@ fn process_script_path(profile_dir: &str, value: &str) -> Option<String> {
     valid.then(|| package_relative(profile_dir, path))
 }
 
-fn collect_graph_references(
+fn collect_workflow_references(
     field: &str,
     profile_dir: &str,
-    graph: &ExecutionGraph,
+    graph: &Workflow,
     references: &mut PackageReferences,
 ) -> Result<(), SkillPackageError> {
     for (index, step) in graph.steps.iter().enumerate() {

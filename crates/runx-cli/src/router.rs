@@ -29,7 +29,7 @@ pub enum RouterAction {
     RunHistory(HistoryPlan),
     RunProcess(ProcessPlan),
     RunVerify(VerifyPlan),
-    RunHarness(HarnessPlan),
+    RunTest(TestPlan),
     RunConfig(ConfigPlan),
     RunConnector(ConnectorPlan),
     RunNotarize(NotarizePlan),
@@ -53,7 +53,7 @@ pub struct JsonErrorPlan {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct HarnessPlan {
+pub struct TestPlan {
     /// Replay targets: standalone fixture `.yaml` files, or a skill package
     /// (directory / `SKILL.md`) whose declared inline `harness.cases` are run.
     pub fixture_paths: Vec<OsString>,
@@ -163,7 +163,7 @@ fn route_args_with_optional_workspace(
     }
 
     if first_arg_is(&args, "harness") {
-        return normalize_json_error(&args, native_harness_plan(&args));
+        return normalize_json_error(&args, native_test_plan(&args));
     }
 
     if first_arg_is(&args, "config") {
@@ -358,7 +358,7 @@ fn first_arg_is(args: &[OsString], expected: &str) -> bool {
 
 // Function rationale: harness flag parsing stays local to the
 // router boundary so native dispatch does not grow a second parser surface.
-fn native_harness_plan(args: &[OsString]) -> RouterAction {
+fn native_test_plan(args: &[OsString]) -> RouterAction {
     let mut fixture_paths = Vec::new();
     let mut receipt_dir = None;
     let mut index = 1;
@@ -419,7 +419,7 @@ fn native_harness_plan(args: &[OsString]) -> RouterAction {
         );
     }
 
-    RouterAction::RunHarness(HarnessPlan {
+    RouterAction::RunTest(TestPlan {
         fixture_paths,
         receipt_dir,
     })

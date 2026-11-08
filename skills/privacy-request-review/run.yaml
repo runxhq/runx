@@ -1,461 +1,205 @@
-skill: privacy-request-review
 version: "0.1.11"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
   category: security
-  role: canonical
-  execution: plan
-  completion: runtime_receipt
-  approval: none
-harness:
-  files:
-    - fixtures/support/composed.graph
-    - fixtures/support/conflicted-append.graph
-  cases:
-    - name: privacy-request-review-eligible-erasure-records-verdict
-      operator_journeys:
-        - mode: standalone
-          confusors:
-            - redact-pii
-            - support-triage
-          request: Judge this erasure request against policy and record the verdict durably before any
-            downstream action.
-          expected_outcome: Return a sealed eligibility verdict appended to the subject request stream, with
-            no erasure performed.
-        - mode: composed
-          request: Continue from this recorded verdict into the downstream erasure operator.
-          expected_outcome: Reuse the sealed verdict and bounded handoff without re-judging the request.
-          prior_evidence:
-            - The request packet, proof, policy, and sealed verdict supplied by the prior step.
-          must_not_repeat:
-            - Do not re-derive the eligibility decision already recorded.
-      inputs:
-        request_packet:
-          type: erasure
-          subject_id: subject:alice
-          scope:
-            request_id: dsr-001
-            data_classes:
-              - profile
-              - activity
-            requested_scopes:
-              - profile
-              - activity
-        requestor_proof:
-          identity_provider: idp:acme
-          verified_at: 2026-08-01T10:00:00Z
-          assertion:
-            subject_id: subject:alice
-            assertion_id: idp:acme:session:9911
-            assertion_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-        policy:
-          jurisdiction: GDPR
-          trusted_identity_providers:
-            - idp:acme
-          lawful_bases:
-            erasure: art17_right_to_erasure
-          scope_bounds:
-            data_classes:
-              - profile
-              - activity
-              - billing
-            erasure_allowed:
-              - profile
-              - activity
-            export_allowed:
-              - profile
-        data_source_uri: tenant://privacy/sqlite-requests
-        resource: subject_requests
-        aggregate_id: subject:alice:dsr-001
-        expected_version: 0
-        idempotency_key: dsr-001:verdict:v1
-      expect:
-        status: sealed
-        steps:
-          - digest-request
-          - digest-policy
-          - judge
-          - persist-verdict
-          - readback-verdict
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              subject_request_verdict:
-                data:
-                  schema: runx/privacy-request-review.verdict.v1
-                  decision:
-                    eligible: true
-                  escalation:
-                    required: false
-                  persistence:
-                    append_status: committed
-                    aggregate_id: subject:alice:dsr-001
-                    after_version: 1
-                  downstream_effect_performed: false
-        receipt:
-          schema: runx.receipt.v1
-    - name: privacy-request-review-unverified-requestor-refused
-      inputs:
-        request_packet:
-          type: erasure
-          subject_id: subject:alice
-          scope:
-            request_id: dsr-002
-            data_classes:
-              - profile
-        requestor_proof:
-          identity_provider: idp:unknown
-          verified_at: 2026-08-01T10:00:00Z
-          assertion:
-            subject_id: subject:bob
-            assertion_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-        policy:
-          jurisdiction: GDPR
-          trusted_identity_providers:
-            - idp:acme
-          lawful_bases:
-            erasure: art17_right_to_erasure
-          scope_bounds:
-            data_classes:
-              - profile
-              - activity
-            erasure_allowed:
-              - profile
-            export_allowed:
-              - profile
-        data_source_uri: tenant://privacy/sqlite-requests
-        resource: subject_requests
-        aggregate_id: subject:alice:dsr-002
-        expected_version: 0
-        idempotency_key: dsr-002:verdict:v1
-      expect:
-        status: sealed
-        steps:
-          - digest-request
-          - digest-policy
-          - judge
-          - persist-verdict
-          - readback-verdict
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              subject_request_verdict:
-                data:
-                  decision:
-                    eligible: false
-                  escalation:
-                    required: true
-                    lane: human_privacy_review
-                  handoff: null
-                  persistence:
-                    append_status: committed
-                    after_version: 1
-        receipt:
-          schema: runx.receipt.v1
-    - name: privacy-request-review-needs-policy
-      inputs:
-        request_packet:
-          type: erasure
-          subject_id: subject:alice
-          scope:
-            request_id: dsr-003
-            data_classes:
-              - profile
-        requestor_proof:
-          identity_provider: idp:acme
-          verified_at: 2026-08-01T10:00:00Z
-        data_source_uri: tenant://privacy/sqlite-requests
-        resource: subject_requests
-        aggregate_id: subject:alice:dsr-003
-        expected_version: 0
-        idempotency_key: dsr-003:verdict:v1
-      expect:
-        status: failure
-    - name: refuses-scope-outside-the-requested-data-classes
-      inputs:
-        request_packet:
-          type: erasure
-          subject_id: subject:alice
-          scope:
-            request_id: dsr-001
-            data_classes:
-              - profile
-              - activity
-            requested_scopes:
-              - billing
-        requestor_proof:
-          identity_provider: idp:acme
-          verified_at: 2026-08-01T10:00:00Z
-          assertion:
-            subject_id: subject:alice
-            assertion_id: idp:acme:session:9911
-            assertion_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-        policy:
-          jurisdiction: GDPR
-          trusted_identity_providers:
-            - idp:acme
-          lawful_bases:
-            erasure: art17_right_to_erasure
-          scope_bounds:
-            data_classes:
-              - profile
-              - activity
-              - billing
-            erasure_allowed:
-              - profile
-              - activity
-            export_allowed:
-              - profile
-        data_source_uri: tenant://privacy/sqlite-requests
-        resource: subject_requests
-        aggregate_id: subject:scope-mismatch
-        expected_version: 0
-        idempotency_key: scope-mismatch:verdict:v1
-      expect:
-        status: sealed
-        steps:
-          - digest-request
-          - digest-policy
-          - judge
-          - persist-verdict
-          - readback-verdict
-          - finalize
-        step_outputs:
-          finalize:
-            subset:
-              subject_request_verdict:
-                data:
-                  decision:
-                    eligible: false
-                  handoff: null
-                  downstream_effect_performed: false
-        receipt:
-          schema: runx.receipt.v1
-connectors:
-  store:
-    operations:
-      - events.append
-      - events.read
-runners:
+methods:
   decide:
-    default: true
     inputs:
       request_packet:
         type: object
-        required: true
         description: Data subject request with type, subject_id, and bounded scope.
-        schema:
-          additionalProperties: false
-          properties:
-            type:
-              type: string
-              enum:
-                - erasure
-                - export
-            subject_id:
-              type: string
-              minLength: 1
-              maxLength: 500
-            scope:
-              type: object
-              additionalProperties: false
-              properties:
-                request_id:
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+            enum:
+              - erasure
+              - export
+          subject_id:
+            type: string
+            minLength: 1
+            maxLength: 500
+          scope:
+            type: object
+            additionalProperties: false
+            properties:
+              request_id:
+                type: string
+                minLength: 1
+                maxLength: 500
+              data_classes:
+                type: array
+                maxItems: 100
+                uniqueItems: true
+                items:
                   type: string
                   minLength: 1
-                  maxLength: 500
-                data_classes:
-                  type: array
-                  maxItems: 100
-                  uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 200
-                    pattern: \S
-                  minItems: 1
-                requested_scopes:
-                  type: array
-                  maxItems: 100
-                  uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 200
-                    pattern: \S
-                  minItems: 1
-              required:
-                - request_id
-              anyOf:
-                - required:
-                    - data_classes
-                - required:
-                    - requested_scopes
-          required:
-            - type
-            - subject_id
-            - scope
+                  maxLength: 200
+                  pattern: \S
+                minItems: 1
+              requested_scopes:
+                type: array
+                maxItems: 100
+                uniqueItems: true
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  pattern: \S
+                minItems: 1
+            required:
+              - request_id
+            anyOf:
+              - required:
+                  - data_classes
+              - required:
+                  - requested_scopes
+        required:
+          - type
+          - subject_id
+          - scope
       requestor_proof:
         type: object
-        required: true
-        description: Metadata of the identity assertion already verified by the owning host/provider; this
-          skill checks policy bindings, not signatures or authentication.
-        schema:
-          additionalProperties: false
-          required:
-            - identity_provider
-            - verified_at
-            - assertion
-          properties:
-            identity_provider:
-              type: string
-              minLength: 1
-              maxLength: 500
-              pattern: \S
-            verified_at:
-              type: string
-              minLength: 1
-              maxLength: 100
-              pattern: \S
-              format: date-time
-            assertion:
-              type: object
-              additionalProperties: false
-              required:
-                - subject_id
-                - assertion_digest
-              properties:
-                subject_id:
-                  type: string
-                  minLength: 1
-                  maxLength: 500
-                  pattern: \S
-                assertion_id:
-                  type: string
-                  minLength: 1
-                  maxLength: 1000
-                  pattern: \S
-                assertion_digest:
-                  type: string
-                  pattern: ^sha256:[0-9a-f]{64}$
-      policy:
-        type: object
-        required: true
-        description: Jurisdiction policy with trusted providers, lawful bases, and scope bounds.
-        schema:
-          additionalProperties: false
-          required:
-            - jurisdiction
-            - trusted_identity_providers
-            - lawful_bases
-            - scope_bounds
-          properties:
-            jurisdiction:
-              type: string
-              minLength: 1
-              maxLength: 200
-              pattern: \S
-            trusted_identity_providers:
-              type: array
-              maxItems: 100
-              uniqueItems: true
-              items:
+        description: Metadata of the identity assertion already verified by the owning host/provider; this skill checks policy bindings, not signatures or authentication.
+        additionalProperties: false
+        required:
+          - identity_provider
+          - verified_at
+          - assertion
+        properties:
+          identity_provider:
+            type: string
+            minLength: 1
+            maxLength: 500
+            pattern: \S
+          verified_at:
+            type: string
+            minLength: 1
+            maxLength: 100
+            pattern: \S
+            format: date-time
+          assertion:
+            type: object
+            additionalProperties: false
+            required:
+              - subject_id
+              - assertion_digest
+            properties:
+              subject_id:
                 type: string
                 minLength: 1
                 maxLength: 500
                 pattern: \S
-            lawful_bases:
-              type: object
-              additionalProperties: false
-              properties:
-                erasure:
+              assertion_id:
+                type: string
+                minLength: 1
+                maxLength: 1000
+                pattern: \S
+              assertion_digest:
+                type: string
+                pattern: ^sha256:[0-9a-f]{64}$
+      policy:
+        type: object
+        description: Jurisdiction policy with trusted providers, lawful bases, and scope bounds.
+        additionalProperties: false
+        required:
+          - jurisdiction
+          - trusted_identity_providers
+          - lawful_bases
+          - scope_bounds
+        properties:
+          jurisdiction:
+            type: string
+            minLength: 1
+            maxLength: 200
+            pattern: \S
+          trusted_identity_providers:
+            type: array
+            maxItems: 100
+            uniqueItems: true
+            items:
+              type: string
+              minLength: 1
+              maxLength: 500
+              pattern: \S
+          lawful_bases:
+            type: object
+            additionalProperties: false
+            properties:
+              erasure:
+                type: string
+                minLength: 1
+                maxLength: 500
+                pattern: \S
+              export:
+                type: string
+                minLength: 1
+                maxLength: 500
+                pattern: \S
+          scope_bounds:
+            type: object
+            additionalProperties: false
+            required:
+              - data_classes
+              - erasure_allowed
+              - export_allowed
+            properties:
+              data_classes:
+                type: array
+                maxItems: 100
+                uniqueItems: true
+                items:
                   type: string
                   minLength: 1
-                  maxLength: 500
+                  maxLength: 200
                   pattern: \S
-                export:
+              erasure_allowed:
+                type: array
+                maxItems: 100
+                uniqueItems: true
+                items:
                   type: string
                   minLength: 1
-                  maxLength: 500
+                  maxLength: 200
                   pattern: \S
-            scope_bounds:
-              type: object
-              additionalProperties: false
-              required:
-                - data_classes
-                - erasure_allowed
-                - export_allowed
-              properties:
-                data_classes:
-                  type: array
-                  maxItems: 100
-                  uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 200
-                    pattern: \S
-                erasure_allowed:
-                  type: array
-                  maxItems: 100
-                  uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 200
-                    pattern: \S
-                export_allowed:
-                  type: array
-                  maxItems: 100
-                  uniqueItems: true
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 200
-                    pattern: \S
+              export_allowed:
+                type: array
+                maxItems: 100
+                uniqueItems: true
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  pattern: \S
       data_source_uri:
         type: string
-        required: true
-        description: Operator-selected consent/request source; local:// uses the local workspace store
-          unless explicitly bound elsewhere.
-        schema:
-          minLength: 1
-          maxLength: 512
+        description: Operator-selected consent/request source; local:// uses the local workspace store unless explicitly bound elsewhere.
+        minLength: 1
+        maxLength: 512
       resource:
         type: string
-        required: true
         description: Declared event resource for subject request verdicts.
-        schema:
-          minLength: 1
-          maxLength: 128
-          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+        minLength: 1
+        maxLength: 128
+        pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
       aggregate_id:
         type: string
-        required: true
         description: Subject request stream key.
-        schema:
-          minLength: 1
-          maxLength: 192
-          pattern: ^[A-Za-z0-9][A-Za-z0-9._:@/-]*$
+        minLength: 1
+        maxLength: 192
+        pattern: ^[A-Za-z0-9][A-Za-z0-9._:@/-]*$
       expected_version:
         type: integer
-        required: true
         description: Current stream version required before the verdict append.
-        schema:
-          minimum: 0
-          maximum: 9007199254740990
+        minimum: 0
+        maximum: 9007199254740990
       idempotency_key:
         type: string
-        required: true
         description: Stable retry key for this verdict write.
-        schema:
-          minLength: 1
-          maxLength: 256
-          pattern: \S
+        minLength: 1
+        maxLength: 256
+        pattern: \S
     examples:
       - request_packet:
           type: erasure
@@ -500,7 +244,6 @@ runners:
         inputs:
           value: $input.policy
       - id: judge
-        label: judge eligibility against policy deterministically
         inputs:
           request_packet: $input.request_packet
           requestor_proof: $input.requestor_proof
@@ -509,14 +252,11 @@ runners:
           module: privacy-request-review.mjs
           export: judgeRequest
         outputs:
-          verdict_draft: object
-        artifacts:
-          named_emits:
-            verdict_draft: verdict_draft
+          verdict_draft: {type: object}
       - id: persist-verdict
         operation: store/events.append
         idempotency_key: $input.idempotency_key
-        input:
+        inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
@@ -524,14 +264,13 @@ runners:
           event: $steps.judge.verdict_draft.event
       - id: readback-verdict
         operation: store/events.read
-        input:
+        inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource
           aggregate_id: $input.aggregate_id
           after_version: $input.expected_version
           limit: 1
       - id: finalize
-        label: bind the durable verdict and digests into one packet
         inputs:
           verdict_draft: $steps.judge.verdict_draft
           append_result: $steps.persist-verdict.provider_operation.result
@@ -548,8 +287,4 @@ runners:
         outputs:
           subject_request_verdict:
             type: object
-        artifacts:
-          named_emits:
-            subject_request_verdict: subject_request_verdict
-          packets:
-            subject_request_verdict: runx/privacy-request-review.verdict.v1
+            packet: runx/privacy-request-review.verdict.v1

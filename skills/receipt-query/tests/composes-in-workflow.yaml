@@ -1,0 +1,6 @@
+name: receipt-query-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps: [receipt-query, digest]
+  receipt: {schema: runx.receipt.v1}

@@ -1,0 +1,1 @@
+{"expected":{"rejection":{"kind":"validation","message":"skill is required."}},"input":{"yaml":"runners:\n  bad:\n    steps:\n      - id: bad\n        agent: { role: agent, task: bad }\n    runx:\n      post_run:\n        reflect: sometimes\n"},"name":"validation-invalid-reflect-policy","scope":"method-manifests"}

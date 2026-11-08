@@ -188,9 +188,9 @@ pub enum SealReason {
     /// A harness case's inputs do not satisfy the runner's input contract.
     InputContractInvalid,
     /// The graph stopped because one of its steps failed.
-    GraphStepFailed,
+    WorkflowStepFailed,
     /// The graph stopped at a step that could not proceed.
-    GraphBlocked,
+    WorkflowBlocked,
     /// A call's authority did not admit it.
     AuthorityDenied,
     /// A call would spend more than is left of the run's money limit.
@@ -219,8 +219,8 @@ impl SealReason {
         match self {
             Self::PreflightRefused => "preflight_refused",
             Self::InputContractInvalid => "input_contract_invalid",
-            Self::GraphStepFailed => "graph_step_failed",
-            Self::GraphBlocked => "graph_blocked",
+            Self::WorkflowStepFailed => "workflow_step_failed",
+            Self::WorkflowBlocked => "workflow_blocked",
             Self::AuthorityDenied => "authority_denied",
             Self::CostLimitExceeded => "cost_limit_exceeded",
             Self::ResolutionPending => "resolution_pending",

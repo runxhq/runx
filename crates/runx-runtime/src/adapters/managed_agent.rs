@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use runx_contracts::{
     AgentContextEnvelope, JsonObject, JsonValue, LoadedPackage, OutputField, TurnCallOutcome,
-    TurnCallResult, TurnEnvelope, TurnLoad, TurnLocator, TurnTarget,
+    TurnCallResult, TurnLoad, TurnLocator, TurnTarget, TurnViewEnvelope,
 };
 use serde::Serialize;
 
@@ -86,8 +86,12 @@ impl ManagedAgent {
             )));
         }
         let mut given = BTreeSet::new();
-        let prompt = build_prompt(&TurnEnvelope::from(&envelope), &turn.calls()?, &mut given)
-            .map_err(&fail)?;
+        let prompt = build_prompt(
+            &TurnViewEnvelope::from(&envelope),
+            &turn.calls()?,
+            &mut given,
+        )
+        .map_err(&fail)?;
         let model = caller(&config).map_err(&fail)?;
         let complete_schema = match &envelope.output_schema {
             Some(schema @ JsonValue::Object(_)) => schema.clone(),
@@ -407,7 +411,7 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
 /// and how to end it. `given` gains the digest of each manual the prompt
 /// gives.
 fn build_prompt(
-    envelope: &TurnEnvelope,
+    envelope: &TurnViewEnvelope,
     calls: &[TurnCallResult],
     given: &mut BTreeSet<String>,
 ) -> Result<String, ManagedAgentError> {
@@ -510,8 +514,8 @@ struct PromptProfiles<'a> {
     conventions: &'a Option<runx_contracts::ProfileFile>,
 }
 
-impl<'a> From<&'a TurnEnvelope> for AgentPromptContext<'a> {
-    fn from(envelope: &'a TurnEnvelope) -> Self {
+impl<'a> From<&'a TurnViewEnvelope> for AgentPromptContext<'a> {
+    fn from(envelope: &'a TurnViewEnvelope) -> Self {
         Self {
             run_id: &envelope.run_id,
             step_id: &envelope.step_id,
@@ -553,7 +557,7 @@ mod tests {
             JsonValue::String("bug report".to_owned()),
         );
         let prompt = build_prompt(
-            &TurnEnvelope::from(&prompt_envelope("Triage", inputs, Vec::new())),
+            &TurnViewEnvelope::from(&prompt_envelope("Triage", inputs, Vec::new())),
             &[],
             &mut BTreeSet::new(),
         )?;
@@ -599,7 +603,11 @@ mod tests {
             skill_directory: non_empty("/workspace/skills/review"),
             tool_roots: Some(vec![non_empty("/workspace/tools")]),
         });
-        let prompt = build_prompt(&TurnEnvelope::from(&envelope), &[], &mut BTreeSet::new())?;
+        let prompt = build_prompt(
+            &TurnViewEnvelope::from(&envelope),
+            &[],
+            &mut BTreeSet::new(),
+        )?;
 
         assert!(prompt.contains(CONTEXT_POLICY));
         // Each context entry is an index line with its locator and summary, and
@@ -655,7 +663,7 @@ mod tests {
             },
         };
         let prompt = build_prompt(
-            &TurnEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
+            &TurnViewEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
             &[call, long],
             &mut BTreeSet::new(),
         )?;
@@ -706,7 +714,7 @@ mod tests {
         };
         let mut given = BTreeSet::new();
         let prompt = build_prompt(
-            &TurnEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
+            &TurnViewEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
             &[load(0)?, load(1)?],
             &mut given,
         )?;

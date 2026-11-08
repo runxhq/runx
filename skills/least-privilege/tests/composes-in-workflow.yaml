@@ -1,0 +1,10 @@
+name: least-privilege-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps:
+    - evidence
+    - least-privilege
+    - digest
+  receipt:
+    schema: runx.receipt.v1

@@ -1,0 +1,6 @@
+name: sql-analysis-default-requires-source-binding
+inputs:
+  question: Which campaigns produced qualified trials since 2026-10-01?
+  source: analytics:production
+expect:
+  status: policy_denied

@@ -1,0 +1,34 @@
+name: conversation-review-admits-grounded-coding-request
+inputs:
+  source_locator: slack://example/channel/2
+  source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  thread_locator: slack://example/channel/1
+  title: Broken test
+  body: Please fix the failing parser test in the repository.
+  thread:
+    source_locator: slack://example/channel/2
+    source_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    thread_locator: slack://example/channel/1
+    coverage_incomplete: false
+    messages: [{text: Please fix the failing parser test in the repository.}]
+  source_complete: true
+host:
+  answers:
+    judge:
+      draft:
+        kind: coding
+        summary: A parser test needs repair.
+        reason: The message explicitly requests a repository fix.
+        draft_message: ""
+        request_quote: Please fix the failing parser test in the repository.
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        conversation_packet:
+          data:
+            status: coding
+            request_quote: Please fix the failing parser test in the repository.
+            validation: {status: pass, findings: []}
+  receipt: {schema: runx.receipt.v1}

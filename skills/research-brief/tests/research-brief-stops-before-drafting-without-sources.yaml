@@ -1,0 +1,21 @@
+name: research-brief-stops-before-drafting-without-sources
+method: research-brief
+inputs:
+  objective: Decide whether the supplied claim is ready.
+  audience: operators
+  channel: brief
+  source_packets: []
+expect:
+  status: sealed
+  steps:
+    - research-topic
+  step_outputs:
+    research-topic:
+      subset:
+        research_packet:
+          data:
+            decision: needs_more_evidence
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

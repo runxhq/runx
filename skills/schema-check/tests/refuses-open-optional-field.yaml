@@ -1,0 +1,28 @@
+name: refuses-open-optional-field
+inputs:
+  current_schema:
+    type: object
+  proposed_schema:
+    type: object
+    properties:
+      note:
+        type: string
+  sample_payloads:
+    - {}
+  compatibility_policy:
+    breaking_allowed: false
+expect:
+  status: sealed
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            decision: refused
+            policy_result: blocked_by_policy
+            proposal: null
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

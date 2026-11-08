@@ -1,0 +1,8 @@
+name: github-missing-direction-fails-input-contract
+method: plan
+inputs:
+  repo: runxhq/runx
+  resources: {kind: issues, filters: {limit: 10}}
+  scope: read
+expect:
+  status: failure

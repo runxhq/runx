@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use runx_contracts::connector::{ConnectorName, Digest};
 use runx_contracts::{EnvironmentRequirements, JsonValue, sha256_prefixed};
-use runx_parser::{GraphStep, StepKind, ToolTarget};
+use runx_parser::{StepKind, ToolTarget, WorkflowStep};
 use serde::Serialize;
 
 use super::super::LoadedSkillPackage;
@@ -56,7 +56,7 @@ impl ClosureAccumulator {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct LocalSkillEdge {
     pub source_package_root: PathBuf,
-    pub graph_directory: PathBuf,
+    pub workflow_directory: PathBuf,
     pub reference: String,
     pub target_package_root: PathBuf,
 }
@@ -151,45 +151,45 @@ pub(super) fn inspect_execution_closures(
     env: Option<&BTreeMap<String, String>>,
     unheld_registry_refs: UnheldRegistryRefs,
 ) -> Result<BTreeMap<String, JsonValue>, SkillInspectionError> {
-    let runner_names = loaded
+    let method_names = loaded
         .manifest()
         .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
     let mut inspector = ExecutionClosureInspector::new(loaded, env, unheld_registry_refs)?;
-    runner_names
+    method_names
         .into_iter()
-        .map(|runner_name| {
-            let closure = inspector.inspect_root_runner(&runner_name)?;
-            Ok((runner_name, closure))
+        .map(|method_name| {
+            let closure = inspector.inspect_root_method(&method_name)?;
+            Ok((method_name, closure))
         })
         .collect()
 }
 
-/// The closure of `loaded`'s runner `runner_name`, and every package it binds
+/// The closure of `loaded`'s runner `method_name`, and every package it binds
 /// as it was loaded, by canonical directory: what a run of that runner admits.
-pub(super) fn inspect_runner_execution_closure(
+pub(super) fn inspect_method_execution_closure(
     loaded: Arc<LoadedSkillPackage>,
-    runner_name: &str,
+    method_name: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<(JsonValue, BTreeMap<PathBuf, Arc<LoadedSkillPackage>>), SkillInspectionError> {
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
-    let mut closure = inspector.inspect_root_runner_accumulator(runner_name)?;
+    let mut closure = inspector.inspect_root_method_accumulator(method_name)?;
     let packages = std::mem::take(&mut closure.packages);
     Ok((serialize_closure(closure)?, packages))
 }
 
-/// Every runner the closure of `loaded`'s runner `runner_name` binds, its
+/// Every runner the closure of `loaded`'s runner `method_name` binds, its
 /// child skills' included, with the package each runs from. A registry child
 /// the project does not hold is left out, as the closure reports it.
-pub(super) fn inspect_runner_closure_runners(
+pub(super) fn inspect_method_closure_methods(
     loaded: Arc<LoadedSkillPackage>,
-    runner_name: &str,
+    method_name: &str,
     env: &BTreeMap<String, String>,
 ) -> Result<Vec<(Arc<LoadedSkillPackage>, String)>, SkillInspectionError> {
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
-    let closure = inspector.inspect_root_runner_accumulator(runner_name)?;
+    let closure = inspector.inspect_root_method_accumulator(method_name)?;
     Ok(closure
         .runners
         .iter()
@@ -206,36 +206,34 @@ pub(super) fn inspect_local_execution_closure(
     loaded: Arc<LoadedSkillPackage>,
     env: &BTreeMap<String, String>,
 ) -> Result<LocalExecutionClosure, SkillInspectionError> {
-    let runner_names = loaded
+    let method_names = loaded
         .manifest()
         .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
     let mut closure = LocalExecutionClosure::default();
-    for runner_name in runner_names {
+    for method_name in method_names {
         merge_local_execution_closure(
             &mut closure,
             inspector
-                .inspect_root_runner_accumulator(&runner_name)?
+                .inspect_root_method_accumulator(&method_name)?
                 .into_local_execution_closure(),
         );
     }
-    let harness_graphs = inspector
+    let test_workflows = inspector
         .root
         .package
-        .harness_fixtures
+        .test_fixtures
         .iter()
-        .filter(|(_, fixture)| {
-            fixture.kind == runx_parser::harness_fixture::HarnessFixtureKind::Graph
-        })
+        .filter(|(_, fixture)| fixture.kind == runx_parser::test_fixture::TestFixtureKind::Graph)
         .map(|(relative, fixture)| (relative.clone(), fixture.target.clone()))
         .collect::<Vec<_>>();
-    for (fixture_path, target) in harness_graphs {
+    for (fixture_path, target) in test_workflows {
         merge_local_execution_closure(
             &mut closure,
             inspector
-                .inspect_harness_graph_accumulator(&fixture_path, &target)?
+                .inspect_test_workflow_accumulator(&fixture_path, &target)?
                 .into_local_execution_closure(),
         );
     }
@@ -261,9 +259,9 @@ pub(super) fn case_closure_connectors(
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let closure = match target {
-        CaseClosureTarget::Runner(runner) => inspector.inspect_root_runner_accumulator(runner)?,
+        CaseClosureTarget::Runner(runner) => inspector.inspect_root_method_accumulator(runner)?,
         CaseClosureTarget::Graph(graph) => {
-            inspector.inspect_graph_accumulator(graph, &graph.to_string_lossy())?
+            inspector.inspect_workflow_accumulator(graph, &graph.to_string_lossy())?
         }
     };
     Ok(closure.connector_bindings.into_values().collect())
@@ -323,27 +321,25 @@ fn closure_accumulators(
     loaded: Arc<LoadedSkillPackage>,
     env: &BTreeMap<String, String>,
 ) -> Result<Vec<ClosureAccumulator>, SkillInspectionError> {
-    let runner_names = loaded
+    let method_names = loaded
         .manifest()
         .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
-    let harness_graphs = loaded
+    let test_workflows = loaded
         .package
-        .harness_fixtures
+        .test_fixtures
         .iter()
-        .filter(|(_, fixture)| {
-            fixture.kind == runx_parser::harness_fixture::HarnessFixtureKind::Graph
-        })
+        .filter(|(_, fixture)| fixture.kind == runx_parser::test_fixture::TestFixtureKind::Graph)
         .map(|(relative, fixture)| (relative.clone(), fixture.target.clone()))
         .collect::<Vec<_>>();
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let mut accumulators = Vec::new();
-    for runner_name in runner_names {
-        accumulators.push(inspector.inspect_root_runner_accumulator(&runner_name)?);
+    for method_name in method_names {
+        accumulators.push(inspector.inspect_root_method_accumulator(&method_name)?);
     }
-    for (fixture_path, target) in harness_graphs {
-        accumulators.push(inspector.inspect_harness_graph_accumulator(&fixture_path, &target)?);
+    for (fixture_path, target) in test_workflows {
+        accumulators.push(inspector.inspect_test_workflow_accumulator(&fixture_path, &target)?);
     }
     Ok(accumulators)
 }
@@ -421,16 +417,16 @@ impl<'a> ExecutionClosureInspector<'a> {
         })
     }
 
-    fn inspect_root_runner(
+    fn inspect_root_method(
         &mut self,
-        runner_name: &str,
+        method_name: &str,
     ) -> Result<JsonValue, SkillInspectionError> {
-        serialize_closure(self.inspect_root_runner_accumulator(runner_name)?)
+        serialize_closure(self.inspect_root_method_accumulator(method_name)?)
     }
 
-    fn inspect_root_runner_accumulator(
+    fn inspect_root_method_accumulator(
         &mut self,
-        runner_name: &str,
+        method_name: &str,
     ) -> Result<ClosureAccumulator, SkillInspectionError> {
         let mut closure = ClosureAccumulator::default();
         let mut visited = BTreeSet::new();
@@ -444,12 +440,12 @@ impl<'a> ExecutionClosureInspector<'a> {
             .as_deref()
             .unwrap_or(runx_parser::PROFILE_FILE)
             .to_owned();
-        self.walk_runner(
-            RunnerWalkTarget {
+        self.walk_method(
+            MethodWalkTarget {
                 loaded: self.root.clone(),
                 skill_directory: self.root_directory.clone(),
                 profile_path,
-                runner_name: runner_name.to_owned(),
+                method_name: method_name.to_owned(),
                 edge_depth: EdgeDepth::Direct,
                 materialize_local: true,
             },
@@ -458,7 +454,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         Ok(closure)
     }
 
-    fn inspect_harness_graph_accumulator(
+    fn inspect_test_workflow_accumulator(
         &mut self,
         fixture_path: &str,
         target: &str,
@@ -470,18 +466,18 @@ impl<'a> ExecutionClosureInspector<'a> {
                 .ok_or_else(|| SkillInspectionError::ProfileEscape {
                     reference: fixture_path.to_string_lossy().into_owned(),
                 })?;
-        self.inspect_graph_accumulator(&fixture_directory.join(target), target)
+        self.inspect_workflow_accumulator(&fixture_directory.join(target), target)
     }
 
     /// The closure of the graph file at `graph`, which lies in the package;
     /// `target` is how the case named it.
-    fn inspect_graph_accumulator(
+    fn inspect_workflow_accumulator(
         &mut self,
         graph: &Path,
         target: &str,
     ) -> Result<ClosureAccumulator, SkillInspectionError> {
         let target_path = canonical_directory(graph, "harness graph target")?;
-        let graph_directory =
+        let workflow_directory =
             target_path
                 .parent()
                 .ok_or_else(|| SkillInspectionError::ProfileEscape {
@@ -494,17 +490,17 @@ impl<'a> ExecutionClosureInspector<'a> {
             })?
             .to_string_lossy()
             .into_owned();
-        let graph = crate::execution::graph::load_graph(&target_path)?;
+        let graph = crate::execution::graph::load_workflow(&target_path)?;
         let mut closure = ClosureAccumulator::default();
         let mut visited = BTreeSet::new();
         let mut walk = ExecutionWalkState {
             closure: &mut closure,
             visited: &mut visited,
         };
-        self.walk_graph(
+        self.walk_workflow(
             self.root.clone(),
-            GraphWalkContext {
-                directory: graph_directory,
+            WorkflowWalkContext {
+                directory: workflow_directory,
                 profile_path: &profile_path,
                 edge_depth: EdgeDepth::Direct,
                 materialize_local: true,
@@ -515,22 +511,22 @@ impl<'a> ExecutionClosureInspector<'a> {
         Ok(closure)
     }
 
-    fn walk_runner(
+    fn walk_method(
         &mut self,
-        target: RunnerWalkTarget,
+        target: MethodWalkTarget,
         walk: &mut ExecutionWalkState<'_>,
     ) -> Result<(), SkillInspectionError> {
-        let RunnerWalkTarget {
+        let MethodWalkTarget {
             loaded,
             skill_directory,
             profile_path,
-            runner_name,
+            method_name,
             edge_depth,
             materialize_local,
         } = target;
         if !walk.visited.insert((
             skill_directory.clone(),
-            runner_name.clone(),
+            method_name.clone(),
             materialize_local,
         )) {
             return Ok(());
@@ -541,7 +537,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             .or_insert_with(|| loaded.clone());
         walk.closure
             .runners
-            .insert((skill_directory.clone(), runner_name.clone()));
+            .insert((skill_directory.clone(), method_name.clone()));
         let package_root = canonical_directory(&loaded.package_root, "bound skill package")?;
         let scope = self.connector_scope(&package_root)?;
         for (key, requirement) in loaded
@@ -582,10 +578,10 @@ impl<'a> ExecutionClosureInspector<'a> {
         }
         let runner = loaded
             .manifest()
-            .and_then(|manifest| manifest.runners.get(&runner_name))
-            .ok_or_else(|| SkillInspectionError::SubSkillNamedRunnerMissing {
+            .and_then(|manifest| manifest.runners.get(&method_name))
+            .ok_or_else(|| SkillInspectionError::SubSkillNamedMethodMissing {
                 path: loaded.directory.clone(),
-                runner: runner_name.clone(),
+                runner: method_name.clone(),
             })?;
         let mut input_packet_ids = crate::packet_schemas::declared_input_packet_ids(&runner.inputs);
         for package_tool in loaded.package.tools.values() {
@@ -600,7 +596,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     .resolved_input_packet_schemas
                     .get(&packet)
                     .ok_or_else(|| SkillInspectionError::ClosureInvalid {
-                        runner: runner_name.clone(),
+                        runner: method_name.clone(),
                         problem: "omitted an admitted input packet schema",
                     })?;
                 Ok(InputPacketSchemaBinding {
@@ -613,7 +609,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             .package_bindings
             .insert(ExecutionPackageBinding {
                 skill: loaded.package.skill.name.clone(),
-                runner: runner_name.clone(),
+                runner: method_name.clone(),
                 package_digest: loaded.package.package_digest.clone(),
                 source_kind: if materialize_local {
                     ExecutionPackageSourceKind::SourceRoot
@@ -626,7 +622,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             });
         if materialize_local {
             let packet_ids = walk.closure.local_packages.entry(package_root).or_default();
-            packet_ids.extend(crate::packet_schemas::declared_runner_packet_ids(runner));
+            packet_ids.extend(crate::packet_schemas::declared_method_packet_ids(runner));
             for package_tool in loaded.package.tools.values() {
                 packet_ids.extend(crate::packet_schemas::declared_tool_packet_ids(
                     &package_tool.tool,
@@ -635,10 +631,10 @@ impl<'a> ExecutionClosureInspector<'a> {
         }
         walk.closure
             .profiles
-            .insert(format!("{profile_path}#{runner_name}"));
-        self.walk_graph(
+            .insert(format!("{profile_path}#{method_name}"));
+        self.walk_workflow(
             loaded.clone(),
-            GraphWalkContext {
+            WorkflowWalkContext {
                 directory: &skill_directory,
                 profile_path: &profile_path,
                 edge_depth,
@@ -648,12 +644,12 @@ impl<'a> ExecutionClosureInspector<'a> {
             walk,
         )?;
         for continuation in &runner.continuations {
-            self.walk_runner(
-                RunnerWalkTarget {
+            self.walk_method(
+                MethodWalkTarget {
                     loaded: loaded.clone(),
                     skill_directory: skill_directory.clone(),
                     profile_path: profile_path.clone(),
-                    runner_name: continuation.clone(),
+                    method_name: continuation.clone(),
                     edge_depth,
                     materialize_local,
                 },
@@ -663,11 +659,11 @@ impl<'a> ExecutionClosureInspector<'a> {
         Ok(())
     }
 
-    fn walk_graph(
+    fn walk_workflow(
         &mut self,
         loaded: Arc<LoadedSkillPackage>,
-        context: GraphWalkContext<'_>,
-        graph: &runx_parser::ExecutionGraph,
+        context: WorkflowWalkContext<'_>,
+        graph: &runx_parser::Workflow,
         walk: &mut ExecutionWalkState<'_>,
     ) -> Result<(), SkillInspectionError> {
         if context.materialize_local {
@@ -772,7 +768,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     if source_package_root != target_package_root {
                         walk.closure.local_skill_edges.insert(LocalSkillEdge {
                             source_package_root,
-                            graph_directory: canonical_directory(
+                            workflow_directory: canonical_directory(
                                 context.directory,
                                 "bound graph directory",
                             )?,
@@ -797,12 +793,12 @@ impl<'a> ExecutionClosureInspector<'a> {
                 if let Some(nested) = nested {
                     let nested_materialize_local =
                         context.materialize_local && runx_parser::registry_ref(reference).is_none();
-                    self.walk_runner(
-                        RunnerWalkTarget {
+                    self.walk_method(
+                        MethodWalkTarget {
                             loaded: nested.loaded,
                             skill_directory: nested.canonical_directory,
                             profile_path: nested.profile_path,
-                            runner_name: nested.runner_name,
+                            method_name: nested.method_name,
                             edge_depth: EdgeDepth::Nested,
                             materialize_local: nested_materialize_local,
                         },
@@ -816,20 +812,20 @@ impl<'a> ExecutionClosureInspector<'a> {
 
     fn resolve_step_skill(
         &mut self,
-        graph_directory: &Path,
+        workflow_directory: &Path,
         profile_path: &str,
-        step: &GraphStep,
+        step: &WorkflowStep,
     ) -> Result<Option<ResolvedStepSkill>, SkillInspectionError> {
         let Some(target) = step.skill() else {
             return Ok(None);
         };
         let reference = target.skill.as_str();
-        let requested_runner = target.runner.as_deref().unwrap_or("default");
+        let requested_method = target.runner.as_deref().unwrap_or("default");
         if reference.starts_with('$')
             || (runx_parser::registry_ref(reference).is_some() && self.env.is_none())
         {
             return Ok(Some(ResolvedStepSkill {
-                edge: format!("{reference}#{requested_runner}"),
+                edge: format!("{reference}#{requested_method}"),
                 static_external_name: registry_skill_name(reference),
                 nested: None,
             }));
@@ -841,13 +837,13 @@ impl<'a> ExecutionClosureInspector<'a> {
             && !crate::execution::graph::registry_holds_step_skill(reference, env)?
         {
             return Ok(Some(ResolvedStepSkill {
-                edge: format!("{reference}#{requested_runner}"),
+                edge: format!("{reference}#{requested_method}"),
                 static_external_name: registry_skill_name(reference),
                 nested: None,
             }));
         }
         let loaded_step = crate::execution::graph::load_step_skill_package(
-            graph_directory,
+            workflow_directory,
             step,
             crate::execution::graph::StepSkillLoadOptions::from_disk(env),
         )?;
@@ -859,8 +855,8 @@ impl<'a> ExecutionClosureInspector<'a> {
                 .ok_or_else(|| SkillInspectionError::SubSkillManifestMissing {
                     path: nested.directory.clone(),
                 })?;
-        let nested_runner =
-            crate::execution::graph::select_step_runner(manifest, target.runner.as_deref())?
+        let nested_method =
+            crate::execution::graph::select_step_method(manifest, target.runner.as_deref())?
                 .name
                 .clone();
         let nested_profile = if runx_parser::registry_ref(reference).is_some() {
@@ -872,29 +868,29 @@ impl<'a> ExecutionClosureInspector<'a> {
             nested_profile_path(profile_path, reference)?
         };
         Ok(Some(ResolvedStepSkill {
-            edge: format!("{}#{nested_runner}", nested.package.skill.name),
+            edge: format!("{}#{nested_method}", nested.package.skill.name),
             static_external_name: None,
             nested: Some(ResolvedNestedSkill {
                 loaded: nested,
                 canonical_directory,
                 profile_path: nested_profile,
-                runner_name: nested_runner,
+                method_name: nested_method,
             }),
         }))
     }
 }
 
-struct RunnerWalkTarget {
+struct MethodWalkTarget {
     loaded: Arc<LoadedSkillPackage>,
     skill_directory: PathBuf,
     profile_path: String,
-    runner_name: String,
+    method_name: String,
     edge_depth: EdgeDepth,
     materialize_local: bool,
 }
 
 #[derive(Clone, Copy)]
-struct GraphWalkContext<'a> {
+struct WorkflowWalkContext<'a> {
     directory: &'a Path,
     profile_path: &'a str,
     edge_depth: EdgeDepth,
@@ -916,13 +912,13 @@ struct ResolvedNestedSkill {
     loaded: Arc<LoadedSkillPackage>,
     canonical_directory: PathBuf,
     profile_path: String,
-    runner_name: String,
+    method_name: String,
 }
 
 fn record_direct_external_skill_edge(
     static_external_name: Option<String>,
     nested: Option<&ResolvedNestedSkill>,
-    step: &GraphStep,
+    step: &WorkflowStep,
     package_root: &Path,
     edges: &mut BTreeSet<DirectExternalSkillEdge>,
 ) {
@@ -930,7 +926,7 @@ fn record_direct_external_skill_edge(
         if !nested.canonical_directory.starts_with(package_root) {
             edges.insert(DirectExternalSkillEdge {
                 skill: nested.loaded.package.skill.name.clone(),
-                runner: nested.runner_name.clone(),
+                runner: nested.method_name.clone(),
             });
         }
     } else if let Some(skill) = static_external_name {
@@ -946,7 +942,7 @@ fn record_direct_external_skill_edge(
 }
 
 /// A skill step's reference; empty for any other step.
-fn step_reference(step: &GraphStep) -> &str {
+fn step_reference(step: &WorkflowStep) -> &str {
     step.skill().map_or("", |target| target.skill.as_str())
 }
 

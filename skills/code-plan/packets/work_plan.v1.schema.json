@@ -7,7 +7,7 @@
     "decision": { "type": "string", "enum": ["ready", "blocked"] },
     "plan_kind": { "type": "string", "enum": ["workspace_change", "skill_package"] },
     "change_set": { "type": "object", "additionalProperties": true },
-    "harness_context": { "type": "object", "additionalProperties": true },
+    "run_context": { "type": "object", "additionalProperties": true },
     "objective_summary": { "type": "string" },
     "workspace_change_plan": { "type": "object", "additionalProperties": true },
     "orchestration_steps": { "type": "array", "items": { "type": "object", "additionalProperties": true } },

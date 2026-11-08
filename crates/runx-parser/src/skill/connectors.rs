@@ -16,9 +16,9 @@ use runx_contracts::connector::{Digest, OperationName, is_connector_name};
 use serde::{Deserialize, Serialize};
 
 use crate::ValidationError;
-use crate::graph::ExecutionGraph;
+use crate::graph::Workflow;
 
-use super::SkillRunnerDefinition;
+use super::SkillMethodDefinition;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -138,18 +138,18 @@ pub(crate) fn validate_connector_requirements(
 /// operation, one that requirement lists. Each step is bound to its
 /// requirement, so the kernel admits it without the manifest at hand.
 pub(crate) fn bind_operation_steps(
-    runners: &mut BTreeMap<String, SkillRunnerDefinition>,
+    runners: &mut BTreeMap<String, SkillMethodDefinition>,
     requirements: &BTreeMap<String, ConnectorRequirement>,
 ) -> Result<(), ValidationError> {
     for (name, runner) in runners {
-        bind_graph_operations(name, &mut runner.graph, requirements)?;
+        bind_workflow_operations(name, &mut runner.graph, requirements)?;
     }
     Ok(())
 }
 
-fn bind_graph_operations(
+fn bind_workflow_operations(
     runner: &str,
-    graph: &mut ExecutionGraph,
+    graph: &mut Workflow,
     requirements: &BTreeMap<String, ConnectorRequirement>,
 ) -> Result<(), ValidationError> {
     for step in &mut graph.steps {

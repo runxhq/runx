@@ -1,0 +1,29 @@
+{
+  "skill_name": "pay",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Pay this exact x402 resource.",
+      "expected_output": "Require hosted wallet authority and return provider plus resource readback.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Pay this exact x402 resource.",
+      "expected_output": "Require hosted wallet authority and return provider plus resource readback.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Pay this exact x402 resource.",
+      "expected_output": "Require hosted wallet authority and return provider plus resource readback.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Pay this exact x402 resource.",
+      "expected_output": "Require hosted wallet authority and return provider plus resource readback.",
+      "files": []
+    }
+  ]
+}

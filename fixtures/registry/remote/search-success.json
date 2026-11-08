@@ -7,7 +7,7 @@
       "description": "Echo input",
       "version": "1.0.0",
       "profile_mode": "portable",
-      "runner_names": ["default"],
+      "method_names": ["default"],
       "required_scopes": [],
       "tags": ["utility"],
       "trust_tier": "verified",

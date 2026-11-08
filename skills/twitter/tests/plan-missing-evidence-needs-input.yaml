@@ -1,0 +1,28 @@
+name: plan-missing-evidence-needs-input
+method: plan
+inputs:
+  objective: Delete all my bad old posts.
+  principal: account:@example
+host:
+  answers:
+    draft:
+      twitter_plan:
+        decision: needs_input
+        objective: Delete all my bad old posts.
+        principal: account:@example
+        acts: []
+        gates:
+          human_approval_required: true
+          approval_id: null
+        evidence_locators: []
+        open_questions: []
+        blockers:
+          - No evidence_json was supplied; post ids cannot be selected without a read of the archive or timeline.
+          - The prune criteria are unstated; "bad" needs operator_policy terms the evidence can be tested against.
+        success_checkpoint:
+          milestone: plan_blocked_on_input
+          description: The plan stops until evidence and prune criteria are supplied.
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

@@ -12,7 +12,8 @@ use runx_runtime::receipts::{
     Ed25519ReceiptSigner, Ed25519ReceiptVerifier, RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64_ENV,
     RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV, ReceiptTrust,
     RuntimeReceiptSignatureConfig, RuntimeReceiptSignaturePolicy, RuntimeReceiptSigner,
-    RuntimeReceiptSigningError, TrustedReceiptKey, graph_receipt, receipt_verifier, step_receipt,
+    RuntimeReceiptSigningError, TrustedReceiptKey, receipt_verifier, step_receipt,
+    workflow_receipt,
 };
 use runx_runtime::{EphemeralValue, InvocationOutput, InvocationStatus, RunxPaths, StepRun};
 
@@ -45,19 +46,19 @@ fn hosted_step_receipt_uses_real_ed25519_signature() -> Result<(), Box<dyn Error
 }
 
 #[test]
-fn hosted_graph_receipt_commits_immutable_children_and_verifies_tree() -> Result<(), Box<dyn Error>>
-{
+fn hosted_workflow_receipt_commits_immutable_children_and_verifies_tree()
+-> Result<(), Box<dyn Error>> {
     let signer = fixture_signer()?;
     let verifier = fixture_verifier(&signer);
     let steps = vec![production_step_run(
-        "prod_graph",
+        "prod_workflow",
         "plan",
         &signer,
         &verifier,
     )?];
 
-    let graph = graph_receipt(
-        scope("prod_graph"),
+    let graph = workflow_receipt(
+        scope("prod_workflow"),
         &steps,
         CREATED_AT,
         RuntimeReceiptSignaturePolicy::signing(&signer, &verifier),
@@ -83,13 +84,13 @@ fn hosted_graph_receipt_commits_immutable_children_and_verifies_tree() -> Result
 
 #[cfg(unix)]
 #[test]
-fn local_step_and_graph_receipts_use_real_ed25519() -> Result<(), Box<dyn Error>> {
+fn local_step_and_workflow_receipts_use_real_ed25519() -> Result<(), Box<dyn Error>> {
     let home = tempfile::tempdir()?;
     let env = home_env(home.path());
     let paths = RunxPaths::resolve(&env, home.path());
     let config = RuntimeReceiptSignatureConfig::resolve(&env, &paths)?;
     let step = step_receipt(
-        scope("local_graph"),
+        scope("local_workflow"),
         "plan",
         1,
         &skill_output(InvocationStatus::Success),
@@ -97,8 +98,8 @@ fn local_step_and_graph_receipts_use_real_ed25519() -> Result<(), Box<dyn Error>
         CREATED_AT,
         config.signature_policy(),
     )?;
-    let graph = graph_receipt(
-        scope("local_graph"),
+    let graph = workflow_receipt(
+        scope("local_workflow"),
         &[step_run("plan", step.clone())],
         CREATED_AT,
         config.signature_policy(),
@@ -194,7 +195,7 @@ fn verifier_reports_tamper_findings() -> Result<(), Box<dyn Error>> {
     let receipt = production_step_receipt(&signer, &verifier)?;
 
     let mut tampered_body = receipt.clone();
-    tampered_body.seal.reason = Some(runx_contracts::SealReason::GraphBlocked);
+    tampered_body.seal.reason = Some(runx_contracts::SealReason::WorkflowBlocked);
     let verification = verify_receipt_proof(&tampered_body, &proof_context(&verifier));
     assert_finding(&verification, ReceiptFindingCode::SealDigestMismatch);
     assert_finding(&verification, ReceiptFindingCode::SignatureInvalid);
@@ -324,14 +325,14 @@ fn production_step_receipt(
 }
 
 fn production_step_run(
-    graph_name: &str,
+    workflow_name: &str,
     step_id: &str,
     signer: &Ed25519ReceiptSigner,
     verifier: &Ed25519ReceiptVerifier,
 ) -> Result<StepRun, Box<dyn Error>> {
     let output = skill_output(InvocationStatus::Success);
     let receipt = step_receipt(
-        scope(graph_name),
+        scope(workflow_name),
         step_id,
         1,
         &output,
@@ -453,9 +454,9 @@ fn assert_finding(verification: &ReceiptVerification, code: ReceiptFindingCode) 
     );
 }
 
-fn scope(graph_name: &str) -> runx_runtime::receipts::RunScope<'_> {
+fn scope(workflow_name: &str) -> runx_runtime::receipts::RunScope<'_> {
     runx_runtime::receipts::RunScope {
         run_id: "run_test",
-        graph_name,
+        workflow_name,
     }
 }

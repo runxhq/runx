@@ -1,0 +1,29 @@
+name: retains-blocking-question
+inputs:
+  request: Fix the onboarding flow; I have not chosen whether this means the web UI or CLI.
+  project_context: Runx OSS documentation
+host:
+  answers:
+    intake:
+      intake_draft:
+        category: docs
+        severity: low
+        summary: Onboarding needs correction but the affected surface is not yet identified.
+        suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example locally.
+        recommended_lane: manual-review
+        rationale: A bounded documentation correction can be handled by the existing host without a separate governed implementation lane.
+        target_surfaces: []
+        shared_invariants:
+          - Use the current CLI help as the command source.
+        success_criteria: []
+        operator_notes: []
+        open_questions:
+          - Which onboarding surface and behavior should change?
+expect:
+  status: sealed
+  steps:
+    - digest
+    - intake
+    - finalize
+  receipt:
+    schema: runx.receipt.v1

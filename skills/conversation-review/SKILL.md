@@ -51,7 +51,7 @@ operator admits it. An incomplete thread stays held for a later source read or
 human review. Reuse the existing provider-specific decision skill when it has
 richer evidence, such as `github-issue-triage` for a GitHub issue.
 
-## Agent task contract
+## Agent task: conversation-review
 
 Return one `draft` with `kind`, `summary`, `reason`, `draft_message`,
 `request_quote`, and optional `follow_up_task`. Use `kind: coding` only for a request to change code, tests,

@@ -52,7 +52,7 @@ pub struct CredentialDeliveryObservation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_id: Option<NonEmptyString>,
     pub status: CredentialDeliveryObservationStatus,
-    pub harness_ref: Reference,
+    pub run_ref: Reference,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host_ref: Option<Reference>,
     pub profile_id: NonEmptyString,

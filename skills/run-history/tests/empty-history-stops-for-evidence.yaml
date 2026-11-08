@@ -1,0 +1,9 @@
+name: empty-history-stops-for-evidence
+inputs:
+  objective: Show how our skills are doing.
+  runs: []
+  catalog_items: []
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1

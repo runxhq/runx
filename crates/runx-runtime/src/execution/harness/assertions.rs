@@ -4,9 +4,9 @@ use runx_receipts::{
     verify_receipt_proof,
 };
 
-use crate::execution::harness::fixtures::{HarnessExpectedStatus, ReceiptExpectation};
+use crate::execution::harness::fixtures::{ReceiptExpectation, TestExpectedStatus};
 use crate::execution::harness::json_assertions::assert_json_expectation;
-use crate::execution::harness::runner::{HarnessReplayError, HarnessReplayOutput};
+use crate::execution::harness::runner::{TestReplayError, TestReplayOutput};
 use crate::receipts::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignaturePolicy};
 
 mod replayed_answers;
@@ -14,7 +14,7 @@ mod replayed_answers;
 use replayed_answers::assert_caller_answers_replayed;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct HarnessReplayReceipt {
+pub struct TestReplayReceipt {
     pub receipt_id: String,
     pub subject_uri: String,
     pub state: String,
@@ -27,9 +27,9 @@ pub struct HarnessReplayReceipt {
 }
 
 pub(super) fn assert_expectations(
-    output: &HarnessReplayOutput,
+    output: &TestReplayOutput,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     if let Some(expected_status) = &output.fixture.expect.status {
         // A run that stopped short for a request the case did not answer
         // names it.
@@ -81,27 +81,27 @@ pub(super) fn assert_expectations(
 /// A case declares only the exchanges its run makes. An exchange no request
 /// asked for is a read or a write the case claims and the run never proved,
 /// as when a skill skips a write but reads its resource twice.
-pub(crate) fn assert_exchanges_requested(unrequested: &[String]) -> Result<(), HarnessReplayError> {
+pub(crate) fn assert_exchanges_requested(unrequested: &[String]) -> Result<(), TestReplayError> {
     if unrequested.is_empty() {
         return Ok(());
     }
-    Err(HarnessReplayError::Mismatch {
+    Err(TestReplayError::Mismatch {
         field: "caller.http_exchanges".to_owned(),
         expected: "every declared exchange requested".to_owned(),
         actual: format!("never requested: {}", unrequested.join(", ")),
     })
 }
 
-pub(super) fn status_from_outcome(outcome: &RunOutcome) -> HarnessExpectedStatus {
+pub(super) fn status_from_outcome(outcome: &RunOutcome) -> TestExpectedStatus {
     match outcome {
-        RunOutcome::Completed => HarnessExpectedStatus::Sealed,
-        RunOutcome::Deferred => HarnessExpectedStatus::NeedsAgent,
-        RunOutcome::Blocked => HarnessExpectedStatus::PolicyDenied,
+        RunOutcome::Completed => TestExpectedStatus::Sealed,
+        RunOutcome::Deferred => TestExpectedStatus::NeedsAgent,
+        RunOutcome::Blocked => TestExpectedStatus::PolicyDenied,
         RunOutcome::TimedOut
         | RunOutcome::Declined
         | RunOutcome::Failed
         | RunOutcome::Killed
-        | RunOutcome::Superseded => HarnessExpectedStatus::Failure,
+        | RunOutcome::Superseded => TestExpectedStatus::Failure,
     }
 }
 
@@ -109,7 +109,7 @@ pub(crate) fn assert_receipt_expectation(
     expected: &ReceiptExpectation,
     actual: &Receipt,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     assert_receipt_proof(actual, signature_policy)?;
     assert_equal(
         "expect.receipt.schema",
@@ -134,8 +134,8 @@ pub(crate) fn assert_receipt_expectation(
 
 fn assert_receipt_identity(
     expected: &ReceiptExpectation,
-    summary: &HarnessReplayReceipt,
-) -> Result<(), HarnessReplayError> {
+    summary: &TestReplayReceipt,
+) -> Result<(), TestReplayError> {
     if let Some(expected_subject_uri) = &expected.subject_uri {
         assert_equal(
             "expect.receipt.subject_uri",
@@ -169,8 +169,8 @@ fn assert_receipt_identity(
 
 fn assert_receipt_lists(
     expected: &ReceiptExpectation,
-    summary: &HarnessReplayReceipt,
-) -> Result<(), HarnessReplayError> {
+    summary: &TestReplayReceipt,
+) -> Result<(), TestReplayError> {
     for (field, expected, actual) in [
         (
             "expect.receipt.act_ids",
@@ -203,7 +203,7 @@ fn assert_receipt_lists(
 fn assert_receipt_digests(
     expected: &ReceiptExpectation,
     actual: &Receipt,
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     if let Some(expected_body_digest) = &expected.body_digest {
         let body_digest = canonical_receipt_body_digest(actual).map_err(receipt_digest_error)?;
         assert_equal(
@@ -226,33 +226,33 @@ fn assert_receipt_digests(
 fn assert_receipt_proof(
     receipt: &Receipt,
     signature_policy: RuntimeReceiptSignaturePolicy<'_>,
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     let proof_contexts = RuntimeReceiptProofContextProvider::new(signature_policy);
     let context = proof_contexts.proof_context(receipt);
     let verification = verify_receipt_proof(receipt, &context);
     if verification.valid {
         Ok(())
     } else {
-        Err(HarnessReplayError::ReceiptProofInvalid {
+        Err(TestReplayError::ReceiptProofInvalid {
             receipt_id: receipt.id.to_string(),
             findings: format!("{:?}", verification.findings),
         })
     }
 }
 
-fn receipt_digest_error(error: runx_receipts::ReceiptError) -> HarnessReplayError {
-    HarnessReplayError::ReceiptDigest {
+fn receipt_digest_error(error: runx_receipts::ReceiptError) -> TestReplayError {
+    TestReplayError::ReceiptDigest {
         message: error.to_string(),
     }
 }
 
-fn summarize_receipt(receipt: &Receipt) -> HarnessReplayReceipt {
+fn summarize_receipt(receipt: &Receipt) -> TestReplayReceipt {
     let state = if matches!(receipt.seal.outcome, RunOutcome::Deferred) {
         "deferred".to_owned()
     } else {
         "sealed".to_owned()
     };
-    HarnessReplayReceipt {
+    TestReplayReceipt {
         receipt_id: receipt.id.to_string(),
         subject_uri: receipt.subject.reference.uri.clone().into_string(),
         state,
@@ -286,7 +286,7 @@ fn assert_list(
     field: &'static str,
     expected: &[String],
     actual: &[String],
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     if expected == actual {
         return Ok(());
     }
@@ -297,13 +297,13 @@ fn assert_equal(
     field: impl Into<String>,
     expected: impl AsRef<str>,
     actual: impl AsRef<str>,
-) -> Result<(), HarnessReplayError> {
+) -> Result<(), TestReplayError> {
     let expected = expected.as_ref();
     let actual = actual.as_ref();
     if expected == actual {
         return Ok(());
     }
-    Err(HarnessReplayError::Mismatch {
+    Err(TestReplayError::Mismatch {
         field: field.into(),
         expected: expected.to_owned(),
         actual: actual.to_owned(),
@@ -316,13 +316,13 @@ fn schema_name(schema: &ReceiptSchema) -> &'static str {
     }
 }
 
-pub(crate) fn status_name(status: &HarnessExpectedStatus) -> &'static str {
+pub(crate) fn status_name(status: &TestExpectedStatus) -> &'static str {
     match status {
-        HarnessExpectedStatus::Sealed => "sealed",
-        HarnessExpectedStatus::Failure => "failure",
-        HarnessExpectedStatus::NeedsAgent => "needs_agent",
-        HarnessExpectedStatus::PolicyDenied => "policy_denied",
-        HarnessExpectedStatus::Escalated => "escalated",
+        TestExpectedStatus::Sealed => "sealed",
+        TestExpectedStatus::Failure => "failure",
+        TestExpectedStatus::NeedsAgent => "needs_agent",
+        TestExpectedStatus::PolicyDenied => "policy_denied",
+        TestExpectedStatus::Escalated => "escalated",
     }
 }
 

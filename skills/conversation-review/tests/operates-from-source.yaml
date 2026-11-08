@@ -1,0 +1,69 @@
+name: proposes-exact-unsent-reply-from-common-source
+method: operate
+inputs:
+  source_context:
+    schema: runx.source_packet.v1
+    packet_id: qa-conversation-catalog-status-message-2
+    source_ref:
+      type: comment
+      uri: host://qa/conversation/catalog-status/message-2
+      provider: host-test-transcript
+      locator: host://qa/conversation/catalog-status/message-2
+    signal_type: conversation
+    title: Catalog completion status
+    body_preview: Can you confirm the catalog work is finished?
+    observed_at: 2026-11-04T10:38:52.476Z
+    redaction_status: unredacted
+    workflow_inputs:
+      source_locator: host://qa/conversation/catalog-status/message-2
+      source_digest: sha256:72f89585f9e2a3001e88ad62245daa0dcab37d60670634f1a9b22a7ae55b852b
+      thread_locator: host://qa/conversation/catalog-status
+      title: Catalog completion status
+      body: Can you confirm the catalog work is finished?
+      thread:
+        source_locator: host://qa/conversation/catalog-status/message-2
+        source_digest: sha256:72f89585f9e2a3001e88ad62245daa0dcab37d60670634f1a9b22a7ae55b852b
+        thread_locator: host://qa/conversation/catalog-status
+        coverage_incomplete: false
+        messages:
+          - message_locator: host://qa/conversation/catalog-status/message-1
+            author_id: operator
+            is_self: true
+            text: "Current checkpoint: native fixes passed full local acceptance and independent review. Other exported skill work and final registry parity are still unfinished. No CI or release was run."
+          - message_locator: host://qa/conversation/catalog-status/message-2
+            author_id: requester
+            is_self: false
+            text: Can you confirm the catalog work is finished?
+      source_complete: true
+    authenticity:
+      host_ref:
+        type: host
+        uri: host://qa/current-session
+      trust_level: observed
+  handoff_routes:
+    reply: private-reply
+host:
+  answers:
+    review#judge:
+      draft:
+        kind: reply
+        summary: The requester asks whether catalog completion is finished.
+        reason: The supplied checkpoint says the remaining catalog work and registry parity are unfinished.
+        draft_message: The native fixes are verified locally. The full catalog work is still in progress, including final registry parity. No CI or release has run.
+        request_quote: ""
+expect:
+  status: sealed
+  step_outputs:
+    finish:
+      subset:
+        work_result:
+          data:
+            state: follow_up
+            completion_evidence: []
+            followups:
+              - route_id: private-reply
+                target_locator: host://qa/conversation/catalog-status
+                inputs:
+                  draft_message: The native fixes are verified locally. The full catalog work is still in progress, including final registry parity. No CI or release has run.
+                  thread_locator: host://qa/conversation/catalog-status
+                due_at_unix_seconds: 0

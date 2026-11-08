@@ -1,0 +1,32 @@
+name: refuses-two-proposals-for-one-field
+inputs:
+  transcript: The old next step was a usage report. Replace that with an executive review on Friday.
+  crm_records:
+    - id: northstar
+      next_action: send usage report
+  crm_schema:
+    allowed_fields:
+      - next_action
+host:
+  answers:
+    reconcile:
+      update_draft:
+        updates:
+          - record_id: northstar
+            field: next_action
+            to: send usage report
+            evidence_quote: The old next step was a usage report.
+          - record_id: northstar
+            field: next_action
+            to: executive review on Friday
+            evidence_quote: Replace that with an executive review on Friday.
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        crm_update_proposal:
+          data:
+            decision: refused
+            updates: []
+            write_performed: false

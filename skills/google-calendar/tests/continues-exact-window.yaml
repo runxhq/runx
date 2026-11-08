@@ -1,0 +1,55 @@
+name: google-calendar-continuation-keeps-window-partial
+inputs:
+  calendar_id: primary
+  time_min: 2026-10-01T00:00:00Z
+  time_max: 2027-01-01T00:00:00Z
+  page_token: next
+  page_size: 2500
+providers:
+  hosted:
+    principal_id: operator-fixture
+    grant:
+      grant_id: calendar-fixture
+      provider: google/calendar
+      scopes:
+        - events.read
+    operations:
+      - operation: events.list
+        target: primary
+        access: read
+        result:
+          calendar_id: primary
+          time_min: 2026-10-01T00:00:00Z
+          time_max: 2027-01-01T00:00:00Z
+          fetched_at: 2026-11-04T00:00:00Z
+          page_token: next
+          next_page_token: ""
+          complete: true
+          events:
+            - event_id: e2
+              status: confirmed
+              visibility: default
+              revision: r1
+              summary: Planning
+              all_day: false
+              start: 2026-11-04T01:00:00Z
+              end: 2026-11-04T02:00:00Z
+expect:
+  status: sealed
+  steps:
+    - read
+    - normalize
+  step_outputs:
+    normalize:
+      subset:
+        calendar_context:
+          data:
+            decision: partial
+            coverage: partial
+            page_token: next
+            page_complete: true
+            provider_status: readback_verified
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

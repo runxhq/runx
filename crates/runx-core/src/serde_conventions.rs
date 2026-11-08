@@ -6,11 +6,11 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::state_machine::SequentialGraphPlan;
+    use crate::state_machine::SequentialWorkflowPlan;
 
     #[test]
     fn state_machine_plan_uses_type_tag_and_camel_case_fields() -> Result<(), serde_json::Error> {
-        let plan = SequentialGraphPlan::RunStep {
+        let plan = SequentialWorkflowPlan::RunStep {
             step_id: "review".to_owned(),
             attempt: 1,
             context_from: vec!["read".to_owned()],

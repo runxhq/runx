@@ -1,0 +1,11 @@
+{
+  "skill_name": "run-history",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Summarize recent Runx outcomes and catalog test coverage for this project.",
+      "expected_output": "Return deterministic bounded run outcomes, paused runs, and catalog coverage facts with truthful follow-ups.",
+      "files": []
+    }
+  ]
+}

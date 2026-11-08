@@ -71,10 +71,10 @@ function parserRequest(
   switch (scope) {
     case "skills":
       return { kind: "parser.validateSkillMarkdown", ...input };
-    case "runner-manifests":
-      return { kind: "parser.validateRunnerManifestYaml", ...input };
+    case "method-manifests":
+      return { kind: "parser.validateMethodManifestYaml", ...input };
     case "graphs":
-      return { kind: "parser.validateGraphYaml", ...input };
+      return { kind: "parser.validateWorkflowYaml", ...input };
     case "tool-manifests":
       return {
         kind: typeof input.json === "string"

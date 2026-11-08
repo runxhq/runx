@@ -2,5 +2,5 @@
 // stderr for a human to paste back into fixtures, so the print ban is lifted.
 #![allow(clippy::print_stderr)]
 
-#[path = "parity/hello_graph.rs"]
-mod hello_graph;
+#[path = "parity/hello_workflow.rs"]
+mod hello_workflow;

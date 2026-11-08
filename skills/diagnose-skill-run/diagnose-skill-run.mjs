@@ -10,7 +10,7 @@ export function prepareDiagnosis(input) {
     preparation: {
       ready:
         matched ||
-        Boolean(text(input.harness_output)) ||
+        Boolean(text(input.test_output)) ||
         Boolean(text(input.receipt_summary)),
     },
   };
@@ -40,8 +40,8 @@ export default function finalizeDiagnosis(input) {
     );
   }
   if (
-    !Array.isArray(candidate.next_harness_checks) ||
-    candidate.next_harness_checks.some((c) => !text(c))
+    !Array.isArray(candidate.next_test_checks) ||
+    candidate.next_test_checks.some((c) => !text(c))
   )
     throw new Error("Next checks must be concrete strings.");
   if (candidate.verdict === "pass" && proposals.length)
@@ -62,10 +62,10 @@ export default function finalizeDiagnosis(input) {
     limitation:
       "Ledger projection and original verification posture; this phase does not independently reverify it or expose omitted execution bodies.",
   }));
-  if (text(input.harness_output))
+  if (text(input.test_output))
     evidence.push({
-      source: "supplied_harness",
-      reference: "input.harness_output",
+      source: "supplied_test",
+      reference: "input.test_output",
       limitation:
         "Caller-supplied bounded failure evidence; not an independently read diagnostic.",
     });
@@ -87,7 +87,7 @@ export default function finalizeDiagnosis(input) {
   }
   if (
     !details.length &&
-    !text(input.harness_output) &&
+    !text(input.test_output) &&
     !text(input.receipt_summary)
   ) {
     return {
@@ -95,7 +95,7 @@ export default function finalizeDiagnosis(input) {
       failure_summary:
         "No matched receipt detail or bounded failure evidence is available. Supply the exact receipt or the relevant sanitized failure material before diagnosing a cause.",
       improvement_proposals: [],
-      next_harness_checks: [
+      next_test_checks: [
         "Resolve the exact failed receipt and relevant child, or supply the bounded harness assertion/diagnostic.",
       ],
       evidence,
@@ -105,7 +105,7 @@ export default function finalizeDiagnosis(input) {
     verdict: candidate.verdict,
     failure_summary: candidate.failure_summary,
     improvement_proposals: proposals,
-    next_harness_checks: candidate.next_harness_checks,
+    next_test_checks: candidate.next_test_checks,
     evidence,
   };
 }

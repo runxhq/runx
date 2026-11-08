@@ -1,0 +1,11 @@
+{
+  "skill_name": "sbom-generate",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Generate an SBOM from this repository lockfile.",
+      "expected_output": "Return a usable standard CycloneDX document, source-byte provenance and honest coverage.",
+      "files": []
+    }
+  ]
+}

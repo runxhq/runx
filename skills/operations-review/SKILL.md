@@ -244,9 +244,7 @@ proposal routing to `provider.webhook_check` with no money movement. It does
 not propose marking anything funded, because no unfunded approved item is
 present and the latest funding receipt is already verified.
 
-## Agent task contracts
-
-### `operations-review`
+## Agent task: operations-review
 
 Produce one runx/operations-review.desk.v1 for the requested project, workspace, account, or product
 objective. Treat dashboard_snapshot, receipt_summary, provider_status, approval_context,
@@ -266,7 +264,7 @@ released, or fixed without a receipt, effect, or provider readback expectation. 
 needs_input for missing scope/objective/evidence/authority/approval or missing execution lane;
 return refused for gate bypass, forged proof, secret leakage, or hidden private workarounds.
 
-### `operations-review-action-review`
+## Agent task: operations-review-action-review
 
 Review one proposed ops desk action. Classify its consequence, approval requirement, blockers,
 and verification evidence. If the proposal moves money, sends publicly, mutates a provider,

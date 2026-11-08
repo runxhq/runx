@@ -26,9 +26,9 @@ pub enum RuntimeError {
         source: std::io::Error,
     },
     #[error("graph parse failed: {0}")]
-    ParseGraph(#[from] runx_parser::ParseError),
+    ParseWorkflow(#[from] runx_parser::ParseError),
     #[error("graph validation failed: {0}")]
-    ValidateGraph(#[from] runx_parser::ValidationError),
+    ValidateWorkflow(#[from] runx_parser::ValidationError),
     #[error("skill package validation failed: {0}")]
     SkillPackage(#[from] runx_parser::SkillPackageError),
     #[error("workspace environment failed: {0}")]
@@ -48,7 +48,7 @@ pub enum RuntimeError {
     #[error("graph step '{step_id}' uses unsupported run type '{run_type}'")]
     UnsupportedRunStep { step_id: String, run_type: String },
     #[error("graph step '{step_id}' is blocked: {reason}")]
-    GraphBlocked { step_id: String, reason: String },
+    WorkflowBlocked { step_id: String, reason: String },
     #[error("graph step '{step_id}' is waiting for host resolution: {reason}")]
     ResolutionPending {
         step_id: String,
@@ -86,7 +86,7 @@ pub enum RuntimeError {
     #[error("graph step '{step_id}' exceeds the run's money limit: {reason}")]
     CostLimitExceeded { step_id: String, reason: String },
     #[error("graph step '{step_id}' failed planning: {reason}")]
-    GraphPlanningFailed { step_id: String, reason: String },
+    WorkflowPlanningFailed { step_id: String, reason: String },
     #[cfg(feature = "agent")]
     #[error("managed agent resolution '{request_id}' failed in graph step '{step_id}': {source}")]
     ManagedAgentResolution {
@@ -127,7 +127,7 @@ pub enum RuntimeError {
     #[error("this adapter does not run a {kind} executable")]
     UnsupportedExecutable { kind: String },
     #[error("runner selection '{runner}' is not supported by the native runtime yet")]
-    UnsupportedRunnerSelection { runner: String },
+    UnsupportedMethodSelection { runner: String },
     #[error("process invocation is invalid: {message}")]
     InvalidProcessInvocation { message: String },
     #[error(
@@ -215,7 +215,7 @@ impl RuntimeError {
         match source {
             source @ (Self::AuthorityDenied { .. }
             | Self::CostLimitExceeded { .. }
-            | Self::GraphBlocked { .. }
+            | Self::WorkflowBlocked { .. }
             | Self::ResolutionPending { .. }
             | Self::ProviderReadbackPending { .. }) => source,
             source => Self::EngineFailure {
@@ -231,7 +231,7 @@ impl RuntimeError {
     pub(crate) fn is_fatal_step_fault(&self) -> bool {
         match self {
             Self::StepMissing { .. }
-            | Self::GraphPlanningFailed { .. }
+            | Self::WorkflowPlanningFailed { .. }
             | Self::RunRecord(_)
             | Self::EngineFailure { .. }
             | Self::EngineInvariant { .. }
@@ -242,15 +242,15 @@ impl RuntimeError {
             | Self::ContinuationRejected { .. }
             | Self::Stopped { .. } => true,
             Self::Io { .. }
-            | Self::ParseGraph(_)
-            | Self::ValidateGraph(_)
+            | Self::ParseWorkflow(_)
+            | Self::ValidateWorkflow(_)
             | Self::SkillPackage(_)
             | Self::WorkspaceEnvironment(_)
             | Self::Json { .. }
             | Self::StepMissingSkill { .. }
             | Self::InvalidRunStep { .. }
             | Self::UnsupportedRunStep { .. }
-            | Self::GraphBlocked { .. }
+            | Self::WorkflowBlocked { .. }
             | Self::ResolutionPending { .. }
             | Self::StepClosed { .. }
             | Self::ContextEdgeUnresolved(_)
@@ -258,7 +258,7 @@ impl RuntimeError {
             | Self::CostLimitExceeded { .. }
             | Self::UnsupportedAdapter { .. }
             | Self::UnsupportedExecutable { .. }
-            | Self::UnsupportedRunnerSelection { .. }
+            | Self::UnsupportedMethodSelection { .. }
             | Self::InvalidProcessInvocation { .. }
             | Self::MissingEnvironment { .. }
             | Self::CredentialEnvironment { .. }
@@ -290,7 +290,7 @@ impl RuntimeError {
         }))
     }
 
-    /// Safe structured failure returned by both direct and graph-backed skill
+    /// Safe structured failure returned by both direct and workflow-backed skill
     /// fronts. The same projection is bound into the failed step receipt and
     /// returned to the caller, so diagnostics never depend on scraping prose.
     pub(crate) fn public_failure_projection(&self) -> JsonObject {
@@ -409,21 +409,21 @@ impl RuntimeError {
         projection
     }
 
-    /// Authoritative graph-step identity attached by the dispatch chokepoint.
+    /// Authoritative workflow-step identity attached by the dispatch chokepoint.
     /// Terminal sealing consumes this instead of guessing identity from error
     /// prose or nested capability names.
-    pub(crate) fn graph_step_id(&self) -> Option<&str> {
+    pub(crate) fn workflow_step_id(&self) -> Option<&str> {
         match self {
             Self::StepMissing { step_id }
             | Self::StepMissingSkill { step_id }
             | Self::InvalidRunStep { step_id, .. }
             | Self::UnsupportedRunStep { step_id, .. }
-            | Self::GraphBlocked { step_id, .. }
+            | Self::WorkflowBlocked { step_id, .. }
             | Self::ResolutionPending { step_id, .. }
             | Self::StepClosed { step_id, .. }
             | Self::AuthorityDenied { step_id, .. }
             | Self::CostLimitExceeded { step_id, .. }
-            | Self::GraphPlanningFailed { step_id, .. }
+            | Self::WorkflowPlanningFailed { step_id, .. }
             | Self::ProviderReadbackPending { step_id, .. } => Some(step_id),
             Self::InputContract { step_id, .. } => step_id.as_deref(),
             #[cfg(feature = "agent")]
@@ -452,9 +452,9 @@ impl RuntimeError {
     /// dispatch chokepoint owns that identity, so it preserves governed control
     /// outcomes and normalizes all other sealable faults into one step-scoped
     /// failure before terminal receipt sealing.
-    pub(crate) fn at_graph_step(self, step_id: &str) -> Self {
+    pub(crate) fn at_workflow_step(self, step_id: &str) -> Self {
         match self {
-            Self::GraphBlocked { reason, .. } => Self::GraphBlocked {
+            Self::WorkflowBlocked { reason, .. } => Self::WorkflowBlocked {
                 step_id: step_id.to_owned(),
                 reason,
             },

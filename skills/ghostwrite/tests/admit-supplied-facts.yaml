@@ -1,0 +1,15 @@
+name: ghostwrite-admits-supplied-facts-without-research
+method: admit
+inputs:
+  objective: Write a short fixture-project status update.
+  audience: maintainers
+  channel: brief
+  facts: [The fixture project updated its setup guidance.]
+expect:
+  status: sealed
+  step_outputs:
+    prepare:
+      subset:
+        evidence_context:
+          data: {decision: ready, evidence_assurance: operator_supplied_facts}
+  receipt: {schema: runx.receipt.v1}

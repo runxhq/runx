@@ -1,83 +1,70 @@
-skill: support-triage
 version: "0.1.11"
+minimum_runx: 0.12.0
 catalog:
-  kind: skill
-  audience: public
   visibility: public
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: ops
-  links:
-    source: https://github.com/runxhq/runx/tree/main/skills/support-triage
-runners:
+methods:
   triage:
-    default: true
     inputs:
       support_request:
         type: object
-        required: true
         description: One already-collected customer request; source identifies the supplied thread.
-        schema:
+        required:
+        - source
+        - body
+        additionalProperties: false
+        properties:
+          source:
+            type: string
+            minLength: 1
+            maxLength: 1000
+          subject:
+            type: string
+            maxLength: 2000
+          body:
+            type: string
+            minLength: 1
+            maxLength: 50000
+          customer_name:
+            type: string
+            maxLength: 500
+          customer_email:
+            type: string
+            maxLength: 500
+      product_evidence:
+        type: array
+        default: []
+        description: Bounded current product documentation or admitted account evidence; no provider re-fetch.
+        maxItems: 30
+        items:
+          type: object
           required:
-          - source
-          - body
+          - source_id
+          - text
           additionalProperties: false
           properties:
-            source:
+            source_id:
               type: string
               minLength: 1
               maxLength: 1000
-            subject:
-              type: string
-              maxLength: 2000
-            body:
+            text:
               type: string
               minLength: 1
               maxLength: 50000
-            customer_name:
-              type: string
-              maxLength: 500
-            customer_email:
-              type: string
-              maxLength: 500
-      product_evidence:
-        type: array
-        required: false
-        default: []
-        description: Bounded current product documentation or admitted account evidence; no provider re-fetch.
-        schema:
-          maxItems: 30
-          items:
-            type: object
-            required:
-            - source_id
-            - text
-            additionalProperties: false
-            properties:
-              source_id:
-                type: string
-                minLength: 1
-                maxLength: 1000
-              text:
-                type: string
-                minLength: 1
-                maxLength: 50000
+        optional: true
       policy:
-        type: json
-        required: false
         description: Support tone, escalation routes and constraints. Context, never proof of approval.
+        optional: true
     result_from:
     - finalize
     examples:
-      - support_request:
-          source: helpdesk:ticket-5512
-          subject: Export keeps timing out
-          body: Our nightly export has timed out three times this week. Can you help?
-        product_evidence:
-        - source_id: docs:exports
-          text: Exports over 1 GB run in the background and email a link when finished.
+    - support_request:
+        source: helpdesk:ticket-5512
+        subject: Export keeps timing out
+        body: Our nightly export has timed out three times this week. Can you help?
+      product_evidence:
+      - source_id: docs:exports
+        text: Exports over 1 GB run in the background and email a link when finished.
     steps:
     - id: request-digest
       tool: data.digest
@@ -88,9 +75,7 @@ runners:
       inputs:
         value: $input.product_evidence
     - id: judge
-      agent:
-        role: support
-        task: support-triage
+      agent: support-triage
       inputs:
         support_request: $input.support_request
         product_evidence: $input.product_evidence
@@ -98,94 +83,93 @@ runners:
       outputs:
         draft:
           type: object
-          schema:
-            required:
-            - classification
-            - severity
-            - recommended_path
-            - rationale
-            - evidence
-            - missing_context
-            - operator_notes
-            - draft_email
-            additionalProperties: false
-            properties:
-              classification:
-                enum:
-                - how_to
-                - billing
-                - account_access
-                - bug
-                - abuse
-                - unknown
-              severity:
-                enum:
-                - low
-                - medium
-                - high
-                - critical
-              recommended_path:
-                enum:
-                - reply_draft
-                - request_info
-                - engineering_intake
-                - billing_review
-                - account_review
-                - abuse_review
-                - manual_review
-              rationale:
-                type: string
-                minLength: 1
-                maxLength: 5000
-              evidence:
-                type: array
-                maxItems: 50
-                items:
-                  type: object
-                  required:
-                  - source_id
-                  - quote
-                  additionalProperties: false
-                  properties:
-                    source_id:
-                      type: string
-                      minLength: 1
-                      maxLength: 1000
-                    quote:
-                      type: string
-                      minLength: 1
-                      maxLength: 4000
-              missing_context:
-                type: array
-                maxItems: 30
-                items:
-                  type: string
-                  minLength: 1
-                  maxLength: 2000
-              operator_notes:
-                type: array
-                maxItems: 30
-                items:
-                  type: string
-                  minLength: 1
-                  maxLength: 2000
-              draft_email:
-                type:
-                - object
-                - 'null'
+          required:
+          - classification
+          - severity
+          - recommended_path
+          - rationale
+          - evidence
+          - missing_context
+          - operator_notes
+          - draft_email
+          additionalProperties: false
+          properties:
+            classification:
+              enum:
+              - how_to
+              - billing
+              - account_access
+              - bug
+              - abuse
+              - unknown
+            severity:
+              enum:
+              - low
+              - medium
+              - high
+              - critical
+            recommended_path:
+              enum:
+              - reply_draft
+              - request_info
+              - engineering_intake
+              - billing_review
+              - account_review
+              - abuse_review
+              - manual_review
+            rationale:
+              type: string
+              minLength: 1
+              maxLength: 5000
+            evidence:
+              type: array
+              maxItems: 50
+              items:
+                type: object
                 required:
-                - subject
-                - body
+                - source_id
+                - quote
                 additionalProperties: false
                 properties:
-                  subject:
+                  source_id:
                     type: string
                     minLength: 1
-                    maxLength: 2000
-                  body:
+                    maxLength: 1000
+                  quote:
                     type: string
                     minLength: 1
-                    maxLength: 20000
+                    maxLength: 4000
+            missing_context:
+              type: array
+              maxItems: 30
+              items:
+                type: string
+                minLength: 1
+                maxLength: 2000
+            operator_notes:
+              type: array
+              maxItems: 30
+              items:
+                type: string
+                minLength: 1
+                maxLength: 2000
+            draft_email:
+              type:
+              - object
+              - 'null'
+              required:
+              - subject
+              - body
+              additionalProperties: false
+              properties:
+                subject:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                body:
+                  type: string
+                  minLength: 1
+                  maxLength: 20000
     - id: finalize
       tool:
         module: support-triage.mjs
@@ -199,168 +183,4 @@ runners:
       outputs:
         support_triage_packet:
           type: object
-      artifacts:
-        named_emits:
-          support_triage_packet: support_triage_packet
-        packets:
-          support_triage_packet: runx/support-triage.reply.v1
-harness:
-  files:
-  - fixtures/support/composed.graph
-  cases:
-  - name: documented-how-to-produces-unsent-draft
-    inputs:
-      support_request:
-        source: thread:domain-1
-        subject: How do I verify my sending domain?
-        body: I added the DNS records. What should I check next?
-      product_evidence:
-      - source_id: docs:domain-verification
-        text: Open Settings > Domains and select Verify. Pending records may take up to 24 hours to resolve.
-    caller:
-      answers:
-        judge:
-          draft:
-            classification: how_to
-            severity: low
-            recommended_path: reply_draft
-            rationale: The customer asks for a documented next step.
-            evidence:
-            - source_id: thread:domain-1
-              quote: I added the DNS records.
-            - source_id: docs:domain-verification
-              quote: Open Settings > Domains and select Verify.
-            missing_context: []
-            operator_notes:
-            - No account state was read.
-            draft_email:
-              subject: 'Re: How do I verify my sending domain?'
-              body: Open Settings > Domains and select Verify.
-    expect:
-      status: sealed
-      step_outputs:
-        finalize:
-          subset:
-            support_triage_packet:
-              data:
-                decision: ready
-                delivery_status: not_sent
-    operator_journeys:
-    - mode: standalone
-      confusors:
-      - github-issue-triage
-      - message-send
-      request: Triage this customer domain-verification question using the supplied product guide and
-        draft a supported reply.
-      expected_outcome: Return a source-bound support route and unsent draft, keeping operator checks
-        outside customer copy.
-    - mode: composed
-      request: Triage this customer domain-verification question using the supplied product guide and
-        draft a supported reply.
-      expected_outcome: Return a source-bound support route and unsent draft, keeping operator checks
-        outside customer copy.
-      prior_evidence:
-      - The customer thread and current domain-verification guide supplied in this case.
-      must_not_repeat:
-      - Do not reread the help desk or deliver the reply.
-  - name: plan-word-does-not-force-billing
-    inputs:
-      support_request:
-        source: thread:content-plan
-        body: How do I plan a content calendar?
-      product_evidence: []
-    caller:
-      answers:
-        judge:
-          draft:
-            classification: how_to
-            severity: low
-            recommended_path: request_info
-            rationale: No product documentation was supplied.
-            evidence:
-            - source_id: thread:content-plan
-              quote: How do I plan a content calendar?
-            missing_context:
-            - Which product and documented calendar workflow?
-            operator_notes:
-            - No account state was read.
-            draft_email: null
-    expect:
-      status: sealed
-      step_outputs:
-        finalize:
-          subset:
-            support_triage_packet:
-              data:
-                decision: ready
-                delivery_status: not_sent
-  - name: invented-product-evidence-withholds-draft
-    inputs:
-      support_request:
-        source: thread:domain-1
-        subject: How do I verify my sending domain?
-        body: I added the DNS records. What should I check next?
-      product_evidence:
-      - source_id: docs:domain-verification
-        text: Open Settings > Domains and select Verify. Pending records may take up to 24 hours to resolve.
-    caller:
-      answers:
-        judge:
-          draft:
-            classification: how_to
-            severity: low
-            recommended_path: reply_draft
-            rationale: The customer asks for a documented next step.
-            evidence:
-            - source_id: thread:domain-1
-              quote: I added the DNS records.
-            - source_id: docs:domain-verification
-              quote: Change your DNS records to an invented value.
-            missing_context: []
-            operator_notes:
-            - No account state was read.
-            draft_email:
-              subject: 'Re: How do I verify my sending domain?'
-              body: Open Settings > Domains and select Verify.
-    expect:
-      status: sealed
-      step_outputs:
-        finalize:
-          subset:
-            support_triage_packet:
-              data:
-                decision: held
-                delivery_status: not_sent
-  - name: missing-product-docs-withholds-answer
-    inputs:
-      support_request:
-        source: thread:domain-1
-        subject: How do I verify my sending domain?
-        body: I added the DNS records. What should I check next?
-      product_evidence: []
-    caller:
-      answers:
-        judge:
-          draft:
-            classification: how_to
-            severity: low
-            recommended_path: reply_draft
-            rationale: The customer asks for a documented next step.
-            evidence:
-            - source_id: thread:domain-1
-              quote: I added the DNS records.
-            missing_context: []
-            operator_notes:
-            - No account state was read.
-            draft_email:
-              subject: 'Re: How do I verify my sending domain?'
-              body: Open Settings > Domains and select Verify.
-    expect:
-      status: sealed
-      step_outputs:
-        finalize:
-          subset:
-            support_triage_packet:
-              data:
-                decision: held
-                delivery_status: not_sent
+          packet: runx/support-triage.reply.v1

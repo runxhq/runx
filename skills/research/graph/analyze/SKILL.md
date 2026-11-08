@@ -9,9 +9,7 @@ Analyze only the supplied, runtime-admitted source index. This internal stage is
 shared by remote/provider evidence and native local-file evidence so acquisition
 cannot fork the research judgment or verification contract.
 
-## Agent task contract
-
-### `research-synthesize`
+## Agent task: research-synthesize
 
 Preserve the objective exactly and return a bounded `research_candidate` with:
 

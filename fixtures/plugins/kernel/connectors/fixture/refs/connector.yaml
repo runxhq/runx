@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/refs
-name: Fixture Refs
+name: fixture/refs
+title: Fixture Refs
 description: Inspect the selected API key of a contacts fixture.
-runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -24,13 +23,12 @@ operations:
     target: {template: 'https://refs.fixture.invalid/api/v1/auth/health'}
     input_schema: {type: object, additionalProperties: false}
     result_fields: [auth]
-    hosted: {}
     implementation:
       http:
         allowed_hosts: [refs.fixture.invalid]
         auth: {api_key: {type: header, name: x-api-key, field: api_key}}
         requests:
           - id: health
-            method: GET
+            http_method: GET
             url: https://refs.fixture.invalid/api/v1/auth/health
             headers: {accept: application/json}

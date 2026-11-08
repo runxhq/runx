@@ -1,0 +1,16 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: research
+        skill: ../..#local-files
+        inputs:
+          objective: Decide where generic evidence admission belongs.
+          paths: [fixtures/local-architecture-evidence.txt]
+          path_scope: skill
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.research

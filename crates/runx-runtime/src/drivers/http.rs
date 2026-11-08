@@ -269,7 +269,7 @@ impl Driver for Http<'_> {
                 .and_then(JsonValue::as_object)
                 .is_some_and(|value| {
                     value.len() == 1
-                        && value.contains_key(runx_contracts::connector::HOLD_EVIDENCE_KEY)
+                        && value.contains_key(runx_contracts::connector::LEASE_EVIDENCE_KEY)
                 });
             if !evidence {
                 return Err(format!(

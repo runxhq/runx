@@ -1,52 +1,38 @@
-skill: receipt-query
 version: "0.6.6"
+minimum_runx: 0.12.0
 catalog:
-  publisher: runx
-  kind: graph
-  audience: operator
   visibility: public
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: security
 
-runners:
+methods:
   read:
-    default: true
     inputs:
       question:
         type: string
-        required: false
         description: The audit question bounding this read.
+        optional: true
       filter:
-        type: json
-        required: false
         description: Query narrowing by principal, skill, outcome, issuer, actor, time_range, and a bounded limit.
+        optional: true
       receipt_ids:
-        type: json
-        required: false
         description: Exact receipt ids to resolve through native runx history.
+        optional: true
       proof:
-        type: json
-        required: false
         description: "Chain-verification request, for example { verify_chain: true }."
+        optional: true
       receipts:
-        type: json
-        required: false
         description: Explicit native-projection rows for deterministic replay only.
+        optional: true
       receipt_details:
-        type: json
-        required: false
         description: Explicit native redacted receipt-detail projections for deterministic replay only.
+        optional: true
     result_from: [finalize-live, finalize-replay, finalize-empty]
     examples:
       - receipt_ids:
-        - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         question: Which operations did this run perform?
     steps:
       - id: prepare
-        label: normalize the bounded ledger query
         inputs:
           question: $input.question
           filter: $input.filter
@@ -54,20 +40,14 @@ runners:
           proof: $input.proof
           receipts: $input.receipts
           receipt_details: $input.receipt_details
-        tool: { module: receipt-query.mjs, export: prepareReceiptQuery }
+        tool: {module: receipt-query.mjs, export: prepareReceiptQuery}
         outputs:
-          ledger_context: object
-        artifacts:
-          named_emits:
-            ledger_context: ledger_context
+          ledger_context: {type: object}
       - id: query
-        label: query and prove native receipt evidence
         when:
           value: $steps.prepare.ledger_context.path
           equals: live
         tool: receipt.query
-        scopes:
-          - receipt.read
         inputs:
           actor: $steps.prepare.ledger_context.filter.actor
           skill: $steps.prepare.ledger_context.filter.skill
@@ -79,29 +59,26 @@ runners:
           receipt_ids: $steps.prepare.ledger_context.receipt_ids
           verify_chain: $steps.prepare.ledger_context.proof_requested
       - id: finalize-live
-        label: answer from native receipt evidence
         when:
           value: $steps.prepare.ledger_context.path
           equals: live
-        tool: { module: receipt-query.mjs, export: finalizeReceiptQuery }
+        tool: {module: receipt-query.mjs, export: finalizeReceiptQuery}
         outputs:
           ledger_answer:
             type: object
-          matched_receipts: array
-          receipt_details: array
+          matched_receipts: {type: array}
+          receipt_details: {type: array}
           chain_verification:
             type: object
-          summary: string
+          summary: {type: string}
+          ledger_answer_packet: {packet: runx/receipt-query.answer.v1}
+        result_as: ledger_answer_packet
         inputs:
           ledger_context: $steps.prepare.ledger_context
           receipt_query: $steps.query.receipt_query
           receipts: $input.receipts
           receipt_details: $input.receipt_details
-        artifacts:
-          wrap_as: ledger_answer_packet
-          packet: runx/receipt-query.answer.v1
       - id: finalize-replay
-        label: answer from supplied replay evidence
         when:
           value: $steps.prepare.ledger_context.path
           equals: replay
@@ -109,40 +86,33 @@ runners:
           receipts: $input.receipts
           receipt_details: $input.receipt_details
           ledger_context: $steps.prepare.ledger_context
-        tool: { module: receipt-query.mjs, export: finalizeReceiptQuery }
+        tool: {module: receipt-query.mjs, export: finalizeReceiptQuery}
         outputs:
           ledger_answer:
             type: object
-          matched_receipts: array
-          receipt_details: array
+          matched_receipts: {type: array}
+          receipt_details: {type: array}
           chain_verification:
             type: object
-          summary: string
-        artifacts:
-          wrap_as: ledger_answer_packet
-          packet: runx/receipt-query.answer.v1
+          summary: {type: string}
+          ledger_answer_packet: {packet: runx/receipt-query.answer.v1}
+        result_as: ledger_answer_packet
       - id: finalize-empty
-        label: stop when no audit question was supplied
         when:
           value: $steps.prepare.ledger_context.path
           equals: no_question
-        tool: { module: receipt-query.mjs, export: finalizeReceiptQuery }
+        tool: {module: receipt-query.mjs, export: finalizeReceiptQuery}
         outputs:
           ledger_answer:
             type: object
-          matched_receipts: array
-          receipt_details: array
+          matched_receipts: {type: array}
+          receipt_details: {type: array}
           chain_verification:
             type: object
-          summary: string
+          summary: {type: string}
+          ledger_answer_packet: {packet: runx/receipt-query.answer.v1}
+        result_as: ledger_answer_packet
         inputs:
           ledger_context: $steps.prepare.ledger_context
           receipts: $input.receipts
           receipt_details: $input.receipt_details
-        artifacts:
-          wrap_as: ledger_answer_packet
-          packet: runx/receipt-query.answer.v1
-
-harness:
-  files: [fixtures/support/composed.graph]
-  cases: []

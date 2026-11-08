@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: sql
-name: SQL
+name: sql
+title: SQL
 description: Execute operator-declared parameterized reads through an installed SQLAlchemy database dialect and driver. Connection settings and query definitions stay with the selected local instance.
 category: analytics
-runtime_capability: false
 auth:
   credentials:
     connection:

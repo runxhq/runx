@@ -1,0 +1,16 @@
+name: github-blocks-nul-thread-body
+method: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  resources:
+    kind: threads
+    filters: {limit: 1}
+    mutations:
+      - path: issues/241/comments
+        op: comment
+        payload:
+          body: "before\0after"
+  scope: write
+expect:
+  status: failure

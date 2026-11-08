@@ -1,0 +1,15 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: policy-draft
+        skill: ../..#author
+        inputs:
+          governance_brief: "Govern issue intake across acme/acme, acme/api, and acme/app. Trust GitHub issues and Sentry alerts. Kam owns platform; Chong owns product. Never auto-merge, require a human merge, and close source issues only after verification."
+          objective: Stand up a fail-closed issue-flow policy for the three repos.
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.policy-draft

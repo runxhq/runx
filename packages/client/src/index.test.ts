@@ -114,7 +114,7 @@ describe("native invocation and decoding", () => {
     const { root, config, receiptDir } = await setup();
     const capture = path.join(root, "verify.json");
     await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
-      if (process.argv[2] === 'harness') { process.stdout.write(JSON.stringify({ status: 'failed', case_count: 1, assertion_error_count: 1, assertion_errors: ['failed'], case_names: ['case'], receipt_ids: [], graph_case_count: 0 })); process.exitCode = 1; }
+      if (process.argv[2] === 'harness') { process.stdout.write(JSON.stringify({ status: 'failed', case_count: 1, assertion_error_count: 1, assertion_errors: ['failed'], case_names: ['case'], receipt_ids: [], workflow_case_count: 0 })); process.exitCode = 1; }
       else { writeFileSync(${JSON.stringify(capture)}, readFileSync(0)); writeFileSync(${JSON.stringify(capture)} + '.args', JSON.stringify(process.argv.slice(2))); process.stdout.write(JSON.stringify({ schema: 'runx.verify_verdict.v1', valid: false, receipt_id: null })); process.exitCode = 3; }`);
     const client = createRunxClient(config);
     await expect(client.harness.run({ skillPath: root, receiptDir })).resolves.toMatchObject({ status: "failed", assertion_errors: ["failed"] });
@@ -256,7 +256,7 @@ describe("native invocation and decoding", () => {
   });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {
     const { config, receiptDir } = await setup();
-    const result = { exitCode: 1, stdout: JSON.stringify(output("sealed", "failed", { seal_reason: "graph_step_failed" })), stderr: "" };
+    const result = { exitCode: 1, stdout: JSON.stringify(output("sealed", "failed", { seal_reason: "workflow_step_failed" })), stderr: "" };
     await expect(decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 })).resolves.toMatchObject({ status: "sealed", outcome: "failed" });
     await expect(decodeSkill({ ...result, exitCode: 0 }, { projectDir: config.projectDir, receiptDir, maxArtifactBytes: 10000 })).rejects.toThrow("exit code disagrees");
   });

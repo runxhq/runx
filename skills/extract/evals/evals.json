@@ -1,0 +1,11 @@
+{
+  "skill_name": "extract",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Extract the invoice id, customer and total from this captured document to the supplied JSON schema.",
+      "expected_output": "Return the schema-valid invoice fields with exact quotations and input/schema/output digests, without fetching or paying.",
+      "files": []
+    }
+  ]
+}

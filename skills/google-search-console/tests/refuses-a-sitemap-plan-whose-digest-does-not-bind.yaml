@@ -1,0 +1,35 @@
+name: refuses-a-sitemap-plan-whose-digest-does-not-bind
+method: submit-sitemap
+inputs:
+  sitemap_plan:
+    schema: runx/google-search-console.sitemap_plan.v1
+    decision: ready_for_execution
+    provider: google-search-console
+    operation: sitemaps.submit
+    property: sc-domain:example.com
+    sitemap_url: https://www.example.com/sitemap.xml
+    provider_status: not_called
+    external_status: not_submitted
+    validation:
+      status: pass
+      findings: []
+    plan_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  idempotency_key: 00000000-0000-4000-8000-000000000001
+expect:
+  status: sealed
+  steps:
+    - digest
+    - admit
+    - refuse
+  step_outputs:
+    refuse:
+      subset:
+        sitemap_submission:
+          data:
+            decision: blocked
+            provider_status: not_called
+            external_status: not_submitted
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

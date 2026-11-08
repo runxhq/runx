@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use runx_contracts::PaidSkillOfferTerms;
 use runx_contracts::connector::{ConnectorName, Digest};
-use runx_parser::{CatalogMetadata, SkillRunnerManifest, ValidatedSkill};
+use runx_parser::{CatalogMetadata, SkillMethodManifest, ValidatedSkill};
 use serde::{Deserialize, Serialize};
 
 /// Parser-owned package metadata persisted by registry implementations.
@@ -17,7 +17,7 @@ pub struct RegistryPackageMetadata {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
-    pub runner_names: Vec<String>,
+    pub method_names: Vec<String>,
     pub catalog_kind: String,
     pub catalog_audience: String,
     pub catalog_visibility: String,
@@ -25,7 +25,7 @@ pub struct RegistryPackageMetadata {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub marketplace_offers: BTreeMap<String, PaidSkillOfferTerms>,
     pub tags: Vec<String>,
-    pub harness_cases: Vec<RegistryHarnessCaseMetadata>,
+    pub test_cases: Vec<RegistryTestCaseMetadata>,
     /// Every input name the package declares: its shared input definitions
     /// and each runner's inputs, sorted and once each.
     pub input_names: Vec<String>,
@@ -56,7 +56,7 @@ pub struct RegistryConnectorMetadata {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegistryHarnessCaseMetadata {
+pub struct RegistryTestCaseMetadata {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runner: Option<String>,
@@ -66,7 +66,7 @@ pub struct RegistryHarnessCaseMetadata {
 
 pub(crate) fn project_registry_package_metadata(
     skill: &ValidatedSkill,
-    manifest: Option<&SkillRunnerManifest>,
+    manifest: Option<&SkillMethodManifest>,
     connectors: Vec<RegistryConnectorMetadata>,
 ) -> RegistryPackageMetadata {
     let catalog = registry_catalog(manifest);
@@ -74,7 +74,7 @@ pub(crate) fn project_registry_package_metadata(
         name: skill.name.clone(),
         description: skill.description.clone(),
         category: catalog.category.clone(),
-        runner_names: registry_runner_names(manifest),
+        method_names: registry_method_names(manifest),
         catalog_kind: catalog.kind.as_str().to_owned(),
         catalog_audience: catalog.audience.as_str().to_owned(),
         catalog_visibility: catalog.visibility.as_str().to_owned(),
@@ -84,7 +84,7 @@ pub(crate) fn project_registry_package_metadata(
             .map(|marketplace| marketplace.offers.clone())
             .unwrap_or_default(),
         tags: registry_tags(&catalog),
-        harness_cases: registry_harness_cases(manifest),
+        test_cases: registry_test_cases(manifest),
         input_names: registry_input_names(manifest),
         skills: registry_skills(manifest),
         connectors,
@@ -94,7 +94,7 @@ pub(crate) fn project_registry_package_metadata(
 /// The declared connectors by id, each with its operations in the order the
 /// package lists them.
 pub(crate) fn declared_connectors(
-    manifest: Option<&SkillRunnerManifest>,
+    manifest: Option<&SkillMethodManifest>,
 ) -> BTreeMap<String, Vec<String>> {
     let mut connectors = BTreeMap::<String, Vec<String>>::new();
     for (key, requirement) in manifest
@@ -122,27 +122,21 @@ pub(crate) fn declared_connectors(
     connectors
 }
 
-fn registry_harness_cases(
-    manifest: Option<&SkillRunnerManifest>,
-) -> Vec<RegistryHarnessCaseMetadata> {
+fn registry_test_cases(manifest: Option<&SkillMethodManifest>) -> Vec<RegistryTestCaseMetadata> {
     manifest
         .and_then(|manifest| manifest.harness.as_ref())
         .into_iter()
         .flat_map(|harness| &harness.cases)
-        .map(|case| RegistryHarnessCaseMetadata {
+        .map(|case| RegistryTestCaseMetadata {
             name: case.name.clone(),
             runner: case.runner.clone(),
             expected_status: case.expect.status.as_ref().map(|status| {
                 match status {
-                    runx_parser::harness_fixture::HarnessExpectedStatus::Sealed => "sealed",
-                    runx_parser::harness_fixture::HarnessExpectedStatus::Failure => "failure",
-                    runx_parser::harness_fixture::HarnessExpectedStatus::NeedsAgent => {
-                        "needs_agent"
-                    }
-                    runx_parser::harness_fixture::HarnessExpectedStatus::PolicyDenied => {
-                        "policy_denied"
-                    }
-                    runx_parser::harness_fixture::HarnessExpectedStatus::Escalated => "escalated",
+                    runx_parser::test_fixture::TestExpectedStatus::Sealed => "sealed",
+                    runx_parser::test_fixture::TestExpectedStatus::Failure => "failure",
+                    runx_parser::test_fixture::TestExpectedStatus::NeedsAgent => "needs_agent",
+                    runx_parser::test_fixture::TestExpectedStatus::PolicyDenied => "policy_denied",
+                    runx_parser::test_fixture::TestExpectedStatus::Escalated => "escalated",
                 }
                 .to_owned()
             }),
@@ -150,7 +144,7 @@ fn registry_harness_cases(
         .collect()
 }
 
-pub(crate) fn registry_catalog(manifest: Option<&SkillRunnerManifest>) -> CatalogMetadata {
+pub(crate) fn registry_catalog(manifest: Option<&SkillMethodManifest>) -> CatalogMetadata {
     manifest
         .and_then(|manifest| manifest.catalog.clone())
         .unwrap_or(CatalogMetadata {
@@ -171,7 +165,7 @@ pub(crate) fn registry_catalog(manifest: Option<&SkillRunnerManifest>) -> Catalo
         })
 }
 
-fn registry_input_names(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
+fn registry_input_names(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     let mut names = std::collections::BTreeSet::new();
     if let Some(manifest) = manifest {
         names.extend(manifest.input_definitions.keys().cloned());
@@ -182,7 +176,7 @@ fn registry_input_names(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
     names.into_iter().collect()
 }
 
-fn registry_skills(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
+fn registry_skills(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     let mut refs = std::collections::BTreeSet::new();
     if let Some(manifest) = manifest {
         refs.extend(manifest.skills.iter().filter_map(|entry| match entry {
@@ -202,18 +196,18 @@ fn registry_skills(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
     refs.into_iter().collect()
 }
 
-fn registry_runner_names(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
+fn registry_method_names(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     manifest
         .map(|manifest| manifest.runners.keys().cloned().collect())
         .unwrap_or_default()
 }
 
-fn registry_required_scopes(manifest: Option<&SkillRunnerManifest>) -> Vec<String> {
+fn registry_required_scopes(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     unique(
         manifest
             .into_iter()
             .flat_map(|manifest| manifest.runners.values())
-            .flat_map(runx_parser::SkillRunnerDefinition::declared_scopes)
+            .flat_map(runx_parser::SkillMethodDefinition::declared_scopes)
             .collect(),
     )
 }

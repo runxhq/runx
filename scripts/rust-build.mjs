@@ -23,7 +23,7 @@ const PACKAGES = [
 ];
 const BINS = ["runx", "runx-js-worker"];
 const EXAMPLES = [
-  "runx-harness-fixture-oracles",
+  "runx-test-fixture-oracles",
   "runx-native-capability-snapshot",
   "runx-schema-artifacts",
   "runx-purchase-fixtures",
@@ -58,7 +58,7 @@ export function examplePath(name) {
 /** The prebuilt binaries a check or test runs instead of building its own. */
 export const prebuiltBinEnv = {
   RUNX_RUST_CLI_BIN: binaryPath("runx"),
-  RUNX_HARNESS_FIXTURE_ORACLE_BIN: examplePath("runx-harness-fixture-oracles"),
+  RUNX_TEST_FIXTURE_ORACLE_BIN: examplePath("runx-test-fixture-oracles"),
   RUNX_CAPABILITY_SNAPSHOT_BIN: examplePath("runx-native-capability-snapshot"),
   RUNX_SCHEMA_ARTIFACTS_BIN: examplePath("runx-schema-artifacts"),
   RUNX_PURCHASE_FIXTURES_BIN: examplePath("runx-purchase-fixtures"),

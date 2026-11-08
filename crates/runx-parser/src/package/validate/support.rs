@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    SkillRunnerManifest,
-    harness_fixture::{HarnessFixture, parse_harness_fixture},
+    SkillMethodManifest,
+    test_fixture::{TestFixture, parse_test_fixture},
 };
 
 use super::contract::{has_nested_manual_boundary, text_file};
@@ -79,9 +79,9 @@ fn nested_package_source(source: &SkillPackageSource, prefix: &str) -> SkillPack
     }
 }
 
-pub(super) fn validate_harness_support_files(
+pub(super) fn validate_test_support_files(
     source: &SkillPackageSource,
-    profiles: &BTreeMap<String, SkillRunnerManifest>,
+    profiles: &BTreeMap<String, SkillMethodManifest>,
 ) -> Result<BTreeSet<String>, SkillPackageError> {
     let mut files = BTreeSet::new();
     for (profile_path, manifest) in profiles {
@@ -139,9 +139,9 @@ pub(super) fn validate_execution_files(
     Ok(())
 }
 
-pub(super) fn validate_harness_fixtures(
+pub(super) fn validate_test_fixtures(
     source: &SkillPackageSource,
-) -> Result<BTreeMap<String, HarnessFixture>, SkillPackageError> {
+) -> Result<BTreeMap<String, TestFixture>, SkillPackageError> {
     source
         .files
         .iter()
@@ -151,7 +151,7 @@ pub(super) fn validate_harness_fixtures(
                 && !has_nested_manual_boundary(path, source)
         })
         .map(|(path, contents)| {
-            let fixture = parse_harness_fixture(text_file(path, contents)?).map_err(|error| {
+            let fixture = parse_test_fixture(text_file(path, contents)?).map_err(|error| {
                 SkillPackageError::invalid(path, format!("invalid harness fixture: {error}"))
             })?;
             Ok((path.clone(), fixture))

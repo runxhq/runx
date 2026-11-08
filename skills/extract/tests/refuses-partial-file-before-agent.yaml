@@ -1,0 +1,26 @@
+name: refuses-partial-file-before-agent
+method: from-file
+inputs:
+  source_id: document:invoice-104
+  objective: Extract invoice id, total and customer. Do not infer missing fields.
+  schema:
+    type: object
+    required:
+    - invoice_id
+    - total_usd
+    - customer
+    additionalProperties: false
+    properties:
+      invoice_id:
+        type: string
+        minLength: 3
+      total_usd:
+        type: number
+        minimum: 0
+      customer:
+        type: string
+  path: fixtures/invoice.txt
+  path_scope: skill
+  max_bytes: 5
+expect:
+  status: failure

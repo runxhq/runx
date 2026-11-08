@@ -1,0 +1,13 @@
+name: recent-empty-workspace
+method: recent
+inputs:
+  data_source_uri: local://twitter-recent-proof
+expect:
+  status: sealed
+  step_outputs:
+    recent:
+      subset:
+        twitter_recent:
+          data_source_uri: local://twitter-recent-proof
+          items: []
+          next_cursor: null

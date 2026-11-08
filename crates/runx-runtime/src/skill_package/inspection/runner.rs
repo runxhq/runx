@@ -1,21 +1,21 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use runx_contracts::{
-    InspectedInput, InspectedOutput, JsonObject, JsonValue, OperatorJourney, RunnerInspection,
+    InspectedInput, InspectedOutput, JsonObject, JsonValue, MethodInspection, OperatorJourney,
     SkillCapabilities,
 };
 use runx_parser::{
-    CatalogMetadata, SkillInput, SkillRunnerDefinition, SkillRunnerManifest, ValidatedSkillPackage,
+    CatalogMetadata, SkillInput, SkillMethodDefinition, SkillMethodManifest, ValidatedSkillPackage,
 };
 
 use super::SkillInspectionError;
 
-pub(super) fn inspect_runner(
-    manifest: &SkillRunnerManifest,
-    runner: &SkillRunnerDefinition,
+pub(super) fn inspect_method(
+    manifest: &SkillMethodManifest,
+    runner: &SkillMethodDefinition,
     examples: &[JsonObject],
-) -> Result<RunnerInspection, SkillInspectionError> {
-    Ok(RunnerInspection {
+) -> Result<MethodInspection, SkillInspectionError> {
+    Ok(MethodInspection {
         name: runner.name.clone(),
         input_schema: runx_contracts::input_contract_schema_with_examples(&runner.inputs, examples),
         inputs: runner
@@ -49,7 +49,7 @@ pub(super) fn inspect_runner(
 }
 
 fn declared_result_packets(
-    runner: &SkillRunnerDefinition,
+    runner: &SkillMethodDefinition,
 ) -> BTreeMap<String, runx_contracts::PacketId> {
     let mut packets = BTreeMap::new();
     let mut conflicting = BTreeSet::new();
@@ -77,7 +77,9 @@ fn declared_result_packets(
 }
 
 /// The steps whose outputs form the runner's public result.
-fn result_steps(runner: &SkillRunnerDefinition) -> impl Iterator<Item = &runx_parser::GraphStep> {
+fn result_steps(
+    runner: &SkillMethodDefinition,
+) -> impl Iterator<Item = &runx_parser::WorkflowStep> {
     runner
         .graph
         .steps
@@ -124,7 +126,7 @@ fn inspect_output(name: &str, declaration: &JsonValue) -> InspectedOutput {
 
 pub(super) fn fixture_examples(
     package: &ValidatedSkillPackage,
-    manifest: Option<&runx_parser::SkillRunnerManifest>,
+    manifest: Option<&runx_parser::SkillMethodManifest>,
     runner: &str,
 ) -> Vec<String> {
     let mut examples = manifest
@@ -149,7 +151,7 @@ pub(super) fn fixture_examples(
 
 pub(super) fn fixture_operator_journeys(
     package: &ValidatedSkillPackage,
-    manifest: &SkillRunnerManifest,
+    manifest: &SkillMethodManifest,
 ) -> Vec<OperatorJourney> {
     let mut journeys = manifest
         .harness
@@ -160,7 +162,7 @@ pub(super) fn fixture_operator_journeys(
                 project_operator_journey(&case.name, case.runner.as_deref(), journey)
             })
         })
-        .chain(package.harness_fixtures.values().flat_map(|fixture| {
+        .chain(package.test_fixtures.values().flat_map(|fixture| {
             fixture.operator_journeys.iter().map(|journey| {
                 project_operator_journey(&fixture.name, fixture.runner.as_deref(), journey)
             })
@@ -189,6 +191,6 @@ fn project_operator_journey(
         prior_evidence: journey.prior_evidence.clone(),
         must_not_repeat: journey.must_not_repeat.clone(),
         runner: runner.map(str::to_owned),
-        exercises_runner: journey.exercises_runner.clone(),
+        exercises_method: journey.exercises_method.clone(),
     }
 }

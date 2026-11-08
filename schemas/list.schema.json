@@ -42,7 +42,7 @@
             "minimum": 0,
             "type": "integer"
           },
-          "harness_cases": {
+          "test_cases": {
             "minimum": 0,
             "type": "integer"
           },
@@ -79,7 +79,7 @@
               "required": [
                 "name"
               ],
-              "title": "CatalogRunner",
+              "title": "CatalogMethod",
               "type": "object"
             },
             "type": "array"

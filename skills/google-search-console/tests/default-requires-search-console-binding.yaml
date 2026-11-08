@@ -1,0 +1,10 @@
+name: google-search-console-default-requires-provider-binding
+inputs:
+  property: sc-domain:example.com
+  start_date: "2026-07-01"
+  end_date: "2026-07-31"
+  dimensions: [query, page]
+  search_type: web
+  data_state: final
+expect:
+  status: policy_denied

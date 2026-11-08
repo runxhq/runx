@@ -1,15 +1,13 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use runx_parser::{HarnessCaller, HarnessHttpRequestBodyFixture, HarnessHttpResponseFixture};
+use runx_parser::{TestCaller, TestHttpRequestBodyFixture, TestHttpResponseFixture};
 
-use super::provider_responses::{
-    HARNESS_PROVIDER_BASE_URL, HARNESS_PROVIDER_TOKEN, HarnessTransport,
-};
+use super::provider_responses::{TEST_PROVIDER_BASE_URL, TEST_PROVIDER_TOKEN, TestTransport};
 use crate::effects::{RuntimeEffectError, RuntimeEffectRegistry};
 use crate::http::{
-    HarnessExchanges, HttpMethod, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody,
-    RuntimeHttpHeader, RuntimeHttpResponse,
+    HttpMethod, RuntimeHttpHeader, RuntimeHttpResponse, RuntimeTestHttpExchange,
+    RuntimeTestHttpRequestBody, TestExchanges,
 };
 use crate::kernel::connectors::LoadedConnector;
 use crate::kernel::operation::OperationEffect;
@@ -22,8 +20,8 @@ use crate::kernel::operation::OperationEffect;
 /// calls this function.
 pub(super) fn effects_over(
     effects: &RuntimeEffectRegistry,
-    transport: HarnessTransport,
-    caller: &HarnessCaller,
+    transport: TestTransport,
+    caller: &TestCaller,
 ) -> Result<RuntimeEffectRegistry, RuntimeEffectError> {
     let mut effects = effects.clone();
     effects.replace_effect(OperationEffect::harness(
@@ -36,56 +34,56 @@ pub(super) fn effects_over(
 
 /// The transport the caller's fixtures stand in for the world with.
 /// `closure` is every connector the case's run binds through its closure.
-pub(super) fn harness_transport(
-    caller: &HarnessCaller,
+pub(super) fn test_transport(
+    caller: &TestCaller,
     scope: &crate::ConnectorScope,
     closure: &[Arc<LoadedConnector>],
     skill_dir: &std::path::Path,
-) -> Result<HarnessTransport, String> {
+) -> Result<TestTransport, String> {
     let grant_connector = caller
         .provider_responses
         .as_ref()
         .and_then(|provider| provider.grant.as_ref())
         .map(|grant| granted_connector(scope, closure, skill_dir, &grant.provider))
         .transpose()?;
-    let mut held_connectors: Vec<Arc<LoadedConnector>> = Vec::new();
+    let mut connectors_with_leases: Vec<Arc<LoadedConnector>> = Vec::new();
     for hold in caller
         .provider_responses
         .iter()
         .flat_map(|provider| &provider.holds)
     {
         let connector = granted_connector(scope, closure, skill_dir, &hold.connector)?;
-        if !held_connectors
+        if !connectors_with_leases
             .iter()
             .any(|known| known.binding() == connector.binding())
         {
-            held_connectors.push(connector);
+            connectors_with_leases.push(connector);
         }
     }
-    let exchanges = Arc::new(HarnessExchanges::new(
+    let exchanges = Arc::new(TestExchanges::new(
         caller
             .http_exchanges
             .iter()
-            .map(|exchange| RuntimeHarnessHttpExchange {
+            .map(|exchange| RuntimeTestHttpExchange {
                 method: runtime_method(&exchange.request.method),
                 url: exchange.request.url.clone(),
                 body: match &exchange.request.body {
-                    HarnessHttpRequestBodyFixture::None(_) => RuntimeHarnessHttpRequestBody::None,
-                    HarnessHttpRequestBodyFixture::Json { json } => {
-                        RuntimeHarnessHttpRequestBody::Json(json.clone())
+                    TestHttpRequestBodyFixture::None(_) => RuntimeTestHttpRequestBody::None,
+                    TestHttpRequestBodyFixture::Json { json } => {
+                        RuntimeTestHttpRequestBody::Json(json.clone())
                     }
-                    HarnessHttpRequestBodyFixture::Text { text } => {
-                        RuntimeHarnessHttpRequestBody::Text(text.clone())
+                    TestHttpRequestBodyFixture::Text { text } => {
+                        RuntimeTestHttpRequestBody::Text(text.clone())
                     }
                 },
                 response: runtime_response(&exchange.response),
             })
             .collect(),
     ));
-    Ok(HarnessTransport {
+    Ok(TestTransport {
         provider: caller.provider_responses.clone(),
         grant_connector,
-        held_connectors,
+        connectors_with_leases,
         exchanges,
         mutation_keys: Arc::default(),
         artifacts: Arc::default(),
@@ -150,18 +148,18 @@ fn granted_connector(
 
 /// The environment a case's provider fixture runs under: the harness's hosted
 /// API, authenticated as the fixture's principal.
-pub(crate) fn provider_env(caller: &HarnessCaller) -> BTreeMap<String, String> {
+pub(crate) fn provider_env(caller: &TestCaller) -> BTreeMap<String, String> {
     if caller.provider_responses.is_none() {
         return BTreeMap::new();
     }
     BTreeMap::from([
         (
             crate::HOSTED_API_BASE_URL_ENV.to_owned(),
-            HARNESS_PROVIDER_BASE_URL.to_owned(),
+            TEST_PROVIDER_BASE_URL.to_owned(),
         ),
         (
             crate::HOSTED_API_TOKEN_ENV.to_owned(),
-            HARNESS_PROVIDER_TOKEN.to_owned(),
+            TEST_PROVIDER_TOKEN.to_owned(),
         ),
     ])
 }
@@ -170,7 +168,7 @@ pub(crate) fn provider_env(caller: &HarnessCaller) -> BTreeMap<String, String> {
 /// operations run under, as `runx connector use <connector> <grant>` would, in the kernel
 /// `env` resolves for `cwd`, reading the grant from the harness's Connect.
 pub(crate) fn seed_provider_grant(
-    caller: &HarnessCaller,
+    caller: &TestCaller,
     scope: &crate::ConnectorScope,
     closure: &[Arc<LoadedConnector>],
     env: &BTreeMap<String, String>,
@@ -191,7 +189,7 @@ pub(crate) fn seed_provider_grant(
     crate::kernel::setup::confirm_grant_over(
         &instances,
         &connector,
-        Arc::new(harness_transport(caller, scope, closure, cwd)?),
+        Arc::new(test_transport(caller, scope, closure, cwd)?),
         &grant.grant_id,
         env,
         cwd,
@@ -199,7 +197,7 @@ pub(crate) fn seed_provider_grant(
     .map(|_| ())
 }
 
-fn runtime_response(fixture: &HarnessHttpResponseFixture) -> RuntimeHttpResponse {
+fn runtime_response(fixture: &TestHttpResponseFixture) -> RuntimeHttpResponse {
     let mut response = RuntimeHttpResponse::new(fixture.status, fixture.body.clone());
     response.headers = fixture
         .headers

@@ -6,7 +6,7 @@ use runx_cli::mcp::McpPlan;
 use runx_cli::registry::{RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
-    DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, ListKind, ListPlan, RouterAction,
+    DoctorMode, DoctorPlan, FilterMode, HistoryPlan, ListKind, ListPlan, RouterAction, TestPlan,
     ToolAction, ToolPlan, command_help_text, help_text, route_args,
 };
 use runx_cli::skill::{SkillAction, SkillPlan};
@@ -461,7 +461,7 @@ fn mcp_rejects_unknown_shapes_without_delegating() {
 }
 
 #[test]
-fn routes_harness_to_native_runner() {
+fn routes_test_to_native_method() {
     assert_eq!(
         plan(&[
             "harness",
@@ -470,7 +470,7 @@ fn routes_harness_to_native_runner() {
             ".runx/receipts",
             "-j"
         ]),
-        RouterAction::RunHarness(HarnessPlan {
+        RouterAction::RunTest(TestPlan {
             fixture_paths: vec!["fixtures/harness/echo-skill.yaml".into()],
             receipt_dir: Some(".runx/receipts".into()),
         })
@@ -478,18 +478,18 @@ fn routes_harness_to_native_runner() {
 }
 
 #[test]
-fn routes_multiple_harness_fixtures_to_native_runner() {
+fn routes_multiple_test_fixtures_to_native_method() {
     assert_eq!(
         plan(&[
             "harness",
             "fixtures/harness/echo-skill.yaml",
-            "fixtures/harness/sequential-graph.yaml",
+            "fixtures/harness/sequential-workflow.yaml",
             "--json",
         ]),
-        RouterAction::RunHarness(HarnessPlan {
+        RouterAction::RunTest(TestPlan {
             fixture_paths: vec![
                 "fixtures/harness/echo-skill.yaml".into(),
-                "fixtures/harness/sequential-graph.yaml".into(),
+                "fixtures/harness/sequential-workflow.yaml".into(),
             ],
             receipt_dir: None,
         })
@@ -497,7 +497,7 @@ fn routes_multiple_harness_fixtures_to_native_runner() {
 }
 
 #[test]
-fn harness_rejects_missing_fixture_path() {
+fn test_rejects_missing_fixture_path() {
     assert_eq!(
         plan(&["harness"]),
         RouterAction::Error("runx harness requires a fixture path or skill package".to_owned())

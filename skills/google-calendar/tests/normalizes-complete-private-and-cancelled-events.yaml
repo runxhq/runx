@@ -1,0 +1,44 @@
+name: normalizes-complete-private-and-cancelled-events
+method: normalize-supplied
+inputs:
+  kind: events
+  calendar_id: primary
+  time_min: 2026-10-04T00:00:00Z
+  time_max: 2026-10-05T00:00:00Z
+  provider_result:
+    calendar_id: primary
+    time_min: 2026-10-04T00:00:00Z
+    time_max: 2026-10-05T00:00:00Z
+    fetched_at: 2026-10-04T01:00:00Z
+    complete: true
+    events:
+      - event_id: private-1
+        revision: v1
+        status: confirmed
+        visibility: private
+        summary: hidden
+        all_day: true
+        start: 2026-10-04
+        end: 2026-10-05
+      - event_id: cancelled-1
+        status: cancelled
+        recurring_event_id: series-1
+expect:
+  status: sealed
+  steps:
+    - normalize
+  step_outputs:
+    normalize:
+      subset:
+        calendar_context:
+          data:
+            decision: ready
+            coverage: complete
+            provider_status: not_called
+            events:
+              - event_id: private-1
+                all_day: true
+              - event_id: cancelled-1
+                status: cancelled
+  receipt:
+    schema: runx.receipt.v1

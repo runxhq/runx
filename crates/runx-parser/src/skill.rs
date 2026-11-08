@@ -8,7 +8,7 @@ mod environment;
 mod fixtures;
 mod governance;
 mod markdown;
-mod runner_definition;
+mod method_definition;
 mod types;
 
 pub use catalog::{
@@ -20,25 +20,25 @@ pub use catalog::{
 pub use connectors::ConnectorRequirement;
 pub(crate) use connectors::{bind_operation_steps, validate_connector_requirements};
 pub use fixtures::{
-    HarnessCaller, HarnessExpectation, HarnessHttpExchangeFixture, HarnessHttpRequestBodyFixture,
-    HarnessHttpResponseFixture, HarnessMcpCallFixture, HarnessProcessCallFixture,
-    OperatorJourneyClaim, OperatorJourneyMode, ReceiptExpectation, RunnerHarnessCase,
-    RunnerHarnessManifest,
+    MethodTestCase, MethodTestManifest, OperatorJourneyClaim, OperatorJourneyMode,
+    ReceiptExpectation, TestCaller, TestExpectation, TestHttpExchangeFixture,
+    TestHttpRequestBodyFixture, TestHttpResponseFixture, TestMcpCallFixture,
+    TestProcessCallFixture,
 };
 pub use governance::validate_skill_artifact_contract;
 pub use markdown::parse_skill_markdown;
-pub use runner_definition::validate_input_examples;
+pub use method_definition::validate_input_examples;
 pub use types::{
     ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, InputMode, RawSkillIr,
-    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillRunnerDefinition,
+    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillMethodDefinition,
     ValidateSkillMode, ValidateSkillOptions, ValidatedSkill,
 };
 
 pub(crate) use catalog::validate_catalog_metadata;
 pub(crate) use environment::validate_environment_requirements;
-pub(crate) use fixtures::validate_harness_manifest;
+pub(crate) use fixtures::validate_test_manifest;
 pub(crate) use governance::validate_inputs;
-pub(crate) use runner_definition::validate_runner_definition;
+pub(crate) use method_definition::validate_method_definition;
 
 const FIELDS: JsonFieldReader = JsonFieldReader::new("skill");
 

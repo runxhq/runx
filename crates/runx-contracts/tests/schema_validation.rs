@@ -33,17 +33,17 @@ const CONTRACT_FIXTURE_SCHEMA_MAPPINGS: &[FixtureSchemaMapping] = &[
         "credential-delivery-observation.schema.json",
     ),
     FixtureSchemaMapping::new(
-        "fixtures/contracts/harness-spine/receipt-abnormal.json",
+        "fixtures/contracts/run-spine/receipt-abnormal.json",
         "/expected",
         "receipt.schema.json",
     ),
     FixtureSchemaMapping::new(
-        "fixtures/contracts/harness-spine/receipt-success.json",
+        "fixtures/contracts/run-spine/receipt-success.json",
         "/expected",
         "receipt.schema.json",
     ),
     FixtureSchemaMapping::new(
-        "fixtures/contracts/harness-spine/signal-digest-links.json",
+        "fixtures/contracts/run-spine/signal-digest-links.json",
         "/expected",
         "signal.schema.json",
     ),
@@ -111,7 +111,7 @@ fn contract_fixture_schema_mapping_has_only_declared_exemptions()
         .collect::<BTreeSet<_>>();
     for directory in [
         "fixtures/contracts/act-assignment",
-        "fixtures/contracts/harness-spine",
+        "fixtures/contracts/run-spine",
         "fixtures/contracts/host-protocol",
     ] {
         for fixture_path in json_files_in(directory)? {

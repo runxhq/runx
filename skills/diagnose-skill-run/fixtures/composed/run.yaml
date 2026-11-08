@@ -1,0 +1,61 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: evidence
+        skill: ../../../receipt-query#read
+        inputs:
+          question: Resolve the exact selected failed receipt.
+          receipt_ids:
+            - rcpt_context_flattening
+          proof:
+            verify_chain: true
+          receipts:
+            - receipt_id: rcpt_context_flattening
+              skill: skills/skill-build
+              outcome: failed
+              created_at: 2026-07-16T00:00:00Z
+              verification_status: verified
+          receipt_details:
+            - id: rcpt_context_flattening
+              receipt_uri: runx:receipt:rcpt_context_flattening
+              subject_kind: graph
+              subject_uri: skills/skill-build
+              created_at: 2026-07-16T00:00:00Z
+              outcome: failed
+              verification:
+                status: verified
+              authority:
+                exercised_scopes:
+                  - scope: fs:read
+                    source: term
+              decisions: []
+              acts:
+                - id: author
+                  form: execution
+                  purpose: Produce the bounded skill proposal.
+                  legitimacy: Held fs.read.
+                  target_uris: []
+                  artifact_uris: []
+                  criterion_statuses:
+                    - criterion_id: runx:criterion:structured_context
+                      status: failed
+                      evidence_uris: []
+                      verification_uris: []
+                  context_ref_present: true
+              artifact_uris: []
+              lineage_uris: []
+              seal_reason: graph_step_failed
+      - id: diagnose-skill-run
+        skill: ../..#from-evidence
+        inputs:
+          receipt_id: rcpt_context_flattening
+          harness_output: Context edge pointed at stdout and flattened the payload.
+          skill_path: skills/skill-build
+          receipt_evidence: $steps.evidence.ledger_answer_packet
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.diagnose-skill-run

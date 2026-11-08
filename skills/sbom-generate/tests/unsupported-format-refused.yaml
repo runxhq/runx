@@ -1,0 +1,9 @@
+name: unsupported-format-refused
+method: make
+inputs:
+  lockfile:
+    lockfileVersion: 99
+    packages:
+      "": {}
+expect:
+  status: failure

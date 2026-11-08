@@ -1,214 +1,40 @@
-skill: code-intake
 version: "0.1.11"
+minimum_runx: 0.12.0
 catalog:
-  kind: skill
-  audience: public
   visibility: public
-  role: context
-  execution: plan
-  completion: plan
-  approval: none
   category: ops
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases:
-    - name: ordinary-docs-request
-      operator_journeys:
-        - mode: standalone
-          confusors:
-            - code-plan
-            - github-issue-triage
-          request: Turn this noisy README bug report into a bounded request.
-          expected_outcome: Return a useful summary, reply and host recommendation without a synthetic provider event.
-        - mode: composed
-          request: Bound the request using the supplied source context.
-          expected_outcome: Preserve original source context and return a change set without planning or implementation.
-          prior_evidence:
-            - The exact source context supplied by the upstream reader.
-          must_not_repeat:
-            - Do not fetch source context again.
-            - Do not plan or implement the proposed change.
-      inputs:
-        request: The README install example is stale. It needs to match the current CLI help.
-        project_context: Runx OSS documentation
-      caller:
-        answers:
-          intake:
-            intake_draft:
-              category: docs
-              severity: low
-              summary: Correct the README example to use the current documented install command.
-              suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example
-                locally.
-              recommended_lane: host
-              rationale: A bounded documentation correction can be handled by the existing host without a separate governed
-                implementation lane.
-              target_surfaces:
-                - surface: oss-docs
-                  kind: docs
-                  mutating: true
-                  rationale: Only the README example changes.
-              shared_invariants:
-                - Use the current CLI help as the command source.
-              success_criteria:
-                - The README install example agrees with current CLI help.
-              operator_notes: []
-              open_questions: []
-      expect:
-        status: sealed
-        steps:
-          - digest
-          - intake
-          - finalize
-        receipt:
-          schema: runx.receipt.v1
-    - name: preserves-adapter-context
-      inputs:
-        request: The README install example is stale. It needs to match the current CLI help.
-        project_context: Runx OSS documentation
-        source_context:
-          thread_locator: github://example/project/issues/101
-          issue_locator: https://github.com/example/project/issues/101
-          artifact:
-            opaque_id: adapter-source-101
-            hydration:
-              status: complete
-            evidence:
-              - quote: The README install example is stale.
-      caller:
-        answers:
-          intake:
-            intake_draft:
-              category: docs
-              severity: low
-              summary: Correct the README example to use the current documented install command.
-              suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example
-                locally.
-              recommended_lane: github-issue-to-pr
-              rationale: The operator selected an existing repository issue for its governed implementation lane.
-              target_surfaces:
-                - surface: oss-docs
-                  kind: docs
-                  mutating: true
-                  rationale: Only the README example changes.
-              shared_invariants:
-                - Use the current CLI help as the command source.
-              success_criteria:
-                - The README install example agrees with current CLI help.
-              operator_notes: []
-              open_questions: []
-      expect:
-        status: sealed
-        steps:
-          - digest
-          - intake
-          - finalize
-        receipt:
-          schema: runx.receipt.v1
-    - name: retains-blocking-question
-      inputs:
-        request: Fix the onboarding flow; I have not chosen whether this means the web UI or CLI.
-        project_context: Runx OSS documentation
-      caller:
-        answers:
-          intake:
-            intake_draft:
-              category: docs
-              severity: low
-              summary: Onboarding needs correction but the affected surface is not yet identified.
-              suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example
-                locally.
-              recommended_lane: manual-review
-              rationale: A bounded documentation correction can be handled by the existing host without a separate governed
-                implementation lane.
-              target_surfaces: []
-              shared_invariants:
-                - Use the current CLI help as the command source.
-              success_criteria: []
-              operator_notes: []
-              open_questions:
-                - Which onboarding surface and behavior should change?
-      expect:
-        status: sealed
-        steps:
-          - digest
-          - intake
-          - finalize
-        receipt:
-          schema: runx.receipt.v1
-    - name: does-not-invent-issue-identity
-      inputs:
-        request: The README install example is stale. It needs to match the current CLI help.
-        project_context: Runx OSS documentation
-      caller:
-        answers:
-          intake:
-            intake_draft:
-              category: docs
-              severity: low
-              summary: Correct the README example to use the current documented install command.
-              suggested_reply: The README example is stale. Update it to match the current CLI help and verify the example
-                locally.
-              recommended_lane: github-issue-to-pr
-              rationale: A bounded documentation correction can be handled by the existing host without a separate governed
-                implementation lane.
-              target_surfaces:
-                - surface: oss-docs
-                  kind: docs
-                  mutating: true
-                  rationale: Only the README example changes.
-              shared_invariants:
-                - Use the current CLI help as the command source.
-              success_criteria:
-                - The README install example agrees with current CLI help.
-              operator_notes: []
-              open_questions: []
-      expect:
-        status: sealed
-        steps:
-          - digest
-          - intake
-          - finalize
-        receipt:
-          schema: runx.receipt.v1
-runners:
+methods:
   intake:
-    default: true
     description: Bound an ordinary engineering request and recommend a next lane without granting authority.
     inputs:
       request:
         type: string
-        required: true
         description: Actual request or report text, as supplied by the operator or source adapter.
-        schema:
-          minLength: 1
-          pattern: \S
+        minLength: 1
+        pattern: \S
       project_context:
         type: string
-        required: false
         default: ""
         description: Actual product, repository and constraints.
+        optional: true
       operator_context:
         type: string
-        required: false
         default: ""
         description: Scoped preferences or escalation guidance.
+        optional: true
       source_context:
         type: object
-        required: false
         default: {}
-        description: Original source evidence and locators, copied unchanged. Optional issue_locator selects an actual
-          GitHub issue; never invent one.
-        schema:
-          additionalProperties: true
-          properties:
-            thread_locator:
-              type: string
-              minLength: 1
-            issue_locator:
-              type: string
-              minLength: 1
+        description: Original source evidence and locators, copied unchanged. Optional issue_locator selects an actual GitHub issue; never invent one.
+        additionalProperties: true
+        properties:
+          thread_locator:
+            type: string
+            minLength: 1
+          issue_locator:
+            type: string
+            minLength: 1
+        optional: true
     result_from:
       - finalize
     examples:
@@ -223,9 +49,7 @@ runners:
             operator_context: $input.operator_context
             source_context: $input.source_context
       - id: intake
-        agent:
-          role: builder
-          task: code-intake
+        agent: code-intake
         inputs:
           request: $input.request
           project_context: $input.project_context
@@ -234,99 +58,98 @@ runners:
         outputs:
           intake_draft:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - category
-                - severity
-                - summary
-                - suggested_reply
-                - recommended_lane
-                - rationale
-                - target_surfaces
-                - shared_invariants
-                - success_criteria
-                - operator_notes
-                - open_questions
-              properties:
-                category:
-                  enum:
-                    - bug
-                    - feature_request
-                    - docs
-                    - billing
-                    - account
-                    - question
-                    - other
-                severity:
-                  enum:
-                    - low
-                    - medium
-                    - high
-                    - critical
-                summary:
+            additionalProperties: false
+            required:
+              - category
+              - severity
+              - summary
+              - suggested_reply
+              - recommended_lane
+              - rationale
+              - target_surfaces
+              - shared_invariants
+              - success_criteria
+              - operator_notes
+              - open_questions
+            properties:
+              category:
+                enum:
+                  - bug
+                  - feature_request
+                  - docs
+                  - billing
+                  - account
+                  - question
+                  - other
+              severity:
+                enum:
+                  - low
+                  - medium
+                  - high
+                  - critical
+              summary:
+                type: string
+                minLength: 1
+                pattern: \S
+              suggested_reply:
+                type: string
+                minLength: 1
+                pattern: \S
+              recommended_lane:
+                enum:
+                  - host
+                  - code-plan
+                  - github-issue-to-pr
+                  - reply-only
+                  - manual-review
+              rationale:
+                type: string
+                minLength: 1
+                pattern: \S
+              operator_notes:
+                type: array
+                items:
                   type: string
-                  minLength: 1
-                  pattern: \S
-                suggested_reply:
+              open_questions:
+                type: array
+                items:
                   type: string
-                  minLength: 1
-                  pattern: \S
-                recommended_lane:
-                  enum:
-                    - host
-                    - code-plan
-                    - github-issue-to-pr
-                    - reply-only
-                    - manual-review
-                rationale:
+              target_surfaces:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - surface
+                    - kind
+                    - mutating
+                    - rationale
+                  properties:
+                    surface:
+                      type: string
+                      minLength: 1
+                      pattern: \S
+                    kind:
+                      enum:
+                        - repo
+                        - package
+                        - docs
+                        - support
+                        - other
+                    mutating:
+                      type: boolean
+                    rationale:
+                      type: string
+                      minLength: 1
+                      pattern: \S
+                  additionalProperties: false
+              shared_invariants:
+                type: array
+                items:
                   type: string
-                  minLength: 1
-                  pattern: \S
-                operator_notes:
-                  type: array
-                  items:
-                    type: string
-                open_questions:
-                  type: array
-                  items:
-                    type: string
-                target_surfaces:
-                  type: array
-                  items:
-                    type: object
-                    required:
-                      - surface
-                      - kind
-                      - mutating
-                      - rationale
-                    properties:
-                      surface:
-                        type: string
-                        minLength: 1
-                        pattern: \S
-                      kind:
-                        enum:
-                          - repo
-                          - package
-                          - docs
-                          - support
-                          - other
-                      mutating:
-                        type: boolean
-                      rationale:
-                        type: string
-                        minLength: 1
-                        pattern: \S
-                    additionalProperties: false
-                shared_invariants:
-                  type: array
-                  items:
-                    type: string
-                success_criteria:
-                  type: array
-                  items:
-                    type: string
+              success_criteria:
+                type: array
+                items:
+                  type: string
       - id: finalize
         tool:
           module: code-intake.mjs
@@ -338,9 +161,4 @@ runners:
           input_digest: $steps.digest.digest_result.digest
           intake_draft: $steps.intake.intake_draft
         outputs:
-          request_packet: object
-        artifacts:
-          named_emits:
-            request_packet: request_packet
-          packets:
-            request_packet: runx/code-intake.intake.v1
+          request_packet: {type: object, packet: runx/code-intake.intake.v1}

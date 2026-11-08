@@ -112,7 +112,7 @@ fn a_run_executes_the_modules_it_admitted_however_its_files_change() -> TestResu
 }
 
 #[test]
-fn a_child_skill_runs_the_runner_its_parent_admitted() -> TestResult {
+fn a_child_skill_runs_the_method_its_parent_admitted() -> TestResult {
     let temp = tempdir()?;
     let root = temp.path();
     let child = root.join("child");
@@ -231,11 +231,11 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
         .try_into()
         .map_err(|_| "one parent step")?;
     assert_eq!(invoke.seal.outcome, RunOutcome::Failed);
-    let [child_graph] = children(root, &invoke)?
+    let [child_workflow] = children(root, &invoke)?
         .try_into()
         .map_err(|_| "the child's run receipt")?;
-    assert_eq!(child_graph.id.as_str(), child_receipt);
-    let steps = children(root, &child_graph)?;
+    assert_eq!(child_workflow.id.as_str(), child_receipt);
+    let steps = children(root, &child_workflow)?;
     assert_eq!(
         steps
             .iter()
@@ -277,7 +277,7 @@ fn a_child_a_guard_refuses_stops_its_parent_with_the_refusal() -> TestResult {
     );
     assert_eq!(
         output.get("seal_reason").and_then(JsonValue::as_str),
-        Some("graph_blocked"),
+        Some("workflow_blocked"),
         "{output:?}"
     );
     // Why the child's guard refused rides its parent's output, as it would

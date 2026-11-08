@@ -180,7 +180,7 @@ function serve(defaultPublisher) {
             ),
           }
         : {}),
-      runner_names: [],
+      method_names: [],
       trust_tier: "community",
       required_scopes: [],
       tags: [],
@@ -221,7 +221,7 @@ function serve(defaultPublisher) {
       .slice(0, limit)
       .map((record) => ({
         ...pick(record, [
-          "skill_id", "name", "description", "version", "digest", "runner_names",
+          "skill_id", "name", "description", "version", "digest", "method_names",
           "profile_digest", "required_scopes", "tags", "trust_tier", "install_command", "run_command",
         ]),
         profile_mode: record.profile_document === undefined ? "portable" : "profiled",
@@ -261,13 +261,13 @@ function serve(defaultPublisher) {
 
 const DETAIL_FIELDS = [
   "skill_id", "name", "description", "version", "digest", "signed_manifest", "markdown",
-  "profile_digest", "package_files", "bundle_digest", "runner_names", "trust_tier",
+  "profile_digest", "package_files", "bundle_digest", "method_names", "trust_tier",
   "required_scopes", "tags", "publisher", "install_command", "run_command",
 ];
 
 const ACQUISITION_FIELDS = [
   "skill_id", "name", "version", "digest", "signed_manifest", "markdown", "profile_document",
-  "profile_digest", "package_files", "bundle_digest", "runner_names", "trust_tier", "publisher",
+  "profile_digest", "package_files", "bundle_digest", "method_names", "trust_tier", "publisher",
 ];
 
 function success(body) {

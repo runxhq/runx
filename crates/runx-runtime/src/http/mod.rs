@@ -17,8 +17,8 @@ use std::time::Duration;
 
 use url::Url;
 
-pub(crate) use self::types::RuntimeHarnessHttpExchange;
-pub(crate) use self::types::RuntimeHarnessHttpRequestBody;
+pub(crate) use self::types::RuntimeTestHttpExchange;
+pub(crate) use self::types::RuntimeTestHttpRequestBody;
 pub use self::types::{
     ExactLoopbackHttpTransport, HttpMethod, ReqwestHttpTransport, RuntimeHttpHeader,
     RuntimeHttpRequest, RuntimeHttpResponse, RuntimeHttpTransport,
@@ -292,22 +292,22 @@ impl ReqwestHttpTransport {
 /// repeat, so a case can read, change and read back the same resource.
 /// Anything else is refused, never sent.
 #[derive(Debug, Default)]
-pub(crate) struct HarnessExchanges {
-    exchanges: Vec<RuntimeHarnessHttpExchange>,
+pub(crate) struct TestExchanges {
+    exchanges: Vec<RuntimeTestHttpExchange>,
     /// How many times each declared exchange has answered, by its index.
     answered: Mutex<Vec<usize>>,
 }
 
 /// A case's exchanges answer as a transport: a request they do not hold
 /// fails, and nothing reaches the network.
-impl RuntimeHttpTransport for HarnessExchanges {
+impl RuntimeHttpTransport for TestExchanges {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         self.answer(&request)
     }
 }
 
-impl HarnessExchanges {
-    pub(crate) fn new(exchanges: Vec<RuntimeHarnessHttpExchange>) -> Self {
+impl TestExchanges {
+    pub(crate) fn new(exchanges: Vec<RuntimeTestHttpExchange>) -> Self {
         Self {
             answered: Mutex::new(vec![0; exchanges.len()]),
             exchanges,
@@ -325,7 +325,7 @@ impl HarnessExchanges {
             .filter(|(_, exchange)| {
                 exchange.method == request.method
                     && exchange.url == request.url
-                    && harness_request_body_matches(&exchange.body, request.body.as_deref())
+                    && test_request_body_matches(&exchange.body, request.body.as_deref())
             })
             .collect::<Vec<_>>();
         let Some(&last) = matching.last() else {
@@ -374,16 +374,13 @@ impl HarnessExchanges {
     }
 }
 
-fn harness_request_body_matches(
-    expected: &RuntimeHarnessHttpRequestBody,
-    actual: Option<&str>,
-) -> bool {
+fn test_request_body_matches(expected: &RuntimeTestHttpRequestBody, actual: Option<&str>) -> bool {
     match expected {
-        RuntimeHarnessHttpRequestBody::None => actual.is_none(),
-        RuntimeHarnessHttpRequestBody::Json(expected) => actual
+        RuntimeTestHttpRequestBody::None => actual.is_none(),
+        RuntimeTestHttpRequestBody::Json(expected) => actual
             .and_then(|body| serde_json::from_str::<runx_contracts::JsonValue>(body).ok())
             .is_some_and(|actual| actual == *expected),
-        RuntimeHarnessHttpRequestBody::Text(expected) => actual == Some(expected.as_str()),
+        RuntimeTestHttpRequestBody::Text(expected) => actual == Some(expected.as_str()),
     }
 }
 
@@ -996,8 +993,8 @@ mod tests {
         GuardedDnsResolver, PROVIDER_OPERATION_REQUEST_TIMEOUT, ReqwestHttpTransport,
         TransportProfile, block_on_http, http_runtime,
     };
-    use super::{HarnessExchanges, RuntimeHarnessHttpExchange, RuntimeHarnessHttpRequestBody};
     use super::{HttpMethod, RuntimeHttpError, RuntimeHttpHeader, RuntimeHttpRequest};
+    use super::{RuntimeTestHttpExchange, RuntimeTestHttpRequestBody, TestExchanges};
     use reqwest::dns::Resolve as _;
 
     #[derive(Clone, Debug)]
@@ -1023,13 +1020,13 @@ mod tests {
     }
 
     #[test]
-    fn harness_http_transport_is_exact_limited_and_never_falls_through()
+    fn test_http_transport_is_exact_limited_and_never_falls_through()
     -> Result<(), RuntimeHttpTestError> {
         let url = "https://fixture.runx.invalid/source";
-        let exchanges = HarnessExchanges::new(vec![RuntimeHarnessHttpExchange {
+        let exchanges = TestExchanges::new(vec![RuntimeTestHttpExchange {
             method: HttpMethod::Get,
             url: url.to_owned(),
-            body: RuntimeHarnessHttpRequestBody::None,
+            body: RuntimeTestHttpRequestBody::None,
             response: RuntimeHttpResponse::new(200, "hello world"),
         }]);
         let transport = &exchanges;
@@ -1074,15 +1071,15 @@ mod tests {
     }
 
     #[test]
-    fn a_repeated_harness_request_is_answered_in_order() -> Result<(), RuntimeHttpTestError> {
+    fn a_repeated_test_request_is_answered_in_order() -> Result<(), RuntimeHttpTestError> {
         let url = "https://fixture.runx.invalid/item";
-        let answer = |body: &str| RuntimeHarnessHttpExchange {
+        let answer = |body: &str| RuntimeTestHttpExchange {
             method: HttpMethod::Get,
             url: url.to_owned(),
-            body: RuntimeHarnessHttpRequestBody::None,
+            body: RuntimeTestHttpRequestBody::None,
             response: RuntimeHttpResponse::new(200, body),
         };
-        let exchanges = HarnessExchanges::new(vec![answer("before"), answer("after")]);
+        let exchanges = TestExchanges::new(vec![answer("before"), answer("after")]);
         let transport = &exchanges;
         let read = || RuntimeHttpRequest {
             method: HttpMethod::Get,
@@ -1105,14 +1102,14 @@ mod tests {
     }
 
     #[test]
-    fn harness_text_exchanges_match_the_exact_form_and_refuse_changed_amounts()
+    fn test_text_exchanges_match_the_exact_form_and_refuse_changed_amounts()
     -> Result<(), RuntimeHttpTestError> {
         let url = "https://provider.example/payment";
         let body = "amount=150&currency=usd";
-        let exchanges = HarnessExchanges::new(vec![RuntimeHarnessHttpExchange {
+        let exchanges = TestExchanges::new(vec![RuntimeTestHttpExchange {
             method: HttpMethod::Post,
             url: url.to_owned(),
-            body: RuntimeHarnessHttpRequestBody::Text(body.to_owned()),
+            body: RuntimeTestHttpRequestBody::Text(body.to_owned()),
             response: RuntimeHttpResponse::new(200, "confirmed"),
         }]);
         for changed in [
@@ -1147,13 +1144,13 @@ mod tests {
     }
 
     #[test]
-    fn harness_http_exchanges_match_complete_requests() -> Result<(), RuntimeHttpTestError> {
+    fn test_http_exchanges_match_complete_requests() -> Result<(), RuntimeHttpTestError> {
         let url = "https://fixture.runx.invalid/mcp";
-        let exchanges = HarnessExchanges::new(vec![
-            RuntimeHarnessHttpExchange {
+        let exchanges = TestExchanges::new(vec![
+            RuntimeTestHttpExchange {
                 method: HttpMethod::Post,
                 url: url.to_owned(),
-                body: RuntimeHarnessHttpRequestBody::Json(runx_contracts::JsonValue::Object(
+                body: RuntimeTestHttpRequestBody::Json(runx_contracts::JsonValue::Object(
                     runx_contracts::JsonObject::from([(
                         "operation".to_owned(),
                         runx_contracts::JsonValue::String("checkout".to_owned()),
@@ -1161,16 +1158,16 @@ mod tests {
                 )),
                 response: RuntimeHttpResponse::new(200, "exact checkout"),
             },
-            RuntimeHarnessHttpExchange {
+            RuntimeTestHttpExchange {
                 method: HttpMethod::Delete,
                 url: url.to_owned(),
-                body: RuntimeHarnessHttpRequestBody::None,
+                body: RuntimeTestHttpRequestBody::None,
                 response: RuntimeHttpResponse::new(204, ""),
             },
-            RuntimeHarnessHttpExchange {
+            RuntimeTestHttpExchange {
                 method: HttpMethod::Delete,
                 url: url.to_owned(),
-                body: RuntimeHarnessHttpRequestBody::Json(runx_contracts::JsonValue::Null),
+                body: RuntimeTestHttpRequestBody::Json(runx_contracts::JsonValue::Null),
                 response: RuntimeHttpResponse::new(200, "json null"),
             },
         ]);

@@ -1,0 +1,17 @@
+{
+  "skill_name": "lead-qualify",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Does this already known lead fit our ICP? I am not asking to contact them.",
+      "expected_output": "Assess the actual supplied criteria and return fit without requiring or fabricating contact policy.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Qualify this lead against the supplied ICP using the admitted facts and separate contact-policy evidence.",
+      "expected_output": "Return a fit decision and bounded next action; acquire no facts and draft or send no message.",
+      "files": []
+    }
+  ]
+}

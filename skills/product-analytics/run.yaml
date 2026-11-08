@@ -1,37 +1,26 @@
-skill: product-analytics
 version: "0.1.6"
+minimum_runx: 0.12.0
+default_method: review
 catalog:
-  kind: graph
-  audience: public
   visibility: public
-  role: canonical
-  execution: read
-  completion: runtime_receipt
-  approval: none
   category: data
-runners:
+methods:
   analyze:
     description: "Calculate and interpret supplied product reports without provider calls or reconstructed measurement definitions."
-    default: false
     inputs:
       objective:
         type: string
-        required: true
         description: Bounded product decision to support.
-        schema:
-          minLength: 1
-          maxLength: 2000
-      reports:
-        definition: reports
+        minLength: 1
+        maxLength: 2000
+      reports: {}
       collection_notes:
         type: array
-        required: false
         default: []
-        description: Actual source acquisition gaps, selection limits, sampling and cache caveats, preserved with
-          useful measurements.
-        schema:
-          items:
-            type: string
+        description: Actual source acquisition gaps, selection limits, sampling and cache caveats, preserved with useful measurements.
+        items:
+          type: string
+        optional: true
     result_from:
       - calculate
       - finalize
@@ -47,43 +36,633 @@ runners:
         outputs:
           metric_context:
             type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - objective
-                - reports
-                - comparison
-                - source_digests
-                - blockers
-                - comparison_blockers
-                - collection_notes
-              properties:
-                decision:
-                  enum:
-                    - ready
-                    - needs_more_evidence
-                objective:
+            additionalProperties: false
+            required:
+              - decision
+              - objective
+              - reports
+              - comparison
+              - source_digests
+              - blockers
+              - comparison_blockers
+              - collection_notes
+            properties:
+              decision:
+                enum:
+                  - ready
+                  - needs_more_evidence
+              objective:
+                type: string
+                minLength: 1
+                maxLength: 2000
+              reports:
+                type: array
+                maxItems: 2
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - name
+                    - window
+                    - definition
+                    - observed_at
+                    - source_digest
+                    - complete
+                    - funnel
+                    - retention
+                    - estimated
+                    - comparison_eligible
+                  properties:
+                    name:
+                      enum:
+                        - current
+                        - baseline
+                    window:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - start_at
+                        - end_at
+                      properties:
+                        start_at:
+                          type: string
+                          format: date-time
+                        end_at:
+                          type: string
+                          format: date-time
+                    definition:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - product
+                        - identity
+                        - time_zone
+                        - cohort
+                        - filters
+                        - funnel_rule
+                        - retention_rule
+                      properties:
+                        product:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        identity:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        time_zone:
+                          type: string
+                          minLength: 1
+                          maxLength: 100
+                        cohort:
+                          type: string
+                          minLength: 1
+                          maxLength: 2000
+                        filters:
+                          type: string
+                          minLength: 1
+                          maxLength: 2000
+                        funnel_rule:
+                          type: string
+                          minLength: 1
+                          maxLength: 2000
+                        retention_rule:
+                          type: string
+                          minLength: 1
+                          maxLength: 2000
+                    observed_at:
+                      type: string
+                      format: date-time
+                    source_digest:
+                      type: string
+                      pattern: ^sha256:[0-9a-f]{64}$
+                    complete:
+                      type: boolean
+                    funnel:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - event
+                          - count
+                          - conversion_from_entry
+                          - conversion_from_previous
+                          - lost_from_previous
+                        properties:
+                          event:
+                            type: string
+                            minLength: 1
+                            maxLength: 300
+                          count:
+                            type: number
+                            minimum: 0
+                            maximum: 9007199254740991
+                          conversion_from_entry:
+                            type:
+                              - number
+                              - "null"
+                            minimum: 0
+                            maximum: 1
+                          conversion_from_previous:
+                            type:
+                              - number
+                              - "null"
+                            minimum: 0
+                            maximum: 1
+                          lost_from_previous:
+                            type:
+                              - number
+                              - "null"
+                            minimum: 0
+                            maximum: 9007199254740991
+                    retention:
+                      type:
+                        - object
+                        - "null"
+                      additionalProperties: false
+                      required:
+                        - period
+                        - eligible
+                        - returned
+                        - rate
+                      properties:
+                        period:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        eligible:
+                          type: number
+                          minimum: 0
+                          maximum: 9007199254740991
+                        returned:
+                          type: number
+                          minimum: 0
+                          maximum: 9007199254740991
+                        rate:
+                          type:
+                            - number
+                            - "null"
+                          minimum: 0
+                          maximum: 1
+                    estimated:
+                      type: boolean
+                    comparison_eligible:
+                      type: boolean
+                    measurement_context:
+                      type: object
+                      required:
+                        - provider
+                        - title
+                        - description
+                        - query
+                        - source_artifact
+                      properties:
+                        provider:
+                          type: string
+                          minLength: 1
+                        title:
+                          type: string
+                        description:
+                          type: string
+                        query:
+                          type: object
+                          additionalProperties: true
+                        source_artifact:
+                          additionalProperties: false
+                          properties:
+                            bytes:
+                              minimum: 0
+                              type: integer
+                            digest:
+                              type: string
+                            media_type:
+                              type: string
+                            path:
+                              type: string
+                            schema:
+                              enum:
+                                - runx.project_artifact.v1
+                              title: ProjectArtifactSchema
+                              type: string
+                            uri:
+                              description: "`runx:project-artifact:` and the artifact's digest."
+                              type: string
+                          required:
+                            - schema
+                            - uri
+                            - digest
+                            - bytes
+                            - media_type
+                            - path
+                          title: ProjectArtifact
+                          type: object
+                          x-runx-packet: true
+                          x-runx-schema: runx.project_artifact.v1
+                      additionalProperties: false
+              comparison:
+                type:
+                  - object
+                  - "null"
+                additionalProperties: false
+                required:
+                  - funnel
+                  - retention_change_percentage_points
+                properties:
+                  funnel:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - event
+                        - conversion_change_percentage_points
+                      properties:
+                        event:
+                          type: string
+                          minLength: 1
+                          maxLength: 300
+                        conversion_change_percentage_points:
+                          type:
+                            - number
+                            - "null"
+                          minimum: -100
+                          maximum: 100
+                  retention_change_percentage_points:
+                    type:
+                      - number
+                      - "null"
+                    minimum: -100
+                    maximum: 100
+              source_digests:
+                type: array
+                minItems: 0
+                maxItems: 2
+                uniqueItems: true
+                items:
+                  type: string
+                  pattern: ^sha256:[0-9a-f]{64}$
+              blockers:
+                type: array
+                maxItems: 40
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+              comparison_blockers:
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+              collection_notes:
+                type: array
+                items:
+                  type: string
+      - id: digest
+        when:
+          value: $steps.calculate.metric_context.decision
+          equals: ready
+        tool: data.digest
+        inputs:
+          value: $steps.calculate.metric_context
+      - id: analyze
+        when:
+          value: $steps.calculate.metric_context.decision
+          equals: ready
+        agent: product-analytics-analyze
+        inputs:
+          metric_context: $steps.calculate.metric_context
+        outputs:
+          analytics_candidate:
+            type: object
+            additionalProperties: false
+            required:
+              - decision
+              - objective
+              - summary
+              - findings
+              - limitations
+            properties:
+              decision:
+                enum:
+                  - ready
+                  - needs_more_evidence
+              objective:
+                type: string
+                minLength: 1
+                maxLength: 2000
+              summary:
+                type: string
+                maxLength: 4000
+              findings:
+                type: array
+                maxItems: 30
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - claim
+                    - kind
+                    - source_digests
+                  properties:
+                    claim:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    kind:
+                      enum:
+                        - observed
+                        - hypothesis
+                        - action
+                    source_digests:
+                      type: array
+                      minItems: 1
+                      maxItems: 2
+                      uniqueItems: true
+                      items:
+                        type: string
+                        pattern: ^sha256:[0-9a-f]{64}$
+                    measurement:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    owner_role:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    stop_condition:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                  if:
+                    properties:
+                      kind:
+                        const: action
+                  then:
+                    required:
+                      - measurement
+                      - owner_role
+                      - stop_condition
+              limitations:
+                type: array
+                maxItems: 40
+                items:
                   type: string
                   minLength: 1
                   maxLength: 2000
-                reports:
-                  type: array
-                  maxItems: 2
-                  items:
-                    type: object
+      - id: finalize
+        when:
+          value: $steps.calculate.metric_context.decision
+          equals: ready
+        tool: evidence.verify_artifact
+        inputs:
+          artifact_name: product_analytics_review
+          candidate: $steps.analyze.analytics_candidate
+          claim_bindings: $steps.analyze.analytics_candidate.findings
+          source_digests: $steps.calculate.metric_context.source_digests
+          required_paths:
+            - summary
+          required_value_bindings:
+            - candidate_path: objective
+              source_path: objective
+          identity_source: $steps.calculate.metric_context
+          authoritative_fields:
+            external_status: not_executed
+            measurement_digest: $steps.digest.digest_result.digest
+          fallback_artifact:
+            decision: needs_more_evidence
+            objective: ""
+            summary: Interpretation withheld because its evidence bindings did not validate.
+            findings: []
+            limitations: []
+            external_status: not_executed
+            measurement_digest: $steps.digest.digest_result.digest
+          fallback_bindings:
+            - target_path: objective
+              source_path: objective
+            - target_path: limitations
+              source_path: blockers
+            - target_path: source_notes
+              source_path: collection_notes
+          fallback_source: $steps.calculate.metric_context
+          authoritative_source: $steps.calculate.metric_context
+          authoritative_bindings:
+            - target_path: source_notes
+              source_path: collection_notes
+        outputs:
+          product_analytics_review:
+            type: object
+            additionalProperties: false
+            required:
+              - decision
+              - objective
+              - summary
+              - findings
+              - limitations
+              - external_status
+              - validation
+              - measurement_digest
+              - source_notes
+            properties:
+              decision:
+                enum:
+                  - ready
+                  - needs_more_evidence
+              objective:
+                type: string
+                minLength: 1
+                maxLength: 2000
+              summary:
+                type: string
+                maxLength: 4000
+              findings:
+                type: array
+                maxItems: 30
+                items:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - claim
+                    - kind
+                    - source_digests
+                  properties:
+                    claim:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    kind:
+                      enum:
+                        - observed
+                        - hypothesis
+                        - action
+                    source_digests:
+                      type: array
+                      minItems: 1
+                      maxItems: 2
+                      uniqueItems: true
+                      items:
+                        type: string
+                        pattern: ^sha256:[0-9a-f]{64}$
+                    measurement:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                    owner_role:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    stop_condition:
+                      type: string
+                      minLength: 1
+                      maxLength: 2000
+                  if:
+                    properties:
+                      kind:
+                        const: action
+                  then:
+                    required:
+                      - measurement
+                      - owner_role
+                      - stop_condition
+              limitations:
+                type: array
+                maxItems: 40
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+              external_status:
+                const: not_executed
+              validation:
+                type: object
+                additionalProperties: true
+                required:
+                  - status
+                  - findings
+                properties:
+                  status:
+                    enum:
+                      - pass
+                      - fail
+                  findings:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+              measurement_digest:
+                type: string
+                pattern: ^sha256:[0-9a-f]{64}$
+              source_notes:
+                type: array
+                items:
+                  type: string
+    examples:
+      - objective: Find activation gaps
+        reports:
+          - name: current
+            complete: true
+            source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            observed_at: 2026-10-09T00:00:00Z
+            window:
+              start_at: 2026-09-01T00:00:00Z
+              end_at: 2026-09-08T00:00:00Z
+            definition:
+              product: Example
+              identity: account
+              time_zone: UTC
+              cohort: new accounts
+              filters: exclude test accounts
+              funnel_rule: same accounts, ordered within seven days
+              retention_rule: active on day seven
+            funnel:
+              steps:
+                - event: signup
+                  count: 100
+                - event: activated
+                  count: 75
+            retention:
+              period: day 7
+              eligible: 80
+              returned: 40
+  normalize-posthog:
+    description: Reuse one retained PostHog insight.read packet artifact. Validate cached definitions and normalize actual funnel or mature retention counts without provider calls.
+    inputs:
+      artifact:
+        packet: runx.project_artifact.v1
+        description: Exact native artifact of the completed PostHog insight.read packet.
+      name:
+        type: string
+        description: Measurement role in the analysis.
+        enum:
+          - current
+          - baseline
+      return_interval: {}
+    result_from:
+      - bind
+    steps:
+      - id: provider-open
+        tool: artifact.open
+        inputs:
+          artifact: $input.artifact
+      - id: provider-read
+        tool: artifact.read
+        inputs:
+          artifact_uri: $steps.provider-open.local_artifact.artifact_uri
+          encoding: utf8
+          offset: 0
+          max_bytes: 2097152
+      - id: prepare
+        tool:
+          module: posthog.mjs
+          export: preparePosthog
+          requires:
+            - parseData
+        inputs:
+          page: $steps.provider-read.artifact_page
+          name: $input.name
+          return_interval: $input.return_interval
+          artifact: $input.artifact
+        outputs:
+          source_admission: {type: object}
+          query_semantics:
+            type: object
+            additionalProperties: true
+      - id: semantic-digest
+        tool: data.digest
+        inputs:
+          value: $steps.prepare.query_semantics
+      - id: bind
+        tool:
+          module: posthog.mjs
+          export: bindPosthog
+        inputs:
+          source_admission: $steps.prepare.source_admission
+          semantic_digest: $steps.semantic-digest.digest_result.digest
+        outputs:
+          source_admission:
+            type: object
+            required:
+              - name
+              - report
+              - blockers
+              - notes
+              - source
+            properties:
+              name:
+                enum:
+                  - current
+                  - baseline
+              report:
+                anyOf:
+                  - type: object
                     additionalProperties: false
                     required:
                       - name
                       - window
                       - definition
-                      - observed_at
                       - source_digest
+                      - observed_at
                       - complete
-                      - funnel
-                      - retention
-                      - estimated
-                      - comparison_eligible
                     properties:
                       name:
                         enum:
@@ -142,62 +721,45 @@ runners:
                             type: string
                             minLength: 1
                             maxLength: 2000
-                      observed_at:
-                        type: string
-                        format: date-time
                       source_digest:
                         type: string
                         pattern: ^sha256:[0-9a-f]{64}$
+                      observed_at:
+                        type: string
+                        format: date-time
                       complete:
                         type: boolean
                       funnel:
-                        type: array
-                        items:
-                          type: object
-                          additionalProperties: false
-                          required:
-                            - event
-                            - count
-                            - conversion_from_entry
-                            - conversion_from_previous
-                            - lost_from_previous
-                          properties:
-                            event:
-                              type: string
-                              minLength: 1
-                              maxLength: 300
-                            count:
-                              type: number
-                              minimum: 0
-                              maximum: 9007199254740991
-                            conversion_from_entry:
-                              type:
-                                - number
-                                - "null"
-                              minimum: 0
-                              maximum: 1
-                            conversion_from_previous:
-                              type:
-                                - number
-                                - "null"
-                              minimum: 0
-                              maximum: 1
-                            lost_from_previous:
-                              type:
-                                - number
-                                - "null"
-                              minimum: 0
-                              maximum: 9007199254740991
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - steps
+                        properties:
+                          steps:
+                            type: array
+                            minItems: 2
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required:
+                                - event
+                                - count
+                              properties:
+                                event:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 300
+                                count:
+                                  type: number
+                                  minimum: 0
+                                  maximum: 9007199254740991
                       retention:
-                        type:
-                          - object
-                          - "null"
+                        type: object
                         additionalProperties: false
                         required:
                           - period
                           - eligible
                           - returned
-                          - rate
                         properties:
                           period:
                             type: string
@@ -211,12 +773,6 @@ runners:
                             type: number
                             minimum: 0
                             maximum: 9007199254740991
-                          rate:
-                            type:
-                              - number
-                              - "null"
-                            minimum: 0
-                            maximum: 1
                       estimated:
                         type: boolean
                       comparison_eligible:
@@ -272,674 +828,81 @@ runners:
                             x-runx-packet: true
                             x-runx-schema: runx.project_artifact.v1
                         additionalProperties: false
-                comparison:
-                  type:
-                    - object
-                    - "null"
-                  additionalProperties: false
-                  required:
-                    - funnel
-                    - retention_change_percentage_points
-                  properties:
-                    funnel:
-                      type: array
-                      items:
-                        type: object
-                        additionalProperties: false
-                        required:
-                          - event
-                          - conversion_change_percentage_points
-                        properties:
-                          event:
-                            type: string
-                            minLength: 1
-                            maxLength: 300
-                          conversion_change_percentage_points:
-                            type:
-                              - number
-                              - "null"
-                            minimum: -100
-                            maximum: 100
-                    retention_change_percentage_points:
-                      type:
-                        - number
-                        - "null"
-                      minimum: -100
-                      maximum: 100
-                source_digests:
-                  type: array
-                  minItems: 0
-                  maxItems: 2
-                  uniqueItems: true
-                  items:
-                    type: string
-                    pattern: ^sha256:[0-9a-f]{64}$
-                blockers:
-                  type: array
-                  maxItems: 40
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 1000
-                comparison_blockers:
-                  type: array
-                  items:
-                    type: string
-                    minLength: 1
-                collection_notes:
-                  type: array
-                  items:
-                    type: string
-      - id: digest
-        when:
-          value: $steps.calculate.metric_context.decision
-          equals: ready
-        tool: data.digest
-        inputs:
-          value: $steps.calculate.metric_context
-      - id: analyze
-        when:
-          value: $steps.calculate.metric_context.decision
-          equals: ready
-        agent:
-          role: product_analyst
-          task: product-analytics-analyze
-        inputs:
-          metric_context: $steps.calculate.metric_context
-        outputs:
-          analytics_candidate:
-            type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - objective
-                - summary
-                - findings
-                - limitations
-              properties:
-                decision:
-                  enum:
-                    - ready
-                    - needs_more_evidence
-                objective:
+                    anyOf:
+                      - required:
+                          - funnel
+                      - required:
+                          - retention
+                  - type: "null"
+              blockers:
+                type: array
+                items:
                   type: string
-                  minLength: 1
-                  maxLength: 2000
-                summary:
+              notes:
+                type: array
+                items:
                   type: string
-                  maxLength: 4000
-                findings:
-                  type: array
-                  maxItems: 30
-                  items:
-                    type: object
+              source:
+                type: object
+                required:
+                  - artifact_digest
+                  - provider
+                  - target
+                  - observed_at
+                  - readback_uri
+                  - artifact
+                properties:
+                  artifact_digest:
+                    type: string
+                  provider:
+                    type:
+                      - string
+                      - "null"
+                  target:
+                    type:
+                      - string
+                      - "null"
+                  observed_at:
+                    type:
+                      - string
+                      - "null"
+                  readback_uri:
+                    type:
+                      - string
+                      - "null"
+                  artifact:
                     additionalProperties: false
-                    required:
-                      - claim
-                      - kind
-                      - source_digests
                     properties:
-                      claim:
+                      bytes:
+                        minimum: 0
+                        type: integer
+                      digest:
                         type: string
-                        minLength: 1
-                        maxLength: 2000
-                      kind:
+                      media_type:
+                        type: string
+                      path:
+                        type: string
+                      schema:
                         enum:
-                          - observed
-                          - hypothesis
-                          - action
-                      source_digests:
-                        type: array
-                        minItems: 1
-                        maxItems: 2
-                        uniqueItems: true
-                        items:
-                          type: string
-                          pattern: ^sha256:[0-9a-f]{64}$
-                      measurement:
+                          - runx.project_artifact.v1
+                        title: ProjectArtifactSchema
                         type: string
-                        minLength: 1
-                        maxLength: 2000
-                      owner_role:
+                      uri:
+                        description: "`runx:project-artifact:` and the artifact's digest."
                         type: string
-                        minLength: 1
-                        maxLength: 200
-                      stop_condition:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
-                    if:
-                      properties:
-                        kind:
-                          const: action
-                    then:
-                      required:
-                        - measurement
-                        - owner_role
-                        - stop_condition
-                limitations:
-                  type: array
-                  maxItems: 40
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 2000
-      - id: finalize
-        when:
-          value: $steps.calculate.metric_context.decision
-          equals: ready
-        tool: evidence.verify_artifact
-        inputs:
-          artifact_name: product_analytics_review
-          candidate: $steps.analyze.analytics_candidate
-          claim_bindings: $steps.analyze.analytics_candidate.findings
-          source_digests: $steps.calculate.metric_context.source_digests
-          required_paths:
-            - summary
-          required_value_bindings:
-            - candidate_path: objective
-              source_path: objective
-          identity_source: $steps.calculate.metric_context
-          authoritative_fields:
-            external_status: not_executed
-            measurement_digest: $steps.digest.digest_result.digest
-          fallback_artifact:
-            decision: needs_more_evidence
-            objective: ""
-            summary: Interpretation withheld because its evidence bindings did not validate.
-            findings: []
-            limitations: []
-            external_status: not_executed
-            measurement_digest: $steps.digest.digest_result.digest
-          fallback_bindings:
-            - target_path: objective
-              source_path: objective
-            - target_path: limitations
-              source_path: blockers
-            - target_path: source_notes
-              source_path: collection_notes
-          fallback_source: $steps.calculate.metric_context
-          authoritative_source: $steps.calculate.metric_context
-          authoritative_bindings:
-            - target_path: source_notes
-              source_path: collection_notes
-        outputs:
-          product_analytics_review:
-            type: object
-            schema:
-              additionalProperties: false
-              required:
-                - decision
-                - objective
-                - summary
-                - findings
-                - limitations
-                - external_status
-                - validation
-                - measurement_digest
-                - source_notes
-              properties:
-                decision:
-                  enum:
-                    - ready
-                    - needs_more_evidence
-                objective:
-                  type: string
-                  minLength: 1
-                  maxLength: 2000
-                summary:
-                  type: string
-                  maxLength: 4000
-                findings:
-                  type: array
-                  maxItems: 30
-                  items:
+                    required:
+                      - schema
+                      - uri
+                      - digest
+                      - bytes
+                      - media_type
+                      - path
+                    title: ProjectArtifact
                     type: object
-                    additionalProperties: false
-                    required:
-                      - claim
-                      - kind
-                      - source_digests
-                    properties:
-                      claim:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
-                      kind:
-                        enum:
-                          - observed
-                          - hypothesis
-                          - action
-                      source_digests:
-                        type: array
-                        minItems: 1
-                        maxItems: 2
-                        uniqueItems: true
-                        items:
-                          type: string
-                          pattern: ^sha256:[0-9a-f]{64}$
-                      measurement:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
-                      owner_role:
-                        type: string
-                        minLength: 1
-                        maxLength: 200
-                      stop_condition:
-                        type: string
-                        minLength: 1
-                        maxLength: 2000
-                    if:
-                      properties:
-                        kind:
-                          const: action
-                    then:
-                      required:
-                        - measurement
-                        - owner_role
-                        - stop_condition
-                limitations:
-                  type: array
-                  maxItems: 40
-                  items:
-                    type: string
-                    minLength: 1
-                    maxLength: 2000
-                external_status:
-                  const: not_executed
-                validation:
-                  type: object
-                  additionalProperties: true
-                  required:
-                    - status
-                    - findings
-                  properties:
-                    status:
-                      enum:
-                        - pass
-                        - fail
-                    findings:
-                      type: array
-                      items:
-                        type: object
-                        additionalProperties: true
-                measurement_digest:
-                  type: string
-                  pattern: ^sha256:[0-9a-f]{64}$
-                source_notes:
-                  type: array
-                  items:
-                    type: string
-        artifacts:
-          named_emits:
-            product_analytics_review: product_analytics_review
-        scopes:
-          - runx:evidence:read
-    examples:
-      - objective: Find activation gaps
-        reports:
-          - name: current
-            complete: true
-            source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-            observed_at: 2026-10-09T00:00:00Z
-            window:
-              start_at: 2026-09-01T00:00:00Z
-              end_at: 2026-09-08T00:00:00Z
-            definition:
-              product: Example
-              identity: account
-              time_zone: UTC
-              cohort: new accounts
-              filters: exclude test accounts
-              funnel_rule: same accounts, ordered within seven days
-              retention_rule: active on day seven
-            funnel:
-              steps:
-                - event: signup
-                  count: 100
-                - event: activated
-                  count: 75
-            retention:
-              period: day 7
-              eligible: 80
-              returned: 40
-    operations: []
-    skills: []
-    tools: []
-    asks: false
-  normalize-posthog:
-    description: Reuse one retained PostHog insight.read packet artifact. Validate cached definitions and
-      normalize actual funnel or mature retention counts without provider calls.
-    inputs:
-      artifact:
-        type: json
-        packet: runx.project_artifact.v1
-        required: true
-        description: Exact native artifact of the completed PostHog insight.read packet.
-      name:
-        type: string
-        required: true
-        description: Measurement role in the analysis.
-        schema:
-          enum:
-            - current
-            - baseline
-      return_interval:
-        definition: return_interval
-    result_from:
-      - bind
-    steps:
-      - id: provider-open
-        tool: artifact.open
-        scopes:
-          - artifact.read
-        inputs:
-          artifact: $input.artifact
-      - id: provider-read
-        tool: artifact.read
-        scopes:
-          - fs.read
-        inputs:
-          artifact_uri: $steps.provider-open.local_artifact.artifact_uri
-          encoding: utf8
-          offset: 0
-          max_bytes: 2097152
-      - id: prepare
-        tool:
-          module: posthog.mjs
-          export: preparePosthog
-          requires:
-            - parseData
-        inputs:
-          page: $steps.provider-read.artifact_page
-          name: $input.name
-          return_interval: $input.return_interval
-          artifact: $input.artifact
-        outputs:
-          source_admission: object
-          query_semantics:
-            type: object
-            schema:
-              additionalProperties: true
-      - id: semantic-digest
-        tool: data.digest
-        inputs:
-          value: $steps.prepare.query_semantics
-      - id: bind
-        tool:
-          module: posthog.mjs
-          export: bindPosthog
-        inputs:
-          source_admission: $steps.prepare.source_admission
-          semantic_digest: $steps.semantic-digest.digest_result.digest
-        outputs:
-          source_admission:
-            type: object
-            schema:
-              required:
-                - name
-                - report
-                - blockers
-                - notes
-                - source
-              properties:
-                name:
-                  enum:
-                    - current
-                    - baseline
-                report:
-                  anyOf:
-                    - type: object
-                      additionalProperties: false
-                      required:
-                        - name
-                        - window
-                        - definition
-                        - source_digest
-                        - observed_at
-                        - complete
-                      properties:
-                        name:
-                          enum:
-                            - current
-                            - baseline
-                        window:
-                          type: object
-                          additionalProperties: false
-                          required:
-                            - start_at
-                            - end_at
-                          properties:
-                            start_at:
-                              type: string
-                              format: date-time
-                            end_at:
-                              type: string
-                              format: date-time
-                        definition:
-                          type: object
-                          additionalProperties: false
-                          required:
-                            - product
-                            - identity
-                            - time_zone
-                            - cohort
-                            - filters
-                            - funnel_rule
-                            - retention_rule
-                          properties:
-                            product:
-                              type: string
-                              minLength: 1
-                              maxLength: 200
-                            identity:
-                              type: string
-                              minLength: 1
-                              maxLength: 200
-                            time_zone:
-                              type: string
-                              minLength: 1
-                              maxLength: 100
-                            cohort:
-                              type: string
-                              minLength: 1
-                              maxLength: 2000
-                            filters:
-                              type: string
-                              minLength: 1
-                              maxLength: 2000
-                            funnel_rule:
-                              type: string
-                              minLength: 1
-                              maxLength: 2000
-                            retention_rule:
-                              type: string
-                              minLength: 1
-                              maxLength: 2000
-                        source_digest:
-                          type: string
-                          pattern: ^sha256:[0-9a-f]{64}$
-                        observed_at:
-                          type: string
-                          format: date-time
-                        complete:
-                          type: boolean
-                        funnel:
-                          type: object
-                          additionalProperties: false
-                          required:
-                            - steps
-                          properties:
-                            steps:
-                              type: array
-                              minItems: 2
-                              items:
-                                type: object
-                                additionalProperties: false
-                                required:
-                                  - event
-                                  - count
-                                properties:
-                                  event:
-                                    type: string
-                                    minLength: 1
-                                    maxLength: 300
-                                  count:
-                                    type: number
-                                    minimum: 0
-                                    maximum: 9007199254740991
-                        retention:
-                          type: object
-                          additionalProperties: false
-                          required:
-                            - period
-                            - eligible
-                            - returned
-                          properties:
-                            period:
-                              type: string
-                              minLength: 1
-                              maxLength: 200
-                            eligible:
-                              type: number
-                              minimum: 0
-                              maximum: 9007199254740991
-                            returned:
-                              type: number
-                              minimum: 0
-                              maximum: 9007199254740991
-                        estimated:
-                          type: boolean
-                        comparison_eligible:
-                          type: boolean
-                        measurement_context:
-                          type: object
-                          required:
-                            - provider
-                            - title
-                            - description
-                            - query
-                            - source_artifact
-                          properties:
-                            provider:
-                              type: string
-                              minLength: 1
-                            title:
-                              type: string
-                            description:
-                              type: string
-                            query:
-                              type: object
-                              additionalProperties: true
-                            source_artifact:
-                              additionalProperties: false
-                              properties:
-                                bytes:
-                                  minimum: 0
-                                  type: integer
-                                digest:
-                                  type: string
-                                media_type:
-                                  type: string
-                                path:
-                                  type: string
-                                schema:
-                                  enum:
-                                    - runx.project_artifact.v1
-                                  title: ProjectArtifactSchema
-                                  type: string
-                                uri:
-                                  description: "`runx:project-artifact:` and the artifact's digest."
-                                  type: string
-                              required:
-                                - schema
-                                - uri
-                                - digest
-                                - bytes
-                                - media_type
-                                - path
-                              title: ProjectArtifact
-                              type: object
-                              x-runx-packet: true
-                              x-runx-schema: runx.project_artifact.v1
-                          additionalProperties: false
-                      anyOf:
-                        - required:
-                            - funnel
-                        - required:
-                            - retention
-                    - type: "null"
-                blockers:
-                  type: array
-                  items:
-                    type: string
-                notes:
-                  type: array
-                  items:
-                    type: string
-                source:
-                  type: object
-                  required:
-                    - artifact_digest
-                    - provider
-                    - target
-                    - observed_at
-                    - readback_uri
-                    - artifact
-                  properties:
-                    artifact_digest:
-                      type: string
-                    provider:
-                      type:
-                        - string
-                        - "null"
-                    target:
-                      type:
-                        - string
-                        - "null"
-                    observed_at:
-                      type:
-                        - string
-                        - "null"
-                    readback_uri:
-                      type:
-                        - string
-                        - "null"
-                    artifact:
-                      additionalProperties: false
-                      properties:
-                        bytes:
-                          minimum: 0
-                          type: integer
-                        digest:
-                          type: string
-                        media_type:
-                          type: string
-                        path:
-                          type: string
-                        schema:
-                          enum:
-                            - runx.project_artifact.v1
-                          title: ProjectArtifactSchema
-                          type: string
-                        uri:
-                          description: "`runx:project-artifact:` and the artifact's digest."
-                          type: string
-                      required:
-                        - schema
-                        - uri
-                        - digest
-                        - bytes
-                        - media_type
-                        - path
-                      title: ProjectArtifact
-                      type: object
-                      x-runx-packet: true
-                      x-runx-schema: runx.project_artifact.v1
-                  additionalProperties: false
-              additionalProperties: false
+                    x-runx-packet: true
+                    x-runx-schema: runx.project_artifact.v1
+                additionalProperties: false
+            additionalProperties: false
     examples:
       - artifact:
           schema: runx.project_artifact.v1
@@ -951,44 +914,35 @@ runners:
         name: current
         return_interval: 1
   read-posthog:
-    description: Read one exact saved PostHog insight through the selected account, retain the packet, and
-      normalize its cached measurement. Does not refresh the query.
+    description: Read one exact saved PostHog insight through the selected account, retain the packet, and normalize its cached measurement. Does not refresh the query.
     inputs:
       insight_id:
         type: string
-        required: true
-        description: Provider numeric id or short_id, as returned by saved-insight discovery or extracted from the
-          supplied URL.
-        schema:
-          pattern: ^[A-Za-z0-9_-]+$
+        description: Provider numeric id or short_id, as returned by saved-insight discovery or extracted from the supplied URL.
+        pattern: ^[A-Za-z0-9_-]+$
       name:
         type: string
-        required: false
         default: current
         description: Current or baseline measurement.
-        schema:
-          enum:
-            - current
-            - baseline
-      return_interval:
-        definition: return_interval
+        enum:
+          - current
+          - baseline
+        optional: true
+      return_interval: {}
     result_from:
       - save
       - normalize
     steps:
       - id: read
         operation: posthog/insight.read
-        input:
+        inputs:
           insight_id: $input.insight_id
       - id: save
         tool: artifact.store
-        scopes:
-          - artifact.write
         inputs:
           value: $steps.read.provider_operation
       - id: normalize
-        skill: .
-        runner: normalize-posthog
+        skill: .#normalize-posthog
         inputs:
           artifact: $steps.save.project_artifact
           name: $input.name
@@ -998,20 +952,15 @@ runners:
         name: current
         return_interval: 1
   from-posthog:
-    description: Normalize retained current and optional baseline provider artifacts, then interpret usable
-      measurements without repeating provider reads.
+    description: Normalize retained current and optional baseline provider artifacts, then interpret usable measurements without repeating provider reads.
     inputs:
       objective:
         type: string
-        required: true
         description: Bounded product decision to support.
-        schema:
-          minLength: 1
-          maxLength: 2000
-      selection:
-        definition: selection
-      return_interval:
-        definition: return_interval
+        minLength: 1
+        maxLength: 2000
+      selection: {}
+      return_interval: {}
     result_from:
       - merge-current
       - analyze-current
@@ -1027,20 +976,18 @@ runners:
         inputs:
           selection: $input.selection
         outputs:
-          has_current: boolean
+          has_current: {type: boolean}
           mode:
             type: string
-            schema:
-              enum:
-                - none
-                - current
-                - both
+            enum:
+              - none
+              - current
+              - both
       - id: current
         when:
           value: $steps.select-sources.has_current
           equals: true
-        skill: .
-        runner: normalize-posthog
+        skill: .#normalize-posthog
         inputs:
           artifact: $input.selection.current
           name: current
@@ -1049,8 +996,7 @@ runners:
         when:
           value: $steps.select-sources.mode
           equals: both
-        skill: .
-        runner: normalize-posthog
+        skill: .#normalize-posthog
         inputs:
           artifact: $input.selection.baseline
           name: baseline
@@ -1074,8 +1020,7 @@ runners:
           source_admissions:
             type: array
       - id: analyze-current
-        skill: .
-        runner: analyze
+        skill: .#analyze
         inputs:
           objective: $input.objective
           reports: $steps.merge-current.reports
@@ -1102,8 +1047,7 @@ runners:
           source_admissions:
             type: array
       - id: analyze-both
-        skill: .
-        runner: analyze
+        skill: .#analyze
         inputs:
           objective: $input.objective
           reports: $steps.merge-both.reports
@@ -1130,8 +1074,7 @@ runners:
           source_admissions:
             type: array
       - id: analyze-none
-        skill: .
-        runner: analyze
+        skill: .#analyze
         inputs:
           objective: $input.objective
           reports: $steps.merge-none.reports
@@ -1153,48 +1096,38 @@ runners:
           notes: []
         return_interval: 1
   review:
-    default: true
-    description: Review a product funnel or retention objective. Reuse supplied aggregates, or collect the
-      selected PostHog saved insights and preserve every acquisition gap.
+    description: Review a product funnel or retention objective. Reuse supplied aggregates, or collect the selected PostHog saved insights and preserve every acquisition gap.
     inputs:
       objective:
         type: string
-        required: true
         description: Bounded product decision to support.
-        schema:
-          minLength: 1
-          maxLength: 2000
-      reports:
-        definition: reports
+        minLength: 1
+        maxLength: 2000
+      reports: {}
       source_context:
         type: object
-        required: false
         default: {}
-        description: Known saved-insight ids, titles or search terms for the selected project. Empty context permits
-          bounded discovery but never guessed events or counts.
-        schema:
-          additionalProperties: false
-          properties:
-            current_insight_id:
-              type: string
-              pattern: ^[A-Za-z0-9_-]+$
-            baseline_insight_id:
-              type: string
-              pattern: ^[A-Za-z0-9_-]+$
-            search:
-              type: string
-              minLength: 1
-      return_interval:
-        definition: return_interval
+        description: Known saved-insight ids, titles or search terms for the selected project. Empty context permits bounded discovery but never guessed events or counts.
+        additionalProperties: false
+        properties:
+          current_insight_id:
+            type: string
+            pattern: ^[A-Za-z0-9_-]+$
+          baseline_insight_id:
+            type: string
+            pattern: ^[A-Za-z0-9_-]+$
+          search:
+            type: string
+            minLength: 1
+        optional: true
+      return_interval: {}
       collection_notes:
         type: array
-        required: false
         default: []
-        description: Actual source acquisition gaps, selection limits, sampling and cache caveats, preserved with
-          useful measurements.
-        schema:
-          items:
-            type: string
+        description: Actual source acquisition gaps, selection limits, sampling and cache caveats, preserved with useful measurements.
+        items:
+          type: string
+        optional: true
     result_from:
       - reuse
       - collected
@@ -1205,8 +1138,7 @@ runners:
           actual: $input.reports
           expected: []
       - id: reuse
-        skill: .
-        runner: analyze
+        skill: .#analyze
         inputs:
           objective: $input.objective
           reports: $input.reports
@@ -1218,9 +1150,9 @@ runners:
         when:
           value: $steps.select.comparison.equal
           equals: true
-        agent:
-          role: analytics_source_selector
-          task: product-analytics-collect
+        agent: product-analytics-collect
+        calls:
+          operations: [posthog/insights.list, posthog/insight.read]
         inputs:
           objective: $input.objective
           source_context: $input.source_context
@@ -1228,86 +1160,84 @@ runners:
         outputs:
           selection:
             type: object
-            schema:
-              required:
-                - current
-                - baseline
-                - notes
-              properties:
-                current:
-                  anyOf:
-                    - additionalProperties: false
-                      properties:
-                        bytes:
-                          minimum: 0
-                          type: integer
-                        digest:
-                          type: string
-                        media_type:
-                          type: string
-                        path:
-                          type: string
-                        schema:
-                          enum:
-                            - runx.project_artifact.v1
-                          title: ProjectArtifactSchema
-                          type: string
-                        uri:
-                          description: "`runx:project-artifact:` and the artifact's digest."
-                          type: string
-                      required:
-                        - schema
-                        - uri
-                        - digest
-                        - bytes
-                        - media_type
-                        - path
-                      title: ProjectArtifact
-                      type: object
-                      x-runx-packet: true
-                      x-runx-schema: runx.project_artifact.v1
-                    - type: "null"
-                baseline:
-                  anyOf:
-                    - additionalProperties: false
-                      properties:
-                        bytes:
-                          minimum: 0
-                          type: integer
-                        digest:
-                          type: string
-                        media_type:
-                          type: string
-                        path:
-                          type: string
-                        schema:
-                          enum:
-                            - runx.project_artifact.v1
-                          title: ProjectArtifactSchema
-                          type: string
-                        uri:
-                          description: "`runx:project-artifact:` and the artifact's digest."
-                          type: string
-                      required:
-                        - schema
-                        - uri
-                        - digest
-                        - bytes
-                        - media_type
-                        - path
-                      title: ProjectArtifact
-                      type: object
-                      x-runx-packet: true
-                      x-runx-schema: runx.project_artifact.v1
-                    - type: "null"
-                notes:
-                  type: array
-                  items:
-                    type: string
-              additionalProperties: false
+            required:
+              - current
+              - baseline
+              - notes
+            properties:
+              current:
+                anyOf:
+                  - additionalProperties: false
+                    properties:
+                      bytes:
+                        minimum: 0
+                        type: integer
+                      digest:
+                        type: string
+                      media_type:
+                        type: string
+                      path:
+                        type: string
+                      schema:
+                        enum:
+                          - runx.project_artifact.v1
+                        title: ProjectArtifactSchema
+                        type: string
+                      uri:
+                        description: "`runx:project-artifact:` and the artifact's digest."
+                        type: string
+                    required:
+                      - schema
+                      - uri
+                      - digest
+                      - bytes
+                      - media_type
+                      - path
+                    title: ProjectArtifact
+                    type: object
+                    x-runx-packet: true
+                    x-runx-schema: runx.project_artifact.v1
+                  - type: "null"
+              baseline:
+                anyOf:
+                  - additionalProperties: false
+                    properties:
+                      bytes:
+                        minimum: 0
+                        type: integer
+                      digest:
+                        type: string
+                      media_type:
+                        type: string
+                      path:
+                        type: string
+                      schema:
+                        enum:
+                          - runx.project_artifact.v1
+                        title: ProjectArtifactSchema
+                        type: string
+                      uri:
+                        description: "`runx:project-artifact:` and the artifact's digest."
+                        type: string
+                    required:
+                      - schema
+                      - uri
+                      - digest
+                      - bytes
+                      - media_type
+                      - path
+                    title: ProjectArtifact
+                    type: object
+                    x-runx-packet: true
+                    x-runx-schema: runx.project_artifact.v1
+                  - type: "null"
+              notes:
+                type: array
+                items:
+                  type: string
+            additionalProperties: false
       - id: collected
-        skill: .
-        runner: from-posthog
+        skill: .#from-posthog
         inputs:
           objective: $input.objective
           selection: $steps.collect.selection
@@ -1319,295 +1249,276 @@ runners:
       - objective: Find the largest activation drop-off in this saved product funnel.
         source_context:
           current_insight_id: launch01
-    operations:
-      - posthog/insights.list
-      - posthog/insight.read
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases: []
-input_definitions:
+shared_inputs:
   reports:
     type: array
-    required: false
-    description: Current and optional baseline aggregate evidence; preserve native source digest, the measurement
-      definition that source was computed under and actual cache observation time.
-    schema:
-      minItems: 0
-      maxItems: 2
-      items:
-        type: object
-        additionalProperties: false
-        required:
-          - name
-          - window
-          - definition
-          - source_digest
-          - observed_at
-          - complete
-        properties:
-          name:
-            enum:
-              - current
-              - baseline
-          window:
-            type: object
-            additionalProperties: false
-            required:
-              - start_at
-              - end_at
-            properties:
-              start_at:
-                type: string
-                format: date-time
-              end_at:
-                type: string
-                format: date-time
-          definition:
-            type: object
-            additionalProperties: false
-            required:
-              - product
-              - identity
-              - time_zone
-              - cohort
-              - filters
-              - funnel_rule
-              - retention_rule
-            properties:
-              product:
-                type: string
-                minLength: 1
-                maxLength: 200
-              identity:
-                type: string
-                minLength: 1
-                maxLength: 200
-              time_zone:
-                type: string
-                minLength: 1
-                maxLength: 100
-              cohort:
-                type: string
-                minLength: 1
-                maxLength: 2000
-              filters:
-                type: string
-                minLength: 1
-                maxLength: 2000
-              funnel_rule:
-                type: string
-                minLength: 1
-                maxLength: 2000
-              retention_rule:
-                type: string
-                minLength: 1
-                maxLength: 2000
-          source_digest:
-            type: string
-            pattern: ^sha256:[0-9a-f]{64}$
-          observed_at:
-            type: string
-            format: date-time
-          complete:
-            type: boolean
-          funnel:
-            type: object
-            additionalProperties: false
-            required:
-              - steps
-            properties:
-              steps:
-                type: array
-                minItems: 2
-                items:
-                  type: object
-                  additionalProperties: false
-                  required:
-                    - event
-                    - count
-                  properties:
-                    event:
-                      type: string
-                      minLength: 1
-                      maxLength: 300
-                    count:
-                      type: number
-                      minimum: 0
-                      maximum: 9007199254740991
-          retention:
-            type: object
-            additionalProperties: false
-            required:
-              - period
-              - eligible
-              - returned
-            properties:
-              period:
-                type: string
-                minLength: 1
-                maxLength: 200
-              eligible:
-                type: number
-                minimum: 0
-                maximum: 9007199254740991
-              returned:
-                type: number
-                minimum: 0
-                maximum: 9007199254740991
-          estimated:
-            type: boolean
-          comparison_eligible:
-            type: boolean
-          measurement_context:
-            type: object
-            required:
-              - provider
-              - title
-              - description
-              - query
-              - source_artifact
-            properties:
-              provider:
-                type: string
-                minLength: 1
-              title:
-                type: string
-              description:
-                type: string
-              query:
-                type: object
-                additionalProperties: true
-              source_artifact:
-                additionalProperties: false
-                properties:
-                  bytes:
-                    minimum: 0
-                    type: integer
-                  digest:
-                    type: string
-                  media_type:
-                    type: string
-                  path:
-                    type: string
-                  schema:
-                    enum:
-                      - runx.project_artifact.v1
-                    title: ProjectArtifactSchema
-                    type: string
-                  uri:
-                    description: "`runx:project-artifact:` and the artifact's digest."
-                    type: string
-                required:
-                  - schema
-                  - uri
-                  - digest
-                  - bytes
-                  - media_type
-                  - path
-                title: ProjectArtifact
-                type: object
-                x-runx-packet: true
-                x-runx-schema: runx.project_artifact.v1
-            additionalProperties: false
-        anyOf:
-          - required:
-              - funnel
-          - required:
-              - retention
+    description: Current and optional baseline aggregate evidence; preserve native source digest, the measurement definition that source was computed under and actual cache observation time.
     default: []
+    minItems: 0
+    maxItems: 2
+    items:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - window
+        - definition
+        - source_digest
+        - observed_at
+        - complete
+      properties:
+        name:
+          enum:
+            - current
+            - baseline
+        window:
+          type: object
+          additionalProperties: false
+          required:
+            - start_at
+            - end_at
+          properties:
+            start_at:
+              type: string
+              format: date-time
+            end_at:
+              type: string
+              format: date-time
+        definition:
+          type: object
+          additionalProperties: false
+          required:
+            - product
+            - identity
+            - time_zone
+            - cohort
+            - filters
+            - funnel_rule
+            - retention_rule
+          properties:
+            product:
+              type: string
+              minLength: 1
+              maxLength: 200
+            identity:
+              type: string
+              minLength: 1
+              maxLength: 200
+            time_zone:
+              type: string
+              minLength: 1
+              maxLength: 100
+            cohort:
+              type: string
+              minLength: 1
+              maxLength: 2000
+            filters:
+              type: string
+              minLength: 1
+              maxLength: 2000
+            funnel_rule:
+              type: string
+              minLength: 1
+              maxLength: 2000
+            retention_rule:
+              type: string
+              minLength: 1
+              maxLength: 2000
+        source_digest:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+        observed_at:
+          type: string
+          format: date-time
+        complete:
+          type: boolean
+        funnel:
+          type: object
+          additionalProperties: false
+          required:
+            - steps
+          properties:
+            steps:
+              type: array
+              minItems: 2
+              items:
+                type: object
+                additionalProperties: false
+                required:
+                  - event
+                  - count
+                properties:
+                  event:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                  count:
+                    type: number
+                    minimum: 0
+                    maximum: 9007199254740991
+        retention:
+          type: object
+          additionalProperties: false
+          required:
+            - period
+            - eligible
+            - returned
+          properties:
+            period:
+              type: string
+              minLength: 1
+              maxLength: 200
+            eligible:
+              type: number
+              minimum: 0
+              maximum: 9007199254740991
+            returned:
+              type: number
+              minimum: 0
+              maximum: 9007199254740991
+        estimated:
+          type: boolean
+        comparison_eligible:
+          type: boolean
+        measurement_context:
+          type: object
+          required:
+            - provider
+            - title
+            - description
+            - query
+            - source_artifact
+          properties:
+            provider:
+              type: string
+              minLength: 1
+            title:
+              type: string
+            description:
+              type: string
+            query:
+              type: object
+              additionalProperties: true
+            source_artifact:
+              additionalProperties: false
+              properties:
+                bytes:
+                  minimum: 0
+                  type: integer
+                digest:
+                  type: string
+                media_type:
+                  type: string
+                path:
+                  type: string
+                schema:
+                  enum:
+                    - runx.project_artifact.v1
+                  title: ProjectArtifactSchema
+                  type: string
+                uri:
+                  description: "`runx:project-artifact:` and the artifact's digest."
+                  type: string
+              required:
+                - schema
+                - uri
+                - digest
+                - bytes
+                - media_type
+                - path
+              title: ProjectArtifact
+              type: object
+              x-runx-packet: true
+              x-runx-schema: runx.project_artifact.v1
+          additionalProperties: false
+      anyOf:
+        - required:
+            - funnel
+        - required:
+            - retention
+    optional: true
   selection:
     type: object
-    required: true
-    description: Native provider packet artifacts returned by the source read. Null means unavailable; never
-      fabricate descriptors, cached counts, or source receipts.
-    schema:
-      required:
-        - current
-        - baseline
-        - notes
-      properties:
-        current:
-          anyOf:
-            - additionalProperties: false
-              properties:
-                bytes:
-                  minimum: 0
-                  type: integer
-                digest:
-                  type: string
-                media_type:
-                  type: string
-                path:
-                  type: string
-                schema:
-                  enum:
-                    - runx.project_artifact.v1
-                  title: ProjectArtifactSchema
-                  type: string
-                uri:
-                  description: "`runx:project-artifact:` and the artifact's digest."
-                  type: string
-              required:
-                - schema
-                - uri
-                - digest
-                - bytes
-                - media_type
-                - path
-              title: ProjectArtifact
-              type: object
-              x-runx-packet: true
-              x-runx-schema: runx.project_artifact.v1
-            - type: "null"
-        baseline:
-          anyOf:
-            - additionalProperties: false
-              properties:
-                bytes:
-                  minimum: 0
-                  type: integer
-                digest:
-                  type: string
-                media_type:
-                  type: string
-                path:
-                  type: string
-                schema:
-                  enum:
-                    - runx.project_artifact.v1
-                  title: ProjectArtifactSchema
-                  type: string
-                uri:
-                  description: "`runx:project-artifact:` and the artifact's digest."
-                  type: string
-              required:
-                - schema
-                - uri
-                - digest
-                - bytes
-                - media_type
-                - path
-              title: ProjectArtifact
-              type: object
-              x-runx-packet: true
-              x-runx-schema: runx.project_artifact.v1
-            - type: "null"
-        notes:
-          type: array
-          items:
-            type: string
-      additionalProperties: false
+    description: Native provider packet artifacts returned by the source read. Null means unavailable; never fabricate descriptors, cached counts, or source receipts.
+    required:
+      - current
+      - baseline
+      - notes
+    properties:
+      current:
+        anyOf:
+          - additionalProperties: false
+            properties:
+              bytes:
+                minimum: 0
+                type: integer
+              digest:
+                type: string
+              media_type:
+                type: string
+              path:
+                type: string
+              schema:
+                enum:
+                  - runx.project_artifact.v1
+                title: ProjectArtifactSchema
+                type: string
+              uri:
+                description: "`runx:project-artifact:` and the artifact's digest."
+                type: string
+            required:
+              - schema
+              - uri
+              - digest
+              - bytes
+              - media_type
+              - path
+            title: ProjectArtifact
+            type: object
+            x-runx-packet: true
+            x-runx-schema: runx.project_artifact.v1
+          - type: "null"
+      baseline:
+        anyOf:
+          - additionalProperties: false
+            properties:
+              bytes:
+                minimum: 0
+                type: integer
+              digest:
+                type: string
+              media_type:
+                type: string
+              path:
+                type: string
+              schema:
+                enum:
+                  - runx.project_artifact.v1
+                title: ProjectArtifactSchema
+                type: string
+              uri:
+                description: "`runx:project-artifact:` and the artifact's digest."
+                type: string
+            required:
+              - schema
+              - uri
+              - digest
+              - bytes
+              - media_type
+              - path
+            title: ProjectArtifact
+            type: object
+            x-runx-packet: true
+            x-runx-schema: runx.project_artifact.v1
+          - type: "null"
+      notes:
+        type: array
+        items:
+          type: string
+    additionalProperties: false
   return_interval:
     type: integer
-    required: false
     default: 1
-    description: "Return interval index for retention: 1 means the first interval after cohort entry. Preserves
-      the saved query period/brackets."
-    schema:
-      minimum: 1
-connectors:
-  posthog:
-    operations:
-      - insights.list
-      - insight.read
+    description: "Return interval index for retention: 1 means the first interval after cohort entry. Preserves the saved query period/brackets."
+    minimum: 1
+    optional: true

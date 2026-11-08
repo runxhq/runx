@@ -1,0 +1,6 @@
+name: sign-receipt-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps: [sign-receipt, digest]
+  receipt: {schema: runx.receipt.v1}

@@ -1,0 +1,11 @@
+{
+  "skill_name": "dispute-respond",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Respond to this Stripe dispute with the delivery evidence and submit after my approval.",
+      "expected_output": "Read the merchant, current dispute and original charge; prepare the grounded evidence, require exactly one native approval, submit true and independently read back the new count and exact evidence.",
+      "files": []
+    }
+  ]
+}

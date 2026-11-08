@@ -1,0 +1,5 @@
+name: postmortem-draft-needs-fragments
+inputs:
+  incident_id: inc-y
+expect:
+  status: failure

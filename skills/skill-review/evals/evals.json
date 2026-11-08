@@ -1,0 +1,11 @@
+{
+  "skill_name": "skill-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Review the review-subject skill for capability, trust, and operator readiness.",
+      "expected_output": "Collect native inspection and harness evidence, then return a bounded adoption or improvement recommendation.",
+      "files": []
+    }
+  ]
+}

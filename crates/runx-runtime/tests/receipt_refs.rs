@@ -41,9 +41,9 @@ fn stdout_payload_refs_are_not_promoted_to_receipt_proof_refs()
     Ok(())
 }
 
-fn scope(graph_name: &str) -> runx_runtime::receipts::RunScope<'_> {
+fn scope(workflow_name: &str) -> runx_runtime::receipts::RunScope<'_> {
     runx_runtime::receipts::RunScope {
         run_id: "run_test",
-        graph_name,
+        workflow_name,
     }
 }

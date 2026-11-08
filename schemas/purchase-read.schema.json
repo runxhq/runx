@@ -67,7 +67,7 @@
           "expires_at",
           "value_digest"
         ],
-        "title": "PurchaseHold",
+        "title": "PurchaseLease",
         "type": "object"
       },
       "minItems": 1,

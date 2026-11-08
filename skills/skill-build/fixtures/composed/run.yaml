@@ -1,0 +1,16 @@
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: skill-build
+        skill: ../..#design
+        inputs:
+          objective: Add a governed release-notes skill
+          repo_root: .
+          project_context: Runx OSS first-party catalog
+      - id: digest
+        tool: data.digest
+        inputs:
+          value: $steps.skill-build

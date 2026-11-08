@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: coinbase/cdp
-name: Coinbase CDP
+name: coinbase/cdp
+title: Coinbase CDP
 description: Quote, settle and refund x402 payments as a merchant through Coinbase CDP.
 category: payments
-runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -52,7 +51,6 @@ operations:
     target:
       template: {"$argument": "/resource"}
     result_fields: [quote_contract, resource, amount_minor, currency, accepts, quote_digest]
-    hosted: {}
   payment.x402.merchant.settle:
     description: Verify and settle one x402 payment for a resource.
     verb: write
@@ -63,7 +61,6 @@ operations:
     guarantees:
       provider_idempotency: enforced
     result_fields: [payment_contract, payment_id, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_uri, settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
-    hosted: {}
   payment.x402.merchant.recover:
     description: Resume settlement of one staged x402 payment.
     verb: write
@@ -72,7 +69,6 @@ operations:
     target:
       template: {"$argument": "/resource"}
     result_fields: [payment_contract, payment_id, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_uri, settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
-    hosted: {}
   payment.x402.merchant.read:
     description: Read one x402 payment by its payment reference.
     verb: read
@@ -80,7 +76,6 @@ operations:
     target:
       template: {"$argument": "/resource"}
     result_fields: [payment_contract, payment_id, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_uri, settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
-    hosted: {}
   payment.x402.merchant.lookup:
     description: Find one x402 payment by its idempotency key and request binding.
     verb: read
@@ -88,7 +83,6 @@ operations:
     target:
       template: {"$argument": "/resource"}
     result_fields: [payment_contract, payment_id, idempotency_key, request_binding_digest, resource, amount_minor, currency, status, settlement_ambiguous, reason, evidence_contract, payment_payload_digest, payment_requirements_digest, verification_uri, settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
-    hosted: {}
   payment.x402.merchant.refund:
     description: Refund all or part of one settled x402 payment.
     verb: write
@@ -102,7 +96,6 @@ operations:
       units: {"$argument": "/amount_minor"}
       currency: {"$argument": "/currency"}
     result_fields: [refund_contract, refund_id, payment_id, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_id, provider_idempotency_key, refund_settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
-    hosted: {}
   payment.x402.merchant.refund.read:
     description: Read one x402 refund by its refund reference.
     verb: read
@@ -110,4 +103,3 @@ operations:
     target:
       template: {"$argument": "/resource"}
     result_fields: [refund_contract, refund_id, payment_id, idempotency_key, resource, amount_minor, currency, status, outcome_ambiguous, reason, evidence_contract, original_settlement_id, provider_idempotency_key, refund_settlement_id, payer, pay_to, network, asset, asset_decimals, settled_at]
-    hosted: {}

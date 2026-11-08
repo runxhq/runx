@@ -1,7 +1,0 @@
-name: privacy-request-review-composes-in-graph
-kind: graph
-target: support/composed.graph
-expect:
-  status: sealed
-  steps: [privacy-request-review, digest]
-  receipt: { schema: runx.receipt.v1 }

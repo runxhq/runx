@@ -6,28 +6,28 @@ use std::process;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::RegistryPublishPackageError;
-use crate::registry::{RegistryPackageFile, RegistryPublishHarnessReport};
-use crate::{LoadedSkillPackage, LocalOrchestrator, PackageHarnessRequest};
+use crate::registry::{RegistryPackageFile, RegistryPublishTestReport};
+use crate::{LoadedSkillPackage, LocalOrchestrator, PackageTestRequest};
 
-pub(super) struct PublishHarnessPackage {
+pub(super) struct PublishTestPackage {
     root: TempDirectory,
 }
 
-impl PublishHarnessPackage {
+impl PublishTestPackage {
     pub(super) fn path(&self) -> &Path {
         self.root.path()
     }
 }
 
-pub(super) fn stage_publish_harness(
+pub(super) fn stage_publish_test(
     loaded: &LoadedSkillPackage,
     profile_document: Option<&str>,
     package_files: &[RegistryPackageFile],
-) -> Result<Option<PublishHarnessPackage>, RegistryPublishPackageError> {
+) -> Result<Option<PublishTestPackage>, RegistryPublishPackageError> {
     let Some(profile_document) = profile_document else {
         return Ok(None);
     };
-    let root = TempDirectory::create("runx-publish-profile-harness")?;
+    let root = TempDirectory::create("runx-publish-profile-test")?;
     write_text(
         root.path().join("SKILL.md"),
         &loaded.package.manual_markdown,
@@ -39,51 +39,49 @@ pub(super) fn stage_publish_harness(
     for file in package_files {
         write_text(root.path().join(&file.path), &file.content)?;
     }
-    Ok(Some(PublishHarnessPackage { root }))
+    Ok(Some(PublishTestPackage { root }))
 }
 
-pub(super) fn run_publish_harness(
+pub(super) fn run_publish_test(
     orchestrator: &LocalOrchestrator,
-    harness_path: &Path,
+    test_path: &Path,
     workspace_env: &BTreeMap<String, String>,
-) -> Result<RegistryPublishHarnessReport, RegistryPublishPackageError> {
-    let receipt_root = TempDirectory::create("runx-publish-harness")?;
-    let orchestrator = orchestrator.with_environment(publish_harness_env(
+) -> Result<RegistryPublishTestReport, RegistryPublishPackageError> {
+    let receipt_root = TempDirectory::create("runx-publish-test")?;
+    let orchestrator = orchestrator.with_environment(publish_test_env(
         workspace_env,
         &receipt_root.path().join("home"),
-        harness_path,
+        test_path,
     ));
-    let request = PackageHarnessRequest {
-        skill_path: harness_path.to_path_buf(),
+    let request = PackageTestRequest {
+        skill_path: test_path.to_path_buf(),
         receipt_dir: Some(receipt_root.path().to_path_buf()),
     };
-    let report = orchestrator
-        .run_package_harness(&request)
-        .map_err(|error| {
-            RegistryPublishPackageError::invalid(format!(
-                "package harness failed for {}: {error}",
-                harness_path.display()
-            ))
-        })?;
-    let report = RegistryPublishHarnessReport {
+    let report = orchestrator.run_package_test(&request).map_err(|error| {
+        RegistryPublishPackageError::invalid(format!(
+            "package harness failed for {}: {error}",
+            test_path.display()
+        ))
+    })?;
+    let report = RegistryPublishTestReport {
         status: report.status.to_owned(),
         case_count: report.case_count,
         assertion_error_count: report.assertion_error_count,
         assertion_errors: report.assertion_errors,
         case_names: report.case_names,
         receipt_ids: report.receipt_ids,
-        graph_case_count: report.graph_case_count,
+        workflow_case_count: report.workflow_case_count,
     };
     if report.case_count == 0 {
         return Err(RegistryPublishPackageError::invalid(format!(
             "harness failed for {}: no cases were discovered",
-            harness_path.display()
+            test_path.display()
         )));
     }
     if report.failed() {
         return Err(RegistryPublishPackageError::invalid(format!(
             "harness failed for {}: {}",
-            harness_path.display(),
+            test_path.display(),
             report.assertion_errors.join("; ")
         )));
     }
@@ -113,10 +111,10 @@ fn write_bytes(path: PathBuf, content: &[u8]) -> Result<(), RegistryPublishPacka
     })
 }
 
-fn publish_harness_env(
+fn publish_test_env(
     workspace_env: &BTreeMap<String, String>,
     runx_home: &Path,
-    harness_path: &Path,
+    test_path: &Path,
 ) -> BTreeMap<String, String> {
     let mut env = workspace_env.clone();
     env.retain(|key, _| !key.starts_with("RUNX_HOSTED_"));
@@ -131,7 +129,7 @@ fn publish_harness_env(
     );
     env.insert(
         crate::RUNX_CWD_ENV.to_owned(),
-        harness_path.to_string_lossy().into_owned(),
+        test_path.to_string_lossy().into_owned(),
     );
     env
 }
@@ -170,7 +168,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn harness_environment_removes_hosted_and_agent_credentials() {
+    fn test_environment_removes_hosted_and_agent_credentials() {
         let workspace_env = BTreeMap::from([
             ("RUNX_HOSTED_API_KEY".to_owned(), "hosted-secret".to_owned()),
             ("RUNX_AGENT_API_KEY".to_owned(), "agent-secret".to_owned()),
@@ -181,7 +179,7 @@ mod tests {
             ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
             ("HTTP_PROXY".to_owned(), "http://proxy.test".to_owned()),
         ]);
-        let env = publish_harness_env(
+        let env = publish_test_env(
             &workspace_env,
             Path::new("/tmp/runx-publish-home"),
             Path::new("/tmp/runx-publish-workspace"),

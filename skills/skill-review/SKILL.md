@@ -76,9 +76,7 @@ execution evidence may require more evidence; they are not permission to fetch.
 - `objective` (optional): decision the evaluation should support.
 - `test_constraints` (optional): time, environment, or safety limits.
 
-## Agent task contracts
-
-### `skill-review-assess`
+## Agent task: skill-review-assess
 
 Assess only the supplied evidence for one skill. Separate declared capability, native
 inspection, harness evidence, provider readback, supplied assertions, and unverified claims.

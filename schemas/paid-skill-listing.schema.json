@@ -233,7 +233,7 @@
           "currency",
           "accepted_settlement_families"
         ],
-        "title": "PaidSkillRunnerOffer",
+        "title": "PaidSkillMethodOffer",
         "type": "object"
       },
       "maxProperties": 64,

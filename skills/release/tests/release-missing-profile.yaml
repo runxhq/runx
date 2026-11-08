@@ -1,0 +1,25 @@
+name: release-blocked-preparation
+package: fixtures/release-blocked-fixture
+expect:
+  status: sealed
+  receipt: {schema: runx.receipt.v1}
+  steps: [setup, prepare]
+  step_outputs:
+    prepare:
+      subset:
+        release_brief:
+          data:
+            decision: blocked
+            proof_boundary:
+              publication_status: not_started
+              verification_status: not_started
+            publish_intent:
+              command: node
+              args: [./provider.mjs, publish]
+              cwd: .
+              timeout_ms: 10000
+              env_names:
+                - RUNX_RELEASE_CHANNEL
+                - RUNX_RELEASE_PHASE
+                - RUNX_RELEASE_PROFILE_ID
+                - RUNX_RELEASE_VERSION

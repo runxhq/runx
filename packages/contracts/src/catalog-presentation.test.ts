@@ -39,7 +39,7 @@ Research that builds toward a decision.
 
 const context = {
   packagePaths: new Set([CATALOG_PRESENTATION_PATH, "references/examples/decision-brief.md"]),
-  runnerNames: ["default"],
+  methodNames: ["default"],
   inputNames: ["question"],
   skills: ["../research"],
 };
@@ -121,7 +121,7 @@ describe("public skill catalog", () => {
       name: "research-brief",
       catalog_visibility: "public",
       category: "research",
-      runner_names: ["default"],
+      method_names: ["default"],
       input_names: ["question"],
       skills: ["../research"],
       ...metadata,

@@ -1,94 +1,82 @@
-skill: lead-qualify
 version: "0.1.6"
+minimum_runx: 0.12.0
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
-  role: context
-  execution: plan
-  completion: runtime_receipt
-  approval: none
   category: growth
-runners:
+methods:
   qualify:
-    default: true
     inputs:
       enrichment_packet:
-        type: json
-        required: true
         packet: runx/lead-enrichment.enrichment.v1
         description: Factual packet data from lead-enrichment; partial facts remain visibly incomplete.
       criteria:
         type: array
-        required: true
         description: Supplied ICP requirements, with at least one mandatory criterion.
-        schema:
-          minItems: 1
-          maxItems: 20
-          items:
-            type: object
-            additionalProperties: false
-            required: [id, description, required]
-            properties:
-              id: {type: string, minLength: 1, maxLength: 100}
-              description: {type: string, minLength: 1, maxLength: 2000}
-              required: {type: boolean}
-          contains:
-            type: object
-            additionalProperties: true
-            required: [required]
-            properties:
-              required: {const: true}
+        minItems: 1
+        maxItems: 20
+        items:
+          type: object
+          additionalProperties: false
+          required: [id, description, required]
+          properties:
+            id: {type: string, minLength: 1, maxLength: 100}
+            description: {type: string, minLength: 1, maxLength: 2000}
+            required: {type: boolean}
+        contains:
+          type: object
+          additionalProperties: true
+          required: [required]
+          properties:
+            required: {const: true}
       contact_eligibility:
         type: object
-        required: false
         description: Optional contact-policy evidence for the exact subject. Omit for fit-only assessment; fit never establishes contact permission.
-        schema:
-          additionalProperties: false
-          required: [subject, status, policy_id, evidence_ids]
-          properties:
-            subject:
-              type: object
-              additionalProperties: false
-              required: [id, kind]
-              properties:
-                id: {type: string, minLength: 1, maxLength: 1000}
-                kind: {enum: [person, company]}
-            status: {enum: [eligible, ineligible, unknown]}
-            policy_id: {type: string, minLength: 1, maxLength: 1000}
-            evidence_ids:
-              type: array
-              minItems: 1
-              maxItems: 100
-              items: {type: string, minLength: 1, maxLength: 1000}
-              uniqueItems: true
+        additionalProperties: false
+        required: [subject, status, policy_id, evidence_ids]
+        properties:
+          subject:
+            type: object
+            additionalProperties: false
+            required: [id, kind]
+            properties:
+              id: {type: string, minLength: 1, maxLength: 1000}
+              kind: {enum: [person, company]}
+          status: {enum: [eligible, ineligible, unknown]}
+          policy_id: {type: string, minLength: 1, maxLength: 1000}
+          evidence_ids:
+            type: array
+            minItems: 1
+            maxItems: 100
+            items: {type: string, minLength: 1, maxLength: 1000}
+            uniqueItems: true
+        optional: true
     result_from: [hold, finalize]
     examples:
-      - enrichment_packet:
-          decision: enriched
-          subject:
-            id: company:northwind
-            kind: company
-          as_of: '2026-11-01T00:00:00Z'
-          facts:
-          - field: company.industry
-            value: B2B software
-            source_ids:
-            - crm:northwind
-          missing_fields: []
-          conflicts: []
-          sources:
-          - source_id: crm:northwind
-            source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-            observed_at: '2026-10-30T00:00:00Z'
-            match_confidence: high
-            provenance: caller_supplied_source_digest
-          blockers: []
-          acquisition: supplied_evidence
-        criteria:
-        - id: industry
-          description: Sells B2B software.
-          required: true
+    - enrichment_packet:
+        decision: enriched
+        subject:
+          id: company:northwind
+          kind: company
+        as_of: '2026-11-01T00:00:00Z'
+        facts:
+        - field: company.industry
+          value: B2B software
+          source_ids:
+          - crm:northwind
+        missing_fields: []
+        conflicts: []
+        sources:
+        - source_id: crm:northwind
+          source_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          observed_at: '2026-10-30T00:00:00Z'
+          match_confidence: high
+          provenance: caller_supplied_source_digest
+        blockers: []
+        acquisition: supplied_evidence
+      criteria:
+      - id: industry
+        description: Sells B2B software.
+        required: true
     steps:
     - id: digest
       tool: data.digest
@@ -96,44 +84,40 @@ runners:
     - id: admit
       tool: {module: lead-qualify.mjs, export: admitQualification}
       inputs: {enrichment_packet: $input.enrichment_packet, criteria: $input.criteria, contact_eligibility: $input.contact_eligibility}
-      outputs: {qualification_context: object}
+      outputs: {qualification_context: {type: object}}
     - id: hold
       when: {value: $steps.admit.qualification_context.path, equals: hold}
       tool: {module: lead-qualify.mjs, export: finalizeQualification}
       inputs: {qualification_context: $steps.admit.qualification_context, enrichment_digest: $steps.digest.digest_result.digest}
-      outputs: {lead_qualification: object}
-      artifacts:
-        named_emits: {lead_qualification: lead_qualification}
-        packets: {lead_qualification: runx/lead-qualify.qualification.v1}
+      outputs: {lead_qualification: {type: object, packet: runx/lead-qualify.qualification.v1}}
     - id: assess
       when: {value: $steps.admit.qualification_context.path, equals: assess}
-      agent: {role: growth, task: lead-qualify-assess}
+      agent: lead-qualify-assess
       inputs: {qualification_context: $steps.admit.qualification_context}
       outputs:
         assessment_draft:
           type: object
-          schema:
-            additionalProperties: false
-            required: [assessments]
-            properties:
-              assessments:
-                type: array
-                minItems: 1
-                maxItems: 20
-                items:
-                  type: object
-                  additionalProperties: false
-                  required: [criterion_id, status, rationale, fact_fields]
-                  properties:
-                    criterion_id: {type: string, minLength: 1, maxLength: 100}
-                    status: {enum: [met, not_met, unknown]}
-                    rationale: {type: string, minLength: 1, maxLength: 4000}
-                    fact_fields:
-                      type: array
-                      minItems: 0
-                      maxItems: 30
-                      items: {type: string, minLength: 1, maxLength: 200}
-                      uniqueItems: true
+          additionalProperties: false
+          required: [assessments]
+          properties:
+            assessments:
+              type: array
+              minItems: 1
+              maxItems: 20
+              items:
+                type: object
+                additionalProperties: false
+                required: [criterion_id, status, rationale, fact_fields]
+                properties:
+                  criterion_id: {type: string, minLength: 1, maxLength: 100}
+                  status: {enum: [met, not_met, unknown]}
+                  rationale: {type: string, minLength: 1, maxLength: 4000}
+                  fact_fields:
+                    type: array
+                    minItems: 0
+                    maxItems: 30
+                    items: {type: string, minLength: 1, maxLength: 200}
+                    uniqueItems: true
     - id: finalize
       when: {value: $steps.admit.qualification_context.path, equals: assess}
       tool: {module: lead-qualify.mjs, export: finalizeQualification}
@@ -144,10 +128,4 @@ runners:
       outputs:
         lead_qualification:
           type: object
-      artifacts:
-        named_emits: {lead_qualification: lead_qualification}
-        packets: {lead_qualification: runx/lead-qualify.qualification.v1}
-
-harness:
-  files: [fixtures/support/composed.graph]
-  cases: []
+          packet: runx/lead-qualify.qualification.v1

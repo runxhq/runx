@@ -19,13 +19,13 @@ pub mod tree;
 
 pub(crate) use act::SealedCall;
 pub use local_key::{LOCAL_RECEIPT_KEY_SCHEMA, LocalReceiptKeyFault};
-pub(crate) use seal::{
-    GraphClosure, RuntimeReceiptProofContextProvider, StepReceiptWithOutcome, StepSeal,
-    StepSealClosure, graph_receipt_with_closure, seal_step,
-    step_receipt_with_declared_claim_and_policy,
-};
 pub use seal::{
-    RunScope, RuntimeReceiptSignaturePolicy, SealAuthority, graph_receipt, step_receipt,
+    RunScope, RuntimeReceiptSignaturePolicy, SealAuthority, step_receipt, workflow_receipt,
+};
+pub(crate) use seal::{
+    RuntimeReceiptProofContextProvider, StepReceiptWithOutcome, StepSeal, StepSealEnding,
+    WorkflowEnding, seal_step, step_receipt_with_declared_claim_and_policy,
+    workflow_receipt_with_ending,
 };
 pub use signing::{
     Ed25519CounterSealVerifier, Ed25519ReceiptSigner, Ed25519ReceiptVerifier, FIXTURE_RECEIPT_SEED,

@@ -180,7 +180,7 @@ pub(super) fn list_corpus() -> Vec<(&'static str, Value)> {
                 "scopes": ["repo:read"],
                 "emits": [{ "name": "report", "packet": "runx.report.v1" }],
                 "fixtures": 2,
-                "harness_cases": 1,
+                "test_cases": 1,
                 "steps": 0,
                 "wraps": "value",
             }]);
@@ -411,7 +411,7 @@ pub(super) fn registry_binding_corpus() -> Vec<(&'static str, Value)> {
             "profile_path": "profiles/s1",
             "materialized_package_is_registry_artifact": true,
         },
-        "harness": { "state": "harness_verified", "case_count": 3 },
+        "harness": { "state": "test_verified", "case_count": 3 },
     });
     vec![
         ("minimal valid", valid.clone()),
@@ -780,7 +780,7 @@ pub(super) fn operational_policy_corpus() -> Vec<(&'static str, Value)> {
             },
         }],
         "runners": [{
-            "runner_id": "local.default",
+            "method_id": "local.default",
             "kind": "local",
             "state": "available",
             "allowed_actions": ["issue-intake"],
@@ -794,7 +794,7 @@ pub(super) fn operational_policy_corpus() -> Vec<(&'static str, Value)> {
         }],
         "targets": [{
             "repo": "acme/widgets",
-            "runner_ids": ["local.default"],
+            "method_ids": ["local.default"],
             "allowed_actions": ["issue-intake"],
             "default_owner_route": "default.route",
             "scafld_required": true,
@@ -1284,7 +1284,7 @@ pub(super) fn credential_delivery_observation_corpus() -> Vec<(&'static str, Val
         "observation_id": "obs_1",
         "request_id": "req_1",
         "status": "delivered",
-        "harness_ref": a_ref(),
+        "run_ref": a_ref(),
         "profile_id": "github-env",
         "provider": "github",
         "purpose": "provider_api",
@@ -1315,10 +1315,7 @@ pub(super) fn credential_delivery_observation_corpus() -> Vec<(&'static str, Val
             "malformed observed_at",
             set_field(valid.clone(), "observed_at", json!("nope")),
         ),
-        (
-            "missing harness_ref",
-            drop_field(valid.clone(), "harness_ref"),
-        ),
+        ("missing run_ref", drop_field(valid.clone(), "run_ref")),
         (
             "additional property",
             set_field(valid.clone(), "bogus", json!(true)),
@@ -1411,7 +1408,7 @@ pub(super) fn resolution_response_corpus() -> Vec<(&'static str, Value)> {
     ]
 }
 
-pub(super) fn agent_act_invocation_corpus() -> Vec<(&'static str, Value)> {
+pub(super) fn turn_invocation_corpus() -> Vec<(&'static str, Value)> {
     let valid = json!({
         "id": "inv_1",
         "role": "assistant",
@@ -1559,7 +1556,7 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
                 "outcome": {
                     "status": "pending",
                     "waiting": [{
-                        "kind": "agent_act",
+                        "kind": "turn",
                         "id": "answer/4#report",
                         "invocation": turn_invocation(),
                     }],
@@ -1664,8 +1661,8 @@ pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
         "id": "ap_1",
         "gate": { "id": "g1", "reason": "needs approval" },
     });
-    let agent_act = json!({
-        "kind": "agent_act",
+    let turn = json!({
+        "kind": "turn",
         "id": "aa_1",
         "invocation": {
             "id": "inv_1",
@@ -1678,7 +1675,7 @@ pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
     vec![
         ("valid input request", input.clone()),
         ("valid approval request", approval.clone()),
-        ("valid agent_act request", agent_act.clone()),
+        ("valid turn request", turn.clone()),
         (
             "input missing questions",
             drop_field(input.clone(), "questions"),
@@ -1704,8 +1701,8 @@ pub(super) fn resolution_request_corpus() -> Vec<(&'static str, Value)> {
             drop_field(approval.clone(), "gate"),
         ),
         (
-            "agent_act missing invocation",
-            drop_field(agent_act.clone(), "invocation"),
+            "turn missing invocation",
+            drop_field(turn.clone(), "invocation"),
         ),
         (
             "input additional property rejected",

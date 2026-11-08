@@ -1,0 +1,17 @@
+{
+  "skill_name": "content-package",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Turn this governed evidence into a citation-bound draft and channel package.",
+      "expected_output": "Return reader-facing copy, citations, and a provider-neutral publication handoff without claiming publication.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Turn this governed evidence into a citation-bound draft and channel package.",
+      "expected_output": "Return reader-facing copy, citations, and a provider-neutral publication handoff without claiming publication.",
+      "files": []
+    }
+  ]
+}

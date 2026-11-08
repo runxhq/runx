@@ -121,7 +121,7 @@ fn search_rejects_unknown_trust_tier_with_field_path() -> Result<(), Box<dyn std
             "skill_id": "acme/echo",
             "name": "echo",
             "profile_mode": "portable",
-            "runner_names": [],
+            "method_names": [],
             "required_scopes": [],
             "tags": [],
             "trust_tier": "unknown_tier",
@@ -206,7 +206,7 @@ fn install_error_is_exported_for_callers() {
         error
     }
 
-    let error = InstallError::RunnerMetadataMismatch("echo".to_owned());
+    let error = InstallError::MethodMetadataMismatch("echo".to_owned());
 
     assert!(
         takes_public_install_error(error)
@@ -450,7 +450,7 @@ fn skill_detail(skill_id: &str, version: &str) -> serde_json::Value {
         "version": version,
         "digest": "sha256:fixture",
         "markdown": format!("---\nname: {name}\n---\n"),
-        "runner_names": [],
+        "method_names": [],
         "trust_tier": "verified",
         "required_scopes": [],
         "tags": [],
@@ -482,7 +482,7 @@ fn install_candidate() -> Result<InstallCandidate, Box<dyn std::error::Error>> {
         version: Some("1.0.0".to_owned()),
         signed_manifest: None,
         profile_digest: None,
-        runner_names: vec!["default".to_owned()],
+        method_names: vec!["default".to_owned()],
         trust_tier: Some(TrustTier::Community),
         manifest_source_authority: Some(RegistryManifestSourceAuthority::RegistrySource(
             "test-registry".to_owned(),

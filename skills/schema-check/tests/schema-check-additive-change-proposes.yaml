@@ -1,0 +1,68 @@
+name: schema-check-additive-change-proposes
+inputs:
+  current_schema:
+    type: object
+    required:
+      - id
+    properties:
+      id:
+        type: string
+      status:
+        type: string
+        enum:
+          - open
+          - closed
+    additionalProperties: false
+  proposed_schema:
+    type: object
+    required:
+      - id
+    properties:
+      id:
+        type: string
+      status:
+        type: string
+        enum:
+          - open
+          - closed
+      note:
+        type: string
+    additionalProperties: false
+  sample_payloads:
+    - id: case-1
+      status: open
+    - id: case-2
+      status: closed
+  compatibility_policy:
+    breaking_allowed: false
+    required_fields:
+      - id
+    versioning_rule: minor_on_additive
+expect:
+  status: sealed
+  steps:
+    - digest-current
+    - digest-proposed
+    - digest-samples
+    - validate-current
+    - validate-proposed
+    - check
+  step_outputs:
+    check:
+      subset:
+        schema_check:
+          data:
+            schema: runx/schema-check.check.v1
+            decision: compatible
+            policy_result: allowed
+            breaking_changes: []
+            proposal:
+              status: proposed
+              live_write_performed: false
+              changed_paths:
+                - $.note
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

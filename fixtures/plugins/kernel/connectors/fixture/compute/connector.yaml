@@ -1,8 +1,7 @@
 schema: runx.connector.v1
-id: fixture/compute
-name: Fixture Compute
+name: fixture/compute
+title: Fixture Compute
 description: Start jobs in one account of a compute fixture.
-runtime_capability: false
 auth:
   credentials:
     access_key:
@@ -30,4 +29,3 @@ operations:
     guarantees:
       provider_idempotency: enforced
     result_fields: [job_ref, status, output_available, failure_reason, recovered]
-    hosted: {}

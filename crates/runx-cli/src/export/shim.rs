@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use runx_runtime::export::{RunxExportMode, RunxExportRunner, RunxExportSkill};
+use runx_runtime::export::{RunxExportMethod, RunxExportMode, RunxExportSkill};
 
 use super::{GeneratedFile, MCP_SERVER_NAME, MCP_SERVER_REF_MARKER, Target, display_path};
 
@@ -80,9 +80,9 @@ fn render_shim(
 
     if let Some(default) = skill.runners.iter().find(|runner| runner.default) {
         if default.makes_calls {
-            output.push_str(&render_server_runner(target, skill, default));
+            output.push_str(&render_server_method(target, skill, default));
         } else {
-            output.push_str(&render_default_runner(
+            output.push_str(&render_default_method(
                 command_target,
                 default,
                 &skill.package_digest,
@@ -90,16 +90,16 @@ fn render_shim(
             ));
         }
     }
-    let alternate_runners = skill
+    let alternate_methods = skill
         .runners
         .iter()
         .filter(|runner| !runner.default)
         .collect::<Vec<_>>();
-    if !alternate_runners.is_empty() {
-        output.push_str(&render_runner_index(
+    if !alternate_methods.is_empty() {
+        output.push_str(&render_method_index(
             &skill.name,
             command_target,
-            &alternate_runners,
+            &alternate_methods,
             &runx_bin,
         ));
     }
@@ -138,15 +138,15 @@ fn claude_server_tools(skill: &RunxExportSkill) -> String {
         .collect()
 }
 
-fn server_tool_name(skill: &RunxExportSkill, runner: &RunxExportRunner) -> String {
+fn server_tool_name(skill: &RunxExportSkill, runner: &RunxExportMethod) -> String {
     let alternate = runner.name.as_deref().filter(|_| !runner.default);
     runx_runtime::export::skill_tool_name(&skill.name, alternate)
 }
 
-fn render_server_runner(
+fn render_server_method(
     target: Target,
     skill: &RunxExportSkill,
-    runner: &RunxExportRunner,
+    runner: &RunxExportMethod,
 ) -> String {
     let tool = server_tool_name(skill, runner);
     let title = runner.name.as_deref().unwrap_or("default");
@@ -211,9 +211,9 @@ fn render_source_manual(skill: &RunxExportSkill) -> String {
     )
 }
 
-fn render_default_runner(
+fn render_default_method(
     command_target: &str,
-    runner: &RunxExportRunner,
+    runner: &RunxExportMethod,
     package_digest: &str,
     runx_bin: &str,
 ) -> String {
@@ -244,10 +244,10 @@ fn render_default_runner(
     output
 }
 
-fn render_runner_index(
+fn render_method_index(
     skill: &str,
     command_target: &str,
-    runners: &[&RunxExportRunner],
+    runners: &[&RunxExportMethod],
     runx_bin: &str,
 ) -> String {
     let mut output = String::from(
@@ -273,7 +273,7 @@ fn render_runner_index(
 
 fn render_inspect_command(
     command_target: &str,
-    runner: &RunxExportRunner,
+    runner: &RunxExportMethod,
     runx_bin: &str,
 ) -> String {
     let mut command = format!(
@@ -291,7 +291,7 @@ fn render_inspect_command(
 
 fn render_command(
     command_target: &str,
-    runner: &RunxExportRunner,
+    runner: &RunxExportMethod,
     package_digest: &str,
     runx_bin: &str,
 ) -> String {

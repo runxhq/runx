@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { validateRunnerManifestYaml } from "./lib/native-parser.mjs";
+import { validateMethodManifestYaml } from "./lib/native-parser.mjs";
 import { repositorySkills } from "./lib/skills.mjs";
 import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
@@ -75,8 +75,8 @@ function buildReport(options) {
     const decision = review.get(name);
     const catalogItem = catalog.get(name);
     const inspection = inspectSkill(runx, name);
-    const runnerInspections = Array.isArray(inspection.runner_inspections)
-      ? inspection.runner_inspections
+    const methodInspections = Array.isArray(inspection.method_inspections)
+      ? inspection.method_inspections
       : [];
     if (inspection.status !== "ok") {
       findings.push(`${name}: native inspection returned ${inspection.status ?? "no status"}`);
@@ -95,7 +95,7 @@ function buildReport(options) {
         record,
         decision,
         inspection,
-        runnerInspections,
+        methodInspections,
       }),
     );
     const manualPath = path.join(root, "skills", name, "SKILL.md");
@@ -103,7 +103,7 @@ function buildReport(options) {
     if (options.writeComposes && record.visibility === "public") {
       const rewritten = rewriteComposesSection(
         manualSource,
-        expectedCompositionRefs(runnerInspections),
+        expectedCompositionRefs(methodInspections),
       );
       if (rewritten !== manualSource) {
         writeFileSync(manualPath, rewritten);
@@ -115,7 +115,7 @@ function buildReport(options) {
       ...validatePublicManual({
         name,
         record,
-        runnerInspections,
+        methodInspections,
         source: manualSource,
       }),
     );
@@ -137,7 +137,7 @@ function buildReport(options) {
       native: {
         kind: catalogItem?.kind ?? null,
         fixtures: catalogItem?.fixtures ?? 0,
-        harness_cases: catalogItem?.harness_cases ?? 0,
+        test_cases: catalogItem?.test_cases ?? 0,
         runner: inspection.runner ?? null,
         capabilities: inspection.capabilities ?? null,
         catalog: inspection.catalog ?? null,
@@ -145,9 +145,9 @@ function buildReport(options) {
         manual_digest: inspection.manual_digest ?? null,
         semantic_report: inspection.semantic_report ?? null,
         operator_journeys: inspection.operator_journeys ?? null,
-        runners: runnerInspections.map((runnerInspection) => ({
-          runner: runnerInspection.runner?.name ?? null,
-          execution_closure: runnerInspection.execution_closure ?? null,
+        runners: methodInspections.map((methodInspection) => ({
+          runner: methodInspection.runner?.name ?? null,
+          execution_closure: methodInspection.execution_closure ?? null,
         })),
       },
     });
@@ -271,12 +271,12 @@ function readNativeToolCatalog(runx) {
 
 function validateAgentToolScopes(name, toolCatalog) {
   const source = readFileSync(path.join(root, "skills", name, "run.yaml"), "utf8");
-  const profile = validateRunnerManifestYaml(source);
+  const profile = validateMethodManifestYaml(source);
   const findings = [];
-  for (const [runnerName, runner] of Object.entries(profile.runners ?? {})) {
+  for (const [methodName, runner] of Object.entries(profile.runners ?? {})) {
     for (const step of runner.graph?.steps ?? []) {
       findings.push(...missingAgentToolScopes(
-        `${name}#${runnerName}.${step.id ?? "<unknown-step>"}`,
+        `${name}#${methodName}.${step.id ?? "<unknown-step>"}`,
         step.allowedTools,
         step.scopes,
         toolCatalog,
@@ -349,11 +349,11 @@ function validateInspectionClaims({
   record,
   decision,
   inspection,
-  runnerInspections,
+  methodInspections,
 }) {
   const findings = [];
   findings.push(...validateOperatorJourneys(name, record, inspection));
-  findings.push(...validatePublicInvocationReadiness(name, record, inspection, runnerInspections));
+  findings.push(...validatePublicInvocationReadiness(name, record, inspection, methodInspections));
   const closure = inspection.execution_closure;
   if (!hasCanonicalExecutionClosure(closure)) {
     findings.push(`${name}: native inspection omitted the canonical execution closure`);
@@ -366,24 +366,24 @@ function validateInspectionClaims({
     findings.push(`${name}: native inspection omitted its runner catalog`);
     return findings;
   }
-  if (runnerInspections.length !== inspection.runners.length) {
+  if (methodInspections.length !== inspection.runners.length) {
     findings.push(`${name}: native inspection did not inspect every declared runner`);
   }
-  for (const [index, runnerInspection] of runnerInspections.entries()) {
-    const expectedRunner = inspection.runners[index];
+  for (const [index, methodInspection] of methodInspections.entries()) {
+    const expectedMethod = inspection.runners[index];
     if (
-      runnerInspection.runner?.name !== expectedRunner
+      methodInspection.runner?.name !== expectedMethod
     ) {
-      findings.push(`${name}#${expectedRunner}: native runner inspection identity mismatch`);
+      findings.push(`${name}#${expectedMethod}: native runner inspection identity mismatch`);
     }
-    if (!hasCanonicalExecutionClosure(runnerInspection.execution_closure)) {
-      findings.push(`${name}#${expectedRunner}: native inspection omitted the execution closure`);
+    if (!hasCanonicalExecutionClosure(methodInspection.execution_closure)) {
+      findings.push(`${name}#${expectedMethod}: native inspection omitted the execution closure`);
     }
   }
   return findings;
 }
 
-function validatePublicInvocationReadiness(name, record, inspection, runnerInspections) {
+function validatePublicInvocationReadiness(name, record, inspection, methodInspections) {
   if (record.visibility !== "public") return [];
   const findings = [];
   const readiness = inspection.semantic_report?.readiness;
@@ -396,15 +396,15 @@ function validatePublicInvocationReadiness(name, record, inspection, runnerInspe
   if (readiness?.composedReuse !== true) {
     findings.push(`${name}: public skill is not verified for composed Runx invocation`);
   }
-  const defaultRunner = inspection.semantic_report?.defaultRunner;
-  const defaultInspection = runnerInspections.find(
-    (entry) => entry.runner?.name === defaultRunner,
+  const defaultMethod = inspection.semantic_report?.defaultMethod;
+  const defaultInspection = methodInspections.find(
+    (entry) => entry.runner?.name === defaultMethod,
   );
   const examples = defaultInspection?.runner?.input_schema?.examples;
   if (!Array.isArray(examples) || examples.length === 0) {
-    findings.push(`${name}#${defaultRunner ?? "<missing>"}: agent default has no copy-valid invocation example`);
+    findings.push(`${name}#${defaultMethod ?? "<missing>"}: agent default has no copy-valid invocation example`);
   } else if (Buffer.byteLength(JSON.stringify(examples[0]), "utf8") > 4096) {
-    findings.push(`${name}#${defaultRunner}: agent default invocation example exceeds 4096 bytes`);
+    findings.push(`${name}#${defaultMethod}: agent default invocation example exceeds 4096 bytes`);
   }
   return findings;
 }
@@ -469,7 +469,7 @@ function validateSemanticReport(name, report) {
   if (report.skill !== name) {
     findings.push(`${name}: semantic report names ${report.skill ?? "<missing>"}`);
   }
-  if (report.defaultRunner !== undefined && typeof report.defaultRunner !== "string") {
+  if (report.defaultMethod !== undefined && typeof report.defaultMethod !== "string") {
     findings.push(`${name}: semantic report default runner is malformed`);
   }
   if (!Array.isArray(report.diagnostics)) {
@@ -516,7 +516,7 @@ function hasCanonicalExecutionClosure(closure) {
 function validatePublicManual({
   name,
   record,
-  runnerInspections,
+  methodInspections,
   source,
 }) {
   if (record.visibility !== "public") return [];
@@ -538,7 +538,7 @@ function validatePublicManual({
     );
   }
 
-  for (const edge of runnerInspections.flatMap(
+  for (const edge of methodInspections.flatMap(
     (inspection) => inspection.execution_closure?.direct_external_skill_edges ?? [],
   )) {
     if (
@@ -550,7 +550,7 @@ function validatePublicManual({
       findings.push(`${name}: native direct external skill edge is malformed`);
     }
   }
-  const expectedCompositions = expectedCompositionRefs(runnerInspections);
+  const expectedCompositions = expectedCompositionRefs(methodInspections);
   const declaredCompositions = manualCompositionRefs(guide);
   if (expectedCompositions.size > 0 && !guide.includes(generatedComposesMarker)) {
     findings.push(`${name}: Composes section is not generator-owned`);
@@ -568,9 +568,9 @@ function validatePublicManual({
   return findings;
 }
 
-function expectedCompositionRefs(runnerInspections) {
+function expectedCompositionRefs(methodInspections) {
   const refs = new Set();
-  for (const edge of runnerInspections.flatMap(
+  for (const edge of methodInspections.flatMap(
     (inspection) => inspection.execution_closure?.direct_external_skill_edges ?? [],
   )) {
     if (
@@ -775,7 +775,7 @@ function runSelfTests() {
     semantic_report: {
       mode: "operator_readiness",
       skill: "alpha",
-      defaultRunner: "default",
+      defaultMethod: "default",
       diagnostics: [],
       readiness: {
         evaluated: true,
@@ -822,7 +822,7 @@ function runSelfTests() {
     validateSemanticReport("alpha", {
       ...inspection.semantic_report,
       diagnostics: [{
-        code: "default_runner_is_planning_only",
+        code: "default_method_is_planning_only",
         skill: "alpha",
         runner: "default",
         claimedExecution: "execute",
@@ -839,7 +839,7 @@ function runSelfTests() {
       record: maintained[0],
       decision: { execution: "javascript" },
       inspection,
-      runnerInspections: [inspection],
+      methodInspections: [inspection],
     }).some((finding) => finding.includes("does not match native closure")),
     "execution-closure drift must fail",
   );
@@ -849,7 +849,7 @@ function runSelfTests() {
       record: maintained[0],
       decision: { execution: "tool:data.read" },
       inspection,
-      runnerInspections: [inspection],
+      methodInspections: [inspection],
     }).length === 0,
     "matching catalog and execution claims must pass",
   );
@@ -902,7 +902,7 @@ function runSelfTests() {
     validatePublicManual({
       name: "alpha",
       record: maintained[0],
-      runnerInspections: [inspection],
+      methodInspections: [inspection],
       source: validGuide,
     }).length === 0,
     "a real guide before task contracts must pass",
@@ -911,7 +911,7 @@ function runSelfTests() {
   const guideFindings = validatePublicManual({
     name: "alpha",
     record: maintained[0],
-    runnerInspections: [inspection],
+    methodInspections: [inspection],
     source: invalidGuide,
   });
   assert(
@@ -938,7 +938,7 @@ function runSelfTests() {
     validatePublicManual({
       name: "alpha",
       record: maintained[0],
-      runnerInspections: [composingInspection],
+      methodInspections: [composingInspection],
       source: generatedGuide,
     }).length === 0,
     "a generated exact composition section must pass",

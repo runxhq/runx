@@ -83,15 +83,13 @@ workaround. It cannot say “fixed in the next release” unless the snapshot or
 other admitted evidence establishes that fact. Posting requires the separate
 `post` invocation and its comment-scoped grant.
 
-## Agent task contracts
-
-### `github-issue-triage-discover`
+## Agent task: github-issue-triage-discover
 
 Rank only issues in the supplied index. Return bounded candidates and the
 selection rationale an operator needs to review the ranking. Never invent issue
 ids, provider state, promises, or completed work.
 
-### `github-issue-triage-respond`
+## Agent task: github-issue-triage-respond
 
 Draft one helpful maintainer response grounded only in the admitted issue
 evidence. Preserve repository, issue number, title, and state exactly. Do not

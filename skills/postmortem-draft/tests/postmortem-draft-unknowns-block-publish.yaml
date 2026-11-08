@@ -1,0 +1,48 @@
+name: postmortem-draft-unknowns-block-publish
+inputs:
+  incident_id: inc-batch-2026-08-10
+  incident_fragments:
+    - id: frag-1
+      source: cron-log
+      text: Nightly batch failed at step export with exit 1.
+host:
+  answers:
+    draft:
+      postmortem_draft:
+        summary: The nightly batch failed at the export step; cause not yet established.
+        impact:
+          status: known
+          statement: The nightly export did not complete.
+          scope: batch-pipeline
+          fragment_id: frag-1
+          quote: Nightly batch failed at step export
+        timeline:
+          - entry: The nightly batch failed at the export step.
+            fragment_id: frag-1
+            quote: Nightly batch failed at step export
+        root_cause:
+          status: unknown
+        unknowns:
+          - Which upstream input changed before the export step failed.
+        action_items:
+          - action: Capture export step inputs on failure.
+            owner: data-oncall
+expect:
+  status: sealed
+  steps:
+    - digest-fragments
+    - draft
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        postmortem:
+          data:
+            decision: needs_more_evidence
+            publish_proposal: null
+            publish_performed: false
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

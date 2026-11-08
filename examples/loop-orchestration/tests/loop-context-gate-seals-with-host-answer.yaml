@@ -1,0 +1,17 @@
+name: loop-context-gate-seals-with-host-answer
+method: context-gate
+inputs:
+  objective: Review the next turn plan with loop operator guidance.
+host:
+  answers:
+    review:
+      decision: continue
+      summary: The plan is bounded, uses only fs.read, and may continue.
+      requested_tool: fs.read
+      stop_condition: max_turns_not_exhausted
+expect:
+  status: sealed
+  receipt:
+    schema: runx.receipt.v1
+    state: sealed
+    outcome: completed

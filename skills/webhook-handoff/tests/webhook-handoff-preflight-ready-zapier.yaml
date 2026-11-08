@@ -1,0 +1,27 @@
+name: webhook-handoff-preflight-ready-zapier
+method: preflight
+inputs:
+  platform: zapier
+  event_id: evt_zapier_demo_001
+  handoff_audience: zapier:zap:runx-governed-effect
+  execution_context:
+    caller: runx-cli
+    workflow: operator-zap-demo
+  payload:
+    hello: zap
+expect:
+  status: sealed
+  steps:
+    - terms
+    - build-handoff-context
+  step_outputs:
+    build-handoff-context:
+      subset:
+        handoff_context:
+          data:
+            platform: zapier
+            event_id: evt_zapier_demo_001
+            status: ready
+            receiver_validation:
+              require_scope: orchestrator.zapier.workflow.invoke
+              require_audience: zapier:zap:runx-governed-effect

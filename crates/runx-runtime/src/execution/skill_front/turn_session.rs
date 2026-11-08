@@ -61,7 +61,7 @@ impl TurnSession {
             .waiting()?
             .into_iter()
             .find_map(|request| match request {
-                ResolutionRequest::AgentAct { id, .. } => Some(id),
+                ResolutionRequest::Turn { id, .. } => Some(id),
                 _ => None,
             })
             .ok_or_else(|| invalid(format!("run {} has no open turn", session.run_id())))?;

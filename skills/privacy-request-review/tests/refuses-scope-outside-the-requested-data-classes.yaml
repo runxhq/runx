@@ -1,0 +1,60 @@
+name: refuses-scope-outside-the-requested-data-classes
+inputs:
+  request_packet:
+    type: erasure
+    subject_id: subject:alice
+    scope:
+      request_id: dsr-001
+      data_classes:
+        - profile
+        - activity
+      requested_scopes:
+        - billing
+  requestor_proof:
+    identity_provider: idp:acme
+    verified_at: 2026-08-01T10:00:00Z
+    assertion:
+      subject_id: subject:alice
+      assertion_id: idp:acme:session:9911
+      assertion_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  policy:
+    jurisdiction: GDPR
+    trusted_identity_providers:
+      - idp:acme
+    lawful_bases:
+      erasure: art17_right_to_erasure
+    scope_bounds:
+      data_classes:
+        - profile
+        - activity
+        - billing
+      erasure_allowed:
+        - profile
+        - activity
+      export_allowed:
+        - profile
+  data_source_uri: tenant://privacy/sqlite-requests
+  resource: subject_requests
+  aggregate_id: subject:scope-mismatch
+  expected_version: 0
+  idempotency_key: scope-mismatch:verdict:v1
+expect:
+  status: sealed
+  steps:
+    - digest-request
+    - digest-policy
+    - judge
+    - persist-verdict
+    - readback-verdict
+    - finalize
+  step_outputs:
+    finalize:
+      subset:
+        subject_request_verdict:
+          data:
+            decision:
+              eligible: false
+            handoff: null
+            downstream_effect_performed: false
+  receipt:
+    schema: runx.receipt.v1

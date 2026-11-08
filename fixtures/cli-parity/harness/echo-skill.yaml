@@ -7,7 +7,7 @@ expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
-    subject_uri: runx:run:harness-cli-parity-echo-skill
+    subject_uri: runx:run:test-cli-parity-echo-skill
     state: sealed
     outcome: completed
     child_receipt_count: 1

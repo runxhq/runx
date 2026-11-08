@@ -1,0 +1,6 @@
+name: google-analytics-composes-in-graph
+package: fixtures/composed
+expect:
+  status: sealed
+  steps: [google-analytics, digest]
+  receipt: {schema: runx.receipt.v1}

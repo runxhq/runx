@@ -1,0 +1,38 @@
+name: procurement-policy-check-approves-in-policy
+inputs:
+  procurement_request:
+    payee: sourcey
+    amount: 125
+    currency: USD
+    purpose: generate public llms.txt docs for a maintained OSS project
+  procurement_policy:
+    currency: USD
+    remaining_budget: 300
+    request_cap: 200
+    approved_payees:
+      - sourcey
+      - runx
+    approval_threshold: 200
+expect:
+  status: sealed
+  steps:
+    - digest-request
+    - digest-policy
+    - decide
+  step_outputs:
+    decide:
+      subset:
+        procurement_approval:
+          data:
+            schema: runx/procurement-policy-check.approval.v1
+            decision: approved
+            payee: sourcey
+            ceiling_amount: 200
+            human_lane: null
+            refused_reason: null
+            spend_executed: false
+            validation:
+              status: pass
+              findings: []
+  receipt:
+    schema: runx.receipt.v1

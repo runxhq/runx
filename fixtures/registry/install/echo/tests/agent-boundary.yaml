@@ -1,0 +1,4 @@
+name: agent-boundary
+method: default
+expect:
+  status: needs_agent

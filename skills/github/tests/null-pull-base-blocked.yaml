@@ -1,0 +1,16 @@
+name: github-blocks-null-pull-base
+method: plan
+inputs:
+  repo: runxhq/runx
+  direction: push
+  resources:
+    kind: prs
+    filters: {limit: 1}
+    mutations:
+      - path: pulls/241
+        op: update
+        payload:
+          base: null
+  scope: write
+expect:
+  status: failure

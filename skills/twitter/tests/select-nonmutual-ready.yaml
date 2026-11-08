@@ -1,0 +1,35 @@
+name: select-nonmutual-ready
+method: select
+inputs:
+  objective: Unfollow accounts that do not follow back.
+  principal: account:@example
+  target: users
+  archive_base: skill
+  following_file: fixtures/data/archive-following.js
+  followers_file: fixtures/data/archive-follower.js
+  predicate:
+    non_mutual: true
+expect:
+  status: sealed
+  steps:
+  - prepare
+  - read-users
+  - select-users
+  - digest-users
+  - finalize-users
+  step_outputs:
+    finalize-users:
+      subset:
+        twitter_selection:
+          data:
+            decision: ready
+            matched: 2
+            scanned: 3
+            twitter_plan:
+              acts:
+              - act_id: act-unf-111
+                kind: unfollow
+              - act_id: act-unf-333
+                kind: unfollow
+  receipt:
+    schema: runx.receipt.v1

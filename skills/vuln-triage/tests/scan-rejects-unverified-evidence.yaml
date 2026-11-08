@@ -1,0 +1,17 @@
+name: verification-boolean-is-not-findings
+inputs:
+  target: example/service
+  evidence:
+    verified: true
+expect:
+  status: sealed
+  step_outputs:
+    stop:
+      subset:
+        vulnerability_review:
+          data:
+            decision: needs_more_evidence
+            validation:
+              status: fail
+  receipt:
+    schema: runx.receipt.v1

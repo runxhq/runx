@@ -72,11 +72,11 @@
         {
           "additionalProperties": false,
           "properties": {
-            "graphId": {
+            "workflowId": {
               "type": "string"
             },
             "kind": {
-              "const": "state-machine.createSequentialGraph"
+              "const": "state-machine.createSequentialWorkflow"
             },
             "steps": {
               "items": {
@@ -86,7 +86,7 @@
             }
           },
           "required": [
-            "graphId",
+            "workflowId",
             "kind",
             "steps"
           ],
@@ -96,7 +96,7 @@
           "additionalProperties": false,
           "properties": {
             "kind": {
-              "const": "state-machine.planSequentialGraphTransition"
+              "const": "state-machine.planSequentialWorkflowTransition"
             },
             "state": {
               "type": "object"
@@ -122,7 +122,7 @@
               "type": "object"
             },
             "kind": {
-              "const": "state-machine.transitionSequentialGraph"
+              "const": "state-machine.transitionSequentialWorkflow"
             },
             "state": {
               "type": "object"

@@ -45,7 +45,7 @@
     "provider_evidence": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Actual graph-owned native provider-operation output, including independent readback. The core native contract owns its shape."
+      "description": "Actual workflow-owned native provider-operation output, including independent readback. The core native contract owns its shape."
     },
     "findings": {
       "type": "array",

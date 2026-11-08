@@ -1,0 +1,11 @@
+{
+  "skill_name": "procurement-policy-check",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Decide whether this procurement request is allowed under the procurement policy before any money moves.",
+      "expected_output": "Return an approval decision bound to the exact request and policy digests, with no spend executed.",
+      "files": []
+    }
+  ]
+}

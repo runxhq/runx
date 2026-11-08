@@ -1,0 +1,37 @@
+{
+  "skill_name": "sql-analysis",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Which campaigns produced qualified trials since 2026-10-01?",
+      "expected_output": "Select the relevant declared read with exact bound parameters and no execution claim.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Which campaigns produced qualified trials since 2026-10-01?",
+      "expected_output": "Read the selected source catalog, invoke the exact declared bound query and interpret its native provider result. The fixture supplies provider results; real database execution is checked separately.",
+      "files": [],
+      "method": "analyst"
+    },
+    {
+      "id": 3,
+      "prompt": "Which campaigns produced qualified trials since 2026-10-01 in the selected production database?",
+      "expected_output": "Refuse without the selected SQL source binding before inventing a catalog, rows or answer.",
+      "files": [],
+      "method": "analyst"
+    },
+    {
+      "id": 4,
+      "prompt": "Stop if the declared source cannot support this question or its parameter values.",
+      "expected_output": "Retain the rejected plan with executed false and perform no query operation. There is no query fixture to answer an accidental call.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Stop if the declared source cannot support this question or its parameter values.",
+      "expected_output": "Retain the rejected plan with executed false and perform no query operation. There is no query fixture to answer an accidental call.",
+      "files": []
+    }
+  ]
+}

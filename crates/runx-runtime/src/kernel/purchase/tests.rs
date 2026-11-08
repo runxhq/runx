@@ -9,7 +9,7 @@ use runx_contracts::{
 };
 use serde_json::{Value, json};
 
-use super::{Bought, PaidRunner, PurchaseCall, buy};
+use super::{Bought, PaidMethod, PurchaseCall, buy};
 use crate::RuntimeError;
 use crate::host::Host;
 use crate::http::{
@@ -363,7 +363,7 @@ impl Project {
         }
     }
 
-    fn paid() -> PaidRunner {
+    fn paid() -> PaidMethod {
         let terms: PaidSkillOfferTerms = serde_json::from_value(json!({
             "price": {"model": "fixed", "amount_minor": 5},
             "currency": "USD",
@@ -372,7 +372,7 @@ impl Project {
             "output_schema_digest": format!("sha256:{}", "e".repeat(64))
         }))
         .unwrap();
-        PaidRunner::reached("registry:acme/inbox@1.0.0", None, "create", Some(&terms)).unwrap()
+        PaidMethod::reached("registry:acme/inbox@1.0.0", None, "create", Some(&terms)).unwrap()
     }
 
     fn buy(
@@ -428,14 +428,14 @@ impl Project {
 }
 
 #[test]
-fn only_a_registry_runner_that_carries_an_offer_is_bought() {
+fn only_a_registry_method_that_carries_an_offer_is_bought() {
     let terms = Project::paid().terms;
     assert!(
-        PaidRunner::reached("registry:acme/inbox", Some("1.0.0"), "create", Some(&terms)).is_some()
+        PaidMethod::reached("registry:acme/inbox", Some("1.0.0"), "create", Some(&terms)).is_some()
     );
-    assert!(PaidRunner::reached("./inbox", None, "create", Some(&terms)).is_none());
-    assert!(PaidRunner::reached("registry:acme/inbox", None, "create", None).is_none());
-    let pinned = PaidRunner::reached(
+    assert!(PaidMethod::reached("./inbox", None, "create", Some(&terms)).is_none());
+    assert!(PaidMethod::reached("registry:acme/inbox", None, "create", None).is_none());
+    let pinned = PaidMethod::reached(
         "registry:acme/inbox@1.0.0",
         Some("0.9.0"),
         "create",

@@ -1,0 +1,66 @@
+name: refuses-unknown-clause
+inputs:
+  template:
+    id: northstar-support
+    version: 2026-11
+    title: Support Services Agreement
+    required_terms:
+      - service
+      - fee
+      - currency
+      - start_date
+    clauses:
+      - id: parties
+        heading: Parties
+        baseline: "{{provider.legal_name}} provides services to {{customer.legal_name}}."
+      - id: service
+        heading: Services
+        baseline: "Services: {{terms.service}}"
+      - id: fees
+        heading: Fees
+        baseline: Customer pays {{terms.currency}} {{terms.fee}} per month.
+      - id: start
+        heading: Commencement
+        baseline: Services begin {{terms.start_date}}.
+  parties:
+    provider:
+      legal_name: Northstar Services Ltd (fixture)
+    customer:
+      legal_name: Example Product Co (fixture)
+  terms:
+    service: Inbox triage and a weekly support report.
+    fee: "1200.00"
+    currency: USD
+    start_date: 2026-12-01
+host:
+  answers:
+    assemble:
+      draft_doc:
+        title: Support Services Agreement
+        clauses:
+          - id: parties
+            heading: Parties
+            text: Northstar Services Ltd (fixture) provides services to Example Product Co (fixture).
+          - id: service
+            heading: Services
+            text: "Services: Inbox triage and a weekly support report."
+          - id: fees
+            heading: Fees
+            text: Customer pays USD 1200.00 per month.
+          - id: start
+            heading: Commencement
+            text: Services begin 2026-12-01.
+          - id: extra
+            heading: Unapproved
+            text: An unapproved clause.
+        deviations: []
+expect:
+  status: sealed
+  step_outputs:
+    finalize:
+      subset:
+        contract_draft:
+          data:
+            decision: refused
+            document: null
+            delivery_performed: false

@@ -1,0 +1,40 @@
+name: diagnose-supplemental-input-failure-without-ledger-scan
+inputs:
+  harness_output: runner input 'captured_comparison' is not declared; from-snapshot accepts snapshot.
+  skill_path: skills/github-pr-review
+host:
+  answers:
+    diagnose:
+      diagnosis:
+        verdict: needs_update
+        failure_summary: The invocation passed an undeclared captured_comparison input. The retained comparison belongs in the documented snapshot port; no PR-review package change is needed.
+        improvement_proposals:
+          - target: caller invocation inputs
+            change: Pass the existing retained descriptor as snapshot.
+            rationale: The declared from-snapshot input is snapshot.
+            risk: Reuse the exact descriptor and expected head; do not acquire the PR again.
+        next_harness_checks:
+          - The documented snapshot input reaches offline review without another GitHub read.
+expect:
+  status: sealed
+  steps:
+    - select
+    - evidence
+    - review-queried
+  step_outputs:
+    evidence:
+      subset:
+        ledger_answer_packet:
+          data:
+            ledger_answer:
+              decision: needs_agent
+            matched_receipts: []
+            receipt_details: []
+  output:
+    subset:
+      failure_packet:
+        data:
+          verdict: needs_update
+  receipt:
+    schema: runx.receipt.v1
+    outcome: completed

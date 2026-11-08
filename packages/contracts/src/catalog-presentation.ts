@@ -67,7 +67,7 @@ export function readCatalogPresentation(
   source: string,
   context: {
     readonly packagePaths: ReadonlySet<string>;
-    readonly runnerNames: readonly string[];
+    readonly methodNames: readonly string[];
     /** The input names the package declares: an `input` must name one. */
     readonly inputNames: readonly string[];
     /** The child skills the package composes, as written: a method step's `skill` must name one. */
@@ -96,7 +96,7 @@ export function readCatalogPresentation(
     const item = object(entry, field);
     allowOnly(item, field, ["title", "description", "skill", "runner"]);
     const runner = optionalText(item.runner, `${field}.runner`);
-    if (runner !== undefined && !context.runnerNames.includes(runner)) {
+    if (runner !== undefined && !context.methodNames.includes(runner)) {
       throw new RegistryPresentationError(`${field}.runner`, `names no runner this package declares (${runner})`);
     }
     const skill = optionalText(item.skill, `${field}.skill`);
@@ -253,7 +253,7 @@ export interface PublicSkillCatalogMaterial {
     readonly name: string;
     readonly catalog_visibility?: string;
     readonly category?: string;
-    readonly runner_names: readonly string[];
+    readonly method_names: readonly string[];
     readonly input_names: readonly string[];
     readonly skills: readonly string[];
   };
@@ -277,7 +277,7 @@ export function assertPublicSkillCatalog(material: PublicSkillCatalogMaterial): 
   const presentationFile = packageFiles.find((file) => file.path === CATALOG_PRESENTATION_PATH);
   const presentation = presentationFile && readCatalogPresentation(presentationFile.content, {
     packagePaths: new Set(packageFiles.map((file) => file.path)),
-    runnerNames: metadata.runner_names,
+    methodNames: metadata.method_names,
     inputNames: metadata.input_names,
     skills: metadata.skills,
   });

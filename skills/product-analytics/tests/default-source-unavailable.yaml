@@ -1,0 +1,19 @@
+name: unavailable-current-source-is-an-explicit-gap
+inputs:
+  objective: Review activation.
+host:
+  answers:
+    collect:
+      selection:
+        current: null
+        baseline: null
+        notes:
+          - No selected PostHog grant is available.
+expect:
+  status: sealed
+  steps:
+    - select
+    - collect
+    - collected
+  receipt:
+    schema: runx.receipt.v1

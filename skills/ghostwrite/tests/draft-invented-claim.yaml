@@ -1,0 +1,43 @@
+name: ghostwrite-invented-claim-is-withheld
+method: draft
+inputs:
+  objective: Draft a bounded claim.
+  audience: operators
+  channel: brief
+  evidence_pack:
+    decision: ready
+    research_brief: {objective: Draft a bounded claim., scope: test, summary: One supported claim., open_questions: []}
+    evidence_log:
+      - {claim: One supported claim., source_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111, content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, confidence: verified, relevance: test}
+    source_evidence:
+      - {evidence_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111, content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, source_uri: https://example.com/evidence, source_kind: fetch, provenance: {observed_at: "2026-07-17T00:00:00Z", bytes: 0, status: 200, redirects: []}}
+    decision_support: []
+    risks: []
+    index_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    validation: {status: pass, findings: []}
+host:
+  answers:
+    author:
+      content_draft:
+        decision: ready
+        content_brief: {objective: Draft a bounded claim., audience: operators, channel: brief}
+        draft:
+          title: Unsupported expansion
+          body: This adds a claim the evidence does not support.
+          claims:
+            - {claim: Unsupported claim., source_digests: [sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff]}
+        review_checklist: []
+        distribution_notes: {}
+        context_binding: {applied: []}
+expect:
+  status: sealed
+  steps: [admit, author, finalize]
+  step_outputs:
+    finalize:
+      subset:
+        content_draft_packet:
+          data:
+            decision: needs_more_evidence
+            draft: {title: "", body: "", claims: []}
+            validation: {status: fail}
+  receipt: {schema: runx.receipt.v1}

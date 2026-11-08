@@ -1,9 +1,8 @@
 schema: runx.connector.v1
-id: national-weather-service
-name: National Weather Service
+name: national-weather-service
+title: National Weather Service
 description: Resolve US gridpoints and read National Weather Service forecasts.
 category: public-data
-runtime_capability: false
 auth:
   none: {}
 placements:
@@ -29,7 +28,7 @@ operations:
       http:
         allowed_hosts: [api.weather.gov]
         requests:
-          - method: GET
+          - http_method: GET
             url: {"$concat": ["https://api.weather.gov/points/", {"$argument": "/lat"}, ",", {"$argument": "/lon"}]}
             headers:
               user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"
@@ -54,7 +53,7 @@ operations:
       http:
         allowed_hosts: [api.weather.gov]
         requests:
-          - method: GET
+          - http_method: GET
             url: {"$concat": ["https://api.weather.gov/gridpoints/", {"$argument": "/office"}, "/", {"$argument": "/grid_x"}, ",", {"$argument": "/grid_y"}, "/forecast"]}
             headers:
               user-agent: "runx-weather-catalog/0.1 (https://github.com/runxhq/runx)"

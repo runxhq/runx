@@ -1,0 +1,60 @@
+name: sql-analysis-default-stops-for-invalid-parameters
+setup:
+  credentials:
+  - sql
+inputs:
+  question: Which campaigns produced qualified trials since 2026-10-01?
+  source: analytics:fixture
+  max_rows: 2
+env:
+  RUNX_SQL_CONNECTION: fixture-only-source-binding
+host:
+  answers:
+    choose:
+      choice:
+        decision: ready
+        query_id: trials_by_campaign
+        parameters:
+          since: invalid
+        reason: The declared read counts qualified trials in the requested period.
+        missing_context: []
+providers:
+  processes:
+  - tool: sql.read
+    arguments:
+      action: catalog
+      source: analytics:fixture
+    result:
+      source: analytics:fixture
+      dialect: sqlite
+      status: catalog
+      executed: false
+      max_rows: 2
+      queries:
+      - id: trials_by_campaign
+        description: Count qualified trials by campaign since a supplied date.
+        parameters_schema:
+          type: object
+          additionalProperties: false
+          required:
+          - since
+          properties:
+            since:
+              type: string
+              pattern: ^2026-10-[0-9]{2}$
+        result_description: Qualified-trial counts by associated campaign; this is not causal attribution.
+expect:
+  status: sealed
+  steps:
+  - catalog
+  - plan
+  - stopped
+  step_outputs:
+    stopped:
+      subset:
+        analysis_result:
+          data:
+            decision: invalid_parameters
+            executed: false
+  receipt:
+    schema: runx.receipt.v1

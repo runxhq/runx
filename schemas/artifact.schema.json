@@ -379,7 +379,7 @@
           "type": "object",
           "x-runx-schema": "runx.reference.v1"
         },
-        "harness_ref": {
+        "run_ref": {
           "$id": "https://schemas.runx.ai/runx/reference/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,

@@ -1,82 +1,77 @@
-skill: pay
 version: "0.1.4"
+minimum_runx: 0.12.0
+default_method: pay
 catalog:
-  kind: graph
-  audience: operator
   visibility: public
-  role: canonical
-  execution: execute
-  completion: provider_readback
-  approval: required
   category: payments
-input_definitions:
+shared_inputs:
   payment_authority:
     type: object
-    required: true
-    description: Exact resource URL, currency and maximum approved by the parent; this never replaces
-      native run authority.
-    schema:
-      additionalProperties: false
-      required:
-        - term_id
-        - currency
-        - max_amount_minor
-        - resource_url
-      properties:
-        term_id:
-          type: string
-          minLength: 1
-          maxLength: 256
-        currency:
-          type: string
-          pattern: ^[A-Z]{3}$
-        max_amount_minor:
-          type: integer
-          minimum: 0
-          maximum: 9007199254740991
-        resource_url:
-          type: string
-          format: uri
-          maxLength: 2048
-connectors:
-  wallet/evm:
-    operations:
-      - payment.x402
-      - payment.x402.read
-  link:
-    operations:
-      - payment.mpp
-      - spend.request
-      - spend.read
-runners:
+    description: Exact resource URL, currency and maximum approved by the parent; this never replaces native run authority.
+    additionalProperties: false
+    required:
+      - term_id
+      - currency
+      - max_amount_minor
+      - resource_url
+    properties:
+      term_id:
+        type: string
+        minLength: 1
+        maxLength: 256
+      currency:
+        type: string
+        pattern: ^[A-Z]{3}$
+      max_amount_minor:
+        type: integer
+        minimum: 0
+        maximum: 9007199254740991
+      resource_url:
+        type: string
+        format: uri
+        maxLength: 2048
+methods:
   pay:
-    default: true
-    description: Pay one exact resource using the explicitly selected held method and require its
-      confirmed payment evidence.
+    description: Pay one exact resource using the explicitly selected held method and require its confirmed payment evidence.
     inputs:
       connector:
         type: string
-        required: true
         description: Held buyer method; merchant app credentials do not authorize buyer spending.
-        schema:
-          enum:
-            - wallet/evm
-            - link
+        enum:
+          - wallet/evm
+          - link
       request:
-        type: json
-        required: true
-        description: For wallet/evm use its payment_signal; for Link use payment.mpp public input_schema.
-          Inspect the selected connector. Supply public references and terms only, never
-          credentials.
+        description: For wallet/evm use its payment_signal; for Link use payment.mpp public input_schema. Inspect the selected connector. Supply public references and terms only, never credentials.
       parent_payment_authority:
-        definition: payment_authority
+        type: object
+        description: Exact resource URL, currency and maximum approved by the parent; this never replaces native run authority.
+        additionalProperties: false
+        required:
+          - term_id
+          - currency
+          - max_amount_minor
+          - resource_url
+        properties:
+          term_id:
+            type: string
+            minLength: 1
+            maxLength: 256
+          currency:
+            type: string
+            pattern: ^[A-Z]{3}$
+          max_amount_minor:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+          resource_url:
+            type: string
+            format: uri
+            maxLength: 2048
       idempotency_seed:
         type: string
-        required: true
         description: Stable payment idempotency material
-        schema:
-          minLength: 16
-          maxLength: 500
+        minLength: 16
+        maxLength: 500
     examples:
       - connector: wallet/evm
         request:
@@ -128,11 +123,10 @@ runners:
           export: admitPayment
           timeout_seconds: 5
         outputs:
-          request: object
-          resource_url: string
+          request: {type: object}
+          resource_url: {type: string}
       - id: settle
-        skill: .
-        runner: settle
+        skill: .#settle
         inputs:
           payment_signal: $steps.admit.request
           parent_payment_authority: $input.parent_payment_authority
@@ -141,8 +135,7 @@ runners:
           value: $input.connector
           equals: wallet/evm
       - id: readback
-        skill: .
-        runner: readback
+        skill: .#readback
         inputs:
           resource_url: $steps.admit.resource_url
           payment_id: $steps.settle.provider_operation.result.payment_id
@@ -157,7 +150,7 @@ runners:
           export: requireCompleteReadback
           timeout_seconds: 5
         outputs:
-          verified: object
+          verified: {type: object}
         when:
           value: $input.connector
           equals: wallet/evm
@@ -166,43 +159,61 @@ runners:
           value: $input.connector
           equals: link
         operation: link/payment.mpp
-        input: $steps.admit.request
+        inputs: $steps.admit.request
         idempotency_key: $input.idempotency_seed
         approval:
           type: mpp_payment
           reason: Approve paying this exact resource with the original approved Link spend request.
-        result_fields:
-          - spend_request_id
-          - amount_minor
-          - currency
-          - status
-          - payment_method_id
-          - network_id
-          - transaction_id
-          - payment_outcome
-          - paid_amount_minor
-          - paid_currency
-          - resource_binding
-        expected_result:
-          status: settled
+        result:
+          required:
+            - spend_request_id
+            - amount_minor
+            - currency
+            - status
+            - payment_method_id
+            - network_id
+            - transaction_id
+            - payment_outcome
+            - paid_amount_minor
+            - paid_currency
+            - resource_binding
+          equals:
+            status: settled
   settle:
     description: Pay one requirement once, for a durable caller that reads it back later with readback.
     inputs:
       payment_signal:
-        type: json
-        required: true
-        description: Exact payment_signal from wallet/evm payment.x402 input_schema; inspect the owning
-          connector. Include the original resource, amount and optional payee constraint, never
-          wallet credentials.
+        description: Exact payment_signal from wallet/evm payment.x402 input_schema; inspect the owning connector. Include the original resource, amount and optional payee constraint, never wallet credentials.
       parent_payment_authority:
-        definition: payment_authority
+        type: object
+        description: Exact resource URL, currency and maximum approved by the parent; this never replaces native run authority.
+        additionalProperties: false
+        required:
+          - term_id
+          - currency
+          - max_amount_minor
+          - resource_url
+        properties:
+          term_id:
+            type: string
+            minLength: 1
+            maxLength: 256
+          currency:
+            type: string
+            pattern: ^[A-Z]{3}$
+          max_amount_minor:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+          resource_url:
+            type: string
+            format: uri
+            maxLength: 2048
       idempotency_seed:
         type: string
-        required: true
         description: Stable payment idempotency material
-        schema:
-          minLength: 16
-          maxLength: 500
+        minLength: 16
+        maxLength: 500
     examples:
       - payment_signal:
           resource:
@@ -230,23 +241,21 @@ runners:
         approval:
           reason: Approve paying this exact x402 challenge.
           type: x402_payment
-        amount:
-          units: $input.payment_signal.amount_minor
-          unit: $input.parent_payment_authority.currency
-        result_fields:
-          - payment_id
-          - challenge_id
-          - amount_minor
-          - currency
-          - status
-          - transaction
-          - network
-          - payer
-          - pay_to
-          - purchase_id
-          - payment_required_digest
-          - payment_response_digest
-        input:
+        result:
+          required:
+            - payment_id
+            - challenge_id
+            - amount_minor
+            - currency
+            - status
+            - transaction
+            - network
+            - payer
+            - pay_to
+            - purchase_id
+            - payment_required_digest
+            - payment_response_digest
+        inputs:
           payment_signal: $input.payment_signal
           parent_payment_authority: $input.parent_payment_authority
   readback:
@@ -254,18 +263,14 @@ runners:
     inputs:
       resource_url:
         type: string
-        required: true
         description: Exact HTTPS resource URL used for settlement.
-        schema:
-          format: uri
-          maxLength: 2048
+        format: uri
+        maxLength: 2048
       payment_id:
         type: string
-        required: true
         description: Durable payment reference returned by the settle runner.
-        schema:
-          minLength: 1
-          maxLength: 300
+        minLength: 1
+        maxLength: 300
     result_from:
       - readback
     steps:
@@ -278,73 +283,64 @@ runners:
           export: prepareReadback
           timeout_seconds: 5
         outputs:
-          readback_request: object
-          expected_result: object
+          readback_request: {type: object}
+          expected_result: {type: object}
       - id: readback
         operation: wallet/evm/payment.x402.read
-        result_fields:
-          - payment_id
-          - challenge_id
-          - amount_minor
-          - currency
-          - status
-          - transaction
-          - network
-          - payer
-          - pay_to
-          - purchase_id
-          - payment_required_digest
-          - payment_response_digest
-          - resource_status
-          - resource_result
-          - readback_status
-        optional_result_fields:
-          - resource_state
-          - finality
-          - block_number
-        ephemeral_result_paths:
-          - /resource_result/resource_access
-        input: $steps.prepare.readback_request
-        expected_result: $steps.prepare.expected_result
+        result:
+          required:
+            - payment_id
+            - challenge_id
+            - amount_minor
+            - currency
+            - status
+            - transaction
+            - network
+            - payer
+            - pay_to
+            - purchase_id
+            - payment_required_digest
+            - payment_response_digest
+            - resource_status
+            - resource_result
+            - readback_status
+          optional:
+            - resource_state
+            - finality
+            - block_number
+          equals: $steps.prepare.expected_result
+          ephemeral:
+            - /resource_result/resource_access
+        inputs: $steps.prepare.readback_request
   authorize:
-    description: Ask Link for one exact one-time spending authorization and return its approval
-      status/link. This does not pay a merchant.
+    description: Ask Link for one exact one-time spending authorization and return its approval status/link. This does not pay a merchant.
     inputs:
       request:
-        type: json
-        required: true
-        description: "Exact link/spend.request input_schema: original resource URL, method, body, MPP
-          challenge, one-time amount/currency, method, merchant network and purpose. The connector
-          stores a provider-owned binding; wallet approval is not payment."
+        description: "Exact link/spend.request input_schema: original resource URL, method, body, MPP challenge, one-time amount/currency, method, merchant network and purpose. The connector stores a provider-owned binding; wallet approval is not payment."
       idempotency_seed:
         type: string
-        required: true
         description: Stable payment idempotency material
-        schema:
-          minLength: 16
-          maxLength: 500
+        minLength: 16
+        maxLength: 500
     result_from:
       - request
     steps:
       - id: request
         operation: link/spend.request
-        input: $input.request
+        inputs: $input.request
         idempotency_key: $input.idempotency_seed
         approval:
           type: wallet_authorization
           reason: Approve requesting this exact one-time wallet authorization.
-        result_fields:
-          - spend_request_id
-          - amount_minor
-          - currency
-          - status
-          - payment_method_id
-          - network_id
-          - resource_binding
-        optional_result_fields:
-          - approval_url
-          - expires_at
-harness:
-  files:
-    - fixtures/support/composed.graph
-  cases: []
+        result:
+          required:
+            - spend_request_id
+            - amount_minor
+            - currency
+            - status
+            - payment_method_id
+            - network_id
+            - resource_binding
+          optional:
+            - approval_url
+            - expires_at
