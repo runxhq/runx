@@ -1,5 +1,5 @@
 skill: skill-review
-version: "0.3.10"
+version: "0.3.11"
 catalog:
   publisher: runx
   kind: graph
@@ -179,6 +179,7 @@ runners:
         tool: runx.skill.validate
         scopes:
           - fs.read
+          - registry.read
         inputs:
           skill_path: $input.skill
           allow_execute_harness: false

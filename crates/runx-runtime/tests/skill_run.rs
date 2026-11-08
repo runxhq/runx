@@ -4076,6 +4076,71 @@ fn a_publish_refuses_a_closure_record_its_registry_did_not_sign()
     Ok(())
 }
 
+/// A skill-build candidate's harness reads the registry children its closure
+/// names from the registry its operator selects: each installed, verified,
+/// into the candidate's own project before its cases run, as a publish binds
+/// its closure.
+#[test]
+fn a_candidates_harness_reads_its_registry_children_from_the_operators_registry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let registry = registry_child()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("skills/candidate"),
+        "---\nname: candidate\ndescription: Runs acme's registry child.\n---\n# Candidate\n",
+        "skill: candidate\nharness:\n  cases:\n    - name: runs-the-registry-child\n      runner: graph\n      expect:\n        status: sealed\nrunners:\n  graph:\n    default: true\n    result_from: [nested]\n    steps:\n      - id: nested\n        skill: registry:acme/registry-child@1.0.0\n",
+    )?;
+    let validator = temp.path().join("validator");
+    crate::support::write_test_skill_package(
+        &validator,
+        "---\nname: validator\ndescription: Validates the candidate.\n---\n# Validator\n",
+        "skill: validator\nrunners:\n  validate:\n    default: true\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        scopes: [fs.read, registry.read]\n        inputs:\n          repo_root: .\n          skill_path: skills/candidate\n          allow_execute_harness: true\n",
+    )?;
+    let mut env = registry_env(&registry, temp.path())?;
+    env.extend(path_env());
+    env.insert("RUNX_REGISTRY_URL".to_owned(), registry.url.clone());
+
+    let result = run_skill(SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: validator,
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: None,
+        answers: None,
+        inputs: BTreeMap::new(),
+        env,
+        cwd: temp.path().to_path_buf(),
+        managed_agent: Default::default(),
+    })?;
+
+    let output = serde_json::to_value(&result.output)?;
+    let validation = &output["result"]["skill_validation"]["data"];
+    assert_eq!(validation["verdict"], "tested", "{output}");
+    assert_eq!(validation["harness"]["status"], "passed", "{output}");
+    // Read by its record, never acquired, and nothing added to the operator's
+    // project.
+    assert!(
+        registry
+            .asked()
+            .iter()
+            .any(|line| line.contains("/versions/1.0.0/record")),
+        "{:?}",
+        registry.asked()
+    );
+    assert!(
+        registry
+            .asked()
+            .iter()
+            .all(|line| !line.contains("/acquire")),
+        "{:?}",
+        registry.asked()
+    );
+    assert!(!temp.path().join(".runx/added-skills/acme").exists());
+    Ok(())
+}
+
 /// Two drivers of one run: the step that reaches the world runs once. The
 /// second driver loses the claim before it dispatches, or finds the claim and
 /// waits on its retry.

@@ -1,5 +1,5 @@
 skill: skill-build
-version: "0.9.20"
+version: "0.9.21"
 catalog:
   publisher: runx
   kind: graph
@@ -290,6 +290,7 @@ runners:
         scopes:
           - fs.write
           - fs.delete
+          - registry.read
         inputs:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
@@ -413,6 +414,7 @@ runners:
         scopes:
           - fs.write
           - fs.delete
+          - registry.read
         inputs:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
@@ -517,6 +519,7 @@ runners:
         scopes:
           - fs.write
           - fs.delete
+          - registry.read
         inputs:
           target_dir: $input.target_dir
           repo_root: $input.repo_root

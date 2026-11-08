@@ -5,6 +5,8 @@
 //! as `runx skill` installs the refs a run names; the package is inspected
 //! again, a level at a time, until every ref it names is held. A version is
 //! read by its record, never acquired, so a publish counts as no install.
+//! A skill-build candidate's harness binds its closure the same way, into
+//! the candidate's own project, from the registry its operator selects.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -85,7 +87,33 @@ pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
         crate::paths::RUNX_PROJECT_DIR_ENV.to_owned(),
         project.path().to_string_lossy().into_owned(),
     );
-    let paths = crate::RunxPaths::resolve(&env, request.cwd);
+    install_registry_closure(
+        client,
+        registry_url,
+        RegistryPublishPackageRequest {
+            env: &env,
+            ..request
+        },
+    )?;
+    Ok(PublishClosure { project, env })
+}
+
+/// Install, verified, every registry ref the package names that the project
+/// its environment names does not hold: each read by its record from
+/// `client`'s registry, at `registry_url`, a level at a time until the
+/// closure is held. A package naming none reads nothing.
+///
+/// # Errors
+///
+/// Returns an error when the package does not load, the registry cannot be
+/// read or does not publish a ref, a version it serves does not verify
+/// against its signed envelope, or the closure does not close.
+pub fn install_registry_closure<T: RuntimeHttpTransport>(
+    client: &RegistryClient<T>,
+    registry_url: &str,
+    request: RegistryPublishPackageRequest<'_>,
+) -> Result<(), PublishClosureError> {
+    let paths = crate::RunxPaths::resolve(request.env, request.cwd);
     // The records' source authority is the registry they came from.
     let source_authority = registry_manifest_source_authority_from_registry_url(registry_url);
     let options = InstallLocalSkillOptions {
@@ -93,16 +121,16 @@ pub fn materialize_publish_closure<T: RuntimeHttpTransport>(
         connectors_root: paths.added_connectors(),
         install_records: paths.install_records(),
         expected_digest: None,
-        trusted_manifest_keys: trusted_registry_manifest_keys_from_env(&env, &source_authority)?,
+        trusted_manifest_keys: trusted_registry_manifest_keys_from_env(
+            request.env,
+            &source_authority,
+        )?,
     };
     let mut supplied = BTreeSet::new();
     for _ in 0..=MAX_CLOSURE_DEPTH {
-        let unheld = unheld_publish_registry_refs(RegistryPublishPackageRequest {
-            env: &env,
-            ..request
-        })?;
+        let unheld = unheld_publish_registry_refs(request)?;
         if unheld.is_empty() {
-            return Ok(PublishClosure { project, env });
+            return Ok(());
         }
         for reference in unheld {
             // A package binds an exact closure, so its refs name the canonical

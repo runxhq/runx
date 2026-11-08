@@ -142,8 +142,23 @@ impl Drop for ValidationReceiptStage {
     }
 }
 
+/// What selects the registry a candidate's closure is read from, and the key
+/// it is trusted to sign with: the registry's URL, the hosted API base that is
+/// the default registry when no URL is named, leave to reach a private network
+/// address, and the operator's trust key. Reading a public registry takes no
+/// credential, so none is forwarded.
+const REGISTRY_SELECTION_ENV: [&str; 6] = [
+    "RUNX_REGISTRY_URL",
+    crate::HOSTED_API_BASE_URL_ENV,
+    crate::hosted_api::HOSTED_API_ALLOW_PRIVATE_NETWORK_ENV,
+    crate::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ENV,
+    crate::registry::RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID_ENV,
+    crate::registry::RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER_ENV,
+];
+
 /// The environment a candidate's harness runs in: the repo as its workspace,
-/// and a home and project directory of its own under `scratch`.
+/// a home and project directory of its own under `scratch`, and the registry
+/// its operator selects.
 pub(super) fn isolated_harness_env(
     repo_root: &Path,
     env: &BTreeMap<String, String>,
@@ -158,7 +173,10 @@ pub(super) fn isolated_harness_env(
         "LANG",
         "LC_ALL",
         "SHELL",
-    ] {
+    ]
+    .into_iter()
+    .chain(REGISTRY_SELECTION_ENV)
+    {
         if let Some(value) = env.get(key) {
             isolated.insert(key.to_owned(), value.clone());
         }
@@ -296,5 +314,58 @@ fn rebase_bundle(
 impl Drop for CandidateStage {
     fn drop(&mut self) {
         let _ignored = fs::remove_dir_all(&self.root);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::isolated_harness_env;
+    use std::collections::BTreeMap;
+
+    /// A candidate's harness reads the registry its operator selects, and
+    /// nothing else of the operator's crosses into it: no credential, home,
+    /// project or other setting.
+    #[test]
+    fn the_isolated_harness_carries_the_registry_selection_and_nothing_else()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let workspace = tempfile::tempdir()?;
+        let selection = [
+            ("RUNX_REGISTRY_URL", "http://127.0.0.1:4100"),
+            ("RUNX_PUBLIC_API_BASE_URL", "https://api.staging.runx.test"),
+            ("RUNX_PUBLIC_API_ALLOW_PRIVATE_NETWORK", "1"),
+            ("RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64", "a2V5"),
+            ("RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID", "operator-key"),
+            ("RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER", "acme"),
+        ];
+        let operator = selection
+            .iter()
+            .chain(&[
+                ("PATH", "/usr/bin"),
+                ("HOME", "/home/operator"),
+                ("RUNX_HOME", "/home/operator/.runx"),
+                ("RUNX_PROJECT_DIR", "/work/.runx"),
+                ("RUNX_PUBLIC_API_TOKEN", "rxk_operator"),
+                ("RUNX_HOSTED_API_ADMIN_TOKEN", "admin-secret"),
+                ("RUNX_AGENT_API_KEY", "agent-secret"),
+                ("RUNX_INSTALLATION_ID", "operator-installation"),
+            ])
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+            .collect::<BTreeMap<_, _>>();
+        let scratch = workspace.path().join("scratch");
+
+        let isolated = isolated_harness_env(workspace.path(), &operator, &scratch);
+
+        let mut expected = selection
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+            .collect::<BTreeMap<_, _>>();
+        expected.insert("PATH".to_owned(), "/usr/bin".to_owned());
+        expected.insert(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            workspace.path().to_string_lossy().into_owned(),
+        );
+        crate::paths::isolate(&mut expected, &scratch);
+        assert_eq!(isolated, expected);
+        Ok(())
     }
 }

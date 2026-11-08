@@ -94,6 +94,7 @@ fn run_candidate_harness(
     let receipt_stage = ValidationReceiptStage::prepare(repo_root)?;
     let mut harness_env = isolated_harness_env(repo_root, env, receipt_stage.root());
     crate::services::merge_inferred_tool_roots(&mut harness_env, candidate);
+    install_candidate_closure(repo_root, candidate, &harness_env)?;
     let harness = crate::orchestrator::LocalOrchestrator::with_effects_and_environment(
         effects.clone(),
         harness_env,
@@ -113,6 +114,38 @@ fn run_candidate_harness(
         .map_err(|source| RuntimeError::json("serializing package harness report", source))?;
     serde_json::from_str(&encoded)
         .map_err(|source| RuntimeError::json("projecting package harness report", source))
+}
+
+/// The registry skills a candidate's closure names arrive as a publish's do:
+/// each read by its record from the registry the operator selects, and
+/// installed, verified, into the candidate's own project, where its harness
+/// reads them. A candidate naming none reads nothing.
+fn install_candidate_closure(
+    repo_root: &Path,
+    candidate: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<(), RuntimeError> {
+    let subject = candidate.to_string_lossy();
+    let request = crate::registry::RegistryPublishPackageRequest {
+        subject: &subject,
+        env,
+        cwd: repo_root,
+    };
+    let unbound = |error: String| {
+        invalid_skill_change(format!("binding the candidate's registry closure: {error}"))
+    };
+    if crate::registry::unheld_publish_registry_refs(request)
+        .map_err(|error| unbound(error.to_string()))?
+        .is_empty()
+    {
+        return Ok(());
+    }
+    let target = crate::registry::resolve::resolve_registry_target(None, env)
+        .map_err(|error| unbound(error.into_message()))?;
+    let client = crate::registry::resolve::registry_client(&target.registry_url, env)
+        .map_err(|error| unbound(error.into_message()))?;
+    crate::registry::install_registry_closure(&client, &target.registry_url, request)
+        .map_err(|error| unbound(error.to_string()))
 }
 
 fn skipped_harness() -> JsonObject {

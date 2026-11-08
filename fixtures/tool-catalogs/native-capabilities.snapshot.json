@@ -647,7 +647,8 @@
       "source": "runx-runtime/authoring",
       "scopes": [
         "fs.delete",
-        "fs.write"
+        "fs.write",
+        "registry.read"
       ],
       "effect": "mutate",
       "approval": "none",
@@ -703,7 +704,8 @@
       "id": "runx.skill.validate",
       "source": "runx-runtime/authoring",
       "scopes": [
-        "fs.read"
+        "fs.read",
+        "registry.read"
       ],
       "effect": "read",
       "approval": "none",
