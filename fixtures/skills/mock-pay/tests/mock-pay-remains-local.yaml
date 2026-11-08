@@ -9,6 +9,5 @@ expect:
   step_outputs:
     simulate:
       subset:
-        payment_result:
-          data: {status: simulated, rail: mock, amount_minor: 125, currency: USD}
+        payment_result: {status: simulated, rail: mock, amount_minor: 125, currency: USD}
   receipt: {schema: runx.receipt.v1}

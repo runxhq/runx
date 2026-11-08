@@ -32,8 +32,7 @@ expect:
     finalize:
       subset:
         attention_packet:
-          data:
-            decision: idle
-            work_proposals: []
-            validation: {status: pass}
+          decision: idle
+          work_proposals: []
+          validation: {status: pass}
   receipt: {schema: runx.receipt.v1}

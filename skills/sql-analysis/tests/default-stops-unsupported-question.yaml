@@ -53,8 +53,7 @@ expect:
     stopped:
       subset:
         analysis_result:
-          data:
-            decision: no_suitable_query
-            executed: false
+          decision: no_suitable_query
+          executed: false
   receipt:
     schema: runx.receipt.v1

@@ -9,6 +9,5 @@ expect:
   step_outputs:
     simulate:
       subset:
-        charge_result:
-          data: {status: simulated, settlement_family: mock, amount_minor: 125, currency: USD}
+        charge_result: {status: simulated, settlement_family: mock, amount_minor: 125, currency: USD}
   receipt: {schema: runx.receipt.v1}

@@ -33,8 +33,7 @@ expect:
     normalize-company:
       subset:
         lookup_evidence:
-          data:
-            decision: matched
+          decision: matched
         lead_enrichment_packet:
           data:
             decision: enriched

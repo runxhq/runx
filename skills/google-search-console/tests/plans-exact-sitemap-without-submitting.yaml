@@ -13,16 +13,15 @@ expect:
     bind:
       subset:
         sitemap_plan:
-          data:
-            schema: runx/google-search-console.sitemap_plan.v1
-            decision: ready_for_execution
-            provider: google-search-console
-            operation: sitemaps.submit
-            property: sc-domain:example.com
-            sitemap_url: https://www.example.com/sitemap.xml
-            provider_status: not_called
-            external_status: not_submitted
-            validation:
-              status: pass
+          schema: runx/google-search-console.sitemap_plan.v1
+          decision: ready_for_execution
+          provider: google-search-console
+          operation: sitemaps.submit
+          property: sc-domain:example.com
+          sitemap_url: https://www.example.com/sitemap.xml
+          provider_status: not_called
+          external_status: not_submitted
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

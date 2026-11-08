@@ -53,14 +53,13 @@ expect:
     assess:
       subset:
         pr_review:
-          data:
-            decision: draft_ready
-            head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-            publication_status: not_posted
-            execution_status: not_tested
-            findings:
-              - path: src/client.rs
-                side: RIGHT
-                line: 12
+          decision: draft_ready
+          head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          publication_status: not_posted
+          execution_status: not_tested
+          findings:
+            - path: src/client.rs
+              side: RIGHT
+              line: 12
   receipt:
     schema: runx.receipt.v1

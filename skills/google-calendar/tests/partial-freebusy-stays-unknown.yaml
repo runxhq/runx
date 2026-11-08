@@ -22,9 +22,8 @@ expect:
     normalize:
       subset:
         calendar_context:
-          data:
-            decision: partial
-            coverage: partial
-            provider_status: not_called
+          decision: partial
+          coverage: partial
+          provider_status: not_called
   receipt:
     schema: runx.receipt.v1

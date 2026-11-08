@@ -109,9 +109,8 @@ expect:
     finalize:
       subset:
         product_analytics_review:
-          data:
-            decision: ready
-            validation:
-              status: pass
+          decision: ready
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

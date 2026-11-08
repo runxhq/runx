@@ -37,15 +37,14 @@ expect:
     finalize:
       subset:
         performance_evidence:
-          data:
-            decision: usable_with_caveats
-            request:
-              dimensions:
-                - page
-            rows:
-              - dimensions:
-                  page: https://example.com/default-page
-            validation:
-              status: pass
+          decision: usable_with_caveats
+          request:
+            dimensions:
+              - page
+          rows:
+            - dimensions:
+                page: https://example.com/default-page
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

@@ -31,14 +31,13 @@ expect:
     normalize:
       subset:
         calendar_context:
-          data:
-            decision: ready
-            coverage: complete
-            provider_status: not_called
-            events:
-              - event_id: private-1
-                all_day: true
-              - event_id: cancelled-1
-                status: cancelled
+          decision: ready
+          coverage: complete
+          provider_status: not_called
+          events:
+            - event_id: private-1
+              all_day: true
+            - event_id: cancelled-1
+              status: cancelled
   receipt:
     schema: runx.receipt.v1

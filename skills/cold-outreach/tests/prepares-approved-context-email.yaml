@@ -117,16 +117,15 @@ expect:
     review:
       subset:
         outreach_review:
-          data:
-            decision: ready_for_review
-            draft_status: prepared
-            draft:
-              subject: A review of your public guide
-              body: 'Your public guide explains how receipts bind actions to authority evidence. We can offer a bounded review of that explanation. Would a short annotated review help?
+          decision: ready_for_review
+          draft_status: prepared
+          draft:
+            subject: A review of your public guide
+            body: 'Your public guide explains how receipts bind actions to authority evidence. We can offer a bounded review of that explanation. Would a short annotated review help?
 
 
-                Example team. Reply to opt out.'
-            recipient: operator@example.org
-            sender: {name: Example team, from_address: hello@example.com, reply_to: hello@example.com}
-            delivery_status: not_sent
+              Example team. Reply to opt out.'
+          recipient: operator@example.org
+          sender: {name: Example team, from_address: hello@example.com, reply_to: hello@example.com}
+          delivery_status: not_sent
   receipt: {schema: runx.receipt.v1}

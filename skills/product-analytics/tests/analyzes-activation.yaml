@@ -60,14 +60,13 @@ expect:
     finalize:
       subset:
         product_analytics_review:
-          data:
-            decision: ready
-            external_status: not_executed
-            validation:
-              status: pass
-            findings:
-              - kind: observed
-                claim: 75 of 100 accounts activated.
-              - kind: action
+          decision: ready
+          external_status: not_executed
+          validation:
+            status: pass
+          findings:
+            - kind: observed
+              claim: 75 of 100 accounts activated.
+            - kind: action
   receipt:
     schema: runx.receipt.v1

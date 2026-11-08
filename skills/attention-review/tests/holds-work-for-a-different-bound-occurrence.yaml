@@ -42,8 +42,7 @@ expect:
     finalize:
       subset:
         attention_packet:
-          data:
-            decision: held
-            work_proposals: []
-            validation:
-              status: fail
+          decision: held
+          work_proposals: []
+          validation:
+            status: fail

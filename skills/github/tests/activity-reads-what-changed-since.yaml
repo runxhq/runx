@@ -25,25 +25,24 @@ expect:
   output:
     subset:
       activity:
-        data:
-          repository: runxhq/runx
-          since: "2026-10-19T21:00:00Z"
-          page: 1
-          items:
-            - number: 549
-              kind: pull_request
-              state: merged
-              new: false
-              author: dependabot[bot]
-              bot: true
-            - number: 553
-              kind: issue
-              state: open
-              new: true
-              author: ada
-              bot: false
-              labels: [bug]
-              comments: 1
-              url: https://github.com/runxhq/runx/issues/553
-              body_left_out: 0
+        repository: runxhq/runx
+        since: "2026-10-19T21:00:00Z"
+        page: 1
+        items:
+          - number: 549
+            kind: pull_request
+            state: merged
+            new: false
+            author: dependabot[bot]
+            bot: true
+          - number: 553
+            kind: issue
+            state: open
+            new: true
+            author: ada
+            bot: false
+            labels: [bug]
+            comments: 1
+            url: https://github.com/runxhq/runx/issues/553
+            body_left_out: 0
   receipt: {schema: runx.receipt.v1}

@@ -25,11 +25,10 @@ expect:
     refuse:
       subset:
         sitemap_submission:
-          data:
-            decision: blocked
-            provider_status: not_called
-            external_status: not_submitted
-            validation:
-              status: fail
+          decision: blocked
+          provider_status: not_called
+          external_status: not_submitted
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

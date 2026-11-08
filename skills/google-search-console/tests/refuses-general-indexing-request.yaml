@@ -12,11 +12,10 @@ expect:
     classify:
       subset:
         indexing_admission:
-          data:
-            schema: runx/google-search-console.indexing_admission.v1
-            decision: refused
-            reason_code: unsupported_resource_type
-            provider_status: not_called
-            external_status: not_requested
+          schema: runx/google-search-console.indexing_admission.v1
+          decision: refused
+          reason_code: unsupported_resource_type
+          provider_status: not_called
+          external_status: not_requested
   receipt:
     schema: runx.receipt.v1

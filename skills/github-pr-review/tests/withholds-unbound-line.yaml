@@ -54,11 +54,10 @@ expect:
     assess:
       subset:
         pr_review:
-          data:
-            decision: needs_more_evidence
-            head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-            publication_status: not_posted
-            execution_status: not_tested
-            findings: []
+          decision: needs_more_evidence
+          head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          publication_status: not_posted
+          execution_status: not_tested
+          findings: []
   receipt:
     schema: runx.receipt.v1

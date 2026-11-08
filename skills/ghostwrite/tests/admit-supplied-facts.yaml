@@ -10,6 +10,5 @@ expect:
   step_outputs:
     prepare:
       subset:
-        evidence_context:
-          data: {decision: ready, evidence_assurance: operator_supplied_facts}
+        evidence_context: {decision: ready, evidence_assurance: operator_supplied_facts}
   receipt: {schema: runx.receipt.v1}

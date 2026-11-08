@@ -69,13 +69,12 @@ expect:
     finalize:
       subset:
         report_evidence:
-          data:
-            decision: ready
-            provider_status: readback_verified
-            source_status: provider_readback
-            property: properties/123456
-            validation:
-              status: pass
+          decision: ready
+          provider_status: readback_verified
+          source_status: provider_readback
+          property: properties/123456
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1
     state: sealed

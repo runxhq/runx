@@ -32,13 +32,12 @@ expect:
     normalize:
       subset:
         search_result:
-          data:
-            decision: sources_found
-            returned_count: 2
-            duplicate_count: 1
-            reported_cost_usd: 0.005
-            sources:
-            - url: https://example.com/docs
-              content_status: not_fetched
+          decision: sources_found
+          returned_count: 2
+          duplicate_count: 1
+          reported_cost_usd: 0.005
+          sources:
+          - url: https://example.com/docs
+            content_status: not_fetched
   receipt:
     schema: runx.receipt.v1

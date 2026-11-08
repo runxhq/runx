@@ -43,12 +43,11 @@ expect:
     normalize:
       subset:
         calendar_context:
-          data:
-            decision: partial
-            coverage: partial
-            page_token: next
-            page_complete: true
-            provider_status: readback_verified
+          decision: partial
+          coverage: partial
+          page_token: next
+          page_complete: true
+          provider_status: readback_verified
   receipt:
     schema: runx.receipt.v1
     state: sealed

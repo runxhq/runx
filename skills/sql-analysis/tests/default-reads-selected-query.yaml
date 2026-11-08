@@ -107,8 +107,7 @@ expect:
     finish:
       subset:
         analysis_result:
-          data:
-            decision: answered
-            executed: true
+          decision: answered
+          executed: true
   receipt:
     schema: runx.receipt.v1

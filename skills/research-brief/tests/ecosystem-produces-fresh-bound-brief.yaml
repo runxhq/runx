@@ -88,9 +88,8 @@ expect:
     freshness:
       subset:
         freshness_report:
-          data:
-            decision: ready
-            accepted_count: 2
+          decision: ready
+          accepted_count: 2
     research-topic:
       subset:
         research_packet:

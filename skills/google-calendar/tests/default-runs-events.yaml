@@ -42,11 +42,10 @@ expect:
     normalize:
       subset:
         calendar_context:
-          data:
-            decision: ready
-            coverage: complete
-            provider_status: readback_verified
-            calendar_id: primary
+          decision: ready
+          coverage: complete
+          provider_status: readback_verified
+          calendar_id: primary
   receipt:
     schema: runx.receipt.v1
     state: sealed

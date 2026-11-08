@@ -11,14 +11,13 @@ expect:
     combined:
       subset:
         calendar_context:
-          data:
-            decision: ready
-            coverage: complete
-            provider_status: not_called
-            page_count: 2
-            events:
-              - event_id: e1
-              - event_id: e2
+          decision: ready
+          coverage: complete
+          provider_status: not_called
+          page_count: 2
+          events:
+            - event_id: e1
+            - event_id: e2
   receipt:
     schema: runx.receipt.v1
     state: sealed

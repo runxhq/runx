@@ -43,11 +43,10 @@ expect:
     finalize:
       subset:
         report_evidence:
-          data:
-            decision: usable_with_caveats
-            privacy:
-              subject_to_thresholding: true
-            validation:
-              status: pass
+          decision: usable_with_caveats
+          privacy:
+            subject_to_thresholding: true
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

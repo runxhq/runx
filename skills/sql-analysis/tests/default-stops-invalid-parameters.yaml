@@ -53,8 +53,7 @@ expect:
     stopped:
       subset:
         analysis_result:
-          data:
-            decision: invalid_parameters
-            executed: false
+          decision: invalid_parameters
+          executed: false
   receipt:
     schema: runx.receipt.v1

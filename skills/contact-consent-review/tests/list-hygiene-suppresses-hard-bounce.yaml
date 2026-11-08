@@ -32,13 +32,12 @@ expect:
     finalize-written:
       subset:
         list_hygiene_result:
-          data:
-            decision:
-              state: suppress
-            recorded_transition:
-              recorded: true
-              state: suppress
-              write_status: committed
-              after_version: 1
+          decision:
+            state: suppress
+          recorded_transition:
+            recorded: true
+            state: suppress
+            write_status: committed
+            after_version: 1
   receipt:
     schema: runx.receipt.v1

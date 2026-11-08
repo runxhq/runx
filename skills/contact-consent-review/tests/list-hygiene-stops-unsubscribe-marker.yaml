@@ -28,11 +28,10 @@ expect:
     finalize-unchanged:
       subset:
         list_hygiene_result:
-          data:
-            decision:
-              state: human_review
-            recorded_transition:
-              recorded: false
-              write_status: not_attempted
+          decision:
+            state: human_review
+          recorded_transition:
+            recorded: false
+            write_status: not_attempted
   receipt:
     schema: runx.receipt.v1

@@ -41,14 +41,13 @@ expect:
     finalize:
       subset:
         performance_evidence:
-          data:
-            decision: usable_with_caveats
-            provider_status: not_called
-            freshness:
-              complete: false
-              data_state: all
-              first_incomplete_date: 2026-07-18
-            validation:
-              status: pass
+          decision: usable_with_caveats
+          provider_status: not_called
+          freshness:
+            complete: false
+            data_state: all
+            first_incomplete_date: 2026-07-18
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

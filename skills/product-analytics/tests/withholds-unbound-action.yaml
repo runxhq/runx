@@ -60,10 +60,9 @@ expect:
     finalize:
       subset:
         product_analytics_review:
-          data:
-            decision: needs_more_evidence
-            findings: []
-            validation:
-              status: fail
+          decision: needs_more_evidence
+          findings: []
+          validation:
+            status: fail
   receipt:
     schema: runx.receipt.v1

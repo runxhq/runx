@@ -32,8 +32,7 @@ expect:
     normalize-company:
       subset:
         lookup_evidence:
-          data:
-            decision: identity_conflict
+          decision: identity_conflict
         lead_enrichment_packet:
           data:
             decision: needs_more_evidence

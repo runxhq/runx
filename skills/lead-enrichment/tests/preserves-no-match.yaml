@@ -32,8 +32,7 @@ expect:
     normalize-person:
       subset:
         lookup_evidence:
-          data:
-            decision: no_match
+          decision: no_match
         lead_enrichment_packet:
           data:
             decision: needs_more_evidence

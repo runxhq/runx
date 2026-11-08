@@ -67,11 +67,10 @@ expect:
     review:
       subset:
         outreach_review:
-          data:
-            decision: hold
-            draft_status: withheld
-            draft: null
-            draft_packet_digest: null
-            delivery_status: not_sent
-            blockers: ['a validated, supported draft is required']
+          decision: hold
+          draft_status: withheld
+          draft: null
+          draft_packet_digest: null
+          delivery_status: not_sent
+          blockers: ['a validated, supported draft is required']
   receipt: {schema: runx.receipt.v1}

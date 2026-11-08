@@ -76,10 +76,9 @@ expect:
     assess:
       subset:
         pr_review:
-          data:
-            decision: draft_ready
-            head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-            publication_status: not_posted
-            execution_status: not_tested
+          decision: draft_ready
+          head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          publication_status: not_posted
+          execution_status: not_tested
   receipt:
     schema: runx.receipt.v1

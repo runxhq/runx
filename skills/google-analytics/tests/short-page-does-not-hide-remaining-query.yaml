@@ -45,14 +45,13 @@ expect:
     finalize:
       subset:
         report_evidence:
-          data:
-            decision: usable_with_caveats
-            row_count: 10
-            pagination:
-              returned_rows: 1
-              complete: false
-              next_offset: 1
-            validation:
-              status: pass
+          decision: usable_with_caveats
+          row_count: 10
+          pagination:
+            returned_rows: 1
+            complete: false
+            next_offset: 1
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

@@ -32,11 +32,10 @@ expect:
     finalize:
       subset:
         performance_evidence:
-          data:
-            decision: blocked
-            validation:
-              status: fail
-              findings:
-                - code: gsc.hourly_all.hour_dimension_missing
+          decision: blocked
+          validation:
+            status: fail
+            findings:
+              - code: gsc.hourly_all.hour_dimension_missing
   receipt:
     schema: runx.receipt.v1

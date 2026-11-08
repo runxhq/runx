@@ -16,9 +16,8 @@ expect:
     freshness:
       subset:
         freshness_report:
-          data:
-            decision: needs_more_evidence
-            accepted_count: 0
+          decision: needs_more_evidence
+          accepted_count: 0
     research-topic:
       subset:
         research_packet:

@@ -40,20 +40,19 @@ expect:
     finalize:
       subset:
         performance_evidence:
-          data:
-            decision: usable_with_caveats
-            property: http://example.com/
-            request:
-              dimensions:
-                - hour
-              data_state: hourly_all
-            rows:
-              - dimensions:
-                  hour: 2026-07-19T23:00:00-07:00
-            freshness:
-              complete: false
-              first_incomplete_hour: 2026-07-19T23:00:00-07:00
-            validation:
-              status: pass
+          decision: usable_with_caveats
+          property: http://example.com/
+          request:
+            dimensions:
+              - hour
+            data_state: hourly_all
+          rows:
+            - dimensions:
+                hour: 2026-07-19T23:00:00-07:00
+          freshness:
+            complete: false
+            first_incomplete_hour: 2026-07-19T23:00:00-07:00
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

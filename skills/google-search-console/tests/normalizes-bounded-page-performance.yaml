@@ -40,29 +40,28 @@ expect:
     finalize:
       subset:
         performance_evidence:
-          data:
-            schema: runx/google-search-console.performance_evidence.v1
-            decision: usable_with_caveats
-            provider: google-search-console
-            provider_status: not_called
-            source_status: supplied_result
-            property: https://example.com/
-            row_count: 1
-            pagination:
-              complete: true
-              returned_rows: 1
-            rows:
-              - dimensions:
-                  page: https://example.com/guides/runx
-                metrics:
-                  clicks: 42
-                  impressions: 600
-                  ctr: 0.07
-                  position: 4.2
-            freshness:
-              complete: true
-              data_state: final
-            validation:
-              status: pass
+          schema: runx/google-search-console.performance_evidence.v1
+          decision: usable_with_caveats
+          provider: google-search-console
+          provider_status: not_called
+          source_status: supplied_result
+          property: https://example.com/
+          row_count: 1
+          pagination:
+            complete: true
+            returned_rows: 1
+          rows:
+            - dimensions:
+                page: https://example.com/guides/runx
+              metrics:
+                clicks: 42
+                impressions: 600
+                ctr: 0.07
+                position: 4.2
+          freshness:
+            complete: true
+            data_state: final
+          validation:
+            status: pass
   receipt:
     schema: runx.receipt.v1

@@ -28,15 +28,14 @@ expect:
     finalize-unchanged:
       subset:
         list_hygiene_result:
-          data:
-            decision:
-              state: human_review
-            recorded_transition:
-              recorded: false
-              write_status: not_attempted
-              after_version: 0
-            escalation:
-              lane: human:list-hygiene-reviewer
-              status: required_before_any_write
+          decision:
+            state: human_review
+          recorded_transition:
+            recorded: false
+            write_status: not_attempted
+            after_version: 0
+          escalation:
+            lane: human:list-hygiene-reviewer
+            status: required_before_any_write
   receipt:
     schema: runx.receipt.v1

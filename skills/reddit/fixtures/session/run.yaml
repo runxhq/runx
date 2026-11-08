@@ -3,6 +3,8 @@ catalog:
   visibility: internal
 methods:
   run:
+    inputs:
+      action: {optional: true}
     steps:
     - id: configure
       skill: ../..#configure

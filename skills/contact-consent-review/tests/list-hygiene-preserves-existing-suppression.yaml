@@ -28,13 +28,12 @@ expect:
     finalize-unchanged:
       subset:
         list_hygiene_result:
-          data:
-            decision:
-              state: suppress
-            recorded_transition:
-              recorded: false
-              state: null
-              write_status: not_attempted
-              after_version: 0
+          decision:
+            state: suppress
+          recorded_transition:
+            recorded: false
+            state: null
+            write_status: not_attempted
+            after_version: 0
   receipt:
     schema: runx.receipt.v1

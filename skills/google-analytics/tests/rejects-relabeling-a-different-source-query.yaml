@@ -57,12 +57,11 @@ expect:
     finalize:
       subset:
         report_evidence:
-          data:
-            decision: blocked
-            validation:
-              status: fail
-              findings:
-                - code: ga.request.mismatch
-                  message: the source query differs from the requested report; do not relabel or combine its rows
+          decision: blocked
+          validation:
+            status: fail
+            findings:
+              - code: ga.request.mismatch
+                message: the source query differs from the requested report; do not relabel or combine its rows
   receipt:
     schema: runx.receipt.v1

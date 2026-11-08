@@ -10,6 +10,5 @@ expect:
   step_outputs:
     simulate:
       subset:
-        refund_result:
-          data: {status: simulated, settlement_family: mock, amount_minor: 125, currency: USD}
+        refund_result: {status: simulated, settlement_family: mock, amount_minor: 125, currency: USD}
   receipt: {schema: runx.receipt.v1}
