@@ -271,6 +271,29 @@ expect:
   assert.match(out, /harness\.cases\.suppresses-hard-bounce\.expect\.step_outputs\.finalize\.subset\.result\.data: the envelope's level goes/);
 });
 
+test("a step's act reads the invoking act as $run.act", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": manual("demo"),
+    "run.yaml": `skill: demo
+version: "0.1.0"
+runners:
+  run:
+    steps:
+      - id: child
+        skill: ../other
+        runner: read
+        act:
+          purpose: Read what the invoking act names.
+          reason: $act.reason
+          target: $act
+          form: $$act
+`,
+  });
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.match(read(dir, "run.yaml"), /        act:\n          purpose: Read what the invoking act names\.\n          reason: \$run\.act\.reason\n          target: \$run\.act\n          form: \$\$act\n/);
+});
+
 const invoiceCase = (env, path) => `name: reads-invoice
 runner: pay
 env:

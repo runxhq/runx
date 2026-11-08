@@ -215,13 +215,21 @@ function convertStep(doc, step, scope, notes) {
 
 // A step's act keeps its purpose and record. `decision` goes: nothing in runx
 // decides with it, and a skill's decision belongs in its own typed result.
+// The act a run was invoked with, which only an act reads, is `$run.act`
+// (run-yaml.md, bindings): today's `$act` read as the act being written.
 const ACT_KEYS = ["form", "purpose", "reason", "target", "decision", "previous"];
+const INVOKING_ACT = /^\$act(?=$|\.)/;
 
 function convertAct(step, where, notes) {
   const act = node(step, "act");
   if (!isMap(act)) return;
   only(act, ACT_KEYS, `${where}.act`);
   if (take(act, "decision") !== undefined) notes.push(`${where}.act.decision removed: nothing in runx decides with it, so a skill's decision belongs in its own typed result`);
+  YAML.visit(act, {
+    Scalar(_, scalar) {
+      if (typeof scalar.value === "string" && INVOKING_ACT.test(scalar.value)) scalar.value = scalar.value.replace(INVOKING_ACT, "$run.act");
+    },
+  });
 }
 
 function convertOperation(doc, step, scope, where, notes) {
