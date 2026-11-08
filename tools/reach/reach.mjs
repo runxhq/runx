@@ -61,6 +61,23 @@ const smaller = (a, b) => {
   return a2 - a0 < b2 - b0 || (a2 - a0 === b2 - b0 && a3 - a1 < b3 - b1);
 };
 
+// The lines each `use` item spans, in a crate file.
+function useItemLines(file) {
+  const lines = new Set();
+  let text;
+  try {
+    text = readFileSync(new URL(`../../crates/${file}`, import.meta.url), "utf8");
+  } catch {
+    return lines;
+  }
+  for (const m of text.matchAll(/^[ \t]*(?:pub(?:\([^)]*\))?[ \t]+)?use[ \t][^;]*;/gm)) {
+    const first = text.slice(0, m.index).split("\n").length - 1;
+    const last = first + m[0].split("\n").length - 1;
+    for (let line = first; line <= last; line += 1) lines.add(line);
+  }
+  return lines;
+}
+
 const docs = readIndex(indexFile);
 const kindOf = new Map();
 for (const doc of docs) for (const s of doc.symbols) kindOf.set(s.symbol, s.kind);
@@ -90,11 +107,15 @@ for (const doc of docs) {
   if (test) continue;
   const own = isSrcDoc(doc.path) ? undefined : `file ${doc.path}`;
   if (own) fileRoots.set(doc.path, new Set([own]));
+  const useLines = useItemLines(doc.path);
   for (const o of doc.occurrences) {
     if (o.roles & 1 || o.symbol.startsWith("local") || !isOurs(o.symbol)) continue;
     let owner;
     for (const d of defs) if (within(d.enclosing, o.range) && (!owner || smaller(d.enclosing, owner.enclosing))) owner = d;
     if (!owner || isTestSymbol(owner.symbol)) continue;
+    // A module's `use` items name what they import or re-export. That isn't
+    // a use: a caller's reference already resolves to the definition itself.
+    if (descriptor(owner.symbol).endsWith("/") && useLines.has(o.range[0])) continue;
     const shared = defined.get(owner.symbol).path !== doc.path || /^(crate\/|main\(\)\.)$/.test(descriptor(owner.symbol));
     addEdge(own && shared ? own : owner.symbol, o.symbol);
   }
@@ -201,6 +222,21 @@ walk([...productRoots, ...deriveTargets, ...serdeTargets], "product");
 walk(rootsOf((file) => PUBLISHING.includes(exampleOf(file))), "publishing");
 walk(rootsOf(isBenchDoc), "proof");
 walk(rootsOf((file) => exampleOf(file) && !PUBLISHING.includes(exampleOf(file))), "tooling");
+
+// A module, its crate's root included, is reached in the first tier that
+// reaches anything defined in it.
+const TIERS = ["product", "publishing", "proof", "tooling"];
+for (const [symbol, tier] of [...reachedBy]) {
+  const d = descriptor(symbol);
+  const prefix = symbol.slice(0, symbol.length - d.length);
+  const modules = [prefix + "crate/"];
+  for (let i = d.indexOf("/"); i !== -1; i = d.indexOf("/", i + 1)) modules.push(prefix + d.slice(0, i + 1));
+  for (const module of modules) {
+    if (!defined.has(module)) continue;
+    const held = reachedBy.get(module);
+    if (!held || TIERS.indexOf(tier) < TIERS.indexOf(held)) reachedBy.set(module, tier);
+  }
+}
 
 // Items, not members: functions, methods, types, traits, consts, statics, macros, modules.
 const ITEM = /(\(\)\.|#|!)$|\/$/;
