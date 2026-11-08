@@ -44,13 +44,13 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         try { return validateRunxListReportContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill listing.", { cause: error }); }
       },
       inspect: async (options) => {
-        const output = parseJson(await execute(["skill", "inspect", argument(options.skillPath), ...methodArgs(options.method), ...authorityArgs(options.runAuthority), ...(options.inputs ? ["--inputs", "-"] : []), "--json"], options, options.inputs ? payload(options.inputs) : undefined), [0]);
+        const output = parseJson(await execute(["skill", "inspect", skillReference(options.skillPath, options.method), ...authorityArgs(options.runAuthority), ...(options.inputs ? ["--inputs", "-"] : []), "--json"], options, options.inputs ? payload(options.inputs) : undefined), [0]);
         try { return validateSkillInspectionContract(output); } catch (error) { throw new RunxClientError("contract", "Invalid native skill inspection.", { cause: error }); }
       },
       run: async (options) => {
         const receiptDir = absolute(options.receiptDir);
         if (options.binding && options.method && options.method !== options.binding.method) throw new TypeError("Selected method differs from the execution binding.");
-        const result = await execute(["skill", argument(options.skillPath), ...methodArgs(options.binding?.method ?? options.method), ...bindingArgs(options.binding), ...authorityArgs(options.runAuthority), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
+        const result = await execute(["skill", skillReference(options.skillPath, options.binding?.method ?? options.method), ...bindingArgs(options.binding), ...authorityArgs(options.runAuthority), ...(options.act ? ["--act", JSON.stringify(options.act)] : []), ...(options.context ? ["--context", JSON.stringify(options.context)] : []), ...(options.runId ? ["--run-id", options.runId] : []), "--inputs", "-", "--receipt-dir", receiptDir, "--json"], options, payload(options.inputs ?? {}));
         return await decodeSkill(result, { projectDir: config.projectDir, receiptDir, maxArtifactBytes });
       },
     },
@@ -170,7 +170,14 @@ function registryUrl(value: string): string {
   if (!/^https?:\/\/\S+$/u.test(value)) throw new TypeError("A registry is named by its http(s) URL.");
   return value;
 }
-function methodArgs(value?: string): string[] { return value ? [argument(value)] : []; }
+/** The skill and its method as the CLI names them: `<ref>#<method>`, never a separate argument. */
+function skillReference(skillPath: string, method?: string): string {
+  if (method === undefined) return argument(skillPath);
+  // The CLI splits a reference at its first `#`, so the path can't hold one.
+  if (skillPath.includes("#")) throw new TypeError("A skill path names its method once: pass the method or `<ref>#<method>`, not both.");
+  if (!method) throw new TypeError("Invalid method name.");
+  return argument(`${skillPath}#${method}`);
+}
 function authorityArgs(authority?: RunAuthority): string[] { return authority ? ["--run-authority", JSON.stringify(authority)] : []; }
 function bindingArgs(binding?: ExecutionBinding): string[] {
   if (!binding) return [];

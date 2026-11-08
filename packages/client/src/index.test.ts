@@ -251,7 +251,8 @@ describe("native invocation and decoding", () => {
     const {args, input} = JSON.parse(await readFile(capture, "utf8")) as {args: string[]; input: unknown};
     expect(input).toEqual({target: "resource-1"});
     expect(args[args.indexOf("--inputs") + 1]).toBe("-");
-    expect(args.slice(0, 4)).toEqual(["skill", "inspect", "/skill", "create"]);
+    expect(args.slice(0, 3)).toEqual(["skill", "inspect", "/skill#create"]);
+    expect(args).not.toContain("create");
     expect(JSON.parse(args[args.indexOf("--run-authority") + 1]!)).toEqual(runAuthority);
   });
   it("accepts sealed failure on exit 1 and rejects inconsistent exits", async () => {

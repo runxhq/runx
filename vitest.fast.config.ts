@@ -16,6 +16,7 @@ export default defineConfig({
       "tests/crewai-adapter.test.ts",
       "tests/kernel-parity-fixtures.test.ts",
       "tests/cli-feature-parity.test.ts",
+      "tests/client-native.test.ts",
       "tests/least-privilege-scope.test.ts",
       "tests/scope-policy-differential.test.ts",
       "tests/runtime-architecture.test.ts",
