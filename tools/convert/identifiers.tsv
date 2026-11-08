@@ -75,7 +75,7 @@ cloud	HoldPurchase	27	hold	LeasePurchase	the lease family	packages/api/src/payme
 cloud	PASSING_HARNESS	26	harness	PASSING_TEST	the test sense	packages/api/src/registry/publish-routes.test.ts packages/api/src/registry/publish-service.test.ts
 cloud	purchase_holdings	26	hold	leases	stored: Cloud's lease migration, a new one in Stage 6, renames the table and keeps its rows; the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/payments/holdings-postgres.ts
 cloud	holds_namespace	24	hold	holds_namespace	English, or a skill's own word: stays	packages/api/src/connect/hosted-connectors.ts packages/api/src/connectors/catalog.ts
-cloud	withHarness	24	harness	withTest	the test sense	packages/registry/src/store-contract.test-support.ts
+cloud	withHarness	24	harness	withRegistry	the registry under test, whose callback is test: withTest made two bindings one (fc108d8e)	packages/registry/src/store-contract.test-support.ts
 cloud	execution_closure	23	closure	execution_closure	a package's closure, or English: stays	apps/web/src/content/release/schemas/schemas/registry-inspection.schema.json apps/web/src/content/release/schemas/schemas/skill-inspection.schema.json
 cloud	PublicHarnessResult	23	harness	PublicTestResult	the test sense	apps/web/src/components/skills/SkillEvidence.astro packages/api/src/generated/public-protocol-schemas.ts
 cloud	mppSettlementHarness	22	harness	mppSettlementTest	the test sense	packages/api/src/payments/mpp/paid-skill-settlement.test.ts packages/api/src/payments/mpp/settlement.test-support.ts
