@@ -176,13 +176,13 @@ function compareControls(findings, existing, proposed) {
     for (const item of records(proposed[name])) {
       const before = prior.get(item[key]); if (!before) continue;
       check(before.scafld_required === true && item.scafld_required !== true, name+"."+item[key]+".scafld_required");
-      if (name === "runners") check(before.state === "unavailable" && item.state === "available", "runner."+item[key]+".state");
+      if (name === "runners") check(before.state !== "available" && item.state === "available", "runner."+item[key]+".state");
     }
   }
   const before = record(existing.outcomes), next = record(proposed.outcomes);
   for (const field of ["observe_provider","verification_required"]) check(before[field] === true && next[field] !== true, "outcomes."+field);
   check(before.publish_final_source_thread_update !== true && next.publish_final_source_thread_update === true, "outcomes.publish_final_source_thread_update");
-  const closeRank={never:0,when_verified:1,always:2};
+  const closeRank={never:0,when_verified:1,when_terminal:2};
   check(closeRank[next.close_source_issue] > closeRank[before.close_source_issue], "outcomes.close_source_issue");
 }
 

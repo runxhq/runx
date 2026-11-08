@@ -62,15 +62,20 @@ test("known review, observation, runner and publication controls cannot weaken",
     (p) => (p.targets[0].scafld_required = false),
     (p) => (p.outcomes.verification_required = false),
     (p) => (p.outcomes.publish_final_source_thread_update = true),
-    (p) => (p.outcomes.close_source_issue = "always"),
+    (p) => (p.outcomes.close_source_issue = "when_terminal"),
   ]) {
     const next = structuredClone(policy);
     mutate(next);
     assert.equal(run(next).decision, "reject");
   }
-  const stopped = structuredClone(policy);
-  stopped.runners[0].state = "unavailable";
-  assert.equal(run(policy, stopped).decision, "reject");
+  for (const state of ["disabled", "maintenance"]) {
+    const stopped = structuredClone(policy);
+    stopped.runners[0].state = state;
+    const context = run(policy, stopped);
+    assert.equal(context.decision, "reject");
+    assert.deepEqual(context.attenuation_findings.map((finding) => finding.path), ["runner.review.state"]);
+    assert.equal(run(stopped, stopped).path, "lint");
+  }
 });
 test("owner and opaque changes remain in the exact native comparison input", () => {
   const next = structuredClone(policy);

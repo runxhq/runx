@@ -47,7 +47,7 @@ sources:
 runners:
   - runner_id: string
     kind: string
-    state: available | unavailable
+    state: available | disabled | maintenance
     allowed_actions: [string]
     target_repos: [owner/repo]
     scafld_required: boolean
@@ -69,7 +69,7 @@ dedupe:
 outcomes:
   observe_provider: boolean
   verification_required: boolean
-  close_source_issue: never | when_verified | always
+  close_source_issue: never | when_verified | when_terminal
   publish_final_source_thread_update: boolean
 permissions:
   auto_merge: boolean
@@ -109,9 +109,10 @@ success_checkpoint: object
 The host supplies the actual current native-valid baseline; this is not authority
 to replace a different installed policy. Existing sources, targets and runners
 may be removed or their declared action/target sets narrowed. Confidence, required
-review and verification cannot weaken; an unavailable runner cannot be enabled.
-Owner-route roster reordering is immaterial, but changing its membership or
-unknown provider settings needs a separate explicit policy decision.
+review and verification cannot weaken, and a disabled or maintenance runner
+cannot become available. Owner-route roster reordering is immaterial, but
+changing its membership or unknown provider settings needs a separate explicit
+policy decision.
 
 The runtime receipt proves which draft was validated. It does not approve or
 install the policy.
