@@ -120,7 +120,7 @@ runx verify <receipt-id> --json
   it uses is the one this release bundles, materialized into the runx home at
   `<home>/bundled/skill-build/<version>/`, never into your project. To cold-start without installing Runx
   first, use the same command through `npx @runxhq/cli`.
-- Compose the example into a graph with [Skill To Graph](./skill-to-graph.md).
+- Compose the example into a graph with [Composing Skills](./composing-skills.md).
 - Bind provider accounts once as described in
   [Credentials](./credentials.md); agents and MCP use the same readiness path
   automatically.

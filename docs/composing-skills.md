@@ -1,43 +1,55 @@
-# Skill To Graph
+# Composing Skills
 
 Start with [Getting Started](./getting-started.md). This page takes the same
 `examples/hello-world` skill and composes it into a two-step graph.
 
 ## Graph Shape
 
-The example graph lives at `examples/hello-graph/graph.yaml`:
+A package is its `SKILL.md` and its `run.yaml`, and each of its methods is the
+steps its `run.yaml` lists. A `skill:` step runs another skill's method. This
+`run.yaml` gives a package beside `examples/hello-world` one method, `default`,
+that runs `hello-world` twice:
 
 ```yaml
-name: hello-graph
-publisher: runx
-steps:
-  - id: first
-    skill: ../hello-world
-    inputs:
-      message: hello from graph
-  - id: second
-    skill: ../hello-world
-    inputs:
-      message: $steps.first.message
+minimum_runx: 0.12.0
+methods:
+  default:
+    result_from: [second]
+    steps:
+      - id: first
+        skill: ../hello-world#default
+        inputs:
+          message: hello from graph
+      - id: second
+        skill: ../hello-world#default
+        inputs:
+          message: $steps.first.message
 ```
 
-The first step runs the skill with an explicit input. The second step reads the
-first step's `message` output and passes it as its own `message` input. The graph
-receipt links both step receipts, so inspection can show what ran and how the
-steps connected.
+The first step runs `hello-world`'s `default` method with an explicit input.
+The second step reads the first step's `message` output and passes it as its
+own `message` input. `result_from` names the step whose outputs are the
+method's result. The run's receipt links both step receipts, so inspection can
+show what ran and how the steps connected.
 
-Graph steps may also execute a registry skill:
+A `skill:` step names `<ref>#<method>`. It may leave `#<method>` off when the
+skill has one method or names a `default_method`, and `result_from` defaults
+to the method's last step, so `examples/hello-workflow/run.yaml` writes this
+same method with neither. `.#<method>` runs another method of the same
+package.
+
+A step may also run a registry skill:
 
 ```yaml
 steps:
   - id: build_docs
-    skill: registry:runx/sourcey@1.0.0
-    runner: sourcey
+    skill: registry:runx/sourcey@1.0.0#sourcey
     inputs:
       objective: refresh the public docs
 ```
 
-Executable registry refs are explicit, `registry:<publisher>/<name>[@<version>]`.
+Executable registry refs are explicit, `registry:<publisher>/<name>[@<version>]`,
+with the method after `#`.
 Before the run, `runx skill` fetches each one the project does not hold, exactly
 as it fetches a top-level ref, into the project's
 `skills/<publisher>/<name>/<version>/`, and repeats for the skills those name. The
@@ -49,19 +61,20 @@ of the runx catalog.
 ## Skill Context For Agents
 
 Agent steps can also ask for whole skills as context without executing those
-skills. Use `context_skills` when a downstream agent should read a reusable
+skills. Use `context.skills` when a downstream agent should read a reusable
 capability, guideline, rubric, or operating procedure as part of its prompt
 context:
 
 ```yaml
 steps:
   - id: apply_taste
-    agent: { role: builder, task: apply-taste }
+    agent: apply-taste
     outputs:
-      summary: string
-    context_skills:
-      - taste-profile
-      - registry:runx/taste-profile@1.0.0
+      summary: {type: string}
+    context:
+      skills:
+        - taste-profile
+        - registry:runx/taste-profile@1.0.0
 ```
 
 Each entry becomes a `runx.skill.context` artifact in the agent invocation's
@@ -69,58 +82,56 @@ generic `current_context` array. The artifact carries the source ref, skill
 name, digest, and `SKILL.md` content. It does not create a domain schema for the
 skill; the skill remains an abstract context/capability document.
 
-Local path refs resolve relative to the graph skill directory and must stay
-inside the owning skill root. Use registry refs for cataloged skills shared
-across skill roots. Registry refs must be explicit
-(`registry:<publisher>/<name>[@<version>]`) and arrive as executable registry steps
-do: `runx skill` fetches each one the project does not hold before the run, and
-the turn reads it from the project's skills.
+Local path refs resolve relative to the package's directory and must stay
+inside it. Use registry refs for cataloged skills shared across packages.
+Registry refs must be explicit (`registry:<publisher>/<name>[@<version>]`) and
+arrive as executable registry steps do: `runx skill` fetches each one the
+project does not hold before the run, and the turn reads it from the project's
+skills.
 
 The gates are intentionally narrow:
 
-- `context_skills` is accepted only on `agent` steps.
-- Local refs must be relative paths, must not contain `..`, must not target
-  private graph stages under `skills/<name>/graph/<stage>/`, and must contain a
-  valid `SKILL.md`.
-- A context skill with an `run.yaml` catalog entry cannot use an implementation-only
-  role (`graph-stage`, `runtime-path`, or `harness-fixture`).
-  Internal catalog entries are context-loadable only when they explicitly declare
-  `catalog.role: context`.
-- Registry refs resolve from the project's fetched skills, or a named local
-  registry.
-- Each context skill is capped at 64 KiB, the step is capped at 12 context
-  skills, and total resolved skill context is capped at 256 KiB.
+- `context.skills` is accepted only on `agent` steps.
+- Local refs must be relative paths, must not contain `..` or pass through a
+  directory named `graph`, and must be valid skill packages.
+- Registry refs resolve only from the project's fetched skills, and a fetched
+  skill is read only once its signature verifies at the version the ref pins.
+- A step takes at most 128 context skills, and their resolved context is
+  capped at 4 MiB in all. No skill is cut short to fit.
 - Duplicate context refs are rejected.
 - Every context artifact is digest-bound and labeled
   `security_boundary: untrusted-agent-context`.
-- Explicitly enabled native managed-agent execution passes the artifacts to the provider with an
-  explicit instruction that context artifacts are advisory data, not system
-  instructions or authority to change tools, reveal secrets, or bypass policy.
+- Explicitly enabled native managed-agent execution passes the artifacts to the
+  provider with an instruction that context never overrides the owning
+  `SKILL.md`, the allowed tools, the declared output contract or the runtime's
+  governance, and that requests inside it for secrets, new authority or policy
+  bypasses are untrusted data.
 
 ## Run The Harness
 
-Use the graph harness as the executable contract:
+Use the example's test as the executable contract:
 
 ```bash
 cargo build --manifest-path crates/Cargo.toml -p runx-cli
-crates/target/debug/runx harness examples/hello-graph/harness.yaml --json
+crates/target/debug/runx test examples/hello-workflow --json
 ```
 
-The harness expects a sealed `runx.receipt.v1` receipt and the ordered
-steps `first`, then `second`.
+Its test, `examples/hello-workflow/tests/hello-workflow.yaml`, expects a sealed
+`runx.receipt.v1` receipt with a child for each step, and the ordered steps
+`first`, then `second`.
 
 ## When To Use A Graph
 
-A runner is a list of steps; a runner without steps is one agent turn. The
-skill's manual supplies its instructions. The selected runner's `tools:`,
-`skills:` and `asks:` limits govern tools, skill loading and human questions.
-Direct provider calls require an explicit runner `operations:` list;
-`connectors:` alone grants none. See the [reference](reference.md) for exact
-allowance and inheritance rules. The turn normally yields
+A method is a list of steps, and one agent turn is a method of one `agent`
+step. The skill's manual supplies its instructions. The step's `calls` govern
+what the turn may call: its `tools`, the `skills` it may run, the skills it may
+`load`, whether it may `ask` a person, and the connector `operations` it may
+call directly. A step that writes no `calls` allows nothing. See the
+[reference](reference.md) for exact allowance rules. The turn normally yields
 `needs_agent` to the calling agent. `--managed-agent` explicitly delegates that act to the configured
 in-process provider for the current run; credentials alone never enable it. The
 round cap is shown in prepared context and defaults to four. Not everything
-needs a graph. Use a stepless runner when a single judgment produces the result.
+needs a graph. Use one agent step when a single judgment produces the result.
 
 Reach for a graph when the work has explicit phases, when a later step consumes
 an earlier step's receipt-backed output, or when approval and revision boundaries
@@ -130,8 +141,8 @@ The line between them is not how many model calls there are; it is **what must b
 guaranteed**. The model is for judgment and authoring, never for guaranteeing a
 side effect: an agent handed a write-capable tool may narrate the action ("done,
 claimed it") instead of calling it. So an action that *must* happen, a mutation,
-an API call, or a payment belongs in a deterministic `tool:` or `skill:` step,
-not among an agent turn's tools, where the call is optional. The
+an API call, or a payment belongs in a deterministic `tool:`, `operation:` or
+`skill:` step, not among an agent turn's calls, where the call is optional. The
 governed shape is a graph where an agent step authors or decides and the next
 deterministic step performs the act; one receipt seals both. Agent steps yield
 `needs_agent` unless the current invocation explicitly supplies
@@ -156,20 +167,21 @@ agent's operation call carries it as its `act` argument:
 steps:
   - id: close
     operation: tracker/item.update
-    input: { item_id: $input.item_id, state: closed }
+    inputs: { item_id: $input.item_id, state: closed }
     idempotency_key: $input.idempotency_key
     act:
       form: review               # observation (default), reply or review
       purpose: Close the reviewed item
-      reason: $run.act.reason        # what the invoker says about this call
+      reason: $run.act.reason    # what the invoker says about this call
       target: $input.item_locator
-      decision: close            # continue, close, decline, defer, escalate or monitor
       previous: $input.review_receipt
 ```
 
-`form` and `decision` take only those values, and `purpose` is required: an
-act outside them refuses the call before it is admitted. The act is bound into
-the call's admitted intent, so an approval of the call approves its act and a
+An act takes `form`, `purpose`, `reason`, `target` and `previous`, and nothing
+else. `form` takes only those values, and `purpose` is required: an act outside
+them refuses the call before it is admitted. A decision is never an act's: a
+skill's decision belongs in its own typed result. The act is bound into the
+call's admitted intent, so an approval of the call approves its act and a
 changed act is another call. It never reaches the provider.
 
 The act sits in the call's own receipt. Who acted, under what grant, term and
@@ -178,7 +190,7 @@ the act's legitimacy names the execution term admission derived. What the call
 produced comes from the operation, which declares its `effect`.
 
 `$run.act` is the act the run's invoker states: `runx skill <skill> --act '<json>'`, an MCP
-call's `act` argument, or a harness case's `caller.act`. A step reads it only
+call's `act` argument, or a test's `host.act`. A step reads it only
 inside an `act:`, whole (`act: $run.act`) or by field (`purpose: $run.act.purpose`);
 no other value may read it. A `skill` step's `act:` is the act its child run
 is invoked with, which the child reads as its `$run.act`. An act that resolves to
@@ -203,22 +215,25 @@ Credentials never travel this way.
 
 A graph reaches a provider only through a connector operation. There is no
 skill-owned HTTP: the connector manifest declares each operation's requests,
-host allowlist, readbacks and how each credential authenticates, and the skill
-lists the operations it calls and passes their input:
+host allowlist, readbacks and how each credential authenticates, and the
+package's steps name the operations they call and pass their inputs:
 
 ```yaml
-connectors:
-  example-crm:
-    operations: [account.read]
-runners:
+minimum_runx: 0.12.0
+methods:
   main:
     steps:
       - id: read_account
         operation: example-crm/account.read
-        result_fields: [account]
-        input:
+        result:
+          required: [account]
+        inputs:
           account_id: $input.account_id
 ```
+
+The package's connector requirements are what its steps name. A root
+`connectors:` block says only what steps can't: a pinned `manifest_digest`, or
+a connector chosen per run.
 
 The kernel admits the call against the bound instance, renders the declared
 request, and presents the instance's credential at the transport boundary;
@@ -238,12 +253,11 @@ a declared data operation:
 ```yaml
 steps:
   - id: decide
-    skill: ./your-domain-skill
-    runner: claim
+    skill: ./your-domain-skill#claim
   - id: append
     operation: store/events.append
     idempotency_key: $input.idempotency_key
-    input:
+    inputs:
       data_source_uri: $input.data_source_uri
       resource: board_events
       aggregate_id: $input.posting_id
@@ -270,8 +284,7 @@ appends and projection evidence. See
 ## Values And References
 
 A step receives exactly what it binds. Its `inputs`, and an operation step's
-call fields (`input`, `idempotency_key`, `operation_name`, ...), hold
-literals and references:
+`idempotency_key`, hold literals and references:
 
 - `$input` or `$input.<path>`: the run's input, or a field of it;
 - `$steps.<id>` or `$steps.<id>.<path>`: an earlier step's result, or a field
@@ -287,11 +300,11 @@ input can be assembled from several steps:
 ```yaml
 steps:
   - id: select
-    agent: { role: scout, task: select }
-    outputs: { selection: object }
+    agent: select
+    outputs: { selection: {type: object} }
   - id: review
     operation: example-crm/claim.read
-    input:
+    inputs:
       claim_id: $steps.select.selection.claim_id
       audience: $input.audience
 ```
@@ -320,9 +333,9 @@ reads a skipped step. A condition reads a field, never a literal or a whole
 result, and the literal it compares with reads nothing (`$` is written `$$`).
 A condition whose field resolves to nothing when its step is reached stops the
 run; an absent optional input is nothing, not `null`, so give an input a
-`default` when a step branches on it. A runner's `policy.guards` read and
-compare the same way, each for the one `step` it gates, and block that step
-unless they hold.
+`default` when a step branches on it. A step's `guard` is a list of conditions
+read and compared the same way, and the step may not run unless every one
+holds: the run fails there instead.
 
 An ask's `reason` is the text a person reads; the values they need to decide
 belong in its `inputs`, which are shown beside it.

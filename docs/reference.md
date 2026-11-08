@@ -30,7 +30,7 @@ Publishing and hosted verification require a hosted issuer.
 
 Then inspect the emitted receipt. The full walkthrough is in
 [getting-started.md](getting-started.md), and the next step is
-[skill-to-graph.md](skill-to-graph.md).
+[composing-skills.md](composing-skills.md).
 For governed code changes, see [github-issue-to-pr.md](github-issue-to-pr.md).
 
 ## Payment Boundary Proof
@@ -954,7 +954,7 @@ README/changelog/setup docs, generated state, logs, screenshots, private
 provider config, or broad project plans inside a public skill. The public docs
 for the package belong in `SKILL.md`; external guides belong under `docs/`.
 
-See [skill-to-graph.md](skill-to-graph.md) for composing skills into a graph and
+See [composing-skills.md](composing-skills.md) for composing skills into a graph and
 [publishing.md](publishing.md) for publishing and trust tiers.
 
 Use `code-plan` for bounded change planning, `skill-build` for skill-package

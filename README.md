@@ -352,8 +352,7 @@ The second skill consumes the first skill's typed output. The graph receipt
 links their receipts. The same mechanism lets `content-package` pass a
 research packet into `ghostwrite`, then pass the validated draft into its
 packaging and handoff runners. Inspect its
-[actual graph](skills/content-package/run.yaml) beside the
-[minimal example](examples/hello-graph/graph.yaml).
+[actual graph](skills/content-package/run.yaml).
 
 Use an agent turn for work that needs judgment. Use a graph when phases,
 branches, guards, or approval boundaries must be part of the execution
@@ -366,7 +365,7 @@ artifact into a later call; Runx checks its content digest and input schema.
 This is how a useful result becomes an input to more work without flattening
 its provenance into prose.
 
-[Compose skills](docs/skill-to-graph.md) ·
+[Compose skills](docs/composing-skills.md) ·
 [Execution profile reference](docs/reference.md#skill-and-execution-profile)
 
 ## Work can outlive an agent turn
