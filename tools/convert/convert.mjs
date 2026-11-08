@@ -204,8 +204,20 @@ function convertStep(doc, step, scope, notes) {
     if (method !== undefined) pairOf(step, "skill").value = new Scalar(`${read(step, "skill")}#${plain(method)}`);
   }
   if (kind === "operation") convertOperation(doc, step, scope, where, notes);
+  if (kind === "skill" || kind === "operation") convertAct(step, where, notes);
   if (kind === "ask") only(node(step, "ask"), ["gate", "reason", "type"], `${where}.ask`);
   convertOutputs(doc, step, where);
+}
+
+// A step's act keeps its purpose and record. `decision` goes: nothing in runx
+// decides with it, and a skill's decision belongs in its own typed result.
+const ACT_KEYS = ["form", "purpose", "reason", "target", "decision", "previous"];
+
+function convertAct(step, where, notes) {
+  const act = node(step, "act");
+  if (!isMap(act)) return;
+  only(act, ACT_KEYS, `${where}.act`);
+  if (take(act, "decision") !== undefined) notes.push(`${where}.act.decision removed: nothing in runx decides with it, so a skill's decision belongs in its own typed result`);
 }
 
 function convertOperation(doc, step, scope, where, notes) {

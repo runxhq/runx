@@ -110,3 +110,30 @@ ${digestStep}`,
   assert.match(run, /  capture:\n    inputs:\n      dispute_id: \{\}\n      repository:\n        description: The repository to comment on\.\n        maxLength: 201\n/);
   assert.match(out, /methods\.capture\.inputs\.repository takes shared input repository's examples, which change nothing it accepts/);
 });
+
+test("a step's act loses decision, which the 0.12 format removes, and keeps its other fields", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": manual("demo"),
+    "run.yaml": `skill: demo
+version: "0.1.0"
+runners:
+  run:
+    steps:
+      - id: first
+        tool: data.digest
+        inputs: { value: fixed }
+      - id: child
+        skill: ../other
+        runner: read
+        act:
+          purpose: Read the record the first step named.
+          reason: The digest names it.
+          decision: proceed
+          previous: $steps.first.digest_result.digest
+`,
+  });
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.match(read(dir, "run.yaml"), /        skill: \.\.\/other#read\n        act:\n          purpose: Read the record the first step named\.\n          reason: The digest names it\.\n          previous: \$steps\.first\.digest_result\.digest\n/);
+  assert.match(out, /methods\.run\.steps\.child\.act\.decision removed: nothing in runx decides with it/);
+});
