@@ -1,4 +1,4 @@
-version: "0.1.6"
+version: "0.1.7"
 minimum_runx: 0.12.0
 default_method: read
 catalog:
@@ -24,7 +24,7 @@ methods:
             type: string
             description: What the turn did and found, what is still open, and what waits on the person.
   develop:
-    description: Work a turn that may also change the workspace, editing and writing files and running commands, each waiting on the person unless a standing approval covers it.
+    description: Work a turn that may also change the workspace, editing and writing files and running commands, as the turn's effects allow.
     steps:
       - id: develop
         agent: develop

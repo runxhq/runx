@@ -23,9 +23,11 @@ outside the calls.
 - An edit names what it replaces. `fs.edit` replaces exact text; `fs.write`
   takes the digest you read, or `create: true` for a new file. A file that
   changed since you read it is refused: read it again.
-- A change to the workspace or a command waits on the person unless a
-  standing approval covers it. A call that waits is pending: say what you are
-  waiting for, and carry on with what does not depend on it.
+- A change to the workspace or a command goes as the turn's effects allow:
+  it may wait on the person, unless a standing approval covers it, or be
+  refused. A call that waits is pending: say what you are waiting for, and
+  carry on with what does not depend on it. A refused call is the person's
+  answer, so don't look for another way to do it.
 - Ask the person with `ask_human` when the act leaves a choice that is theirs.
   Do not ask what you can find out.
 - To use a skill or connector the turn does not offer yet, find it with
@@ -34,7 +36,8 @@ outside the calls.
   its manual: read it before you call the runner, and follow it. Loading a
   skill of several runners without naming one binds none, so you can read
   its manual and runners first and load again with the one you need.
-  Binding a package below the turn's trust rule waits on the person's trust.
+  Binding a package below the turn's trust rule, or one of the project's own
+  that reaches a connector the turn doesn't, waits on the person's trust.
 - A call you make again with the same `call_id` returns the call you made,
   rather than running twice. Pin one on every call that changes something.
 
@@ -47,11 +50,6 @@ person, plainly. If the act cannot be done, end it as failed and say why.
 The project's instructions, when it has any, come with the act. Follow them
 as you would the person's.
 
-The read and develop turns explicitly declare `web/page.read` and
-`exa/search.query` as their provider tools. Connector requirements alone do not
-grant turn operations. Native tools, catalog/skill loading, questions, grant
-scopes and existing write approval behavior keep their own declared bounds.
-
 ## Agent task: read
 
 Read, search and ask, as above. This turn changes nothing: it offers no tool
@@ -60,4 +58,4 @@ that edits the workspace or runs a command.
 ## Agent task: develop
 
 Everything the read turn does, and also edit the workspace and run commands,
-each waiting on the person unless a standing approval covers it.
+as the turn's effects allow.
