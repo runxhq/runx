@@ -1096,6 +1096,17 @@ fn requirement(
         .scope
         .requirement(connector_id, declared)
         .map_err(|error| error.to_string())?;
+    // A connector a load bound runs only as it was loaded, the person's
+    // trust covering that implementation: resolving it digested its files
+    // again, so a changed process under the same manifest is caught here.
+    if let Some(loaded) = &step.loaded
+        && connector.binding() != *loaded
+    {
+        return Err(format!(
+            "connector {} changed since it was loaded (implementation {}, loaded at {}); load it again",
+            connector.name, connector.connector_digest, loaded.connector_digest
+        ));
+    }
     Ok((connector, operation))
 }
 

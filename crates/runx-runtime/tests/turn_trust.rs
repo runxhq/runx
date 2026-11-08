@@ -340,6 +340,48 @@ fn a_project_connector_waits_on_trust_and_runs_once_trusted() -> TestResult {
     Ok(())
 }
 
+/// Trust covers the implementation for as long as the turn runs: a loaded
+/// connector's calls run only against the exact binding the load recorded,
+/// so a process changed under the same connector.yaml after the load runs
+/// nothing until the connector is loaded, and trusted, again.
+#[test]
+fn a_loaded_connector_runs_only_as_it_was_loaded() -> TestResult {
+    let temp = tempdir()?;
+    let ws = Workspace::new(&temp.path().join("ws"), Some(&temp.path().join("home")))?;
+    let run_id = ws.start()?;
+    let turn = ws.open(&run_id)?;
+    waits_on(
+        &load(&turn, serde_json::json!({"connector": "marker"}))?,
+        "trust",
+    )?;
+    drop(turn);
+    ws.answer(&run_id, "read/0/trust", true)?;
+
+    std::fs::write(
+        ws.root
+            .join("connectors/marker/tools/marker/write/write.sh"),
+        MARKER_SCRIPT.replace("ran", "ran again"),
+    )?;
+    let turn = ws.open(&run_id)?;
+    let reason = refused(&call_marker(&turn, &ws)?)?;
+    assert!(reason.contains("changed since it was loaded"), "{reason}");
+    assert!(!ws.marker().exists(), "the changed process ran nothing");
+
+    // Loaded again, it is another implementation to trust, and runs once
+    // trusted.
+    waits_on(
+        &load(&turn, serde_json::json!({"connector": "marker"}))?,
+        "trust",
+    )?;
+    drop(turn);
+    ws.answer(&run_id, "read/2/trust", true)?;
+    let turn = ws.open(&run_id)?;
+    let ran = call_marker(&turn, &ws)?;
+    assert!(completed(&ran), "{ran:?}");
+    assert_eq!(std::fs::read_to_string(ws.marker())?, "ran again\n");
+    Ok(())
+}
+
 #[test]
 fn a_project_skill_reaching_a_connector_waits_on_trust_and_runs_once_trusted() -> TestResult {
     let temp = tempdir()?;

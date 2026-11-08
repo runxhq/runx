@@ -460,7 +460,7 @@ fn parse_operation_target(
             operation: None,
             from,
             declared: None,
-            loaded: false,
+            loaded: None,
         });
     }
     let reference = non_empty(value, &qualified)?;
@@ -483,7 +483,7 @@ fn parse_operation_target(
         })?),
         from: Vec::new(),
         declared: None,
-        loaded: false,
+        loaded: None,
     })
 }
 

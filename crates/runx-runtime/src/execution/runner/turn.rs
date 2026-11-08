@@ -946,13 +946,9 @@ where
                             .ok_or_else(|| format!("{operation} is not an operation name"))?,
                     ),
                     from: Vec::new(),
-                    // A declaration the skill does not hold is one a load bound.
-                    loaded: declared.is_some()
-                        && !self
-                            .scope
-                            .agent
-                            .connectors
-                            .contains_key(requirement.as_str()),
+                    loaded: self
+                        .loaded_binding(requirement.as_str())
+                        .map_err(|error| error.to_string())?,
                     declared,
                 };
                 StepKind::Operation(target)
@@ -1290,6 +1286,26 @@ where
             }));
         }
         Ok(None)
+    }
+
+    /// The exact binding the latest load of connector `requirement` recorded,
+    /// when the turn's skill does not declare it itself: the only connector
+    /// its calls run against.
+    fn loaded_binding(&self, requirement: &str) -> Result<Option<ConnectorBinding>, RuntimeError> {
+        if self.scope.agent.connectors.contains_key(requirement) {
+            return Ok(None);
+        }
+        Ok(self.loads()?.into_iter().rev().find_map(|load| {
+            let LoadedPackage::Connector { connector, .. } = &load.package else {
+                return None;
+            };
+            if connector.as_str() != requirement {
+                return None;
+            }
+            load.connectors
+                .into_iter()
+                .find(|binding| binding.connector.as_str() == requirement)
+        }))
     }
 
     /// Each connector the turn already reaches, at the exact revision it

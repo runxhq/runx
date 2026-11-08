@@ -288,11 +288,12 @@ pub struct OperationStepTarget {
     /// skill has none, and its operation steps are refused at admission.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declared: Option<crate::ConnectorRequirement>,
-    /// Whether a load of the turn bound the requirement: its connector is
-    /// then the project's, where the load found it, never one the enclosing
-    /// skill reaches.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub loaded: bool,
+    /// The exact binding a load of the turn bound the requirement at, when
+    /// one did: its connector is then the project's, where the load found it,
+    /// never one the enclosing skill reaches, and the call runs only against
+    /// that manifest and implementation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loaded: Option<runx_contracts::connector::ConnectorBinding>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

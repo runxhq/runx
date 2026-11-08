@@ -437,7 +437,7 @@ impl ConnectorScope {
         workflow_dir: &Path,
         paths: &RunxPaths,
     ) -> Result<Self, ConnectorRegistryError> {
-        let dir = if target.loaded {
+        let dir = if target.loaded.is_some() {
             paths.workspace()
         } else {
             workflow_dir
