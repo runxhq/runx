@@ -48,7 +48,8 @@ const STAYS = {
   runner: /^\$RUNNER_|^RUNNER_(TEMP|OS|ARCH|NAME|TOOL_CACHE|DEBUG|ENVIRONMENT|WORKSPACE|LIMIT_MINUTES|PATH|VOICED)$|ToolRunner|tool_runner|test_runner|local-pr-runner|^step_runner$|^stage_runner$|^TurnRunner$|^CallRunners$|^RunnerConfig$|^runner-driven$|^mcp-runner$|^verifier-runner$/,
   graph: /GraphQL|dependency-advisory-graph|crate-graph/,
 };
-const RUN_HARNESS = /harness[-_]?(context|ref|spine)|capture_harness_context/i;
+// Whole segments only, so a test's "harness-refusal" isn't a harness ref.
+const RUN_HARNESS = /[Hh]arness[-_]?([Cc]ontext|[Rr]ef|[Ss]pine)s?(?![a-z])|HARNESS_?(CONTEXT|REF|SPINE)S?(?![A-Z])|capture_harness_context/;
 const ENDING = /^Closure$|GraphClosure|StepSealClosure|graph_stop_closure|graph_receipt_with_closure|harness_blocks_closure|ClosureNotObject|with_default_closure|ClosureDisposition/;
 const LEASE = /OperationHold|HoldAction|HoldEvidence|HOLD_EVIDENCE|DeclaredHold|HarnessProviderHoldFixture|PurchaseHold|purchase_holdings|purchaseHolding|holdPurchaseOf|HoldPurchase|HeldResource|heldValueDigest|HoldOwnerRef|HoldingOwner|held_resource|held_answer|held_connectors|validate_holds|revoke_holding|take_answers_the_hold|take_holds_nothing|purchase_credential_is|held_value_never|connect_holds|connect_could_hold|names_the_held_resource|on_a_held_resource|purchase_connect_holds|holdingStore|HoldingStore|holdings/;
 const RUN_HOLD = /RunHold|run_hold|HoldEvent|hold_event|child_hold|suspended_hold|resumed_hold|run_held|NotHeld|held_lock/;
