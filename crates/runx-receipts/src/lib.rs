@@ -29,13 +29,11 @@ pub use tree::{
     group_receipt_trees, receipt_edge_references, verify_receipt_tree_proof_with_resolver,
 };
 pub use verify::{
-    ReceiptError, ReceiptFinding, ReceiptFindingCode, ReceiptProofContext,
-    ReceiptProofFindingSummary, ReceiptProofStatus, ReceiptProofStatusKind, ReceiptVerification,
+    ReceiptError, ReceiptFinding, ReceiptFindingCode, ReceiptProofContext, ReceiptVerification,
     ReceiptVerifyCheck, ReceiptVerifyFinding, ReceiptVerifyLineageCheck,
     ReceiptVerifySignatureCheck, ReceiptVerifyVerdict, SignatureVerificationFailure,
-    SignatureVerifier, VERIFY_VERDICT_SCHEMA, receipt_id_is_content_addressed,
-    receipt_proof_status, verify_receipt, verify_receipt_document_verdict, verify_receipt_proof,
-    verify_receipt_verdict,
+    SignatureVerifier, VERIFY_VERDICT_SCHEMA, receipt_id_is_content_addressed, verify_receipt,
+    verify_receipt_document_verdict, verify_receipt_proof, verify_receipt_verdict,
 };
 pub use wire::{ReceiptDecodeError, decode_receipt, decode_receipt_value};
 

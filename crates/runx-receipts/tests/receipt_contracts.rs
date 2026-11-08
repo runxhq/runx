@@ -10,9 +10,9 @@ use runx_contracts::{
     ReferenceType, RunOutcome,
 };
 use runx_receipts::{
-    ReceiptFindingCode, ReceiptProofContext, ReceiptProofStatusKind, ReceiptVerification,
-    SignatureVerificationFailure, SignatureVerifier, canonical_receipt_digest,
-    canonical_receipt_json, receipt_proof_status, verify_receipt, verify_receipt_proof,
+    ReceiptFindingCode, ReceiptProofContext, ReceiptVerification, SignatureVerificationFailure,
+    SignatureVerifier, canonical_receipt_digest, canonical_receipt_json, verify_receipt,
+    verify_receipt_proof,
 };
 
 const SUCCESS_RECEIPT: &str =
@@ -284,40 +284,6 @@ fn inline_decision_integrity_accepts_real_selected_act_id() -> Result<(), serde_
     );
 
     assert!(verify_receipt(&receipt).valid);
-    Ok(())
-}
-
-#[test]
-fn proof_status_projects_safe_public_summary() -> Result<(), serde_json::Error> {
-    let receipt = proof_receipt()?;
-    let verifier = fixture_key();
-    let verification = verify_receipt_proof(&receipt, &proof_context(&verifier));
-
-    let status = receipt_proof_status(&receipt, &verification);
-
-    assert_eq!(status.receipt_id, receipt.id);
-    assert_eq!(status.status, ReceiptProofStatusKind::Verified);
-    assert!(status.finding_summaries.is_empty());
-    Ok(())
-}
-
-#[test]
-fn proof_status_redacts_absolute_paths_from_findings() -> Result<(), serde_json::Error> {
-    let receipt = proof_receipt()?;
-    let verification = ReceiptVerification::from_findings(vec![runx_receipts::ReceiptFinding {
-        code: ReceiptFindingCode::SignatureInvalid,
-        path: "(/Users/kam/private/key)".to_owned(),
-        message: "failed at /Users/kam/private/key and C:\\Users\\kam\\private\\key with VGhpcy1sb29rcy1saWtlLWEtc2VjcmV0LXZhbHVlPQ==".to_owned(),
-    }]);
-
-    let status = receipt_proof_status(&receipt, &verification);
-
-    assert_eq!(status.status, ReceiptProofStatusKind::Failed);
-    assert_eq!(status.finding_summaries[0].path, "[local-path]");
-    assert_eq!(
-        status.finding_summaries[0].message,
-        "failed at [local-path] and [local-path] with [secret]"
-    );
     Ok(())
 }
 

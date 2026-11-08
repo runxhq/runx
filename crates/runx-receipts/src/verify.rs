@@ -7,14 +7,10 @@ use runx_contracts::{
 };
 
 mod finding;
-mod projection;
 mod proof;
 mod verdict;
 
 pub use finding::{ReceiptError, ReceiptFinding, ReceiptFindingCode, ReceiptVerification};
-pub use projection::{
-    ReceiptProofFindingSummary, ReceiptProofStatus, ReceiptProofStatusKind, receipt_proof_status,
-};
 pub use proof::{
     ReceiptProofContext, SignatureVerificationFailure, SignatureVerifier,
     receipt_id_is_content_addressed, verify_receipt_proof,
