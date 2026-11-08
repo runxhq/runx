@@ -13,7 +13,9 @@ export const WORDS = {
 export function bareWord(token) {
   const lower = token.toLowerCase();
   for (const [word, forms] of Object.entries(WORDS)) {
-    if (!(lower in forms)) continue;
+    // Its own forms only: `in` would also find what every object inherits,
+    // such as `constructor`.
+    if (!Object.hasOwn(forms, lower)) continue;
     if (token === lower || token === lower.toUpperCase() || token === lower[0].toUpperCase() + lower.slice(1)) return word;
   }
   return undefined;

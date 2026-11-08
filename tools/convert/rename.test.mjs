@@ -145,3 +145,11 @@ test("a bare runner or harness renames everywhere but where a stay keeps it, and
   assert.equal(read(root, "crates/runx-contracts/src/operational_policy.rs"), "pub struct Policy { pub runners: Vec<Runner> }\n");
   assert.equal(read(root, "docs/agents.md"), "Run the test first. The run context travels with the run. An agent harness such as Codex keeps its own memory.\n");
 });
+
+test("a name every object inherits, such as constructor, is no bare word", (t) => {
+  const code = "export class Store {\n  constructor(runner) {\n    this.runner = runner;\n  }\n}\n// Constructor note.\n";
+  const root = tree(t, { "packages/client/src/store.ts": code });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "packages/client/src/store.ts"), code.replaceAll("runner", "method"));
+});
