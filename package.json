@@ -23,7 +23,6 @@
     "cli:link-dev-native": "cargo build --manifest-path crates/Cargo.toml -p runx-cli && node scripts/link-dev-native-cli.mjs",
     "cli:check-dev-native": "node scripts/link-dev-native-cli.mjs --check",
     "cli:unlink-dev-native": "node scripts/link-dev-native-cli.mjs --unlink",
-    "dogfood:native-core": "sh scripts/dogfood-native-core.sh",
     "dogfood:core-skills": "node scripts/dogfood-core-skills.mjs",
     "docs:api": "tsx scripts/gen-api-index.ts",
     "docs:api:check": "tsx scripts/gen-api-index.ts --check",
