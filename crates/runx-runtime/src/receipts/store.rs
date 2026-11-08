@@ -219,10 +219,7 @@ impl LocalReceiptStore {
         Ok(receipts)
     }
 
-    pub fn read_exact_without_proof(
-        &self,
-        receipt_id: &str,
-    ) -> Result<Receipt, ReceiptStoreError> {
+    pub fn read_exact_without_proof(&self, receipt_id: &str) -> Result<Receipt, ReceiptStoreError> {
         let file_path = self.receipt_path(receipt_id)?;
         self.ensure_store_dir()?;
         read_receipt_file_without_proof(&file_path, receipt_id)

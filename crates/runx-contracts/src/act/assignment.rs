@@ -1,8 +1,8 @@
 //! Act assignment envelope: host kind, actor, intent key, and idempotency.
 use serde::{Deserialize, Serialize};
 
-use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 use crate::JsonObject;
+use crate::schema::{IsoDateTime, NonEmptyString, RunxSchema};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 pub enum ActAssignmentSchema {

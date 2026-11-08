@@ -743,8 +743,8 @@ mod tests {
     }
 
     #[test]
-    fn a_receipt_id_shows_what_that_receipt_says_without_execution_bodies()
-    -> Result<(), io::Error> {
+    fn a_receipt_id_shows_what_that_receipt_says_without_execution_bodies() -> Result<(), io::Error>
+    {
         let temp = tempfile_dir()?;
         let receipt_dir = temp.join("receipts");
         let signer = fixture_signer().map_err(io::Error::other)?;
@@ -1377,8 +1377,8 @@ mod tests {
                 case_dir.join(&case.receipt).into_os_string(),
                 "--json".into(),
             ];
-            let result = verify(&args, &env, &root)
-                .map_err(|error| io::Error::other(error.to_string()))?;
+            let result =
+                verify(&args, &env, &root).map_err(|error| io::Error::other(error.to_string()))?;
             let actual: JsonValue =
                 serde_json::from_str(&result.output).map_err(io::Error::other)?;
             let expected = expected_verdict(&case_dir, &case)?;

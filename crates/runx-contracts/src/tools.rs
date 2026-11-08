@@ -172,9 +172,8 @@ pub struct ToolInspectProvenance {
 #[cfg(test)]
 mod tests {
     use super::{
-        ToolCatalogSearchResult,
-        ToolCommandInputMode, ToolInput, ToolInspectOrigin, ToolInspectProvenance,
-        ToolInspectResult, ToolManifest, ToolManifestSchema, ToolSource,
+        ToolCatalogSearchResult, ToolCommandInputMode, ToolInput, ToolInspectOrigin,
+        ToolInspectProvenance, ToolInspectResult, ToolManifest, ToolManifestSchema, ToolSource,
     };
     use crate::EnvironmentRequirements;
 

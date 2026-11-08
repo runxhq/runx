@@ -23,7 +23,6 @@ pub mod skill;
 pub mod tool;
 pub mod verify;
 
-
 #[cfg(test)]
 mod release_identity_tests {
     #[test]

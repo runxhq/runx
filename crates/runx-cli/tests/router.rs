@@ -6,8 +6,8 @@ use runx_cli::mcp::McpPlan;
 use runx_cli::registry::{RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
-    DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, ListKind, ListPlan,
-    RouterAction, ToolAction, ToolPlan, command_help_text, help_text, route_args,
+    DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, ListKind, ListPlan, RouterAction,
+    ToolAction, ToolPlan, command_help_text, help_text, route_args,
 };
 use runx_cli::skill::{SkillAction, SkillPlan};
 use runx_runtime::HostedApiCredentialPurpose;
@@ -741,7 +741,9 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
 fn managed_agent_rounds_need_explicit_managed_agent_consent() {
     assert_eq!(
         plan(&["skill", "skills/docs-demo", "--managed-agent-rounds", "2"]),
-        RouterAction::Error("runx skill --managed-agent-rounds requires --managed-agent".to_owned())
+        RouterAction::Error(
+            "runx skill --managed-agent-rounds requires --managed-agent".to_owned()
+        )
     );
     let action = plan(&[
         "skill",
@@ -966,9 +968,11 @@ fn native_router_argument_errors_exit_with_usage_code() -> Result<(), Box<dyn st
     let value = serde_json::from_slice::<serde_json::Value>(&output.stdout)?;
     assert_eq!(value["status"], "failure");
     assert_eq!(value["error"]["code"], "invalid_args");
-    assert!(value["error"]["message"].as_str().is_some_and(|message| {
-        message.contains("runx notarize requires a receipt JSON path")
-    }));
+    assert!(
+        value["error"]["message"].as_str().is_some_and(|message| {
+            message.contains("runx notarize requires a receipt JSON path")
+        })
+    );
     Ok(())
 }
 

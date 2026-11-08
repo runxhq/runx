@@ -121,7 +121,7 @@ fn discover_tool_list_items(
                     fixtures: Some(count_yaml_files(&tool_entry.path.join("fixtures"))?),
                     harness_cases: None,
                     steps: None,
-                    }),
+                }),
                 Err(()) => items.push(invalid_item(
                     RunxListItemKind::Tool,
                     format!("{}.{}", namespace_entry.name, tool_entry.name),
@@ -510,6 +510,6 @@ mod tests {
             fixtures: None,
             harness_cases: None,
             steps: None,
-            }
+        }
     }
 }

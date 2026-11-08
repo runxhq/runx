@@ -85,10 +85,8 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
 fn skill_build_refuses_a_target_outside_the_workspace_without_writing() -> TestResult {
     let repo = crate::support::repo_root()?;
     let root = crate::support::isolated_target_temp_root("skill-build-containment")?;
-    let outside = std::env::temp_dir().join(format!(
-        "runx-skill-build-outside-{}",
-        std::process::id()
-    ));
+    let outside =
+        std::env::temp_dir().join(format!("runx-skill-build-outside-{}", std::process::id()));
     fs::remove_dir_all(&outside).ok();
 
     let output = command(&repo, &root)
