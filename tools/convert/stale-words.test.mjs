@@ -18,12 +18,12 @@ function tree(t, files) {
   return root;
 }
 
-test("the guard fails on runner as a method and harness as a test, and passes the machinery, kept names and history", (t) => {
+test("the guard fails on runner as a method and harness as a test, and passes the stays, kept names and history", (t) => {
   const root = tree(t, {
     "crates/runx-runtime/src/skill.rs": "fn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n",
     "skills/demo/SKILL.md": "Run the harness before you publish.\n",
-    "crates/runx-runtime/src/execution/runner/step.rs": "pub struct Runner;\n",
-    "crates/runx-runtime/src/lib.rs": "use crate::execution::runner::Runner;\n",
+    "crates/runx-contracts/src/operational_policy.rs": "pub struct Policy { pub runners: Vec<String> }\n",
+    "crates/runx-runtime/src/lib.rs": "use crate::execution::runner::turn;\n",
     "scripts/ci.sh": "echo $RUNNER_OS\n",
     "docs/release/notes/0.10.md": "The harness ran every case.\n",
   });

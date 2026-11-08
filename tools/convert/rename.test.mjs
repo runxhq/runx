@@ -31,6 +31,7 @@ test("scan reads a name's run sense from whole segments, so a test's harness-ref
   // scan writes the table beside the program, so it runs on a copy of both.
   const program = tree(t, {});
   copyFileSync(RENAME, path.join(program, "rename.mjs"));
+  copyFileSync(new URL("./words.mjs", import.meta.url), path.join(program, "words.mjs"));
   copyFileSync(new URL("./identifiers.tsv", import.meta.url), path.join(program, "identifiers.tsv"));
   const root = tree(t, { "src/case.mjs": 'export const id = "checkout-harness-references";\nexport const ref = "checkout-harness-ref";\n' });
   const { status, out } = run(path.join(program, "rename.mjs"), "scan", "oss", root);
@@ -54,7 +55,7 @@ The agent-session skill is one turn.
 Read and answer.
 `;
 
-test("a package's name renames in its SKILL.md, its tests and its evals, and its prose stays", (t) => {
+test("a package's name renames in its SKILL.md, prose included, and in its tests and its evals", (t) => {
   const root = tree(t, {
     "skills/agent-session/SKILL.md": agentManual,
     "skills/agent-session/run.yaml": "minimum_runx: 0.12.0\nmethods:\n  read:\n    steps:\n      - id: read\n        agent: read\n",
@@ -63,7 +64,7 @@ test("a package's name renames in its SKILL.md, its tests and its evals, and its
   });
   const { status, out } = run(RENAME, "apply", "oss", root, "--write");
   assert.equal(status, 0, out);
-  assert.equal(read(root, "skills/agent/SKILL.md"), agentManual.replace("name: agent-session", "name: agent"));
+  assert.equal(read(root, "skills/agent/SKILL.md"), agentManual.replaceAll("agent-session", "agent"));
   assert.equal(read(root, "skills/agent/tests/agent-read-answers-with-a-summary.yaml"), "name: agent-read-answers-with-a-summary\nmethod: read\nexpect:\n  status: sealed\n");
   assert.equal(read(root, "skills/agent/evals/evals.json"), '{ "skill_name": "agent", "evals": [] }\n');
 });
@@ -104,7 +105,7 @@ test("the rename runs again over its own output and changes nothing, a chain of 
 
   const again = run(RENAME, "apply", "oss", root, "--write");
   assert.equal(again.status, 0, again.out);
-  assert.match(again.out, /oss: 0 names in 0 files, 0 paths moved; 0 signed files left as signed; .*TurnInvocation.* already the new names/);
+  assert.match(again.out, /oss: 0 names in 0 files, 0 of them bare words, 0 bare words kept, 0 paths moved; 0 signed files left as signed; .*TurnInvocation.* already the new names/);
   assert.equal(read(root, "src/turn.ts"), renamed);
 });
 
@@ -118,4 +119,29 @@ test("the rename leaves a generated file to its generator", (t) => {
   assert.equal(status, 0, out);
   assert.equal(read(root, "crates/runx-contracts/src/diagnosis.rs"), "pub struct Diagnosis { pub test_output: String }\n");
   assert.equal(read(root, "schemas/diagnosis.schema.json"), generated);
+});
+
+test("a bare runner or harness renames everywhere but where a stay keeps it, and the dry run lists each stay", (t) => {
+  const root = tree(t, {
+    "crates/runx-runtime/src/execution.rs": "//! - `runner`: the graph engine.\npub mod runner;\npub mod harness;\n",
+    "crates/runx-runtime/src/execution/harness/runner.rs": "use crate::execution::runner::turn;\npub fn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n",
+    "crates/runx-runtime/src/skill_package/inspection/runner.rs": "/// The runners a skill declares.\npub fn runners() {}\n",
+    "crates/runx-contracts/src/operational_policy.rs": "pub struct Policy { pub runners: Vec<Runner> }\n",
+    "docs/agents.md": "Run the harness first. The harness context travels with the run. An agent harness such as Codex keeps its own memory.\n",
+  });
+  const dry = run(RENAME, "apply", "oss", root, "--stays");
+  assert.equal(dry.status, 0, dry.out);
+  assert.match(dry.out, /^stays\tcrates\/runx-runtime\/src\/execution\.rs:1\tthe execution runner module\t/m);
+  assert.match(dry.out, /^stays\tcrates\/runx-runtime\/src\/execution\.rs:2\tthe execution runner module\tpub mod runner;$/m);
+  assert.match(dry.out, /^stays\tcrates\/runx-runtime\/src\/execution\/harness\/runner\.rs:1\tthe execution runner module\t/m);
+  assert.match(dry.out, /^stays\tcrates\/runx-contracts\/src\/operational_policy\.rs:1\tthe operational policy's runners\t/m);
+  assert.match(dry.out, /^stays\tdocs\/agents\.md:1\tan agent's host\t/m);
+
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "crates/runx-runtime/src/execution.rs"), "//! - `runner`: the graph engine.\npub mod runner;\npub mod test;\n");
+  assert.equal(read(root, "crates/runx-runtime/src/execution/test/runner.rs"), "use crate::execution::runner::turn;\npub fn inputs(skill: &Skill) -> &Inputs { &skill.method.inputs }\n");
+  assert.equal(read(root, "crates/runx-runtime/src/skill_package/inspection/method.rs"), "/// The methods a skill declares.\npub fn methods() {}\n");
+  assert.equal(read(root, "crates/runx-contracts/src/operational_policy.rs"), "pub struct Policy { pub runners: Vec<Runner> }\n");
+  assert.equal(read(root, "docs/agents.md"), "Run the test first. The run context travels with the run. An agent harness such as Codex keeps its own memory.\n");
 });

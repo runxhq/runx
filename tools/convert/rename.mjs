@@ -4,22 +4,26 @@
 // words; identifiers.tsv beside this file is the authority for every name.
 //
 //   node tools/convert/rename.mjs scan  <repo> <root>             add rows for names not in the table yet
-//   node tools/convert/rename.mjs apply <repo> <root> [--write] [--list]   rename, refusing while a name is missing;
-//                                                               --list prints each file and its count
+//   node tools/convert/rename.mjs apply <repo> <root> [--write] [--list] [--stays]
+//                                         rename, refusing while a name is missing; --list prints each
+//                                         file and its count, --stays each bare word a stay keeps
 //
 // `scan` keeps every row already in the table, so a decision made by hand
 // stays made. `apply` replaces whole identifiers only, all at once, so a chain
 // such as TurnInvocation to TurnView and AgentActInvocation to TurnInvocation
-// can't run into itself. A bare word ("runner" alone) is code or prose and is
-// read in place, never replaced here.
+// can't run into itself. The bare words `runner` and `harness` have senses
+// that stay, so they follow words.mjs: renamed everywhere but where its short
+// list of stays keeps them. Prose is renamed with the code it names; history
+// documents and signed data aren't, and generated files are regenerated.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { GENERATED, HISTORY as HISTORY_DOCS, STAYING_PATHS, bareWord, renamedBare, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
-const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|json|ya?ml|toml|sql|rb|py|sh)$/;
+const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|json|ya?ml|toml|sql|rb|py|sh|md)$/;
 const TOKEN = /[A-Za-z_$][A-Za-z0-9_$-]*[A-Za-z0-9]|[A-Za-z]/g;
 
 // Each renamed word, in the forms a segment of a name can take.
@@ -46,7 +50,7 @@ const OVERRIDES = {
 // consumers' own executors and playbook runner, test data, and a dependency graph.
 const STAYS = {
   runner: /^\$RUNNER_|^RUNNER_(TEMP|OS|ARCH|NAME|TOOL_CACHE|DEBUG|ENVIRONMENT|WORKSPACE|LIMIT_MINUTES|PATH|VOICED)$|ToolRunner|tool_runner|test_runner|local-pr-runner|^step_runner$|^stage_runner$|^TurnRunner$|^CallRunners$|^RunnerConfig$|^runner-driven$|^mcp-runner$|^verifier-runner$/,
-  graph: /GraphQL|dependency-advisory-graph|crate-graph/,
+  graph: /GraphQL|LangGraph|dependency-advisory-graph|crate-graph/,
 };
 // Whole segments only, so a test's "harness-refusal" isn't a harness ref.
 const RUN_HARNESS = /[Hh]arness[-_]?([Cc]ontext|[Rr]ef|[Ss]pine)s?(?![a-z])|HARNESS_?(CONTEXT|REF|SPINE)S?(?![A-Z])|capture_harness_context/;
@@ -144,10 +148,6 @@ const UNCONVERTED = [
   { file: /(^|\/)connector\.yaml$/, old: (text) => /^id:/m.test(text), what: "a connector.yaml that says id" },
   { file: /\.graph$/, old: () => true, what: "a support graph" },
 ];
-// A manual is prose, read in place, except where SKILL.md holds a name the
-// parser binds: its frontmatter `name`, the package's own, and each
-// `## Agent task: <name>` heading, which an agent step names.
-const MANUAL = /(^|\/)SKILL\.md$/;
 // Signed data verifies as its stored bytes, so a renamed field would break it.
 // The count reported as "signed" includes the vectors below.
 // Whether a signed fixture is re-signed in the new shape or kept as an old
@@ -166,11 +166,6 @@ const HISTORY = /(^|\/)(migrations|drizzle)\//;
 // Files whose own name isn't ours to change: the converter's own files,
 // scafld's, and vendored copies, which keep their upstream names.
 const KEEPS_NAME = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
-// Files a generator writes from other sources: the schemas and contract
-// types from the Rust contracts, and the bundled skills from their packages.
-// A rename changes their sources, and their generators write them again, so
-// the rename never edits them.
-const GENERATED = /^(schemas\/[^/]+\.schema\.json|packages\/contracts\/src\/generated\/.+|packages\/contracts\/src\/schema-artifacts\.ts|crates\/runx-runtime\/bundled-skills\.json)$/;
 // Literals whose exact bytes stored data depends on, in files a token rename
 // would otherwise change them in. Each is masked while its file is renamed,
 // and a pin that isn't found refuses.
@@ -196,7 +191,7 @@ function workingFiles(root) {
 }
 
 function workingSources(root) {
-  return workingFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !/lock/.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file) && !GENERATED.test(file));
+  return workingFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !/lock/.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file) && !HISTORY_DOCS.test(file) && !GENERATED.test(file));
 }
 
 function readSource(root, file) {
@@ -210,66 +205,16 @@ function readSource(root, file) {
   }
 }
 
-function workingManuals(root) {
-  return workingFiles(root).filter((file) => MANUAL.test(file) && !file.includes("node_modules/") && !NOT_OURS.test(file) && !HISTORY.test(file));
-}
-
-/** Where a manual holds a name: its frontmatter `name` and each agent task heading's, outside code fences. */
-function manualNameSpans(text) {
-  const spans = [];
-  const front = /^---\n([\s\S]*?)\n---/.exec(text);
-  const name = front && /^name:[ \t]*(.*?)[ \t]*$/m.exec(front[1]);
-  if (name) {
-    const start = 4 + name.index + name[0].indexOf(name[1], "name:".length);
-    spans.push([start, start + name[1].length]);
-  }
-  let fence = null;
-  let offset = 0;
-  for (const line of text.split("\n")) {
-    const marker = /^(```|~~~)/.exec(line);
-    if (marker) fence = fence === null ? marker[1] : fence === marker[1] ? null : fence;
-    else if (fence === null) {
-      const heading = /^## Agent task: (.+?)[ \t]*$/.exec(line);
-      if (heading) spans.push([offset + "## Agent task: ".length, offset + "## Agent task: ".length + heading[1].length]);
-    }
-    offset += line.length + 1;
-  }
-  return spans;
-}
-
-function manualTokens(text) {
-  return manualNameSpans(text).flatMap(([start, end]) => text.slice(start, end).match(TOKEN) ?? []);
-}
-
-/** Replaces the table's names in a text, or only within the given spans of it, counting each. */
-function renameText(text, renames, spans = [[0, text.length]]) {
-  let count = 0;
-  let out = "";
-  let at = 0;
-  for (const [start, end] of spans) {
-    out += text.slice(at, start);
-    out += text.slice(start, end).replace(TOKEN, (token) => {
-      const to = renames.get(token);
-      if (to === undefined) return token;
-      count += 1;
-      return to;
-    });
-    at = end;
-  }
-  return { text: out + text.slice(at), count };
-}
-
-/** Each name a file holds: every token of a source, and a manual's own names. */
+/** Each name a source holds. */
 function namesOf(root, file) {
   const { text } = readSource(root, file) ?? {};
-  if (text === undefined) return [];
-  return MANUAL.test(file) ? manualTokens(text) : text.match(TOKEN) ?? [];
+  return text?.match(TOKEN) ?? [];
 }
 
-/** Which of the given names the repo's sources and manuals hold. */
+/** Which of the given names the repo's sources hold. */
 function presentNames(root, names) {
   const held = new Set();
-  for (const file of [...workingSources(root), ...workingManuals(root)]) {
+  for (const file of workingSources(root)) {
     for (const token of namesOf(root, file)) if (names.has(token)) held.add(token);
   }
   return held;
@@ -278,7 +223,7 @@ function presentNames(root, names) {
 /** Every name holding a renamed word in the repo's tracked sources, with its uses and two files. */
 function inventory(root) {
   const found = new Map();
-  for (const file of [...workingSources(root), ...workingManuals(root)]) {
+  for (const file of workingSources(root)) {
     for (const token of namesOf(root, file)) {
       if (wordsIn(token).length === 0) continue;
       const entry = found.get(token) ?? { uses: 0, where: new Set() };
@@ -305,7 +250,7 @@ function scan(repo, root) {
   return 0;
 }
 
-function apply(repo, root, write, list) {
+function apply(repo, root, write, list, showStays) {
   const rows = readTable().filter((row) => row.repo === repo);
   const known = new Set(rows.map((row) => row.identifier));
   const renames = new Map(rows.filter((row) => row.to !== "?" && row.to !== row.identifier).map((row) => [row.identifier, row.to]));
@@ -389,6 +334,18 @@ function apply(repo, root, write, list) {
   let files = 0;
   let replaced = 0;
   let signed = 0;
+  // The bare words (words.mjs): each one renamed unless a stay keeps it, the
+  // stays listed for review, and each code file where a renamed bare word
+  // lands on a name the file already holds, which only its compiler or tests
+  // can clear.
+  let bare = 0;
+  const stays = [];
+  const landsOn = new Set();
+  const fileNames = new Map();
+  const names = (file, text) => {
+    if (!fileNames.has(file)) fileNames.set(file, new Set(text.match(TOKEN) ?? []));
+    return fileNames.get(file);
+  };
   for (const file of workingSources(root)) {
     const source = readSource(root, file);
     if (source?.signed) signed += 1;
@@ -397,28 +354,35 @@ function apply(repo, root, write, list) {
     const text = held.reduce((masked, pin, index) => masked.split(pin.literal).join(`\u0000${index}\u0000`), source.text);
     const full = path.join(root, file);
     let count = 0;
-    const renamed = text.replace(TOKEN, (token) => {
-      const to = renames.get(token);
-      if (to === undefined) return token;
-      count += 1;
-      return to;
-    });
+    const lines = text.split("\n");
+    const renamed = lines
+      .map((line, number) =>
+        line.replace(TOKEN, (token, index) => {
+          const to = renames.get(token);
+          if (to !== undefined) {
+            count += 1;
+            return to;
+          }
+          if (bareWord(token) === undefined) return token;
+          const stay = stayFor(file, line, index, token);
+          if (stay) {
+            stays.push(`${file}:${number + 1}\t${stay.why}\t${line.trim().slice(0, 140)}`);
+            return token;
+          }
+          count += 1;
+          bare += 1;
+          const next = renamedBare(token, line.slice(index + token.length));
+          if (/\.(rs|ts|tsx|mts|mjs|js|cjs)$/.test(file) && names(file, text).has(next)) landsOn.add(`${file}\t${token} -> ${next}`);
+          return next;
+        }),
+      )
+      .join("\n");
     const next = held.reduce((restored, pin, index) => restored.split(`\u0000${index}\u0000`).join(pin.literal), renamed);
     if (count === 0) continue;
     files += 1;
     replaced += count;
     if (list) process.stdout.write(`${count}\t${file}\n`);
     if (write) writeFileSync(full, next);
-  }
-  for (const file of workingManuals(root)) {
-    const source = readSource(root, file)?.text;
-    if (source === undefined) continue;
-    const { text: next, count } = renameText(source, renames, manualNameSpans(source));
-    if (count === 0) continue;
-    files += 1;
-    replaced += count;
-    if (list) process.stdout.write(`${count}\t${file}\n`);
-    if (write) writeFileSync(path.join(root, file), next);
   }
   // A name that's also a file or folder moves with it: a bench, a module and
   // its file, a test. Each segment of a path, a folder or a file's stem, is
@@ -435,7 +399,9 @@ function apply(repo, root, write, list) {
       if (last && keepsName) return part;
       const dot = last ? part.indexOf(".") : -1;
       const stem = dot > 0 ? part.slice(0, dot) : part;
-      const to = renames.get(stem);
+      let to = renames.get(stem);
+      const upTo = parts.slice(0, index + 1).join("/") + (last ? "" : "/");
+      if (to === undefined && bareWord(stem) !== undefined && !STAYING_PATHS.test(upTo) && !HISTORY_DOCS.test(file)) to = renamedBare(stem, "");
       return to === undefined ? part : to + (dot > 0 ? part.slice(dot) : "");
     });
     const target = renamed.join("/");
@@ -471,16 +437,20 @@ function apply(repo, root, write, list) {
       }
     }
   }
-  process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed${settled.length ? `; ${settled.join(", ")} already the new names` : ""}\n`);
+  if (showStays) {
+    for (const stay of stays) process.stdout.write(`stays\t${stay}\n`);
+    for (const clash of landsOn) process.stdout.write(`lands on a held name\t${clash}\n`);
+  }
+  process.stdout.write(`${repo}: ${replaced} names in ${files} files, ${bare} of them bare words, ${stays.length} bare words kept, ${moves.size} paths moved${write ? "" : " (dry run)"}; ${signed} signed files left as signed${settled.length ? `; ${settled.join(", ")} already the new names` : ""}${landsOn.size ? `; ${landsOn.size} renamed bare words land on a name their file holds` : ""}\n`);
   return 0;
 }
 
 function main([command, repo, root, ...rest]) {
   if (!["scan", "apply"].includes(command) || !repo || !root) {
-    process.stderr.write("usage: rename.mjs scan <repo> <root> | apply <repo> <root> [--write] [--list]\n");
+    process.stderr.write("usage: rename.mjs scan <repo> <root> | apply <repo> <root> [--write] [--list] [--stays]\n");
     return 2;
   }
-  return command === "scan" ? scan(repo, root) : apply(repo, root, rest.includes("--write"), rest.includes("--list"));
+  return command === "scan" ? scan(repo, root) : apply(repo, root, rest.includes("--write"), rest.includes("--list"), rest.includes("--stays"));
 }
 
 process.exitCode = main(process.argv.slice(2));
