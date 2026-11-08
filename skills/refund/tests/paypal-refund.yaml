@@ -48,7 +48,7 @@ providers:
             amount:
               currency_code: USD
               value: "1.00"
-            custom_id: bfe21f0a-5a54-4af0-8f43-e4269c150aa5
+            custom_id: 2e69d3d1-42f6-4b3c-83e1-d7f22ddb67fb
       response:
         status: 200
         headers:
