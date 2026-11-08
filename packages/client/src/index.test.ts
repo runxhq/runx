@@ -170,6 +170,33 @@ describe("native invocation and decoding", () => {
     await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'success', registry: { action: 'connector_package', connector: { connector: 'acme/ops-api' } } }));`);
     await expect(client.packages.materializeConnector({ connectorPath: "/connectors/ops-api" })).rejects.toThrow("Invalid native connector package");
   });
+  it("installs the records a host holds through stdin, and refuses another shape", async () => {
+    const { root, config } = await setup();
+    const capture = path.join(root, "records.json");
+    const records = [{ skill_id: "acme/echo", version: "1.0.0", markdown: "# Echo" }, { skill_id: "acme/other", version: "2.0.0", markdown: "# Other" }];
+    const installs = records.map((entry) => ({
+      package: `${entry.skill_id}@${entry.version}`,
+      install: { status: "installed", destination: `/project/added-skills/${entry.skill_id}/${entry.version}/SKILL.md`, skill_id: entry.skill_id, version: entry.version, digest: `sha256:${"a".repeat(64)}`, trust_tier: "community" },
+    }));
+    const installed = { status: "success", registry: { action: "record_install", source: "remote:https://registry.acme.test", installs } };
+    await writeFile(config.command, `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';
+      writeFileSync(${JSON.stringify(capture)}, JSON.stringify({ args: process.argv.slice(2), records: JSON.parse(readFileSync(0, 'utf8')) }));
+      process.stdout.write(JSON.stringify(${JSON.stringify(installed)}));`);
+    const client = createRunxClient(config);
+    await expect(client.registry.install({ records, registry: "https://registry.acme.test" })).resolves.toEqual(installed);
+    const captured = JSON.parse(await readFile(capture, "utf8"));
+    expect(captured.args).toEqual(["registry", "install", "--records", "-", "--registry", "https://registry.acme.test", "--json"]);
+    expect(captured.records).toEqual(records);
+    await client.registry.install({ records });
+    expect(JSON.parse(await readFile(capture, "utf8")).args).toEqual(["registry", "install", "--records", "-", "--json"]);
+    await expect(client.registry.install({ records, signal: AbortSignal.abort() })).rejects.toMatchObject({ reason: "aborted" });
+    await expect(client.registry.install({ records: [] })).rejects.toThrow("at least one record");
+    await expect(client.registry.install({ records, registry: "./registry" })).rejects.toThrow("http(s) URL");
+    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify(${JSON.stringify({ ...installed, registry: { ...installed.registry, installs: installs.slice(1) } })}));`);
+    await expect(client.registry.install({ records })).rejects.toThrow("Invalid native record install");
+    await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'registry_error', message: 'registry install digest_mismatch: tampered' } })); process.exitCode = 1;`);
+    await expect(client.registry.install({ records })).rejects.toThrow("registry install digest_mismatch");
+  });
   it("names why runx refused, from its failure envelope", async () => {
     const { config } = await setup();
     await writeFile(config.command, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ status: 'failure', error: { code: 'registry_error', message: 'SKILL.md.runx is not supported' } })); process.stderr.write('ignored'); process.exitCode = 1;`);

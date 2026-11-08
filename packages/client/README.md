@@ -40,14 +40,15 @@ Directory separation is not an operating-system sandbox.
 | `runs.resume({ runId, resolutions, receiptDir, binding? })` | `resume` |
 | `turns.server({ runId, receiptDir })` | `mcp --run` (started by your MCP client) |
 | `packages.materialize({ skillPath })` | `registry package` |
+| `registry.install({ records, registry? })` | `registry install --records -` |
 | `harness.run({ skillPath, receiptDir })` | `harness` |
 | `receipts.verify({ receipt, trust? })` | `verify --receipt - --trust home\|configured` |
 
 Each operation accepts `signal`. Configuration sets `timeoutMs`, combined
 `maxOutputBytes`, `maxInputBytes`, a total `maxArtifactBytes` budget and
 `terminationGraceMs` (one second by default).
-A run's inputs and a resume's resolutions travel to native on stdin, never in a
-file or on argv. Input keys are never converted into CLI flags. `act` states the
+A run's inputs, a resume's resolutions and the signed records an install takes
+travel to native on stdin, never in a file or on argv. Input keys are never converted into CLI flags. `act` states the
 act the run is invoked with, `context` gives it the caller's current and
 historical context (which informs the run and never grants authority), and
 `runId` pins its submission identity, so a retry continues the same run.

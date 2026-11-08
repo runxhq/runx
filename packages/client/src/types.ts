@@ -164,6 +164,31 @@ export interface NativePackageOutput extends Readonly<Record<string, unknown>> {
   };
 }
 
+/** One signed record `runx registry install --records` installed: the package it names and the install. */
+export interface NativeRecordInstall extends Readonly<Record<string, unknown>> {
+  readonly package: string;
+  readonly install: Readonly<Record<string, unknown>> & {
+    readonly status: "installed" | "unchanged";
+    readonly destination: string;
+    readonly skill_id: string;
+    readonly version: string;
+    readonly digest: string;
+    readonly profile_digest?: string;
+    readonly trust_tier: "first_party" | "verified" | "community";
+  };
+  readonly bundle_digest?: string;
+}
+
+/** `runx registry install --records - --json`: each record installed, from the registry its source names. */
+export interface NativeRecordInstallOutput extends Readonly<Record<string, unknown>> {
+  readonly status: "success";
+  readonly registry: {
+    readonly action: "record_install";
+    readonly source: string;
+    readonly installs: readonly NativeRecordInstall[];
+  };
+}
+
 /** `runx registry package <dir> --json` over a connector directory: its exact registry package. */
 export interface NativeConnectorPackageOutput extends Readonly<Record<string, unknown>> {
   readonly status: "success";
@@ -225,6 +250,16 @@ export interface RunxClient {
   readonly packages: {
     materialize(options: InvocationOptions & { readonly skillPath: string }): Promise<NativePackageOutput>;
     materializeConnector(options: InvocationOptions & { readonly connectorPath: string }): Promise<NativeConnectorPackageOutput>;
+  };
+  readonly registry: {
+    /**
+     * `runx registry install --records -`: installs signed skill version
+     * records a host already holds, such as an operation's closure, each
+     * verified against the keys trusted for `registry` (the runx catalog by
+     * default) into the project. The records travel on stdin as one JSON
+     * array, never in a file. It accepts `signal` as every operation does.
+     */
+    install(options: InvocationOptions & { readonly records: readonly unknown[]; readonly registry?: string }): Promise<NativeRecordInstallOutput>;
   };
   readonly harness: { run(options: InvocationOptions & { readonly skillPath: string; readonly receiptDir: string }): Promise<NativeHarnessOutput> };
   readonly artifacts: {

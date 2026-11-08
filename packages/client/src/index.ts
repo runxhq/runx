@@ -3,7 +3,7 @@ import { validateProcessContract, validateProcessListContract, validateProcessOu
 import { readProjectArtifact } from "./artifacts.js";
 import { decodeSkill, parseJson, parseValue, record } from "./decode.js";
 import { invoke, RunxClientError } from "./process.js";
-import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, ReceiptVerifyOutput, RunAuthority, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
+import type { ExecutionBinding, InvocationOptions, NativeConnectorPackageOutput, NativeHarnessOutput, NativePackageOutput, NativeRecordInstallOutput, ReceiptVerifyOutput, RunAuthority, RunxClient, RunxClientConfig, SkillInspection } from "./types.js";
 
 export { hostEnvironmentFrom } from "./environment.js";
 export { RunxClientError } from "./process.js";
@@ -115,6 +115,22 @@ export function createRunxClient(configuration: RunxClientConfig): RunxClient {
         return output as NativeConnectorPackageOutput;
       },
     },
+    registry: {
+      install: async (options) => {
+        if (!Array.isArray(options.records) || options.records.length === 0) throw new TypeError("Runx registry install takes at least one record.");
+        const args = ["registry", "install", "--records", "-", ...(options.registry !== undefined ? ["--registry", registryUrl(options.registry)] : []), "--json"];
+        const output = parseJson(await execute(args, options, payload(options.records)), [0]);
+        const installs = record(output.registry) ? output.registry.installs : undefined;
+        if (output.status !== "success" || !record(output.registry) || output.registry.action !== "record_install" || typeof output.registry.source !== "string"
+          || !Array.isArray(installs) || installs.length !== options.records.length
+          || !installs.every((entry) => record(entry) && typeof entry.package === "string" && record(entry.install)
+            && ["installed", "unchanged"].includes(String(entry.install.status))
+            && ["destination", "skill_id", "version", "digest", "trust_tier"].every((field) => typeof (entry.install as Record<string, unknown>)[field] === "string"))) {
+          throw new RunxClientError("contract", "Invalid native record install.");
+        }
+        return output as NativeRecordInstallOutput;
+      },
+    },
     harness: {
       run: async (options) => {
         const output = parseJson(await execute(["harness", argument(options.skillPath), "--json", "--receipt-dir", absolute(options.receiptDir)], options), [0, 1]);
@@ -149,6 +165,10 @@ function argument(value: string): string {
 function absolute(value: string): string {
   if (!path.isAbsolute(value)) throw new TypeError("Runx receiptDir must be absolute.");
   return argument(value);
+}
+function registryUrl(value: string): string {
+  if (!/^https?:\/\/\S+$/u.test(value)) throw new TypeError("A registry is named by its http(s) URL.");
+  return value;
 }
 function runnerArgs(value?: string): string[] { return value ? [argument(value)] : []; }
 function authorityArgs(authority?: RunAuthority): string[] { return authority ? ["--run-authority", JSON.stringify(authority)] : []; }
