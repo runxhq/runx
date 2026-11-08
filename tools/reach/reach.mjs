@@ -61,6 +61,61 @@ const smaller = (a, b) => {
   return a2 - a0 < b2 - b0 || (a2 - a0 === b2 - b0 && a3 - a1 < b3 - b1);
 };
 
+// What a crate file compiles only under #[cfg(test)]: the line spans of
+// those items, and the files of the modules it declares that way.
+function cfgTestCode(file) {
+  const spans = [];
+  const files = [];
+  let text;
+  try {
+    text = readFileSync(new URL(`../../crates/${file}`, import.meta.url), "utf8");
+  } catch {
+    return { spans, files };
+  }
+  const lines = text.split("\n");
+  const lineAt = (offset) => text.slice(0, offset).split("\n").length - 1;
+  for (const m of text.matchAll(/#\[cfg\(test\)\]/g)) {
+    // The item follows its other attributes and doc comments.
+    let line = lineAt(m.index) + 1;
+    while (line < lines.length && /^\s*(#\[|\/\/|$)/.test(lines[line])) line += 1;
+    const declared = /^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([a-z0-9_]+)\s*;/.exec(lines[line] ?? "");
+    if (declared) {
+      const dir = /(^|\/)(lib|main|mod)\.rs$/.test(file) ? file.replace(/[^/]+$/, "") : file.replace(/\.rs$/, "/");
+      files.push(`${dir}${declared[1]}.rs`, `${dir}${declared[1]}/`);
+      continue;
+    }
+    spans.push([line, itemEnd(text, lines, line)]);
+  }
+  return { spans, files };
+}
+
+// The last line of the item starting at a line: its matched braces, or its `;`.
+function itemEnd(text, lines, start) {
+  let offset = lines.slice(0, start).reduce((sum, l) => sum + l.length + 1, 0);
+  let depth = 0;
+  while (offset < text.length) {
+    const rest = text.slice(offset, offset + 3);
+    const ch = text[offset];
+    if (rest.startsWith("//")) offset = text.indexOf("\n", offset) === -1 ? text.length : text.indexOf("\n", offset);
+    else if (rest.startsWith("/*")) offset = text.indexOf("*/", offset) + 2;
+    else if (/^r#*"/.test(text.slice(offset, offset + 8))) {
+      const hashes = /^r(#*)"/.exec(text.slice(offset, offset + 8))[1];
+      offset = text.indexOf(`"${hashes}`, offset + hashes.length + 2) + hashes.length + 1;
+    } else if (ch === '"') {
+      offset += 1;
+      while (offset < text.length && text[offset] !== '"') offset += text[offset] === "\\" ? 2 : 1;
+      offset += 1;
+    } else if (ch === "'" && /^'(\\.|[^\\'])'/.test(text.slice(offset, offset + 4))) offset += text[offset + 1] === "\\" ? 4 : 3;
+    else {
+      if (ch === "{") depth += 1;
+      if (ch === "}" && --depth === 0) break;
+      if (ch === ";" && depth === 0) break;
+      offset += 1;
+    }
+  }
+  return text.slice(0, offset).split("\n").length - 1;
+}
+
 // The lines each `use` item spans, in a crate file.
 function useItemLines(file) {
   const lines = new Set();
@@ -95,14 +150,20 @@ const addEdge = (from, to) => {
 // examples. So a library definition wins over theirs, and what a bench's or an
 // example's file references through a symbol defined elsewhere belongs to a
 // node of that file's own, reached only from that file's tier.
-const isSrcDoc = (file) => !isTestDoc(file) && !isBenchDoc(file) && !exampleOf(file);
+// What #[cfg(test)] compiles only for tests is test code, wherever it sits.
+const cfgTest = new Map(docs.map((doc) => [doc.path, cfgTestCode(doc.path)]));
+const testFiles = [...cfgTest.values()].flatMap((code) => code.files);
+const isCfgTestDoc = (file) => testFiles.some((f) => (f.endsWith("/") ? file.startsWith(f) : file === f));
+const inCfgTest = (file, line) => cfgTest.get(file).spans.some(([first, last]) => line >= first && line <= last);
+const isSrcDoc = (file) => !isTestDoc(file) && !isCfgTestDoc(file) && !isBenchDoc(file) && !exampleOf(file);
 const fileRoots = new Map(); // a bench's or example's file -> its roots
 for (const doc of docs) {
-  const test = isTestDoc(doc.path);
+  const test = isTestDoc(doc.path) || isCfgTestDoc(doc.path);
   const defs = doc.occurrences.filter((o) => o.roles & 1 && !o.symbol.startsWith("local") && o.enclosing);
   for (const d of defs) {
     if (defined.has(d.symbol) && (isSrcDoc(defined.get(d.symbol).path) || !isSrcDoc(doc.path))) continue;
-    defined.set(d.symbol, { path: doc.path, test: test || isTestSymbol(d.symbol), bench: isBenchDoc(doc.path), line: d.range[0] + 1, example: exampleOf(doc.path) });
+    const testOnly = test || isTestSymbol(d.symbol) || inCfgTest(doc.path, d.range[0]);
+    defined.set(d.symbol, { path: doc.path, test: testOnly, bench: isBenchDoc(doc.path), line: d.range[0] + 1, example: exampleOf(doc.path) });
   }
   if (test) continue;
   const own = isSrcDoc(doc.path) ? undefined : `file ${doc.path}`;
@@ -112,7 +173,7 @@ for (const doc of docs) {
     if (o.roles & 1 || o.symbol.startsWith("local") || !isOurs(o.symbol)) continue;
     let owner;
     for (const d of defs) if (within(d.enclosing, o.range) && (!owner || smaller(d.enclosing, owner.enclosing))) owner = d;
-    if (!owner || isTestSymbol(owner.symbol)) continue;
+    if (!owner || defined.get(owner.symbol).test) continue;
     // A module's `use` items name what they import or re-export. That isn't
     // a use: a caller's reference already resolves to the definition itself.
     if (descriptor(owner.symbol).endsWith("/") && useLines.has(o.range[0])) continue;
