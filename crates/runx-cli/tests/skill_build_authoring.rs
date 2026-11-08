@@ -250,7 +250,7 @@ fn authoring_answers() -> Value {
                     }],
                     "skill_chain": { "context_skills": [], "routes": [] },
                     "resource_budget": {
-                        "max_files": 2,
+                        "max_files": 4,
                         "max_executable_lines": 0,
                         "max_process_spawns": 0,
                         "network_allowed": false
