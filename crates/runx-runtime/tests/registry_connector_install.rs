@@ -165,7 +165,7 @@ fn files_that_load_as_another_connector_are_refused() -> Result<(), Box<dyn std:
         .ok_or("connector.yaml")?;
     manifest.content = manifest
         .content
-        .replacen("id: acme/ops", "id: acme/other", 1);
+        .replacen("name: acme/ops", "name: acme/other", 1);
     published.signed_manifest = sign(
         RegistrySubjectKind::Connector,
         "acme/ops",

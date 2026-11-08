@@ -29,10 +29,11 @@ fn hello_workflow_matches_post_cutover_fixture() -> Result<(), Box<dyn std::erro
     let mut options = crate::support::fixture_runtime_options(std::env::vars().collect(), run)?;
     options.clock = runx_runtime::RunClock::Fixed(expected.created_at.clone());
     let runtime = Runtime::new(ProcessToolAdapter, options);
-    let workflow_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/hello-workflow/graph.yaml")
+    let package = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/hello-workflow")
         .canonicalize()?;
-    let run = runtime.run_workflow_file(&workflow_path)?;
+    let workflow = crate::support::method_workflow(&package, "default")?;
+    let run = runtime.run_workflow_with_host(&package, workflow, &mut runx_runtime::NoopHost)?;
 
     assert_eq!(run.graph.name, expected.workflow_name);
     assert_eq!(status_name(&run.progress.state), expected.state);

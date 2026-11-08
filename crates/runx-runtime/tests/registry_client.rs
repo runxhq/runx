@@ -555,6 +555,7 @@ fn connector_reads_name_the_qualified_ref_and_version() -> Result<(), Box<dyn st
             "content_digest": format!("sha256:{}", "a".repeat(64)),
             "manifest_digest": format!("sha256:{}", "b".repeat(64)),
             "connector_digest": format!("sha256:{}", "c".repeat(64)),
+            "runtime_capability": false,
             "trust_tier": "community",
             "operations": [{ "name": "item.read", "description": "Read an item." }],
             "install_command": command(&["runx", "registry", "install", "acme/ops-api@1.0.0"]),

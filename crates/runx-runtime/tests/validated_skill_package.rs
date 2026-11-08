@@ -10,12 +10,12 @@ fn write_packet_input_package(
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::write(
         root.join("SKILL.md"),
-        "---\nname: packet-input\ndescription: canonical packet input\n---\n\n# Packet input\n",
+        "---\nname: packet-input\ndescription: canonical packet input\n---\n\n# Packet input\n\n## Agent task: inspect\n\nInspect.\n",
     )?;
     fs::write(
         root.join("run.yaml"),
         format!(
-            "skill: packet-input\nrunners:\n  inspect:\n    inputs:\n      plan:\n        type: json\n        required: true\n        packet: acme/packet-input.plan.v1\n    examples:\n      - plan: {example}\n    steps:\n      - id: inspect\n        agent: {{ role: agent, task: inspect }}\n        inputs:\n          plan: $input.plan\n"
+            "minimum_runx: 0.12.0\nmethods:\n  inspect:\n    inputs:\n      plan:\n        packet: acme/packet-input.plan.v1\n    examples:\n      - plan: {example}\n    steps:\n      - id: inspect\n        agent: inspect\n        inputs:\n          plan: $input.plan\n"
         ),
     )?;
     if let Some(packet_schema) = packet_schema {
@@ -31,11 +31,11 @@ fn validated_skill_package_loads_one_digest_bound_aggregate()
     let temp = tempfile::tempdir()?;
     fs::write(
         temp.path().join("SKILL.md"),
-        "---\nname: aggregate\ndescription: one package truth\n---\n\n# Aggregate\n",
+        "---\nname: aggregate\ndescription: one package truth\n---\n\n# Aggregate\n\n## Agent task: inspect\n\nInspect.\n",
     )?;
     fs::write(
         temp.path().join("run.yaml"),
-        "skill: aggregate\nrunners:\n  inspect:\n    steps:\n      - id: inspect\n        agent: { role: agent, task: inspect }\n",
+        "minimum_runx: 0.12.0\nmethods:\n  inspect:\n    steps:\n      - id: inspect\n        agent: inspect\n",
     )?;
 
     let loaded = load_validated_skill_package(temp.path())?;

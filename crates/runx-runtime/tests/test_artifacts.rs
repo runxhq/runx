@@ -36,24 +36,19 @@ operations:
 "#;
 
 const SKILL: &str = r#"
-skill: notes
-connectors:
-  ledger:
-    operations: [entry.read]
-  artifact:
-    operations: [artifact.allocate]
-runners:
+minimum_runx: 0.12.0
+methods:
   keep:
-    default: true
     steps:
       - id: read
         operation: ledger/entry.read
-        result_fields: [entry]
-        input: {}
+        result:
+          required: [entry]
+        inputs: {}
       - id: keep
         operation: artifact/artifact.allocate
         idempotency_key: $run.id
-        input:
+        inputs:
           purpose: notes.kept.v1
           media_type: application/json
           value: $steps.read.provider_operation.result.entry
@@ -66,20 +61,18 @@ fn run(root: &Path, name: &str) -> Result<TestReplayOutput, TestReplayError> {
     // The plugin is the workspace, as a publisher lays one out: its skills/ beside
     // its connectors/.
     let skill = root.join("skills/notes");
-    std::fs::create_dir_all(skill.join("fixtures")).unwrap();
+    std::fs::create_dir_all(skill.join("tests")).unwrap();
     std::fs::write(
         skill.join("SKILL.md"),
         "---\nname: notes\ndescription: notes fixture.\n---\n# Notes\n",
     )
     .unwrap();
     std::fs::write(skill.join("run.yaml"), SKILL).unwrap();
-    let caller = "caller:\n  provider_responses:\n    principal_id: operator-fixture\n    grant: {grant_id: ledger-fixture, provider: ledger, scopes: [entry.read]}\n    operations:\n      - {operation: entry.read, target: \"acme:ledger\", access: read, result: {entry: {amount: 7}}}\n";
-    let path: PathBuf = skill.join("fixtures").join(format!("{name}.yaml"));
+    let providers = "providers:\n  hosted:\n    principal_id: operator-fixture\n    grant: {grant_id: ledger-fixture, provider: ledger, scopes: [entry.read]}\n    operations:\n      - {operation: entry.read, target: \"acme:ledger\", access: read, result: {entry: {amount: 7}}}\n";
+    let path: PathBuf = skill.join("tests").join(format!("{name}.yaml"));
     std::fs::write(
         &path,
-        format!(
-            "name: {name}\nkind: skill\ntarget: ..\nrunner: keep\n{caller}expect:\n  status: sealed\n"
-        ),
+        format!("name: {name}\nmethod: keep\n{providers}expect:\n  status: sealed\n"),
     )
     .unwrap();
     let env = std::env::var("PATH")

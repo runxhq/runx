@@ -2,7 +2,9 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use runx_contracts::{JsonObject, JsonValue, ProvenanceEntry};
-use runx_runtime::{InvocationOutput, Runtime, RuntimeError, SkillAdapter, SkillInvocation};
+use runx_runtime::{
+    InvocationOutput, NoopHost, Runtime, RuntimeError, SkillAdapter, SkillInvocation,
+};
 
 #[derive(Clone, Default)]
 struct RecordingAdapter {
@@ -45,10 +47,12 @@ fn workflow_context_materialization_reaches_the_target_invocation()
         adapter.clone(),
         crate::support::fixture_runtime_options(std::env::vars().collect(), run)?,
     );
-    let workflow_path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/graphs/sequential/graph.yaml");
+    let package = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/graphs/sequential")
+        .canonicalize()?;
+    let workflow = crate::support::method_workflow(&package, "run")?;
 
-    let run = runtime.run_workflow_file(&workflow_path)?;
+    let run = runtime.run_workflow_with_host(&package, workflow, &mut NoopHost)?;
 
     assert_eq!(run.steps.len(), 2);
     let calls = adapter

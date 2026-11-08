@@ -246,11 +246,11 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\nCall data.digest with value proof and encoding utf8_text, then finish with status done.\n",
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\n## Agent task: proof\n\nCall data.digest with value proof and encoding utf8_text, then finish with status done.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: fixture-agent\ntools: [data.digest]\nrunners:\n  proof:\n    default: true\n    steps:\n      - id: verify\n        agent: { role: fixture, task: proof }\n        outputs:\n          status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: verify\n        agent: proof\n        calls:\n          tools: [data.digest]\n        outputs:\n          status: {type: string}\n",
     )?;
 
     let listener = TcpListener::bind("127.0.0.1:0")?;
@@ -343,17 +343,17 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
     )?;
     fs::write(
         child_dir.join("run.yaml"),
-        "skill: child\nrunners:\n  digest:\n    default: true\n    description: Digest one value.\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n  other:\n    description: Another runner, never bound here.\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+        "minimum_runx: 0.12.0\ndefault_method: digest\nmethods:\n  digest:\n    description: Digest one value.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n  other:\n    description: Another runner, never bound here.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
     )?;
     let skill_dir = temp.path().join("session");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\nLoad the child, digest proof, then finish.\n",
+        "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\n## Agent task: work\n\nLoad the child, digest proof, then finish.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: session\nskills: [{project: true}]\nrunners:\n  work:\n    default: true\n    outputs:\n      status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  work:\n    steps:\n      - id: work\n        agent: work\n        calls:\n          load: [{project: true}]\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
     )?;
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
@@ -456,11 +456,11 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\nRead what you remember, then finish.\n",
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\n## Agent task: proof\n\nRead what you remember, then finish.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: fixture-agent\nrunners:\n  proof:\n    default: true\n    outputs:\n      status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: proof\n        agent: proof\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
     )?;
     // The workspace's own MEMORY.md is never sent; the memory the host
     // supplies is.
@@ -579,11 +579,11 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\nCall data.digest, then finish.\n",
+        "---\nname: fixture-agent\ndescription: fixture-agent fixture.\n---\n# Fixture\n\n## Agent task: proof\n\nCall data.digest, then finish.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: fixture-agent\ntools: [data.digest]\nrunners:\n  proof:\n    default: true\n    steps:\n      - id: verify\n        agent: { role: fixture, task: proof }\n        outputs:\n          status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: verify\n        agent: proof\n        calls:\n          tools: [data.digest]\n        outputs:\n          status: {type: string}\n",
     )?;
     // The model digests once, then stops calling tools; the provider is gone
     // before the loop's resamples run out.
@@ -655,11 +655,11 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
     fs::create_dir_all(&child_dir)?;
     fs::write(
         child_dir.join("SKILL.md"),
-        "---\nname: agent-child\ndescription: agent-child fixture.\n---\n# Fixture\n\nCall data.digest, then finish.\n",
+        "---\nname: agent-child\ndescription: agent-child fixture.\n---\n# Fixture\n\n## Agent task: proof\n\nCall data.digest, then finish.\n",
     )?;
     fs::write(
         child_dir.join("run.yaml"),
-        "skill: agent-child\ntools: [data.digest]\nrunners:\n  proof:\n    default: true\n    steps:\n      - id: verify\n        agent: { role: fixture, task: proof }\n        outputs:\n          status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: verify\n        agent: proof\n        calls:\n          tools: [data.digest]\n        outputs:\n          status: {type: string}\n",
     )?;
     let parent_dir = temp.path().join("parent");
     fs::create_dir_all(&parent_dir)?;
@@ -669,7 +669,7 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
     )?;
     fs::write(
         parent_dir.join("run.yaml"),
-        "skill: parent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: invoke\n        skill: ../agent-child\n",
+        "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: invoke\n        skill: ../agent-child\n",
     )?;
     // The model stops without finalizing, so the child's managed agent fails.
     let listener = TcpListener::bind("127.0.0.1:0")?;
@@ -742,21 +742,21 @@ fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
     fs::create_dir_all(&child_dir)?;
     fs::write(
         child_dir.join("SKILL.md"),
-        "---\nname: child\ndescription: Reports a status.\n---\n# Child\n\nFinish with a status.\n",
+        "---\nname: child\ndescription: Reports a status.\n---\n# Child\n\n## Agent task: report\n\nFinish with a status.\n",
     )?;
     fs::write(
         child_dir.join("run.yaml"),
-        "skill: child\nrunners:\n  report:\n    default: true\n    outputs:\n      status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  report:\n    steps:\n      - id: report\n        agent: report\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
     )?;
     let skill_dir = temp.path().join("parent");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: parent\ndescription: Asks its child.\n---\n# Parent\n\nRun the child, then finish.\n",
+        "---\nname: parent\ndescription: Asks its child.\n---\n# Parent\n\n## Agent task: proof\n\nRun the child, then finish.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: parent\nskills: [../child]\nrunners:\n  proof:\n    default: true\n    outputs:\n      status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: proof\n        agent: proof\n        calls:\n          skills: [../child]\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
     )?;
     // The parent's turn calls the child; the child's turn, opened by that
     // call, completes; then the parent's turn completes.
@@ -837,21 +837,21 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
     fs::create_dir_all(&child_dir)?;
     fs::write(
         child_dir.join("SKILL.md"),
-        "---\nname: child\ndescription: Reports a status.\n---\n# Child\n\nAsk, then finish with a status.\n",
+        "---\nname: child\ndescription: Reports a status.\n---\n# Child\n\n## Agent task: report\n\nAsk, then finish with a status.\n",
     )?;
     fs::write(
         child_dir.join("run.yaml"),
-        "skill: child\nasks: true\nrunners:\n  report:\n    default: true\n    outputs:\n      status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  report:\n    steps:\n      - id: report\n        agent: report\n        calls:\n          ask: true\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
     )?;
     let skill_dir = temp.path().join("parent");
     fs::create_dir_all(&skill_dir)?;
     fs::write(
         skill_dir.join("SKILL.md"),
-        "---\nname: parent\ndescription: Asks its child.\n---\n# Parent\n\nRun the child, then finish.\n",
+        "---\nname: parent\ndescription: Asks its child.\n---\n# Parent\n\n## Agent task: proof\n\nRun the child, then finish.\n",
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "skill: parent\nskills: [../child]\nrunners:\n  proof:\n    default: true\n    outputs:\n      status: string\n",
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: proof\n        agent: proof\n        calls:\n          skills: [../child]\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
     )?;
     // First pass: the parent calls the child, whose turn asks the human. The
     // second pass, once the human answers, ends the child's turn, then the

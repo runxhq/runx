@@ -58,28 +58,25 @@ operations:
 "#;
 
 const SKILL: &str = r#"
-skill: sales
-connectors:
-  sales:
-    operations: [sale.create]
-runners:
+minimum_runx: 0.12.0
+methods:
   sell:
-    default: true
     inputs:
-      amount: {type: integer, required: true}
+      amount: {type: integer}
     steps:
       - id: sell
         operation: sales/sale.create
-        result_fields: [sale]
+        result:
+          required: [sale]
         idempotency_key: $run.id
-        input: {amount: $input.amount}
+        inputs: {amount: $input.amount}
 "#;
 
 /// The provider's one exchange: the sale as Connect renders it with the
 /// purchase, and the sale it records.
-const EXCHANGE: &str = r#"  http_exchanges:
+const EXCHANGE: &str = r#"  http:
     - request:
-        http_method: POST
+        method: POST
         url: https://api.example.com/v1/sales
         body: {json: {amount: 7, purchase: purchase_sale_1}}
       response:
@@ -99,7 +96,7 @@ fn run(
     std::fs::create_dir_all(root.join("connectors/sales")).unwrap();
     std::fs::write(root.join("connectors/sales/connector.yaml"), CONNECTOR).unwrap();
     let skill = root.join("sales");
-    std::fs::create_dir_all(skill.join("fixtures")).unwrap();
+    std::fs::create_dir_all(skill.join("tests")).unwrap();
     std::fs::write(
         skill.join("SKILL.md"),
         "---\nname: sales\ndescription: sales fixture.\n---\n# Sales\n",
@@ -111,17 +108,15 @@ fn run(
         Some(purchase) => (format!("    purchase_id: {purchase}\n"), EXCHANGE),
         None => (String::new(), ""),
     };
-    let path: PathBuf = skill.join("fixtures").join(format!("{name}.yaml"));
+    let path: PathBuf = skill.join("tests").join(format!("{name}.yaml"));
     std::fs::write(
         &path,
         format!(
             r#"name: {name}
-kind: skill
-target: ..
-runner: sell
+method: sell
 inputs: {{amount: 7}}
-caller:
-  provider_responses:
+providers:
+  hosted:
     principal_id: operator-fixture
     grant: {{grant_id: sales-fixture, provider: sales, scopes: [sale.create]}}
 {purchase}{exchanges}expect:

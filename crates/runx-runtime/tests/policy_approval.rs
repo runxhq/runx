@@ -98,10 +98,9 @@ fn parent_approval_binds_the_composite_step_without_becoming_child_authority()
     std::fs::write(
         child.join("run.yaml"),
         format!(
-            r#"skill: child-policy-write
-runners:
+            r#"minimum_runx: 0.12.0
+methods:
   write:
-    default: true
 {indented_workflow}
 "#,
         ),
@@ -111,15 +110,11 @@ runners:
 result_from: [child]
 steps:
   - id: approve
-    ask: { gate: parent.child.approval, reason: Approve the nested write. }
+    ask: {gate: parent.child.approval, reason: Approve the nested write.}
   - id: child
-    skill: ./child
-    runner: write
-policy:
-  guards:
-    - step: child
-      value: $steps.approve.approval_decision.approved
-      equals: true
+    guard:
+      - {value: $steps.approve.approval_decision.approved, equals: true}
+    skill: ./child#write
 "#,
     )?)?;
 
@@ -167,7 +162,6 @@ result_from: [write]
 steps:
   - id: write
     tool: fs.write
-    scopes: [fs.write]
     inputs:
       repo_root: {root:?}
       path: nested.txt
@@ -180,13 +174,8 @@ fn policy_write_workflow(
     workspace: &std::path::Path,
     with_guard: bool,
 ) -> Result<runx_parser::Workflow, Box<dyn std::error::Error>> {
-    let policy = if with_guard {
-        r#"policy:
-  guards:
-    - step: write
-      value: $steps.approve.approval_decision.approved
-      equals: true
-"#
+    let guard = if with_guard {
+        "    guard:\n      - {value: $steps.approve.approval_decision.approved, equals: true}\n"
     } else {
         ""
     };
@@ -197,13 +186,12 @@ steps:
   - id: approve
     ask: {{ gate: policy.write.approval, reason: Approve the exact fixture write. }}
   - id: write
-    tool: fs.write
-    scopes: [fs.write]
+{guard}    tool: fs.write
     inputs:
       repo_root: {root:?}
       path: approved.txt
       contents: approved
-{policy}"#,
+"#,
         root = workspace.to_string_lossy()
     ))?)?)
 }

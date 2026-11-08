@@ -61,10 +61,10 @@ fn rewrite_step(path: &Path, contents: &str) -> TestResult<String> {
             contents,
             path.display().to_string(),
         ],
-        "input_mode": "stdin",
+        "inputs_via": "stdin",
     });
     Ok(format!(
-        "      - id: rewrite\n        tool: {}\n        outputs: {{done: boolean}}\n",
+        "      - id: rewrite\n        tool: {}\n        outputs: {{done: {{type: boolean}}}}\n",
         serde_json::to_string(&tool)?
     ))
 }
@@ -95,7 +95,7 @@ fn a_run_executes_the_modules_it_admitted_however_its_files_change() -> TestResu
         &skill,
         &manual("source"),
         &format!(
-            "skill: source\nrunners:\n  default:\n    default: true\n    result_from: [compute]\n    steps:\n{}      - id: compute\n        tool: {{module: compute.mjs}}\n        outputs: {{answer: string}}\n",
+            "minimum_runx: 0.12.0\nmethods:\n  default:\n    result_from: [compute]\n    steps:\n{}      - id: compute\n        tool: {{module: compute.mjs}}\n        outputs: {{answer: {{type: string}}}}\n",
             rewrite_step(&compute, &module("changed"))?
         ),
     )?;
@@ -120,7 +120,7 @@ fn a_child_skill_runs_the_method_its_parent_admitted() -> TestResult {
     // other its `other` export.
     let child_profile = |export: &str| {
         format!(
-            "skill: child\nrunners:\n  default:\n    default: true\n    result_from: [answer]\n    steps:\n      - id: answer\n        tool: {{module: answer.mjs, export: {export}}}\n        outputs: {{answer: string}}\n"
+            "minimum_runx: 0.12.0\nmethods:\n  default:\n    result_from: [answer]\n    steps:\n      - id: answer\n        tool: {{module: answer.mjs, export: {export}}}\n        outputs: {{answer: {{type: string}}}}\n"
         )
     };
     crate::support::write_test_skill_package(&child, &manual("child"), &child_profile("default"))?;
@@ -136,7 +136,7 @@ fn a_child_skill_runs_the_method_its_parent_admitted() -> TestResult {
         &parent,
         &manual("parent"),
         &format!(
-            "skill: parent\nrunners:\n  default:\n    default: true\n    result_from: [child]\n    steps:\n{}      - id: child\n        skill: ../child\n",
+            "minimum_runx: 0.12.0\nmethods:\n  default:\n    result_from: [child]\n    steps:\n{}      - id: child\n        skill: ../child\n",
             rewrite_step(&child.join("run.yaml"), &child_profile("other"))?
         ),
     )?;
@@ -179,7 +179,7 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
     crate::support::write_test_skill_package(
         &child,
         &manual("child"),
-        "skill: child\nrunners:\n  default:\n    default: true\n    steps:\n      - id: first\n        tool: {module: first.mjs}\n        outputs: {done: boolean}\n      - id: fault\n        tool: {module: fault.mjs}\n        outputs: {done: boolean}\n",
+        "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: first\n        tool: {module: first.mjs}\n        outputs: {done: {type: boolean}}\n      - id: fault\n        tool: {module: fault.mjs}\n        outputs: {done: {type: boolean}}\n",
     )?;
     fs::write(
         child.join("first.mjs"),
@@ -193,7 +193,7 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
     crate::support::write_test_skill_package(
         &parent,
         &manual("parent"),
-        "skill: parent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: invoke\n        skill: ../child\n",
+        "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: invoke\n        skill: ../child\n",
     )?;
 
     let result = run(root, &parent, Some("nested-failure"))?;
@@ -255,7 +255,7 @@ fn a_child_a_guard_refuses_stops_its_parent_with_the_refusal() -> TestResult {
     crate::support::write_test_skill_package(
         &child,
         &manual("child"),
-        "skill: child\nrunners:\n  default:\n    default: true\n    steps:\n      - id: first\n        tool: {module: first.mjs}\n        outputs: {done: boolean}\n      - id: guarded\n        tool: {module: first.mjs}\n        outputs: {done: boolean}\n    policy:\n      guards:\n        - step: guarded\n          value: $steps.first.done\n          equals: false\n",
+        "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: first\n        tool: {module: first.mjs}\n        outputs: {done: {type: boolean}}\n      - id: guarded\n        guard:\n          - {value: $steps.first.done, equals: false}\n        tool: {module: first.mjs}\n        outputs: {done: {type: boolean}}\n",
     )?;
     fs::write(
         child.join("first.mjs"),
@@ -265,7 +265,7 @@ fn a_child_a_guard_refuses_stops_its_parent_with_the_refusal() -> TestResult {
     crate::support::write_test_skill_package(
         &parent,
         &manual("parent"),
-        "skill: parent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: invoke\n        skill: ../child\n",
+        "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: invoke\n        skill: ../child\n",
     )?;
 
     let result = run(root, &parent, None)?;
@@ -304,13 +304,13 @@ fn a_process_step_runs_only_while_its_package_is_the_admitted_one() -> TestResul
     let second = skill.join("second.sh");
     let ran = root.join("ran.txt");
     let process = |script: &str| {
-        serde_json::json!({"command": "sh", "args": [script], "input_mode": "stdin"}).to_string()
+        serde_json::json!({"command": "sh", "args": [script], "inputs_via": "stdin"}).to_string()
     };
     crate::support::write_test_skill_package(
         &skill,
         &manual("process"),
         &format!(
-            "skill: process\nrunners:\n  default:\n    default: true\n    steps:\n{}      - id: second\n        tool: {}\n        outputs: {{done: boolean}}\n",
+            "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n{}      - id: second\n        tool: {}\n        outputs: {{done: {{type: boolean}}}}\n",
             rewrite_step(
                 &second,
                 &format!(

@@ -22,12 +22,11 @@ fn write_turn_skill(root: &Path) -> TestResult<PathBuf> {
     crate::support::write_test_skill_package(
         &root.join("digest-child"),
         "---\nname: digest-child\ndescription: Digests a value.\n---\n# Digest child\n\nDigest the value.\n",
-        r#"skill: digest-child
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   digest:
-    default: true
     inputs:
-      value: { type: string, required: true }
+      value: {type: string}
     steps:
       - id: digest
         tool: data.digest
@@ -39,18 +38,22 @@ runners:
     let skill_dir = root.join("turn-demo");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: turn-demo\ndescription: Answers with what it digested.\n---\n# Turn demo\n\nDigest what you need, then answer.\n",
-        r#"skill: turn-demo
-tools: [data.digest]
-skills: [../digest-child]
-asks: true
-runners:
+        "---\nname: turn-demo\ndescription: Answers with what it digested.\n---\n# Turn demo\n\n## Agent task: answer\n\nDigest what you need, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          tools: [data.digest]
+          skills: [../digest-child]
+          ask: true
+        inputs: $input
+        outputs:
+          answer: {type: string}
 "#,
     )?;
     Ok(skill_dir)
@@ -63,12 +66,11 @@ fn write_parent_skill(root: &Path) -> TestResult<PathBuf> {
     crate::support::write_test_skill_package(
         &skill_dir,
         "---\nname: turn-parent\ndescription: Delegates its question.\n---\n# Turn parent\n\nDelegate the question.\n",
-        r#"skill: turn-parent
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   ask:
-    default: true
     inputs:
-      question: { type: string, required: true }
+      question: {type: string}
     steps:
       - id: delegate
         skill: ../turn-demo
@@ -84,22 +86,26 @@ runners:
 fn write_answer_skills(root: &Path) -> TestResult<PathBuf> {
     crate::support::write_test_skill_package(
         &root.join("answer-child"),
-        "---\nname: answer-child\ndescription: Answers.\n---\n# Answer child\n\nAnswer.\n",
-        "skill: answer-child\nasks: true\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        "---\nname: answer-child\ndescription: Answers.\n---\n# Answer child\n\n## Agent task: answer\n\nAnswer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          ask: true\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
     )?;
     let skill_dir = root.join("answer-parent");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: answer-parent\ndescription: Answers through a child.\n---\n# Answer parent\n\nAsk the child, then answer.\n",
-        r#"skill: answer-parent
-skills: [../answer-child]
-runners:
+        "---\nname: answer-parent\ndescription: Answers through a child.\n---\n# Answer parent\n\n## Agent task: answer\n\nAsk the child, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          skills: [../answer-child]
+        inputs: $input
+        outputs:
+          answer: {type: string}
 "#,
     )?;
     Ok(skill_dir)
@@ -111,22 +117,26 @@ runners:
 fn write_nested_tool_skills(root: &Path) -> TestResult<PathBuf> {
     crate::support::write_test_skill_package(
         &root.join("tool-child"),
-        "---\nname: tool-child\ndescription: Works with tools, then answers.\n---\n# Tool child\n\nWork, then answer.\n",
-        "skill: tool-child\ntools: [data.digest, command.execute]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        "---\nname: tool-child\ndescription: Works with tools, then answers.\n---\n# Tool child\n\n## Agent task: answer\n\nWork, then answer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [data.digest, command.execute]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
     )?;
     let skill_dir = root.join("tool-parent");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: tool-parent\ndescription: Answers through a child.\n---\n# Tool parent\n\nAsk the child, then answer.\n",
-        r#"skill: tool-parent
-skills: [../tool-child]
-runners:
+        "---\nname: tool-parent\ndescription: Answers through a child.\n---\n# Tool parent\n\n## Agent task: answer\n\nAsk the child, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          skills: [../tool-child]
+        inputs: $input
+        outputs:
+          answer: {type: string}
 "#,
     )?;
     Ok(skill_dir)
@@ -138,32 +148,32 @@ fn write_context_turn_skill(root: &Path) -> TestResult<PathBuf> {
     let skill_dir = root.join("styled");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: styled\ndescription: Answers in the house style.\n---\n# Styled\n\nAnswer in the house style.\n",
-        r#"skill: styled
-runners:
+        "---\nname: styled\ndescription: Answers in the house style.\n---\n# Styled\n\n## Agent task: answer\n\nAnswer in the house style.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
+      question: {type: string}
     steps:
       - id: answer
-        agent: { role: operator, task: answer }
+        agent: answer
         inputs:
           question: $input.question
-        context_skills: [./context/house-style]
         outputs:
-          answer: string
+          answer: {type: string}
+        context:
+          skills: [./context/house-style]
 "#,
     )?;
     let style = skill_dir.join("context/house-style");
     std::fs::create_dir_all(&style)?;
     std::fs::write(
         style.join("SKILL.md"),
-        "---\nname: house-style\ndescription: How the house writes.\n---\n# House style\n\nWrite in short sentences.\n",
+        "---\nname: house-style\ndescription: How the house writes.\n---\n# House style\n\n## Agent task: operate\n\nWrite in short sentences.\n",
     )?;
     std::fs::write(
         style.join("run.yaml"),
-        "skill: house-style\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: internal\n  role: context\n  execution: read\n  completion: plan\n  approval: none\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n",
+        "minimum_runx: 0.12.0\ncatalog:\n  visibility: internal\nmethods:\n  operate:\n    steps:\n      - id: operate\n        agent: operate\n        outputs:\n          result: {type: object}\n",
     )?;
     Ok(skill_dir)
 }
@@ -350,8 +360,8 @@ fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult
     let skill_dir = root.join("session");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\nLoad what you need, then answer.\n",
-        "skill: session\nskills: [{catalog: {trust: first_party}}]\nrunners:\n  answer:\n    default: true\n    outputs:\n      answer: string\n",
+        "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\n## Agent task: answer\n\nLoad what you need, then answer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          load: [{catalog: {trust: first_party}}]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
     )?;
     let mut env = env(&root);
     env.insert(
@@ -697,22 +707,21 @@ fn an_answer_answers_one_act_even_when_two_steps_share_a_task() -> TestResult {
     let skill_dir = temp.path().join("twice");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: twice\ndescription: Answers twice.\n---\n# Twice\n\nAnswer each step.\n",
-        r#"skill: twice
-runners:
+        "---\nname: twice\ndescription: Answers twice.\n---\n# Twice\n\n## Agent task: answer\n\nAnswer each step.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
+      question: {type: string}
     steps:
       - id: first
-        agent: { role: writer, task: answer }
+        agent: answer
         outputs:
-          answer: string
+          answer: {type: string}
       - id: second
-        agent: { role: writer, task: answer }
+        agent: answer
         outputs:
-          answer: string
+          answer: {type: string}
 "#,
     )?;
     let paused = Paused::start(temp.path(), skill_dir, "first")?;
@@ -997,42 +1006,49 @@ fn write_scripted_turn_skill(root: &Path, status: &str) -> TestResult<PathBuf> {
     let skill_dir = root.join("scripted-turn");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: scripted-turn\ndescription: Answers with what it digested.\n---\n# Scripted turn\n\nDigest the question, then answer.\n",
-        &format!(
-            r#"skill: scripted-turn
-tools: [data.digest]
-harness:
-  cases:
-    - name: digests-then-answers
-      inputs:
-        question: what digests?
-      caller:
-        turns:
-          {TURN}:
-            calls:
-              - tool: data_digest
-                input:
-                  value: what digests?
-                  encoding: utf8_text
-                expect:
-                  subset:
-                    index: 0
-                    outcome:
-                      status: {status}
-            output:
-              answer: digested
-      expect:
-        status: sealed
-        output:
-          subset:
-            answer: digested
-runners:
+        "---\nname: scripted-turn\ndescription: Answers with what it digested.\n---\n# Scripted turn\n\n## Agent task: answer\n\nDigest the question, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: {{ type: string, required: true }}
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          tools: [data.digest]
+        inputs: $input
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    std::fs::create_dir_all(skill_dir.join("tests"))?;
+    std::fs::write(
+        skill_dir.join("tests/digests-then-answers.yaml"),
+        format!(
+            r#"name: digests-then-answers
+inputs:
+  question: what digests?
+host:
+  turns:
+    {TURN}:
+      calls:
+        - tool: data_digest
+          input:
+            value: what digests?
+            encoding: utf8_text
+          expect:
+            subset:
+              index: 0
+              outcome:
+                status: {status}
+      output:
+        answer: digested
+expect:
+  status: sealed
+  output:
+    subset:
+      answer: digested
 "#
         ),
     )?;
@@ -1057,43 +1073,50 @@ fn a_script_by_address_works_the_turn_it_names() -> TestResult {
     let skill_dir = temp.path().join("scripted-parent");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: scripted-parent\ndescription: Asks its child.\n---\n# Scripted parent\n\nAsk the child, then answer.\n",
-        &format!(
-            r#"skill: scripted-parent
-skills: [../answer-child]
-harness:
-  cases:
-    - name: the-child-has-its-own-script
-      inputs:
-        question: what digests?
-      caller:
-        turns:
-          {TURN}:
-            calls:
-              - tool: skill__answer-child
-                expect:
-                  subset:
-                    outcome:
-                      status: completed
-                      output:
-                        answer: from the child
-            output:
-              answer: from the parent
-          "answer/0#{TURN}":
-            output:
-              answer: from the child
-      expect:
-        status: sealed
-        output:
-          subset:
-            answer: from the parent
-runners:
+        "---\nname: scripted-parent\ndescription: Asks its child.\n---\n# Scripted parent\n\n## Agent task: answer\n\nAsk the child, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: {{ type: string, required: true }}
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          skills: [../answer-child]
+        inputs: $input
+        outputs:
+          answer: {type: string}
+"#,
+    )?;
+    std::fs::create_dir_all(skill_dir.join("tests"))?;
+    std::fs::write(
+        skill_dir.join("tests/the-child-has-its-own-script.yaml"),
+        format!(
+            r#"name: the-child-has-its-own-script
+inputs:
+  question: what digests?
+host:
+  turns:
+    {TURN}:
+      calls:
+        - tool: skill__answer-child
+          expect:
+            subset:
+              outcome:
+                status: completed
+                output:
+                  answer: from the child
+      output:
+        answer: from the parent
+    "answer/0#{TURN}":
+      output:
+        answer: from the child
+expect:
+  status: sealed
+  output:
+    subset:
+      answer: from the parent
 "#
         ),
     )?;
@@ -1280,16 +1303,20 @@ fn write_file_turn_skill(root: &Path) -> TestResult<PathBuf> {
     let skill_dir = root.join("files-demo");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: files-demo\ndescription: Reads the project, then answers.\n---\n# Files demo\n\nRead what you need, then answer.\n",
-        r#"skill: files-demo
-tools: [fs.read, fs.list, fs.write]
-runners:
+        "---\nname: files-demo\ndescription: Reads the project, then answers.\n---\n# Files demo\n\n## Agent task: answer\n\nRead what you need, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          tools: [fs.read, fs.list, fs.write]
+        inputs: $input
+        outputs:
+          answer: {type: string}
 "#,
     )?;
     Ok(skill_dir)
@@ -1301,21 +1328,19 @@ fn completed(call: &TurnCallResult) -> bool {
 
 fn write_paged_read_skill(root: &Path) -> TestResult<PathBuf> {
     let dir = root.join("paged-child");
-    let manifest = r#"skill: paged-child
-runners:
+    let manifest = r#"minimum_runx: 0.12.0
+methods:
   read:
-    default: true
     inputs:
-      path: {type: string, required: true}
+      path: {type: string}
     steps:
     - id: page
-      scopes: [fs.read]
       inputs: {source: $input.path}
       tool:
         module: page.mjs
         export: observe
-        pages: {path_from: source, media_type: application/json, framing: json_array, page_bytes: 65536}
-      outputs: {record_count: number}
+        paged_input: {path: source, media_type: application/json, framing: json_array, page_bytes: 65536}
+      outputs: {record_count: {type: number}}
 "#;
     crate::support::write_test_skill_package(
         &dir,
@@ -1369,20 +1394,18 @@ fn admitted_artifact_pages_run_through_real_store_open_and_child_workflows() -> 
     crate::support::write_test_skill_package(
         &child,
         "---\nname: admitted-child\ndescription: Count a previously admitted synthetic snapshot.\n---\n# Admitted records\n\nRead the registered snapshot without reopening a file.\n",
-        r#"skill: admitted-child
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   count:
-    default: true
     inputs:
-      source: {type: string, required: true}
+      source: {type: string}
     steps:
     - id: page
-      scopes: [fs.read]
       inputs: {source_uri: $input.source}
       tool:
         module: page.mjs
-        pages: {artifact_from: source_uri, framing: json_array, page_bytes: 65536}
-      outputs: {record_count: number}
+        paged_input: {artifact: source_uri, framing: json_array, page_bytes: 65536}
+      outputs: {record_count: {type: number}}
 "#,
     )?;
     std::fs::write(
@@ -1393,21 +1416,18 @@ runners:
     crate::support::write_test_skill_package(
         &parent,
         "---\nname: admitted-parent\ndescription: Retain and process one selected record array natively.\n---\n# Retained records\n\nStore, open and pass the native snapshot to the existing child.\n",
-        r#"skill: admitted-parent
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   count:
-    default: true
     inputs:
-      records: {type: array, required: true}
+      records: {type: array}
     result_from: [count]
     steps:
     - id: retain
       tool: artifact.store
-      scopes: [artifact.write]
       inputs: {value: $input.records}
     - id: open
       tool: artifact.open
-      scopes: [artifact.read]
       inputs: {artifact: $steps.retain.project_artifact}
     - id: count
       skill: ../admitted-child
@@ -1476,8 +1496,8 @@ fn paged_file_reads_keep_bounds_when_an_agent_calls_a_child_skill() -> TestResul
     let parent = temp.path().join("paged-parent");
     crate::support::write_test_skill_package(
         &parent,
-        "---\nname: paged-parent\ndescription: Reuses a declared native page reader.\n---\n# Page parent\n\nUse only the admitted child reader.\n",
-        "skill: paged-parent\nskills: [../paged-child]\nrunners:\n  answer:\n    default: true\n    inputs:\n      question: {type: string, required: true}\n    outputs: {answer: string}\n",
+        "---\nname: paged-parent\ndescription: Reuses a declared native page reader.\n---\n# Page parent\n\n## Agent task: answer\n\nUse only the admitted child reader.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          skills: [../paged-child]\n        inputs: $input\n        outputs: {answer: {type: string}}\n",
     )?;
     let mut authority = bounded(None, None);
     authority.agent_bounds = true;
@@ -1503,33 +1523,40 @@ fn paged_file_reads_keep_bounds_when_an_agent_calls_a_child_skill() -> TestResul
 
 #[test]
 fn a_method_excludes_provider_calls_before_connector_authentication() -> TestResult {
-    for operation_limit in ["", "    operations: []\n"] {
-        let temp = tempdir()?;
-        crate::support::plugin_with_fixture_connectors(temp.path(), &["fixture/forge"])?;
-        let skill_dir = temp.path().join("source-review");
-        crate::support::write_test_skill_package(
-            &skill_dir,
-            "---\nname: source-review\ndescription: Interpret supplied evidence.\n---\n# Source review\n\nUse the supplied evidence without a provider read.\n",
-            &format!(
-                r#"skill: source-review
-connectors:
-  fixture/forge:
-    operations: [issue.read, branch.push]
-runners:
+    let temp = tempdir()?;
+    crate::support::plugin_with_fixture_connectors(temp.path(), &["fixture/forge"])?;
+    let skill_dir = temp.path().join("source-review");
+    // The package calls the forge, from another method; this method's
+    // turn names none of its operations.
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: source-review\ndescription: Interpret supplied evidence.\n---\n# Source review\n\n## Agent task: answer\n\nUse the supplied evidence without a provider read.\n",
+        r#"minimum_runx: 0.12.0
+default_method: answer
+methods:
   answer:
-    default: true
-{operation_limit}    inputs:
-      question: {{type: string, required: true}}
-    outputs:
-      answer: string
-"#
-            ),
-        )?;
-        let paused = Paused::start(temp.path(), skill_dir, TURN)?;
-        let turn = paused.open()?;
-        assert!(turn.status(TURN)?.tools.is_empty());
-        for tool in ["fixture_forge__issue_read", "fixture_forge__branch_push"] {
-            let error = turn
+    inputs:
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        inputs: $input
+        outputs:
+          answer: {type: string}
+  provider:
+    steps:
+      - id: read
+        operation: fixture/forge/issue.read
+      - id: push
+        operation: fixture/forge/branch.push
+        idempotency_key: $run.id
+"#,
+    )?;
+    let paused = Paused::start(temp.path(), skill_dir, TURN)?;
+    let turn = paused.open()?;
+    assert!(turn.status(TURN)?.tools.is_empty());
+    for tool in ["fixture_forge__issue_read", "fixture_forge__branch_push"] {
+        let error = turn
             .call(
                 TURN,
                 tool,
@@ -1540,10 +1567,9 @@ runners:
             )
             .err()
             .ok_or("an excluded provider call was admitted")?;
-            assert!(error.to_string().contains("offers no tool"), "{error}");
-        }
-        assert!(turn.status(TURN)?.tools.is_empty());
+        assert!(error.to_string().contains("offers no tool"), "{error}");
     }
+    assert!(turn.status(TURN)?.tools.is_empty());
     Ok(())
 }
 
@@ -1606,16 +1632,20 @@ fn write_develop_skill(root: &Path) -> TestResult<PathBuf> {
     let skill_dir = root.join("develop-demo");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: develop-demo\ndescription: Changes the project, then answers.\n---\n# Develop demo\n\nChange what you need, then answer.\n",
-        r#"skill: develop-demo
-tools: [fs.write, command.execute]
-runners:
+        "---\nname: develop-demo\ndescription: Changes the project, then answers.\n---\n# Develop demo\n\n## Agent task: answer\n\nChange what you need, then answer.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          tools: [fs.write, command.execute]
+        inputs: $input
+        outputs:
+          answer: {type: string}
 "#,
     )?;
     Ok(skill_dir)
@@ -1743,8 +1773,8 @@ fn the_floor_holds_a_process_start_on_its_exact_argv_and_reads_run_free() -> Tes
     let skill_dir = root.join("serve-demo");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: serve-demo\ndescription: Serves the project.\n---\n# Serve demo\n\nServe it.\n",
-        "skill: serve-demo\ntools: [process.start, process.list]\nrunners:\n  answer:\n    default: true\n    inputs:\n      question: { type: string, required: true }\n    outputs:\n      answer: string\n",
+        "---\nname: serve-demo\ndescription: Serves the project.\n---\n# Serve demo\n\n## Agent task: answer\n\nServe it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [process.start, process.list]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
     )?;
     let started = start_bounded(root, skill_dir, agents(serde_json::json!([]))?)?;
     let turn = opened(root, &started)?;
@@ -1927,16 +1957,14 @@ fn the_floor_holds_a_skills_workflow_step_before_it_is_claimed() -> TestResult {
     crate::support::write_test_skill_package(
         &skill_dir,
         "---\nname: write-step\ndescription: Writes its notes.\n---\n# Write step\n\nWrite the notes.\n",
-        r#"skill: write-step
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   write:
-    default: true
     inputs:
-      question: { type: string, required: true }
+      question: {type: string}
     steps:
       - id: write
         tool: fs.write
-        scopes: [fs.write]
         inputs:
           path: notes.md
           contents: hello
@@ -2126,12 +2154,11 @@ fn write_packet_skills(root: &Path) -> TestResult<PathBuf> {
     crate::support::write_test_skill_package(
         &reader,
         "---\nname: digest-reader\ndescription: Digests a digest packet's digest.\n---\n# Digest reader\n\nDigest the digest.\n",
-        r#"skill: digest-reader
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   read:
-    default: true
     inputs:
-      packet: { type: json, required: true, packet: runx.data.digest.v1 }
+      packet: {packet: runx.data.digest.v1}
     steps:
       - id: digest
         tool: data.digest
@@ -2143,17 +2170,21 @@ runners:
     let skill_dir = root.join("packet-turn");
     crate::support::write_test_skill_package(
         &skill_dir,
-        "---\nname: packet-turn\ndescription: Hands packets on.\n---\n# Packet turn\n\nDigest, then hand the digest on.\n",
-        r#"skill: packet-turn
-tools: [data.digest]
-skills: [../digest-reader]
-runners:
+        "---\nname: packet-turn\ndescription: Hands packets on.\n---\n# Packet turn\n\n## Agent task: answer\n\nDigest, then hand the digest on.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          tools: [data.digest]
+          skills: [../digest-reader]
+        inputs: $input
+        outputs:
+          answer: {type: string}
 "#,
     )?;
     Ok(skill_dir)
@@ -2166,16 +2197,14 @@ fn a_project_artifact_packet_input_receives_the_descriptor_instead_of_its_conten
     crate::support::write_test_skill_package(
         &child,
         "---\nname: artifact-child\ndescription: Stores and opens immutable values.\n---\n# Artifact child\n\nStore and reopen selected values.\n",
-        r#"skill: artifact-child
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   store:
-    default: true
     inputs:
-      value: { type: json, required: true }
+      value: {}
     steps:
       - id: store
         tool: artifact.store
-        scopes: [artifact.write]
         inputs:
           value: $input.value
 "#,
@@ -2183,21 +2212,18 @@ runners:
     crate::support::write_test_skill_package(
         &temp.path().join("artifact-reader"),
         "---\nname: artifact-reader\ndescription: Reads a retained value by its descriptor.\n---\n# Artifact reader\n\nOpen an exact retained value without substituting its contents as the descriptor.\n",
-        r#"skill: artifact-reader
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   read:
-    default: true
     inputs:
-      cursor: { type: json, required: true, packet: runx.project_artifact.v1 }
+      cursor: {packet: runx.project_artifact.v1}
     steps:
       - id: open
         tool: artifact.open
-        scopes: [artifact.read]
         inputs:
           artifact: $input.cursor
       - id: read
         tool: artifact.read
-        scopes: [fs.read]
         inputs:
           artifact_uri: $steps.open.local_artifact.artifact_uri
           encoding: json_array
@@ -2206,16 +2232,20 @@ runners:
     let parent = temp.path().join("artifact-turn");
     crate::support::write_test_skill_package(
         &parent,
-        "---\nname: artifact-turn\ndescription: Hands retained artifact descriptors to child skills.\n---\n# Artifact turn\n\nContinue retained work through a declared child skill.\n",
-        r#"skill: artifact-turn
-skills: [../artifact-child, ../artifact-reader]
-runners:
+        "---\nname: artifact-turn\ndescription: Hands retained artifact descriptors to child skills.\n---\n# Artifact turn\n\n## Agent task: answer\n\nContinue retained work through a declared child skill.\n",
+        r#"minimum_runx: 0.12.0
+methods:
   answer:
-    default: true
     inputs:
-      question: { type: string, required: true }
-    outputs:
-      answer: string
+      question: {type: string}
+    steps:
+      - id: answer
+        agent: answer
+        calls:
+          skills: [../artifact-child, ../artifact-reader]
+        inputs: $input
+        outputs:
+          answer: {type: string}
 "#,
     )?;
     let paused = Paused::start(temp.path(), parent, TURN)?;

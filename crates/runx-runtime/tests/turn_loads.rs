@@ -23,7 +23,7 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 const TURN: &str = "work";
 
 /// A runner's body that digests its value.
-const DIGEST_METHOD: &str = "    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n";
+const DIGEST_METHOD: &str = "    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n";
 
 /// A project whose registry publishes `acme/echo` at each tier asked.
 struct Project {
@@ -47,23 +47,23 @@ impl Project {
             version,
             tier,
             note,
-            &format!("  say:\n    default: true\n{DIGEST_METHOD}"),
+            &format!("methods:\n  say:\n{DIGEST_METHOD}"),
         )
     }
 
-    /// Publish `acme/<name>@<version>` at `tier` with the `runners` of its
-    /// profile.
+    /// Publish `acme/<name>@<version>` at `tier` with the `methods` of its
+    /// profile, and which one it runs by default when it has several.
     fn publish_methods(
         &self,
         name: &str,
         version: &str,
         tier: TrustTier,
         note: &str,
-        runners: &str,
+        methods: &str,
     ) -> TestResult {
         let markdown =
             format!("---\nname: {name}\ndescription: Says it, digested. {note}\n---\n# {name}\n");
-        let profile = format!("skill: {name}\nrunners:\n{runners}");
+        let profile = format!("minimum_runx: 0.12.0\n{methods}");
         self.registry.publish(Publication {
             trust_tier: tier,
             ..Publication::new("acme", version, &markdown, Some(&profile))
@@ -80,13 +80,29 @@ impl Project {
     /// `tools`.
     fn session_with(&self, rules: serde_json::Value, tools: &[&str]) -> TestResult<PathBuf> {
         let skill_dir = self.root.join("session");
+        // What the turn may call is on its step, and an empty list grants
+        // nothing, so it is left out.
+        let mut calls = String::new();
+        if !tools.is_empty() {
+            calls.push_str(&format!(
+                "          tools: {}\n",
+                serde_json::to_string(tools)?
+            ));
+        }
+        if rules.as_array().is_some_and(|rules| !rules.is_empty()) {
+            calls.push_str(&format!(
+                "          load: {}\n",
+                serde_json::to_string(&rules)?
+            ));
+        }
+        if !calls.is_empty() {
+            calls.insert_str(0, "        calls:\n");
+        }
         crate::support::write_test_skill_package(
             &skill_dir,
-            "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\nLoad what you need, then summarize.\n",
+            "---\nname: session\ndescription: Works with what it loads.\n---\n# Session\n\n## Agent task: work\n\nLoad what you need, then summarize.\n",
             &format!(
-                "skill: session\ntools: {}\nskills: {}\nrunners:\n  work:\n    default: true\n    outputs:\n      summary: string\n",
-                serde_json::to_string(tools)?,
-                serde_json::to_string(&rules)?
+                "minimum_runx: 0.12.0\nmethods:\n  work:\n    steps:\n      - id: work\n        agent: work\n{calls}        inputs: $input\n        outputs:\n          summary: {{type: string}}\n"
             ),
         )?;
         Ok(skill_dir)
@@ -411,7 +427,7 @@ fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named()
         TrustTier::Community,
         "",
         &format!(
-            "  say:\n    default: true\n    description: Say the value as given.\n{DIGEST_METHOD}  shout:\n    description: Say the value loudly, when the person asks for emphasis.\n{DIGEST_METHOD}"
+            "default_method: say\nmethods:\n  say:\n    description: Say the value as given.\n{DIGEST_METHOD}  shout:\n    description: Say the value loudly, when the person asks for emphasis.\n{DIGEST_METHOD}"
         ),
     )?;
     let run_id =
@@ -524,7 +540,7 @@ fn a_rule_admits_only_the_origin_it_names() -> TestResult {
     crate::support::write_test_skill_package(
         &project.root.join("skills/notes"),
         "---\nname: notes\ndescription: The project's own.\n---\n# Notes\n",
-        "skill: notes\nrunners:\n  jot:\n    default: true\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+        "minimum_runx: 0.12.0\nmethods:\n  jot:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
     )?;
 
     let run_id = project.start(project.session(serde_json::json!([{"project": true}]))?)?;
@@ -654,7 +670,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     crate::support::write_test_skill_package(
         &project.root.join("skills/notes"),
         "---\nname: notes\ndescription: Takes the project's notes.\n---\n# Notes\n",
-        "skill: notes\nrunners:\n  jot:\n    default: true\n    description: Jot one note down.\n    inputs:\n      value: { type: string, required: true }\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
+        "minimum_runx: 0.12.0\nmethods:\n  jot:\n    description: Jot one note down.\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n",
     )?;
     let run_id = project.start(project.session_with(
         serde_json::json!([{"catalog": {"trust": "verified"}}]),

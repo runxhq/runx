@@ -3,6 +3,7 @@ use std::fs;
 use runx_contracts::{
     ExecutionEvent, JsonValue, ResolutionRequest, canonical_stable_json, sha256_prefixed,
 };
+use runx_parser::{parse_workflow_yaml, validate_workflow};
 #[cfg(feature = "agent")]
 use runx_runtime::adapters::agent::{AgentExecutionTelemetry, ManagedAgentError};
 use runx_runtime::{Host, InvocationOutput, Runtime, RuntimeError, SkillAdapter, SkillInvocation};
@@ -84,10 +85,9 @@ fn workflow_execution_binds_managed_failure_to_the_owning_step()
         temp.path().join("SKILL.md"),
         "---\nname: owner\ndescription: Failure identity fixture.\n---\n\n# Owner\n",
     )?;
-    fs::write(
-        temp.path().join("graph.yaml"),
-        "name: owner\nsteps:\n  - id: owning-step\n    agent: { role: test, task: work }\n    outputs:\n      result: object\n",
-    )?;
+    let workflow = validate_workflow(parse_workflow_yaml(
+        "name: owner\nsteps:\n  - id: owning-step\n    agent: work\n    outputs:\n      result: {type: object}\n",
+    )?)?;
     let runtime = Runtime::new(
         UnusedAdapter,
         crate::support::fixture_runtime_options(
@@ -96,8 +96,9 @@ fn workflow_execution_binds_managed_failure_to_the_owning_step()
         )?,
     );
 
-    let error = match runtime.run_workflow_file_with_host(
-        &temp.path().join("graph.yaml"),
+    let error = match runtime.run_workflow_with_host(
+        temp.path(),
+        workflow,
         &mut MisidentifiedManagedFailureHost,
     ) {
         Ok(_) => return Err("managed failure must propagate".into()),
@@ -118,21 +119,19 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     let adjacent_dir = temp.path().join("context/adjacent");
     fs::create_dir_all(&adjacent_dir)?;
     let root_manual = "---\nname: root-operator\ndescription: Root operating model\n---\n\n# Root operator\n\nKeep this exact line and trailing blank.\n\n";
-    let adjacent_manual = "---\nname: adjacent\ndescription: Adjacent specialist\n---\n\n# Adjacent specialist\n\nLoad this only when invoked.\n";
+    let adjacent_manual = "---\nname: adjacent\ndescription: Adjacent specialist\n---\n\n# Adjacent specialist\n\n## Agent task: operate\n\nLoad this only when invoked.\n";
     fs::write(temp.path().join("SKILL.md"), root_manual)?;
     fs::write(adjacent_dir.join("SKILL.md"), adjacent_manual)?;
     fs::write(
         adjacent_dir.join("run.yaml"),
-        "skill: adjacent\ncatalog:\n  kind: skill\n  audience: operator\n  visibility: internal\n  role: context\n  execution: read\n  completion: plan\n  approval: none\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n",
+        "minimum_runx: 0.12.0\ncatalog:\n  visibility: internal\nmethods:\n  operate:\n    steps:\n      - id: operate\n        agent: operate\n        outputs:\n          result: {type: object}\n",
     )?;
-    fs::write(
-        temp.path().join("context.yaml"),
-        "name: context-summary\nsteps:\n  - id: judge\n    agent: { role: operator, task: judge }\n    outputs:\n      result: object\n    context_skills:\n      - ./context/adjacent\n",
-    )?;
-    fs::write(
-        temp.path().join("invoke.yaml"),
-        "name: invoke-adjacent\nsteps:\n  - id: adjacent\n    skill: ./context/adjacent\n    runner: operate\n",
-    )?;
+    let context = validate_workflow(parse_workflow_yaml(
+        "name: context-summary\nsteps:\n  - id: judge\n    agent: judge\n    outputs:\n      result: {type: object}\n    context:\n      skills:\n        - ./context/adjacent\n",
+    )?)?;
+    let invoke = validate_workflow(parse_workflow_yaml(
+        "name: invoke-adjacent\nsteps:\n  - id: adjacent\n    skill: ./context/adjacent#operate\n",
+    )?)?;
     let runtime = Runtime::new(
         UnusedAdapter,
         crate::support::fixture_runtime_options(
@@ -142,8 +141,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
     );
 
     let mut summary_host = RecordingHost::default();
-    let result =
-        runtime.run_workflow_file_with_host(&temp.path().join("context.yaml"), &mut summary_host);
+    let result = runtime.run_workflow_with_host(temp.path(), context, &mut summary_host);
     assert!(
         matches!(
             result,
@@ -208,8 +206,7 @@ fn skill_manual_context_is_exact_digest_bound_and_progressive()
         )?,
     );
     let mut invoked_host = RecordingHost::default();
-    let result =
-        invoking.run_workflow_file_with_host(&temp.path().join("invoke.yaml"), &mut invoked_host);
+    let result = invoking.run_workflow_with_host(temp.path(), invoke, &mut invoked_host);
     assert!(
         matches!(
             result,

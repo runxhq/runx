@@ -31,6 +31,26 @@ pub(crate) const TEST_SIGNING_KID: &str = "runx-runtime-prod-fixture-key";
 pub(crate) const TEST_SIGNING_SEED_BASE64: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 pub(crate) const TEST_SIGNING_ISSUER_TYPE: &str = "hosted";
 
+/// The workflow `method` of the package at `dir` runs: its steps, as the
+/// package's `run.yaml` declares them.
+pub(crate) fn method_workflow(
+    dir: &Path,
+    method: &str,
+) -> Result<runx_parser::Workflow, Box<dyn std::error::Error>> {
+    let loaded = runx_runtime::load_validated_skill_package(dir)?;
+    let profile = loaded
+        .package
+        .profiles
+        .get(runx_parser::PROFILE_FILE)
+        .ok_or("the package declares a run.yaml")?;
+    Ok(profile
+        .methods
+        .get(method)
+        .ok_or_else(|| format!("the package declares method {method}"))?
+        .graph
+        .clone())
+}
+
 pub(crate) fn write_test_skill_package(
     dir: &Path,
     manual: &str,

@@ -14,15 +14,18 @@ use runx_contracts::AuthorityVerb;
 use runx_core::state_machine::AuthorityAdmissionWitness;
 use runx_runtime::adapters::process_tool::ProcessToolAdapter;
 use runx_runtime::{
-    EffectAdmission, EffectStepRequest, Runtime, RuntimeEffect, RuntimeEffectError,
+    EffectAdmission, EffectStepRequest, NoopHost, Runtime, RuntimeEffect, RuntimeEffectError,
     RuntimeEffectRegistry, RuntimeOptions,
 };
 
-fn hello_workflow_path() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/hello-workflow/graph.yaml")
+fn hello_workflow() -> (std::path::PathBuf, runx_parser::Workflow) {
+    let package = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/hello-workflow")
         .canonicalize()
-        .expect("hello-workflow example exists")
+        .expect("hello-workflow example exists");
+    let workflow =
+        crate::support::method_workflow(&package, "default").expect("hello-workflow's workflow");
+    (package, workflow)
 }
 
 /// An effect that admits every step, emitting a known authority witness so the test
@@ -73,8 +76,9 @@ fn admitted_step_records_authority_in_sealed_witness() {
     );
     let (_run, options) = options_with_effects(effects.unwrap_or_default());
     let runtime = Runtime::new(ProcessToolAdapter, options);
+    let (package, workflow) = hello_workflow();
     let run = runtime
-        .run_workflow_file(&hello_workflow_path())
+        .run_workflow_with_host(&package, workflow, &mut NoopHost)
         .expect("graph runs to completion");
     let authority = run.steps[0]
         .admission_witness
@@ -89,8 +93,9 @@ fn admitted_step_records_authority_in_sealed_witness() {
 fn unadmitted_step_records_local_runtime_witness() {
     let (_run, options) = options_with_effects(RuntimeEffectRegistry::empty());
     let runtime = Runtime::new(ProcessToolAdapter, options);
+    let (package, workflow) = hello_workflow();
     let run = runtime
-        .run_workflow_file(&hello_workflow_path())
+        .run_workflow_with_host(&package, workflow, &mut NoopHost)
         .expect("graph runs to completion");
     assert!(
         run.steps[0].admission_witness.authority.is_none(),

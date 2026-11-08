@@ -54,7 +54,7 @@ impl JavaScriptPackage {
         )?;
         fs::write(
             root.join("run.yaml"),
-            "skill: deterministic-module\nrunners:\n  run:\n    default: true\n    steps:\n      - id: compute\n        tool: { module: main.mjs }\n",
+            "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: compute\n        tool: {module: main.mjs}\n",
         )?;
         fs::write(root.join("main.mjs"), source)?;
         for (module, contents) in modules {

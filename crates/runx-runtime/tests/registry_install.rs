@@ -87,10 +87,8 @@ fn a_package_this_runx_does_not_read_leaves_nothing() -> Result<(), Box<dyn std:
     let temp = tempdir()?;
     let mut candidate = install_candidate()?;
     candidate.profile_document = Some(
-        include_str!("../../../fixtures/registry/install/echo/run.yaml").replace(
-            "    default: true\n",
-            "    default: true\n    colour: red\n",
-        ),
+        include_str!("../../../fixtures/registry/install/echo/run.yaml")
+            .replace("  default:\n", "  default:\n    colour: red\n"),
     );
     candidate.signed_manifest = Some(signed_for(&candidate, "acme/echo")?);
     let skills = temp.path().join("skills");
@@ -238,9 +236,9 @@ fn an_acquired_paid_listing_reaches_the_resolved_ref() -> Result<(), Box<dyn std
                 "input_schema_digest": format!("sha256:{}", "d".repeat(64)),
                 "output_schema_digest": format!("sha256:{}", "e".repeat(64)),
             },
-            "price": {"model": "fixed", "amount_minor": 125},
+            "price": {"basis": "fixed", "amount_minor": 125},
             "currency": "USD",
-            "accepted_settlement_families": ["x402"],
+            "accepts": ["x402"],
         }},
     });
     registry.tamper("acme/echo", "1.0.0", |record| {
@@ -786,6 +784,10 @@ fn package_files_fixture() -> Vec<RegistryPackageFile> {
             content: "# Operator\n".to_owned(),
         },
         RegistryPackageFile {
+            path: "graph/stage/SKILL.md".to_owned(),
+            content: stage_manual().to_owned(),
+        },
+        RegistryPackageFile {
             path: "graph/stage/run.yaml".to_owned(),
             content: stage_profile().to_owned(),
         },
@@ -796,8 +798,12 @@ fn package_files_fixture() -> Vec<RegistryPackageFile> {
     ]
 }
 
+fn stage_manual() -> &'static str {
+    "---\nname: stage\ndescription: stage fixture.\n---\n# Stage\n\n## Agent task: operate\n\nOperate.\n"
+}
+
 fn stage_profile() -> &'static str {
-    "skill: stage\nrunners:\n  operate:\n    default: true\n    steps:\n      - id: operate\n        agent: { role: operator, task: operate }\n        outputs:\n          result: object\n  script:\n    steps:\n      - id: script\n        tool: { module: run.mjs }\n"
+    "minimum_runx: 0.12.0\ndefault_method: operate\nmethods:\n  operate:\n    steps:\n      - id: operate\n        agent: operate\n        outputs:\n          result: {type: object}\n  script:\n    steps:\n      - id: script\n        tool: {module: run.mjs}\n"
 }
 
 fn bundle_digest(files: &[RegistryPackageFile]) -> Result<String, Box<dyn std::error::Error>> {

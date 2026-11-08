@@ -14,8 +14,8 @@ const FIXTURE_CREATED_AT: &str = "2026-05-18T00:00:00Z";
 #[test]
 fn test_blocks_ending_and_seals_workflow_receipt() -> Result<(), Box<dyn std::error::Error>> {
     let case = TempCase::new("abnormal-seal")?;
-    case.write_skill("act", "act", "approved: boolean")?;
-    case.write_skill("closure", "closure", "closed: boolean")?;
+    case.write_skill("act", "act", "approved: {type: boolean}")?;
+    case.write_skill("closure", "closure", "closed: {type: boolean}")?;
     case.write_workflow()?;
     case.write_test()?;
 
@@ -113,11 +113,11 @@ impl TempCase {
     }
 
     fn test_path(&self) -> PathBuf {
-        self.root.join("harness.yaml")
+        self.root.join("tests/abnormal-seal.yaml")
     }
 
     fn write_skill(&self, directory: &str, name: &str, output: &str) -> Result<(), std::io::Error> {
-        let skill_dir = self.root.join(directory);
+        let skill_dir = self.root.join("fixtures").join(directory);
         crate::support::write_test_skill_package(
             &skill_dir,
             format!(
@@ -131,13 +131,12 @@ Emits structured test output through the harness adapter.
             )
             .as_str(),
             format!(
-                r#"skill: {name}
-runners:
+                r#"minimum_runx: 0.12.0
+methods:
   {name}:
-    default: true
     steps:
       - id: {name}
-        tool: {{ command: runx-test-adapter, args: [] }}
+        tool: {{command: runx-test-adapter, args: []}}
         outputs:
           {output}
 "#
@@ -146,31 +145,34 @@ runners:
         )
     }
 
+    /// The workflow under test, a fixture package beside the skills it
+    /// composes.
     fn write_workflow(&self) -> Result<(), std::io::Error> {
-        fs::write(
-            self.root.join("graph.yaml"),
-            r#"name: abnormal-seal-gate
-publisher: runx
-steps:
-  - id: act
-    skill: ./act
-  - id: closure
-    skill: ./closure
-policy:
-  guards:
-    - step: closure
-      value: $steps.act.approved
-      equals: true
+        crate::support::write_test_skill_package(
+            &self.root.join("fixtures/abnormal-seal-gate"),
+            "---\nname: abnormal-seal-gate\ndescription: A test fixture that composes abnormal-seal with the packages it calls.\n---\n\nUsed only by abnormal-seal's tests.\n",
+            r#"minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  run:
+    steps:
+      - id: act
+        skill: ../act
+      - id: closure
+        guard:
+          - {value: $steps.act.approved, equals: true}
+        skill: ../closure
 "#,
         )
     }
 
     fn write_test(&self) -> Result<(), std::io::Error> {
+        fs::create_dir_all(self.root.join("tests"))?;
         fs::write(
             self.test_path(),
             r#"name: abnormal-seal
-kind: graph
-target: graph.yaml
+package: fixtures/abnormal-seal-gate
 expect:
   status: policy_denied
   receipt:

@@ -192,17 +192,16 @@ Slow fixture.
     )?;
     fs::write(
         slow_skill.path().join("run.yaml"),
-        r#"skill: slow-cli
-version: "0.1.0"
-runners:
+        r#"version: "0.1.0"
+minimum_runx: 0.12.0
+methods:
   default:
-    default: true
     inputs: {}
     steps:
       - id: default
-        tool: { command: sh, args: [./run.sh], timeout_seconds: 5 }
+        tool: {command: sh, args: [./run.sh], timeout_seconds: 5}
         outputs:
-          slow: boolean
+          slow: {type: boolean}
 "#,
     )?;
     fs::write(

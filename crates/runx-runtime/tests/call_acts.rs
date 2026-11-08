@@ -20,48 +20,51 @@ fn legitimacy(act: &runx_contracts::ReceiptAct) -> String {
 }
 
 const SKILL: &str = r#"
-skill: call-acts
-connectors:
-  fixture/chat:
-    operations: [channel.post]
-runners:
+minimum_runx: 0.12.0
+default_method: stated
+methods:
   stated:
-    default: true
     inputs:
-      channel_locator: {type: string, required: true}
-      text: {type: string, required: true}
-      thread: {type: string, required: true}
-      previous: {type: string, required: false}
-      form: {type: string, required: false}
+      channel_locator: {type: string}
+      text: {type: string}
+      thread: {type: string}
+      previous: {type: string, optional: true}
+      form: {type: string, optional: true}
     steps:
       - id: post
         operation: fixture/chat/channel.post
         idempotency_key: post-1
         approval: {reason: Approve this exact post., type: chat_message}
-        input: {channel_locator: $input.channel_locator, text: $input.text}
+        inputs: {channel_locator: $input.channel_locator, text: $input.text}
         act:
           form: $input.form
           purpose: $run.act.purpose
           reason: $run.act.reason
           target: $input.thread
-          decision: close
           previous: $input.previous
   forwarded:
     inputs:
-      channel_locator: {type: string, required: true}
-      text: {type: string, required: true}
+      channel_locator: {type: string}
+      text: {type: string}
     steps:
       - id: post
         operation: fixture/chat/channel.post
         idempotency_key: post-1
         approval: {reason: Approve this exact post., type: chat_message}
-        input: {channel_locator: $input.channel_locator, text: $input.text}
+        inputs: {channel_locator: $input.channel_locator, text: $input.text}
         act: $run.act
   turn:
-    operations: [fixture/chat/channel.post]
-    outputs:
-      answer: string
+    steps:
+      - id: turn
+        agent: turn
+        calls:
+          operations: [fixture/chat/channel.post]
+        inputs: $input
+        outputs:
+          answer: {type: string}
 "#;
+
+const MANUAL: &str = "---\nname: call-acts\ndescription: call-acts fixture.\n---\n# Call acts\n\n## Agent task: turn\n\nTurn.\n";
 
 const PREVIOUS: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 const EFFECT: &str = "chat://T123/C456/1750000000.000001";
@@ -78,30 +81,25 @@ fn run(root: &Path, case: &Case<'_>) -> Result<TestReplayOutput, TestReplayError
     crate::support::plugin_with_fixture_connectors(root, &["fixture/chat", "fixture/forge"])
         .unwrap();
     let skill = root.join("call-acts");
-    std::fs::create_dir_all(skill.join("fixtures")).unwrap();
-    std::fs::write(
-        skill.join("SKILL.md"),
-        "---\nname: call-acts\ndescription: call-acts fixture.\n---\n# Call acts\n",
-    )
-    .unwrap();
+    std::fs::create_dir_all(skill.join("tests")).unwrap();
+    std::fs::write(skill.join("SKILL.md"), MANUAL).unwrap();
     std::fs::write(skill.join("run.yaml"), SKILL).unwrap();
-    let path: PathBuf = skill.join("fixtures").join(format!("{}.yaml", case.name));
+    let path: PathBuf = skill.join("tests").join(format!("{}.yaml", case.name));
     std::fs::write(
         &path,
         format!(
             r#"name: {name}
-kind: skill
-target: ..
-runner: {runner}
+method: {runner}
 inputs:
   channel_locator: chat://T123/C456
   text: Deploy finished.
 {inputs}
-caller:
+host:
 {act}
   approvals:
     post: true
-  provider_responses:
+providers:
+  hosted:
     principal_id: operator-fixture
     grant:
       grant_id: call-acts-fixture
@@ -218,10 +216,8 @@ fn the_invokers_act_is_sealed_in_the_call_receipt_with_admitted_authority_and_ef
         .expect("the declared effect");
     assert_eq!(effect.reference_type, ReferenceType::Thread);
     assert_eq!(effect.provider.as_deref(), Some("fixture/chat"));
-    // The decision is the act's, and the receipt it follows is the act's own
-    // statement, never the receipt's committed lineage.
-    assert_eq!(receipt.decisions[0].choice, DecisionChoice::Close);
-    assert_eq!(receipt.decisions[0].selected_act_id, act.id);
+    // The receipt the act follows is the act's own statement, never the
+    // receipt's committed lineage.
     assert_eq!(
         act.previous
             .as_ref()
@@ -250,7 +246,9 @@ fn a_whole_act_forwards_the_invokers_and_an_absent_one_leaves_the_operations_obs
         receipt.acts[0].intent.purpose.as_str(),
         "Forward the invoker's act"
     );
+    // The decision is the act's: the invoker's, carried by the act it forwards.
     assert_eq!(receipt.decisions[0].choice, DecisionChoice::Monitor);
+    assert_eq!(receipt.decisions[0].selected_act_id, receipt.acts[0].id);
 
     let absent = run(
         root.path(),
@@ -331,22 +329,16 @@ fn a_turns_operation_call_seals_the_act_it_carries() {
     crate::support::plugin_with_fixture_connectors(root.path(), &["fixture/chat", "fixture/forge"])
         .unwrap();
     let skill = root.path().join("call-acts");
-    std::fs::create_dir_all(skill.join("fixtures")).unwrap();
-    std::fs::write(
-        skill.join("SKILL.md"),
-        "---\nname: call-acts\ndescription: call-acts fixture.\n---\n# Call acts\n",
-    )
-    .unwrap();
+    std::fs::create_dir_all(skill.join("tests")).unwrap();
+    std::fs::write(skill.join("SKILL.md"), MANUAL).unwrap();
     std::fs::write(skill.join("run.yaml"), SKILL).unwrap();
-    let path = skill.join("fixtures").join("turn.yaml");
+    let path = skill.join("tests").join("turn.yaml");
     std::fs::write(
         &path,
         format!(
             r#"name: turn
-kind: skill
-target: ..
-runner: turn
-caller:
+method: turn
+host:
   turns:
     turn:
       calls:
@@ -361,7 +353,8 @@ caller:
       output: {{answer: posted}}
   approvals:
     turn/0: true
-  provider_responses:
+providers:
+  hosted:
     principal_id: operator-fixture
     grant:
       grant_id: call-acts-fixture
@@ -409,7 +402,7 @@ fn delegate(root: &Path, approvals: &str) -> Result<TestReplayOutput, TestReplay
     crate::support::plugin_with_fixture_connectors(root, &["fixture/chat"]).unwrap();
     let parent = root.join("delegating");
     let child = parent.join("child");
-    std::fs::create_dir_all(parent.join("fixtures")).unwrap();
+    std::fs::create_dir_all(parent.join("tests")).unwrap();
     std::fs::create_dir_all(&child).unwrap();
     std::fs::write(
         child.join("SKILL.md"),
@@ -418,21 +411,17 @@ fn delegate(root: &Path, approvals: &str) -> Result<TestReplayOutput, TestReplay
     .unwrap();
     std::fs::write(
         child.join("run.yaml"),
-        r#"skill: posting
-connectors:
-  fixture/chat:
-    operations: [channel.post]
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   post:
-    default: true
     inputs:
-      text: {type: string, required: true}
+      text: {type: string}
     steps:
       - id: post
         operation: fixture/chat/channel.post
         idempotency_key: post-1
         approval: {reason: Approve this exact post., type: chat_message}
-        input: {channel_locator: chat://T123/C456, text: $input.text}
+        inputs: {channel_locator: chat://T123/C456, text: $input.text}
         act: $run.act
 "#,
     )
@@ -444,10 +433,9 @@ runners:
     .unwrap();
     std::fs::write(
         parent.join("run.yaml"),
-        r#"skill: delegating
-runners:
+        r#"minimum_runx: 0.12.0
+methods:
   delegate:
-    default: true
     steps:
       - id: send
         skill: ./child
@@ -458,17 +446,16 @@ runners:
 "#,
     )
     .unwrap();
-    let path = parent.join("fixtures").join("delegate.yaml");
+    let path = parent.join("tests").join("delegate.yaml");
     std::fs::write(
         &path,
         format!(
             r#"name: delegate
-kind: skill
-target: ..
-caller:
+host:
   act: {{purpose: Run the release, reason: Release 0.8.2 shipped.}}
   approvals: {approvals}
-  provider_responses:
+providers:
+  hosted:
     principal_id: operator-fixture
     grant:
       grant_id: call-acts-fixture
