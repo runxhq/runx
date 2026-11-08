@@ -650,7 +650,12 @@ fn loads_and_calls_store(project: &Project, session: PathBuf) -> TestResult {
         ),
         "a runtime capability is runx's: {bound:?}"
     );
-    assert!(bound.connectors.contains_key("store"));
+    assert!(
+        bound
+            .connectors
+            .iter()
+            .any(|binding| binding.connector.as_str() == "store")
+    );
     let names = tool_names(&turn)?;
     assert!(names.contains(&"store__heads_list".to_owned()), "{names:?}");
 

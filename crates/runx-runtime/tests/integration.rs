@@ -44,5 +44,6 @@ mod test_artifacts;
 mod test_fixtures;
 mod tool_catalogs;
 mod turn_loads;
+mod turn_trust;
 mod validated_skill_package;
 mod workflow_context_materialization;

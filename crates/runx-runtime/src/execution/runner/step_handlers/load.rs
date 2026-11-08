@@ -1,10 +1,13 @@
 //! A turn's load (agent-sessions §4.1). The package a call names resolves as
 //! `runx skill` and `runx connector` resolve it; the turn's catalog rules
-//! admit it by where it comes from and its tier; what it binds must agree with
-//! the connectors the turn already reaches; and a package below its rule's
-//! tier waits on the person's trust, which their home records for that exact
-//! closure. Its output carries a skill's manual and runners, what it bound and
-//! the calls the turn offers from then on. A skill's load binds the runner it
+//! admit it by where it comes from and its tier; and what it binds must agree
+//! with the connectors the turn already reaches. A load adds no capability by
+//! where a file sits (D12): the project's own is admitted when it reaches only
+//! what the turn already reaches, and otherwise waits on the person's trust,
+//! as a package below its rule's tier does. Trust is recorded in the person's
+//! home for that exact closure, which covers every connector's implementation.
+//! Its output carries a skill's manual and runners, what it bound and the
+//! calls the turn offers from then on. A skill's load binds the runner it
 //! names or the skill's only runner; one that binds none binds no closure, so
 //! it asks no trust.
 
@@ -12,6 +15,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use runx_contracts::connector::ConnectorBinding;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     ApprovalGate, AuthorityVerb, BoundClosure, CatalogRule, JsonObject, JsonValue, LoadedMethod,
@@ -50,10 +54,11 @@ enum Origin {
 #[derive(Debug, PartialEq, Eq)]
 enum Ruling {
     Admitted,
-    /// It is below every catalog rule's tier, the lowest of which is
-    /// `minimum`: the person trusts it, or the load is refused.
+    /// The person trusts it, or the load is refused: it is below every
+    /// catalog rule's tier, or it is the project's own and reaches what the
+    /// turn does not. `reason` is what the person is asked.
     AsksTrust {
-        minimum: TrustTier,
+        reason: String,
     },
     Refused(String),
 }
@@ -68,7 +73,8 @@ struct Bound {
     tools: Vec<TurnTool>,
     /// The execution closures a person's trust covers.
     closures: Vec<String>,
-    connectors: BTreeMap<String, String>,
+    /// Each connector it reaches, at the exact revision it binds.
+    connectors: Vec<ConnectorBinding>,
     /// What the person is shown when it asks for their trust.
     declares: JsonValue,
 }
@@ -105,10 +111,15 @@ where
         return Err(refused(reason));
     }
     let what = describe(&bound.package);
-    match ruling(&bound.origin, &load.rules, &what) {
+    match ruling(
+        &bound.origin,
+        &beyond(&bound, &load.held),
+        &load.rules,
+        &what,
+    ) {
         Ruling::Admitted => {}
         Ruling::Refused(reason) => return Err(refused(reason)),
-        Ruling::AsksTrust { minimum } => {
+        Ruling::AsksTrust { reason } => {
             let trusted = bound
                 .closures
                 .iter()
@@ -120,7 +131,7 @@ where
                     ))
                 })?;
             if !trusted.iter().all(|trusted| *trusted) {
-                ask_trust(runtime, workflow_dir, step, &bound, minimum, &paths, host)?;
+                ask_trust(runtime, workflow_dir, step, &bound, reason, &paths, host)?;
             }
         }
     }
@@ -129,11 +140,7 @@ where
         manual: bound.manual,
         runners: bound.runners,
         tools: bound.tools,
-        connectors: bound
-            .connectors
-            .into_iter()
-            .map(|(name, digest)| (name, digest.into()))
-            .collect(),
+        connectors: bound.connectors,
     };
     let value = JsonValue::from_serialize(&output)
         .map_err(|error| RuntimeError::effect_state("reporting a load", error.to_string()))?;
@@ -250,7 +257,7 @@ fn bind_skill(
     let skill: NonEmptyString = package_name.clone().into();
     let mut tools = Vec::new();
     let mut closures = Vec::new();
-    let mut connectors = BTreeMap::new();
+    let mut connectors = Vec::new();
     for runner in &runners {
         let binding = crate::skill_package::verify_loaded_execution_binding(
             Arc::clone(&loaded),
@@ -290,9 +297,13 @@ fn bind_skill(
         );
         closures.push(closure_digest);
     }
+    let reached = connectors
+        .iter()
+        .map(|binding| binding.connector.as_str())
+        .collect::<Vec<_>>();
     let declares = JsonValue::from_serialize(&serde_json::json!({
         "runners": runners,
-        "connectors": connectors.keys().collect::<Vec<_>>(),
+        "connectors": reached,
     }))
     .map_err(|error| error.to_string())?;
     let (trust_tier, publisher) = tier_and_publisher(&origin);
@@ -371,7 +382,7 @@ fn bind_connector(
         }
     };
     let origin = connector_origin(&connector, paths)?;
-    let mut connectors = BTreeMap::new();
+    let mut connectors = Vec::new();
     agree(&mut connectors, &connector, name)?;
     // Each operation as a call on the connector, pinned to the manifest the
     // load bound.
@@ -475,13 +486,31 @@ fn recorded_origin(paths: &RunxPaths, directory: &Path) -> Result<Origin, String
     }
 }
 
-/// What the rules make of a package from `origin`.
-fn ruling(origin: &Origin, rules: &[CatalogRule], what: &str) -> Ruling {
+/// What the rules make of a package from `origin` that reaches `beyond`, the
+/// connectors it binds that the turn does not already reach.
+fn ruling(
+    origin: &Origin,
+    beyond: &[&ConnectorBinding],
+    rules: &[CatalogRule],
+    what: &str,
+) -> Ruling {
     match origin {
-        Origin::Project if rules.iter().any(|rule| rule.project) => Ruling::Admitted,
-        Origin::Project => Ruling::Refused(format!(
+        Origin::Project if !rules.iter().any(|rule| rule.project) => Ruling::Refused(format!(
             "{what} is the project's own, and the turn's rules admit only the catalog"
         )),
+        // Where a file sits adds no capability (D12): the project's own that
+        // reaches only what the turn already reaches adds none.
+        Origin::Project if beyond.is_empty() => Ruling::Admitted,
+        Origin::Project => Ruling::AsksTrust {
+            reason: format!(
+                "Trust {what}, the project's own, which reaches connector {} the turn does not already reach.",
+                beyond
+                    .iter()
+                    .map(|binding| binding.connector.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        },
         Origin::Registry { tier, .. } => {
             let minimums = rules
                 .iter()
@@ -495,61 +524,76 @@ fn ruling(origin: &Origin, rules: &[CatalogRule], what: &str) -> Ruling {
             if minimums.iter().any(|minimum| tier.meets(*minimum)) {
                 return Ruling::Admitted;
             }
+            let minimum = minimums
+                .into_iter()
+                .reduce(|lowest, minimum| {
+                    if lowest.meets(minimum) {
+                        minimum
+                    } else {
+                        lowest
+                    }
+                })
+                .unwrap_or(TrustTier::Verified);
             Ruling::AsksTrust {
-                minimum: minimums
-                    .into_iter()
-                    .reduce(|lowest, minimum| {
-                        if lowest.meets(minimum) {
-                            minimum
-                        } else {
-                            lowest
-                        }
-                    })
-                    .unwrap_or(TrustTier::Verified),
+                reason: format!(
+                    "Trust {what}, a {} package, below the turn's {} rule.",
+                    tier.as_str(),
+                    minimum.as_str()
+                ),
             }
         }
     }
 }
 
 /// Why what `bound` reaches disagrees with what the turn already binds.
-fn revision_refusal(bound: &Bound, held: &BTreeMap<String, String>) -> Option<String> {
-    bound.connectors.iter().find_map(|(name, digest)| {
-        held.get(name).filter(|held| *held != digest).map(|held| {
-            format!(
-                "{} binds connector {name} at manifest {digest}, and this run already binds it at {held}; one run binds one revision of a name",
-                describe(&bound.package)
-            )
-        })
+fn revision_refusal(bound: &Bound, held: &[ConnectorBinding]) -> Option<String> {
+    bound.connectors.iter().find_map(|binding| {
+        held.iter()
+            .find(|held| {
+                held.connector == binding.connector
+                    && held.manifest_digest != binding.manifest_digest
+            })
+            .map(|held| {
+                format!(
+                    "{} binds connector {} at manifest {}, and this run already binds it at {}; one run binds one revision of a name",
+                    describe(&bound.package),
+                    binding.connector,
+                    binding.manifest_digest,
+                    held.manifest_digest
+                )
+            })
     })
 }
 
-/// Ask the person to trust `bound`; record their trust for its closures in
-/// their home.
+/// The connectors `bound` reaches that the turn does not already reach at
+/// that exact implementation: a changed process under an unchanged manifest
+/// is one it doesn't.
+fn beyond<'a>(bound: &'a Bound, held: &[ConnectorBinding]) -> Vec<&'a ConnectorBinding> {
+    bound
+        .connectors
+        .iter()
+        .filter(|binding| !held.contains(binding))
+        .collect()
+}
+
+/// Ask the person to trust `bound`, telling them `reason`; record their
+/// trust for its closures in their home.
 fn ask_trust<A>(
     runtime: &super::Runtime<A>,
     workflow_dir: &Path,
     step: &runx_parser::WorkflowStep,
     bound: &Bound,
-    minimum: TrustTier,
+    reason: String,
     paths: &RunxPaths,
     host: &mut dyn crate::host::Host,
 ) -> Result<(), RuntimeError> {
     let options = &runtime.options;
     let what = describe(&bound.package);
-    let tier = match &bound.origin {
-        Origin::Registry { tier, .. } => *tier,
-        Origin::Project => TrustTier::FirstParty,
-    };
     let gate_id = format!("{}/trust", step.id);
     let request_id = options.run.address(&gate_id);
     let mut gate = ApprovalGate {
         id: gate_id.into(),
-        reason: format!(
-            "Trust {what}, a {} package, below the turn's {} rule.",
-            tier.as_str(),
-            minimum.as_str()
-        )
-        .into(),
+        reason: reason.into(),
         gate_type: Some("trust".to_owned()),
         summary: Some(JsonObject::from([(
             "step".to_owned(),
@@ -614,18 +658,23 @@ fn ask_trust<A>(
 
 /// Record `connector` among what a load binds, refusing a second revision.
 fn agree(
-    connectors: &mut BTreeMap<String, String>,
+    connectors: &mut Vec<ConnectorBinding>,
     connector: &LoadedConnector,
     what: &str,
 ) -> Result<(), String> {
-    let digest = connector.manifest_digest.as_str().to_owned();
-    match connectors.insert(connector.name.as_str().to_owned(), digest.clone()) {
-        Some(other) if other != digest => Err(format!(
-            "{what} reaches two revisions of connector {} (manifest {other} and {digest})",
-            connector.name
-        )),
-        _ => Ok(()),
+    let binding = connector.binding();
+    if let Some(other) = connectors.iter().find(|other| {
+        other.connector == binding.connector && other.manifest_digest != binding.manifest_digest
+    }) {
+        return Err(format!(
+            "{what} reaches two revisions of connector {} (manifest {} and {})",
+            connector.name, other.manifest_digest, binding.manifest_digest
+        ));
     }
+    if !connectors.contains(&binding) {
+        connectors.push(binding);
+    }
+    Ok(())
 }
 
 fn tier_and_publisher(origin: &Origin) -> (Option<TrustTier>, Option<NonEmptyString>) {
@@ -667,6 +716,7 @@ fn canonical(path: &Path) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use runx_contracts::CatalogTrust;
+    use runx_contracts::connector::{ConnectorName, Digest};
 
     use super::*;
 
@@ -689,29 +739,25 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_rule_admits_by_origin_and_tier() {
-        let rules = [catalog(TrustTier::Verified), PROJECT];
-        assert_eq!(ruling(&Origin::Project, &rules, "it"), Ruling::Admitted);
-        assert_eq!(
-            ruling(&registry(TrustTier::FirstParty), &rules, "it"),
-            Ruling::Admitted
-        );
-        assert_eq!(
-            ruling(&registry(TrustTier::Verified), &rules, "it"),
-            Ruling::Admitted
-        );
-        assert_eq!(
-            ruling(&registry(TrustTier::Community), &rules, "it"),
-            Ruling::AsksTrust {
-                minimum: TrustTier::Verified
-            }
-        );
+    /// `name` at manifest `manifest` and implementation `implementation`,
+    /// each digest the hex character given, repeated.
+    fn binding(
+        name: &str,
+        manifest: char,
+        implementation: char,
+    ) -> Result<ConnectorBinding, &'static str> {
+        let digest = |hex: char| {
+            Digest::new(format!("sha256:{}", hex.to_string().repeat(64))).ok_or("a digest")
+        };
+        Ok(ConnectorBinding {
+            connector: ConnectorName::new(name).ok_or("a connector name")?,
+            manifest_digest: digest(manifest)?,
+            connector_digest: digest(implementation)?,
+        })
     }
 
-    #[test]
-    fn a_load_binding_another_revision_of_a_held_connector_is_refused() {
-        let bound = Bound {
+    fn reaching(connectors: Vec<ConnectorBinding>) -> Bound {
+        Bound {
             package: LoadedPackage::Connector {
                 connector: "github".into(),
                 trust_tier: None,
@@ -723,26 +769,96 @@ mod tests {
             runners: Vec::new(),
             tools: Vec::new(),
             closures: Vec::new(),
-            connectors: BTreeMap::from([("github".to_owned(), "sha256:b".to_owned())]),
+            connectors,
             declares: JsonValue::Null,
-        };
-        let held = |digest: &str| BTreeMap::from([("github".to_owned(), digest.to_owned())]);
-        let reason = revision_refusal(&bound, &held("sha256:a")).unwrap_or_default();
+        }
+    }
+
+    #[test]
+    fn a_rule_admits_by_origin_and_tier() {
+        let rules = [catalog(TrustTier::Verified), PROJECT];
+        assert_eq!(
+            ruling(&Origin::Project, &[], &rules, "it"),
+            Ruling::Admitted
+        );
+        assert_eq!(
+            ruling(&registry(TrustTier::FirstParty), &[], &rules, "it"),
+            Ruling::Admitted
+        );
+        assert_eq!(
+            ruling(&registry(TrustTier::Verified), &[], &rules, "it"),
+            Ruling::Admitted
+        );
+        assert_eq!(
+            ruling(&registry(TrustTier::Community), &[], &rules, "it"),
+            Ruling::AsksTrust {
+                reason: "Trust it, a community package, below the turn's verified rule.".to_owned()
+            }
+        );
+    }
+
+    /// Where a file sits adds no capability (D12): the project's own that
+    /// reaches a connector the turn does not, at that exact implementation,
+    /// waits on the person's trust. A registry package's tier decides alone.
+    #[test]
+    fn the_projects_own_reaching_beyond_the_turn_asks_trust() -> Result<(), &'static str> {
+        let held = [binding("marker", 'a', 'b')?];
+        let same = reaching(vec![binding("marker", 'a', 'b')?]);
+        assert!(beyond(&same, &held).is_empty());
+        // A changed process under an unchanged manifest is another
+        // implementation, which the turn does not reach.
+        let changed = reaching(vec![binding("marker", 'a', 'c')?]);
+        let reached = beyond(&changed, &held);
+        assert_eq!(reached, [&binding("marker", 'a', 'c')?]);
+        assert_eq!(revision_refusal(&changed, &held), None);
+
+        let rules = [PROJECT];
+        assert_eq!(
+            ruling(&Origin::Project, &[], &rules, "skill x"),
+            Ruling::Admitted
+        );
+        assert_eq!(
+            ruling(&Origin::Project, &reached, &rules, "skill x"),
+            Ruling::AsksTrust {
+                reason: "Trust skill x, the project's own, which reaches connector marker the turn does not already reach.".to_owned()
+            }
+        );
+        assert_eq!(
+            ruling(
+                &registry(TrustTier::Verified),
+                &reached,
+                &[catalog(TrustTier::Verified)],
+                "skill x"
+            ),
+            Ruling::Admitted
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_load_binding_another_revision_of_a_held_connector_is_refused() -> Result<(), &'static str>
+    {
+        let bound = reaching(vec![binding("github", 'b', 'c')?]);
+        let reason = revision_refusal(&bound, &[binding("github", 'a', 'c')?]).unwrap_or_default();
         assert!(
             reason.contains("one run binds one revision of a name"),
             "{reason}"
         );
-        assert_eq!(revision_refusal(&bound, &held("sha256:b")), None);
-        assert_eq!(revision_refusal(&bound, &BTreeMap::new()), None);
+        assert_eq!(
+            revision_refusal(&bound, &[binding("github", 'b', 'd')?]),
+            None
+        );
+        assert_eq!(revision_refusal(&bound, &[]), None);
+        Ok(())
     }
 
     #[test]
     fn a_rule_of_one_origin_refuses_the_other() {
-        let refused = |origin: &Origin, rule: CatalogRule| match ruling(origin, &[rule], "skill x")
-        {
-            Ruling::Refused(reason) => reason,
-            other => format!("not refused: {other:?}"),
-        };
+        let refused =
+            |origin: &Origin, rule: CatalogRule| match ruling(origin, &[], &[rule], "skill x") {
+                Ruling::Refused(reason) => reason,
+                other => format!("not refused: {other:?}"),
+            };
         let reason = refused(&Origin::Project, catalog(TrustTier::Community));
         assert!(reason.contains("admit only the catalog"), "{reason}");
         let reason = refused(&registry(TrustTier::FirstParty), PROJECT);

@@ -492,7 +492,7 @@ export const runxSchemaArtifacts = {
                                 },
                                 {
                                   "additionalProperties": false,
-                                  "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
+                                  "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored that reach only the connectors the turn already reaches; one that reaches another waits on the person's trust. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                                   "properties": {
                                     "catalog": {
                                       "additionalProperties": false,
@@ -1976,7 +1976,7 @@ export const runxSchemaArtifacts = {
                 },
                 {
                   "additionalProperties": false,
-                  "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
+                  "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored that reach only the connectors the turn already reaches; one that reaches another waits on the person's trust. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                   "properties": {
                     "catalog": {
                       "additionalProperties": false,
@@ -28813,7 +28813,7 @@ export const runxSchemaArtifacts = {
                         },
                         {
                           "additionalProperties": false,
-                          "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
+                          "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored that reach only the connectors the turn already reaches; one that reaches another waits on the person's trust. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                           "properties": {
                             "catalog": {
                               "additionalProperties": false,
@@ -32501,7 +32501,7 @@ export const runxSchemaArtifacts = {
                                   },
                                   {
                                     "additionalProperties": false,
-                                    "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
+                                    "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored that reach only the connectors the turn already reaches; one that reaches another waits on the person's trust. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                                     "properties": {
                                       "catalog": {
                                         "additionalProperties": false,
@@ -40329,7 +40329,7 @@ export const runxSchemaArtifacts = {
                                       },
                                       {
                                         "additionalProperties": false,
-                                        "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
+                                        "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored that reach only the connectors the turn already reaches; one that reaches another waits on the person's trust. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                                         "properties": {
                                           "catalog": {
                                             "additionalProperties": false,
@@ -41880,13 +41880,40 @@ export const runxSchemaArtifacts = {
     "description": "A completed load's output: what it bound, a skill's manual and runners, and the calls it adds to the turn. A skill's load binds the runner it names, or the skill's only runner; one that binds none is a reading of the skill, which binds no closure and so asks no trust.",
     "properties": {
       "connectors": {
-        "additionalProperties": {
-          "minLength": 1,
-          "type": "string"
+        "description": "Each connector what it bound reaches, at the exact manifest and implementation it binds: a later load that binds another revision of a name is refused, and the project's own reaching a connector the turn does not already reach at that implementation waits on trust.",
+        "items": {
+          "$id": "https://schemas.runx.ai/runx/connector-binding/v1.json",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "description": "An exact connector revision. Acquisition, grant delivery and hosted calls carry this same binding; a name alone cannot substitute bytes.",
+          "properties": {
+            "connector": {
+              "maxLength": 129,
+              "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
+              "type": "string"
+            },
+            "connector_digest": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "manifest_digest": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "connector",
+            "manifest_digest",
+            "connector_digest"
+          ],
+          "title": "ConnectorBinding",
+          "type": "object",
+          "x-runx-schema": "runx.connector_binding.v1"
         },
-        "description": "Each connector what it bound reaches, by name, at the manifest digest it binds: a later load that binds another revision is refused.",
-        "minProperties": 1,
-        "type": "object"
+        "minItems": 1,
+        "type": "array"
       },
       "manual": {
         "additionalProperties": false,
@@ -42635,7 +42662,7 @@ export const runxSchemaArtifacts = {
                                             },
                                             {
                                               "additionalProperties": false,
-                                              "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
+                                              "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored that reach only the connectors the turn already reaches; one that reaches another waits on the person's trust. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                                               "properties": {
                                                 "catalog": {
                                                   "additionalProperties": false,

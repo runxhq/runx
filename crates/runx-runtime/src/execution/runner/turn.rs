@@ -11,7 +11,7 @@ use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use runx_contracts::connector::{OperationAccess, OperationName};
+use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject, JsonValue, LoadedPackage,
@@ -1292,10 +1292,10 @@ where
         Ok(None)
     }
 
-    /// Each connector the turn already reaches, by name, at the manifest it
+    /// Each connector the turn already reaches, at the exact revision it
     /// binds: its skill's requirements, and what its loads bound.
-    fn held(&self) -> Result<BTreeMap<String, String>, RuntimeError> {
-        let mut held = BTreeMap::new();
+    fn held(&self) -> Result<Vec<ConnectorBinding>, RuntimeError> {
+        let mut held = Vec::new();
         let connectors = &self.scope.agent.connectors;
         if !connectors.is_empty() {
             let scope = self.connector_scope()?;
@@ -1315,17 +1315,12 @@ where
                                     error.to_string(),
                                 )
                             })?;
-                    held.insert(
-                        connector.name.as_str().to_owned(),
-                        connector.manifest_digest.as_str().to_owned(),
-                    );
+                    held.push(connector.binding());
                 }
             }
         }
         for load in self.loads()? {
-            for (name, digest) in load.connectors {
-                held.insert(name, digest.as_str().to_owned());
-            }
+            held.extend(load.connectors);
         }
         Ok(held)
     }
@@ -1470,7 +1465,7 @@ where
         if allowance.rules().next().is_some() {
             tools.push(offered(
                 "load",
-                "Load a skill or connector the turn's catalog rules admit: {skill, runner?}, or {connector} by name. A skill's load answers with its manual (how to use it) and its runners, each with its purpose and inputs; it binds the runner named, or the skill's only runner, and with no runner named a skill of several binds none, so read the manual and load again naming one. Each runner or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier waits on the person's trust."
+                "Load a skill or connector the turn's catalog rules admit: {skill, runner?}, or {connector} by name. A skill's load answers with its manual (how to use it) and its runners, each with its purpose and inputs; it binds the runner named, or the skill's only runner, and with no runner named a skill of several binds none, so read the manual and load again naming one. Each runner or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier, or a project package that reaches a connector this turn does not, waits on the person's trust."
                     .to_owned(),
                 load_schema()?,
                 TurnTarget::Load,

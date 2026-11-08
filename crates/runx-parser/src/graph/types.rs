@@ -59,9 +59,10 @@ pub struct LoadStep {
     pub target: LoadTarget,
     /// The catalog rules of the turn's allowance.
     pub rules: Vec<runx_contracts::CatalogRule>,
-    /// Each connector the turn already reaches, by name, at the manifest
-    /// digest it binds: one run binds one revision of a name.
-    pub held: BTreeMap<String, String>,
+    /// Each connector the turn already reaches, at the exact manifest and
+    /// implementation it binds: one run binds one revision of a name, and
+    /// what reaches beyond these is what a load adds.
+    pub held: Vec<runx_contracts::connector::ConnectorBinding>,
 }
 
 /// What a load names: a skill, with the one method it loads or all of them,

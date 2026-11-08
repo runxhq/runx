@@ -695,7 +695,7 @@ mod tests {
                 }),
                 runners: Vec::new(),
                 tools: Vec::new(),
-                connectors: BTreeMap::new(),
+                connectors: Vec::new(),
             })?;
             let JsonValue::Object(output) = output else {
                 return Err("a load is an object".into());

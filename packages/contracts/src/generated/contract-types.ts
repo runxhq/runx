@@ -428,7 +428,7 @@ export type CatalogMethodContract = {
 /** What a skill or connector is, as the catalog lists it. */
 export type CatalogPackageKindContract = "skill" | "connector";
 
-/** What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it. */
+/** What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored that reach only the connectors the turn already reaches; one that reaches another waits on the person's trust. A registry package the project installed keeps its registry identity, so only `catalog` admits it. */
 export type CatalogRuleContract = {
   readonly catalog?: CatalogTrustContract;
   readonly project?: true;
@@ -4036,10 +4036,8 @@ export type TurnInvocationContract = {
 
 /** A completed load's output: what it bound, a skill's manual and runners, and the calls it adds to the turn. A skill's load binds the runner it names, or the skill's only runner; one that binds none is a reading of the skill, which binds no closure and so asks no trust. */
 export type TurnLoadContract = {
-  /** Each connector what it bound reaches, by name, at the manifest digest it binds: a later load that binds another revision is refused. */
-  readonly connectors?: {
-    readonly [key: string]: string;
-  };
+  /** Each connector what it bound reaches, at the exact manifest and implementation it binds: a later load that binds another revision of a name is refused, and the project's own reaching a connector the turn does not already reach at that implementation waits on trust. */
+  readonly connectors?: readonly ConnectorBindingContract[];
   /** A loaded skill's manual; none for a connector. */
   readonly manual?: SkillManualContract;
   readonly package: LoadedPackageContract;

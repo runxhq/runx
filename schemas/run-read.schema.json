@@ -1177,7 +1177,7 @@
                                 },
                                 {
                                   "additionalProperties": false,
-                                  "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
+                                  "description": "What a load admits: exactly one of `catalog`, the registry's packages at a trust tier or above, and `project: true`, the packages the project authored that reach only the connectors the turn already reaches; one that reaches another waits on the person's trust. A registry package the project installed keeps its registry identity, so only `catalog` admits it.",
                                   "properties": {
                                     "catalog": {
                                       "additionalProperties": false,

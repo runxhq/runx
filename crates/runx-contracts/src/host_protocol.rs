@@ -377,8 +377,9 @@ pub enum SkillAllowance {
 
 /// What a load admits: exactly one of `catalog`, the registry's packages at
 /// a trust tier or above, and `project: true`, the packages the project
-/// authored. A registry package the project installed keeps its registry
-/// identity, so only `catalog` admits it.
+/// authored that reach only the connectors the turn already reaches; one that
+/// reaches another waits on the person's trust. A registry package the
+/// project installed keeps its registry identity, so only `catalog` admits it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogRule {
@@ -470,10 +471,12 @@ pub struct TurnLoad {
     /// One per bound runner, or per operation of a loaded connector, as the
     /// turn offers it from then on.
     pub tools: Vec<TurnTool>,
-    /// Each connector what it bound reaches, by name, at the manifest digest
-    /// it binds: a later load that binds another revision is refused.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub connectors: BTreeMap<String, NonEmptyString>,
+    /// Each connector what it bound reaches, at the exact manifest and
+    /// implementation it binds: a later load that binds another revision of a
+    /// name is refused, and the project's own reaching a connector the turn
+    /// does not already reach at that implementation waits on trust.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub connectors: Vec<crate::connector::ConnectorBinding>,
 }
 
 /// A skill's manual: its `SKILL.md` exactly as its package holds it, the
