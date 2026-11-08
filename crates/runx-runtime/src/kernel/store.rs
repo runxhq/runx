@@ -8,9 +8,7 @@
 //! detected on read.
 //!
 //! Kernel streams (effects, approvals, resolutions, instances) are written
-//! only through crate-private APIs. Hosts persist their own records through
-//! [`HostRecords`], which confines them to a `host.<name>.` namespace: the
-//! kernel stores them faithfully and never interprets them.
+//! only through crate-private APIs.
 //!
 //! Values too large or too shared for an event live in content-addressed
 //! blobs. A blob is written in the same transaction as the event that names
@@ -189,8 +187,6 @@ pub enum KernelStoreError {
     BlobIntegrity { digest: String },
     #[error("kernel store batch must hold one to {MAX_BATCH} appends to distinct streams")]
     InvalidBatch,
-    #[error("kernel store host namespace {0:?} is invalid")]
-    InvalidNamespace(String),
     #[error("kernel store stream {kind}/{key} failed its integrity chain at version {version}")]
     Integrity {
         kind: String,
@@ -591,23 +587,6 @@ impl KernelStore {
         serde_json::from_slice(&self.blob(digest)?).map_err(KernelStoreError::encode)
     }
 
-    /// The records the host named `name` persists, confined to its own
-    /// namespace.
-    pub fn host(self: &Arc<Self>, name: &str) -> Result<HostRecords, KernelStoreError> {
-        let valid = !name.is_empty()
-            && name.len() <= 64
-            && name
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
-        if !valid {
-            return Err(KernelStoreError::InvalidNamespace(name.to_owned()));
-        }
-        Ok(HostRecords {
-            store: Arc::clone(self),
-            prefix: format!("host.{name}."),
-        })
-    }
-
     fn read_kind<E: StreamEvent>(
         &self,
         kind: &str,
@@ -828,111 +807,6 @@ fn latest_kind_on<E: StreamEvent>(
         committed_at,
         event,
     }))
-}
-
-/// A host's own records in the kernel store. The host defines and interprets
-/// them; the store keeps them with the same guarantees as kernel streams.
-#[derive(Clone)]
-pub struct HostRecords {
-    store: Arc<KernelStore>,
-    prefix: String,
-}
-
-/// A consistent read of several host streams. The read transaction is held
-/// across the projection, so an atomic writer cannot be observed half before
-/// and half after its commit.
-pub struct HostSnapshot<'a> {
-    connection: &'a Connection,
-    prefix: &'a str,
-    path: &'a Path,
-}
-
-impl HostSnapshot<'_> {
-    pub fn latest<E: StreamEvent>(
-        &self,
-        key: &str,
-    ) -> Result<Option<Recorded<E>>, KernelStoreError> {
-        latest_kind_on(
-            self.connection,
-            self.path,
-            &format!("{}{}", self.prefix, E::KIND),
-            key,
-        )
-    }
-}
-
-impl HostRecords {
-    pub fn snapshot<T>(
-        &self,
-        read: impl FnOnce(&HostSnapshot<'_>) -> T,
-    ) -> Result<T, KernelStoreError> {
-        let mut connection = self.store.lock();
-        let transaction = connection
-            .transaction_with_behavior(TransactionBehavior::Deferred)
-            .map_err(|source| self.store.database("starting a host snapshot", source))?;
-        let value = read(&HostSnapshot {
-            connection: &transaction,
-            prefix: &self.prefix,
-            path: &self.store.path,
-        });
-        transaction
-            .commit()
-            .map_err(|source| self.store.database("finishing a host snapshot", source))?;
-        Ok(value)
-    }
-    /// An append to one of this host's streams. `E::KIND` names the stream
-    /// kind within the host's namespace.
-    pub fn append_of<E: StreamEvent>(
-        &self,
-        key: impl Into<String>,
-        expected: Expected,
-        event: &E,
-    ) -> Result<Append, KernelStoreError> {
-        Append::new(
-            format!("{}{}", self.prefix, E::KIND),
-            key.into(),
-            expected,
-            event,
-        )
-    }
-
-    /// Commit appends built by [`HostRecords::append_of`] atomically.
-    pub fn commit(&self, batch: Vec<Append>) -> Result<Vec<u64>, KernelStoreError> {
-        if batch
-            .iter()
-            .any(|append| !append.kind.starts_with(&self.prefix))
-        {
-            return Err(KernelStoreError::InvalidBatch);
-        }
-        self.store.append(batch)
-    }
-
-    pub fn read<E: StreamEvent>(&self, key: &str) -> Result<Vec<Recorded<E>>, KernelStoreError> {
-        self.store
-            .read_kind(&format!("{}{}", self.prefix, E::KIND), key)
-    }
-
-    pub fn latest<E: StreamEvent>(
-        &self,
-        key: &str,
-    ) -> Result<Option<Recorded<E>>, KernelStoreError> {
-        self.store
-            .latest_kind(&format!("{}{}", self.prefix, E::KIND), key)
-    }
-
-    pub fn version<E: StreamEvent>(&self, key: &str) -> Result<u64, KernelStoreError> {
-        self.store
-            .version_of(&format!("{}{}", self.prefix, E::KIND), key)
-    }
-
-    pub fn heads<E: StreamEvent>(
-        &self,
-        after: Option<&str>,
-        limit: usize,
-    ) -> Result<Vec<Head>, KernelStoreError> {
-        self.store
-            .heads_of(&format!("{}{}", self.prefix, E::KIND), after, limit)
-    }
 }
 
 /// `sha256(previous || 0 || type || 0 || data)`, hex.

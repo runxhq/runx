@@ -22,20 +22,6 @@ impl StreamEvent for Ledger {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum Note {
-    Written { text: String },
-}
-
-impl StreamEvent for Note {
-    const KIND: &'static str = "note";
-
-    fn event_type(&self) -> &'static str {
-        "written"
-    }
-}
-
 fn store() -> (tempfile::TempDir, Arc<KernelStore>) {
     let root = tempfile::tempdir().expect("tempdir");
     let store = KernelStore::open(root.path()).expect("open");
@@ -167,87 +153,6 @@ fn an_event_type_must_match_its_typed_payload() {
         store.read::<Ledger>("a"),
         Err(KernelStoreError::Integrity { version: 1, .. })
     ));
-}
-
-#[test]
-fn hosts_are_confined_to_their_namespace() {
-    let (_root, store) = store();
-    let assistant = store.host("assistant").unwrap();
-    let append = assistant
-        .append_of(
-            "n1",
-            Expected::Absent,
-            &Note::Written {
-                text: "hi".to_owned(),
-            },
-        )
-        .unwrap();
-    assistant.commit(vec![append]).unwrap();
-    assert_eq!(assistant.version::<Note>("n1").unwrap(), 1);
-    // The kernel's own `note` kind is a different stream.
-    assert_eq!(store.version::<Note>("n1").unwrap(), 0);
-    let kernel_append = Append::kernel(
-        "n2",
-        Expected::Absent,
-        &Note::Written {
-            text: "kernel".to_owned(),
-        },
-    )
-    .unwrap();
-    assert!(matches!(
-        assistant.commit(vec![kernel_append]),
-        Err(KernelStoreError::InvalidBatch)
-    ));
-    assert!(store.host("Assistant").is_err());
-}
-
-#[test]
-fn host_snapshot_does_not_mix_atomic_commits() {
-    let (_root, store) = store();
-    let host = store.host("assistant").unwrap();
-    host.commit(vec![
-        host.append_of(
-            "control",
-            Expected::Absent,
-            &Note::Written {
-                text: "before".to_owned(),
-            },
-        )
-        .unwrap(),
-    ])
-    .unwrap();
-    let writer = Arc::new(KernelStore {
-        path: store.path.clone(),
-        connection: Mutex::new(Connection::open(store.path()).unwrap()),
-    });
-    let writer = writer.host("assistant").unwrap();
-    let observed = host
-        .snapshot(|snapshot| {
-            let first = snapshot.latest::<Note>("control").unwrap().unwrap();
-            writer
-                .commit(vec![
-                    writer
-                        .append_of(
-                            "control",
-                            Expected::Version(1),
-                            &Note::Written {
-                                text: "after".to_owned(),
-                            },
-                        )
-                        .unwrap(),
-                ])
-                .unwrap();
-            let second = snapshot.latest::<Note>("control").unwrap().unwrap();
-            (first.event, second.event)
-        })
-        .unwrap();
-    assert_eq!(observed.0, observed.1);
-    assert_eq!(
-        host.latest::<Note>("control").unwrap().unwrap().event,
-        Note::Written {
-            text: "after".to_owned()
-        }
-    );
 }
 
 #[test]
