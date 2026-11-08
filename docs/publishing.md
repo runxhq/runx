@@ -9,8 +9,10 @@ by others it has to be **published to a registry**.
   and the one every `runx registry` command and `runx skill <publisher>/<name>`
   uses unless you name another. Publishing here is an authenticated write under
   *your* publisher identity, so it requires a publish credential.
-- **A local registry.** A directory you name with `--registry <dir>` or
-  `RUNX_REGISTRY_DIR`, for self-hosting or offline work. No credentials.
+- **Another hosted registry.** A private or self-hosted registry is another
+  hosted service with its own signing key, named by its URL with
+  `--registry <url>` or `RUNX_REGISTRY_URL`. A registry is always a service:
+  a directory is not one, because what it holds verifies as nothing.
 
 ## Before you publish
 
@@ -75,7 +77,10 @@ For remote publishes the CLI sends a bounded skill package:
 
 - `SKILL.md` is the portable skill contract and is sent as the primary document.
 - `run.yaml`, when present, is the execution profile and is sent as the profile
-  document.
+  document. Its `version` is the version the publish records; a package that
+  states none is named by its content digest, `sha-` and its first 12 hex
+  digits. Versions are immutable, and the registry, not the publisher, grants
+  the trust tier.
 - Package files are the exact parser-admitted material for the package:
   - process entrypoints and their complete static local source closure;
   - deterministic modules reachable from execution profiles;
@@ -99,7 +104,7 @@ The command is read-only. Its `markdown`, `profile_document`, and
 tooling; hosted code must not rediscover those files with a parallel crawler.
 
 Nothing else is package material. Undeclared fixtures, build output,
-`node_modules`, assets, dotfiles, local registry state, repo metadata, and
+`node_modules`, assets, dotfiles, runx project state, repo metadata, and
 random helper files are not uploaded. A `src/` directory is not special: only
 files proven reachable from an admitted entrypoint are included. Secret-looking
 admitted file names such as `.env`,

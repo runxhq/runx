@@ -1,20 +1,15 @@
-import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
-import {
-  REGISTRY_SIGNED_MANIFEST_SCHEMA,
-  registryContentDigest,
-  registrySignedManifestPayload,
-  type UnsignedRegistryManifest,
-} from "@runxhq/contracts";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-/** The label each skill is published under in a test's local registry. */
-const VERSION = "1.0.0";
+import { startLoopbackRegistry } from "../../scripts/lib/loopback-registry.mjs";
+
+/** A hosted registry on loopback: its URL, the environment that reaches it, and a publisher's. */
+type LoopbackRegistry = Awaited<ReturnType<typeof startLoopbackRegistry>>;
 
 /** One bounded source packet, as the research skill's default runner takes it. */
 const SOURCE_PACKETS = JSON.stringify([{
@@ -26,29 +21,39 @@ const SOURCE_PACKETS = JSON.stringify([{
 }]);
 
 describe("registry skill native fetch", () => {
+  // One registry holds both packages for every case, published once from a
+  // project and home of the publisher's; each case installs into its own.
+  let registry: LoopbackRegistry;
+  let publisherDir: string;
+  let researchRef: string;
+  let githubRef: string;
+
+  beforeAll(async () => {
+    registry = await startLoopbackRegistry({ publisher: "acme" });
+    publisherDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-publisher-"));
+    const publisherEnv = testEnv(path.join(publisherDir, "project"), path.join(publisherDir, "home"), registry);
+    await mkdir(path.join(publisherDir, "project"), { recursive: true });
+    researchRef = publishRegistrySkill(registry, path.resolve("skills/research"), publisherEnv);
+    githubRef = publishRegistrySkill(registry, path.resolve("skills/github"), publisherEnv);
+  });
+
+  afterAll(async () => {
+    await registry.stop();
+    await rm(publisherDir, { recursive: true, force: true });
+  });
+
   it("acquires, caches, and reruns a registry skill through the native resolver", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
-    const env = testEnv(projectDir, globalHomeDir);
+    const env = testEnv(projectDir, globalHomeDir, registry);
 
     try {
       await mkdir(projectDir, { recursive: true });
-      const registryDir = path.join(tempDir, "registry");
-      publishLocalRegistrySkill({
-        registryDir,
-        subject: path.resolve("skills/research/SKILL.md"),
-        profile: path.resolve("skills/research/run.yaml"),
-        owner: "acme",
-        version: VERSION,
-        env,
-      });
-      const skillRef = `acme/research@${VERSION}`;
-
       const first = runNativeSkill(env, [
-        skillRef,
+        researchRef,
         "--registry",
-        registryDir,
+        registry.url,
         "--input",
         "objective=Decide whether the supplied evidence supports an integration.",
         "--input",
@@ -62,9 +67,9 @@ describe("registry skill native fetch", () => {
       expect((await stat(path.join(firstPath, "run.yaml"))).isFile()).toBe(true);
 
       const second = runNativeSkill(env, [
-        skillRef,
+        researchRef,
         "--registry",
-        registryDir,
+        registry.url,
         "--input",
         "objective=Decide whether the supplied evidence supports an integration.",
         "--input",
@@ -83,24 +88,14 @@ describe("registry skill native fetch", () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-digest-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
-    const env = testEnv(projectDir, globalHomeDir);
+    const env = testEnv(projectDir, globalHomeDir, registry);
 
     try {
       await mkdir(projectDir, { recursive: true });
-      const registryDir = path.join(tempDir, "registry");
-      publishLocalRegistrySkill({
-        registryDir,
-        subject: path.resolve("skills/research/SKILL.md"),
-        profile: path.resolve("skills/research/run.yaml"),
-        owner: "acme",
-        version: VERSION,
-        env,
-      });
-
       const result = runNativeSkill(env, [
-        `acme/research@${VERSION}`,
+        researchRef,
         "--registry",
-        registryDir,
+        registry.url,
         "--digest",
         `sha256:${"0".repeat(64)}`,
         "--input",
@@ -126,25 +121,15 @@ describe("registry skill native fetch", () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-stages-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
-    const env = testEnv(projectDir, globalHomeDir);
+    const env = testEnv(projectDir, globalHomeDir, registry);
 
     try {
       await mkdir(projectDir, { recursive: true });
-      const registryDir = path.join(tempDir, "registry");
-      publishLocalRegistrySkill({
-        registryDir,
-        subject: path.resolve("skills/research/SKILL.md"),
-        profile: path.resolve("skills/research/run.yaml"),
-        owner: "acme",
-        version: VERSION,
-        env,
-      });
-
       const result = runNativeSkill(env, [
         "inspect",
-        `acme/research@${VERSION}`,
+        researchRef,
         "--registry",
-        registryDir,
+        registry.url,
         "--json",
       ]);
       const output = parseJsonOutput(result, 0);
@@ -161,27 +146,17 @@ describe("registry skill native fetch", () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "runx-maintained-fetch-store-"));
     const projectDir = path.join(tempDir, "project");
     const globalHomeDir = path.join(tempDir, "home");
-    const env = testEnv(projectDir, globalHomeDir);
+    const env = testEnv(projectDir, globalHomeDir, registry);
 
     try {
       await mkdir(projectDir, { recursive: true });
-      const registryDir = path.join(tempDir, "registry");
-      publishLocalRegistrySkill({
-        registryDir,
-        subject: path.resolve("skills/github/SKILL.md"),
-        profile: path.resolve("skills/github/run.yaml"),
-        owner: "acme",
-        version: VERSION,
-        env,
-      });
-
       // The cursor runner plans locally and persists through the store's own
       // operations; it calls no GitHub operation.
       const result = runNativeSkill(env, [
-        `acme/github@${VERSION}`,
+        githubRef,
         "plan_and_append_cursor",
         "--registry",
-        registryDir,
+        registry.url,
         "--input",
         "data_source_uri=local://runx-github-sync/maintained-cache",
         "--input",
@@ -211,7 +186,7 @@ describe("registry skill native fetch", () => {
   });
 });
 
-function testEnv(projectDir: string, globalHomeDir: string): NodeJS.ProcessEnv {
+function testEnv(projectDir: string, globalHomeDir: string, registry: LoopbackRegistry): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     RUNX_CWD: projectDir,
@@ -223,13 +198,9 @@ function testEnv(projectDir: string, globalHomeDir: string): NodeJS.ProcessEnv {
   delete env.RUNX_RECEIPT_SIGN_KID;
   delete env.RUNX_RECEIPT_SIGN_ED25519_SEED_BASE64;
   delete env.RUNX_RECEIPT_SIGN_ISSUER_TYPE;
-  delete env.RUNX_REGISTRY_DIR;
   delete env.RUNX_REGISTRY_URL;
-  delete env.RUNX_REGISTRY_SOURCE_AUTHORITY;
-  delete env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID;
-  delete env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64;
-  delete env.RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER;
-  return env;
+  delete env.RUNX_PUBLIC_API_TOKEN;
+  return { ...env, ...registry.env };
 }
 
 function runNativeSkill(env: NodeJS.ProcessEnv, args: readonly string[]): {
@@ -297,120 +268,26 @@ function findAddedSkillPath(skillsDir: string, skillId: string): string {
   return matches[0];
 }
 
-function publishLocalRegistrySkill(input: {
-  readonly registryDir: string;
-  readonly subject: string;
-  readonly owner: string;
-  readonly version: string;
-  readonly env: NodeJS.ProcessEnv;
-  readonly profile?: string;
-  readonly trustTier?: "verified" | "community";
-}): void {
-  input.env.RUNX_REGISTRY_DIR = input.registryDir;
-  delete input.env.RUNX_REGISTRY_SOURCE_AUTHORITY;
-  const signingKey = testManifestSigningKey();
-  input.env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID = signingKey.keyId;
-  input.env.RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64 = signingKey.publicKeyBase64;
-  input.env.RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER = input.owner;
-  const args = [
-    "registry",
-    "publish",
-    input.subject,
-    "--registry",
-    input.registryDir,
-    "--publisher",
-    input.owner,
-    "--version",
-    input.version,
-    "--trust-tier",
-    input.trustTier ?? "community",
-    "--upsert",
-    "--json",
-  ];
-  if (input.profile) {
-    args.push("--profile", input.profile);
-  }
-  const result = spawnSync(input.env.RUNX_RUST_CLI_BIN ?? "runx", args, {
-    cwd: process.cwd(),
-    env: input.env,
-    encoding: "utf8",
-  });
+/**
+ * Publish the package at `skillDir` to `registry` as acme, as a publisher
+ * does: the registry signs it, at the version its run.yaml states. Returns
+ * its `acme/<name>@<version>`.
+ */
+function publishRegistrySkill(registry: LoopbackRegistry, skillDir: string, env: NodeJS.ProcessEnv): string {
+  const result = spawnSync(
+    env.RUNX_RUST_CLI_BIN ?? "runx",
+    ["registry", "publish", skillDir, "--registry", registry.url, "--publisher", "acme", "--json"],
+    { cwd: process.cwd(), env: { ...env, ...registry.publisherEnv }, encoding: "utf8" },
+  );
   if (result.status !== 0) {
-    throw new Error(`failed to publish local registry fixture: ${result.stderr || result.stdout}`);
+    throw new Error(`failed to publish ${skillDir}: ${result.stderr || result.stdout}`);
   }
-  signPublishedRegistryEntry(input.registryDir, signingKey);
-}
-
-interface TestManifestSigningKey {
-  readonly keyId: string;
-  readonly signerId: string;
-  readonly publicKeyBase64: string;
-  readonly privateKey: KeyObject;
-}
-
-let cachedManifestSigningKey: TestManifestSigningKey | undefined;
-
-function testManifestSigningKey(): TestManifestSigningKey {
-  if (cachedManifestSigningKey) {
-    return cachedManifestSigningKey;
+  const published = (JSON.parse(result.stdout) as { registry?: { publish?: { skill_id?: string; version?: string } } })
+    .registry?.publish;
+  if (!published?.skill_id || !published.version) {
+    throw new Error(`the publish of ${skillDir} named no version: ${result.stdout}`);
   }
-  const keyPair = generateKeyPairSync("ed25519");
-  const publicKeyDer = keyPair.publicKey.export({ format: "der", type: "spki" });
-  const publicKeyRaw = Buffer.from(publicKeyDer).subarray(-32);
-  cachedManifestSigningKey = {
-    keyId: "runx-test-registry-ed25519",
-    signerId: "runx-test-registry",
-    publicKeyBase64: publicKeyRaw.toString("base64"),
-    privateKey: keyPair.privateKey,
-  };
-  return cachedManifestSigningKey;
-}
-
-/** Signs a local registry record as the hosted registry would: the unified envelope over its content digest. */
-function signPublishedRegistryEntry(registryDir: string, signingKey: TestManifestSigningKey): void {
-  const entryPath = findSingleRegistryEntry(registryDir);
-  const entry = JSON.parse(readFileSync(entryPath, "utf8")) as {
-    skill_id: string;
-    version: string;
-    markdown: string;
-    profile_document?: string;
-    package_files?: readonly { readonly path: string; readonly content: string }[];
-    signed_manifest?: unknown;
-  };
-  const unsigned: UnsignedRegistryManifest = {
-    schema: REGISTRY_SIGNED_MANIFEST_SCHEMA,
-    subject: { kind: "skill", ref: entry.skill_id },
-    version: entry.version,
-    content_digest: registryContentDigest([
-      { path: "SKILL.md", content: entry.markdown },
-      ...(entry.profile_document === undefined ? [] : [{ path: "run.yaml", content: entry.profile_document }]),
-      ...(entry.package_files ?? []),
-    ]),
-    signer: { id: signingKey.signerId, key_id: signingKey.keyId },
-  };
-  const signature = sign(null, Buffer.from(registrySignedManifestPayload(unsigned), "utf8"), signingKey.privateKey);
-  entry.signed_manifest = { ...unsigned, signature: { alg: "ed25519", value: `base64:${signature.toString("base64url")}` } };
-  writeFileSync(entryPath, `${JSON.stringify(entry, null, 2)}\n`, "utf8");
-}
-
-function findSingleRegistryEntry(root: string): string {
-  const matches: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir)) {
-      const entryPath = path.join(dir, entry);
-      const stats = statSync(entryPath);
-      if (stats.isDirectory()) {
-        walk(entryPath);
-      } else if (entryPath.endsWith(".json")) {
-        matches.push(entryPath);
-      }
-    }
-  };
-  walk(root);
-  if (matches.length !== 1) {
-    throw new Error(`expected one registry fixture entry, found ${matches.length}`);
-  }
-  return matches[0];
+  return `${published.skill_id}@${published.version}`;
 }
 
 function nativeRunxBinaryForTest(): string {

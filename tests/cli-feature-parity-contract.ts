@@ -87,7 +87,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("harness", "runx-runtime harness via runx-cli", "fixture-backed", "Harness replay mode proves deterministic fixture execution and sealed receipt checks."),
   surface("history", "runx-cli + runx-runtime", "semantic", "Search/filter behavior is command-level parity with normalized output."),
   surface("processes", "runx-cli + runx-runtime process supervisor", "schema-exact", "Processes process.start runs under the runx binary as their supervisor are listed, read by cursor and stopped natively."),
-  surface("registry", "runx-cli + runx-runtime registry", "fixture-backed", "Local and hosted registry envelopes are exercised through native registry commands."),
+  surface("registry", "runx-cli + runx-runtime registry", "fixture-backed", "Hosted registry envelopes are exercised through native registry commands against a loopback registry."),
   surface("tool-catalog", "runx-runtime tool catalogs", "fixture-backed", "Catalog discovery and dispatch use the canonical native or manifest-owned path."),
   surface("mcp", "runx-runtime adapters/mcp", "stubbed", "Protocol behavior uses local servers and deterministic clients."),
   surface("adapter-process-tool", "runx-runtime process tool adapter", "fixture-backed", "Exact process invocation, environment, cwd, supervision, and execution-boundary evidence are parity-critical."),

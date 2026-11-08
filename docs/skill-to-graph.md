@@ -43,8 +43,8 @@ as it fetches a top-level ref, into the project's
 `skills/<publisher>/<name>/<version>/`, and repeats for the skills those name. The
 run resolves the step from there, so the runtime itself never reaches a
 registry. A ref with no version names the one version the project holds.
-`RUNX_REGISTRY_DIR` or `--registry <dir>` names a local registry instead of the
-hosted catalog.
+`--registry <url>` or `RUNX_REGISTRY_URL` names another hosted registry instead
+of the runx catalog.
 
 ## Skill Context For Agents
 

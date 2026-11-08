@@ -102,7 +102,7 @@ implied.
 | `runx-py` | A thin Python client over the `runx` CLI's JSON output. `RunxClient` runs the CLI with `--json` to search the registry, run a skill, and resume a paused run from a `runx.resume.v1` document, and returns what the CLI printed. |
 
 Cloud packages remain TypeScript. The Rust runtime consumes cloud through the
-cloud HTTP contracts. Local registry and policy configuration remains
+cloud HTTP contracts. Registry client and policy configuration remain
 Rust-owned when exercised by the native CLI. Cloud/product integrations, host
 adapters, and protocol helper SDKs can remain TypeScript as long as they stay
 on one of the contract surfaces above or the cloud-owned

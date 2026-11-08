@@ -131,11 +131,11 @@ function deterministicEnv(
     RUNX_HOME: path.join(caseTempRoot, "home"),
     RUNX_KNOWLEDGE_DIR: path.join(caseTempRoot, "knowledge"),
     RUNX_PROJECT_DIR: path.join(caseTempRoot, "project"),
-    RUNX_REGISTRY_DIR: path.join(caseTempRoot, "registry"),
-    RUNX_REGISTRY_URL: "",
     TZ: "UTC",
     ...overrides,
   };
+  // No case reads a registry; none inherits the caller's.
+  delete env.RUNX_REGISTRY_URL;
   return env;
 }
 

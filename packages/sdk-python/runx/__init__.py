@@ -108,7 +108,7 @@ class RunxClient:
         return parsed
 
     def search_skills(self, query: str, registry: str | None = None) -> list[SkillSearchResult]:
-        """Search the registry, or the registry at `registry` (a URL or a local registry directory)."""
+        """Search the registry, or the hosted registry at the URL `registry`."""
         args = ["registry", "search", query]
         if registry is not None:
             args.extend(["--registry", registry])

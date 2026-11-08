@@ -127,5 +127,5 @@ runx verify <receipt-id> --json
 - Publish a ready skill from a public repo at https://runx.ai/x/publish, or run
   `runx login --for publish` followed by
   `runx registry publish ./skills/<name>`.
-  See [Publishing](./publishing.md) for the hosted and local registries.
+  See [Publishing](./publishing.md) for the hosted registry and naming another.
 - See [API Surface](./api-surface.md) for public package exports.

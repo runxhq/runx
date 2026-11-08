@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -12,10 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  createRegistryTestSigningKey,
-  signSingleRegistryVersion,
-} from "./lib/registry-test-signing.mjs";
+import { startLoopbackRegistry } from "./lib/loopback-registry.mjs";
 
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
@@ -35,7 +33,7 @@ const dogfoodEnv = {
 const registryResolverOnly = process.argv.includes("--registry-resolver");
 
 if (registryResolverOnly) {
-  runRegistryResolverDogfood();
+  await runRegistryResolverDogfood();
   process.exit(0);
 }
 
@@ -96,7 +94,7 @@ for (const step of steps) {
   process.exit(result.status ?? 1);
 }
 
-function runRegistryResolverDogfood() {
+async function runRegistryResolverDogfood() {
   runStep({
     label: "build native runx and JavaScript worker",
     command: cargo,
@@ -115,15 +113,21 @@ function runRegistryResolverDogfood() {
 
   const root = mkdtempSync(path.join(os.tmpdir(), "runx-registry-dogfood-"));
   mkdirSync(path.join(root, "project"), { recursive: true });
+  // A hosted registry on loopback, which signs what it publishes.
+  const registry = await startLoopbackRegistry({ publisher: "acme" });
   try {
-    const registryDir = path.join(root, "registry");
     const skillDir = path.join(root, "echo");
     mkdirSync(skillDir, { recursive: true });
-    writeFileSync(skillDirPath(skillDir, "SKILL.md"), "---\nname: echo\n---\n# Echo\n", "utf8");
+    writeFileSync(
+      skillDirPath(skillDir, "SKILL.md"),
+      "---\nname: echo\ndescription: Echo fixture for the registry resolver dogfood.\n---\n# Echo\n",
+      "utf8",
+    );
     writeFileSync(
       skillDirPath(skillDir, "run.yaml"),
       [
         "skill: echo",
+        'version: "1.0.0"',
         "harness:",
         "  cases:",
         "    - name: registry-agent-boundary",
@@ -131,49 +135,40 @@ function runRegistryResolverDogfood() {
         "      expect: { status: needs_agent }",
         "runners:",
         "  default:",
-        "    type: agent",
         "    default: true",
-        "    agent: fixture",
-        "    task: echo",
-        "    outputs:",
-        "      result: object",
+        "    steps:",
+        "      - id: default",
+        "        agent: { role: fixture, task: echo }",
+        "        outputs:",
+        "          result: object",
         "",
       ].join("\n"),
       "utf8",
     );
 
-    const signingKey = createRegistryTestSigningKey({
-      keyId: "runx-dogfood-registry-ed25519",
-      signerId: "runx-dogfood-registry",
-    });
     const env = {
       ...dogfoodEnv,
       RUNX_HOME: path.join(root, "home"),
       // A fetched skill is added to the project's skills directory.
       RUNX_CWD: path.join(root, "project"),
-      RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID: signingKey.keyId,
-      RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64: signingKey.publicKeyBase64,
-      RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER: "acme",
+      ...registry.env,
     };
 
     runStep({
-      label: "publish signed local registry skill",
+      label: "publish a skill to the loopback registry",
       command: rustKernelBin,
       args: [
         "registry",
         "publish",
         skillDir,
         "--registry",
-        registryDir,
+        registry.url,
         "--publisher",
         "acme",
-        "--version",
-        "1.0.0",
         "--json",
       ],
-      env,
+      env: { ...env, ...registry.publisherEnv },
     });
-    signSingleRegistryVersion(registryDir, signingKey);
 
     const result = spawnSync(
       rustKernelBin,
@@ -181,7 +176,7 @@ function runRegistryResolverDogfood() {
         "skill",
         "acme/echo@1.0.0",
         "--registry",
-        registryDir,
+        registry.url,
         "--json",
       ],
       {
@@ -197,15 +192,19 @@ function runRegistryResolverDogfood() {
       throw new Error(`native registry skill dogfood exited ${result.status}, expected 2`);
     }
     const output = JSON.parse(result.stdout);
-    const skillDirectory = output.requests?.[0]?.invocation?.envelope?.execution_location?.skill_directory;
-    if (!skillDirectory || !String(skillDirectory).includes(`${path.sep}skills${path.sep}`)) {
-      throw new Error(`native registry resolver did not add the skill to the project's skills directory: ${skillDirectory}`);
+    // The pending agent request is handed back by reference, as an artifact.
+    const requestPath = output.requests?.[0]?.artifact?.path;
+    const request = requestPath ? JSON.parse(readFileSync(requestPath, "utf8")) : undefined;
+    const skillDirectory = request?.invocation?.envelope?.execution_location?.skill_directory;
+    if (!skillDirectory || !String(skillDirectory).includes(`${path.sep}added-skills${path.sep}`)) {
+      throw new Error(`native registry resolver did not add the skill to the project's added skills: ${skillDirectory}`);
     }
     if (!statSync(path.join(skillDirectory, "SKILL.md")).isFile()) {
       throw new Error(`native registry resolver did not materialize ${skillDirectory}/SKILL.md`);
     }
     process.stdout.write(`[dogfood] native registry skill resolved to ${skillDirectory}\n`);
   } finally {
+    await registry.stop();
     rmSync(root, { recursive: true, force: true });
   }
 }

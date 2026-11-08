@@ -732,11 +732,11 @@ connector names itself: its manifest `id` is its whole name.
 Connectors are published only to a hosted registry: the runx catalog unless
 `--registry <url>` or `RUNX_REGISTRY_URL` names another.
 
-- `runx registry publish <connector-dir> [--version <label>]` sends that
-  package; the registry reads it natively, publishes it only when the
-  authenticated publisher owns the name's namespace, and the CLI checks the recorded ref and content digest
-  are the package's. A missing label is `sha-` and the first 12 hex digits of
-  the content digest.
+- `runx registry publish <connector-dir>` sends that package; the registry
+  reads it natively, publishes it only when the authenticated publisher owns
+  the name's namespace, and the CLI checks the recorded ref and content digest
+  are the package's. Its version is `sha-` and the first 12 hex digits of the
+  content digest.
 - `runx registry install <name>[@version] [--digest <content-digest>]`
   adds what is published under that name. For a connector, the version goes to
   the project's added connectors,
@@ -1005,14 +1005,14 @@ context_skills:
 The runtime injects each referenced `SKILL.md` as a generic
 `runx.skill.context` artifact in the agent invocation `current_context`. Local
 path refs resolve relative to the graph; `runx skill` fetches each registry ref
-the project does not hold before the run, into the project's skills, and the
-runtime reads it from there, never from a registry during execution. Explicit
-local/file registry sources are treated as user-owned
-local material: they are digest-checked, but they do not require hosted registry
-signatures. Context skills are bounded, digest-labeled, and presented to managed
+the project does not hold before the run, into the project's added skills, and
+the runtime reads it from there, never from a registry during execution. A
+registry skill is installed only as its registry signed it, and keeps the
+registry provenance its install recorded: its skill id, version, trust tier and
+digests. Context skills are bounded, digest-labeled, and presented to managed
 agents as untrusted advisory data.
 
-Graph steps can execute local-registry skills too:
+Graph steps can execute registry skills too:
 
 ```yaml
 steps:
@@ -1021,9 +1021,11 @@ steps:
     runner: build
 ```
 
-This uses the same explicit local-registry rule: set `RUNX_REGISTRY_DIR`, sync or
-publish the skill into that registry first. A registry child is added to the
-project's `skills/<publisher>/<name>/<version>/` like any other added skill.
+`runx skill` fetches each one the project does not hold before the run, from the
+runx catalog unless `--registry <url>` or `RUNX_REGISTRY_URL` names another
+hosted registry. A registry child is added to the project's
+`.runx/added-skills/<publisher>/<name>/<version>/` like any other added skill,
+and a package's harness reads the registry children its project holds.
 
 Any runnable skill package can also be exposed locally as an MCP tool with:
 

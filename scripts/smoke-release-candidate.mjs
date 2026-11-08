@@ -15,10 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  createRegistryTestSigningKey,
-  signSingleRegistryVersion,
-} from "./lib/registry-test-signing.mjs";
+import { startLoopbackRegistry } from "./lib/loopback-registry.mjs";
 
 const options = parseArgs(process.argv.slice(2));
 const runx = path.resolve(options.runxBin);
@@ -30,11 +27,7 @@ const worker = path.join(
 const root = mkdtempSync(path.join(os.tmpdir(), "runx-release-candidate-"));
 const home = path.join(root, "home");
 const receipts = path.join(root, "receipts");
-const registry = path.join(root, "registry");
-const signingKey = createRegistryTestSigningKey({
-  keyId: "runx-release-candidate-key",
-  signerId: "runx-release-candidate",
-});
+const registry = await startLoopbackRegistry({ publisher: "acme" });
 
 try {
   requireFile(runx, "--runx-bin");
@@ -80,6 +73,7 @@ try {
     },
   })}\n`);
 } finally {
+  await registry.stop();
   rmSync(root, { recursive: true, force: true });
 }
 
@@ -145,19 +139,18 @@ runners:
 });
 `,
   );
+  // Published to a hosted registry on loopback, which signs it; its version
+  // is its run.yaml's.
   run([
     "registry",
     "publish",
     child,
     "--registry",
-    registry,
+    registry.url,
     "--publisher",
     "acme",
-    "--version",
-    "1.0.0",
     "--json",
-  ]);
-  signSingleRegistryVersion(registry, signingKey);
+  ], { env: registry.publisherEnv });
 
   const parent = path.join(root, "registry-parent");
   writeSkill(
@@ -177,7 +170,7 @@ runners:
     "skill",
     parent,
     "--registry",
-    registry,
+    registry.url,
     "--receipt-dir",
     receipts,
     "--json",
@@ -577,10 +570,10 @@ function runJson(args, expectedStatuses = [0]) {
   return parseJson(result.stdout, args.join(" "));
 }
 
-function run(args, { expectedStatuses = [0] } = {}) {
+function run(args, { expectedStatuses = [0], env = {} } = {}) {
   const result = spawnSync(runx, args, {
     cwd: root,
-    env: isolatedEnvironment(),
+    env: { ...isolatedEnvironment(), ...env },
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
     timeout: 60_000,
@@ -601,10 +594,7 @@ function isolatedEnvironment() {
     ),
     INIT_CWD: root,
     RUNX_HOME: home,
-    RUNX_REGISTRY_DIR: registry,
-    RUNX_REGISTRY_MANIFEST_TRUST_KEY_ID: signingKey.keyId,
-    RUNX_REGISTRY_MANIFEST_TRUST_KEY_BASE64: signingKey.publicKeyBase64,
-    RUNX_REGISTRY_MANIFEST_TRUST_PUBLISHER: "acme",
+    ...registry.env,
   };
 }
 
