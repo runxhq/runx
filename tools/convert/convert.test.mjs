@@ -318,6 +318,18 @@ test("a tool manifest a package or connector owns says source.inputs_via, and ke
   assert.match(out, new RegExp(`converted ${connector}: connector, already in the 0\\.12 shape, 1 files changed`));
 });
 
+test("a fixture package declares the inputs its tests pass and its steps read, each optional", (t) => {
+  const dir = tree(t, {
+    "SKILL.md": manual("demo"),
+    "run.yaml": "skill: demo\nversion: \"0.1.0\"\nrunners:\n  run:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: { value: fixed }\n",
+    "fixtures/support/session.graph": "name: demo-session\nsteps:\n  - id: draft\n    skill: ../..\n    runner: run\n    inputs: { account: $input.account_id }\n",
+    "fixtures/drafts.yaml": "name: drafts\nkind: graph\ntarget: support/session.graph\ninputs:\n  action: { kind: comment }\nexpect:\n  status: sealed\n",
+  });
+  const { status, out } = convert("--write", dir);
+  assert.equal(status, 0, out);
+  assert.match(read(dir, "fixtures/session/run.yaml"), /^methods:\n  run:\n    inputs:\n      action: \{optional: true\}\n      account_id: \{optional: true\}\n    steps:\n/m);
+});
+
 const invoiceCase = (env, path) => `name: reads-invoice
 runner: pay
 env:

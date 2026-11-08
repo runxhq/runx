@@ -776,7 +776,27 @@ function convertGraph(file, into, skillName, notes) {
     if (isSeq(args)) for (const arg of args.items) relocate(arg, where);
   }
   const skill = `---\nname: ${graphName}\ndescription: A test fixture that composes ${skillName} with the packages it calls.\n---\n\nUsed only by ${skillName}'s tests.\n`;
-  return { runYaml: out.toString(styleOf(graphText)), skill, graphName, emits: scope.emits };
+  // A graph took whatever inputs its case passed and its steps read as
+  // `$input.<name>`, and a 0.12 method refuses an input it doesn't declare,
+  // so the fixture package's method declares each one, optional and of any
+  // type, once its tests are known.
+  const readInputs = new Set();
+  YAML.visit(steps, {
+    Scalar(_, scalar) {
+      if (typeof scalar.value !== "string") return;
+      for (const match of scalar.value.matchAll(/\$input\.([A-Za-z_][A-Za-z0-9_-]*)/g)) readInputs.add(match[1]);
+    },
+  });
+  const finish = (passed) => {
+    const names = [...new Set([...passed, ...readInputs])];
+    if (names.length) {
+      const inputs = new YAMLMap();
+      for (const name of names) inputs.items.push(new Pair(new Scalar(name), flow(out, { optional: true })));
+      method.items.unshift(new Pair(new Scalar("inputs"), inputs));
+    }
+    return out.toString(styleOf(graphText));
+  };
+  return { finish, skill, graphName, emits: scope.emits };
 }
 
 
@@ -996,8 +1016,12 @@ function convertPackage(dir) {
     const method = read(testCase, "method") ?? (methodNames.length === 1 ? methodNames[0] : defaults[0]);
     return methodEmits.get(method);
   };
+  // The inputs each fixture package's tests pass it.
+  const fixtureInputs = new Map();
   const addTest = (testDoc, where, base) => {
     const caseName = convertCase(testDoc, testDoc.contents, where, packageOf, evals, notes, dir, emitsOf);
+    const fixture = read(testDoc.contents, "package");
+    if (fixture !== undefined) fixtureInputs.set(fixture, [...(fixtureInputs.get(fixture) ?? []), ...(node(testDoc.contents, "inputs")?.items ?? []).map(keyOf)]);
     const file = path.join(dir, "tests", `${base ?? slug(caseName)}.yaml`);
     if (tests.has(file)) refuse(`two tests would both be ${path.relative(dir, file)}`);
     tests.set(file, testDoc);
@@ -1030,7 +1054,7 @@ function convertPackage(dir) {
   for (const [file, testDoc] of tests) files.set(file, testDoc.toString(testDoc.style));
   for (const [file, graph] of graphPackages) {
     files.set(file, null);
-    files.set(path.join(graph.into, "run.yaml"), graph.runYaml);
+    files.set(path.join(graph.into, "run.yaml"), graph.finish(fixtureInputs.get(`fixtures/${path.basename(graph.into)}`) ?? []));
     files.set(path.join(graph.into, "SKILL.md"), graph.skill);
   }
   writeEvals(name, evals, files, dir, notes);
