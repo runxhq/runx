@@ -74,6 +74,65 @@ pub fn read_install_record(
     Ok(None)
 }
 
+/// Where an installed package came from: the registry identity and tier the
+/// project recorded when a registry added it, and the digests of the files
+/// the install verified against the registry's signed envelope.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct InstalledOrigin {
+    pub(crate) skill_id: String,
+    pub(crate) version: String,
+    pub(crate) trust_tier: TrustTier,
+    /// The manual's digest.
+    pub(crate) digest: String,
+    /// The registry's digest of the package files beside the manual and the
+    /// profile, when it has any.
+    pub(crate) bundle_digest: Option<String>,
+}
+
+/// The registry origin of the installed skill `package`, rebuilt from its
+/// install record; none when no registry added it.
+///
+/// # Errors
+///
+/// Returns an error when a record exists and cannot be read, or names no
+/// `<skill>@<version>`.
+pub(crate) fn installed_origin(
+    paths: &RunxPaths,
+    package: &crate::LoadedSkillPackage,
+) -> Result<Option<InstalledOrigin>, String> {
+    let Some(record) = read_install_record(paths, &package.package_root)? else {
+        return Ok(None);
+    };
+    let (skill_id, version) = record.package.rsplit_once('@').ok_or_else(|| {
+        format!(
+            "the install record of {} names no version: {}",
+            package.package_root.display(),
+            record.package
+        )
+    })?;
+    let files = package
+        .package
+        .source
+        .files
+        .iter()
+        .filter(|(path, _)| {
+            path.as_str() != super::package_files::MANUAL_FILE
+                && path.as_str() != runx_parser::PROFILE_FILE
+        })
+        .map(|(path, content)| super::RegistryPackageFile {
+            path: path.clone(),
+            content: String::from_utf8_lossy(content).into_owned(),
+        })
+        .collect::<Vec<_>>();
+    Ok(Some(InstalledOrigin {
+        skill_id: skill_id.to_owned(),
+        version: version.to_owned(),
+        trust_tier: record.trust_tier,
+        digest: package.package.manual_digest.clone(),
+        bundle_digest: super::package_files::registry_bundle_digest(&files),
+    }))
+}
+
 /// Whether a person trusted the execution closure `closure_digest` in this
 /// project.
 pub(crate) fn trusted(paths: &RunxPaths, closure_digest: &str) -> Result<bool, String> {

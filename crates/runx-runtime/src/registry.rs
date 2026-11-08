@@ -31,7 +31,9 @@ pub use install::{
     InstallStatus, install_local_skill,
 };
 pub use install_record::{InstallRecord, read_install_record};
-pub(crate) use install_record::{TrustRecord, record_trust, trusted};
+pub(crate) use install_record::{
+    InstalledOrigin, TrustRecord, installed_origin, record_trust, trusted,
+};
 pub use local::{
     FileRegistryStore, IngestSkillOptions, LocalRegistryError, PublishSkillMarkdownOptions,
     PutVersionOptions, RegistryResolveOptions, RegistrySearchOptions, build_skill_id,

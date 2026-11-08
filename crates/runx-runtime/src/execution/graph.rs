@@ -55,7 +55,9 @@ pub(crate) struct LoadedStepSkillRegistryProvenance {
 
 struct ResolvedStepSkillDirectory {
     directory: PathBuf,
-    registry: Option<LoadedStepSkillRegistryProvenance>,
+    /// The registry ref the step names, when the package is the one a
+    /// registry added to the project for it.
+    registry_ref: Option<String>,
 }
 
 pub(crate) struct LoadedStepSkillPackage {
@@ -579,13 +581,40 @@ pub(crate) fn load_step_skill_package(
     options: StepSkillLoadOptions<'_>,
 ) -> Result<LoadedStepSkillPackage, RuntimeError> {
     let resolved = resolve_step_skill_directory(graph_dir, step, options)?;
-    Ok(LoadedStepSkillPackage {
-        package: match options.packages {
-            Some(admitted) => admitted.get(&resolved.directory)?,
-            None => Arc::new(crate::load_validated_skill_package(&resolved.directory)?),
-        },
-        registry: resolved.registry,
-    })
+    let package = match options.packages {
+        Some(admitted) => admitted.get(&resolved.directory)?,
+        None => Arc::new(crate::load_validated_skill_package(&resolved.directory)?),
+    };
+    let registry = match resolved.registry_ref {
+        Some(reference) => {
+            let paths = crate::RunxPaths::resolve(options.env, graph_dir);
+            crate::registry::installed_origin(&paths, &package)
+                .map_err(|reason| RuntimeError::InvalidRunStep {
+                    step_id: step.id.clone(),
+                    reason,
+                })?
+                .map(|origin| registry_provenance(reference, origin))
+        }
+        None => None,
+    };
+    Ok(LoadedStepSkillPackage { package, registry })
+}
+
+/// A registry child's provenance, as its install recorded it.
+fn registry_provenance(
+    reference: String,
+    origin: crate::registry::InstalledOrigin,
+) -> LoadedStepSkillRegistryProvenance {
+    LoadedStepSkillRegistryProvenance {
+        reference,
+        source: "runx-registry".to_owned(),
+        source_label: "runx registry".to_owned(),
+        skill_id: origin.skill_id,
+        version: origin.version,
+        digest: origin.digest,
+        bundle_digest: origin.bundle_digest,
+        trust_tier: origin.trust_tier.as_str().to_owned(),
+    }
 }
 
 pub(crate) fn select_step_runner<'a>(
@@ -651,13 +680,13 @@ fn resolve_step_skill_directory(
             if !in_bundle && let Some(directory) = own_registry_skill(skill, &paths, options.env)? {
                 return Ok(ResolvedStepSkillDirectory {
                     directory,
-                    registry: None,
+                    registry_ref: None,
                 });
             }
             if let Some(directory) = installed_registry_skill(skill, &paths)? {
                 return Ok(ResolvedStepSkillDirectory {
                     directory,
-                    registry: None,
+                    registry_ref: Some(skill.to_owned()),
                 });
             }
             return materialize_registry_step_skill(graph_dir, step, skill, options);
@@ -671,7 +700,7 @@ fn resolve_step_skill_directory(
         })? {
             return Ok(ResolvedStepSkillDirectory {
                 directory,
-                registry: None,
+                registry_ref: None,
             });
         }
         let directory = graph_dir.join(skill);
@@ -693,7 +722,7 @@ fn resolve_step_skill_directory(
             )? {
                 return Ok(ResolvedStepSkillDirectory {
                     directory,
-                    registry: None,
+                    registry_ref: None,
                 });
             }
             if let Some(installed) = crate::registry::materialize_bundled_skill(skill, &paths, None)
@@ -712,13 +741,13 @@ fn resolve_step_skill_directory(
                         })?;
                 return Ok(ResolvedStepSkillDirectory {
                     directory: directory.to_path_buf(),
-                    registry: None,
+                    registry_ref: None,
                 });
             }
         }
         return Ok(ResolvedStepSkillDirectory {
             directory,
-            registry: None,
+            registry_ref: None,
         });
     }
     Err(RuntimeError::StepMissingSkill {
@@ -794,16 +823,6 @@ fn materialize_registry_step_skill(
             resolution.skill_id
         ),
     })?;
-    let provenance = LoadedStepSkillRegistryProvenance {
-        reference: reference.to_owned(),
-        source: resolution.source.clone(),
-        source_label: resolution.source_label.clone(),
-        skill_id: resolution.skill_id.clone(),
-        version: resolution.version.clone(),
-        digest: prefixed_digest(&resolution.digest),
-        bundle_digest: resolution.bundle_digest.clone(),
-        trust_tier: registry_trust_tier_label(&resolution.trust_tier).to_owned(),
-    };
     // A registry child is added to the project's added skills, once per
     // version, like any other added skill.
     let destination_root = crate::RunxPaths::resolve(options.env, graph_dir).added_skills();
@@ -860,7 +879,7 @@ fn materialize_registry_step_skill(
         })?;
     Ok(ResolvedStepSkillDirectory {
         directory,
-        registry: Some(provenance),
+        registry_ref: Some(reference.to_owned()),
     })
 }
 
@@ -905,22 +924,6 @@ pub(crate) fn installed_registry_skill(
         return Ok(directory.join("SKILL.md").is_file().then_some(directory));
     }
     crate::resolve_local_skill_reference(paths, &directory, &[root])
-}
-
-fn prefixed_digest(digest: &str) -> String {
-    if digest.starts_with("sha256:") {
-        digest.to_owned()
-    } else {
-        format!("sha256:{digest}")
-    }
-}
-
-fn registry_trust_tier_label(value: &crate::registry::TrustTier) -> &'static str {
-    match value {
-        crate::registry::TrustTier::FirstParty => "first_party",
-        crate::registry::TrustTier::Verified => "verified",
-        crate::registry::TrustTier::Community => "community",
-    }
 }
 
 /// A step's values when it runs: each reference to an earlier step takes

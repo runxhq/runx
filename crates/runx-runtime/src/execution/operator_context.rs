@@ -1096,6 +1096,74 @@ runners:
         Ok(())
     }
 
+    /// A registry child the project holds keeps its registry provenance:
+    /// its identity and tier as the install recorded them, and the digests
+    /// of its installed files.
+    #[test]
+    fn operator_context_rebuilds_an_installed_registry_childs_provenance()
+    -> Result<(), Box<dyn Error>> {
+        let temp = tempdir()?;
+        let project = temp.path().join(".runx");
+        let child = project.join("added-skills/acme/registry-child/1.0.0");
+        write_skill(&child, "registry-child", "# Registry Child")?;
+        write_file(
+            &child.join("run.yaml"),
+            "skill: registry-child\nrunners:\n  agent:\n    default: true\n    steps:\n      - id: agent\n        agent: { role: reviewer, task: review }\n        outputs:\n          result: object\n",
+        )?;
+        write_file(
+            &child.join("references/rubric.md"),
+            "registry package rubric",
+        )?;
+        write_file(
+            &project.join("installs/added-skills/acme/registry-child/1.0.0.json"),
+            r#"{"package": "acme/registry-child@1.0.0", "trust_tier": "verified"}"#,
+        )?;
+        let entry = temp.path().join("entry");
+        write_skill(&entry, "entry", "# Entry")?;
+        write_entry_graph(&entry, "registry:acme/registry-child@1.0.0", "")?;
+        let env = BTreeMap::from([(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            temp.path().to_string_lossy().into_owned(),
+        )]);
+
+        let chain = load_skill_operator_context_chain(
+            &entry,
+            None,
+            SkillOperatorContextOptions::new(env, temp.path().to_path_buf()),
+        )?;
+        let child = chain.entry.steps[0]
+            .children
+            .first()
+            .ok_or("missing registry child")?;
+        let registry = child
+            .package
+            .registry
+            .as_ref()
+            .ok_or("missing registry provenance")?;
+        assert_eq!(registry.reference, "registry:acme/registry-child@1.0.0");
+        assert_eq!(registry.skill_id, "acme/registry-child");
+        assert_eq!(registry.version, "1.0.0");
+        assert_eq!(registry.trust_tier, "verified");
+        assert_eq!(registry.source, "runx-registry");
+        assert_eq!(
+            registry.digest,
+            runx_contracts::sha256_prefixed(
+                b"---\nname: registry-child\ndescription: registry-child fixture.\n---\n# Registry Child\n"
+            )
+        );
+        assert_eq!(
+            registry.bundle_digest.as_deref(),
+            Some(
+                runx_contracts::sha256_prefixed(
+                    br#"{"files":[{"content":"registry package rubric","path":"references/rubric.md"}]}"#
+                )
+                .as_str()
+            )
+        );
+        assert_eq!(child.package.source, "runx-registry");
+        Ok(())
+    }
+
     #[test]
     fn operator_context_includes_admitted_registry_child_provenance() -> Result<(), Box<dyn Error>>
     {

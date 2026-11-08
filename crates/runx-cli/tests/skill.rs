@@ -797,7 +797,17 @@ fn a_registry_context_skill_is_fetched_before_the_run() -> Result<(), Box<dyn st
         .iter()
         .find(|entry| entry["data"]["skill"] == "registry:acme/echo@1.0.0")
         .ok_or("the turn's context omits the registry skill")?;
-    assert_eq!(echo["data"]["source"], "installed", "{echo}");
+    // It keeps the registry provenance its install recorded.
+    assert_eq!(echo["data"]["source"], "runx-registry", "{echo}");
+    assert_eq!(echo["data"]["skill_id"], "acme/echo", "{echo}");
+    assert_eq!(echo["data"]["version"], "1.0.0", "{echo}");
+    assert_eq!(echo["data"]["trust_tier"], "community", "{echo}");
+    assert!(
+        echo["data"]["digest"]
+            .as_str()
+            .is_some_and(|digest| digest.starts_with("sha256:")),
+        "{echo}"
+    );
     assert!(
         crate::support::added_skills()
             .join("acme/echo/1.0.0/SKILL.md")

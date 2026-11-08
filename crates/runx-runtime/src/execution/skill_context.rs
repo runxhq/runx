@@ -91,7 +91,7 @@ fn load_context_skill(
                 step_id,
                 reference,
                 &directory,
-                "installed",
+                Some(&paths),
                 env,
                 created_at,
             );
@@ -103,7 +103,7 @@ fn load_context_skill(
         step_id,
         reference,
         &graph_dir.join(reference),
-        "local-path",
+        None,
         env,
         created_at,
     )
@@ -136,12 +136,13 @@ pub(crate) fn registry_holds_context_skill(
 }
 
 /// A context skill read from a package directory: a local path, or the
-/// installed version of a registry ref.
+/// installed version of a registry ref in the project at `installed`, which
+/// keeps the registry provenance its install recorded.
 fn load_context_skill_directory(
     step_id: &str,
     reference: &str,
     skill_dir: &Path,
-    source: &str,
+    installed: Option<&crate::paths::RunxPaths>,
     env: &BTreeMap<String, String>,
     created_at: &str,
 ) -> Result<ContextEntry, RuntimeError> {
@@ -154,9 +155,32 @@ fn load_context_skill_directory(
         )
     })?;
     validate_context_manifest(step_id, reference, package.manifest())?;
+    let origin = match installed {
+        Some(paths) => crate::registry::installed_origin(paths, &package).map_err(|reason| {
+            RuntimeError::InvalidRunStep {
+                step_id: step_id.to_owned(),
+                reason,
+            }
+        })?,
+        None => None,
+    };
     let mut data = JsonObject::new();
     insert_string(&mut data, "skill", reference);
-    insert_string(&mut data, "source", source);
+    match (&origin, installed) {
+        (Some(origin), _) => {
+            insert_string(&mut data, "source", "runx-registry");
+            insert_string(&mut data, "source_label", "runx registry");
+            insert_string(&mut data, "skill_id", &origin.skill_id);
+            insert_string(&mut data, "version", &origin.version);
+            insert_string(&mut data, "digest", &origin.digest);
+            insert_string(&mut data, "trust_tier", origin.trust_tier.as_str());
+            if let Some(bundle_digest) = &origin.bundle_digest {
+                insert_string(&mut data, "bundle_digest", bundle_digest);
+            }
+        }
+        (None, Some(_)) => insert_string(&mut data, "source", "installed"),
+        (None, None) => insert_string(&mut data, "source", "local-path"),
+    }
     insert_string(&mut data, "security_boundary", "untrusted-agent-context");
     insert_string(&mut data, "name", &package.package.skill.name);
     if let Some(description) = &package.package.skill.description {
