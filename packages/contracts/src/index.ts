@@ -1,13 +1,9 @@
-export const contractsPackage = "@runxhq/contracts";
-
 export {
   RUNX_SCOPE_GRANT_POLICY,
   missingGrantedScopes,
   scopeGrantAllows,
   type ScopeGrantPolicy,
 } from "./scope-policy.js";
-
-export { definePacket, type PacketDefinition } from "./packet-definition.js";
 
 export {
   TemplateError,
@@ -110,7 +106,6 @@ export {
   paidSkillActsOnProblem,
   paidSkillPriceAmount,
   paidSkillPricedArtifactRef,
-  paidSkillPricedInputs,
   paidSkillPriceProblem,
 } from "./paid-skill-price.js";
 export {
@@ -145,7 +140,6 @@ export {
   bindX402PaymentRequiredChallenge,
   x402PaymentRequiredFromChallenge,
   validateX402PaymentRetry,
-  selectedX402Requirement,
   encodeX402PaymentRequiredHeader,
   decodeX402PaymentRequiredHeader,
   encodeX402PaymentSignatureHeader,
@@ -161,12 +155,6 @@ export {
 
 export {
   RUNX_SCHEMA_BASE_URL,
-  RUNX_CONTRACT_IDS,
-  RUNX_LOGICAL_SCHEMAS,
-  contractSchemaMatches,
-  validateContractSchemaForDiagnostics,
-  Type,
-  Type as t,
   type JsonSchema,
   type Static,
 } from "./internal.js";
@@ -253,7 +241,6 @@ export {
   validateResolutionRequestContract,
   validateResolutionResponseContract,
   validateActResultEnvelopeContract,
-  PURCHASE_BALANCE_CHOICE,
 } from "./schemas/resolution.js";
 
 export { registryBindingSchema, validateRegistryBindingContract } from "./schemas/registry.js";
@@ -344,10 +331,6 @@ export {
 } from "./schemas/purchase.js";
 
 export {
-  X402_PROTOCOL_VERSION,
-  X402_UPSTREAM_PACKAGE,
-  X402_UPSTREAM_PACKAGE_VERSION,
-  X402_UPSTREAM_COMMIT,
   X402_SCHEMA_IDS,
   x402ResourceInfoV2Schema,
   x402PaymentRequirementsV2Schema,
@@ -372,7 +355,6 @@ export {
 
 export {
   operationalProposalSchema,
-  operationalProposalSchemaVersion,
   validateOperationalProposalContract,
 } from "./schemas/operational-proposal.js";
 
@@ -397,17 +379,6 @@ export { packetLockV1Schema, packetLockEntrySchema } from "./schemas/packet-lock
 export { actAssignmentV1Schema, validateActAssignmentContract } from "./schemas/act-assignment.js";
 
 export {
-  referenceTypes,
-  signalTypes,
-  signalTrustLevels,
-  runOutcomes,
-  decisionChoices,
-  actForms,
-  criterionStatuses,
-  criteria,
-  authorityResourceFamilies,
-  authorityVerbs,
-  proofKinds,
   referenceTypeSchema,
   signalTypeSchema,
   signalTrustLevelSchema,
@@ -535,10 +506,6 @@ export const runxContractSchemas = {
   purchaseRead: purchaseReadV1Schema,
   cancelPurchaseRequest: cancelPurchaseRequestV1Schema,
   cancelPurchaseResult: cancelPurchaseResultV1Schema,
-} as const;
-
-export const runxAuxiliarySchemas = {
-  registryBinding: runxSchemaArtifacts["registry-binding.schema.json"],
 } as const;
 
 export const runxGeneratedSchemaArtifacts = runxSchemaArtifacts;

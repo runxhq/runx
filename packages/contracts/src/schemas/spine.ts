@@ -46,19 +46,6 @@ function schemaAt<TStatic>(
   return generatedSchemaAt<TStatic>(schema, path, label);
 }
 
-function enumValues(schema: JsonSchema, label: string): readonly string[] {
-  const values = schema.enum;
-  if (schema.type !== "string" || !Array.isArray(values)) {
-    throw new Error(`generated enum fragment is not a string enum: ${label}`);
-  }
-  return values.map((value, index) => {
-    if (typeof value !== "string") {
-      throw new Error(`generated enum fragment has a non-string value: ${label}[${index}]`);
-    }
-    return value;
-  });
-}
-
 export const referenceSchema = generatedSchema<ReferenceContract>("reference.schema.json");
 export const referenceLinkSchema = generatedSchema<ReferenceLinkContract>("reference-link.schema.json");
 export const signalSchema = generatedSchema<SignalContract>("signal.schema.json");
@@ -198,36 +185,6 @@ export const receiptSignatureSchema = schemaAt<ReceiptSignatureContract>(
   ["properties", "signature"],
   "receipt.signature",
 );
-
-export const referenceTypes = enumValues(referenceTypeSchema, "reference.type");
-/**
- * Canonical signal type identifiers. The wire schema accepts any non-empty
- * string so adapters can publish their own identifier without a schema edit;
- * this list mirrors the Rust `signal_type` canonical module.
- */
-export const signalTypes = [
-  "issue_opened",
-  "issue_comment",
-  "pull_request_event",
-  "review_event",
-  "chat_message",
-  "alert",
-  "deployment_event",
-  "effect_required",
-  "schedule_tick",
-  "operator_note",
-  "system_event",
-  "support_ticket",
-] as const;
-export const signalTrustLevels = enumValues(signalTrustLevelSchema, "signal.authenticity.trust_level");
-export const runOutcomes = enumValues(runOutcomeSchema, "receipt.seal.outcome");
-export const decisionChoices = enumValues(decisionChoiceSchema, "decision.choice");
-export const actForms = enumValues(actFormSchema, "receipt.acts[].form");
-export const criterionStatuses = enumValues(criterionStatusSchema, "receipt.acts[].criterion_bindings[].status");
-export const criteria = enumValues(criterionSchema, "receipt.acts[].criterion_bindings[].criterion_id");
-export const authorityResourceFamilies = enumValues(authorityResourceFamilySchema, "authority.terms[].resource_family");
-export const authorityVerbs = enumValues(authorityVerbSchema, "authority.terms[].verbs[]");
-export const proofKinds = enumValues(proofKindSchema, "reference.proof_kind");
 
 export function validateReferenceContract(value: unknown, label = "reference"): ReferenceContract {
   return validateContractSchema(referenceSchema, value, label) as ReferenceContract;

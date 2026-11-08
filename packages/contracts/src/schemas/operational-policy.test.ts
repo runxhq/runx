@@ -1,12 +1,8 @@
 import { readFileSync } from "node:fs";
 
-import { contractSchemaMatches } from "../internal.js";
 import { describe, expect, it } from "vitest";
 
-import {
-  operationalPolicySchema,
-  validateOperationalPolicyContract,
-} from "./operational-policy.js";
+import { validateOperationalPolicyContract } from "./operational-policy.js";
 import type { OperationalPolicyContract } from "../generated/contract-types.js";
 
 const fixtureRoot = new URL("../../../../fixtures/operational-policy/", import.meta.url);
@@ -111,7 +107,6 @@ const validPolicy: OperationalPolicyContract = {
 
 describe("operational-policy schema", () => {
   it("accepts a valid multi-source, multi-target policy", () => {
-    expect(contractSchemaMatches(operationalPolicySchema, validPolicy)).toBe(true);
     expect(validateOperationalPolicyContract(validPolicy)).toMatchObject({
       policy_id: "provider-dev-flow",
       permissions: {
@@ -139,22 +134,21 @@ describe("operational-policy schema", () => {
   ])("rejects schema-invalid fixture %s", (fixtureName) => {
     const policy = readPolicyFixture(fixtureName);
 
-    expect(contractSchemaMatches(operationalPolicySchema, policy)).toBe(false);
     expect(() => validateOperationalPolicyContract(policy)).toThrow();
   });
 
   it("rejects policy that enables auto-merge", () => {
-    expect(contractSchemaMatches(operationalPolicySchema, {
+    expect(() => validateOperationalPolicyContract({
       ...validPolicy,
       permissions: {
         ...validPolicy.permissions,
         auto_merge: true,
       },
-    })).toBe(false);
+    })).toThrow();
   });
 
   it("rejects source routes that can fall back when the source thread is missing", () => {
-    expect(contractSchemaMatches(operationalPolicySchema, {
+    expect(() => validateOperationalPolicyContract({
       ...validPolicy,
       sources: [{
         ...validPolicy.sources[0],
@@ -163,24 +157,24 @@ describe("operational-policy schema", () => {
           missing_behavior: "post_to_root",
         },
       }],
-    })).toBe(false);
+    })).toThrow();
   });
 
   it("rejects target repos that are not owner/repo slugs", () => {
-    expect(contractSchemaMatches(operationalPolicySchema, {
+    expect(() => validateOperationalPolicyContract({
       ...validPolicy,
       targets: [{
         ...validPolicy.targets[0],
         repo: "example",
       }],
-    })).toBe(false);
+    })).toThrow();
   });
 
   it("rejects extra fields so secrets do not drift into policy", () => {
-    expect(contractSchemaMatches(operationalPolicySchema, {
+    expect(() => validateOperationalPolicyContract({
       ...validPolicy,
       github_token: "ghp_123",
-    })).toBe(false);
+    })).toThrow();
   });
 });
 

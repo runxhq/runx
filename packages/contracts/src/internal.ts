@@ -6,89 +6,6 @@ import {
 
 export const RUNX_SCHEMA_BASE_URL = "https://schemas.runx.ai" as const;
 
-export const RUNX_CONTRACT_IDS = {
-  output: `${RUNX_SCHEMA_BASE_URL}/runx/output/v1.json`,
-  agentContextEnvelope: `${RUNX_SCHEMA_BASE_URL}/runx/agent-context-envelope/v1.json`,
-  agentActInvocation: `${RUNX_SCHEMA_BASE_URL}/runx/agent-act-invocation/v1.json`,
-  question: `${RUNX_SCHEMA_BASE_URL}/runx/question/v1.json`,
-  approvalGate: `${RUNX_SCHEMA_BASE_URL}/runx/approval-gate/v1.json`,
-  resolutionRequest: `${RUNX_SCHEMA_BASE_URL}/runx/resolution-request/v1.json`,
-  resolutionResponse: `${RUNX_SCHEMA_BASE_URL}/runx/resolution-response/v1.json`,
-  actResult: `${RUNX_SCHEMA_BASE_URL}/runx/act-result/v1.json`,
-  turnCall: `${RUNX_SCHEMA_BASE_URL}/runx/turn-call/v1.json`,
-  turnStatus: `${RUNX_SCHEMA_BASE_URL}/runx/turn-status/v1.json`,
-  registryBinding: `${RUNX_SCHEMA_BASE_URL}/runx/registry-binding/v1.json`,
-  doctor: `${RUNX_SCHEMA_BASE_URL}/runx/doctor/v1.json`,
-  list: `${RUNX_SCHEMA_BASE_URL}/runx/list/v1.json`,
-  receipt: `${RUNX_SCHEMA_BASE_URL}/runx/receipt/v1.json`,
-  fixture: `${RUNX_SCHEMA_BASE_URL}/runx/fixture/v1.json`,
-  toolManifest: `${RUNX_SCHEMA_BASE_URL}/runx/tool/manifest/v1.json`,
-  packetLock: `${RUNX_SCHEMA_BASE_URL}/runx/packet/lock/v1.json`,
-  actAssignment: `${RUNX_SCHEMA_BASE_URL}/runx/act-assignment/v1.json`,
-  credentialDeliveryObservation: `${RUNX_SCHEMA_BASE_URL}/runx/credential-delivery/observation/v1.json`,
-  dataOperationResult: `${RUNX_SCHEMA_BASE_URL}/runx/data/operation-result/v1.json`,
-  reference: `${RUNX_SCHEMA_BASE_URL}/runx/reference/v1.json`,
-  authoritySubsetProof: `${RUNX_SCHEMA_BASE_URL}/runx/authority/subset-proof/v1.json`,
-  signal: `${RUNX_SCHEMA_BASE_URL}/runx/signal/v1.json`,
-  decision: `${RUNX_SCHEMA_BASE_URL}/runx/decision/v1.json`,
-  artifact: `${RUNX_SCHEMA_BASE_URL}/runx/artifact/v1.json`,
-  ledgerEntry: `${RUNX_SCHEMA_BASE_URL}/runx/ledger-entry/v1.json`,
-  operationalPolicy: `${RUNX_SCHEMA_BASE_URL}/runx/operational-policy/v1.json`,
-  operationalProposal: `${RUNX_SCHEMA_BASE_URL}/runx/operational-proposal/v1.json`,
-  externalJobContinuation: `${RUNX_SCHEMA_BASE_URL}/runx/external-job-continuation/v1.json`,
-  externalJobSchedule: `${RUNX_SCHEMA_BASE_URL}/runx/external-job-schedule/v1.json`,
-  externalJobScheduleIntent: `${RUNX_SCHEMA_BASE_URL}/runx/external-job-schedule-intent/v1.json`,
-  externalJobStageRequest: `${RUNX_SCHEMA_BASE_URL}/runx/external-job-stage/request/v1.json`,
-  externalJobStageResult: `${RUNX_SCHEMA_BASE_URL}/runx/external-job-stage/result/v1.json`,
-  paidSkillListing: `${RUNX_SCHEMA_BASE_URL}/runx/marketplace/paid-skill-listing/v1.json`,
-  purchase: `${RUNX_SCHEMA_BASE_URL}/runx/payment/purchase/v1.json`,
-  offerVersionBinding: `${RUNX_SCHEMA_BASE_URL}/runx/payment/offer-version-binding/v1.json`,
-  quotePurchaseRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/quote-purchase/request/v1.json`,
-  quotePurchaseResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/quote-purchase/result/v1.json`,
-  executePurchaseRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/execute-purchase/request/v1.json`,
-  executePurchaseResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/execute-purchase/result/v1.json`,
-  getPurchaseRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/get-purchase/request/v1.json`,
-  getPurchaseResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/get-purchase/result/v1.json`,
-  cancelPurchaseRequest: `${RUNX_SCHEMA_BASE_URL}/runx/payment/cancel-purchase/request/v1.json`,
-  cancelPurchaseResult: `${RUNX_SCHEMA_BASE_URL}/runx/payment/cancel-purchase/result/v1.json`,
-} as const;
-
-export const RUNX_LOGICAL_SCHEMAS = {
-  doctor: "runx.doctor.v1",
-  list: "runx.list.v1",
-  receipt: "runx.receipt.v1",
-  fixture: "runx.fixture.v1",
-  toolManifest: "runx.tool.manifest.v1",
-  packetLock: "runx.packet.lock.v1",
-  actAssignment: "runx.act_assignment.v1",
-  credentialDeliveryObservation: "runx.credential_delivery.observation.v1",
-  dataOperationResult: "runx.data.operation_result.v1",
-  reference: "runx.reference.v1",
-  authoritySubsetProof: "runx.authority_subset_proof.v1",
-  signal: "runx.signal.v1",
-  decision: "runx.decision.v1",
-  artifact: "runx.artifact.v1",
-  ledgerEntry: "runx.ledger.entry.v1",
-  operationalPolicy: "runx.operational_policy.v1",
-  operationalProposal: "runx.operational_proposal.v1",
-  externalJobContinuation: "runx.external_job_continuation.v1",
-  externalJobSchedule: "runx.external_job_schedule.v1",
-  externalJobScheduleIntent: "runx.external_job_schedule_intent.v1",
-  externalJobStageRequest: "runx.external_job_stage.request.v1",
-  externalJobStageResult: "runx.external_job_stage.result.v1",
-  paidSkillListing: "runx.marketplace.paid_skill_listing.v1",
-  purchase: "runx.payment.purchase.v1",
-  offerVersionBinding: "runx.payment.offer_version_binding.v1",
-  quotePurchaseRequest: "runx.payment.quote_purchase.request.v1",
-  quotePurchaseResult: "runx.payment.quote_purchase.result.v1",
-  executePurchaseRequest: "runx.payment.execute_purchase.request.v1",
-  executePurchaseResult: "runx.payment.execute_purchase.result.v1",
-  getPurchaseRequest: "runx.payment.get_purchase.request.v1",
-  getPurchaseResult: "runx.payment.get_purchase.result.v1",
-  cancelPurchaseRequest: "runx.payment.cancel_purchase.request.v1",
-  cancelPurchaseResult: "runx.payment.cancel_purchase.result.v1",
-} as const;
-
 export type UnknownRecord = Readonly<Record<string, unknown>>;
 export type DeepReadonly<T> =
   T extends (...args: never[]) => unknown ? T
@@ -96,8 +13,6 @@ export type DeepReadonly<T> =
       : T extends (infer TValue)[] ? readonly DeepReadonly<TValue>[]
         : T extends object ? { readonly [TKey in keyof T]: DeepReadonly<T[TKey]> }
           : T;
-
-const optionalSchema = Symbol("runx.optional_schema");
 
 export type JsonSchema<TStatic = unknown> = Record<string, unknown> & { readonly __runxStatic?: TStatic };
 export type Static<TSchemaValue> = TSchemaValue extends JsonSchema<infer TValue> ? TValue : unknown;
@@ -127,139 +42,6 @@ export function generatedSchemaAt<TStatic>(
   }
   return current as JsonSchema<TStatic>;
 }
-
-type AnySchema = JsonSchema<any>;
-type SchemaWithOptional<TStatic = unknown> = JsonSchema<TStatic> & { readonly [optionalSchema]: true };
-type OptionalKeys<TProperties extends Record<string, AnySchema>> = {
-  [TKey in keyof TProperties]: TProperties[TKey] extends { readonly [optionalSchema]: true } ? TKey : never;
-}[keyof TProperties];
-type RequiredKeys<TProperties extends Record<string, AnySchema>> = Exclude<keyof TProperties, OptionalKeys<TProperties>>;
-type ObjectStatic<TProperties extends Record<string, AnySchema>> = {
-  [TKey in RequiredKeys<TProperties>]: Static<TProperties[TKey]>;
-} & {
-  [TKey in OptionalKeys<TProperties>]?: Static<TProperties[TKey]>;
-};
-type UnionStatic<TSchemas extends readonly AnySchema[]> = Static<TSchemas[number]>;
-function schemaWith<TStatic>(options: Record<string, unknown>, base: JsonSchema): JsonSchema<TStatic> {
-  return (Object.keys(options).length > 0 ? { ...base, ...options } : base) as JsonSchema<TStatic>;
-}
-
-function cloneSchema<TStatic>(schema: JsonSchema<TStatic>): JsonSchema<TStatic> {
-  return { ...schema };
-}
-
-function jsonTypeForLiteral(value: unknown): string | undefined {
-  switch (typeof value) {
-    case "string":
-      return "string";
-    case "number":
-      return Number.isInteger(value) ? "integer" : "number";
-    case "boolean":
-      return "boolean";
-    default:
-      return value === null ? "null" : undefined;
-  }
-}
-
-export const Type = {
-  Array<TItems extends AnySchema>(items: TItems, options: Record<string, unknown> = {}): JsonSchema<Static<TItems>[]> {
-    return schemaWith<Static<TItems>[]>(options, { type: "array", items });
-  },
-
-  Boolean(options: Record<string, unknown> = {}): JsonSchema<boolean> {
-    return schemaWith<boolean>(options, { type: "boolean" });
-  },
-
-  Integer(options: Record<string, unknown> = {}): JsonSchema<number> {
-    return schemaWith<number>(options, { type: "integer" });
-  },
-
-  Literal<const TValue>(value: TValue, options: Record<string, unknown> = {}): JsonSchema<TValue> {
-    const literalType = jsonTypeForLiteral(value);
-    const schema = literalType ? { const: value, type: literalType } : { const: value };
-    return schemaWith<TValue>(options, schema);
-  },
-
-  Null(options: Record<string, unknown> = {}): JsonSchema<null> {
-    return schemaWith<null>(options, { type: "null" });
-  },
-
-  Number(options: Record<string, unknown> = {}): JsonSchema<number> {
-    return schemaWith<number>(options, { type: "number" });
-  },
-
-  Object<TProperties extends Record<string, AnySchema>>(
-    properties: TProperties,
-    options: Record<string, unknown> = {},
-  ): JsonSchema<ObjectStatic<TProperties>> {
-    const normalizedProperties: Record<string, JsonSchema> = {};
-    const required: string[] = [];
-    for (const [key, propertySchema] of Object.entries(properties)) {
-      normalizedProperties[key] = cloneSchema(propertySchema);
-      if (!(propertySchema as SchemaWithOptional)[optionalSchema]) {
-        required.push(key);
-      }
-    }
-
-    return schemaWith<ObjectStatic<TProperties>>(options, {
-      type: "object",
-      properties: normalizedProperties,
-      ...(required.length > 0 ? { required } : {}),
-    });
-  },
-
-  Optional<TSchema extends AnySchema>(schema: TSchema): SchemaWithOptional<Static<TSchema>> {
-    return { ...schema, [optionalSchema]: true } as SchemaWithOptional<Static<TSchema>>;
-  },
-
-  Record<TValues extends AnySchema>(
-    _keys: JsonSchema,
-    values: TValues,
-    options: Record<string, unknown> = {},
-  ): JsonSchema<Record<string, Static<TValues>>> {
-    return schemaWith<Record<string, Static<TValues>>>(options, {
-      type: "object",
-      additionalProperties: values,
-    });
-  },
-
-  Ref<TSchema extends AnySchema>(schema: TSchema, options: Record<string, unknown> = {}): JsonSchema<Static<TSchema>> {
-    const id = schema.$id;
-    if (typeof id !== "string" || id.length === 0) {
-      throw new Error("Referenced schema must have a non-empty $id.");
-    }
-    return schemaWith<Static<TSchema>>(options, { $ref: id });
-  },
-
-  String(options: Record<string, unknown> = {}): JsonSchema<string> {
-    return schemaWith<string>(options, { type: "string" });
-  },
-
-  Union<TSchemas extends readonly AnySchema[]>(
-    schemas: TSchemas,
-    options: Record<string, unknown> = {},
-  ): JsonSchema<UnionStatic<TSchemas>> {
-    return schemaWith<UnionStatic<TSchemas>>(options, { anyOf: [...schemas] });
-  },
-
-  Unknown(options: Record<string, unknown> = {}): JsonSchema<unknown> {
-    return schemaWith<unknown>(options, {});
-  },
-
-  KeyOf<const TSchema extends JsonSchema>(
-    schema: TSchema,
-    options: Record<string, unknown> = {},
-  ): JsonSchema<string> {
-    const properties = schema.properties;
-    if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
-      throw new Error("KeyOf requires an object schema with properties.");
-    }
-    return schemaWith(options, {
-      type: "string",
-      enum: Object.keys(properties),
-    });
-  },
-} as const;
 
 export function validateContractSchema<TSchemaValue extends JsonSchema>(
   schema: TSchemaValue,
@@ -297,26 +79,6 @@ export function validatePrecompiledContract<TSchemaValue extends JsonSchema>(
   const schemaRef = typeof canonicalSchema.$id === "string" ? canonicalSchema.$id : "contract schema";
   const errorPath = firstError ? formatAjvErrorPath(label, firstError) : label;
   throw new Error(`${errorPath} must match ${schemaRef}.`);
-}
-
-export function contractSchemaMatches(
-  schema: JsonSchema,
-  value: unknown,
-  references: readonly JsonSchema[] = [],
-): boolean {
-  return contractValidator(schemaWithGeneratedArtifact(schema), references)(value) === true;
-}
-
-export function validateContractSchemaForDiagnostics(
-  schema: JsonSchema,
-  value: unknown,
-  references: readonly JsonSchema[] = [],
-): readonly string[] {
-  const validate = contractValidator(schemaWithGeneratedArtifact(schema), references);
-  if (validate(value)) {
-    return [];
-  }
-  return (validate.errors ?? []).map((error) => error.instancePath || error.message || error.keyword);
 }
 
 const contractValidators = new WeakMap<

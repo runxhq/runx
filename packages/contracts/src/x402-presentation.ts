@@ -371,13 +371,6 @@ export function validateX402PaymentRetry(
   return { requirementIndex, info: declared.info };
 }
 
-export function selectedX402Requirement(
-  challenge: X402PaymentRequiredContract,
-  validated: ValidatedX402Retry,
-): X402PaymentRequirementsContract | undefined {
-  return challenge.accepts[validated.requirementIndex];
-}
-
 export function encodeX402PaymentRequiredHeader(value: X402PaymentRequiredContract): string {
   return encodeHeader(validateX402PaymentRequiredContract(value));
 }

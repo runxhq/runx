@@ -1,8 +1,7 @@
-import { contractSchemaMatches } from "../internal.js";
 import { describe, expect, it } from "vitest";
 
 import type { CredentialDeliveryObservationContract } from "../generated/contract-types.js";
-import { credentialDeliveryObservationV1Schema } from "./credential-delivery.js";
+import { validateCredentialDeliveryObservationContract } from "./credential-delivery.js";
 
 const credentialRef = { type: "credential", uri: "runx:credential:github-installation-1" } as const;
 
@@ -26,20 +25,20 @@ const observation: CredentialDeliveryObservationContract = {
 
 describe("credential-delivery schemas", () => {
   it("accepts a receipt-safe observation", () => {
-    expect(contractSchemaMatches(credentialDeliveryObservationV1Schema, observation)).toBe(true);
+    expect(validateCredentialDeliveryObservationContract(observation)).toEqual(observation);
   });
 
   it("rejects raw secret-like fields on an observation", () => {
-    expect(contractSchemaMatches(credentialDeliveryObservationV1Schema, {
+    expect(() => validateCredentialDeliveryObservationContract({
       ...observation,
       api_key: "sk-contract-test",
-    })).toBe(false);
+    })).toThrow();
   });
 
   it("rejects non-env delivery modes until a future contract explicitly adds them", () => {
-    expect(contractSchemaMatches(credentialDeliveryObservationV1Schema, {
+    expect(() => validateCredentialDeliveryObservationContract({
       ...observation,
       delivery_mode: "file",
-    })).toBe(false);
+    })).toThrow();
   });
 });

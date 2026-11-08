@@ -1,5 +1,4 @@
 import { generatedSchema, validateContractSchema } from "../internal.js";
-import { runxX402Metadata } from "../schema-artifacts.js";
 import type {
   RunxX402PurchaseExtensionInfoContract,
   X402PaymentPayloadContract,
@@ -23,11 +22,6 @@ export type RunxX402PurchaseExtensionContract = {
   readonly info: RunxX402PurchaseExtensionInfoContract;
   readonly schema: Readonly<Record<string, unknown>>;
 };
-
-export const X402_PROTOCOL_VERSION = runxX402Metadata.protocolVersion;
-export const X402_UPSTREAM_PACKAGE = runxX402Metadata.upstreamPackage;
-export const X402_UPSTREAM_PACKAGE_VERSION = runxX402Metadata.upstreamPackageVersion;
-export const X402_UPSTREAM_COMMIT = runxX402Metadata.upstreamCommit;
 
 export const X402_SCHEMA_IDS = {
   resourceInfo: "https://schemas.runx.ai/external/x402/v2/resource-info.schema.json",

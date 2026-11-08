@@ -3,8 +3,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
-  RUNX_CONTRACT_IDS,
-  RUNX_LOGICAL_SCHEMAS,
   cancelPurchaseRequestV1Schema,
   cancelPurchaseResultV1Schema,
   executePurchaseRequestV1Schema,
@@ -124,8 +122,6 @@ describe("purchase V1 contract facade", () => {
     for (const [schema, file, registryKey] of bindings) {
       expect(schema).toBe(runxGeneratedSchemaArtifacts[file]);
       expect(schema).toBe(runxContractSchemas[registryKey]);
-      expect(schema.$id).toBe(RUNX_CONTRACT_IDS[registryKey]);
-      expect(schema["x-runx-schema"]).toBe(RUNX_LOGICAL_SCHEMAS[registryKey]);
     }
   });
 

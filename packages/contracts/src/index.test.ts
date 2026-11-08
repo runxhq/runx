@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  RUNX_CONTRACT_IDS,
-  RUNX_LOGICAL_SCHEMAS,
   agentContextEnvelopeSchema,
   agentActInvocationSchema,
   approvalGateSchema,
@@ -26,10 +24,8 @@ import {
   quotePurchaseRequestV1Schema,
   cancelPurchaseResultV1Schema,
   runxContractSchemas,
-  runxAuxiliarySchemas,
   runxGeneratedSchemaArtifacts,
   toolManifestV1Schema,
-  contractSchemaMatches,
   validateActResultEnvelopeContract,
   validateAgentContextEnvelopeContract,
   validateOutputContract,
@@ -44,38 +40,21 @@ import {
   validateOperationalProposalContract,
   validateSignalContract,
   validateReferenceContract,
-  proofKinds,
   proofKindSchema,
 } from "./index.js";
 
 describe("@runxhq/contracts", () => {
-  it("exports stable runx logical schema identifiers", () => {
-    expect(RUNX_LOGICAL_SCHEMAS.doctor).toBe("runx.doctor.v1");
-    expect(RUNX_LOGICAL_SCHEMAS.receipt).toBe("runx.receipt.v1");
-    expect(RUNX_LOGICAL_SCHEMAS.operationalProposal).toBe("runx.operational_proposal.v1");
-    expect(RUNX_LOGICAL_SCHEMAS.dataOperationResult).toBe("runx.data.operation_result.v1");
-  });
-
   it("uses durable schema URI ids", () => {
-    expect(RUNX_CONTRACT_IDS.toolManifest).toBe("https://schemas.runx.ai/runx/tool/manifest/v1.json");
-    expect(runxContractSchemas.toolManifest.$id).toBe(RUNX_CONTRACT_IDS.toolManifest);
+    expect(runxContractSchemas.toolManifest.$id).toBe("https://schemas.runx.ai/runx/tool/manifest/v1.json");
     expect(toolManifestV1Schema).toBe(runxContractSchemas.toolManifest);
-    expect(RUNX_CONTRACT_IDS.dataOperationResult)
+    expect(runxContractSchemas.dataOperationResult.$id)
       .toBe("https://schemas.runx.ai/runx/data/operation-result/v1.json");
-    expect(runxContractSchemas.dataOperationResult.$id).toBe(RUNX_CONTRACT_IDS.dataOperationResult);
     expect((toolManifestV1Schema.properties as Record<string, unknown>).source).toBeDefined();
     expect((toolManifestV1Schema.required as readonly string[])).not.toContain("version");
   });
 
   it("publishes purchase V1 through the curated contract registry", () => {
-    expect(RUNX_LOGICAL_SCHEMAS.paidSkillListing)
-      .toBe("runx.marketplace.paid_skill_listing.v1");
-    expect(RUNX_CONTRACT_IDS.paidSkillListing)
-      .toBe("https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json");
     expect(paidSkillListingV1Schema).toBe(runxContractSchemas.paidSkillListing);
-    expect(RUNX_LOGICAL_SCHEMAS.purchase).toBe("runx.payment.purchase.v1");
-    expect(RUNX_CONTRACT_IDS.purchase)
-      .toBe("https://schemas.runx.ai/runx/payment/purchase/v1.json");
     expect(purchaseV1Schema).toBe(runxContractSchemas.purchase);
     expect(quotePurchaseRequestV1Schema).toBe(runxContractSchemas.quotePurchaseRequest);
     expect(cancelPurchaseResultV1Schema).toBe(runxContractSchemas.cancelPurchaseResult);
@@ -112,7 +91,7 @@ describe("@runxhq/contracts", () => {
 
   it("validates governed data operation result packets", () => {
     const committed = validateDataOperationResultContract({
-      schema: RUNX_LOGICAL_SCHEMAS.dataOperationResult,
+      schema: "runx.data.operation_result.v1",
       data_source_uri: "tenant://acme/board",
       provider: "store",
       operation: "events.append",
@@ -140,7 +119,7 @@ describe("@runxhq/contracts", () => {
     expect(committed.provider_evidence?.backend).toBe("postgres");
 
     const conflict = validateDataOperationResultContract({
-      schema: RUNX_LOGICAL_SCHEMAS.dataOperationResult,
+      schema: "runx.data.operation_result.v1",
       data_source_uri: "tenant://acme/board",
       provider: "store",
       operation: "events.append",
@@ -173,7 +152,6 @@ describe("@runxhq/contracts", () => {
   });
 
   it("accepts typed proof kinds on references", () => {
-    expect(proofKinds).toEqual(["effect_evidence", "effect_finality", "credential_resolution"]);
     expect(proofKindSchema).toEqual({
       title: "ProofKind",
       type: "string",
@@ -209,9 +187,9 @@ describe("@runxhq/contracts", () => {
   });
 
   it("owns executor control protocol schemas and runtime validation", () => {
-    expect(outputSchema.$id).toBe(RUNX_CONTRACT_IDS.output);
-    expect(agentContextEnvelopeSchema.$id).toBe(RUNX_CONTRACT_IDS.agentContextEnvelope);
-    expect(actResultEnvelopeSchema.$id).toBe(RUNX_CONTRACT_IDS.actResult);
+    expect(outputSchema.$id).toBe("https://schemas.runx.ai/runx/output/v1.json");
+    expect(agentContextEnvelopeSchema.$id).toBe("https://schemas.runx.ai/runx/agent-context-envelope/v1.json");
+    expect(actResultEnvelopeSchema.$id).toBe("https://schemas.runx.ai/runx/act-result/v1.json");
     expect(runxGeneratedSchemaArtifacts["output.schema.json"].$id).toBe(outputSchema.$id);
     expect(runxGeneratedSchemaArtifacts["agent-context-envelope.schema.json"].$id).toBe(agentContextEnvelopeSchema.$id);
     expect(runxGeneratedSchemaArtifacts["act-result.schema.json"].$id).toBe(actResultEnvelopeSchema.$id);
@@ -322,9 +300,8 @@ describe("@runxhq/contracts", () => {
   });
 
   it("owns generated auxiliary schemas", () => {
-    expect(registryBindingSchema.$id).toBe(RUNX_CONTRACT_IDS.registryBinding);
-    expect(runxAuxiliarySchemas.registryBinding).toBe(runxGeneratedSchemaArtifacts["registry-binding.schema.json"]);
-    expect(runxAuxiliarySchemas.registryBinding.$id).toBe(registryBindingSchema.$id);
+    expect(registryBindingSchema).toBe(runxGeneratedSchemaArtifacts["registry-binding.schema.json"]);
+    expect(registryBindingSchema.$id).toBe("https://schemas.runx.ai/runx/registry-binding/v1.json");
     expect(runxGeneratedSchemaArtifacts["doctor.schema.json"]).toBe(runxContractSchemas.doctor);
     expect(runxGeneratedSchemaArtifacts["act-assignment.schema.json"]).toBe(runxContractSchemas.actAssignment);
     expect(runxGeneratedSchemaArtifacts["receipt.schema.json"]).toBe(runxContractSchemas.receipt);
@@ -333,11 +310,9 @@ describe("@runxhq/contracts", () => {
   });
 
   it("owns operational policy for issue intake and source-thread routing", () => {
-    expect(RUNX_LOGICAL_SCHEMAS.operationalPolicy).toBe("runx.operational_policy.v1");
-    expect(RUNX_CONTRACT_IDS.operationalPolicy).toBe("https://schemas.runx.ai/runx/operational-policy/v1.json");
-    expect(runxContractSchemas.operationalPolicy.$id).toBe(RUNX_CONTRACT_IDS.operationalPolicy);
+    expect(runxContractSchemas.operationalPolicy.$id).toBe("https://schemas.runx.ai/runx/operational-policy/v1.json");
     const policy = {
-      schema: RUNX_LOGICAL_SCHEMAS.operationalPolicy,
+      schema: "runx.operational_policy.v1",
       schema_version: "runx.operational_policy.v1",
       policy_id: "example-dev-flow",
       sources: [{
@@ -397,13 +372,11 @@ describe("@runxhq/contracts", () => {
   });
 
   it("owns the generic operational proposal contract", () => {
-    expect(RUNX_CONTRACT_IDS.operationalProposal)
-      .toBe("https://schemas.runx.ai/runx/operational-proposal/v1.json");
     expect(runxContractSchemas.operationalProposal.$id)
-      .toBe(RUNX_CONTRACT_IDS.operationalProposal);
+      .toBe("https://schemas.runx.ai/runx/operational-proposal/v1.json");
 
     const proposal = validateOperationalProposalContract({
-      schema: RUNX_LOGICAL_SCHEMAS.operationalProposal,
+      schema: "runx.operational_proposal.v1",
       proposal_id: "proposal_123",
       proposal_kind: "escalation",
       source_event_id: "slack_event_123",
@@ -519,13 +492,13 @@ describe("@runxhq/contracts", () => {
       },
     });
 
-    expect(contractSchemaMatches(runxContractSchemas.operationalProposal, {
+    expect(() => validateOperationalProposalContract({
       ...proposal,
       authority: {
         ...proposal.authority,
         mutation_authority_granted: true,
       },
-    })).toBe(false);
+    })).toThrow();
   });
 
   it("validates a source signal and a governed call's receipt", () => {
@@ -717,8 +690,7 @@ describe("@runxhq/contracts", () => {
   });
 
   it("owns a generic act assignment envelope contract for host-neutral invocation", () => {
-    expect(RUNX_CONTRACT_IDS.actAssignment).toBe("https://schemas.runx.ai/runx/act-assignment/v1.json");
-    expect(runxContractSchemas.actAssignment.$id).toBe(RUNX_CONTRACT_IDS.actAssignment);
+    expect(runxContractSchemas.actAssignment.$id).toBe("https://schemas.runx.ai/runx/act-assignment/v1.json");
 
     expect(validateActAssignmentContract({
       schema: "runx.act_assignment.v1",
@@ -779,8 +751,6 @@ describe("@runxhq/contracts", () => {
       },
     };
 
-    expect(contractSchemaMatches(runxContractSchemas.actAssignment, rustAuthoritativeAssignment)).toBe(true);
-    expect(contractSchemaMatches(actAssignmentV1Schema, rustAuthoritativeAssignment)).toBe(true);
     expect(validateActAssignmentContract(rustAuthoritativeAssignment)).toMatchObject({
       host: {
         kind: "api",
@@ -790,7 +760,7 @@ describe("@runxhq/contracts", () => {
 
   it("validates machine report payloads from Rust-generated contract schemas", () => {
     expect(validateDoctorReportContract({
-      schema: RUNX_LOGICAL_SCHEMAS.doctor,
+      schema: "runx.doctor.v1",
       status: "success",
       summary: {
         errors: 0,
@@ -818,7 +788,7 @@ describe("@runxhq/contracts", () => {
     });
 
     expect(validateRunxListReportContract({
-      schema: RUNX_LOGICAL_SCHEMAS.list,
+      schema: "runx.list.v1",
       root: "/tmp/runx",
       requested_kind: "all",
       items: [{

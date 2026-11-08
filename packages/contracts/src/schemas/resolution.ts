@@ -9,9 +9,6 @@ export const resolutionRequestSchema = generatedSchema<ResolutionRequestContract
   "resolution-request.schema.json",
 );
 
-/** What an answer's `choice` names to pay from the account's runx balance. */
-export const PURCHASE_BALANCE_CHOICE = "runx:balance";
-
 export const resolutionResponseSchema = generatedSchema<ResolutionResponseContract>(
   "resolution-response.schema.json",
 );

@@ -1,6 +1,12 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const stringValue = {
+  type: "object",
+  properties: { value: { type: "string" } },
+  required: ["value"],
+};
+
 describe("contract validator cache", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -9,31 +15,30 @@ describe("contract validator cache", () => {
 
   it("compiles one immutable schema once across repeated validation", async () => {
     const compile = vi.spyOn(Ajv2020.prototype, "compile");
-    const { contractSchemaMatches, Type } = await import("./internal.js");
-    const schema = Type.Object({ value: Type.String() });
+    const { validateContractSchema } = await import("./internal.js");
+    const schema = { ...stringValue };
 
-    expect(contractSchemaMatches(schema, { value: "first" })).toBe(true);
-    expect(contractSchemaMatches(schema, { value: "second" })).toBe(true);
-    expect(contractSchemaMatches(schema, { value: 3 })).toBe(false);
+    expect(validateContractSchema(schema, { value: "first" }, "cache")).toEqual({ value: "first" });
+    expect(validateContractSchema(schema, { value: "second" }, "cache")).toEqual({ value: "second" });
+    expect(() => validateContractSchema(schema, { value: 3 }, "cache")).toThrow();
     expect(compile).toHaveBeenCalledTimes(1);
   });
 
   it("isolates validators compiled with different reference sets", async () => {
     const compile = vi.spyOn(Ajv2020.prototype, "compile");
-    const { contractSchemaMatches, Type } = await import("./internal.js");
-    const reference = Type.Object(
-      { value: Type.String() },
-      { $id: "https://schemas.runx.ai/test/cache-reference.json" },
-    );
-    const otherReference = Type.Object(
-      { value: Type.Number() },
-      { $id: "https://schemas.runx.ai/test/cache-other-reference.json" },
-    );
-    const schema = Type.Ref(reference);
+    const { validateContractSchema } = await import("./internal.js");
+    const reference = { ...stringValue, $id: "https://schemas.runx.ai/test/cache-reference.json" };
+    const otherReference = {
+      type: "object",
+      properties: { value: { type: "number" } },
+      required: ["value"],
+      $id: "https://schemas.runx.ai/test/cache-other-reference.json",
+    };
+    const schema = { $ref: reference.$id };
 
-    expect(contractSchemaMatches(schema, { value: "ok" }, [reference])).toBe(true);
-    expect(contractSchemaMatches(schema, { value: "again" }, [reference])).toBe(true);
-    expect(() => contractSchemaMatches(schema, { value: "no" }, [otherReference]))
+    expect(validateContractSchema(schema, { value: "ok" }, "cache", [reference])).toEqual({ value: "ok" });
+    expect(validateContractSchema(schema, { value: "again" }, "cache", [reference])).toEqual({ value: "again" });
+    expect(() => validateContractSchema(schema, { value: "no" }, "cache", [otherReference]))
       .toThrow();
     expect(compile).toHaveBeenCalledTimes(2);
   });

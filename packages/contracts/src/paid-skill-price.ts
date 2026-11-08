@@ -70,18 +70,6 @@ export function paidSkillPriceProblem(price: PaidSkillPriceContract): string | u
   }
 }
 
-/** The input names a price reads. */
-export function paidSkillPricedInputs(price: PaidSkillPriceContract): readonly string[] {
-  switch (price.model) {
-    case "fixed":
-      return [];
-    case "input_choice":
-      return price.selectors;
-    case "artifact_bytes":
-      return [price.artifact_input];
-  }
-}
-
 const STORED_ARTIFACT_REF = /^runx:artifact:sha256:[0-9a-f]{64}$/u;
 
 /**
