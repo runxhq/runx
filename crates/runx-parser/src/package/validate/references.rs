@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::test_fixture::{TestFixture, TestFixtureKind};
+use crate::test_fixture::TestFixture;
 use crate::{SkillMethodManifest, StepKind, ToolTarget, Workflow};
 
-use super::super::path::{normalize_context_ref, validate_package_path};
+use super::super::path::normalize_context_ref;
 use super::super::{SkillPackageError, SkillPackageSource};
 use super::contract::{text_file, validate_manual};
 
@@ -13,11 +13,11 @@ pub(super) fn collect_package_references(
     let mut references = PackageReferences::default();
     for (profile_path, manifest) in profiles {
         let profile_dir = profile_directory(profile_path);
-        for (name, runner) in &manifest.runners {
+        for (name, method) in &manifest.methods {
             collect_workflow_references(
-                &format!("{profile_path}.runners.{name}"),
+                &format!("{profile_path}.methods.{name}"),
                 profile_dir,
-                &runner.graph,
+                &method.graph,
                 &mut references,
             )?;
         }
@@ -39,10 +39,12 @@ pub(super) struct ContextReference {
     pub(super) reference: String,
 }
 
+/// The files a package's tests read: each test, the receipts its setup
+/// stages, and the fixture package it runs, which must be a package of its
+/// own under `fixtures/`.
 pub(super) fn collect_test_fixture_references(
     fixtures: &BTreeMap<String, TestFixture>,
     package: &SkillPackageSource,
-    references: &mut PackageReferences,
 ) -> Result<BTreeSet<String>, SkillPackageError> {
     let mut files = BTreeSet::new();
     for (fixture_path, fixture) in fixtures {
@@ -56,38 +58,21 @@ pub(super) fn collect_test_fixture_references(
             }
             files.insert(receipt_path.clone());
         }
-        if fixture.kind != TestFixtureKind::Graph {
-            continue;
-        }
-        let target = resolve_fixture_target(fixture_path, &fixture.target)?;
-        let contents = package.files.get(&target).ok_or_else(|| {
-            SkillPackageError::invalid(
+        if let Some(fixture_package) = &fixture.package
+            && !(package
+                .files
+                .contains_key(&format!("{fixture_package}/SKILL.md"))
+                && package
+                    .files
+                    .contains_key(&format!("{fixture_package}/run.yaml")))
+        {
+            return Err(SkillPackageError::invalid(
                 fixture_path,
                 format!(
-                    "graph target {:?} resolves to missing file {target}",
-                    fixture.target
+                    "package {fixture_package:?} is not a fixture package: it needs its own SKILL.md and run.yaml"
                 ),
-            )
-        })?;
-        let graph = crate::validate_workflow(
-            crate::parse_workflow_yaml(text_file(&target, contents)?).map_err(|source| {
-                SkillPackageError::Parse {
-                    path: target.clone(),
-                    source,
-                }
-            })?,
-        )
-        .map_err(|source| SkillPackageError::Validation {
-            path: target.clone(),
-            source,
-        })?;
-        collect_workflow_references(
-            &format!("{fixture_path}.target"),
-            package_directory(&target),
-            &graph,
-            references,
-        )?;
-        files.insert(target);
+            ));
+        }
     }
     Ok(files)
 }
@@ -203,53 +188,6 @@ pub(super) fn validate_context_skill_sources(
 
 fn profile_directory(path: &str) -> &str {
     crate::package::profile_directory(path).unwrap_or("")
-}
-
-fn package_directory(path: &str) -> &str {
-    path.rsplit_once('/').map_or("", |(directory, _)| directory)
-}
-
-fn resolve_fixture_target(
-    fixture_path: &str,
-    reference: &str,
-) -> Result<String, SkillPackageError> {
-    if reference.trim() != reference
-        || reference.is_empty()
-        || reference.starts_with('/')
-        || reference.contains('\\')
-    {
-        return Err(SkillPackageError::invalid(
-            fixture_path,
-            format!("graph target {reference:?} must be a relative POSIX path"),
-        ));
-    }
-    let mut segments = package_directory(fixture_path)
-        .split('/')
-        .filter(|segment| !segment.is_empty())
-        .collect::<Vec<_>>();
-    for segment in reference.split('/') {
-        match segment {
-            "." => {}
-            ".." => {
-                if segments.pop().is_none() {
-                    return Err(SkillPackageError::invalid(
-                        fixture_path,
-                        format!("graph target {reference:?} escapes the skill package"),
-                    ));
-                }
-            }
-            "" => {
-                return Err(SkillPackageError::invalid(
-                    fixture_path,
-                    format!("graph target {reference:?} contains an empty path segment"),
-                ));
-            }
-            value => segments.push(value),
-        }
-    }
-    let resolved = segments.join("/");
-    validate_package_path(&resolved)?;
-    Ok(resolved)
 }
 
 fn package_relative(directory: &str, path: &str) -> String {

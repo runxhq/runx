@@ -151,7 +151,6 @@ fn catalog_input(
             required: required.contains(name.as_str()),
             description,
             default,
-            artifact: None,
             packet: None,
             schema,
         },

@@ -153,7 +153,7 @@ pub(super) fn inspect_execution_closures(
 ) -> Result<BTreeMap<String, JsonValue>, SkillInspectionError> {
     let method_names = loaded
         .manifest()
-        .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
+        .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
     let mut inspector = ExecutionClosureInspector::new(loaded, env, unheld_registry_refs)?;
     method_names
@@ -208,7 +208,7 @@ pub(super) fn inspect_local_execution_closure(
 ) -> Result<LocalExecutionClosure, SkillInspectionError> {
     let method_names = loaded
         .manifest()
-        .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
+        .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
@@ -221,30 +221,20 @@ pub(super) fn inspect_local_execution_closure(
                 .into_local_execution_closure(),
         );
     }
-    let test_workflows = inspector
-        .root
-        .package
-        .test_fixtures
-        .iter()
-        .filter(|(_, fixture)| fixture.kind == runx_parser::test_fixture::TestFixtureKind::Graph)
-        .map(|(relative, fixture)| (relative.clone(), fixture.target.clone()))
-        .collect::<Vec<_>>();
-    for (fixture_path, target) in test_workflows {
+    for package in fixture_packages(&inspector.root) {
         merge_local_execution_closure(
             &mut closure,
             inspector
-                .inspect_test_workflow_accumulator(&fixture_path, &target)?
+                .inspect_fixture_package_accumulator(&package)?
                 .into_local_execution_closure(),
         );
     }
     Ok(closure)
 }
 
-/// What a harness case runs: one of its package's runners, or a graph file
-/// in its package.
+/// What a test runs: one of its package's methods.
 pub(crate) enum CaseClosureTarget<'a> {
     Runner(&'a str),
-    Graph(&'a Path),
 }
 
 /// Every connector a harness case's run binds, each as the package that
@@ -260,11 +250,18 @@ pub(super) fn case_closure_connectors(
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let closure = match target {
         CaseClosureTarget::Runner(runner) => inspector.inspect_root_method_accumulator(runner)?,
-        CaseClosureTarget::Graph(graph) => {
-            inspector.inspect_workflow_accumulator(graph, &graph.to_string_lossy())?
-        }
     };
     Ok(closure.connector_bindings.into_values().collect())
+}
+
+/// The fixture packages a package's tests run, each once.
+fn fixture_packages(loaded: &LoadedSkillPackage) -> BTreeSet<String> {
+    loaded
+        .package
+        .test_fixtures
+        .values()
+        .filter_map(|test| test.package.clone())
+        .collect()
 }
 
 /// A catalog rule as a closure names it.
@@ -323,23 +320,17 @@ fn closure_accumulators(
 ) -> Result<Vec<ClosureAccumulator>, SkillInspectionError> {
     let method_names = loaded
         .manifest()
-        .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
+        .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
-    let test_workflows = loaded
-        .package
-        .test_fixtures
-        .iter()
-        .filter(|(_, fixture)| fixture.kind == runx_parser::test_fixture::TestFixtureKind::Graph)
-        .map(|(relative, fixture)| (relative.clone(), fixture.target.clone()))
-        .collect::<Vec<_>>();
+    let packages = fixture_packages(&loaded);
     let mut inspector =
         ExecutionClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Report)?;
     let mut accumulators = Vec::new();
     for method_name in method_names {
         accumulators.push(inspector.inspect_root_method_accumulator(&method_name)?);
     }
-    for (fixture_path, target) in test_workflows {
-        accumulators.push(inspector.inspect_test_workflow_accumulator(&fixture_path, &target)?);
+    for package in packages {
+        accumulators.push(inspector.inspect_fixture_package_accumulator(&package)?);
     }
     Ok(accumulators)
 }
@@ -454,60 +445,37 @@ impl<'a> ExecutionClosureInspector<'a> {
         Ok(closure)
     }
 
-    fn inspect_test_workflow_accumulator(
+    /// The closure of a fixture package a test runs: every method of the
+    /// package at `package`, relative to the root package.
+    fn inspect_fixture_package_accumulator(
         &mut self,
-        fixture_path: &str,
-        target: &str,
+        package: &str,
     ) -> Result<ClosureAccumulator, SkillInspectionError> {
-        let fixture_path = self.package_root.join(fixture_path);
-        let fixture_directory =
-            fixture_path
-                .parent()
-                .ok_or_else(|| SkillInspectionError::ProfileEscape {
-                    reference: fixture_path.to_string_lossy().into_owned(),
-                })?;
-        self.inspect_workflow_accumulator(&fixture_directory.join(target), target)
-    }
-
-    /// The closure of the graph file at `graph`, which lies in the package;
-    /// `target` is how the case named it.
-    fn inspect_workflow_accumulator(
-        &mut self,
-        graph: &Path,
-        target: &str,
-    ) -> Result<ClosureAccumulator, SkillInspectionError> {
-        let target_path = canonical_directory(graph, "harness graph target")?;
-        let workflow_directory =
-            target_path
-                .parent()
-                .ok_or_else(|| SkillInspectionError::ProfileEscape {
-                    reference: target.to_owned(),
-                })?;
-        let profile_path = target_path
-            .strip_prefix(&self.package_root)
-            .map_err(|_| SkillInspectionError::ProfileEscape {
-                reference: target.to_owned(),
-            })?
-            .to_string_lossy()
-            .into_owned();
-        let graph = crate::execution::graph::load_workflow(&target_path)?;
+        let directory = canonical_directory(&self.package_root.join(package), "fixture package")?;
+        let loaded = Arc::new(crate::load_validated_skill_package(&directory)?);
         let mut closure = ClosureAccumulator::default();
         let mut visited = BTreeSet::new();
         let mut walk = ExecutionWalkState {
             closure: &mut closure,
             visited: &mut visited,
         };
-        self.walk_workflow(
-            self.root.clone(),
-            WorkflowWalkContext {
-                directory: workflow_directory,
-                profile_path: &profile_path,
-                edge_depth: EdgeDepth::Direct,
-                materialize_local: true,
-            },
-            &graph,
-            &mut walk,
-        )?;
+        let methods = loaded
+            .manifest()
+            .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+        for method_name in methods {
+            self.walk_method(
+                MethodWalkTarget {
+                    loaded: loaded.clone(),
+                    skill_directory: directory.clone(),
+                    profile_path: runx_parser::PROFILE_FILE.to_owned(),
+                    method_name,
+                    edge_depth: EdgeDepth::Direct,
+                    materialize_local: true,
+                },
+                &mut walk,
+            )?;
+        }
         Ok(closure)
     }
 
@@ -545,9 +513,9 @@ impl<'a> ExecutionClosureInspector<'a> {
             .into_iter()
             .flat_map(|manifest| &manifest.connectors)
         {
-            let references = if requirement.connector_from.is_some() {
+            let references = if requirement.choose.is_some() {
                 requirement
-                    .allowed_connectors
+                    .from
                     .iter()
                     .map(String::as_str)
                     .collect::<Vec<_>>()
@@ -578,7 +546,7 @@ impl<'a> ExecutionClosureInspector<'a> {
         }
         let runner = loaded
             .manifest()
-            .and_then(|manifest| manifest.runners.get(&method_name))
+            .and_then(|manifest| manifest.methods.get(&method_name))
             .ok_or_else(|| SkillInspectionError::SubSkillNamedMethodMissing {
                 path: loaded.directory.clone(),
                 runner: method_name.clone(),
@@ -643,19 +611,6 @@ impl<'a> ExecutionClosureInspector<'a> {
             &runner.graph,
             walk,
         )?;
-        for continuation in &runner.continuations {
-            self.walk_method(
-                MethodWalkTarget {
-                    loaded: loaded.clone(),
-                    skill_directory: skill_directory.clone(),
-                    profile_path: profile_path.clone(),
-                    method_name: continuation.clone(),
-                    edge_depth,
-                    materialize_local,
-                },
-                walk,
-            )?;
-        }
         Ok(())
     }
 
@@ -820,7 +775,7 @@ impl<'a> ExecutionClosureInspector<'a> {
             return Ok(None);
         };
         let reference = target.skill.as_str();
-        let requested_method = target.runner.as_deref().unwrap_or("default");
+        let requested_method = target.method.as_deref().unwrap_or("default");
         if reference.starts_with('$')
             || (runx_parser::registry_ref(reference).is_some() && self.env.is_none())
         {
@@ -856,7 +811,7 @@ impl<'a> ExecutionClosureInspector<'a> {
                     path: nested.directory.clone(),
                 })?;
         let nested_method =
-            crate::execution::graph::select_step_method(manifest, target.runner.as_deref())?
+            crate::execution::graph::select_step_method(manifest, target.method.as_deref())?
                 .name
                 .clone();
         let nested_profile = if runx_parser::registry_ref(reference).is_some() {
@@ -934,7 +889,7 @@ fn record_direct_external_skill_edge(
             skill,
             runner: step
                 .skill()
-                .and_then(|target| target.runner.as_deref())
+                .and_then(|target| target.method.as_deref())
                 .unwrap_or("default")
                 .to_owned(),
         });

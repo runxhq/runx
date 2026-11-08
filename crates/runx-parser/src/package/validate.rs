@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::analyze_package_catalog_semantics;
-use runx_contracts::sha256_prefixed;
+use runx_contracts::{JsonValue, sha256_prefixed};
 
 use super::path::validate_source_paths;
 use super::{SkillPackageError, SkillPackageSource, ValidatedSkillPackage};
@@ -13,14 +12,17 @@ mod references;
 mod support;
 mod tools;
 
-use contract::{required_text_file, validate_manual, validate_package_identity, validate_profiles};
+use contract::{
+    required_text_file, text_file, validate_agent_task_sections, validate_manual, validate_profiles,
+};
 use modules::validate_modules;
 use references::{
     collect_package_references, collect_test_fixture_references, validate_context_skill_sources,
 };
 use support::{
     validate_execution_files, validate_nested_package_consumed_files,
-    validate_operator_reference_files, validate_test_fixtures, validate_test_support_files,
+    validate_operator_reference_files, validate_test_fixtures, validate_test_methods,
+    validate_test_support_files,
 };
 use tools::validate_package_tools;
 
@@ -30,17 +32,12 @@ pub fn validate_skill_package(
     validate_source_paths(&source.files, source.symlinks.iter().cloned())?;
     let manual_markdown = required_text_file(&source, "SKILL.md")?.to_owned();
     let skill = validate_manual(&manual_markdown)?;
-    let profiles = validate_profiles(&source)?;
-    validate_package_identity(&skill, profiles.get(super::PROFILE_FILE))?;
+    let profiles = validate_profiles(&source, &skill)?;
+    validate_agent_task_sections(&skill, profiles.get(super::PROFILE_FILE))?;
     let test_fixtures = validate_test_fixtures(&source)?;
-    validate_catalog_semantics(
-        &skill.name,
-        profiles.get(super::PROFILE_FILE),
-        &test_fixtures,
-    )?;
-    let mut references = collect_package_references(&profiles)?;
-    let test_fixture_files =
-        collect_test_fixture_references(&test_fixtures, &source, &mut references)?;
+    validate_test_methods(&test_fixtures, profiles.get(super::PROFILE_FILE))?;
+    let references = collect_package_references(&profiles)?;
+    let test_fixture_files = collect_test_fixture_references(&test_fixtures, &source)?;
     let tools = validate_package_tools(&source)?;
     validate_context_skill_sources(&source, &references.context_refs)?;
     let mut execution_files = references.execution_files;
@@ -49,7 +46,7 @@ pub fn validate_skill_package(
         execution_files.extend(package_tool.source_files.iter().cloned());
     }
     validate_execution_files(&source, &execution_files)?;
-    let mut test_files = validate_test_support_files(&source, &profiles)?;
+    let mut test_files = validate_test_support_files(&source)?;
     test_files.extend(test_fixture_files);
     let mut context_skills = references
         .context_refs
@@ -67,6 +64,7 @@ pub fn validate_skill_package(
     consumed_files.extend(execution_files.iter().cloned());
     consumed_files.extend(test_files.iter().cloned());
     consumed_files.extend(validate_operator_reference_files(&source)?);
+    consumed_files.extend(validate_eval_files(&source, &skill.name)?);
     consumed_files.extend(validate_nested_package_consumed_files(&source)?);
     if let Some(mark) = source.files.get(crate::mark::MARK_FILE) {
         crate::mark::validate_mark_svg(mark).map_err(|reason| {
@@ -106,42 +104,37 @@ pub fn validate_skill_package(
     })
 }
 
-fn validate_catalog_semantics(
-    skill_name: &str,
-    manifest: Option<&crate::SkillMethodManifest>,
-    fixtures: &BTreeMap<String, crate::test_fixture::TestFixture>,
-) -> Result<(), SkillPackageError> {
-    let Some(manifest) = manifest else {
-        return Ok(());
-    };
-    if manifest
-        .catalog
-        .as_ref()
-        .is_none_or(|catalog| catalog.visibility != crate::CatalogVisibility::Public)
-    {
-        return Ok(());
+/// The Agent Skills evaluation files: `evals/evals.json`, naming this skill
+/// and holding its evals, and `eval_queries.json`. They evaluate a package;
+/// they are never a requirement of its format.
+fn validate_eval_files(
+    source: &SkillPackageSource,
+    skill: &str,
+) -> Result<BTreeSet<String>, SkillPackageError> {
+    let mut files = BTreeSet::new();
+    for path in ["evals/evals.json", "eval_queries.json"] {
+        let Some(contents) = source.files.get(path) else {
+            continue;
+        };
+        let value = serde_json::from_str::<JsonValue>(text_file(path, contents)?)
+            .map_err(|error| SkillPackageError::invalid(path, format!("is not JSON: {error}")))?;
+        if path == "evals/evals.json" {
+            let JsonValue::Object(evals) = &value else {
+                return Err(SkillPackageError::invalid(path, "is an object"));
+            };
+            if evals.get("skill_name").and_then(JsonValue::as_str) != Some(skill) {
+                return Err(SkillPackageError::invalid(
+                    path,
+                    format!("skill_name is the package's name, {skill}"),
+                ));
+            }
+            if !matches!(evals.get("evals"), Some(JsonValue::Array(_))) {
+                return Err(SkillPackageError::invalid(path, "evals is a list"));
+            }
+        }
+        files.insert(path.to_owned());
     }
-    let report = analyze_package_catalog_semantics(skill_name, manifest, fixtures);
-    if report.diagnostics.is_empty() {
-        return Ok(());
-    }
-    let corrections = report
-        .diagnostics
-        .iter()
-        .map(|diagnostic| {
-            format!(
-                "{} on runner {:?}: {}",
-                diagnostic.code.as_str(),
-                diagnostic.runner,
-                diagnostic.required_correction
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("; ");
-    Err(SkillPackageError::invalid(
-        "run.yaml.catalog",
-        format!("catalog semantic enforcement rejected the package: {corrections}"),
-    ))
+    Ok(files)
 }
 
 fn package_digest(files: &BTreeMap<String, Vec<u8>>) -> String {

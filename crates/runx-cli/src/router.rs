@@ -54,8 +54,8 @@ pub struct JsonErrorPlan {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TestPlan {
-    /// Replay targets: standalone fixture `.yaml` files, or a skill package
-    /// (directory / `SKILL.md`) whose declared inline `harness.cases` are run.
+    /// What to test: a package (its directory or `SKILL.md`), whose
+    /// `tests/*.yaml` run, or test files.
     pub fixture_paths: Vec<OsString>,
     /// Where receipts the cases seal are written (`--receipt-dir`).
     pub receipt_dir: Option<OsString>,
@@ -162,7 +162,7 @@ fn route_args_with_optional_workspace(
         return RouterAction::PrintCommandHelp(spec.name);
     }
 
-    if first_arg_is(&args, "harness") {
+    if first_arg_is(&args, "test") {
         return normalize_json_error(&args, native_test_plan(&args));
     }
 
@@ -356,8 +356,8 @@ fn first_arg_is(args: &[OsString], expected: &str) -> bool {
     args.first().is_some_and(|arg| arg == OsStr::new(expected))
 }
 
-// Function rationale: harness flag parsing stays local to the
-// router boundary so native dispatch does not grow a second parser surface.
+// Function rationale: test flag parsing stays local to the router boundary
+// so native dispatch does not grow a second parser surface.
 fn native_test_plan(args: &[OsString]) -> RouterAction {
     let mut fixture_paths = Vec::new();
     let mut receipt_dir = None;
@@ -365,7 +365,7 @@ fn native_test_plan(args: &[OsString]) -> RouterAction {
 
     while index < args.len() {
         let Some(token) = args.get(index).and_then(|arg| arg.to_str()) else {
-            return RouterAction::Error("harness arguments must be UTF-8".to_owned());
+            return RouterAction::Error("test arguments must be UTF-8".to_owned());
         };
 
         if !token.starts_with('-') {
@@ -397,26 +397,12 @@ fn native_test_plan(args: &[OsString]) -> RouterAction {
                     index += 2;
                 }
             },
-            "-R" => {
-                if inline_value.is_some() {
-                    return RouterAction::Error(
-                        "-R requires a separate directory value".to_owned(),
-                    );
-                }
-                let Some(value) = args.get(index + 1) else {
-                    return RouterAction::Error("-R requires a directory".to_owned());
-                };
-                receipt_dir = Some(value.clone());
-                index += 2;
-            }
-            _ => return RouterAction::Error(format!("unknown harness flag {flag}")),
+            _ => return RouterAction::Error(format!("unknown test flag {flag}")),
         }
     }
 
     if fixture_paths.is_empty() {
-        return RouterAction::Error(
-            "runx harness requires a fixture path or skill package".to_owned(),
-        );
+        return RouterAction::Error("runx test requires a package or a test file".to_owned());
     }
 
     RouterAction::RunTest(TestPlan {

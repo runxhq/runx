@@ -23,7 +23,7 @@ use runx_contracts::{
     ResolutionRequest,
 };
 use runx_core::state_machine::AuthorityAdmissionWitness;
-use runx_parser::{DuplicatePolicy, WorkflowStep};
+use runx_parser::WorkflowStep;
 
 use super::admission::{self, AdmissionDecision, AdmitError, Admitted, Context, Evaluation};
 use super::connectors::ConnectorScope;
@@ -277,30 +277,31 @@ impl ToolRunner for NoTools {
 
 /// Whether a mutation that may have reached its provider can be sent again:
 /// the provider enforces the call's key, the operation sets a state, or the
-/// step accepts duplicates. Custody refuses resending any other whose
+/// step lets recovery retry an unknown outcome. Custody refuses resending any other whose
 /// outcome is unknown.
 fn mutation_resends_safely(
     operation: &runx_contracts::connector::ConnectorOperation,
-    duplicates: Option<DuplicatePolicy>,
+    retry_unknown_outcomes: bool,
 ) -> bool {
     matches!(
         operation.guarantees.provider_idempotency,
         ProviderIdempotency::Enforced | ProviderIdempotency::Inherent
-    ) || duplicates == Some(DuplicatePolicy::Visible)
+    ) || retry_unknown_outcomes
 }
 
 /// Whether a call that may have reached its provider can be sent again.
 /// Read access and state idempotency do not establish charge idempotency.
 pub(crate) fn resends_safely(
     operation: &runx_contracts::connector::ConnectorOperation,
-    duplicates: Option<DuplicatePolicy>,
+    retry_unknown_outcomes: bool,
 ) -> bool {
     if operation.is_metered() {
         // A recovery joins the same reservation. Tolerating duplicate effects
         // cannot cover an additional provider charge from that reservation.
         return operation.guarantees.provider_idempotency == ProviderIdempotency::Enforced;
     }
-    operation.access() == OperationAccess::Read || mutation_resends_safely(operation, duplicates)
+    operation.access() == OperationAccess::Read
+        || mutation_resends_safely(operation, retry_unknown_outcomes)
 }
 
 /// An admitted operation step, carried from admission to sealing.
@@ -310,7 +311,7 @@ pub(crate) struct OperationAdmission {
     admitted: Admitted,
     call: OperationCall,
     shape: ResultShape,
-    duplicates: Option<DuplicatePolicy>,
+    retry_unknown_outcomes: bool,
     /// The resource the caller's act targets, classified at admission by the
     /// connectors the run can reach.
     target_ref: Option<Reference>,
@@ -407,9 +408,9 @@ impl OperationAdmission {
 
     /// Whether a request that may have reached the provider can be sent
     /// again: the provider enforces the key, the operation sets a state, or
-    /// the step accepts duplicates.
+    /// the step lets recovery retry an unknown outcome.
     fn resend_safe(&self) -> bool {
-        resends_safely(self.admitted.operation(), self.duplicates)
+        resends_safely(self.admitted.operation(), self.retry_unknown_outcomes)
     }
 
     /// The implementation that runs: any kind locally; only declared
@@ -516,7 +517,7 @@ impl RuntimeEffect for OperationEffect {
         let admitted = admission::admit(&Evaluation {
             step: target,
             call: &call,
-            duplicates: request.step.duplicates,
+            retry_unknown_outcomes: request.step.retry_unknown_outcomes,
             fixture_stand_in: self.fixture_stand_in,
             run_authority: request.run_authority,
             store: &store,
@@ -567,7 +568,7 @@ impl RuntimeEffect for OperationEffect {
             admitted,
             call,
             shape,
-            duplicates: request.step.duplicates,
+            retry_unknown_outcomes: request.step.retry_unknown_outcomes,
             target_ref,
             lanes,
             attempt: None,

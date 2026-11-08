@@ -8,7 +8,7 @@ use std::process::ExitCode;
 
 use runx_cli::router::{RouterAction, TestPlan, command_help_text, help_text};
 
-const TEST_STALE_RECEIPT_STORE_HINT: &str = "runx: hint: the receipt store contains entries that do not verify with the current issuer; retry with --receipt-dir .runx/test-receipts for an isolated project-local harness run.";
+const TEST_STALE_RECEIPT_STORE_HINT: &str = "runx: hint: the receipt store contains entries that do not verify with the current issuer; retry with --receipt-dir .runx/test-receipts for an isolated project-local test run.";
 
 fn main() -> ExitCode {
     let args: Vec<OsString> = env::args_os().skip(1).collect();
@@ -253,7 +253,7 @@ fn run_native_test(plan: TestPlan, workspace: &runx_runtime::WorkspaceEnv) -> Ex
     if contains_skill_package(&plan.fixture_paths) {
         let [target] = plan.fixture_paths.as_slice() else {
             let _ignored = write_stderr_line(
-                "runx harness accepts one skill package, or one or more fixture files, not a mix",
+                "runx test accepts one package, or one or more test files, not a mix",
             );
             return ExitCode::from(64);
         };
@@ -301,7 +301,7 @@ fn run_standalone_test(
             Err(error) => {
                 let error_message = error.to_string();
                 let _ignored = write_stderr_line(&format!(
-                    "runx: native harness replay failed for {}: {error_message}",
+                    "runx: test replay failed for {}: {error_message}",
                     request.fixture_path.display()
                 ));
                 return ExitCode::from(1);
@@ -327,16 +327,16 @@ fn write_test_receipts(mut outputs: Vec<runx_contracts::JsonValue>) -> ExitCode 
     }
 }
 
-// A skill package (directory or SKILL.md) runs its inline `harness.cases` and
-// conventional `fixtures/*.yaml`; standalone fixture paths replay as receipts.
+// A package (directory or SKILL.md) runs each of its `tests/*.yaml`; test file
+// paths replay as receipts.
 fn contains_skill_package(paths: &[OsString]) -> bool {
     paths.iter().any(|path| is_skill_package(Path::new(path)))
 }
 
-// A harness target is a skill package when it
+// A test target is a package when it
 // is a SKILL.md file, or a directory that actually holds a skill package
-// (a SKILL.md or run.yaml). A plain directory of fixture `.yaml` files is NOT a
-// skill package and falls through to standalone fixture replay.
+// (a SKILL.md or run.yaml). A plain directory of test `.yaml` files is NOT a
+// package and falls through to test file replay.
 fn is_skill_package(path: &Path) -> bool {
     if path.is_dir() {
         return path.join("SKILL.md").exists() || path.join(runx_parser::PROFILE_FILE).exists();
@@ -369,7 +369,7 @@ fn run_package_test(
         Err(error) => {
             let error_message = error.to_string();
             let _ignored = write_stderr_line(&format!(
-                "runx: package harness failed for {}: {error_message}",
+                "runx: package test failed for {}: {error_message}",
                 skill_path.display()
             ));
             return ExitCode::from(1);
@@ -384,7 +384,7 @@ fn run_package_test(
         Ok(json) => json,
         Err(error) => {
             let _ignored = write_stderr_line(&format!(
-                "runx: failed to serialize harness summary: {error}"
+                "runx: failed to serialize the test summary: {error}"
             ));
             return ExitCode::from(1);
         }

@@ -195,7 +195,7 @@ fn tool(cwd: Option<&str>, args: Vec<String>) -> ProcessTool {
         args,
         cwd: cwd.map(str::to_owned),
         timeout_seconds: Some(5),
-        input_mode: None,
+        inputs_via: None,
         environment: EnvironmentRequirements::default(),
     }
 }

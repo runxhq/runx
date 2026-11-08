@@ -160,7 +160,7 @@ pub struct AgentContextEnvelope {
     pub step_id: Option<NonEmptyString>,
     pub skill: NonEmptyString,
     /// The act its run's invoker stated: why the run exists, as the run's
-    /// steps read `$act`.
+    /// steps read `$run.act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<crate::CallAct>,
     /// Digest of the exact owning `SKILL.md` bytes carried in `instructions`.

@@ -184,8 +184,13 @@ fn prepare_loaded_package(
         files: package_files,
         connectors,
     } = bundle::collect_bundle_files(loaded, &local_closure, env, cwd)?;
-    let metadata =
-        project_registry_package_metadata(&loaded.package.skill, loaded.manifest(), connectors);
+    let metadata = project_registry_package_metadata(
+        &loaded.package.skill,
+        loaded.manifest(),
+        &loaded.package.test_fixtures,
+        connectors,
+    )
+    .map_err(RegistryPublishPackageError::invalid)?;
     let harness = harness::stage_publish_test(loaded, profile_document.as_deref(), &package_files)?;
     Ok(RegistryPublishPackage {
         version: loaded
@@ -996,8 +1001,8 @@ operations:
                 runx_contracts::OperationName::new("page.read").ok_or("invalid operation")?,
             ],
             manifest_digest: Some(snapshot.manifest_digest.clone()),
-            connector_from: None,
-            allowed_connectors: Vec::new(),
+            choose: None,
+            from: Vec::new(),
         };
         assert_eq!(
             scope.requirement("web", &requirement)?.connector_digest,

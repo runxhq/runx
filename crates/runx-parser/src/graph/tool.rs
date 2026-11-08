@@ -21,7 +21,7 @@ const WORKER_FIELDS: &[&str] = &[
     "requires",
     "export",
     "timeout_seconds",
-    "pages",
+    "paged_input",
     "environment",
 ];
 const PROCESS_FIELDS: &[&str] = &[
@@ -29,7 +29,7 @@ const PROCESS_FIELDS: &[&str] = &[
     "args",
     "cwd",
     "timeout_seconds",
-    "input_mode",
+    "inputs_via",
     "environment",
 ];
 
@@ -102,7 +102,10 @@ fn validate_worker(tool: &JsonObject, field: &str) -> Result<WorkerTool, Validat
         module: validate_module(tool.get("module"), &format!("{field}.module"))?,
         export: validate_export(tool.get("export"), &format!("{field}.export"))?,
         timeout_seconds,
-        pages: validate_pages(tool.get("pages"), &format!("{field}.pages"))?,
+        paged_input: validate_paged_input(
+            tool.get("paged_input"),
+            &format!("{field}.paged_input"),
+        )?,
         environment: validate_environment_requirements(tool.get("environment"))?,
     })
 }
@@ -124,7 +127,7 @@ fn validate_process(tool: &JsonObject, field: &str) -> Result<ProcessTool, Valid
             tool.get("timeout_seconds"),
             &format!("{field}.timeout_seconds"),
         )?,
-        input_mode: validate_input_mode(tool.get("input_mode"), &format!("{field}.input_mode"))?,
+        inputs_via: validate_inputs_via(tool.get("inputs_via"), &format!("{field}.inputs_via"))?,
         environment: validate_environment_requirements(tool.get("environment"))?,
     })
 }
@@ -183,7 +186,7 @@ fn validate_export(
     Ok(Some(name))
 }
 
-fn validate_input_mode(
+fn validate_inputs_via(
     value: Option<&JsonValue>,
     field: &str,
 ) -> Result<Option<InputMode>, ValidationError> {
@@ -200,7 +203,7 @@ fn validate_input_mode(
     }
 }
 
-fn validate_pages(
+fn validate_paged_input(
     value: Option<&JsonValue>,
     field: &str,
 ) -> Result<Option<ArtifactPageSource>, ValidationError> {
@@ -211,34 +214,32 @@ fn validate_pages(
         &pages,
         field,
         &[
-            "artifact_from",
+            "artifact",
             "framing",
             "media_type",
             "page_bytes",
-            "path_from",
-            "path_scope_from",
+            "path",
+            "path_scope",
         ],
     )?;
-    let source = match (pages.get("path_from"), pages.get("artifact_from")) {
-        (Some(path), None) => {
-            let path_from = page_input_name(
-                &required_string(Some(path), &format!("{field}.path_from"))?,
-                &format!("{field}.path_from"),
+    let source = match (pages.get("path"), pages.get("artifact")) {
+        (Some(named), None) => {
+            let path = page_input_name(
+                &required_string(Some(named), &format!("{field}.path"))?,
+                &format!("{field}.path"),
             )?;
-            let path_scope_from = optional_string(
-                pages.get("path_scope_from"),
-                &format!("{field}.path_scope_from"),
-            )?
-            .map(|name| page_input_name(&name, &format!("{field}.path_scope_from")))
-            .transpose()?;
-            if path_scope_from.as_deref() == Some(path_from.as_str()) {
+            let path_scope =
+                optional_string(pages.get("path_scope"), &format!("{field}.path_scope"))?
+                    .map(|name| page_input_name(&name, &format!("{field}.path_scope")))
+                    .transpose()?;
+            if path_scope.as_deref() == Some(path.as_str()) {
                 return Err(validation_error(format!(
-                    "{field}.path_from and path_scope_from must name different inputs."
+                    "{field}.path and path_scope must name different inputs."
                 )));
             }
             ArtifactPageInput::Path {
-                path_from,
-                path_scope_from,
+                path,
+                path_scope,
                 media_type: required_string(
                     pages.get("media_type"),
                     &format!("{field}.media_type"),
@@ -246,21 +247,21 @@ fn validate_pages(
             }
         }
         (None, Some(artifact)) => {
-            if pages.contains_key("path_scope_from") || pages.contains_key("media_type") {
+            if pages.contains_key("path_scope") || pages.contains_key("media_type") {
                 return Err(validation_error(format!(
-                    "{field}.artifact_from uses the admitted snapshot's media type and cannot select a file scope."
+                    "{field}.artifact uses the admitted snapshot's media type and cannot select a file scope."
                 )));
             }
             ArtifactPageInput::Artifact {
-                artifact_from: page_input_name(
-                    &required_string(Some(artifact), &format!("{field}.artifact_from"))?,
-                    &format!("{field}.artifact_from"),
+                artifact: page_input_name(
+                    &required_string(Some(artifact), &format!("{field}.artifact"))?,
+                    &format!("{field}.artifact"),
                 )?,
             }
         }
         _ => {
             return Err(validation_error(format!(
-                "{field} must select exactly one of path_from or artifact_from."
+                "{field} must select exactly one of path or artifact."
             )));
         }
     };

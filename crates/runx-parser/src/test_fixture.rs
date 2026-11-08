@@ -1,4 +1,4 @@
-//! Pure parsing and validation for conventional package harness fixtures.
+//! Pure parsing and validation for a package's tests: `tests/<name>.yaml`.
 
 use std::collections::BTreeMap;
 
@@ -10,47 +10,12 @@ use crate::{ParseError, parse_yaml_document};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TestFixtureKind {
-    Skill,
-    Graph,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum TestExpectedStatus {
     Sealed,
     Failure,
     NeedsAgent,
     PolicyDenied,
     Escalated,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum OperatorJourneyMode {
-    Standalone,
-    Composed,
-    Refusal,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct OperatorJourneyClaim {
-    pub mode: OperatorJourneyMode,
-    pub request: String,
-    pub expected_outcome: String,
-    /// For a complex graph harness, name the public runner the executable
-    /// journey invokes. Root skill fixtures derive this from `runner` instead.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exercises_method: Option<String>,
-    /// Nearby public skill identities a cold agent must distinguish from this
-    /// journey. Selection proof is meaningless without plausible alternatives.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub confusors: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub prior_evidence: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub must_not_repeat: Vec<String>,
 }
 
 /// One exact HTTP response available only while the native harness executes.
@@ -165,16 +130,15 @@ pub struct TestProviderResponsesFixture {
     /// fails closed, as it does for a run no purchase is bound to.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purchase_id: Option<String>,
-    /// What earlier purchases hold for the principal: Connect presents a hold
+    /// What Connect already holds for the principal: it presents a lease
     /// only to an operation on that resource, and refuses one the principal
     /// does not hold.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub holds: Vec<TestProviderLeaseFixture>,
+    pub leases: Vec<TestProviderLeaseFixture>,
 }
 
-/// One resource a purchase holds for the harness principal: the seller's
-/// connector, the purchase credential that holds it, and the resource's
-/// target.
+/// One lease Connect holds for the test's principal: the seller's connector,
+/// the `kind: lease` credential, and the leased resource's target.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TestProviderLeaseFixture {
@@ -183,7 +147,7 @@ pub struct TestProviderLeaseFixture {
     pub target: String,
 }
 
-/// An agent turn the caller works: the calls it makes in order, then the
+/// An agent turn the host works: the calls it makes in order, then the
 /// output it ends the turn with.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -206,21 +170,18 @@ pub struct TestTurnCall {
     pub expect: Option<TestJsonExpectation>,
 }
 
-/// What the caller stands in for during a harness run: the agent acts it
-/// answers or works, the approval gates it decides, and the world the run
-/// reaches. Fixture files, inline runner cases and dev fixtures share this
-/// one shape.
+/// What answers the run: the act it is invoked with, the agent turns it
+/// answers or works, and the approvals it decides.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct TestCaller {
-    /// The act the caller states for the run, which its steps read as
-    /// `$act`.
+pub struct TestHost {
+    /// The act the run is invoked with, which its steps read as `$run.act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<runx_contracts::CallAct>,
-    /// Agent act outputs, by request id.
+    /// Agent turn outputs, by request id.
     #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
     pub answers: JsonObject,
-    /// Agent turns the caller works call by call, by request id. An act is
+    /// Agent turns the host works call by call, by request id. A turn is
     /// answered or worked, not both.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub turns: BTreeMap<String, TestTurnCalls>,
@@ -228,35 +189,43 @@ pub struct TestCaller {
     /// operation step's id or an ask's gate at the root, `<child>#<id>` below.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub approvals: BTreeMap<String, bool>,
-    /// The exact HTTP exchanges the run may make; any other request is
-    /// refused, never sent.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub http_exchanges: Vec<TestHttpExchangeFixture>,
-    /// The MCP tool calls the run may make.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub mcp_calls: Vec<TestMcpCallFixture>,
-    /// Exact local connector process-tool results. Unmatched calls fail closed;
-    /// they never fall through to a real process when these fixtures are set.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub process_calls: Vec<TestProcessCallFixture>,
-    /// The hosted provider the run's operations reach.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub provider_responses: Option<TestProviderResponsesFixture>,
 }
 
+/// What the run reaches, exactly, with anything else refused, never sent.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TestProviders {
+    /// The exact HTTP exchanges the run may make.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub http: Vec<TestHttpExchangeFixture>,
+    /// The MCP tool calls the run may make.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mcp: Vec<TestMcpCallFixture>,
+    /// Exact local connector process-tool results. Unmatched calls fail
+    /// closed; they never fall through to a real process.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub processes: Vec<TestProcessCallFixture>,
+    /// The hosted provider the run's operations reach.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hosted: Option<TestProviderResponsesFixture>,
+}
+
+/// One test: the method it runs, in this package or a fixture package, what
+/// answers it, what it reaches, and what it expects.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestFixture {
     pub name: String,
-    pub kind: TestFixtureKind,
-    pub target: String,
-    pub runner: Option<String>,
+    /// The method it runs; the package's default when absent.
+    pub method: Option<String>,
+    /// A fixture package under `fixtures/` it runs instead of this one, by
+    /// its package-relative directory.
+    pub package: Option<String>,
     pub setup: TestSetup,
     pub inputs: JsonObject,
     pub env: BTreeMap<String, String>,
-    pub caller: TestCaller,
+    pub host: TestHost,
+    pub providers: TestProviders,
     pub expect: TestExpectation,
-    pub operator_journeys: Vec<OperatorJourneyClaim>,
-    pub metadata: JsonObject,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -321,10 +290,10 @@ pub struct ReceiptExpectation {
 #[serde(deny_unknown_fields)]
 struct RawTestFixture {
     name: String,
-    kind: TestFixtureKind,
     #[serde(default)]
-    target: Option<String>,
-    runner: Option<String>,
+    method: Option<String>,
+    #[serde(default)]
+    package: Option<String>,
     #[serde(default)]
     setup: TestSetup,
     #[serde(default)]
@@ -332,13 +301,10 @@ struct RawTestFixture {
     #[serde(default)]
     env: BTreeMap<String, String>,
     #[serde(default)]
-    caller: JsonObject,
+    host: TestHost,
     #[serde(default)]
+    providers: TestProviders,
     expect: RawTestExpectation,
-    #[serde(default)]
-    operator_journeys: Vec<OperatorJourneyClaim>,
-    #[serde(default)]
-    metadata: JsonObject,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -374,13 +340,13 @@ struct RawReceiptExpectation {
 
 #[derive(Debug, Error)]
 pub enum TestFixtureError {
-    #[error("failed to parse harness fixture YAML: {0}")]
+    #[error("failed to parse the test's YAML: {0}")]
     Parse(#[from] ParseError),
-    #[error("harness fixture {field} is required")]
+    #[error("the test's {field} is required")]
     Required { field: String },
-    #[error("harness fixture {field} must not be empty")]
+    #[error("the test's {field} must not be empty")]
     Empty { field: &'static str },
-    #[error("invalid harness fixture {field}: {message}")]
+    #[error("invalid test {field}: {message}")]
     Invalid { field: String, message: String },
     #[error("unknown receipt expectation field {field_path}")]
     UnknownReceiptField { field_path: String },
@@ -390,101 +356,91 @@ pub fn parse_test_fixture(contents: &str) -> Result<TestFixture, TestFixtureErro
     validate_fixture(parse_yaml_document::<RawTestFixture>(contents)?)
 }
 
-pub(crate) fn parse_operator_journey(
-    value: JsonObject,
-) -> Result<OperatorJourneyClaim, TestFixtureError> {
-    let value = serde_json::to_value(value).map_err(|error| TestFixtureError::Invalid {
-        field: "operator_journey".to_owned(),
-        message: error.to_string(),
-    })?;
-    let claim = serde_json::from_value(value).map_err(|error| TestFixtureError::Invalid {
-        field: "operator_journey".to_owned(),
-        message: error.to_string(),
-    })?;
-    validate_operator_journey(claim)
-}
-
-/// Validate an inline method-test expectation through the same contract as
-/// a conventional fixture. Inline `run.yaml` cases and standalone fixture files
-/// must not acquire parallel expectation vocabularies.
-pub fn parse_test_expectation(value: JsonObject) -> Result<TestExpectation, TestFixtureError> {
-    let value = serde_json::to_value(value).map_err(|error| TestFixtureError::Invalid {
-        field: "expect".to_owned(),
-        message: error.to_string(),
-    })?;
-    let expectation = serde_json::from_value::<RawTestExpectation>(value).map_err(|error| {
-        TestFixtureError::Invalid {
-            field: "expect".to_owned(),
-            message: error.to_string(),
-        }
-    })?;
-    validate_expectation(expectation)
-}
-
-/// Validate a caller through the same contract wherever it is written.
-pub fn parse_test_caller(value: JsonObject) -> Result<TestCaller, TestFixtureError> {
-    let caller = JsonValue::Object(value)
-        .deserialize_into::<TestCaller>()
-        .map_err(|error| TestFixtureError::Invalid {
-            field: "caller".to_owned(),
-            message: error.to_string(),
-        })?;
-    validate_caller(caller)
-}
-
-fn validate_caller(caller: TestCaller) -> Result<TestCaller, TestFixtureError> {
-    for (id, script) in &caller.turns {
-        if caller.answers.contains_key(id) {
+/// Validate what answers a run, wherever a test is written.
+pub fn validate_test_host(host: TestHost) -> Result<TestHost, TestFixtureError> {
+    for (id, script) in &host.turns {
+        if host.answers.contains_key(id) {
             return Err(TestFixtureError::Invalid {
-                field: format!("caller.turns.{id}"),
-                message: "an act is answered or worked, not both".to_owned(),
+                field: format!("host.turns.{id}"),
+                message: "a turn is answered or worked, not both".to_owned(),
             });
         }
         for (index, call) in script.calls.iter().enumerate() {
             if call.tool.trim().is_empty() {
                 return Err(TestFixtureError::Invalid {
-                    field: format!("caller.turns.{id}.calls[{index}].tool"),
+                    field: format!("host.turns.{id}.calls[{index}].tool"),
                     message: "must name a tool the turn offers".to_owned(),
                 });
             }
         }
     }
-    Ok(TestCaller {
-        http_exchanges: validate_http_exchanges(caller.http_exchanges, "caller.http_exchanges")?,
-        mcp_calls: validate_mcp_calls(caller.mcp_calls, "caller.mcp_calls")?,
-        process_calls: validate_process_calls(caller.process_calls)?,
-        provider_responses: caller
-            .provider_responses
-            .map(|fixture| validate_test_provider_responses(fixture, "caller.provider_responses"))
+    Ok(host)
+}
+
+/// Validate what a run reaches, wherever a test is written.
+pub fn validate_test_providers(
+    providers: TestProviders,
+) -> Result<TestProviders, TestFixtureError> {
+    Ok(TestProviders {
+        http: validate_http_exchanges(providers.http, "providers.http")?,
+        mcp: validate_mcp_calls(providers.mcp, "providers.mcp")?,
+        processes: validate_process_calls(providers.processes)?,
+        hosted: providers
+            .hosted
+            .map(|fixture| validate_test_provider_responses(fixture, "providers.hosted"))
             .transpose()?,
-        ..caller
     })
 }
 
 fn validate_fixture(fixture: RawTestFixture) -> Result<TestFixture, TestFixtureError> {
     require_non_empty(&fixture.name, "name")?;
-    let target = fixture.target.unwrap_or_default();
-    require_non_empty(&target, "target")?;
-    if let Some(runner) = &fixture.runner {
-        require_non_empty(runner, "runner")?;
+    if let Some(method) = &fixture.method {
+        require_non_empty(method, "method")?;
+    }
+    if let Some(package) = &fixture.package {
+        let normalized = package.strip_prefix("fixtures/").is_some_and(|rest| {
+            !rest.is_empty()
+                && rest
+                    .split('/')
+                    .all(|segment| !segment.is_empty() && !matches!(segment, "." | ".."))
+        });
+        if !normalized {
+            return Err(TestFixtureError::Invalid {
+                field: "package".to_owned(),
+                message: "names a fixture package as fixtures/<directory>".to_owned(),
+            });
+        }
     }
     Ok(TestFixture {
         name: fixture.name,
-        kind: fixture.kind,
-        target,
-        runner: fixture.runner,
+        method: fixture.method,
+        package: fixture.package,
         setup: validate_setup(fixture.setup)?,
         inputs: fixture.inputs,
-        env: fixture.env,
-        caller: parse_test_caller(fixture.caller)?,
+        env: validate_test_env(fixture.env)?,
+        host: validate_test_host(fixture.host)?,
+        providers: validate_test_providers(fixture.providers)?,
         expect: validate_expectation(fixture.expect)?,
-        operator_journeys: fixture
-            .operator_journeys
-            .into_iter()
-            .map(validate_operator_journey)
-            .collect::<Result<_, _>>()?,
-        metadata: fixture.metadata,
     })
+}
+
+/// The environment the runtime owns for a test's isolation, which a test
+/// cannot set.
+const RUNTIME_OWNED_TEST_ENV: &[&str] = &["RUNX_CWD", "RUNX_RECEIPT_DIR"];
+
+fn validate_test_env(
+    env: BTreeMap<String, String>,
+) -> Result<BTreeMap<String, String>, TestFixtureError> {
+    if let Some(key) = env
+        .keys()
+        .find(|key| RUNTIME_OWNED_TEST_ENV.contains(&key.as_str()))
+    {
+        return Err(TestFixtureError::Invalid {
+            field: format!("env.{key}"),
+            message: "is owned by the isolated test runtime and cannot be overridden".to_owned(),
+        });
+    }
+    Ok(env)
 }
 
 fn validate_test_provider_responses(
@@ -515,14 +471,14 @@ fn validate_test_provider_responses(
             "grant_id, provider, and every declared scope must be non-empty",
         ));
     }
-    if fixture.holds.iter().any(|hold| {
-        hold.connector.trim().is_empty()
-            || hold.credential.trim().is_empty()
-            || hold.target.trim().is_empty()
+    if fixture.leases.iter().any(|lease| {
+        lease.connector.trim().is_empty()
+            || lease.credential.trim().is_empty()
+            || lease.target.trim().is_empty()
     }) {
         return Err(invalid(
-            format!("{field}.holds"),
-            "each hold names its connector, credential and target",
+            format!("{field}.leases"),
+            "each lease names its connector, credential and target",
         ));
     }
     if fixture.operations.len() > MAX_OPERATIONS {
@@ -577,7 +533,7 @@ fn validate_process_calls(
     calls: Vec<TestProcessCallFixture>,
 ) -> Result<Vec<TestProcessCallFixture>, TestFixtureError> {
     let invalid = |message: &str| TestFixtureError::Invalid {
-        field: "caller.process_calls".to_owned(),
+        field: "providers.processes".to_owned(),
         message: message.to_owned(),
     };
     if calls.len() > 32 {
@@ -740,57 +696,6 @@ fn validate_test_http_response(
         });
     }
     Ok(())
-}
-
-fn validate_operator_journey(
-    claim: OperatorJourneyClaim,
-) -> Result<OperatorJourneyClaim, TestFixtureError> {
-    for (field, value) in [
-        ("operator_journey.request", claim.request.as_str()),
-        (
-            "operator_journey.expected_outcome",
-            claim.expected_outcome.as_str(),
-        ),
-    ] {
-        if value.trim().is_empty() {
-            return Err(TestFixtureError::Required {
-                field: field.to_owned(),
-            });
-        }
-    }
-    if claim
-        .confusors
-        .iter()
-        .chain(&claim.prior_evidence)
-        .chain(&claim.must_not_repeat)
-        .any(|value| value.trim().is_empty())
-    {
-        return Err(TestFixtureError::Invalid {
-            field: "operator_journey".to_owned(),
-            message: "confusors, prior_evidence, and must_not_repeat entries must not be empty"
-                .to_owned(),
-        });
-    }
-    if claim
-        .exercises_method
-        .as_deref()
-        .is_some_and(|value| value.trim().is_empty())
-    {
-        return Err(TestFixtureError::Invalid {
-            field: "operator_journey.exercises_method".to_owned(),
-            message: "must be a non-empty runner name when declared".to_owned(),
-        });
-    }
-    if claim.mode == OperatorJourneyMode::Composed
-        && (claim.prior_evidence.is_empty() || claim.must_not_repeat.is_empty())
-    {
-        return Err(TestFixtureError::Invalid {
-            field: "operator_journey".to_owned(),
-            message: "composed journeys require prior_evidence and must_not_repeat assertions"
-                .to_owned(),
-        });
-    }
-    Ok(claim)
 }
 
 fn validate_setup(setup: TestSetup) -> Result<TestSetup, TestFixtureError> {

@@ -2,10 +2,10 @@ use runx_contracts::{JsonObject, JsonValue};
 
 use crate::execution::harness::runner::{TestReplayError, TestReplayOutput};
 
-pub(super) fn assert_caller_answers_replayed(
+pub(super) fn assert_host_answers_replayed(
     output: &TestReplayOutput,
 ) -> Result<(), TestReplayError> {
-    assert_replayed_answers(&output.fixture.caller.answers, &output.replayed_answers)
+    assert_replayed_answers(&output.fixture.host.answers, &output.replayed_answers)
 }
 
 fn assert_replayed_answers(
@@ -16,7 +16,7 @@ fn assert_replayed_answers(
         let expected = json_text(answer);
         let Some(actual) = replayed_answers.get(request_id) else {
             return Err(TestReplayError::Mismatch {
-                field: format!("caller.answers.{request_id}.replayed"),
+                field: format!("host.answers.{request_id}.replayed"),
                 expected,
                 actual: "<answer was not consumed>".to_owned(),
             });
@@ -25,7 +25,7 @@ fn assert_replayed_answers(
             continue;
         }
         return Err(TestReplayError::Mismatch {
-            field: format!("caller.answers.{request_id}.replayed"),
+            field: format!("host.answers.{request_id}.replayed"),
             expected,
             actual: json_text(actual),
         });
@@ -73,7 +73,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(TestReplayError::Mismatch { field, .. })
-                if field == "caller.answers.plan.replayed"
+                if field == "host.answers.plan.replayed"
         ));
     }
 
@@ -107,7 +107,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(TestReplayError::Mismatch { field, actual, .. })
-                if field == "caller.answers.plan.replayed"
+                if field == "host.answers.plan.replayed"
                     && actual == "<answer was not consumed>"
         ));
     }

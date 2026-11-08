@@ -1,12 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use runx_contracts::{
-    InspectedInput, InspectedOutput, JsonObject, JsonValue, MethodInspection, OperatorJourney,
-    SkillCapabilities,
-};
-use runx_parser::{
-    CatalogMetadata, SkillInput, SkillMethodDefinition, SkillMethodManifest, ValidatedSkillPackage,
-};
+use runx_contracts::{InspectedInput, InspectedOutput, JsonObject, JsonValue, MethodInspection};
+use runx_parser::{SkillInput, SkillMethodDefinition, SkillMethodManifest, ValidatedSkillPackage};
 
 use super::SkillInspectionError;
 
@@ -18,6 +13,12 @@ pub(super) fn inspect_method(
     Ok(MethodInspection {
         name: runner.name.clone(),
         input_schema: runx_contracts::input_contract_schema_with_examples(&runner.inputs, examples),
+        schemas: runner
+            .schemas()
+            .map_err(|error| SkillInspectionError::Json {
+                context: "digesting the method's schemas",
+                source: serde::ser::Error::custom(error),
+            })?,
         inputs: runner
             .inputs
             .iter()
@@ -30,8 +31,6 @@ pub(super) fn inspect_method(
             .collect(),
         declared_result_packets: declared_result_packets(runner),
         requirements: manifest.execution_requirements(runner),
-        scopes: runner.declared_scopes(),
-        continuations: runner.continuations.clone(),
         connectors: if manifest.connectors.is_empty() {
             None
         } else {
@@ -87,14 +86,6 @@ fn result_steps(
         .filter(|step| runner.graph.result_from.contains(&step.id))
 }
 
-pub(super) fn catalog_capabilities(catalog: &CatalogMetadata) -> Option<SkillCapabilities> {
-    Some(SkillCapabilities {
-        execution: catalog.execution?.as_str().to_owned(),
-        completion: catalog.completion?.as_str().to_owned(),
-        approval: catalog.approval?.as_str().to_owned(),
-    })
-}
-
 fn inspect_input(name: &str, input: &SkillInput) -> InspectedInput {
     InspectedInput {
         name: name.to_owned(),
@@ -113,7 +104,7 @@ fn inspect_output(name: &str, declaration: &JsonValue) -> InspectedOutput {
                 .get("type")
                 .and_then(JsonValue::as_str)
                 .map(str::to_owned),
-            details.get("required").and_then(JsonValue::as_bool),
+            Some(details.get("optional").and_then(JsonValue::as_bool) != Some(true)),
         ),
         _ => (None, None),
     };
@@ -124,73 +115,23 @@ fn inspect_output(name: &str, declaration: &JsonValue) -> InspectedOutput {
     }
 }
 
+/// The package's tests of `method`, by name, the examples inspection shows.
 pub(super) fn fixture_examples(
     package: &ValidatedSkillPackage,
     manifest: Option<&runx_parser::SkillMethodManifest>,
-    runner: &str,
+    method: &str,
 ) -> Vec<String> {
-    let mut examples = manifest
-        .and_then(|manifest| manifest.harness.as_ref())
-        .into_iter()
-        .flat_map(|harness| harness.cases.iter())
-        .filter(|case| case.runner.as_deref().is_none_or(|name| name == runner))
-        .map(|case| case.name.clone())
-        .chain(
-            package
-                .source
-                .files
-                .keys()
-                .filter(|path| path.starts_with("fixtures/") && path.ends_with(".yaml"))
-                .cloned(),
-        )
+    let default = manifest
+        .and_then(SkillMethodManifest::default_method)
+        .map(|method| method.name.as_str());
+    let mut examples = package
+        .test_fixtures
+        .values()
+        .filter(|test| test.package.is_none())
+        .filter(|test| test.method.as_deref().or(default) == Some(method))
+        .map(|test| test.name.clone())
         .collect::<Vec<_>>();
     examples.sort();
     examples.dedup();
     examples
-}
-
-pub(super) fn fixture_operator_journeys(
-    package: &ValidatedSkillPackage,
-    manifest: &SkillMethodManifest,
-) -> Vec<OperatorJourney> {
-    let mut journeys = manifest
-        .harness
-        .iter()
-        .flat_map(|harness| harness.cases.iter())
-        .flat_map(|case| {
-            case.operator_journeys.iter().map(|journey| {
-                project_operator_journey(&case.name, case.runner.as_deref(), journey)
-            })
-        })
-        .chain(package.test_fixtures.values().flat_map(|fixture| {
-            fixture.operator_journeys.iter().map(|journey| {
-                project_operator_journey(&fixture.name, fixture.runner.as_deref(), journey)
-            })
-        }))
-        .collect::<Vec<_>>();
-    journeys.sort_by(|left, right| left.case.cmp(&right.case));
-    journeys
-}
-
-fn project_operator_journey(
-    case: &str,
-    runner: Option<&str>,
-    journey: &runx_parser::OperatorJourneyClaim,
-) -> OperatorJourney {
-    OperatorJourney {
-        case: case.to_owned(),
-        mode: match journey.mode {
-            runx_parser::OperatorJourneyMode::Standalone => "standalone",
-            runx_parser::OperatorJourneyMode::Composed => "composed",
-            runx_parser::OperatorJourneyMode::Refusal => "refusal",
-        }
-        .to_owned(),
-        request: journey.request.clone(),
-        expected_outcome: journey.expected_outcome.clone(),
-        confusors: journey.confusors.clone(),
-        prior_evidence: journey.prior_evidence.clone(),
-        must_not_repeat: journey.must_not_repeat.clone(),
-        runner: runner.map(str::to_owned),
-        exercises_method: journey.exercises_method.clone(),
-    }
 }

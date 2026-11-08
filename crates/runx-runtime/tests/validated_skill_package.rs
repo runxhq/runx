@@ -108,7 +108,7 @@ fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::
 
     let inspection = inspect_skill_package(temp.path(), Some("inspect"), None)?;
     let plan = inspection
-        .runner
+        .method
         .as_ref()
         .map(|runner| &runner.input_schema)
         .and_then(|value| value.get("properties"))

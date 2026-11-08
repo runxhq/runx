@@ -272,11 +272,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         ],
     },
     CommandSpec {
-        name: "harness",
+        name: "test",
         top_level_usage: &[],
-        usage: &["runx harness <fixture.yaml...|skill-dir|SKILL.md> [-R dir] [-j|--json]"],
-        notes: &["Package mode runs both inline harness.cases and sorted fixtures/*.yaml."],
-        options: &["-R, --receipt-dir dir", "-j, --json"],
+        usage: &[
+            "runx test <package-dir|SKILL.md|tests/<name>.yaml...> [--receipt-dir dir] [-j|--json]",
+        ],
+        notes: &["A package runs each of its tests/*.yaml, in name order."],
+        options: &["--receipt-dir dir", "-j, --json"],
     },
     CommandSpec {
         name: "tool",

@@ -214,7 +214,7 @@ fn process_tool() -> ProcessTool {
         ],
         cwd: None,
         timeout_seconds: Some(5),
-        input_mode: None,
+        inputs_via: None,
         environment: Default::default(),
     }
 }

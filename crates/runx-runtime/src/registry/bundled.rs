@@ -27,8 +27,9 @@ static BUNDLE: LazyLock<Result<BundledSkills, String>> = LazyLock::new(|| {
             metadata: super::package_metadata::project_registry_package_metadata(
                 &manual.skill,
                 None,
+                &manual.test_fixtures,
                 Vec::new(),
-            ),
+            )?,
         },
         version: String::new(),
     });

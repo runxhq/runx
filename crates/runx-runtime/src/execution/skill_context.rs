@@ -5,10 +5,8 @@ use runx_contracts::{ContextEntry, JsonObject, JsonValue};
 
 use crate::RuntimeError;
 
-mod catalog;
 mod entry;
 
-use catalog::validate_context_manifest;
 use entry::{SkillContextEntryInput, insert_string, skill_context_entry};
 
 // Context is an explicit skill-chain dependency, not an inline convenience
@@ -139,7 +137,6 @@ fn load_context_skill_directory(
             source,
         )
     })?;
-    validate_context_manifest(step_id, reference, package.manifest())?;
     let origin = match installed {
         Some(paths) => crate::registry::installed_origin(paths, &package).map_err(|reason| {
             RuntimeError::InvalidRunStep {

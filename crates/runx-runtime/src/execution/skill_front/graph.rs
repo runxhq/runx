@@ -293,12 +293,7 @@ impl BoundRun {
     /// rather than run it here (S10).
     fn purchase(&self) -> Option<&str> {
         let reference = self.overrides.purchase.as_deref()?;
-        self.manifest
-            .marketplace
-            .as_ref()?
-            .offers
-            .contains_key(&self.runner.name)
-            .then_some(reference)
+        self.runner.offer.is_some().then_some(reference)
     }
 
     /// The graph the run drives: the runner's own, or for a purchase one step
@@ -997,7 +992,6 @@ mod tests {
             artifacts: None,
             requirements: Default::default(),
             executable: crate::adapter::Executable::Agent(runx_parser::AgentTask {
-                role: "reviewer".to_owned(),
                 task: "review".to_owned(),
                 allowance: Default::default(),
                 connectors: Default::default(),
@@ -1227,7 +1221,7 @@ steps:
                 ],
                 cwd: None,
                 timeout_seconds: Some(5),
-                input_mode: None,
+                inputs_via: None,
                 environment: Default::default(),
             }),
             outputs: None,

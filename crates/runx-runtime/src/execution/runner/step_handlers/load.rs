@@ -97,7 +97,7 @@ where
         reason,
     };
     let bound = match &load.target {
-        LoadTarget::Skill { skill, runner } => bind_skill(skill, runner.as_deref(), &paths, env),
+        LoadTarget::Skill { skill, method } => bind_skill(skill, method.as_deref(), &paths, env),
         LoadTarget::Connector { name } => bind_connector(name, &paths, env),
     }
     .map_err(refused)?;
@@ -229,9 +229,9 @@ fn bind_skill(
         .manifest()
         .ok_or_else(|| format!("{reference} has no run.yaml runner to load"))?;
     let runners = match runner {
-        Some(runner) if manifest.runners.contains_key(runner) => vec![runner.to_owned()],
+        Some(runner) if manifest.methods.contains_key(runner) => vec![runner.to_owned()],
         Some(runner) => return Err(format!("{reference} has no runner {runner}")),
-        None if manifest.runners.len() == 1 => manifest.runners.keys().cloned().collect(),
+        None if manifest.methods.len() == 1 => manifest.methods.keys().cloned().collect(),
         None => Vec::new(),
     };
     let package_digest = loaded.package.package_digest.clone();
@@ -271,7 +271,7 @@ fn bind_skill(
             super::super::turn::skill_descriptor(
                 &super::super::turn::loaded_tool_name(&package_name, runner),
                 description.clone(),
-                &manifest.runners[runner],
+                &manifest.methods[runner],
                 TurnTarget::Skill {
                     skill: skill.clone(),
                     runner: Some(runner.as_str().into()),
@@ -304,7 +304,7 @@ fn bind_skill(
             content: loaded.package.manual_markdown.clone(),
         }),
         runners: manifest
-            .runners
+            .methods
             .values()
             .map(|declared| LoadedMethod {
                 name: declared.name.as_str().into(),
@@ -373,8 +373,8 @@ fn bind_connector(
     let declared = runx_parser::ConnectorRequirement {
         operations: connector.manifest.operations.keys().cloned().collect(),
         manifest_digest: Some(connector.manifest_digest.clone()),
-        connector_from: None,
-        allowed_connectors: Vec::new(),
+        choose: None,
+        from: Vec::new(),
     };
     let id = connector.name.as_str().to_owned();
     let tools = connector

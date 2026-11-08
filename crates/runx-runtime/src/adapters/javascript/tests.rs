@@ -48,7 +48,7 @@ fn page_invocation(
         worker
             .requires
             .push(runx_contracts::javascript_worker::WorkerApi::ParseData);
-        worker.pages = Some(ArtifactPageSource {
+        worker.paged_input = Some(ArtifactPageSource {
             source,
             framing: ArtifactPageFraming::JsonArray,
             page_bytes,
@@ -80,8 +80,8 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
             let mut by_path = page_invocation(
                 root,
                 ArtifactPageInput::Path {
-                    path_from: "source_path".to_owned(),
-                    path_scope_from: Some("source_scope".to_owned()),
+                    path: "source_path".to_owned(),
+                    path_scope: Some("source_scope".to_owned()),
                     media_type: "application/json".to_owned(),
                 },
                 page_bytes,
@@ -100,7 +100,7 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
             let mut by_artifact = page_invocation(
                 root,
                 ArtifactPageInput::Artifact {
-                    artifact_from: "source_uri".to_owned(),
+                    artifact: "source_uri".to_owned(),
                 },
                 page_bytes,
             );
@@ -148,7 +148,7 @@ fn admitted_artifact_pages_use_the_snapshot_and_require_native_scope_and_lifetim
     let mut request = page_invocation(
         root,
         ArtifactPageInput::Artifact {
-            artifact_from: "source_uri".to_owned(),
+            artifact: "source_uri".to_owned(),
         },
         65_536,
     );
@@ -238,7 +238,7 @@ fn invocation(skill_directory: &std::path::Path) -> SkillInvocation {
             module: "domain.mjs".to_owned(),
             export: None,
             timeout_seconds: None,
-            pages: None,
+            paged_input: None,
             environment: Default::default(),
         }),
         outputs: None,

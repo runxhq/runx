@@ -161,7 +161,7 @@ steps:
     act:
       form: review               # observation (default), reply or review
       purpose: Close the reviewed item
-      reason: $act.reason        # what the invoker says about this call
+      reason: $run.act.reason        # what the invoker says about this call
       target: $input.item_locator
       decision: close            # continue, close, decline, defer, escalate or monitor
       previous: $input.review_receipt
@@ -177,11 +177,11 @@ mandate, and why that was legitimate come from admission, never from the act:
 the act's legitimacy names the execution term admission derived. What the call
 produced comes from the operation, which declares its `effect`.
 
-`$act` is the act the run's invoker states: `runx skill <skill> --act '<json>'`, an MCP
+`$run.act` is the act the run's invoker states: `runx skill <skill> --act '<json>'`, an MCP
 call's `act` argument, or a harness case's `caller.act`. A step reads it only
-inside an `act:`, whole (`act: $act`) or by field (`purpose: $act.purpose`);
+inside an `act:`, whole (`act: $run.act`) or by field (`purpose: $run.act.purpose`);
 no other value may read it. A `skill` step's `act:` is the act its child run
-is invoked with, which the child reads as its `$act`. An act that resolves to
+is invoked with, which the child reads as its `$run.act`. An act that resolves to
 nothing leaves the call without one.
 
 ## HTTP Steps And Credentials

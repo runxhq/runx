@@ -314,10 +314,10 @@ impl TestTransport {
                 })?
             }
             (None, Some(held)) => {
-                if !fixture.holds.iter().any(|hold| {
-                    hold.connector == call.connector_binding.connector.as_str()
-                        && hold.credential == held.credential
-                        && hold.target == held.target
+                if !fixture.leases.iter().any(|lease| {
+                    lease.connector == call.connector_binding.connector.as_str()
+                        && lease.credential == held.credential
+                        && lease.target == held.target
                 }) {
                     return refused(
                         403,

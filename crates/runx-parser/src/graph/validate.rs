@@ -1,12 +1,10 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use runx_contracts::JsonObject;
 
 use super::helpers::{
-    optional_string, optional_string_array, required_array, required_object, required_string,
-    validation_error,
+    optional_string_array, required_array, required_object, required_string, validation_error,
 };
-use super::policy::validate_workflow_policy;
 use super::step::validate_step;
 use super::types::{RawWorkflowIr, Workflow};
 use crate::{ParseError, ValidationError, assert_yaml_supported_subset};
@@ -32,36 +30,34 @@ pub fn validate_workflow_document(
     reject_unsupported_top_level(&document)?;
 
     let name = required_string(document.get("name"), "name")?;
-    let publisher = optional_string(document.get("publisher"), "publisher")?;
     let result_from =
         optional_string_array(document.get("result_from"), "result_from")?.unwrap_or_default();
     let raw_steps = required_array(document.get("steps"), "steps")?;
-    let mut seen_step_ids = BTreeSet::new();
+    // Each earlier step, and whether it is an operation, which a read may
+    // confirm.
+    let mut seen_steps = BTreeMap::new();
     let mut steps = Vec::new();
 
     for (index, raw_step) in raw_steps.iter().enumerate() {
         let field = format!("steps.{index}");
         let raw_step = required_object(Some(raw_step), &field)?;
-        let step = validate_step(raw_step, &field, &seen_step_ids)?;
-        seen_step_ids.insert(step.id.clone());
+        let step = validate_step(raw_step, &field, &seen_steps)?;
+        seen_steps.insert(
+            step.id.clone(),
+            matches!(step.kind, crate::StepKind::Operation(_)),
+        );
         steps.push(step);
     }
+    let seen_step_ids = seen_steps.into_keys().collect::<BTreeSet<_>>();
 
     validate_result_producers(&result_from, &seen_step_ids)?;
     validate_gated_context(&steps)?;
-    let order = steps
-        .iter()
-        .map(|step| step.id.as_str())
-        .collect::<Vec<_>>();
-    let policy = validate_workflow_policy(document.get("policy"), &order, "policy")?;
     validate_ask_addresses(&steps, &seen_step_ids)?;
 
     Ok(Workflow {
         name,
-        publisher,
         result_from,
         steps,
-        policy,
         raw: raw.unwrap_or(RawWorkflowIr { document }),
     })
 }
@@ -145,8 +141,9 @@ fn validate_gated_context(steps: &[crate::WorkflowStep]) -> Result<(), Validatio
     Ok(())
 }
 
-/// The fields of a standalone graph document.
-const WORKFLOW_FIELDS: &[&str] = &["name", "publisher", "result_from", "steps", "policy"];
+/// The fields of a workflow document: a method's steps, under its skill's
+/// name.
+const WORKFLOW_FIELDS: &[&str] = &["name", "result_from", "steps"];
 
 fn reject_unsupported_top_level(document: &JsonObject) -> Result<(), ValidationError> {
     match document

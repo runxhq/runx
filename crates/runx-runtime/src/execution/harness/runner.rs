@@ -16,9 +16,7 @@ use thiserror::Error;
 
 use super::super::graph::bind_run_inputs;
 use super::assertions::{assert_exchanges_requested, assert_expectations, status_from_outcome};
-use super::fixtures::{
-    TestExpectedStatus, TestFixture, TestFixtureError, TestFixtureKind, load_test_fixture,
-};
+use super::fixtures::{TestExpectedStatus, TestFixture, TestFixtureError, load_test_fixture};
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, SkillAdapter};
 use crate::effects::RuntimeEffectRegistry;
@@ -210,12 +208,14 @@ where
     run_test_case_with_adapter(fixture, target_path, adapter, options)
 }
 
-/// A fixture file's case and the skill or graph it targets.
+/// A test file's case and the package it runs: the package whose `tests/`
+/// holds it, or the fixture package under that package's `fixtures/` it
+/// names.
 pub(crate) fn load_test_case(
     fixture_path: &Path,
 ) -> Result<(TestFixture, PathBuf), TestReplayError> {
     let fixture = load_test_fixture(fixture_path)?;
-    let target_path = resolve_target_path(fixture_path, &fixture.target)?;
+    let target_path = resolve_target_path(fixture_path, fixture.package.as_deref())?;
     Ok((fixture, target_path))
 }
 
@@ -274,9 +274,7 @@ where
             RuntimeError::effect_state("isolating a harness case", error.to_string())
         })?;
     crate::paths::isolate(&mut fixture.env, case_root.path());
-    if fixture.kind == TestFixtureKind::Skill {
-        stage_installed_connectors_for_case(&options.env, &fixture.env, &target_path)?;
-    }
+    stage_installed_connectors_for_case(&options.env, &fixture.env, &target_path)?;
     stage_installed_skills_for_case(&options.env, &fixture.env, &target_path)?;
     // The host's workspace policy is the host's: a case's environment never
     // sets it, so a publisher's harness cannot lift a refusal the host made.
@@ -288,10 +286,7 @@ where
     let mut options = options;
     let exchanges = wire_operations(&mut fixture, &target_path, &mut options)?;
     seed_test_receipts(&fixture, &target_path, &options)?;
-    let replayed = match fixture.kind {
-        TestFixtureKind::Skill => run_skill_fixture(&fixture, target_path, adapter, options),
-        TestFixtureKind::Graph => run_workflow_fixture(&fixture, &target_path, adapter, options),
-    };
+    let replayed = run_skill_fixture(&fixture, target_path, adapter, options);
     // However the case ends, even in a refusal a front accepts as expected,
     // it proves only the requests its run made.
     let unrequested = exchanges.unrequested().map_err(|error| {
@@ -344,15 +339,8 @@ fn stage_installed_skills_for_case(
     case_env: &BTreeMap<String, String>,
     target: &Path,
 ) -> Result<(), TestReplayError> {
-    // A graph case's target is its graph file; projects resolve from its
-    // directory.
-    let directory = if target.is_dir() {
-        target
-    } else {
-        target.parent().unwrap_or(target)
-    };
-    let source = crate::paths::RunxPaths::resolve(source_env, directory);
-    let case = crate::paths::RunxPaths::resolve(case_env, directory);
+    let source = crate::paths::RunxPaths::resolve(source_env, target);
+    let case = crate::paths::RunxPaths::resolve(case_env, target);
     if source.project() != case.project() {
         crate::registry::copy_installed_skills(&source, &case)
             .map_err(|error| RuntimeError::effect_state("staging harness skills", error))?;
@@ -369,13 +357,22 @@ fn seed_test_receipts(
         return Ok(());
     }
 
+    // A test's receipts are its own package's, whichever package it runs.
     let loaded = crate::load_validated_skill_package(target_path)?;
-    let package_root = fs::canonicalize(&loaded.package_root).map_err(|source| {
-        TestReplayError::SetupReceiptRead {
-            path: loaded.package_root.clone(),
+    let tests_package = if fixture.package.is_some() {
+        loaded
+            .package_root
+            .parent()
+            .and_then(crate::skill_package::find_owning_package_root)
+            .unwrap_or_else(|| loaded.package_root.clone())
+    } else {
+        loaded.package_root.clone()
+    };
+    let package_root =
+        fs::canonicalize(&tests_package).map_err(|source| TestReplayError::SetupReceiptRead {
+            path: tests_package.clone(),
             source,
-        }
-    })?;
+        })?;
     let mut receipts = Vec::with_capacity(fixture.setup.receipts.len());
     for relative in &fixture.setup.receipts {
         let candidate = package_root.join(relative);
@@ -413,14 +410,9 @@ fn wire_operations(
     target_path: &Path,
     options: &mut TestOptions,
 ) -> Result<Arc<TestExchanges>, TestReplayError> {
-    // The target is the skill's directory or a file in it. Connectors are
-    // reached from there: from above it, a bundled package is outside its
-    // own plugin.
-    let skill_dir = if target_path.is_dir() {
-        target_path
-    } else {
-        target_path.parent().unwrap_or(target_path)
-    };
+    // Connectors are reached from the package's directory: from above it, a
+    // bundled package is outside its own plugin.
+    let skill_dir = target_path;
     let scope = crate::ConnectorScope::in_project(
         skill_dir,
         &crate::paths::RunxPaths::resolve(&options.env, skill_dir),
@@ -428,7 +420,7 @@ fn wire_operations(
     .map_err(|error| RuntimeError::effect_state("resolving harness connector scope", error))?;
     let invalid_provider = |message: String| {
         TestFixtureError::Parser(runx_parser::test_fixture::TestFixtureError::Invalid {
-            field: "caller.provider_responses.grant".to_owned(),
+            field: "providers.hosted.grant".to_owned(),
             message,
         })
     };
@@ -436,15 +428,16 @@ fn wire_operations(
     env.extend(fixture.env.clone());
     resolve_fixture_path(&mut env, skill_dir)?;
     let closure = granted_closure(fixture, target_path, &env)?;
-    let transport = super::transport::test_transport(&fixture.caller, &scope, &closure, skill_dir)
-        .map_err(invalid_provider)?;
+    let transport =
+        super::transport::test_transport(&fixture.providers, &scope, &closure, skill_dir)
+            .map_err(invalid_provider)?;
     options.effects =
-        super::transport::effects_over(&options.effects, transport.clone(), &fixture.caller)
-            .map_err(|error| RuntimeError::effect_state("wiring the harness transport", error))?;
-    let provider_env = super::transport::provider_env(&fixture.caller);
+        super::transport::effects_over(&options.effects, transport.clone(), &fixture.providers)
+            .map_err(|error| RuntimeError::effect_state("wiring the test transport", error))?;
+    let provider_env = super::transport::provider_env(&fixture.providers);
     fixture.env.extend(provider_env.clone());
     env.extend(provider_env);
-    super::transport::seed_provider_grant(&fixture.caller, &scope, &closure, &env, skill_dir)
+    super::transport::seed_provider_grant(&fixture.providers, &scope, &closure, &env, skill_dir)
         .map_err(invalid_provider)?;
     seed_test_instances(fixture, target_path, skill_dir, options, &transport)?;
     Ok(transport.exchanges)
@@ -459,50 +452,30 @@ fn granted_closure(
     target_path: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<Vec<Arc<crate::kernel::connectors::LoadedConnector>>, TestReplayError> {
-    if fixture.caller.provider_responses.is_none() {
+    if fixture.providers.hosted.is_none() {
         return Ok(Vec::new());
     }
     let unbound = |error: crate::skill_package::SkillInspectionError| {
         RuntimeError::effect_state("binding the case's closure", error.to_string())
     };
-    match fixture.kind {
-        TestFixtureKind::Skill => {
-            let loaded = crate::load_validated_skill_package(target_path)?;
-            let manifest =
-                loaded
-                    .manifest()
-                    .ok_or_else(|| RuntimeError::UnsupportedMethodSelection {
-                        runner: fixture
-                            .runner
-                            .clone()
-                            .unwrap_or_else(|| "default".to_owned()),
-                    })?;
-            let runner = select_test_method(manifest, fixture.runner.as_deref())?
-                .name
-                .clone();
-            crate::skill_package::case_closure_connectors(
-                &loaded,
-                crate::skill_package::CaseClosureTarget::Runner(&runner),
-                env,
-            )
-            .map_err(|error| unbound(error).into())
-        }
-        TestFixtureKind::Graph => {
-            let Some(package_root) = target_path
-                .parent()
-                .and_then(crate::skill_package::find_owning_package_root)
-            else {
-                return Ok(Vec::new());
-            };
-            let loaded = crate::load_validated_skill_package(&package_root)?;
-            crate::skill_package::case_closure_connectors(
-                &loaded,
-                crate::skill_package::CaseClosureTarget::Graph(target_path),
-                env,
-            )
-            .map_err(|error| unbound(error).into())
-        }
-    }
+    let loaded = crate::load_validated_skill_package(target_path)?;
+    let manifest = loaded
+        .manifest()
+        .ok_or_else(|| RuntimeError::UnsupportedMethodSelection {
+            runner: fixture
+                .method
+                .clone()
+                .unwrap_or_else(|| "default".to_owned()),
+        })?;
+    let method = select_test_method(manifest, fixture.method.as_deref())?
+        .name
+        .clone();
+    crate::skill_package::case_closure_connectors(
+        &loaded,
+        crate::skill_package::CaseClosureTarget::Runner(&method),
+        env,
+    )
+    .map_err(|error| unbound(error).into())
 }
 
 /// Confirm and select the instances the case runs under, in the case's own
@@ -537,17 +510,14 @@ fn seed_test_instances(
     // A case names a connector as its skill's `connectors:` block keys it, a
     // connector id or a qualified ref, and it resolves as the skill's
     // operations resolve it, pinned manifest included.
-    let requirements = match fixture.kind {
-        TestFixtureKind::Skill => crate::skill_package::load_validated_skill_package(target_path)?
-            .manifest()
-            .map(|manifest| manifest.connectors.clone())
-            .unwrap_or_default(),
-        TestFixtureKind::Graph => BTreeMap::new(),
-    };
+    let requirements = crate::skill_package::load_validated_skill_package(target_path)?
+        .manifest()
+        .map(|manifest| manifest.connectors.clone())
+        .unwrap_or_default();
     let connector = |key: &str| {
         match requirements
             .get(key)
-            .filter(|requirement| requirement.connector_from.is_none())
+            .filter(|requirement| requirement.choose.is_none())
         {
             Some(requirement) => scope.requirement(key, requirement),
             None => scope.connector(key),
@@ -559,7 +529,7 @@ fn seed_test_instances(
     let readers = crate::kernel::setup::AccountReaders {
         transport,
         tools: &crate::drivers::process::StandIn {
-            calls: &fixture.caller.process_calls,
+            calls: &fixture.providers.processes,
         },
     };
     for key in &setup.sessions {
@@ -739,7 +709,7 @@ where
     let graph = bind_run_inputs(
         target.runner.graph.clone(),
         &inputs,
-        fixture.caller.act.as_ref(),
+        fixture.host.act.as_ref(),
         &run_id,
     )?;
     let runtime = Runtime::new(
@@ -792,11 +762,11 @@ fn skill_fixture_target(
         .manifest()
         .ok_or_else(|| RuntimeError::UnsupportedMethodSelection {
             runner: fixture
-                .runner
+                .method
                 .clone()
                 .unwrap_or_else(|| "default".to_owned()),
         })?;
-    let runner = select_test_method(manifest, fixture.runner.as_deref())?.clone();
+    let runner = select_test_method(manifest, fixture.method.as_deref())?.clone();
     let mut env = options.env.clone();
     let credentials = super::credential_variables(&skill_dir, &env)?;
     super::isolate_test_environment(&mut env, &credentials);
@@ -815,73 +785,19 @@ fn select_test_method<'a>(
     requested_method: Option<&str>,
 ) -> Result<&'a SkillMethodDefinition, TestReplayError> {
     if let Some(runner) = requested_method {
-        return manifest.runners.get(runner).ok_or_else(|| {
+        return manifest.methods.get(runner).ok_or_else(|| {
             RuntimeError::UnsupportedMethodSelection {
                 runner: runner.to_owned(),
             }
             .into()
         });
     }
-    let defaults = manifest
-        .runners
-        .values()
-        .filter(|runner| runner.default)
-        .collect::<Vec<_>>();
-    match defaults.as_slice() {
-        [runner] => Ok(*runner),
-        [] if manifest.runners.len() == 1 => manifest.runners.values().next().ok_or_else(|| {
-            RuntimeError::UnsupportedMethodSelection {
-                runner: "default".to_owned(),
-            }
-            .into()
-        }),
-        [] => Err(RuntimeError::UnsupportedMethodSelection {
+    manifest.default_method().ok_or_else(|| {
+        RuntimeError::UnsupportedMethodSelection {
             runner: "default".to_owned(),
         }
-        .into()),
-        _ => Err(RuntimeError::UnsupportedMethodSelection {
-            runner: "default".to_owned(),
-        }
-        .into()),
-    }
-}
-
-fn run_workflow_fixture<A>(
-    fixture: &TestFixture,
-    workflow_path: &Path,
-    adapter: A,
-    mut options: TestOptions,
-) -> Result<TestReplayOutput, TestReplayError>
-where
-    A: SkillAdapter,
-{
-    let skill_dir = workflow_path.parent().unwrap_or(workflow_path);
-    let credentials = super::credential_variables(skill_dir, &options.env)?;
-    super::isolate_test_environment(&mut options.env, &credentials);
-    overlay_test_env(&mut options, &fixture.env);
-    resolve_fixture_path(&mut options.env, skill_dir)?;
-    // Harness graph replays need a deterministic run_id so per-run governance
-    // can resolve one, mirroring the production graph runner. Derived from the
-    // graph so receipts stay reproducible; an explicit fixture env value still
-    // wins.
-    let run_id = options
-        .env
-        .entry(crate::execution::runner::RUNX_RUN_ID_ENV.to_owned())
-        .or_insert_with(|| {
-            test_run_id(
-                workflow_path
-                    .file_stem()
-                    .and_then(|stem| stem.to_str())
-                    .unwrap_or("graph"),
-            )
-        })
-        .clone();
-    let runtime = Runtime::new(adapter, options.runtime(&run_id, fixture, workflow_path)?);
-    let mut host = FixtureHost::new(fixture);
-    let workflow_run = runtime.run_workflow_file_for_test(workflow_path, &mut host)?;
-    let (replayed_answers, unanswered) = host.finish();
-    let output = replay_output_from_workflow(fixture, workflow_run, replayed_answers, unanswered);
-    Ok(output)
+        .into()
+    })
 }
 
 struct FixtureHost<'a> {
@@ -923,7 +839,7 @@ impl Host for FixtureHost<'_> {
             ResolutionRequest::Approval { id, .. } => {
                 let response = self
                     .fixture
-                    .caller
+                    .host
                     .approvals
                     .get(id.as_str())
                     .map(|approved| ResolutionResponse {
@@ -939,7 +855,7 @@ impl Host for FixtureHost<'_> {
             // run at any depth.
             ResolutionRequest::Turn { id, .. } => {
                 let address = id.as_str();
-                let answers = &self.fixture.caller.answers;
+                let answers = &self.fixture.host.answers;
                 let id = if answers.contains_key(address) {
                     address
                 } else {
@@ -984,9 +900,9 @@ impl Host for FixtureHost<'_> {
     ) -> Result<(), RuntimeError> {
         let fixture = self.fixture;
         let address = turn.invocation().id.as_str().to_owned();
-        let answered = fixture.caller.answers.contains_key(&address);
+        let answered = fixture.host.answers.contains_key(&address);
         if let Some(output) =
-            super::turns::work_scripted_turn(turn, self, &fixture.caller.turns, answered)?
+            super::turns::work_scripted_turn(turn, self, &fixture.host.turns, answered)?
         {
             self.worked.insert(address, output);
         }
@@ -1030,16 +946,23 @@ fn replay_output_from_workflow(
     }
 }
 
-fn resolve_target_path(fixture_path: &Path, target: &str) -> Result<PathBuf, TestReplayError> {
-    let Some(parent) = fixture_path.parent() else {
+fn resolve_target_path(
+    fixture_path: &Path,
+    package: Option<&str>,
+) -> Result<PathBuf, TestReplayError> {
+    // `<package>/tests/<name>.yaml`
+    let Some(own) = fixture_path.parent().and_then(Path::parent) else {
         return Err(TestReplayError::TargetWithoutParent {
             target: fixture_path.to_path_buf(),
         });
     };
-    let unresolved = parent.join(target);
+    let unresolved = match package {
+        Some(package) => own.join(package),
+        None => own.to_path_buf(),
+    };
     fs::canonicalize(&unresolved).map_err(|source| {
         RuntimeError::io(
-            format!("resolving harness target {}", unresolved.display()),
+            format!("resolving the test's package {}", unresolved.display()),
             source,
         )
         .into()

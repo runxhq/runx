@@ -22,7 +22,7 @@ pub(super) fn append_declared_packet_schemas(
     let mut required_packet_ids = packet_ids.clone();
     required_packet_ids.extend(loaded.resolved_input_packet_schemas.keys().cloned());
     for manifest in loaded.package.profiles.values() {
-        for runner in manifest.runners.values() {
+        for runner in manifest.methods.values() {
             required_packet_ids.extend(declared_method_packet_ids(runner));
         }
     }

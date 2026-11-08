@@ -1,82 +1,111 @@
-//! Skill output declaration types: the value shape of the `runx.ai/spec`
-//! output map (a field is either a bare type name or a typed field spec).
+//! A step's output declarations: each field is its JSON Schema, required
+//! unless it says `optional: true`, and kept as an artifact of the packet it
+//! names.
 //!
 //! The standalone `output.schema.json` document is a top-level open map carrying
-//! a bare `$id`; it is modeled here as the transparent map newtype [`Output`],
-//! whose `RunxSchema` derive emits the committed `patternProperties` shape. The
-//! same `BTreeMap<String, OutputField>` is embedded by the agent-context
+//! a bare `$id`; it is modeled here as the transparent map newtype [`Output`].
+//! The same `BTreeMap<String, OutputField>` is embedded by the agent-context
 //! envelope's `output` field.
 use std::collections::BTreeMap;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::PacketId;
 use crate::digest::sha256_prefixed;
 use crate::json::{JsonObject, JsonValue};
-use crate::schema::{NonEmptyString, RunxSchema};
+use crate::schema::{NamedSchemas, RunxSchema, record_named};
 
-/// A declared output value type.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum OutputType {
-    String,
-    Number,
-    Integer,
-    Boolean,
-    Array,
-    Object,
-    Null,
-}
-
-/// The expanded form of an output field declaration. Committed with
-/// `additionalProperties: false` and `minProperties: 1` (the latter is a
-/// numeric bound the emitter does not express).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct OutputFieldSpec {
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub field_type: Option<OutputType>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub required: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wrap_as: Option<NonEmptyString>,
-    #[serde(rename = "enum", skip_serializing_if = "Option::is_none")]
-    pub enum_values: Option<Vec<String>>,
-    /// Additional JSON Schema 2020-12 keywords for this output value. The
-    /// scalar type, description, and enum above remain the canonical
-    /// top-level declaration; this object owns nested shape and bounds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema: Option<JsonObject>,
-}
-
-/// A single output field declaration: either a bare type name or a typed spec.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(untagged)]
-pub enum OutputField {
-    Type(OutputType),
-    Spec(OutputFieldSpec),
+/// One output field: its JSON Schema as written, whether a producer may leave
+/// it out, and the packet it is kept as, if it is an artifact.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct OutputField {
+    /// The field's JSON Schema. No `type` takes any value.
+    pub schema: JsonObject,
+    pub optional: bool,
+    pub packet: Option<PacketId>,
 }
 
 impl OutputField {
+    /// A required field of one JSON Schema type.
+    #[must_use]
+    pub fn of_type(field_type: &str) -> Self {
+        Self {
+            schema: JsonObject::from([(
+                "type".to_owned(),
+                JsonValue::String(field_type.to_owned()),
+            )]),
+            optional: false,
+            packet: None,
+        }
+    }
+
     /// Whether a successful producer must return this field.
-    ///
-    /// Bare type declarations and expanded declarations without an explicit
-    /// `required` value are required by default.
     #[must_use]
     pub const fn is_required(&self) -> bool {
-        match self {
-            Self::Type(_) => true,
-            Self::Spec(spec) => match spec.required {
-                Some(required) => required,
-                None => true,
-            },
-        }
+        !self.optional
     }
 }
 
-/// A runner's declared outputs: each output field by name.
+impl Serialize for OutputField {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut field = self.schema.clone();
+        if self.optional {
+            field.insert("optional".to_owned(), JsonValue::Bool(true));
+        }
+        if let Some(packet) = &self.packet {
+            field.insert("packet".to_owned(), JsonValue::String(packet.to_string()));
+        }
+        field.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for OutputField {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let mut schema = JsonObject::deserialize(deserializer)?;
+        let optional = match schema.remove("optional") {
+            None => false,
+            Some(JsonValue::Bool(optional)) => optional,
+            Some(_) => return Err(D::Error::custom("optional is true or false")),
+        };
+        let packet = match schema.remove("packet") {
+            None => None,
+            Some(JsonValue::String(packet)) => {
+                Some(PacketId::new(packet.clone()).ok_or_else(|| {
+                    D::Error::custom(format!("packet {packet:?} is not a packet id"))
+                })?)
+            }
+            Some(_) => return Err(D::Error::custom("packet is a packet id")),
+        };
+        Ok(Self {
+            schema,
+            optional,
+            packet,
+        })
+    }
+}
+
+impl RunxSchema for OutputField {
+    fn json_schema() -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "optional": { "type": "boolean" },
+                "packet": { "type": "string" },
+            },
+            "additionalProperties": true,
+            "title": "OutputField",
+            "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+        })
+    }
+
+    fn named_schemas(named: &mut NamedSchemas) {
+        record_named(named, "OutputField", Self::json_schema);
+    }
+}
+
+/// A step's declared outputs: each output field by name.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(transparent)]
 #[runx_schema(id = "runx.output.v1")]
@@ -101,6 +130,8 @@ pub fn parse_output_contract(
     let value = serde_json::to_value(JsonValue::Object(raw.clone()))?;
     let output = serde_json::from_value::<Output>(value)?.0;
     let schema = serde_json::to_value(output_value_schema(Some(&output)))?;
+    jsonschema::draft202012::meta::validate(&schema)
+        .map_err(|error| OutputContractParseError::Schema(error.to_string()))?;
     jsonschema::draft202012::options()
         .build(&schema)
         .map_err(|error| OutputContractParseError::Schema(error.to_string()))?;
@@ -207,51 +238,7 @@ fn object_schema() -> JsonValue {
 }
 
 fn output_field_schema(field: &OutputField) -> JsonValue {
-    let mut schema = match field {
-        OutputField::Spec(spec) => spec.schema.clone().unwrap_or_default(),
-        OutputField::Type(_) => JsonObject::new(),
-    };
-    match field {
-        OutputField::Type(field_type) => {
-            schema.insert(
-                "type".to_owned(),
-                JsonValue::String(output_type_name(field_type).to_owned()),
-            );
-        }
-        OutputField::Spec(spec) => {
-            if let Some(field_type) = spec.field_type.as_ref() {
-                schema.insert(
-                    "type".to_owned(),
-                    JsonValue::String(output_type_name(field_type).to_owned()),
-                );
-            }
-            if let Some(values) = spec.enum_values.as_ref() {
-                schema.insert(
-                    "enum".to_owned(),
-                    JsonValue::Array(values.iter().cloned().map(JsonValue::String).collect()),
-                );
-            }
-            if let Some(description) = spec.description.as_ref() {
-                schema.insert(
-                    "description".to_owned(),
-                    JsonValue::String(description.clone()),
-                );
-            }
-        }
-    }
-    JsonValue::Object(schema)
-}
-
-const fn output_type_name(field_type: &OutputType) -> &'static str {
-    match field_type {
-        OutputType::String => "string",
-        OutputType::Number => "number",
-        OutputType::Integer => "integer",
-        OutputType::Boolean => "boolean",
-        OutputType::Array => "array",
-        OutputType::Object => "object",
-        OutputType::Null => "null",
-    }
+    JsonValue::Object(field.schema.clone())
 }
 
 fn validation_error_path(error: &jsonschema::ValidationError<'_>) -> String {
@@ -277,28 +264,26 @@ fn validation_error_path(error: &jsonschema::ValidationError<'_>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        OutputField, OutputFieldSpec, OutputType, output_contract_digest, output_value_schema,
-        parse_output_contract, validate_output_value,
+        OutputField, output_contract_digest, output_value_schema, parse_output_contract,
+        validate_output_value,
     };
     use crate::{JsonNumber, JsonValue};
     use std::collections::BTreeMap;
 
     fn declared_output() -> BTreeMap<String, OutputField> {
         [
-            (
-                "notify_plan".to_owned(),
-                OutputField::Type(OutputType::Object),
-            ),
+            ("notify_plan".to_owned(), OutputField::of_type("object")),
             (
                 "status".to_owned(),
-                OutputField::Spec(OutputFieldSpec {
-                    field_type: Some(OutputType::String),
-                    description: None,
-                    required: Some(false),
-                    wrap_as: None,
-                    enum_values: Some(vec!["ready".to_owned(), "blocked".to_owned()]),
-                    schema: None,
-                }),
+                OutputField {
+                    schema: serde_json::from_value(serde_json::json!({
+                        "type": "string",
+                        "enum": ["ready", "blocked"]
+                    }))
+                    .unwrap_or_default(),
+                    optional: true,
+                    packet: None,
+                },
             ),
         ]
         .into_iter()
@@ -381,20 +366,18 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         let output = BTreeMap::from([(
             "result".to_owned(),
-            OutputField::Spec(OutputFieldSpec {
-                field_type: Some(OutputType::Object),
-                description: None,
-                required: None,
-                wrap_as: None,
-                enum_values: None,
-                schema: Some(serde_json::from_value(serde_json::json!({
+            OutputField {
+                schema: serde_json::from_value(serde_json::json!({
+                    "type": "object",
                     "required": ["decision"],
                     "properties": {
                         "decision": { "type": "string", "enum": ["ready", "blocked"] }
                     },
                     "additionalProperties": false
-                }))?),
-            }),
+                }))?,
+                optional: false,
+                packet: None,
+            },
         )]);
         let valid = serde_json::from_value(serde_json::json!({
             "result": { "decision": "ready" }
@@ -422,7 +405,7 @@ mod tests {
         let raw = serde_json::from_value(serde_json::json!({
             "result": {
                 "type": "object",
-                "schema": { "required": "decision" }
+                "required": "decision"
             }
         }))?;
 

@@ -396,7 +396,7 @@ impl WorkflowExecution {
         A: SkillAdapter,
     {
         enforce_condition(context.step, &self.runs)?;
-        enforce_guards(context.graph, context.step, &self.runs)?;
+        enforce_guards(context.step, &self.runs)?;
         let admission_refs =
             verified_approval_references(context.runtime, context.graph, context.step, &self.runs)?;
         let resumed_hold = if let Some(pending) = self.suspended_step.take() {
@@ -904,15 +904,8 @@ fn enforce_condition(step: &WorkflowStep, runs: &[StepRun]) -> Result<(), Runtim
     }
 }
 
-pub(super) fn enforce_guards(
-    graph: &Workflow,
-    step: &WorkflowStep,
-    runs: &[StepRun],
-) -> Result<(), RuntimeError> {
-    let Some(policy) = &graph.policy else {
-        return Ok(());
-    };
-    for gate in policy.guards.iter().filter(|gate| gate.step == step.id) {
+pub(super) fn enforce_guards(step: &WorkflowStep, runs: &[StepRun]) -> Result<(), RuntimeError> {
+    for gate in &step.guard {
         let shown = operand_text(&gate.value);
         let Some(value) = operand_value(&gate.value, runs) else {
             return Err(RuntimeError::WorkflowBlocked {
@@ -982,11 +975,9 @@ where
     A: SkillAdapter,
 {
     let mut references = Vec::new();
-    for guard in graph
-        .policy
+    for guard in step
+        .guard
         .iter()
-        .flat_map(|policy| &policy.guards)
-        .filter(|guard| guard.step == step.id)
         .filter(|guard| guard.equals == Some(JsonValue::Bool(true)) && guard.not_equals.is_none())
     {
         let Some(approval_step_id) = approval_decision_of(&guard.value) else {
@@ -1315,7 +1306,7 @@ policy:
         );
         let error = super::enforce_condition(&graph.steps[0], &[]).expect_err("absent");
         assert!(error.to_string().contains("resolves to nothing"), "{error}");
-        let error = super::enforce_guards(&graph, &graph.steps[1], &[]).expect_err("absent");
+        let error = super::enforce_guards(&graph.steps[1], &[]).expect_err("absent");
         assert!(
             error
                 .to_string()

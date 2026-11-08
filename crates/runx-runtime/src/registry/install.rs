@@ -988,7 +988,7 @@ fn validate_install_binding_manifest(
             skill_name: skill_name.to_owned(),
         });
     }
-    let method_names = manifest.runners.keys().cloned().collect::<Vec<_>>();
+    let method_names = manifest.methods.keys().cloned().collect::<Vec<_>>();
     if !advertised_method_names.is_empty() && advertised_method_names != method_names {
         return Err(InstallError::MethodMetadataMismatch(skill_name.to_owned()));
     }

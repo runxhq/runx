@@ -8,7 +8,7 @@
     "args": [
       "./link.mjs"
     ],
-    "input_mode": "stdin",
+    "inputs_via": "stdin",
     "timeout_seconds": 90
   },
   "inputs": {

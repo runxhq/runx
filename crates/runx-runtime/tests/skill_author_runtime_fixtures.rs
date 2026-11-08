@@ -25,7 +25,7 @@ struct FixtureCase {
     id: String,
     mode: String,
     cwd: Option<String>,
-    input_mode: Option<runx_parser::InputMode>,
+    inputs_via: Option<runx_parser::InputMode>,
     large_input_bytes: Option<usize>,
     timeout_seconds: u64,
     inputs: JsonObject,
@@ -126,7 +126,7 @@ fn fixture_tool(
         args: vec![path_string(probe_path)?, fixture.mode.clone()],
         cwd: fixture.cwd.clone(),
         timeout_seconds: Some(fixture.timeout_seconds),
-        input_mode: fixture.input_mode,
+        inputs_via: fixture.inputs_via,
         environment: Default::default(),
     })
 }

@@ -435,10 +435,11 @@ impl Fixture {
             ],
         );
         let manifest = runx_parser::validate_method_manifest(
+            "fixture",
             runx_parser::parse_method_manifest_yaml(SKILL).unwrap(),
         )
         .unwrap();
-        let steps = manifest.runners["run"]
+        let steps = manifest.methods["run"]
             .graph
             .steps
             .iter()
@@ -1414,6 +1415,7 @@ fn readiness_reports_the_same_unpriced_usage_gate_and_money_refusal_as_admission
         })
     }));
     let manifest = runx_parser::validate_method_manifest(
+        "fixture",
         runx_parser::parse_method_manifest_yaml(SKILL).unwrap(),
     )
     .unwrap();
@@ -2178,6 +2180,7 @@ operations:
     )
     .unwrap();
     let manifest = runx_parser::validate_method_manifest(
+        "fixture",
         runx_parser::parse_method_manifest_yaml(
             r#"
 skill: probe
@@ -2195,7 +2198,7 @@ runners:
         .unwrap(),
     )
     .unwrap();
-    let step = manifest.runners["run"].graph.steps[0].clone();
+    let step = manifest.methods["run"].graph.steps[0].clone();
     let env = BTreeMap::from([
         ("PATH".to_owned(), std::env::var("PATH").unwrap_or_default()),
         ("HOME".to_owned(), "/operator/home".to_owned()),
@@ -2742,33 +2745,24 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
 
     // With no declared charge, the verb and its guarantees decide, and a
     // zero quote changes nothing.
-    assert!(resends_safely(&operation("note.read"), None));
-    assert!(resends_safely(&with_cost("note.read", 0), None));
+    assert!(resends_safely(&operation("note.read"), false));
+    assert!(resends_safely(&with_cost("note.read", 0), false));
     let mut state_idempotent = operation("note.put");
     state_idempotent.guarantees.provider_idempotency = ProviderIdempotency::Inherent;
-    assert!(resends_safely(&state_idempotent, None));
-    assert!(resends_safely(&operation("note.put"), None));
-    assert!(!resends_safely(&operation("note.post"), None));
-    assert!(resends_safely(
-        &operation("note.post"),
-        Some(DuplicatePolicy::Visible)
-    ));
-    assert!(resends_safely(
-        &with_cost("note.post", 0),
-        Some(DuplicatePolicy::Visible)
-    ));
+    assert!(resends_safely(&state_idempotent, false));
+    assert!(resends_safely(&operation("note.put"), false));
+    assert!(!resends_safely(&operation("note.post"), false));
+    assert!(resends_safely(&operation("note.post"), true));
+    assert!(resends_safely(&with_cost("note.post", 0), true));
 
     // A declared charge can land unseen, so only provider deduplication of
     // the whole call covers a resend. Read access, state idempotency and
     // tolerated duplicates all fail to.
-    assert!(!resends_safely(&with_cost("note.read", 5_000), None));
+    assert!(!resends_safely(&with_cost("note.read", 5_000), false));
     state_idempotent.cost = priced(5_000);
-    assert!(!resends_safely(&state_idempotent, None));
-    assert!(!resends_safely(
-        &with_cost("note.post", 5_000),
-        Some(DuplicatePolicy::Visible)
-    ));
-    assert!(resends_safely(&with_cost("note.put", 5_000), None));
+    assert!(!resends_safely(&state_idempotent, false));
+    assert!(!resends_safely(&with_cost("note.post", 5_000), true));
+    assert!(resends_safely(&with_cost("note.put", 5_000), false));
 }
 
 #[cfg(unix)]

@@ -1,6 +1,6 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-//! A governed call's act, end to end: the invoker states `$act`, an operation
+//! A governed call's act, end to end: the invoker states `$run.act`, an operation
 //! step binds it into its call's `act:`, and the call's own receipt seals the
 //! act with the authority admission derived and the effect its operation
 //! declares. A call in a child run is decided at its address.
@@ -41,8 +41,8 @@ runners:
         input: {channel_locator: $input.channel_locator, text: $input.text}
         act:
           form: $input.form
-          purpose: $act.purpose
-          reason: $act.reason
+          purpose: $run.act.purpose
+          reason: $run.act.reason
           target: $input.thread
           decision: close
           previous: $input.previous
@@ -56,7 +56,7 @@ runners:
         idempotency_key: post-1
         approval: {reason: Approve this exact post., type: chat_message}
         input: {channel_locator: $input.channel_locator, text: $input.text}
-        act: $act
+        act: $run.act
   turn:
     operations: [fixture/chat/channel.post]
     outputs:
@@ -433,7 +433,7 @@ runners:
         idempotency_key: post-1
         approval: {reason: Approve this exact post., type: chat_message}
         input: {channel_locator: chat://T123/C456, text: $input.text}
-        act: $act
+        act: $run.act
 "#,
     )
     .unwrap();
@@ -454,7 +454,7 @@ runners:
         inputs: {text: Deploy finished.}
         act:
           purpose: Announce the deploy
-          reason: $act.reason
+          reason: $run.act.reason
 "#,
     )
     .unwrap();

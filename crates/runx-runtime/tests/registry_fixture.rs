@@ -376,7 +376,7 @@ fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
         "bundle_digest": bundle_digest(&files)?,
         "method_names": package
             .root_manifest()
-            .map(|manifest| manifest.runners.keys().cloned().collect::<Vec<_>>())
+            .map(|manifest| manifest.methods.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default(),
         "trust_tier": publication.trust_tier,
         "required_scopes": [],

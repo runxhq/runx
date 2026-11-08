@@ -6,8 +6,8 @@
 //! - `$input` or `$input.<path>`: the run's input, or a field of it;
 //! - `$steps.<id>` or `$steps.<id>.<path>`: an earlier step's result, or a
 //!   field of it;
-//! - `$act` or `$act.<field>`: the act the run's invoker states, read only
-//!   inside an `act:`. Domain values never read accountability metadata.
+//! - `$run.act` or `$run.act.<field>`: the act the run was invoked with, read
+//!   only inside an `act:`. Domain values never read accountability metadata.
 //! - `$run.id`: the run's own id, read only by an operation step's
 //!   `idempotency_key`, so a write keyed on it happens once per run. Domain
 //!   values never read the run's identity.
@@ -56,7 +56,7 @@ impl Source {
         let (head, path) = match self {
             Self::Input { path } => ("$input".to_owned(), path),
             Self::Step { step, path } => (format!("$steps.{step}"), path),
-            Self::Act { path } => ("$act".to_owned(), path),
+            Self::Act { path } => ("$run.act".to_owned(), path),
             Self::RunId => return "$run.id".to_owned(),
         };
         std::iter::once(head)
@@ -122,7 +122,7 @@ pub(crate) fn parse_whole(
 }
 
 /// Parse an `act:`: an object of act fields, or a reference to a whole act
-/// such as `act: $act`. Only here may a value read `$act`.
+/// such as `act: $run.act`. Only here may a value read `$run.act`.
 pub(crate) fn parse_act(
     value: &JsonValue,
     previous_steps: &BTreeSet<String>,
@@ -326,7 +326,7 @@ impl Reading {
     ) -> Result<Option<Source>, ValidationError> {
         match reference(text, previous_steps, field)? {
             Some(Source::Act { .. }) if self != Self::Act => Err(validation_error(format!(
-                "{field} reads $act, the invoker's act, which only an act: may read."
+                "{field} reads $run.act, the act the run was invoked with, which only an act: may read."
             ))),
             Some(Source::RunId) if self != Self::Key => Err(validation_error(format!(
                 "{field} reads $run.id, the run's own id, which only an operation's idempotency_key may read."
@@ -355,11 +355,13 @@ fn reference(
     }
     match head {
         "$input" => Ok(Some(Source::Input { path: rest })),
-        "$act" => Ok(Some(Source::Act { path: rest })),
-        "$run" => match rest.as_slice() {
-            [id] if id == "id" => Ok(Some(Source::RunId)),
+        "$run" => match rest.split_first() {
+            Some((id, [])) if id == "id" => Ok(Some(Source::RunId)),
+            Some((act, path)) if act == "act" => Ok(Some(Source::Act {
+                path: path.to_vec(),
+            })),
             _ => Err(validation_error(format!(
-                "{field} reference {text:?} reads the run's id: write $run.id."
+                "{field} reference {text:?} reads the run: write $run.id, or $run.act.<field> in an act:."
             ))),
         },
         "$steps" => {
@@ -379,7 +381,7 @@ fn reference(
             }))
         }
         _ => Err(validation_error(format!(
-            "{field} {text:?} is not a reference: write $input.<path>, $steps.<id>.<path>, $act.<field> in an act:, or $run.id in an idempotency_key, and a literal that begins with $ as $$."
+            "{field} {text:?} is not a reference: write $input.<path>, $steps.<id>.<path>, $run.act.<field> in an act:, or $run.id in an idempotency_key, and a literal that begins with $ as $$."
         ))),
     }
 }

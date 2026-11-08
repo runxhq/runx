@@ -234,7 +234,6 @@ mod tests {
                     required: true,
                     description: None,
                     default: None,
-                    artifact: None,
                     packet: None,
                     schema: None,
                 },

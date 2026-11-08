@@ -106,7 +106,7 @@ pub(super) struct StepRunRequest<'a, A> {
     pub(super) attempt: u32,
     pub(super) inputs: JsonObject,
     /// The act a skill step gives its child run, which the child reads as
-    /// `$act`.
+    /// `$run.act`.
     pub(super) child_act: Option<CallAct>,
     pub(super) provenance: Vec<ProvenanceEntry>,
     pub(super) admission_refs: Vec<Reference>,
@@ -712,7 +712,7 @@ fn loaded_skill_or_load(
 
 /// The child runner a skill step names, if any.
 fn step_runner(step: &WorkflowStep) -> Option<String> {
-    step.skill().and_then(|target| target.runner.clone())
+    step.skill().and_then(|target| target.method.clone())
 }
 
 fn run_registered_step<A>(request: StepHandlerCtx<'_, A>) -> Result<StepRun, RuntimeError>
@@ -787,7 +787,7 @@ where
             });
         }
     };
-    let requirements = step_requirements(step, &executable);
+    let requirements = step_requirements(&executable);
     let invocation = SkillInvocation {
         workspace_bounds: crate::WorkspaceBounds::of(runtime.options.run_authority.as_ref()),
         historical_context: Vec::new(),
@@ -935,7 +935,7 @@ where
         });
     };
     let executable = Executable::Agent(agent.clone());
-    let requirements = step_requirements(step, &executable);
+    let requirements = step_requirements(&executable);
     // The act's context skills are dated by the run's admission, so the act
     // a step asks again when the run is driven again is the one it waits on.
     let admitted_at = match runtime.options.run.admitted_at()? {
@@ -1046,17 +1046,14 @@ where
     )
 }
 
-fn step_requirements(
-    step: &WorkflowStep,
-    executable: &Executable,
-) -> runx_contracts::ExecutionRequirements {
+fn step_requirements(executable: &Executable) -> runx_contracts::ExecutionRequirements {
     let environment = match executable {
         Executable::Worker(worker) => worker.environment.clone(),
         Executable::Process(process) => process.environment.clone(),
         Executable::Agent(_) => runx_contracts::EnvironmentRequirements::default(),
     };
     runx_contracts::ExecutionRequirements {
-        scopes: step.scopes.clone(),
+        scopes: Vec::new(),
         environment,
     }
 }
@@ -1093,11 +1090,23 @@ where
         attempt,
         runtime.options.run_authority.as_ref(),
     );
+    // A catalog tool runs with the scopes it declares.
+    let scopes = crate::tool_catalogs::dispatch::inspect_catalog_tool(
+        tool,
+        &runtime.options.env,
+        workflow_dir,
+        &runtime.options.effects,
+    )
+    .map(|inspected| inspected.scopes)
+    .map_err(|error| RuntimeError::InvalidRunStep {
+        step_id: step.id.clone(),
+        reason: format!("tool {tool} could not be resolved: {error}"),
+    })?;
     let tool_request = crate::tool_catalogs::dispatch::ToolDispatchRequest {
         tool: Cow::Borrowed(tool),
         inputs: Cow::Owned(inputs),
         resolved_inputs: Cow::Owned(JsonObject::new()),
-        scopes: &step.scopes,
+        scopes: &scopes,
         env: &runtime.options.env,
         skill_directory: workflow_dir,
         credential_delivery: &crate::credentials::CredentialDelivery::none(),
@@ -1956,7 +1965,7 @@ steps:
             return Err("expected a worker step".into());
         };
 
-        let requirements = super::step_requirements(step, &Executable::Worker(worker.clone()));
+        let requirements = super::step_requirements(&Executable::Worker(worker.clone()));
 
         assert_eq!(
             requirements.scopes,

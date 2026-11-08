@@ -120,7 +120,7 @@ fn process_stdin(
     tool: &ProcessTool,
     request: &SkillInvocation,
 ) -> Result<Option<ProcessStdin>, RuntimeError> {
-    if tool.input_mode != Some(runx_parser::InputMode::Stdin) {
+    if tool.inputs_via != Some(runx_parser::InputMode::Stdin) {
         return Ok(None);
     }
     let bytes = serde_json::to_vec(&request.inputs)
@@ -219,7 +219,7 @@ mod tests {
                 args: vec!["-c".to_owned(), "sleep 10".to_owned()],
                 cwd: None,
                 timeout_seconds: None,
-                input_mode: None,
+                inputs_via: None,
                 environment: Default::default(),
             }),
             outputs: None,

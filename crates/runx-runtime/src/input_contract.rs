@@ -196,12 +196,7 @@ fn materialize_input(
         };
     }
 
-    let value = if input.artifact == Some(true) {
-        unwrap_artifact(value, name)
-            .map_err(|message| input_error(declared_by, name, message, input))?
-    } else {
-        value.clone()
-    };
+    let value = value.clone();
     if matches!(value, JsonValue::Null) {
         return if input.required && missing_required == MissingRequired::Reject {
             Err(input_error(
@@ -306,20 +301,6 @@ fn input_error(
 
 /// An input declared `artifact` arrives in the canonical artifact envelope
 /// a step emits, `{schema?, data}`; its value is the envelope's data.
-fn unwrap_artifact(value: &JsonValue, name: &str) -> Result<JsonValue, String> {
-    match value {
-        JsonValue::Object(object)
-            if object.contains_key("data")
-                && object.keys().all(|key| key == "data" || key == "schema") =>
-        {
-            Ok(object.get("data").cloned().unwrap_or(JsonValue::Null))
-        }
-        _ => Err(format!(
-            "input '{name}' is an artifact; pass its envelope {{\"schema\", \"data\"}}"
-        )),
-    }
-}
-
 fn json_type(value: &JsonValue) -> &'static str {
     match value {
         JsonValue::Null => "null",
@@ -411,7 +392,6 @@ mod tests {
             required,
             description: None,
             default: None,
-            artifact: None,
             packet: None,
             schema: None,
         }
@@ -450,7 +430,6 @@ mod tests {
             required: true,
             description: Some("Bounded issue selector.".to_owned()),
             default: None,
-            artifact: None,
             packet: None,
             schema: Some(JsonObject::from([
                 (
@@ -525,7 +504,6 @@ mod tests {
             required: true,
             description: Some("Bounded GitHub resources.".to_owned()),
             default: None,
-            artifact: None,
             packet: None,
             schema: Some(JsonObject::from([
                 ("type".to_owned(), JsonValue::String("object".to_owned())),

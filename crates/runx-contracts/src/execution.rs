@@ -19,8 +19,6 @@ pub struct InputDefinition {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub artifact: Option<bool>,
     /// Canonical packet contract for a JSON-valued input. The runtime resolves
     /// this identifier through the packet-schema catalog before inspection or
     /// execution; authors never duplicate the packet schema inline.
@@ -201,7 +199,6 @@ mod tests {
             required: true,
             description: None,
             default: None,
-            artifact: None,
             packet: None,
             schema: None,
         }

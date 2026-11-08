@@ -110,10 +110,10 @@ impl JavaScriptPackage {
             JsonValue::String("skill".to_owned()),
         );
         let mut worker = javascript_worker();
-        worker.pages = Some(ArtifactPageSource {
+        worker.paged_input = Some(ArtifactPageSource {
             source: ArtifactPageInput::Path {
-                path_from: "archive_file".to_owned(),
-                path_scope_from: Some("archive_base".to_owned()),
+                path: "archive_file".to_owned(),
+                path_scope: Some("archive_base".to_owned()),
                 media_type: "application/javascript".to_owned(),
             },
             framing: ArtifactPageFraming::JsonArray,
@@ -184,7 +184,7 @@ fn javascript_worker() -> WorkerTool {
         module: "main.mjs".to_owned(),
         export: None,
         timeout_seconds: None,
-        pages: None,
+        paged_input: None,
         environment: EnvironmentRequirements::default(),
     }
 }

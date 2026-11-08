@@ -173,7 +173,7 @@ pub(crate) fn validate_skill_package(
         .transpose()?;
     let candidate_path = resolve_candidate_path(&repo_root, requested_path, stage.as_ref())?;
     let inspected = crate::inspect_skill_package(&candidate_path, None, Some(env));
-    let run_test = allow_execute_test || safe_test_execution(inspected.as_ref().ok());
+    let run_test = allow_execute_test || safe_test_execution(&candidate_path);
     let inspected = inspected.and_then(|inspection| {
         serde_json::to_value(&inspection)
             .and_then(serde_json::from_value)
@@ -279,10 +279,23 @@ fn resolve_candidate_path(
     Ok(resolved)
 }
 
-fn safe_test_execution(inspection: Option<&runx_contracts::SkillInspection>) -> bool {
-    inspection
-        .and_then(|inspection| inspection.capabilities.as_ref())
-        .is_none_or(|capabilities| matches!(capabilities.execution.as_str(), "read" | "plan"))
+/// A candidate's tests run without asking when they reach nothing outside
+/// the test sandbox: its providers are the tests' own, and a worker is
+/// deterministic, so only a trusted host process could. A package that runs
+/// one is tested only when the caller allows it.
+fn safe_test_execution(candidate: &Path) -> bool {
+    crate::load_validated_skill_package(candidate).is_ok_and(|loaded| {
+        loaded.manifest().is_none_or(|manifest| {
+            manifest.methods.values().all(|method| {
+                method.graph.steps.iter().all(|step| {
+                    !matches!(
+                        step.kind,
+                        runx_parser::StepKind::Tool(runx_parser::ToolTarget::Process(_))
+                    )
+                })
+            })
+        })
+    })
 }
 
 #[cfg(test)]

@@ -58,13 +58,10 @@ pub(super) fn load_mcp_server_tools(
     let Some(manifest) = loaded.manifest() else {
         return Ok(tools);
     };
-    for runner in manifest.runners.values() {
-        if runner.default
-            || !crate::skill_package::method_has_sealed_standalone_journey(
-                &loaded.package,
-                manifest,
-                runner,
-            )
+    let default = manifest.default_method().map(|method| method.name.as_str());
+    for runner in manifest.methods.values() {
+        if default == Some(runner.name.as_str())
+            || !crate::skill_package::method_has_sealed_test(&loaded.package, manifest, runner)
             || !crate::skill_package::method_makes_calls(
                 loaded.clone().into(),
                 &runner.name,

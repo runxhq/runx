@@ -202,18 +202,17 @@ pub use orchestrator_handoff::{
     OrchestratorReceiverValidation,
 };
 pub use output::{
-    Output, OutputContractParseError, OutputField, OutputFieldSpec, OutputType,
-    OutputValidationError, output_contract_digest, output_value_schema, parse_output_contract,
-    validate_output_value,
+    Output, OutputContractParseError, OutputField, OutputValidationError, output_contract_digest,
+    output_value_schema, parse_output_contract, validate_output_value,
 };
 pub use packet_id::{
     PACKET_ID_EXPECTED, PACKET_ID_MAX_LENGTH, PACKET_ID_PATTERN, PacketId, is_packet_id,
 };
 pub use packet_lock::{PacketLock, PacketLockEntry, PacketLockSchema};
 pub use paid_skill_listing::{
-    PAID_SKILL_LISTING_SCHEMA, PaidSkillActsOn, PaidSkillExecutorBinding, PaidSkillListing,
-    PaidSkillMethodOffer, PaidSkillOfferTerms, PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase,
-    PriceChoice, PriceError,
+    PAID_SKILL_LISTING_SCHEMA, PaidSkillExecutorBinding, PaidSkillListing, PaidSkillMethodOffer,
+    PaidSkillOfferTerms, PaidSkillOffers, PaidSkillPrice, PaidSkillPriceCase, PriceChoice,
+    PriceError, RequiredLease,
 };
 pub use provider_operation::ProviderOperationPacket;
 pub use purchase::{
@@ -317,7 +316,7 @@ pub use x402::{
 pub use skill_inspection::{
     EnvironmentReadiness, EnvironmentReadinessStatus, InspectedInput, InspectedOutput,
     InspectionReadiness, InspectionReadinessStatus, InspectionResume, MethodInspection,
-    MethodInspectionEntry, OperatorJourney, SkillCapabilities, SkillCatalog, SkillInspection,
-    SkillInspectionSchema, SkillInspectionStatus,
+    MethodInspectionEntry, MethodSchemas, SkillCatalog, SkillInspection, SkillInspectionSchema,
+    SkillInspectionStatus,
 };
 pub use skill_output::{ProjectArtifact, SkillOutput};

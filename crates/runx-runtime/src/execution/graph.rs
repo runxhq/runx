@@ -205,7 +205,7 @@ pub(crate) fn bind_known_inputs(
 }
 
 /// Bind what the run was invoked as into every step: each reference to the
-/// run's input, each `$act` inside an `act:`, and each `$run.id` in an
+/// run's input, each `$run.act` inside an `act:`, and each `$run.id` in an
 /// operation's key takes its value, and an absent one leaves itself out of
 /// the object or list that holds it; an act that is wholly absent leaves the
 /// step without one. References to earlier steps stay for the step to bind
@@ -261,10 +261,8 @@ pub(crate) fn bind_run_inputs(
         if let Some(when) = &mut step.when {
             bind_operand(&mut when.value, &run_input);
         }
-    }
-    if let Some(policy) = &mut graph.policy {
-        for guard in &mut policy.guards {
-            bind_operand(&mut guard.value, &run_input);
+        for condition in &mut step.guard {
+            bind_operand(&mut condition.value, &run_input);
         }
     }
     Ok(graph)
@@ -459,7 +457,7 @@ pub(crate) fn step_skill(
         })?;
     let runner = select_step_method(
         manifest,
-        step.skill().and_then(|target| target.runner.as_deref()),
+        step.skill().and_then(|target| target.method.as_deref()),
     )?
     .clone();
     let requirements = manifest.execution_requirements(&runner);
@@ -467,11 +465,7 @@ pub(crate) fn step_skill(
     let manual_path = package.package_root.join("SKILL.md");
     let manual_markdown = package.package.manual_markdown.clone().into();
     let manual_digest = package.package.manual_digest.clone();
-    let offer = manifest
-        .marketplace
-        .as_ref()
-        .and_then(|marketplace| marketplace.offers.get(&runner.name))
-        .cloned();
+    let offer = runner.offer.clone();
     let loaded = LoadedStepSkill {
         version: manifest.version.clone(),
         offer,
@@ -502,15 +496,12 @@ pub(crate) fn step_skill(
 pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) -> Workflow {
     Workflow {
         name: format!("purchase {skill}#{runner}"),
-        publisher: None,
         result_from: vec![PURCHASE_STEP.to_owned()],
-        policy: None,
         steps: vec![WorkflowStep {
             id: PURCHASE_STEP.to_owned(),
-            label: None,
             kind: StepKind::Skill(SkillTarget {
                 skill: skill.to_owned(),
-                runner: Some(runner.to_owned()),
+                method: Some(runner.to_owned()),
             }),
             artifacts: None,
             outputs: None,
@@ -518,9 +509,9 @@ pub(crate) fn purchase_workflow(skill: &str, runner: &str, inputs: &JsonObject) 
             bindings: Vec::new(),
             act: None,
             context_skills: Vec::new(),
-            scopes: Vec::new(),
             when: None,
-            duplicates: None,
+            guard: Vec::new(),
+            retry_unknown_outcomes: false,
         }],
         raw: runx_parser::RawWorkflowIr {
             document: JsonObject::new(),
@@ -543,7 +534,6 @@ pub(crate) fn child_skill_steps(step: &WorkflowStep) -> Vec<Cow<'_, WorkflowStep
             .map(|skill| {
                 Cow::Owned(WorkflowStep {
                     id: step.id.clone(),
-                    label: None,
                     kind: StepKind::Skill(turn_skill_target(skill.as_str())),
                     artifacts: None,
                     outputs: None,
@@ -551,9 +541,9 @@ pub(crate) fn child_skill_steps(step: &WorkflowStep) -> Vec<Cow<'_, WorkflowStep
                     bindings: Vec::new(),
                     act: None,
                     context_skills: Vec::new(),
-                    scopes: Vec::new(),
                     when: None,
-                    duplicates: None,
+                    guard: Vec::new(),
+                    retry_unknown_outcomes: false,
                 })
             })
             .collect(),
@@ -563,11 +553,18 @@ pub(crate) fn child_skill_steps(step: &WorkflowStep) -> Vec<Cow<'_, WorkflowStep
     }
 }
 
-/// What a turn's call to child skill `skill` runs: its default runner.
+/// What a turn's call to child skill `skill` runs: the method its reference
+/// names after `#`, or the package's default.
 pub(crate) fn turn_skill_target(skill: &str) -> SkillTarget {
-    SkillTarget {
-        skill: skill.to_owned(),
-        runner: None,
+    match skill.split_once('#') {
+        Some((skill, method)) => SkillTarget {
+            skill: skill.to_owned(),
+            method: Some(method.to_owned()),
+        },
+        None => SkillTarget {
+            skill: skill.to_owned(),
+            method: None,
+        },
     }
 }
 
@@ -618,31 +615,17 @@ pub(crate) fn select_step_method<'a>(
     requested_method: Option<&str>,
 ) -> Result<&'a SkillMethodDefinition, RuntimeError> {
     if let Some(runner) = requested_method {
-        return manifest.runners.get(runner).ok_or_else(|| {
+        return manifest.methods.get(runner).ok_or_else(|| {
             RuntimeError::UnsupportedMethodSelection {
                 runner: runner.to_owned(),
             }
         });
     }
-    let defaults = manifest
-        .runners
-        .values()
-        .filter(|runner| runner.default)
-        .collect::<Vec<_>>();
-    match defaults.as_slice() {
-        [runner] => Ok(*runner),
-        [] if manifest.runners.len() == 1 => manifest.runners.values().next().ok_or_else(|| {
-            RuntimeError::UnsupportedMethodSelection {
-                runner: "default".to_owned(),
-            }
-        }),
-        [] => Err(RuntimeError::UnsupportedMethodSelection {
+    manifest
+        .default_method()
+        .ok_or_else(|| RuntimeError::UnsupportedMethodSelection {
             runner: "default".to_owned(),
-        }),
-        _ => Err(RuntimeError::UnsupportedMethodSelection {
-            runner: "default".to_owned(),
-        }),
-    }
+        })
 }
 
 pub(crate) fn step_definitions(graph: &Workflow) -> Vec<SequentialWorkflowStepDefinition> {
@@ -827,7 +810,7 @@ pub(crate) fn materialize_step_invocation_inputs_with_index(
     Ok(inputs)
 }
 
-/// A step's act when it runs: an operation step's call's, or the `$act` a
+/// A step's act when it runs: an operation step's call's, or the `$run.act` a
 /// skill step's child run takes.
 pub(crate) fn materialize_step_act_with_index(
     step: &WorkflowStep,

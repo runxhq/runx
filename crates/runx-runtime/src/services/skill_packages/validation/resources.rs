@@ -17,7 +17,7 @@ pub(super) fn candidate_resource_usage(package: &ValidatedSkillPackage) -> Candi
         ..CandidateResourceUsage::default()
     };
     for profile in package.profiles.values() {
-        for runner in profile.runners.values() {
+        for runner in profile.methods.values() {
             classify_method(runner, &mut usage);
         }
     }

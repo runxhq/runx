@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use runx_parser::{TestCaller, TestHttpRequestBodyFixture, TestHttpResponseFixture};
+use runx_parser::{TestHttpRequestBodyFixture, TestHttpResponseFixture, TestProviders};
 
 use super::provider_responses::{TEST_PROVIDER_BASE_URL, TEST_PROVIDER_TOKEN, TestTransport};
 use crate::effects::{RuntimeEffectError, RuntimeEffectRegistry};
@@ -21,38 +21,38 @@ use crate::kernel::operation::OperationEffect;
 pub(super) fn effects_over(
     effects: &RuntimeEffectRegistry,
     transport: TestTransport,
-    caller: &TestCaller,
+    providers: &TestProviders,
 ) -> Result<RuntimeEffectRegistry, RuntimeEffectError> {
     let mut effects = effects.clone();
     effects.replace_effect(OperationEffect::harness(
         transport,
-        &caller.mcp_calls,
-        &caller.process_calls,
+        &providers.mcp,
+        &providers.processes,
     ))?;
     Ok(effects)
 }
 
-/// The transport the caller's fixtures stand in for the world with.
+/// The transport the test's providers stand in for the world with.
 /// `closure` is every connector the case's run binds through its closure.
 pub(super) fn test_transport(
-    caller: &TestCaller,
+    providers: &TestProviders,
     scope: &crate::ConnectorScope,
     closure: &[Arc<LoadedConnector>],
     skill_dir: &std::path::Path,
 ) -> Result<TestTransport, String> {
-    let grant_connector = caller
-        .provider_responses
+    let grant_connector = providers
+        .hosted
         .as_ref()
         .and_then(|provider| provider.grant.as_ref())
         .map(|grant| granted_connector(scope, closure, skill_dir, &grant.provider))
         .transpose()?;
     let mut connectors_with_leases: Vec<Arc<LoadedConnector>> = Vec::new();
-    for hold in caller
-        .provider_responses
+    for lease in providers
+        .hosted
         .iter()
-        .flat_map(|provider| &provider.holds)
+        .flat_map(|provider| &provider.leases)
     {
-        let connector = granted_connector(scope, closure, skill_dir, &hold.connector)?;
+        let connector = granted_connector(scope, closure, skill_dir, &lease.connector)?;
         if !connectors_with_leases
             .iter()
             .any(|known| known.binding() == connector.binding())
@@ -61,8 +61,8 @@ pub(super) fn test_transport(
         }
     }
     let exchanges = Arc::new(TestExchanges::new(
-        caller
-            .http_exchanges
+        providers
+            .http
             .iter()
             .map(|exchange| RuntimeTestHttpExchange {
                 method: runtime_method(&exchange.request.method),
@@ -81,7 +81,7 @@ pub(super) fn test_transport(
             .collect(),
     ));
     Ok(TestTransport {
-        provider: caller.provider_responses.clone(),
+        provider: providers.hosted.clone(),
         grant_connector,
         connectors_with_leases,
         exchanges,
@@ -148,8 +148,8 @@ fn granted_connector(
 
 /// The environment a case's provider fixture runs under: the harness's hosted
 /// API, authenticated as the fixture's principal.
-pub(crate) fn provider_env(caller: &TestCaller) -> BTreeMap<String, String> {
-    if caller.provider_responses.is_none() {
+pub(crate) fn provider_env(providers: &TestProviders) -> BTreeMap<String, String> {
+    if providers.hosted.is_none() {
         return BTreeMap::new();
     }
     BTreeMap::from([
@@ -168,14 +168,14 @@ pub(crate) fn provider_env(caller: &TestCaller) -> BTreeMap<String, String> {
 /// operations run under, as `runx connector use <connector> <grant>` would, in the kernel
 /// `env` resolves for `cwd`, reading the grant from the harness's Connect.
 pub(crate) fn seed_provider_grant(
-    caller: &TestCaller,
+    providers: &TestProviders,
     scope: &crate::ConnectorScope,
     closure: &[Arc<LoadedConnector>],
     env: &BTreeMap<String, String>,
     cwd: &std::path::Path,
 ) -> Result<(), String> {
-    let Some(grant) = caller
-        .provider_responses
+    let Some(grant) = providers
+        .hosted
         .as_ref()
         .and_then(|provider| provider.grant.as_ref())
     else {
@@ -189,7 +189,7 @@ pub(crate) fn seed_provider_grant(
     crate::kernel::setup::confirm_grant_over(
         &instances,
         &connector,
-        Arc::new(test_transport(caller, scope, closure, cwd)?),
+        Arc::new(test_transport(providers, scope, closure, cwd)?),
         &grant.grant_id,
         env,
         cwd,

@@ -260,18 +260,13 @@ fn skill_profile_list_item(
         description,
         runners: Some(crate::skill_package::catalog_methods(manifest)),
         diagnostics: None,
-        scopes: skill_scopes(manifest),
+        scopes: None,
         emits: skill_emits(manifest),
         fixtures: Some(fixtures),
-        test_cases: Some(
-            manifest
-                .harness
-                .as_ref()
-                .map_or(0, |harness| harness.cases.len() as u64),
-        ),
+        test_cases: None,
         steps: Some(
             manifest
-                .runners
+                .methods
                 .values()
                 .map(|runner| runner.graph.steps.len() as u64)
                 .sum(),
@@ -279,19 +274,10 @@ fn skill_profile_list_item(
     }
 }
 
-fn skill_scopes(manifest: &runx_parser::SkillMethodManifest) -> Option<Vec<String>> {
-    let scopes = manifest
-        .runners
-        .values()
-        .flat_map(runx_parser::SkillMethodDefinition::declared_scopes)
-        .collect::<BTreeSet<_>>();
-    (!scopes.is_empty()).then(|| scopes.into_iter().collect())
-}
-
 fn skill_emits(manifest: &runx_parser::SkillMethodManifest) -> Option<Vec<RunxListEmit>> {
     let mut emits = BTreeSet::<(String, Option<runx_contracts::PacketId>)>::new();
     for step in manifest
-        .runners
+        .methods
         .values()
         .flat_map(|runner| runner.graph.steps.iter())
     {

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use runx_contracts::PaidSkillOfferTerms;
 use runx_contracts::connector::{ConnectorName, Digest};
-use runx_parser::{CatalogMetadata, SkillMethodManifest, ValidatedSkill};
+use runx_parser::{CatalogMetadata, SkillMethodManifest, TestFixture, ValidatedSkill};
 use serde::{Deserialize, Serialize};
 
 /// Parser-owned package metadata persisted by registry implementations.
@@ -18,24 +18,31 @@ pub struct RegistryPackageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     pub method_names: Vec<String>,
-    pub catalog_kind: String,
-    pub catalog_audience: String,
     pub catalog_visibility: String,
-    pub required_scopes: Vec<String>,
+    /// Each paid method's offer, with the digests of the input and output
+    /// schemas its listing, purchases and receipts bind.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub marketplace_offers: BTreeMap<String, PaidSkillOfferTerms>,
+    pub offers: BTreeMap<String, RegistryMethodOffer>,
     pub tags: Vec<String>,
     pub test_cases: Vec<RegistryTestCaseMetadata>,
-    /// Every input name the package declares: its shared input definitions
-    /// and each runner's inputs, sorted and once each.
+    /// Every input name the package declares: its shared inputs and each
+    /// method's inputs, sorted and once each.
     pub input_names: Vec<String>,
-    /// The child skills the package composes, as written: its graph steps'
-    /// skill targets and the skills an agent turn may run, sorted and once
-    /// each.
+    /// The child skills the package composes, as written: its skill steps'
+    /// targets and the skills an agent turn may run, sorted and once each.
     pub skills: Vec<String>,
-    /// The connectors the package's `run.yaml` declares, in id order. Its own
-    /// declarations only: a skill it composes declares its own.
+    /// The connectors the package's steps call, in name order. Its own only:
+    /// a skill it composes calls its own.
     pub connectors: Vec<RegistryConnectorMetadata>,
+}
+
+/// A paid method's offer as its `run.yaml` states it, and the digests of the
+/// method's input and output schemas, derived from its fields.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegistryMethodOffer {
+    pub terms: PaidSkillOfferTerms,
+    pub input_schema_digest: Digest,
+    pub output_schema_digest: Digest,
 }
 
 /// One connector a package declares: where it comes from, the digests a
@@ -59,7 +66,7 @@ pub struct RegistryConnectorMetadata {
 pub struct RegistryTestCaseMetadata {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub runner: Option<String>,
+    pub method: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_status: Option<String>,
 }
@@ -67,28 +74,47 @@ pub struct RegistryTestCaseMetadata {
 pub(crate) fn project_registry_package_metadata(
     skill: &ValidatedSkill,
     manifest: Option<&SkillMethodManifest>,
+    tests: &BTreeMap<String, TestFixture>,
     connectors: Vec<RegistryConnectorMetadata>,
-) -> RegistryPackageMetadata {
+) -> Result<RegistryPackageMetadata, String> {
     let catalog = registry_catalog(manifest);
-    RegistryPackageMetadata {
+    Ok(RegistryPackageMetadata {
         name: skill.name.clone(),
         description: skill.description.clone(),
         category: catalog.category.clone(),
         method_names: registry_method_names(manifest),
-        catalog_kind: catalog.kind.as_str().to_owned(),
-        catalog_audience: catalog.audience.as_str().to_owned(),
         catalog_visibility: catalog.visibility.as_str().to_owned(),
-        required_scopes: registry_required_scopes(manifest),
-        marketplace_offers: manifest
-            .and_then(|manifest| manifest.marketplace.as_ref())
-            .map(|marketplace| marketplace.offers.clone())
-            .unwrap_or_default(),
+        offers: registry_offers(manifest)?,
         tags: registry_tags(&catalog),
-        test_cases: registry_test_cases(manifest),
+        test_cases: registry_test_cases(tests),
         input_names: registry_input_names(manifest),
         skills: registry_skills(manifest),
         connectors,
+    })
+}
+
+/// Each paid method's offer, bound to the digests of the method's schemas.
+fn registry_offers(
+    manifest: Option<&SkillMethodManifest>,
+) -> Result<BTreeMap<String, RegistryMethodOffer>, String> {
+    let mut offers = BTreeMap::new();
+    for (name, method) in manifest.into_iter().flat_map(|manifest| &manifest.methods) {
+        let Some(terms) = &method.offer else {
+            continue;
+        };
+        let schemas = method
+            .schemas()
+            .map_err(|error| format!("method {name}'s schemas cannot be digested: {error}"))?;
+        offers.insert(
+            name.clone(),
+            RegistryMethodOffer {
+                terms: terms.clone(),
+                input_schema_digest: schemas.input_schema_digest,
+                output_schema_digest: schemas.output_schema_digest,
+            },
+        );
     }
+    Ok(offers)
 }
 
 /// The declared connectors by id, each with its operations in the order the
@@ -101,9 +127,9 @@ pub(crate) fn declared_connectors(
         .into_iter()
         .flat_map(|manifest| &manifest.connectors)
     {
-        let ids = if requirement.connector_from.is_some() {
+        let ids = if requirement.choose.is_some() {
             requirement
-                .allowed_connectors
+                .from
                 .iter()
                 .map(|id| id.as_str().to_owned())
                 .collect()
@@ -122,15 +148,13 @@ pub(crate) fn declared_connectors(
     connectors
 }
 
-fn registry_test_cases(manifest: Option<&SkillMethodManifest>) -> Vec<RegistryTestCaseMetadata> {
-    manifest
-        .and_then(|manifest| manifest.harness.as_ref())
-        .into_iter()
-        .flat_map(|harness| &harness.cases)
-        .map(|case| RegistryTestCaseMetadata {
-            name: case.name.clone(),
-            runner: case.runner.clone(),
-            expected_status: case.expect.status.as_ref().map(|status| {
+fn registry_test_cases(tests: &BTreeMap<String, TestFixture>) -> Vec<RegistryTestCaseMetadata> {
+    tests
+        .values()
+        .map(|test| RegistryTestCaseMetadata {
+            name: test.name.clone(),
+            method: test.method.clone(),
+            expected_status: test.expect.status.as_ref().map(|status| {
                 match status {
                     runx_parser::test_fixture::TestExpectedStatus::Sealed => "sealed",
                     runx_parser::test_fixture::TestExpectedStatus::Failure => "failure",
@@ -148,28 +172,17 @@ pub(crate) fn registry_catalog(manifest: Option<&SkillMethodManifest>) -> Catalo
     manifest
         .and_then(|manifest| manifest.catalog.clone())
         .unwrap_or(CatalogMetadata {
-            kind: runx_parser::CatalogKind::Skill,
-            audience: runx_parser::CatalogAudience::Public,
             visibility: runx_parser::CatalogVisibility::Public,
-            role: runx_parser::CatalogRole::Context,
-            canonical_skill: None,
-            provider: None,
-            part_of: Vec::new(),
-            execution: None,
-            completion: None,
-            approval: None,
             category: None,
             tags: Vec::new(),
-            publisher: None,
-            links: BTreeMap::new(),
         })
 }
 
 fn registry_input_names(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     let mut names = std::collections::BTreeSet::new();
     if let Some(manifest) = manifest {
-        names.extend(manifest.input_definitions.keys().cloned());
-        for runner in manifest.runners.values() {
+        names.extend(manifest.shared_inputs.keys().cloned());
+        for runner in manifest.methods.values() {
             names.extend(runner.inputs.keys().cloned());
         }
     }
@@ -179,18 +192,24 @@ fn registry_input_names(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
 fn registry_skills(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     let mut refs = std::collections::BTreeSet::new();
     if let Some(manifest) = manifest {
-        refs.extend(manifest.skills.iter().filter_map(|entry| match entry {
-            runx_contracts::SkillAllowance::Skill(reference) => Some(reference.as_str().to_owned()),
-            runx_contracts::SkillAllowance::Rule(_) => None,
-        }));
-        for runner in manifest.runners.values() {
-            refs.extend(
-                runner
-                    .graph
-                    .steps
-                    .iter()
-                    .filter_map(|step| step.skill().map(|target| target.skill.clone())),
-            );
+        for method in manifest.methods.values() {
+            for step in &method.graph.steps {
+                match &step.kind {
+                    runx_parser::StepKind::Skill(target) => {
+                        refs.insert(target.skill.clone());
+                    }
+                    runx_parser::StepKind::Agent(agent) => {
+                        refs.extend(agent.allowance.named_skills().map(|skill| {
+                            skill
+                                .as_str()
+                                .split_once('#')
+                                .map_or(skill.as_str(), |(skill, _)| skill)
+                                .to_owned()
+                        }));
+                    }
+                    _ => {}
+                }
+            }
         }
     }
     refs.into_iter().collect()
@@ -198,18 +217,8 @@ fn registry_skills(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
 
 fn registry_method_names(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
     manifest
-        .map(|manifest| manifest.runners.keys().cloned().collect())
+        .map(|manifest| manifest.methods.keys().cloned().collect())
         .unwrap_or_default()
-}
-
-fn registry_required_scopes(manifest: Option<&SkillMethodManifest>) -> Vec<String> {
-    unique(
-        manifest
-            .into_iter()
-            .flat_map(|manifest| manifest.runners.values())
-            .flat_map(runx_parser::SkillMethodDefinition::declared_scopes)
-            .collect(),
-    )
 }
 
 /// The catalog's tags, then its category as a tag.

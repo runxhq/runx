@@ -164,10 +164,8 @@ fn append_node(
         ));
     }
     out.push_str(&format!(
-        "method_name: {}\nrunner_selection: {}\nrunner_scopes: {}\n",
-        node.runner.name,
-        node.runner.selection,
-        list_or_none(&node.runner.scopes),
+        "method_name: {}\nmethod_selection: {}\n",
+        node.runner.name, node.runner.selection,
     ));
     if let Some(requested) = &node.runner.requested_name {
         out.push_str(&format!("method_requested_name: {requested}\n"));

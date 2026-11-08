@@ -6,7 +6,7 @@
   "source": {
     "command": "python3",
     "args": ["./read.py"],
-    "input_mode": "stdin",
+    "inputs_via": "stdin",
     "timeout_seconds": 30
   },
   "inputs": {

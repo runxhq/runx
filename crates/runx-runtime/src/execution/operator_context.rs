@@ -119,7 +119,6 @@ pub struct SkillOperatorContextMethod {
     pub name: String,
     pub selection: String,
     pub requested_name: Option<String>,
-    pub scopes: Vec<String>,
     pub raw: JsonValue,
 }
 
@@ -139,7 +138,7 @@ impl SkillOperatorContextStep {
     #[must_use]
     pub fn target_label(&self) -> String {
         match &self.definition.kind {
-            StepKind::Skill(target) => match &target.runner {
+            StepKind::Skill(target) => match &target.method {
                 Some(runner) => format!("skill {} runner {runner}", target.skill),
                 None => format!("skill {}", target.skill),
             },
@@ -152,7 +151,7 @@ impl SkillOperatorContextStep {
                 Some(operation) => format!("operation {}/{operation}", target.requirement),
                 None => format!("operation {}", target.requirement),
             },
-            StepKind::Agent(agent) => format!("agent {} task {}", agent.role, agent.task),
+            StepKind::Agent(agent) => format!("agent task {}", agent.task),
             StepKind::Ask(ask) => format!("ask {}", ask.gate),
             StepKind::Load(load) => match &load.target {
                 LoadTarget::Skill { skill, .. } => format!("load skill {skill}"),
@@ -391,7 +390,7 @@ impl ExpansionState {
             children.push(self.expand_loaded_child(
                 child_path,
                 &target.skill,
-                target.runner.as_deref(),
+                target.method.as_deref(),
                 loaded,
                 env,
                 depth + 1,
@@ -615,6 +614,8 @@ impl ExpansionState {
     }
 }
 
+/// The method a node runs: the one its reference named, or the package's
+/// default, its one method or its `default_method`.
 fn method_context(
     runner: &SkillMethodDefinition,
     requested_method: Option<&str>,
@@ -622,16 +623,13 @@ fn method_context(
 ) -> SkillOperatorContextMethod {
     let selection = if requested_method.is_some() {
         "requested"
-    } else if runner.default {
-        "default"
     } else {
-        "only"
+        "default"
     };
     SkillOperatorContextMethod {
         name: runner.name.clone(),
         selection: selection.to_owned(),
         requested_name: requested_method.map(str::to_owned),
-        scopes: runner.declared_scopes(),
         raw,
     }
 }
@@ -881,7 +879,7 @@ mod tests {
                     std::env::join_paths(roots)?.to_string_lossy().into_owned(),
                 );
             }
-            for method_name in manifest.runners.keys() {
+            for method_name in manifest.methods.keys() {
                 if let Err(blocked) = load_skill_operator_context_chain_from_package(
                     &loaded,
                     Some(method_name),

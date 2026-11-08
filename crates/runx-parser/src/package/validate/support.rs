@@ -79,49 +79,18 @@ fn nested_package_source(source: &SkillPackageSource, prefix: &str) -> SkillPack
     }
 }
 
+/// What a package's tests read, staged whole for each test: every file
+/// under `fixtures/` outside a nested package's own.
 pub(super) fn validate_test_support_files(
     source: &SkillPackageSource,
-    profiles: &BTreeMap<String, SkillMethodManifest>,
 ) -> Result<BTreeSet<String>, SkillPackageError> {
-    let mut files = BTreeSet::new();
-    for (profile_path, manifest) in profiles {
-        let Some(harness) = &manifest.harness else {
-            continue;
-        };
-        let profile_directory = profile_path
-            .rsplit_once('/')
-            .map_or("", |(directory, _)| directory);
-        for (index, declared) in harness.files.iter().enumerate() {
-            let field = format!("{profile_path}.harness.files[{index}]");
-            if declared.trim() != declared
-                || declared.is_empty()
-                || declared.starts_with('/')
-                || declared.contains('\\')
-                || declared
-                    .split('/')
-                    .any(|segment| segment.is_empty() || matches!(segment, "." | ".."))
-                || !declared.starts_with("fixtures/")
-            {
-                return Err(SkillPackageError::invalid(
-                    field,
-                    "harness files must be normalized profile-relative paths under fixtures/",
-                ));
-            }
-            let resolved = if profile_directory.is_empty() {
-                declared.clone()
-            } else {
-                format!("{profile_directory}/{declared}")
-            };
-            if !source.files.contains_key(&resolved) {
-                return Err(SkillPackageError::invalid(
-                    field,
-                    format!("declared harness file {resolved:?} is missing from the package"),
-                ));
-            }
-            files.insert(resolved);
-        }
-    }
-    Ok(files)
+    Ok(source
+        .files
+        .keys()
+        .filter(|path| path.starts_with("fixtures/"))
+        .filter(|path| !has_nested_manual_boundary(path, source))
+        .cloned()
+        .collect())
 }
 
 pub(super) fn validate_execution_files(
@@ -139,6 +108,7 @@ pub(super) fn validate_execution_files(
     Ok(())
 }
 
+/// The package's tests: one `tests/<name>.yaml` each.
 pub(super) fn validate_test_fixtures(
     source: &SkillPackageSource,
 ) -> Result<BTreeMap<String, TestFixture>, SkillPackageError> {
@@ -146,15 +116,36 @@ pub(super) fn validate_test_fixtures(
         .files
         .iter()
         .filter(|(path, _)| {
-            path.starts_with("fixtures/")
-                && (path.ends_with(".yaml") || path.ends_with(".yml"))
-                && !has_nested_manual_boundary(path, source)
+            path.strip_prefix("tests/").is_some_and(|name| {
+                !name.contains('/') && (name.ends_with(".yaml") || name.ends_with(".yml"))
+            })
         })
         .map(|(path, contents)| {
             let fixture = parse_test_fixture(text_file(path, contents)?).map_err(|error| {
-                SkillPackageError::invalid(path, format!("invalid harness fixture: {error}"))
+                SkillPackageError::invalid(path, format!("invalid test: {error}"))
             })?;
             Ok((path.clone(), fixture))
         })
         .collect()
+}
+
+/// A test runs a method its package has.
+pub(super) fn validate_test_methods(
+    fixtures: &BTreeMap<String, TestFixture>,
+    manifest: Option<&SkillMethodManifest>,
+) -> Result<(), SkillPackageError> {
+    for (path, fixture) in fixtures {
+        if fixture.package.is_some() {
+            continue;
+        }
+        if let (Some(method), Some(manifest)) = (&fixture.method, manifest)
+            && !manifest.methods.contains_key(method)
+        {
+            return Err(SkillPackageError::invalid(
+                path,
+                format!("method {method} is not one of the package's methods"),
+            ));
+        }
+    }
+    Ok(())
 }

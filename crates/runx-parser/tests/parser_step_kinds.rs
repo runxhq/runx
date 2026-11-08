@@ -310,7 +310,7 @@ fn an_operation_act_binds_the_invokers_act_whole_or_by_field() -> Result<(), Str
     use runx_parser::Source;
 
     let whole = acting(
-        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: $act\n",
+        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: $run.act\n",
     )?;
     let act = only_step(&whole).act.clone().ok_or("the step has an act")?;
     assert!(act.values.is_empty());
@@ -323,7 +323,7 @@ fn an_operation_act_binds_the_invokers_act_whole_or_by_field() -> Result<(), Str
     );
 
     let fields = acting(
-        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {purpose: $act.purpose, target: $input.item, decision: close}\n",
+        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {purpose: $run.act.purpose, target: $input.item, decision: close}\n",
     )?;
     let act = only_step(&fields)
         .act
@@ -338,7 +338,7 @@ fn an_operation_act_binds_the_invokers_act_whole_or_by_field() -> Result<(), Str
         .iter()
         .map(|binding| (binding.at.join("."), binding.source.reference()))
         .collect::<Vec<_>>();
-    assert!(sources.contains(&("purpose".to_owned(), "$act.purpose".to_owned())));
+    assert!(sources.contains(&("purpose".to_owned(), "$run.act.purpose".to_owned())));
     assert!(sources.contains(&("target".to_owned(), "$input.item".to_owned())));
     Ok(())
 }
@@ -347,20 +347,20 @@ fn an_operation_act_binds_the_invokers_act_whole_or_by_field() -> Result<(), Str
 fn only_an_act_reads_the_invokers_act() -> Result<(), String> {
     for (steps, field) in [
         (
-            "      - id: close\n        operation: tracker/item.update\n        input: {why: $act.purpose}\n",
+            "      - id: close\n        operation: tracker/item.update\n        input: {why: $run.act.purpose}\n",
             "input",
         ),
         (
-            "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        when: {value: $act.decision, equals: close}\n",
+            "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        when: {value: $run.act.decision, equals: close}\n",
             "when",
         ),
         (
-            "      - id: note\n        tool: {module: note.mjs}\n        inputs: {why: $act}\n",
+            "      - id: note\n        tool: {module: note.mjs}\n        inputs: {why: $run.act}\n",
             "inputs",
         ),
     ] {
         let Err(error) = acting(steps) else {
-            return Err(format!("{field}: $act outside act: is refused"));
+            return Err(format!("{field}: $run.act outside act: is refused"));
         };
         assert!(
             error.contains("only an act: may read") && error.contains(field),
@@ -373,7 +373,7 @@ fn only_an_act_reads_the_invokers_act() -> Result<(), String> {
 #[test]
 fn a_skill_step_gives_its_child_an_act_and_other_steps_take_none() -> Result<(), String> {
     let child = runner(
-        "      - id: child\n        skill: ./child\n        act: {purpose: $act.purpose}\n",
+        "      - id: child\n        skill: ./child\n        act: {purpose: $run.act.purpose}\n",
     )?;
     assert!(only_step(&child).act.is_some());
     for steps in [
@@ -391,13 +391,13 @@ fn a_skill_step_gives_its_child_an_act_and_other_steps_take_none() -> Result<(),
 #[test]
 fn an_act_states_its_purpose() -> Result<(), String> {
     let Err(error) = acting(
-        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {form: reply, reason: $act.reason}\n",
+        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {form: reply, reason: $run.act.reason}\n",
     ) else {
         return Err("an act without a purpose is refused".to_owned());
     };
     assert!(error.contains("needs a purpose"), "{error}");
     let Err(error) = acting(
-        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {purpose: Close it, legitimacy: $act.reason}\n",
+        "      - id: close\n        operation: tracker/item.update\n        input: {id: $input.item}\n        act: {purpose: Close it, legitimacy: $run.act.reason}\n",
     ) else {
         return Err("an act states only an act's fields".to_owned());
     };

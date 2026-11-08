@@ -17,36 +17,33 @@ use thiserror::Error;
 use crate::canonical_json::canonical_stable_json;
 use crate::connector::{CredentialName, Template};
 use crate::purchase::{
-    CurrencyCode, EmbeddedOfferVersionBinding, PortableAmountMinor, PrincipalReference,
-    SettlementFamilies,
+    CurrencyCode, EmbeddedOfferVersionBinding, OfferVersionBinding, PortableAmountMinor,
+    PrincipalReference, SettlementFamilies,
 };
 use crate::schema::{NamedSchemas, NonEmptyString, RunxSchema, record_named};
 use crate::{Digest, JsonObject, JsonValue, MAX_PORTABLE_INTEGER};
 
 pub const PAID_SKILL_LISTING_SCHEMA: &str = "runx.marketplace.paid_skill_listing.v1";
 
-const MAX_PRICE_SELECTORS: usize = 4;
+const MAX_PRICED_INPUTS: usize = 4;
 const MAX_PRICE_CASES: usize = 256;
 
-/// How an offer prices one call: from the listing and the inputs the runner
-/// receives, never from the runner. Cloud and the buyer's kernel compute the
-/// same amount, so nothing the buyer or the seller's runner says can change it.
+/// How an offer prices one call: from the listing and the inputs the method
+/// receives, never from the method. Cloud and the buyer's kernel compute the
+/// same amount, so nothing the buyer or the seller's method says can change it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, RunxSchema)]
-#[serde(tag = "model", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(tag = "basis", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PaidSkillPrice {
     /// One amount for every call.
     Fixed { amount_minor: PortableAmountMinor },
-    /// An amount for each combination of values of the selector inputs, each
-    /// an `enum` input the runner requires. The cases cover every combination
-    /// exactly once.
-    InputChoice {
-        selectors: Vec<NonEmptyString>,
-        cases: Vec<PaidSkillPriceCase>,
-    },
+    /// An amount for each combination of values of the priced inputs, each
+    /// an `enum` input the method requires. Each case names every priced
+    /// input by name, and the cases cover every combination exactly once.
+    ByInput { cases: Vec<PaidSkillPriceCase> },
     /// A base amount plus a unit amount for each started `unit_bytes` of the
-    /// committed artifact the `artifact_input` names, up to `max_bytes`.
-    ArtifactBytes {
-        artifact_input: NonEmptyString,
+    /// committed artifact the `input` holds, up to `max_bytes`.
+    BySize {
+        input: NonEmptyString,
         base_amount_minor: PortableAmountMinor,
         unit_bytes: std::num::NonZeroU64,
         unit_amount_minor: PortableAmountMinor,
@@ -54,12 +51,12 @@ pub enum PaidSkillPrice {
     },
 }
 
-/// One `input_choice` case: the selector values, in selector order, and what
+/// One `by_input` case: the value each priced input takes, by name, and what
 /// a call with them costs.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaidSkillPriceCase {
-    pub when: Vec<PriceChoice>,
+    pub inputs: BTreeMap<String, PriceChoice>,
     pub amount_minor: PortableAmountMinor,
 }
 
@@ -126,17 +123,16 @@ impl<'de> Deserialize<'de> for PaidSkillPrice {
         D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
-        #[serde(tag = "model", rename_all = "snake_case", deny_unknown_fields)]
+        #[serde(tag = "basis", rename_all = "snake_case", deny_unknown_fields)]
         enum WirePrice {
             Fixed {
                 amount_minor: PortableAmountMinor,
             },
-            InputChoice {
-                selectors: Vec<NonEmptyString>,
+            ByInput {
                 cases: Vec<PaidSkillPriceCase>,
             },
-            ArtifactBytes {
-                artifact_input: NonEmptyString,
+            BySize {
+                input: NonEmptyString,
                 base_amount_minor: PortableAmountMinor,
                 unit_bytes: std::num::NonZeroU64,
                 unit_amount_minor: PortableAmountMinor,
@@ -146,15 +142,15 @@ impl<'de> Deserialize<'de> for PaidSkillPrice {
 
         let price = match WirePrice::deserialize(deserializer)? {
             WirePrice::Fixed { amount_minor } => Self::Fixed { amount_minor },
-            WirePrice::InputChoice { selectors, cases } => Self::InputChoice { selectors, cases },
-            WirePrice::ArtifactBytes {
-                artifact_input,
+            WirePrice::ByInput { cases } => Self::ByInput { cases },
+            WirePrice::BySize {
+                input,
                 base_amount_minor,
                 unit_bytes,
                 unit_amount_minor,
                 max_bytes,
-            } => Self::ArtifactBytes {
-                artifact_input,
+            } => Self::BySize {
+                input,
                 base_amount_minor,
                 unit_bytes,
                 unit_amount_minor,
@@ -171,8 +167,8 @@ impl<'de> Deserialize<'de> for PaidSkillPrice {
 pub enum PriceError {
     #[error("{0}")]
     Invalid(&'static str),
-    #[error("price selector input {0} is missing")]
-    MissingSelector(String),
+    #[error("priced input {0} is missing")]
+    MissingInput(String),
     #[error("no price case matches these inputs")]
     NoCase,
     #[error("the priced artifact's committed size is unknown")]
@@ -189,7 +185,7 @@ impl PriceError {
     pub fn code(&self) -> &'static str {
         match self {
             Self::Invalid(_) => "invalid",
-            Self::MissingSelector(_) => "missing_selector",
+            Self::MissingInput(_) => "missing_input",
             Self::NoCase => "no_case",
             Self::ArtifactSizeUnknown => "artifact_size_unknown",
             Self::ArtifactEmpty => "artifact_empty",
@@ -199,52 +195,45 @@ impl PriceError {
 }
 
 impl PaidSkillPrice {
-    /// The price's own invariants: unique selectors, one case per combination
-    /// with one value per selector, and a byte price whose largest amount is
-    /// still a portable integer.
+    /// The price's own invariants: every case names the same one to four
+    /// priced inputs, each combination of their values has one case, and a
+    /// size price's largest amount is still a portable integer.
     pub fn validate(&self) -> Result<(), PriceError> {
         match self {
             Self::Fixed { .. } => Ok(()),
-            Self::InputChoice { selectors, cases } => {
-                if selectors.is_empty() || selectors.len() > MAX_PRICE_SELECTORS {
-                    return Err(PriceError::Invalid(
-                        "an input_choice price names one to four selectors",
-                    ));
-                }
-                let names = selectors.iter().map(NonEmptyString::as_str);
-                if names.collect::<BTreeSet<_>>().len() != selectors.len() {
-                    return Err(PriceError::Invalid(
-                        "an input_choice price names each selector once",
-                    ));
-                }
+            Self::ByInput { cases } => {
                 if cases.is_empty() || cases.len() > MAX_PRICE_CASES {
+                    return Err(PriceError::Invalid("a by_input price has one to 256 cases"));
+                }
+                let priced = cases[0].inputs.keys().collect::<Vec<_>>();
+                if priced.is_empty() || priced.len() > MAX_PRICED_INPUTS {
                     return Err(PriceError::Invalid(
-                        "an input_choice price has one to 256 cases",
+                        "a by_input price reads one to four inputs",
                     ));
                 }
                 let mut seen = BTreeSet::new();
                 for case in cases {
-                    if case.when.len() != selectors.len() {
+                    if !case.inputs.keys().eq(priced.iter().copied()) {
                         return Err(PriceError::Invalid(
-                            "each price case gives one value per selector",
+                            "each price case names the same priced inputs",
                         ));
                     }
-                    let key = canonical_stable_json(&case.when).map_err(|_| {
+                    let key = canonical_stable_json(&case.inputs).map_err(|_| {
                         PriceError::Invalid("a price case cannot be written as JSON")
                     })?;
                     if !seen.insert(key) {
                         return Err(PriceError::Invalid(
-                            "each combination of selector values has one price case",
+                            "each combination of priced input values has one case",
                         ));
                     }
                 }
                 Ok(())
             }
-            Self::ArtifactBytes { max_bytes, .. } => self
+            Self::BySize { max_bytes, .. } => self
                 .artifact_amount(max_bytes.get())
                 .map(|_| ())
                 .ok_or(PriceError::Invalid(
-                    "an artifact_bytes price must stay a portable amount up to max_bytes",
+                    "a by_size price must stay a portable amount up to max_bytes",
                 )),
         }
     }
@@ -253,29 +242,30 @@ impl PaidSkillPrice {
     pub fn priced_inputs(&self) -> Vec<&str> {
         match self {
             Self::Fixed { .. } => Vec::new(),
-            Self::InputChoice { selectors, .. } => {
-                selectors.iter().map(NonEmptyString::as_str).collect()
-            }
-            Self::ArtifactBytes { artifact_input, .. } => vec![artifact_input.as_str()],
+            Self::ByInput { cases } => cases
+                .first()
+                .map(|case| case.inputs.keys().map(String::as_str).collect())
+                .unwrap_or_default(),
+            Self::BySize { input, .. } => vec![input.as_str()],
         }
     }
 
-    /// The stored artifact an `artifact_bytes` price reads: the
-    /// `artifact_uri` its input holds. Its committed size, looked up by the
-    /// caller, is what the call costs.
+    /// The stored artifact a `by_size` price reads: the `artifact_uri` its
+    /// input holds. Its committed size, looked up by the caller, is what the
+    /// call costs.
     pub fn priced_artifact_ref<'a>(&self, inputs: &'a JsonObject) -> Option<&'a str> {
-        let Self::ArtifactBytes { artifact_input, .. } = self else {
+        let Self::BySize { input, .. } = self else {
             return None;
         };
         inputs
-            .get(artifact_input.as_str())?
+            .get(input.as_str())?
             .as_object()?
             .get("artifact_uri")?
             .as_str()
             .filter(|reference| stored_artifact_ref(reference))
     }
 
-    /// What one call with `inputs` costs. An `artifact_bytes` price reads the
+    /// What one call with `inputs` costs. A `by_size` price reads the
     /// committed size of the artifact its input names, which the caller looks
     /// up before payment.
     pub fn amount_minor(
@@ -285,27 +275,23 @@ impl PaidSkillPrice {
     ) -> Result<PortableAmountMinor, PriceError> {
         match self {
             Self::Fixed { amount_minor } => Ok(*amount_minor),
-            Self::InputChoice { selectors, cases } => {
-                let values = selectors
-                    .iter()
-                    .map(|selector| {
-                        inputs
-                            .get(selector.as_str())
-                            .ok_or_else(|| PriceError::MissingSelector(selector.to_string()))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+            Self::ByInput { cases } => {
+                for name in self.priced_inputs() {
+                    if !inputs.contains_key(name) {
+                        return Err(PriceError::MissingInput(name.to_owned()));
+                    }
+                }
                 cases
                     .iter()
                     .find(|case| {
-                        case.when
+                        case.inputs
                             .iter()
-                            .map(PriceChoice::as_value)
-                            .eq(values.iter().copied())
+                            .all(|(name, choice)| inputs.get(name) == Some(choice.as_value()))
                     })
                     .map(|case| case.amount_minor)
                     .ok_or(PriceError::NoCase)
             }
-            Self::ArtifactBytes { max_bytes, .. } => {
+            Self::BySize { max_bytes, .. } => {
                 let size_bytes = artifact_size_bytes.ok_or(PriceError::ArtifactSizeUnknown)?;
                 if size_bytes == 0 {
                     return Err(PriceError::ArtifactEmpty);
@@ -323,7 +309,7 @@ impl PaidSkillPrice {
     }
 
     fn artifact_amount(&self, size_bytes: u64) -> Option<PortableAmountMinor> {
-        let Self::ArtifactBytes {
+        let Self::BySize {
             base_amount_minor,
             unit_bytes,
             unit_amount_minor,
@@ -353,34 +339,35 @@ fn stored_artifact_ref(reference: &str) -> bool {
         })
 }
 
-/// A resource an earlier purchase bought that a paid runner acts on, such as
-/// the inbox an extension extends. runx admits the purchase only while its
-/// buyer holds that resource, so the buyer hands the seller's run no bearer.
+/// The lease a buyer must hold to buy a paid method, such as the inbox an
+/// extension extends: only a buyer holding that lease, on the resource the
+/// method's inputs name, may buy, so the buyer hands the seller's run no
+/// bearer. It is checked before the quote and again before payment.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct PaidSkillActsOn {
-    /// The seller connector the resource is held in.
+pub struct RequiredLease {
+    /// The seller connector that holds the lease.
     pub connector: NonEmptyString,
-    /// That connector's `kind: purchase` credential.
+    /// That connector's `kind: lease` credential.
     pub credential: CredentialName,
-    /// The held resource, rendered from the runner's inputs alone.
+    /// The leased resource, rendered from the method's inputs alone.
     pub target: Template,
 }
 
-impl<'de> Deserialize<'de> for PaidSkillActsOn {
+impl<'de> Deserialize<'de> for RequiredLease {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
-        struct WireActsOn {
+        struct WireLease {
             connector: NonEmptyString,
             credential: CredentialName,
             target: Template,
         }
 
-        let wire = WireActsOn::deserialize(deserializer)?;
+        let wire = WireLease::deserialize(deserializer)?;
         let target = &wire.target;
         if !target.binds_argument()
             || target.binds_parameter()
@@ -389,7 +376,7 @@ impl<'de> Deserialize<'de> for PaidSkillActsOn {
             || target.binds_runx()
         {
             return Err(de::Error::custom(
-                "acts_on target is rendered from the runner's inputs alone",
+                "requires_lease target is rendered from the method's inputs alone",
             ));
         }
         Ok(Self {
@@ -400,17 +387,18 @@ impl<'de> Deserialize<'de> for PaidSkillActsOn {
     }
 }
 
-/// Provider-neutral commercial terms authored for one ordinary skill runner.
+/// What a method charges, as its `run.yaml` offer states it. The registry
+/// computes the digests of the method's input and output schemas when it's
+/// published, and the listing, the purchase and the receipt bind those.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaidSkillOfferTerms {
     pub price: PaidSkillPrice,
     pub currency: CurrencyCode,
-    pub accepted_settlement_families: SettlementFamilies,
-    pub input_schema_digest: Digest,
-    pub output_schema_digest: Digest,
+    /// The settlement families the seller takes.
+    pub accepts: SettlementFamilies,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub acts_on: Option<PaidSkillActsOn>,
+    pub requires_lease: Option<RequiredLease>,
 }
 
 /// An exact execution package: the skill and runner, and the digests of the
@@ -427,19 +415,33 @@ pub struct PaidSkillExecutorBinding {
     pub execution_closure_digest: Digest,
 }
 
-/// One immutable, registry-resolved runner offer.
+/// One immutable, registry-resolved method offer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaidSkillMethodOffer {
     pub offer_version: EmbeddedOfferVersionBinding,
     pub price: PaidSkillPrice,
     pub currency: CurrencyCode,
-    pub accepted_settlement_families: SettlementFamilies,
+    pub accepts: SettlementFamilies,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub acts_on: Option<PaidSkillActsOn>,
+    pub requires_lease: Option<RequiredLease>,
 }
 
-/// One to sixty-four runner offers keyed by unique runner identity.
+impl PaidSkillMethodOffer {
+    /// The registry-resolved offer for author terms under `offer_version`.
+    #[must_use]
+    pub fn from_terms(offer_version: OfferVersionBinding, terms: &PaidSkillOfferTerms) -> Self {
+        Self {
+            offer_version: offer_version.into(),
+            price: terms.price.clone(),
+            currency: terms.currency.clone(),
+            accepts: terms.accepts.clone(),
+            requires_lease: terms.requires_lease.clone(),
+        }
+    }
+}
+
+/// One to sixty-four method offers keyed by unique method name.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct PaidSkillOffers(BTreeMap<String, PaidSkillMethodOffer>);
@@ -458,7 +460,7 @@ impl<'de> Deserialize<'de> for PaidSkillOffers {
     {
         let value = BTreeMap::<String, PaidSkillMethodOffer>::deserialize(deserializer)?;
         Self::new(value).ok_or_else(|| {
-            de::Error::custom("paid skill offers must contain 1..=64 non-empty runner names")
+            de::Error::custom("paid skill offers must contain 1..=64 non-empty method names")
         })
     }
 }
@@ -479,7 +481,7 @@ impl RunxSchema for PaidSkillOffers {
     }
 }
 
-/// Immutable marketplace identity and commercial terms for paid runners in one
+/// Immutable marketplace identity and commercial terms for paid methods in one
 /// published skill version. Seller identity is resolved by the authenticated
 /// registry boundary and is never accepted from `run.yaml`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
@@ -531,16 +533,13 @@ mod tests {
             "seller_ref": {"type": "principal", "uri": "runx:principal:acme"},
             "offers": {"transcribe": {
                 "offer_version": offer_version(),
-                "price": {"model": "fixed", "amount_minor": 125},
+                "price": {"basis": "fixed", "amount_minor": 125},
                 "currency": "USD",
-                "accepted_settlement_families": ["rail-a", "rail-b"]
+                "accepts": ["rail-a", "rail-b"]
             }}
         }))?;
         let offers = serde_json::to_value(&listing.offers)?;
-        assert_eq!(
-            offers["transcribe"]["accepted_settlement_families"],
-            json!(["rail-a", "rail-b"])
-        );
+        assert_eq!(offers["transcribe"]["accepts"], json!(["rail-a", "rail-b"]));
         let price: PaidSkillPrice = serde_json::from_value(offers["transcribe"]["price"].clone())?;
         assert_eq!(
             price.amount_minor(&JsonObject::new(), None),
@@ -557,9 +556,9 @@ mod tests {
     fn paid_skill_listing_rejects_empty_method_identity() {
         let offer = json!({
             "offer_version": offer_version(),
-            "price": {"model": "fixed", "amount_minor": 125},
+            "price": {"basis": "fixed", "amount_minor": 125},
             "currency": "USD",
-            "accepted_settlement_families": ["rail-a"]
+            "accepts": ["rail-a"]
         });
         let result = serde_json::from_value::<PaidSkillListing>(json!({
             "skill_id": "acme/transcribe",
@@ -574,14 +573,13 @@ mod tests {
     }
 
     #[test]
-    fn an_input_choice_price_reads_its_selectors() -> Result<(), serde_json::Error> {
+    fn a_by_input_price_reads_its_inputs() -> Result<(), serde_json::Error> {
         let price: PaidSkillPrice = serde_json::from_value(json!({
-            "model": "input_choice",
-            "selectors": ["duration_seconds"],
+            "basis": "by_input",
             "cases": [
-                {"when": [600], "amount_minor": 5},
-                {"when": [1800], "amount_minor": 10},
-                {"when": [3600], "amount_minor": 20}
+                {"inputs": {"duration_seconds": 600}, "amount_minor": 5},
+                {"inputs": {"duration_seconds": 1800}, "amount_minor": 10},
+                {"inputs": {"duration_seconds": 3600}, "amount_minor": 20}
             ]
         }))?;
         assert_eq!(
@@ -604,15 +602,14 @@ mod tests {
         );
         assert_eq!(
             price.amount_minor(&JsonObject::new(), None),
-            Err(PriceError::MissingSelector("duration_seconds".to_owned()))
+            Err(PriceError::MissingInput("duration_seconds".to_owned()))
         );
 
         let pair: PaidSkillPrice = serde_json::from_value(json!({
-            "model": "input_choice",
-            "selectors": ["from", "to"],
+            "basis": "by_input",
             "cases": [
-                {"when": ["en", "fr"], "amount_minor": 3},
-                {"when": ["fr", "en"], "amount_minor": 4}
+                {"inputs": {"from": "en", "to": "fr"}, "amount_minor": 3},
+                {"inputs": {"from": "fr", "to": "en"}, "amount_minor": 4}
             ]
         }))?;
         assert_eq!(
@@ -623,20 +620,24 @@ mod tests {
     }
 
     #[test]
-    fn an_input_choice_price_states_each_combination_once() {
+    fn a_by_input_price_states_each_combination_once() {
         for invalid in [
-            json!({"model": "input_choice", "selectors": [], "cases": [{"when": [], "amount_minor": 1}]}),
-            json!({"model": "input_choice", "selectors": ["a", "a"], "cases": [{"when": [1, 1], "amount_minor": 1}]}),
-            json!({"model": "input_choice", "selectors": ["a"], "cases": []}),
-            json!({"model": "input_choice", "selectors": ["a"], "cases": [{"when": [1, 2], "amount_minor": 1}]}),
-            json!({"model": "input_choice", "selectors": ["a"], "cases": [
-                {"when": [1], "amount_minor": 1},
-                {"when": [1], "amount_minor": 2}
+            json!({"basis": "by_input", "cases": [{"inputs": {}, "amount_minor": 1}]}),
+            json!({"basis": "by_input", "cases": []}),
+            json!({"basis": "by_input", "cases": [
+                {"inputs": {"a": 1}, "amount_minor": 1},
+                {"inputs": {"b": 1}, "amount_minor": 2}
             ]}),
-            json!({"model": "input_choice", "selectors": ["a"], "cases": [{"when": [1.5], "amount_minor": 1}]}),
-            json!({"model": "input_choice", "selectors": ["a"], "cases": [{"when": [null], "amount_minor": 1}]}),
-            json!({"model": "fixed", "amount_minor": 0}),
-            json!({"model": "fixed", "amount_minor": 5, "quote": "price"}),
+            json!({"basis": "by_input", "cases": [
+                {"inputs": {"a": 1}, "amount_minor": 1},
+                {"inputs": {"a": 1}, "amount_minor": 2}
+            ]}),
+            json!({"basis": "by_input", "cases": [{"inputs": {"a": 1.5}, "amount_minor": 1}]}),
+            json!({"basis": "by_input", "cases": [{"inputs": {"a": null}, "amount_minor": 1}]}),
+            json!({"basis": "by_input", "cases": [{"inputs": {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}, "amount_minor": 1}]}),
+            json!({"basis": "fixed", "amount_minor": 0}),
+            json!({"basis": "fixed", "amount_minor": 5, "quote": "price"}),
+            json!({"model": "fixed", "amount_minor": 5}),
         ] {
             assert!(
                 serde_json::from_value::<PaidSkillPrice>(invalid.clone()).is_err(),
@@ -646,10 +647,10 @@ mod tests {
     }
 
     #[test]
-    fn an_artifact_bytes_price_charges_each_started_unit() -> Result<(), serde_json::Error> {
+    fn a_by_size_price_charges_each_started_unit() -> Result<(), serde_json::Error> {
         let price: PaidSkillPrice = serde_json::from_value(json!({
-            "model": "artifact_bytes",
-            "artifact_input": "artifact",
+            "basis": "by_size",
+            "input": "artifact",
             "base_amount_minor": 25,
             "unit_bytes": 1_048_576,
             "unit_amount_minor": 5,
@@ -677,8 +678,8 @@ mod tests {
         );
 
         let overflowing = json!({
-            "model": "artifact_bytes",
-            "artifact_input": "artifact",
+            "basis": "by_size",
+            "input": "artifact",
             "base_amount_minor": 1,
             "unit_bytes": 1,
             "unit_amount_minor": MAX_PORTABLE_INTEGER,
@@ -688,32 +689,30 @@ mod tests {
         Ok(())
     }
 
-    /// The registry resolves a runner's offer from these terms; what it
-    /// reads here is what a runner may act on.
+    /// The registry resolves a method's offer from these terms; what it
+    /// reads here is the lease a buyer must hold.
     #[test]
-    fn offer_terms_name_what_a_method_acts_on() -> Result<(), serde_json::Error> {
+    fn offer_terms_name_the_lease_a_buyer_holds() -> Result<(), serde_json::Error> {
         let terms: PaidSkillOfferTerms = serde_json::from_value(json!({
-            "price": {"model": "input_choice", "selectors": ["duration_seconds"], "cases": [
-                {"when": [3600], "amount_minor": 5}
+            "price": {"basis": "by_input", "cases": [
+                {"inputs": {"duration_seconds": 3600}, "amount_minor": 5}
             ]},
             "currency": "USD",
-            "accepted_settlement_families": ["x402"],
-            "input_schema_digest": format!("sha256:{}", "d".repeat(64)),
-            "output_schema_digest": format!("sha256:{}", "e".repeat(64)),
-            "acts_on": {
+            "accepts": ["x402"],
+            "requires_lease": {
                 "connector": "ausca/inbox",
                 "credential": "lease",
                 "target": {"$concat": ["ausca:agent-inbox/", {"$argument": "/inbox_id"}]}
             }
         }))?;
-        assert!(terms.acts_on.is_some());
+        assert!(terms.requires_lease.is_some());
         for target in [
             json!("ausca:agent-inbox"),
             json!({"$result": "/inbox_id"}),
             json!({"$concat": ["ausca:agent-inbox/", {"$parameter": "/inbox_id"}]}),
         ] {
             assert!(
-                serde_json::from_value::<PaidSkillActsOn>(json!({
+                serde_json::from_value::<RequiredLease>(json!({
                     "connector": "ausca/inbox",
                     "credential": "lease",
                     "target": target
@@ -725,14 +724,22 @@ mod tests {
         assert!(
             serde_json::from_value::<PaidSkillOfferTerms>(json!({
                 "currency": "USD",
-                "accepted_settlement_families": ["x402"],
+                "accepts": ["x402"],
                 "quote": "price",
-                "amount_range": {"minimum_minor": 5, "maximum_minor": 20},
-                "input_schema_digest": format!("sha256:{}", "d".repeat(64)),
-                "output_schema_digest": format!("sha256:{}", "e".repeat(64))
+                "amount_range": {"minimum_minor": 5, "maximum_minor": 20}
             }))
             .is_err(),
             "a prepared offer is no longer a shape"
+        );
+        assert!(
+            serde_json::from_value::<PaidSkillOfferTerms>(json!({
+                "price": {"basis": "fixed", "amount_minor": 5},
+                "currency": "USD",
+                "accepts": ["x402"],
+                "input_schema_digest": format!("sha256:{}", "d".repeat(64))
+            }))
+            .is_err(),
+            "the registry computes a method's schema digests at publish"
         );
         Ok(())
     }

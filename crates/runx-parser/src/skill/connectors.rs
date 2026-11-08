@@ -1,13 +1,15 @@
-//! The execution profile's `connectors:` block: which connector operations a
-//! skill needs.
+//! Which connector operations a package needs, derived from its steps.
 //!
-//! A key that names a connector is a fixed requirement. A key with
-//! `connector_from` is an alias chosen at run time from a closed
-//! `allowed_connectors` list. Operation steps name a key and an operation on
-//! it; scopes, verbs, approval floors and credentials all come from the
-//! connector. Whether a key must pin a `manifest_digest` depends on where it
-//! resolves (outside the skill's plugin, and not a runtime capability), so
-//! resolution enforces it, not this grammar.
+//! A step names `<connector>/<operation>`, and an agent step's `calls` name
+//! the operations its turn may call, so a package's requirements are what
+//! its steps say. The root `connectors:` block says only what steps can't: a
+//! pin, `{ manifest_digest }`, and a connector chosen per run that several
+//! steps share, `{ choose: $input.<path>, from: [<connector>, ...] }`, which
+//! steps use by its name. Scopes, verbs, approval floors and credentials all
+//! come from the connector. Whether a requirement must pin a
+//! `manifest_digest` depends on where it resolves (outside the skill's
+//! plugin, and not a runtime capability), so resolution enforces it, not
+//! this grammar.
 
 use std::collections::BTreeMap;
 
@@ -23,17 +25,18 @@ use super::SkillMethodDefinition;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConnectorRequirement {
+    /// Every operation the package's steps name on it.
     pub operations: Vec<OperationName>,
     /// The exact manifest a connector outside the skill's own plugin must
     /// match; runtime capabilities and plugin connectors take none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manifest_digest: Option<Digest>,
-    /// `$input.<path>`: where a run-time choice of connector is read from.
+    /// `$input.<path>`: where a connector chosen per run is read from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub connector_from: Option<String>,
-    /// The connectors a run-time choice may name.
+    pub choose: Option<String>,
+    /// The connectors a per-run choice may name.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub allowed_connectors: Vec<String>,
+    pub from: Vec<String>,
 }
 
 impl ConnectorRequirement {
@@ -46,85 +49,117 @@ impl ConnectorRequirement {
     }
 }
 
-/// Parse and validate the block.
-pub(crate) fn validate_connector_requirements(
+/// One entry of the root `connectors:` block, as written.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeclaredConnector {
+    #[serde(default)]
+    manifest_digest: Option<Digest>,
+    #[serde(default)]
+    choose: Option<String>,
+    #[serde(default)]
+    from: Vec<String>,
+}
+
+/// The package's requirements: each connector its steps name, with every
+/// operation they name on it, and what the root `connectors:` block says of
+/// it.
+pub(crate) fn connector_requirements(
     value: Option<&JsonValue>,
+    methods: &BTreeMap<String, SkillMethodDefinition>,
 ) -> Result<BTreeMap<String, ConnectorRequirement>, ValidationError> {
-    let Some(value) = value else {
-        return Ok(BTreeMap::new());
+    let declared: BTreeMap<String, DeclaredConnector> = match value {
+        None => BTreeMap::new(),
+        Some(value) => value
+            .clone()
+            .deserialize_into()
+            .map_err(|error| invalid("connectors", format!("connectors is invalid: {error}")))?,
     };
-    let requirements: BTreeMap<String, ConnectorRequirement> = value
-        .clone()
-        .deserialize_into()
-        .map_err(|error| invalid("connectors", format!("connectors is invalid: {error}")))?;
-    for (key, requirement) in &requirements {
+    let mut requirements = BTreeMap::<String, ConnectorRequirement>::new();
+    for method in methods.values() {
+        for (requirement, operation) in named_operations(&method.graph) {
+            let entry = requirements
+                .entry(requirement)
+                .or_insert_with(|| ConnectorRequirement {
+                    operations: Vec::new(),
+                    manifest_digest: None,
+                    choose: None,
+                    from: Vec::new(),
+                });
+            if !entry.operations.contains(&operation) {
+                entry.operations.push(operation);
+            }
+        }
+    }
+    for (key, requirement) in &mut requirements {
         let field = format!("connectors.{key}");
         if !is_connector_name(key) {
             return Err(invalid(
                 &field,
-                format!("{field} key must be a connector name or an alias."),
+                format!("{key} is not a connector name or a per-run choice's name."),
             ));
         }
-        if requirement.operations.is_empty() {
+        requirement.operations.sort();
+        let Some(entry) = declared.get(key) else {
+            continue;
+        };
+        requirement
+            .manifest_digest
+            .clone_from(&entry.manifest_digest);
+        requirement.choose.clone_from(&entry.choose);
+        requirement.from.clone_from(&entry.from);
+    }
+    for (key, entry) in &declared {
+        let field = format!("connectors.{key}");
+        if !requirements.contains_key(key) {
             return Err(invalid(
                 &field,
-                format!("{field}.operations must list at least one operation."),
+                format!("{field} names a connector no step calls; a step names what it calls."),
             ));
         }
-        for (index, operation) in requirement.operations.iter().enumerate() {
-            if requirement.operations[..index].contains(operation) {
+        match &entry.choose {
+            None if !entry.from.is_empty() => {
                 return Err(invalid(
                     &field,
-                    format!("{field}.operations lists {operation} twice."),
+                    format!("{field}.from needs choose, naming the per-run choice."),
                 ));
             }
-        }
-        match &requirement.connector_from {
-            None => {
-                if !requirement.allowed_connectors.is_empty() {
-                    return Err(invalid(
-                        &field,
-                        format!(
-                            "{field}.allowed_connectors needs connector_from naming the run-time choice."
-                        ),
-                    ));
-                }
+            None if entry.manifest_digest.is_none() => {
+                return Err(invalid(
+                    &field,
+                    format!("{field} pins a manifest_digest or chooses a connector per run."),
+                ));
             }
-            Some(from) => {
-                if requirement.manifest_digest.is_some() {
+            None => {}
+            Some(choose) => {
+                if entry.manifest_digest.is_some() {
                     return Err(invalid(
                         &field,
                         format!(
-                            "{field} chooses a connector at run time; its alias cannot pin one manifest."
+                            "{field} chooses a connector per run, so it can't pin one manifest."
                         ),
                     ));
                 }
-                let path_valid = from.strip_prefix("$input.").is_some_and(|path| {
+                let path_valid = choose.strip_prefix("$input.").is_some_and(|path| {
                     !path.is_empty() && path.split('.').all(|segment| !segment.is_empty())
                 });
                 if !path_valid {
                     return Err(invalid(
                         &field,
-                        format!("{field}.connector_from must be $input.<path>."),
+                        format!("{field}.choose must be $input.<path>."),
                     ));
                 }
-                if requirement.allowed_connectors.is_empty() {
+                if entry.from.is_empty() {
                     return Err(invalid(
                         &field,
-                        format!(
-                            "{field} needs allowed_connectors listing the connectors it may choose."
-                        ),
+                        format!("{field}.from lists the connectors the run may choose."),
                     ));
                 }
-                for (index, reference) in requirement.allowed_connectors.iter().enumerate() {
-                    if !is_connector_name(reference)
-                        || requirement.allowed_connectors[..index].contains(reference)
-                    {
+                for (index, reference) in entry.from.iter().enumerate() {
+                    if !is_connector_name(reference) || entry.from[..index].contains(reference) {
                         return Err(invalid(
                             &field,
-                            format!(
-                                "{field}.allowed_connectors must contain unique connector names."
-                            ),
+                            format!("{field}.from must contain unique connector names."),
                         ));
                     }
                 }
@@ -134,74 +169,97 @@ pub(crate) fn validate_connector_requirements(
     Ok(requirements)
 }
 
-/// Every operation step names a declared requirement and, when it names an
-/// operation, one that requirement lists. Each step is bound to its
-/// requirement, so the kernel admits it without the manifest at hand.
-pub(crate) fn bind_operation_steps(
-    runners: &mut BTreeMap<String, SkillMethodDefinition>,
-    requirements: &BTreeMap<String, ConnectorRequirement>,
-) -> Result<(), ValidationError> {
-    for (name, runner) in runners {
-        bind_workflow_operations(name, &mut runner.graph, requirements)?;
+/// Every operation a workflow's steps name: an operation step's, each a
+/// per-run choice may take, and each an agent step's turn may call.
+fn named_operations(graph: &Workflow) -> Vec<(String, OperationName)> {
+    let mut named = Vec::new();
+    for step in &graph.steps {
+        match &step.kind {
+            crate::StepKind::Operation(target) => {
+                named.extend(
+                    target
+                        .operation
+                        .iter()
+                        .chain(&target.from)
+                        .map(|operation| (target.requirement.clone(), operation.clone())),
+                );
+            }
+            // The step's parser admitted each as <connector>/<operation>.
+            crate::StepKind::Agent(agent) => {
+                named.extend(agent.allowance.operations.iter().filter_map(|allowed| {
+                    OperationName::new(allowed.operation.as_str())
+                        .map(|operation| (allowed.requirement.as_str().to_owned(), operation))
+                }));
+            }
+            _ => {}
+        }
     }
-    Ok(())
+    named
 }
 
-fn bind_workflow_operations(
-    runner: &str,
-    graph: &mut Workflow,
+/// Bind each operation step to its requirement, so the kernel admits it
+/// without the manifest at hand, and each agent step to the requirements its
+/// turn's operations name. A step on a connector chosen per run reads the
+/// choice as its call's `connector`.
+pub(crate) fn bind_operation_steps(
+    methods: &mut BTreeMap<String, SkillMethodDefinition>,
     requirements: &BTreeMap<String, ConnectorRequirement>,
 ) -> Result<(), ValidationError> {
-    for step in &mut graph.steps {
-        let field = format!("runners.{runner}.steps.{}.operation", step.id);
-        let crate::StepKind::Operation(target) = &mut step.kind else {
-            continue;
-        };
-        let requirement = requirements.get(&target.requirement).ok_or_else(|| {
-            invalid(
-                &field,
-                format!(
-                    "{field} names '{}', which the connectors block does not declare.",
-                    target.requirement
-                ),
-            )
-        })?;
-        if let Some(operation) = &target.operation
-            && !requirement.lists(operation.as_str())
-        {
-            return Err(invalid(
-                &field,
-                format!(
-                    "{field} '{operation}' is not listed in connectors.{}.operations.",
-                    target.requirement
-                ),
-            ));
-        }
-        if let Some(from) = &requirement.connector_from {
-            if step.inputs.contains_key("connector") {
-                return Err(invalid(
-                    &field,
-                    format!(
-                        "{field} binds a connector; connectors.{}.connector_from chooses it.",
-                        target.requirement
-                    ),
-                ));
+    for (name, method) in methods {
+        for step in &mut method.graph.steps {
+            let field = format!("methods.{name}.steps.{}.operation", step.id);
+            match &mut step.kind {
+                crate::StepKind::Agent(agent) => {
+                    agent.connectors = agent
+                        .allowance
+                        .operations
+                        .iter()
+                        .filter_map(|allowed| {
+                            requirements
+                                .get_key_value(allowed.requirement.as_str())
+                                .map(|(key, requirement)| (key.clone(), requirement.clone()))
+                        })
+                        .collect();
+                }
+                crate::StepKind::Operation(target) => {
+                    let requirement = requirements.get(&target.requirement).ok_or_else(|| {
+                        invalid(
+                            &field,
+                            format!(
+                                "{field} names '{}', which no requirement holds.",
+                                target.requirement
+                            ),
+                        )
+                    })?;
+                    if let Some(choose) = &requirement.choose {
+                        if step.inputs.contains_key("connector") {
+                            return Err(invalid(
+                                &field,
+                                format!(
+                                    "{field} binds a connector; connectors.{}.choose chooses it.",
+                                    target.requirement
+                                ),
+                            ));
+                        }
+                        // Validated above as `$input.<path>`.
+                        let path = choose
+                            .strip_prefix("$input.")
+                            .unwrap_or_default()
+                            .split('.')
+                            .map(str::to_owned)
+                            .collect();
+                        step.inputs
+                            .insert("connector".to_owned(), JsonValue::String(choose.clone()));
+                        step.bindings.push(crate::graph::Binding {
+                            at: vec!["connector".to_owned()],
+                            source: crate::graph::Source::Input { path },
+                        });
+                    }
+                    target.declared = Some(requirement.clone());
+                }
+                _ => {}
             }
-            // Validated above as `$input.<path>`.
-            let path = from
-                .strip_prefix("$input.")
-                .unwrap_or_default()
-                .split('.')
-                .map(str::to_owned)
-                .collect();
-            step.inputs
-                .insert("connector".to_owned(), JsonValue::String(from.clone()));
-            step.bindings.push(crate::graph::Binding {
-                at: vec!["connector".to_owned()],
-                source: crate::graph::Source::Input { path },
-            });
         }
-        target.declared = Some(requirement.clone());
     }
     Ok(())
 }

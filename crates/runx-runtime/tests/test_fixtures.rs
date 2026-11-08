@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::{JsonObject, JsonValue, Receipt, ReceiptSchema, RunOutcome};
 use runx_receipts::canonical_receipt_json;
-use runx_runtime::{TestExpectedStatus, TestFixtureKind, load_test_fixture, run_test_fixture};
+use runx_runtime::{TestExpectedStatus, load_test_fixture, run_test_fixture};
 
 #[test]
 fn loads_active_test_fixtures() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,8 +42,7 @@ fn parses_test_skill_fixture_contract() -> Result<(), Box<dyn std::error::Error>
     let fixture = load_test_fixture(fixture_path("fixtures/harness/echo-skill.yaml"))?;
 
     assert_eq!(fixture.name, "echo-skill");
-    assert_eq!(fixture.kind, TestFixtureKind::Skill);
-    assert_eq!(fixture.target, "../skills/echo");
+    assert_eq!(fixture.package, None);
     let receipt = fixture.expect.receipt.ok_or("missing expect.receipt")?;
     assert_eq!(
         receipt.subject_uri.as_deref(),
@@ -59,8 +58,7 @@ fn parses_test_workflow_fixture_contract() -> Result<(), Box<dyn std::error::Err
     let fixture = load_test_fixture(fixture_path("fixtures/harness/sequential-workflow.yaml"))?;
 
     assert_eq!(fixture.name, "sequential-workflow");
-    assert_eq!(fixture.kind, TestFixtureKind::Graph);
-    assert_eq!(fixture.target, "../graphs/sequential/graph.yaml");
+    assert_eq!(fixture.package.as_deref(), Some("fixtures/sequential"));
     assert_eq!(
         fixture.expect.steps,
         Some(vec!["first".to_owned(), "second".to_owned()])

@@ -5,26 +5,14 @@ use crate::{ValidationError, json_fields::JsonFieldReader};
 mod catalog;
 mod connectors;
 mod environment;
-mod fixtures;
 mod governance;
 mod markdown;
 mod method_definition;
 mod types;
 
-pub use catalog::{
-    CatalogApproval, CatalogAudience, CatalogCompletion, CatalogExecution, CatalogKind,
-    CatalogMetadata, CatalogOperatorReadiness, CatalogRole, CatalogSemanticCode,
-    CatalogSemanticDiagnostic, CatalogSemanticReport, CatalogVisibility, analyze_catalog_semantics,
-    analyze_package_catalog_semantics,
-};
+pub use catalog::{CatalogMetadata, CatalogVisibility};
 pub use connectors::ConnectorRequirement;
-pub(crate) use connectors::{bind_operation_steps, validate_connector_requirements};
-pub use fixtures::{
-    MethodTestCase, MethodTestManifest, OperatorJourneyClaim, OperatorJourneyMode,
-    ReceiptExpectation, TestCaller, TestExpectation, TestHttpExchangeFixture,
-    TestHttpRequestBodyFixture, TestHttpResponseFixture, TestMcpCallFixture,
-    TestProcessCallFixture,
-};
+pub(crate) use connectors::{bind_operation_steps, connector_requirements};
 pub use governance::validate_skill_artifact_contract;
 pub use markdown::parse_skill_markdown;
 pub use method_definition::validate_input_examples;
@@ -36,8 +24,7 @@ pub use types::{
 
 pub(crate) use catalog::validate_catalog_metadata;
 pub(crate) use environment::validate_environment_requirements;
-pub(crate) use fixtures::validate_test_manifest;
-pub(crate) use governance::validate_inputs;
+pub(crate) use governance::{validate_input_fields, validate_inputs};
 pub(crate) use method_definition::validate_method_definition;
 
 const FIELDS: JsonFieldReader = JsonFieldReader::new("skill");

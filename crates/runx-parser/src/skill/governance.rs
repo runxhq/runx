@@ -98,15 +98,7 @@ pub(crate) fn validate_inputs(
             FIELDS.reject_unknown_fields(
                 input,
                 &field,
-                &[
-                    "type",
-                    "required",
-                    "description",
-                    "default",
-                    "artifact",
-                    "packet",
-                    "schema",
-                ],
+                &["type", "required", "description", "default", "packet", "schema"],
             )?;
             let input_type = FIELDS
                 .optional_string(input.get("type"), &format!("{field}.type"))?
@@ -129,8 +121,6 @@ pub(crate) fn validate_inputs(
                     &format!("{field}.description"),
                 )?,
                 default: input.get("default").cloned(),
-                artifact: FIELDS
-                    .optional_bool(input.get("artifact"), &format!("{field}.artifact"))?,
                 packet: FIELDS
                     .optional_non_empty_string(input.get("packet"), &format!("{field}.packet"))?
                     .map(|packet| packet_id(packet, &format!("{field}.packet")))
@@ -144,12 +134,84 @@ pub(crate) fn validate_inputs(
         .collect()
 }
 
+/// The input types a field may name. A field with no `type` takes any value.
+const FIELD_TYPES: &[&str] = &["array", "boolean", "integer", "number", "object", "string"];
+
+/// A method's inputs as `run.yaml` writes them: each field is its JSON
+/// Schema, required unless it says `optional: true`, and an input that takes
+/// an artifact names its `packet`.
+pub(crate) fn validate_input_fields(
+    inputs: &JsonObject,
+    field_prefix: &str,
+) -> Result<BTreeMap<String, SkillInput>, ValidationError> {
+    inputs
+        .iter()
+        .map(|(name, value)| {
+            let field = format!("{field_prefix}.{name}");
+            // The invoker's act travels beside a run's inputs, under this name.
+            if name == "act" {
+                return Err(FIELDS.validation_error(format!(
+                    "{field}: act is the act a run's invoker states, given beside its inputs, never one of them."
+                )));
+            }
+            let mut schema = FIELDS.required_object(Some(value), &field)?.clone();
+            let input_type = match schema.remove("type") {
+                None => "json".to_owned(),
+                Some(JsonValue::String(input_type))
+                    if FIELD_TYPES.contains(&input_type.as_str()) =>
+                {
+                    input_type
+                }
+                Some(_) => {
+                    return Err(FIELDS.validation_error(format!(
+                        "{field}.type must be one of {}, or left out to take any value.",
+                        FIELD_TYPES.join(", ")
+                    )));
+                }
+            };
+            let optional = match schema.remove("optional") {
+                None => false,
+                Some(JsonValue::Bool(optional)) => optional,
+                Some(_) => {
+                    return Err(FIELDS.validation_error(format!(
+                        "{field}.optional must be true or false."
+                    )));
+                }
+            };
+            let description = schema
+                .remove("description")
+                .map(|description| {
+                    FIELDS.required_string(Some(&description), &format!("{field}.description"))
+                })
+                .transpose()?;
+            let packet = schema
+                .remove("packet")
+                .map(|packet| {
+                    FIELDS
+                        .required_string(Some(&packet), &format!("{field}.packet"))
+                        .and_then(|packet| packet_id(packet, &format!("{field}.packet")))
+                })
+                .transpose()?;
+            let validated = SkillInput {
+                input_type,
+                required: !optional,
+                description,
+                default: schema.remove("default"),
+                packet,
+                schema: (!schema.is_empty()).then_some(schema),
+            };
+            validate_input_schema(&validated, &field)?;
+            Ok((name.clone(), validated))
+        })
+        .collect()
+}
+
 fn validate_input_schema(input: &SkillInput, field: &str) -> Result<(), ValidationError> {
     if input.packet.is_some() {
         if input.input_type != "json" {
-            return Err(
-                FIELDS.validation_error(format!("{field}.packet requires {field}.type to be json"))
-            );
+            return Err(FIELDS.validation_error(format!(
+                "{field}.packet takes the packet's own shape, so {field} names no type"
+            )));
         }
         if input.schema.is_some() {
             return Err(FIELDS.validation_error(format!(

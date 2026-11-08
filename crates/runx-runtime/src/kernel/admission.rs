@@ -27,7 +27,7 @@ use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
     FamilySubsetComparator, derive_execution_term, mint_attenuated,
 };
-use runx_parser::{ConnectorRequirement, DuplicatePolicy, OperationStepTarget};
+use runx_parser::{ConnectorRequirement, OperationStepTarget};
 
 use super::authority::RunAuthority;
 use super::capability::{self, Capability, CapabilityRequest};
@@ -54,7 +54,9 @@ pub(crate) struct Context<'a> {
 pub(crate) struct Evaluation<'a> {
     pub step: &'a OperationStepTarget,
     pub call: &'a OperationCall,
-    pub duplicates: Option<DuplicatePolicy>,
+    /// Whether the step lets recovery resend a write whose outcome is
+    /// unknown.
+    pub retry_unknown_outcomes: bool,
     /// The harness's provider fixture stands in for a declared operation's
     /// missing hosted implementation.
     pub fixture_stand_in: bool,
@@ -668,8 +670,8 @@ pub fn connector_readiness(
     let requirement = ConnectorRequirement {
         operations: connector.manifest.operations.keys().cloned().collect(),
         manifest_digest: Some(connector.manifest_digest.clone()),
-        connector_from: None,
-        allowed_connectors: Vec::new(),
+        choose: None,
+        from: Vec::new(),
     };
     project(
         &scope,
@@ -705,9 +707,9 @@ fn project(
     Ok(requirements
         .iter()
         .flat_map(|(key, requirement)| {
-            let references = if requirement.connector_from.is_some() {
+            let references = if requirement.choose.is_some() {
                 requirement
-                    .allowed_connectors
+                    .from
                     .iter()
                     .map(String::as_str)
                     .collect::<Vec<_>>()
@@ -1054,7 +1056,7 @@ fn requirement(
         )
     })?;
     let call = evaluation.call;
-    let connector_id: &str = match &declared.connector_from {
+    let connector_id: &str = match &declared.choose {
         None => {
             if call.connector.is_some() {
                 return Err("a fixed requirement cannot be given a connector".to_owned());
@@ -1066,7 +1068,7 @@ fn requirement(
                 .connector
                 .as_ref()
                 .ok_or_else(|| format!("{from} named no connector"))?;
-            if !declared.allowed_connectors.contains(chosen) {
+            if !declared.from.contains(chosen) {
                 return Err(format!(
                     "connector {chosen} is not one requirement {} allows",
                     step.requirement
@@ -1334,7 +1336,7 @@ fn executable(
 fn tolerance(evaluation: &Evaluation<'_>, operation: &ConnectorOperation) -> Result<(), String> {
     if operation.access() == OperationAccess::Read
         && !operation.is_metered()
-        && evaluation.duplicates.is_some()
+        && evaluation.retry_unknown_outcomes
     {
         return Err(
             "a read with no declared charge has no uncertain outcome to tolerate".to_owned(),

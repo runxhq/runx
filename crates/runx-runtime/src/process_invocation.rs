@@ -241,7 +241,7 @@ mod tests {
             args: vec!["{{message}}".to_owned()],
             cwd: None,
             timeout_seconds: Some(5),
-            input_mode: None,
+            inputs_via: None,
             environment: EnvironmentRequirements {
                 required: vec!["REGION".to_owned()],
                 optional: Vec::new(),

@@ -79,8 +79,8 @@ fn a_connector_outside_a_plugin_is_an_added_version_a_skill_pins() {
             &runx_parser::ConnectorRequirement {
                 operations: vec![OperationName::new("record.read").unwrap()],
                 manifest_digest: None,
-                connector_from: None,
-                allowed_connectors: Vec::new(),
+                choose: None,
+                from: Vec::new(),
             },
         )
         .unwrap_err();
@@ -619,8 +619,8 @@ fn pinned(digest: &Digest) -> runx_parser::ConnectorRequirement {
     runx_parser::ConnectorRequirement {
         operations: vec![OperationName::new("record.read").unwrap()],
         manifest_digest: Some(digest.clone()),
-        connector_from: None,
-        allowed_connectors: Vec::new(),
+        choose: None,
+        from: Vec::new(),
     }
 }
 

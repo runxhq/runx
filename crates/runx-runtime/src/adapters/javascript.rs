@@ -117,7 +117,7 @@ impl JavaScriptAdapter {
         package: &crate::LoadedSkillPackage,
         local_artifacts: &crate::services::LocalArtifactService,
     ) -> Result<InvocationOutput, RuntimeError> {
-        if worker(&request)?.pages.is_some() {
+        if worker(&request)?.paged_input.is_some() {
             return paged::invoke(self, request, package, local_artifacts);
         }
         let prepared = self.prepare_invocation(&request, package)?;

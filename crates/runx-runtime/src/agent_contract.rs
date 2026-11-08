@@ -68,7 +68,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use runx_contracts::{
-        AgentContextEnvelope, JsonValue, OutputField, OutputType, ResolutionRequest, TurnInvocation,
+        AgentContextEnvelope, JsonValue, OutputField, ResolutionRequest, TurnInvocation,
     };
 
     use super::agent_contract_checks;
@@ -94,7 +94,6 @@ mod tests {
             id: "req_1".into(),
             invocation: Box::new(TurnInvocation {
                 id: "act_1".into(),
-                role: "planner".into(),
                 task: "notify".into(),
                 envelope,
                 allowance: Default::default(),
@@ -203,12 +202,9 @@ mod tests {
         assert_eq!(
             invocation.envelope.output,
             Some(
-                [(
-                    "notify_plan".to_owned(),
-                    OutputField::Type(OutputType::Object)
-                )]
-                .into_iter()
-                .collect()
+                [("notify_plan".to_owned(), OutputField::of_type("object"))]
+                    .into_iter()
+                    .collect()
             )
         );
         Ok(())

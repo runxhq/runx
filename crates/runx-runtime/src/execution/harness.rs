@@ -40,7 +40,7 @@ pub(crate) use crate::execution_environment::credential_variables;
 pub use assertions::TestReplayReceipt;
 pub use fixtures::{
     ReceiptExpectation, TestExpectedStatus, TestFixture, TestFixtureCase, TestFixtureError,
-    TestFixtureKind, TestFixtureStepOracle, TestSetup, list_cases, load_test_fixture,
+    TestFixtureStepOracle, TestSetup, list_cases, load_test_fixture,
 };
 pub use runner::{
     TestOptions, TestReplayError, TestReplayOutput, replay_test_fixture, run_test_fixture,

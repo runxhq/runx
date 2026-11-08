@@ -3,113 +3,69 @@ use runx_contracts::{JsonObject, JsonValue};
 use crate::ValidationError;
 use crate::graph::{RawWorkflowIr, validate_workflow_document};
 
-use super::{FIELDS, SkillMethodDefinition, validate_inputs};
+use super::{FIELDS, SkillMethodDefinition, validate_input_fields};
 
 const METHOD_FIELDS: &[&str] = &[
-    "asks",
-    "default",
-    "continuations",
     "description",
-    "examples",
     "inputs",
-    "outputs",
-    "operations",
-    "policy",
-    "result_from",
-    "skills",
+    "examples",
     "steps",
-    "tools",
+    "result_from",
+    "offer",
 ];
 
-/// The graph keys a runner carries for its steps.
-const WORKFLOW_FIELDS: &[&str] = &["policy", "result_from", "steps"];
+/// The workflow keys a method carries for its steps.
+const WORKFLOW_FIELDS: &[&str] = &["result_from", "steps"];
 
+/// Validate one method. `inputs` are its inputs as written, each shared input
+/// it names already taken from `shared_inputs`.
 pub(crate) fn validate_method_definition(
     skill: &str,
     name: &str,
-    runner: JsonObject,
+    method: JsonObject,
+    inputs: &JsonObject,
 ) -> Result<SkillMethodDefinition, ValidationError> {
-    FIELDS.reject_unknown_fields(&runner, &format!("runners.{name}"), METHOD_FIELDS)?;
-    let inputs = validate_inputs(
-        FIELDS
-            .optional_object(runner.get("inputs"), &format!("runners.{name}.inputs"))?
-            .unwrap_or_default(),
-        &format!("runners.{name}.inputs"),
-    )?;
-    let examples = parse_method_examples(name, runner.get("examples"))?;
-    validate_input_examples(&format!("runners.{name}.examples"), &examples, &inputs)?;
+    FIELDS.reject_unknown_fields(&method, &format!("methods.{name}"), METHOD_FIELDS)?;
+    let inputs = validate_input_fields(inputs, &format!("methods.{name}.inputs"))?;
+    let examples = parse_method_examples(name, method.get("examples"))?;
+    validate_input_examples(&format!("methods.{name}.examples"), &examples, &inputs)?;
     Ok(SkillMethodDefinition {
         name: name.to_owned(),
         description: FIELDS
             .optional_non_empty_string(
-                runner.get("description"),
-                &format!("runners.{name}.description"),
+                method.get("description"),
+                &format!("methods.{name}.description"),
             )?
             .map(|description| description.trim().to_owned()),
-        continuations: FIELDS
-            .optional_string_array(
-                runner.get("continuations"),
-                &format!("runners.{name}.continuations"),
-            )?
-            .unwrap_or_default(),
-        default: FIELDS
-            .optional_bool(runner.get("default"), &format!("runners.{name}.default"))?
-            .unwrap_or(false),
+        offer: method
+            .get("offer")
+            .map(|offer| validate_offer(name, offer, &inputs))
+            .transpose()?,
         inputs,
         examples,
-        graph: method_workflow(skill, name, &runner)?,
-        raw: runner,
+        graph: method_workflow(skill, name, &method)?,
+        raw: method,
     })
 }
 
-/// The runner's steps as the graph the engine runs, named for its skill so
-/// receipts carry the skill's identity. `result_from` defaults to the last
-/// step. A runner without steps is one agent turn: its id and task are the
-/// runner's name, its role the skill's, its inputs the run's, and its outputs
-/// the runner's.
+/// The method's steps as the workflow the engine runs, named for its skill so
+/// receipts carry the skill's identity. A method is always its steps, and
+/// `result_from` defaults to the last step.
 fn method_workflow(
     skill: &str,
     name: &str,
-    runner: &JsonObject,
+    method: &JsonObject,
 ) -> Result<crate::Workflow, ValidationError> {
-    let mut document = runner
+    if !method.contains_key("steps") {
+        return Err(FIELDS.validation_error(format!(
+            "methods.{name} has no steps; a method is always its steps, and one agent turn is one agent step."
+        )));
+    }
+    let mut document = method
         .iter()
         .filter(|(key, _)| WORKFLOW_FIELDS.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect::<JsonObject>();
-    match (runner.contains_key("steps"), runner.get("outputs")) {
-        (true, Some(_)) => {
-            return Err(FIELDS.validation_error(format!(
-                "runners.{name}.outputs belong to a runner without steps; a composed runner returns its result_from steps."
-            )));
-        }
-        (true, None) => {}
-        (false, None) => {
-            return Err(FIELDS.validation_error(format!(
-                "runners.{name} has no steps, so it is one agent turn and declares its outputs."
-            )));
-        }
-        (false, outputs) => {
-            let mut turn = JsonObject::from([
-                ("id".to_owned(), JsonValue::String(name.to_owned())),
-                (
-                    "agent".to_owned(),
-                    JsonValue::Object(JsonObject::from([
-                        ("role".to_owned(), JsonValue::String(skill.to_owned())),
-                        ("task".to_owned(), JsonValue::String(name.to_owned())),
-                    ])),
-                ),
-                ("inputs".to_owned(), JsonValue::String("$input".to_owned())),
-            ]);
-            if let Some(outputs) = outputs {
-                turn.insert("outputs".to_owned(), outputs.clone());
-            }
-            document.insert(
-                "steps".to_owned(),
-                JsonValue::Array(vec![JsonValue::Object(turn)]),
-            );
-        }
-    }
     document.insert("name".to_owned(), JsonValue::String(skill.to_owned()));
     if !document.contains_key("result_from")
         && let Some(last) = document
@@ -123,7 +79,102 @@ fn method_workflow(
         document.insert("result_from".to_owned(), JsonValue::Array(vec![last]));
     }
     validate_workflow_document(document.clone(), Some(RawWorkflowIr { document }))
-        .map_err(|error| FIELDS.validation_error(format!("runners.{name}: {error}")))
+        .map_err(|error| FIELDS.validation_error(format!("methods.{name}: {error}")))
+}
+
+/// What a paid method charges. A price reads only inputs the method requires:
+/// each `by_input` input an `enum`, with a case for every combination of
+/// their values, and the `by_size` input a value holding the stored
+/// artifact's reference. Whose lease a buyer must hold is checked against
+/// the package's connectors once they're known.
+fn validate_offer(
+    method: &str,
+    value: &JsonValue,
+    inputs: &std::collections::BTreeMap<String, super::SkillInput>,
+) -> Result<runx_contracts::PaidSkillOfferTerms, ValidationError> {
+    let field = format!("methods.{method}.offer");
+    let terms = serde_json::to_value(value)
+        .and_then(serde_json::from_value::<runx_contracts::PaidSkillOfferTerms>)
+        .map_err(|error| FIELDS.validation_error(format!("{field} is invalid: {error}")))?;
+    for name in terms.price.priced_inputs() {
+        if !inputs.get(name).is_some_and(|input| input.required) {
+            return Err(FIELDS.validation_error(format!(
+                "{field}.price reads input {name}, which method {method} does not require."
+            )));
+        }
+    }
+    match &terms.price {
+        runx_contracts::PaidSkillPrice::Fixed { .. } => {}
+        runx_contracts::PaidSkillPrice::BySize { input, .. } => {
+            if !matches!(
+                inputs[input.as_str()].input_type.as_str(),
+                "json" | "object"
+            ) {
+                return Err(FIELDS.validation_error(format!(
+                    "{field}.price prices input {input} by the bytes of the stored artifact it references, so method {method} declares it an object or leaves its type open."
+                )));
+            }
+        }
+        runx_contracts::PaidSkillPrice::ByInput { cases } => {
+            let mut combinations = 1_usize;
+            for name in terms.price.priced_inputs() {
+                let choices = enum_choices(&inputs[name]).ok_or_else(|| {
+                    FIELDS.validation_error(format!(
+                        "{field}.price reads input {name}, so method {method} declares its enum."
+                    ))
+                })?;
+                combinations = combinations.saturating_mul(choices.len());
+                if let Some(case) = cases
+                    .iter()
+                    .find(|case| !choices.contains(&case.inputs[name].as_value()))
+                {
+                    return Err(FIELDS.validation_error(format!(
+                        "{field}.price has a case for {name} = {}, which is not one of its enum values.",
+                        runx_contracts::canonical_json::canonical_stable_json(
+                            case.inputs[name].as_value()
+                        )
+                        .unwrap_or_default()
+                    )));
+                }
+            }
+            // Cases are unique and each value is a declared one, so a case per
+            // combination is an exact cover.
+            if cases.len() != combinations {
+                return Err(FIELDS.validation_error(format!(
+                    "{field}.price prices {} of the {combinations} combinations of its inputs' values; it prices each once.",
+                    cases.len()
+                )));
+            }
+        }
+    }
+    if let Some(lease) = &terms.requires_lease {
+        for pointer in lease.target.argument_pointers() {
+            let input = pointer
+                .strip_prefix('/')
+                .and_then(|rest| rest.split('/').next())
+                .unwrap_or_default();
+            if !inputs.get(input).is_some_and(|input| input.required) {
+                return Err(FIELDS.validation_error(format!(
+                    "{field}.requires_lease reads input {input}, which method {method} does not require."
+                )));
+            }
+        }
+    }
+    Ok(terms)
+}
+
+/// The distinct values an input's schema enumerates, if it enumerates any.
+fn enum_choices(input: &super::SkillInput) -> Option<Vec<&JsonValue>> {
+    let JsonValue::Array(values) = input.schema.as_ref()?.get("enum")? else {
+        return None;
+    };
+    let mut choices = Vec::<&JsonValue>::new();
+    for value in values {
+        if !choices.contains(&value) {
+            choices.push(value);
+        }
+    }
+    (!choices.is_empty()).then_some(choices)
 }
 
 fn parse_method_examples(
@@ -133,7 +184,7 @@ fn parse_method_examples(
     let Some(value) = value else {
         return Ok(Vec::new());
     };
-    let field = format!("runners.{name}.examples");
+    let field = format!("methods.{name}.examples");
     let values = FIELDS.required_plain_array(Some(value), &field)?;
     values
         .iter()
@@ -167,7 +218,7 @@ pub fn validate_input_examples(
         })?;
         if let Some(error) = validator.iter_errors(&instance).next() {
             return Err(FIELDS.validation_error(format!(
-                "{field}[{index}]{} does not match the runner input contract: {error}",
+                "{field}[{index}]{} does not match the method's input contract: {error}",
                 error.instance_path()
             )));
         }

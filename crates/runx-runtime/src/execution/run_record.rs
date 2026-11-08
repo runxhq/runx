@@ -119,7 +119,7 @@ pub(crate) struct Started {
     pub context: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_authority: Option<RunAuthority>,
-    /// The act its invoker stated, which the run's steps read as `$act`.
+    /// The act its invoker stated, which the run's steps read as `$run.act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<CallAct>,
     /// Who works the run's turns, fixed when it starts.
@@ -142,7 +142,7 @@ pub(crate) struct ChildStarted {
     pub skill: String,
     /// Blob: the child's materialized inputs.
     pub inputs: String,
-    /// The act the parent's step gave the child, read as its `$act`.
+    /// The act the parent's step gave the child, read as its `$run.act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<CallAct>,
     pub created_at: String,
@@ -465,7 +465,7 @@ pub(crate) struct RunRecord {
     pub origin: Origin,
     pub created_at: String,
     pub inputs: JsonObject,
-    /// The act the run's invoker stated, read by its steps as `$act`.
+    /// The act the run's invoker stated, read by its steps as `$run.act`.
     pub act: Option<CallAct>,
     pub context: CallerContext,
     pub facts: Vec<Replayed>,

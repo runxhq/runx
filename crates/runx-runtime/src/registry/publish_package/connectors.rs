@@ -91,7 +91,7 @@ pub(super) fn package_connectors(
         .manifest()
         .into_iter()
         .flat_map(|manifest| &manifest.connectors)
-        .filter(|(_, requirement)| requirement.connector_from.is_none())
+        .filter(|(_, requirement)| requirement.choose.is_none())
         .collect::<BTreeMap<_, _>>();
     let projected = declared
         .into_iter()

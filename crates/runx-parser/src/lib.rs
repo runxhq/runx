@@ -1,4 +1,4 @@
-//! The pure Rust parser for runx skills, graphs, and tools.
+//! The pure Rust parser for runx packages, connectors and tools.
 
 pub mod connector;
 pub mod data;
@@ -7,11 +7,11 @@ pub mod eval;
 pub mod graph;
 pub mod install;
 mod json_fields;
+pub mod manifest;
 pub mod mark;
 pub mod package;
 pub mod packet;
 mod registry_ref;
-pub mod runner;
 pub mod skill;
 pub mod test_fixture;
 pub mod tool;
@@ -23,13 +23,17 @@ pub use connector::{
 pub use error::{ParseError, ValidationError};
 pub use eval::{ParserEvalError, ParserEvalOutput, evaluate_parser_document_str};
 pub use graph::{
-    AgentTask, AskGate, Binding, DuplicatePolicy, LoadStep, LoadTarget, Operand,
-    OperationStepTarget, ProcessTool, RawWorkflowIr, SkillTarget, Source, StepAct, StepKind,
-    ToolTarget, WorkerTool, Workflow, WorkflowGuard, WorkflowPolicy, WorkflowStep, WorkflowWhen,
-    parse_workflow_yaml, validate_process_tool, validate_workflow, validate_workflow_document,
+    AgentTask, AskGate, Binding, LoadStep, LoadTarget, Operand, OperationStepTarget, ProcessTool,
+    RawWorkflowIr, SkillTarget, Source, StepAct, StepKind, ToolTarget, WorkerTool, Workflow,
+    WorkflowStep, WorkflowWhen, parse_workflow_yaml, validate_process_tool, validate_workflow,
+    validate_workflow_document,
 };
 pub use install::{
     SkillInstallError, SkillInstallOrigin, ValidatedSkillInstall, validate_skill_install,
+};
+pub use manifest::{
+    RUNX_VERSION, RawMethodManifestIr, SkillMethodManifest, parse_method_manifest_yaml,
+    validate_method_manifest,
 };
 pub use package::{
     PROFILE_FILE, PackagePacket, SkillPackageError, SkillPackageSource, ValidatedJavaScriptModule,
@@ -40,26 +44,18 @@ pub use packet::{
     PACKET_ID_FIELD, PacketSchemaError, ValidatedPacketSchema, parse_packet_schema_document,
 };
 pub use registry_ref::{REGISTRY_REF_PREFIX, registry_ref};
-pub use runner::{
-    MarketplaceManifest, RawMethodManifestIr, SkillMethodManifest, parse_method_manifest_yaml,
-    validate_method_manifest,
-};
 pub use skill::{
-    ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, CatalogApproval, CatalogAudience,
-    CatalogCompletion, CatalogExecution, CatalogKind, CatalogMetadata, CatalogOperatorReadiness,
-    CatalogRole, CatalogSemanticCode, CatalogSemanticDiagnostic, CatalogSemanticReport,
-    CatalogVisibility, ConnectorRequirement, InputMode, MethodTestCase, MethodTestManifest,
-    OperatorJourneyClaim, OperatorJourneyMode, RawSkillIr, ReceiptExpectation,
-    SkillArtifactContract, SkillIdempotencyPolicy, SkillInput, SkillMethodDefinition, TestCaller,
-    TestExpectation, TestHttpExchangeFixture, TestHttpRequestBodyFixture, TestHttpResponseFixture,
-    TestMcpCallFixture, TestProcessCallFixture, ValidateSkillMode, ValidateSkillOptions,
-    ValidatedSkill, analyze_catalog_semantics, analyze_package_catalog_semantics,
+    ArtifactPageFraming, ArtifactPageInput, ArtifactPageSource, CatalogMetadata, CatalogVisibility,
+    ConnectorRequirement, InputMode, RawSkillIr, SkillArtifactContract, SkillIdempotencyPolicy,
+    SkillInput, SkillMethodDefinition, ValidateSkillMode, ValidateSkillOptions, ValidatedSkill,
     parse_skill_markdown, validate_input_examples, validate_skill,
     validate_skill_artifact_contract, validate_skill_with_options,
 };
 pub use test_fixture::{
-    TestProviderAccess, TestProviderGrantFixture, TestProviderLeaseFixture,
-    TestProviderOperationFixture, TestProviderResponsesFixture,
+    ReceiptExpectation, TestExpectation, TestFixture, TestHost, TestHttpExchangeFixture,
+    TestHttpRequestBodyFixture, TestHttpResponseFixture, TestMcpCallFixture,
+    TestProcessCallFixture, TestProviderAccess, TestProviderGrantFixture, TestProviderLeaseFixture,
+    TestProviderOperationFixture, TestProviderResponsesFixture, TestProviders, parse_test_fixture,
 };
 pub use tool::{
     RawToolManifestIr, ValidatedTool, parse_tool_manifest_json, parse_tool_manifest_yaml,

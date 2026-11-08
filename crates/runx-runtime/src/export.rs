@@ -172,15 +172,10 @@ fn has_agent_export_contract(
     {
         return false;
     }
-    let report = runx_parser::analyze_package_catalog_semantics(
-        &package.skill.name,
-        manifest,
-        &package.test_fixtures,
-    );
-    report.diagnostics.is_empty()
-        && report.readiness.evaluated
-        && report.readiness.cold_selection
-        && report.readiness.standalone_default
+    // A host is offered a package whose default method a sealed test proves.
+    manifest.default_method().is_some_and(|method| {
+        crate::skill_package::method_has_sealed_test(package, manifest, method)
+    })
 }
 
 fn validate_unique_export_names(skills: &mut [RunxExportSkill]) -> Result<(), RunxExportLoadError> {
@@ -299,19 +294,17 @@ fn export_methods(
             makes_calls: false,
         }];
     };
+    let default = manifest.default_method().map(|method| method.name.as_str());
     let mut runners = manifest
-        .runners
+        .methods
         .values()
         .filter(|runner| {
-            runner.default
-                || manifest.runners.len() == 1
-                || crate::skill_package::method_has_sealed_standalone_journey(
-                    package, manifest, runner,
-                )
+            default == Some(runner.name.as_str())
+                || crate::skill_package::method_has_sealed_test(package, manifest, runner)
         })
         .map(|runner| RunxExportMethod {
             name: Some(runner.name.clone()),
-            default: runner.default || manifest.runners.len() == 1,
+            default: default == Some(runner.name.as_str()),
             execution_closure_digest: None,
             inputs: runner.inputs.clone(),
             makes_calls: false,

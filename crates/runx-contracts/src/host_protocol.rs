@@ -318,9 +318,8 @@ pub struct ApprovalGate {
 #[runx_schema(id = "runx.turn_invocation.v1")]
 pub struct TurnInvocation {
     pub id: NonEmptyString,
-    /// The kind of agent the step asks for.
-    pub role: NonEmptyString,
-    /// The act it performs.
+    /// The task it performs: a `## Agent task: <name>` section of the
+    /// package's `SKILL.md`, which carries its instructions.
     pub task: NonEmptyString,
     pub envelope: AgentContextEnvelope,
     /// What the agent may call while its turn is open.
@@ -620,7 +619,6 @@ pub struct TurnStatus {
 #[serde(deny_unknown_fields)]
 pub struct TurnView {
     pub id: NonEmptyString,
-    pub role: NonEmptyString,
     pub task: NonEmptyString,
     pub envelope: TurnViewEnvelope,
 }
@@ -629,14 +627,12 @@ impl From<&TurnInvocation> for TurnView {
     fn from(invocation: &TurnInvocation) -> Self {
         let TurnInvocation {
             id,
-            role,
             task,
             envelope,
             allowance: _,
         } = invocation;
         Self {
             id: id.clone(),
-            role: role.clone(),
             task: task.clone(),
             envelope: TurnViewEnvelope::from(envelope),
         }

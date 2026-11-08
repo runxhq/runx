@@ -20,7 +20,7 @@ pub(super) fn invoke(
     artifacts: &LocalArtifactService,
 ) -> Result<InvocationOutput, RuntimeError> {
     let page_source = super::worker(&request)?
-        .pages
+        .paged_input
         .clone()
         .ok_or_else(|| page_error("missing page source"))?;
     crate::capability::enforce_required_scopes(
@@ -32,12 +32,12 @@ pub(super) fn invoke(
     reject_reserved_input(&request.inputs)?;
     let artifact = match &page_source.source {
         ArtifactPageInput::Path {
-            path_from,
-            path_scope_from,
+            path,
+            path_scope,
             media_type,
         } => {
-            let requested_path = take_string_input(&mut request, path_from)?;
-            let path_scope = path_scope_from
+            let requested_path = take_string_input(&mut request, path)?;
+            let path_scope = path_scope
                 .as_deref()
                 .map(|field| take_string_input(&mut request, field))
                 .transpose()?
@@ -59,8 +59,8 @@ pub(super) fn invoke(
                 )
                 .map_err(|error| page_error(error.to_string()))?
         }
-        ArtifactPageInput::Artifact { artifact_from } => {
-            let reference = take_string_input(&mut request, artifact_from)?;
+        ArtifactPageInput::Artifact { artifact } => {
+            let reference = take_string_input(&mut request, artifact)?;
             artifacts
                 .descriptor(&reference)
                 .map_err(|error| page_error(error.to_string()))?

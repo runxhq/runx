@@ -1,5 +1,5 @@
-//! A skill package's harness: its runners' inline cases and its fixture
-//! files, each run as a case through the one harness engine.
+//! A package's tests: each `tests/<name>.yaml`, run as a case through the
+//! one test engine.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -7,23 +7,21 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use runx_contracts::JsonObject;
-use runx_parser::MethodTestCase;
 use serde::Serialize;
 
-use super::fixtures::{TestFixture, TestSetup};
+use super::fixtures::TestFixture;
 use super::runner::{load_test_case, run_test_case_with_adapter};
-use super::{TestExpectedStatus, TestFixtureKind, TestOptions, TestReplayError};
+use super::{TestExpectedStatus, TestOptions, TestReplayError};
 use crate::RuntimeError;
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::skill_front::{ExecutableAdapter, SkillRunError};
 use crate::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths};
 use crate::services::ReceiptServices;
 
-/// Aggregate result of running a package's inline and conventional fixture
-/// cases. Mirrors the publish-test summary the registry records: a status,
-/// counts, per-case assertion failures, case names, sealed receipt ids, and how
-/// many `kind: graph` fixtures proved the skill composes into a graph.
+/// Aggregate result of running a package's tests. Mirrors the publish-test
+/// summary the registry records: a status, counts, per-case assertion
+/// failures, case names, sealed receipt ids, and how many tests proved the
+/// skill composes, by running a fixture package that calls it.
 #[derive(Clone, Debug, Serialize)]
 pub struct PackageTestReport {
     pub status: &'static str,
@@ -52,10 +50,9 @@ impl PackageTestReport {
 /// A case as loaded: its fixture and target, or why it could not be read.
 type LoadedCase = Result<(TestFixture, PathBuf), String>;
 
-/// Run every harness case a skill package owns, its runners' inline
-/// `harness.cases` and its conventional `fixtures/*.yaml` files, each as a
-/// case through the one harness engine. Discovery is deterministic, and this
-/// is the single package entry point the CLI and publishing use.
+/// Run every test a package owns, its `tests/*.yaml`, each as a case through
+/// the one test engine. Discovery is deterministic, and this is the single
+/// package entry point the CLI and publishing use.
 pub(crate) fn run_package_test_with_effects(
     skill_path: &Path,
     receipt_dir: Option<&Path>,
@@ -73,55 +70,17 @@ pub(crate) fn run_package_test_with_effects(
         &loaded.directory,
         receipt_dir,
     )?;
-    harness.stage_declared_files(&loaded)?;
+    harness.stage_fixtures(&loaded)?;
     harness.stage_installed_connectors(&loaded, workspace.paths())?;
     harness.stage_installed_skills(&loaded, workspace.env())?;
     let mut report = PackageTestReport::not_declared();
-    let mut cases = inline_cases(&loaded)?;
-    for path in conventional_fixture_paths(&loaded.directory)? {
-        cases.push(load_test_case(&path).map_err(|error| format!("{}: {error}", path.display())));
-    }
+    let cases = test_paths(&loaded.directory)?
+        .into_iter()
+        .map(|path| load_test_case(&path).map_err(|error| format!("{}: {error}", path.display())))
+        .collect();
     replay_cases(cases, &harness, effects, &mut report)?;
     finalize_report(&mut report);
     Ok(report)
-}
-
-/// A runner's inline cases, each the fixture it is: a skill case against the
-/// package itself.
-fn inline_cases(loaded: &crate::LoadedSkillPackage) -> Result<Vec<LoadedCase>, SkillRunError> {
-    let Some(harness) = loaded
-        .manifest()
-        .and_then(|manifest| manifest.harness.as_ref())
-    else {
-        return Ok(Vec::new());
-    };
-    let target = fs::canonicalize(&loaded.directory).map_err(|source| {
-        RuntimeError::io(
-            format!("resolving harness target {}", loaded.directory.display()),
-            source,
-        )
-    })?;
-    Ok(harness
-        .cases
-        .iter()
-        .map(|case| Ok((inline_fixture(case), target.clone())))
-        .collect())
-}
-
-fn inline_fixture(case: &MethodTestCase) -> TestFixture {
-    TestFixture {
-        name: case.name.clone(),
-        kind: TestFixtureKind::Skill,
-        target: ".".to_owned(),
-        runner: case.runner.clone(),
-        setup: TestSetup::default(),
-        inputs: case.inputs.clone(),
-        env: case.env.clone(),
-        caller: case.caller.clone(),
-        expect: case.expect.clone(),
-        operator_journeys: case.operator_journeys.clone(),
-        metadata: JsonObject::new(),
-    }
 }
 
 fn replay_cases(
@@ -155,7 +114,7 @@ fn replay_cases(
                 .into_owned(),
         );
         let name = fixture.name.clone();
-        let is_workflow = matches!(fixture.kind, TestFixtureKind::Graph);
+        let is_workflow = fixture.package.is_some();
         let denial_expected = fixture.expect.status == Some(TestExpectedStatus::PolicyDenied);
         match run_test_case_with_adapter(fixture, target_path, ExecutableAdapter, options) {
             Ok(output) => {
@@ -265,34 +224,22 @@ impl PackageTestEnvironment {
         })
     }
 
-    fn stage_declared_files(
-        &self,
-        loaded: &crate::LoadedSkillPackage,
-    ) -> Result<(), SkillRunError> {
-        let Some(harness) = loaded
-            .manifest()
-            .and_then(|manifest| manifest.harness.as_ref())
-        else {
-            return Ok(());
-        };
-        let profile_directory = loaded
-            .profile_path
-            .as_deref()
-            .and_then(|path| path.rsplit_once('/').map(|(directory, _)| directory));
-        for declared in &harness.files {
-            let source_path = profile_directory.map_or_else(
-                || declared.clone(),
-                |directory| format!("{directory}/{declared}"),
-            );
-            let contents = loaded.package.file_bytes(&source_path).ok_or_else(|| {
-                RuntimeError::SkillFailed {
-                    skill_name: "package-test".to_owned(),
-                    message: format!(
-                        "validated harness support file {source_path:?} is unavailable"
-                    ),
-                }
-            })?;
-            self.stage_file(declared, contents, is_declared_test_executable(declared))?;
+    /// Stage every file under the package's `fixtures/`, whole, with
+    /// `fixtures/bin/` executable.
+    fn stage_fixtures(&self, loaded: &crate::LoadedSkillPackage) -> Result<(), SkillRunError> {
+        for path in &loaded.package.test_files {
+            if !path.starts_with("fixtures/") {
+                continue;
+            }
+            let contents =
+                loaded
+                    .package
+                    .file_bytes(path)
+                    .ok_or_else(|| RuntimeError::SkillFailed {
+                        skill_name: "package-test".to_owned(),
+                        message: format!("validated test fixture {path:?} is unavailable"),
+                    })?;
+            self.stage_file(path, contents, is_declared_test_executable(path))?;
         }
         Ok(())
     }
@@ -428,8 +375,8 @@ pub(super) fn bound_installed_connectors(
         .map_err(|error| RuntimeError::effect_state("selecting harness connectors", error))?;
     let mut bound: Vec<Arc<crate::kernel::connectors::LoadedConnector>> = Vec::new();
     for (key, requirement) in &manifest.connectors {
-        let references = match requirement.connector_from {
-            Some(_) => requirement.allowed_connectors.clone(),
+        let references = match requirement.choose {
+            Some(_) => requirement.from.clone(),
             None => vec![key.clone()],
         };
         for reference in references {
@@ -474,21 +421,22 @@ impl Drop for PackageTestEnvironment {
     }
 }
 
-fn conventional_fixture_paths(skill_dir: &Path) -> Result<Vec<PathBuf>, SkillRunError> {
-    let fixtures_dir = skill_dir.join("fixtures");
-    let entries = match fs::read_dir(&fixtures_dir) {
+/// A package's tests, `tests/*.yaml`, in name order.
+fn test_paths(skill_dir: &Path) -> Result<Vec<PathBuf>, SkillRunError> {
+    let tests_dir = skill_dir.join("tests");
+    let entries = match fs::read_dir(&tests_dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(source) => {
             return Err(
-                RuntimeError::io(format!("reading {}", fixtures_dir.display()), source).into(),
+                RuntimeError::io(format!("reading {}", tests_dir.display()), source).into(),
             );
         }
     };
     let mut paths = Vec::new();
     for entry in entries {
         let entry = entry.map_err(|source| {
-            RuntimeError::io(format!("reading {}", fixtures_dir.display()), source)
+            RuntimeError::io(format!("reading {}", tests_dir.display()), source)
         })?;
         let path = entry.path();
         if path.is_file()
@@ -801,8 +749,7 @@ runners:
     }
 
     #[test]
-    fn package_test_stages_only_declared_profile_relative_files()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn package_test_stages_its_fixtures_whole() -> Result<(), Box<dyn std::error::Error>> {
         let operator_workspace = unique_test_root("staged-files")?;
         let skill_dir = operator_workspace.join("skills/demo");
         fs::create_dir_all(skill_dir.join("fixtures"))?;
@@ -840,13 +787,17 @@ runners:
             None,
         )?;
 
-        harness.stage_declared_files(&loaded)?;
+        harness.stage_fixtures(&loaded)?;
 
         assert_eq!(
             fs::read_to_string(harness.workspace.join("fixtures/declared.txt"))?,
             "declared"
         );
-        assert!(!harness.workspace.join("fixtures/undeclared.txt").exists());
+        assert_eq!(
+            fs::read_to_string(harness.workspace.join("fixtures/undeclared.txt"))?,
+            "undeclared",
+            "fixtures/ is staged whole"
+        );
         drop(harness);
         fs::remove_dir_all(operator_workspace)?;
         Ok(())
@@ -895,7 +846,7 @@ runners:
             None,
         )?;
 
-        harness.stage_declared_files(&loaded)?;
+        harness.stage_fixtures(&loaded)?;
 
         let mode = fs::metadata(harness.workspace.join("fixtures/bin/demo-command"))?
             .permissions()

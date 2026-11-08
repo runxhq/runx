@@ -44,15 +44,16 @@ pub struct ArtifactPageSource {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ArtifactPageInput {
+    /// A file, named by the input `path`, inside the directory the input
+    /// `path_scope` names.
     Path {
-        path_from: String,
+        path: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        path_scope_from: Option<String>,
+        path_scope: Option<String>,
         media_type: String,
     },
-    Artifact {
-        artifact_from: String,
-    },
+    /// A stored artifact, referenced by the input `artifact`.
+    Artifact { artifact: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,45 +86,87 @@ pub struct ValidatedSkill {
     pub raw: RawSkillIr,
 }
 
-/// One runner: the steps it runs and its inputs.
+/// One method: the steps it runs and its inputs.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillMethodDefinition {
     pub name: String,
-    /// What the runner does and when to use it rather than the skill's other
-    /// runners: the purpose a model chooses it by.
+    /// What the method does and when to use it rather than the skill's other
+    /// methods: the purpose a model chooses it by.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub default: bool,
-    /// Same-package runners that may fulfil this runner after its turn ends.
-    /// They are part of its pinned execution closure, not implicit execution.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub continuations: Vec<String>,
     pub inputs: BTreeMap<String, SkillInput>,
-    /// Complete, parser-validated calls for this runner. These are contract
-    /// examples, not fixtures: inspection and generated operator instructions
+    /// Complete, parser-validated calls for this method. These are contract
+    /// examples, not tests: inspection and generated operator instructions
     /// expose them without reparsing package files.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub examples: Vec<JsonObject>,
-    /// The runner's steps, as the graph the engine runs. Its name is the
-    /// runner's.
+    /// What the method charges, when it's sold.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offer: Option<runx_contracts::PaidSkillOfferTerms>,
+    /// The method's steps, as the workflow the engine runs. Its name is the
+    /// skill's.
     pub graph: crate::Workflow,
     pub raw: JsonObject,
 }
 
 impl SkillMethodDefinition {
-    /// The complete scope ceiling declared by this runner's steps. Consumers
-    /// must use this typed projection rather than scan the raw manifest tree.
+    /// The method's input schema: every input field, with which are required.
     #[must_use]
-    pub fn declared_scopes(&self) -> Vec<String> {
-        self.graph
-            .steps
-            .iter()
-            .flat_map(|step| step.scopes.iter().cloned())
-            .collect()
+    pub fn input_schema(&self) -> JsonObject {
+        runx_contracts::input_contract_schema(&self.inputs)
     }
 
-    /// The artifact contracts of the steps whose outputs form the runner's
+    /// The method's output schema: its result step's outputs, or one of
+    /// them, when the method returns the first of several that ran.
+    #[must_use]
+    pub fn output_schema(&self) -> JsonObject {
+        let mut results = self
+            .graph
+            .steps
+            .iter()
+            .filter(|step| self.graph.result_from.contains(&step.id))
+            .map(|step| {
+                let fields = step
+                    .outputs
+                    .as_ref()
+                    .and_then(|outputs| runx_contracts::parse_output_contract(outputs).ok());
+                match runx_contracts::output_value_schema(fields.as_ref()) {
+                    runx_contracts::JsonValue::Object(schema) => schema,
+                    _ => JsonObject::new(),
+                }
+            })
+            .collect::<Vec<_>>();
+        match results.len() {
+            1 => results.remove(0),
+            _ => JsonObject::from([(
+                "anyOf".to_owned(),
+                runx_contracts::JsonValue::Array(
+                    results
+                        .into_iter()
+                        .map(runx_contracts::JsonValue::Object)
+                        .collect(),
+                ),
+            )]),
+        }
+    }
+
+    /// Both schemas and their canonical digests.
+    pub fn schemas(
+        &self,
+    ) -> Result<runx_contracts::MethodSchemas, runx_contracts::connector::ConnectorDigestError>
+    {
+        let input_schema = self.input_schema();
+        let output_schema = self.output_schema();
+        Ok(runx_contracts::MethodSchemas {
+            input_schema_digest: runx_contracts::connector::stable_digest(&input_schema)?,
+            output_schema_digest: runx_contracts::connector::stable_digest(&output_schema)?,
+            input_schema,
+            output_schema,
+        })
+    }
+
+    /// The artifact contracts of the steps whose outputs form the method's
     /// public result.
     #[must_use]
     pub fn result_artifacts(&self) -> Vec<&SkillArtifactContract> {
@@ -135,7 +178,7 @@ impl SkillMethodDefinition {
             .collect()
     }
 
-    /// The environment requirements of the runner's worker and process steps.
+    /// The environment requirements of the method's worker and process steps.
     #[must_use]
     pub fn environment(&self) -> EnvironmentRequirements {
         let mut environment = EnvironmentRequirements::default();

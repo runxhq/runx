@@ -124,10 +124,10 @@ fn operation_resends(
     let connectors = match target
         .declared
         .as_ref()
-        .filter(|declared| declared.connector_from.is_some())
+        .filter(|declared| declared.choose.is_some())
     {
         Some(declared) => declared
-            .allowed_connectors
+            .from
             .iter()
             .map(|id| id.as_str().to_owned())
             .collect::<Vec<_>>(),
@@ -142,7 +142,10 @@ fn operation_resends(
                     .iter()
                     .find(|(name, _)| name.as_str() == operation.as_str())
                     .is_some_and(|(_, operation)| {
-                        crate::kernel::operation::resends_safely(operation, step.duplicates)
+                        crate::kernel::operation::resends_safely(
+                            operation,
+                            step.retry_unknown_outcomes,
+                        )
                     })
             })
         })
@@ -647,22 +650,6 @@ where
             graph,
             host,
             WorkflowTerminalOutcome::Propagate,
-        )
-    }
-
-    pub(crate) fn run_workflow_file_for_test(
-        &self,
-        workflow_path: &Path,
-        host: &mut dyn Host,
-    ) -> Result<WorkflowRun, RuntimeError> {
-        let workflow_path = self.resolved_workflow_path(workflow_path)?;
-        let graph = load_workflow(&workflow_path)?;
-        let workflow_dir = workflow_path.parent().unwrap_or_else(|| Path::new("/"));
-        self.run_workflow_with_host_outcome(
-            workflow_dir,
-            graph,
-            host,
-            WorkflowTerminalOutcome::SealReceipt,
         )
     }
 
@@ -1705,9 +1692,7 @@ mod tests {
         Ok(WorkflowRun {
             graph: Workflow {
                 name: name.clone(),
-                publisher: None,
                 result_from: result_from.into_iter().map(str::to_owned).collect(),
-                policy: None,
                 steps: Vec::new(),
                 raw: RawWorkflowIr {
                     document: JsonObject::new(),

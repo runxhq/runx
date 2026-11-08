@@ -50,7 +50,6 @@ pub(crate) fn build_turn_invocation(
     };
     Ok(TurnInvocation {
         id: id.into(),
-        role: non_empty(&agent.role, "role")?,
         task: non_empty(&agent.task, "task")?,
         envelope: envelope(request, package, act)?,
         allowance: agent.allowance.clone(),

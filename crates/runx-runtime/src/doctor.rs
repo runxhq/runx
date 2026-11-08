@@ -224,24 +224,14 @@ fn discover_skill_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runt
                 continue;
             }
         };
-        let fixture_count = loaded.package.test_fixtures.len() as u64;
-        let test_case_count = loaded
-            .package
-            .profiles
-            .values()
-            .map(|manifest| {
-                manifest
-                    .harness
-                    .as_ref()
-                    .map_or(0, |harness| harness.cases.len() as u64)
-            })
-            .sum::<u64>();
+        let test_count = loaded.package.test_fixtures.len() as u64;
         for (profile_relative, manifest) in &loaded.package.profiles {
             let profile_path = loaded.package_root.join(profile_relative);
-            if fixture_count == 0 && test_case_count == 0 {
+            if test_count == 0 {
+                // An internal package is a fixture or a part of another's,
+                // which that package's tests cover.
                 let covered_by_parent = manifest.catalog.as_ref().is_some_and(|catalog| {
                     catalog.visibility == runx_parser::CatalogVisibility::Internal
-                        && !catalog.part_of.is_empty()
                 });
                 if covered_by_parent {
                     continue;
@@ -250,8 +240,7 @@ fn discover_skill_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runt
                     root,
                     &profile_path,
                     &skill_name,
-                    fixture_count,
-                    test_case_count,
+                    test_count,
                 )?);
             }
         }
@@ -396,8 +385,7 @@ fn skill_fixture_missing_diagnostic(
     root: &Path,
     profile_path: &Path,
     skill_name: &str,
-    fixture_count: u64,
-    test_case_count: u64,
+    test_count: u64,
 ) -> Result<DoctorDiagnostic, RuntimeError> {
     let location_path = project_path(root, profile_path);
     let target = object([
@@ -406,24 +394,21 @@ fn skill_fixture_missing_diagnostic(
     ]);
     let location = DoctorLocation {
         path: location_path.clone(),
-        json_pointer: Some("/harness".to_owned()),
+        json_pointer: None,
     };
-    let evidence = object([
-        ("fixture_count", number_value(fixture_count)),
-        ("test_case_count", number_value(test_case_count)),
-    ]);
+    let evidence = object([("test_count", number_value(test_count))]);
     create_diagnostic(DiagnosticParts {
         id: "runx.skill.fixture.missing",
         severity: DoctorDiagnosticSeverity::Error,
-        title: "Skill has no harness coverage",
+        title: "Skill has no tests",
         message: format!(
-            "Skill {skill_name} declares an execution profile but has no fixtures or inline harness.cases."
+            "Skill {skill_name} declares a run.yaml but has no tests: add one as tests/<name>.yaml."
         ),
         target,
         location,
         evidence: Some(evidence),
         repairs: vec![manual_repair(
-            "add_inline_test_case",
+            "add_test",
             DoctorRepairConfidence::Medium,
             DoctorRepairRisk::Low,
             false,

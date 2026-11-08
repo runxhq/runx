@@ -11,7 +11,7 @@ use crate::receipts::{RuntimeReceiptProofContextProvider, RuntimeReceiptSignatur
 
 mod replayed_answers;
 
-use replayed_answers::assert_caller_answers_replayed;
+use replayed_answers::assert_host_answers_replayed;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TestReplayReceipt {
@@ -53,7 +53,7 @@ pub(super) fn assert_expectations(
             .collect::<Vec<_>>();
         assert_list("expect.steps", expected, &actual)?;
     }
-    assert_caller_answers_replayed(output)?;
+    assert_host_answers_replayed(output)?;
     if let Some(expectation) = &output.fixture.expect.output {
         let actual = output
             .skill_output

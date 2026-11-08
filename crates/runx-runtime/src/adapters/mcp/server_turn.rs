@@ -271,7 +271,6 @@ struct Waiting {
 struct OpenTurn {
     turn: String,
     skill: String,
-    role: String,
     task: String,
 }
 
@@ -284,7 +283,6 @@ impl Waiting {
                 ResolutionRequest::Turn { id, invocation } => turns.push(OpenTurn {
                     turn: id.to_string(),
                     skill: invocation.envelope.skill.to_string(),
-                    role: invocation.role.to_string(),
                     task: invocation.task.to_string(),
                 }),
                 other => requests.push(other),

@@ -137,8 +137,10 @@ enum ParserInput {
         #[serde(default)]
         mode: ParserSkillMode,
     },
+    /// A `run.yaml`, read as the package named `skill`, the name its
+    /// `SKILL.md` holds.
     #[serde(rename = "parser.validateMethodManifestYaml")]
-    ValidateMethodManifestYaml { yaml: String },
+    ValidateMethodManifestYaml { skill: String, yaml: String },
     #[serde(rename = "parser.validateConnectorManifestYaml")]
     ValidateConnectorManifestYaml { yaml: String },
     #[serde(rename = "parser.validateWorkflowYaml")]
@@ -248,9 +250,9 @@ fn evaluate_parser_input(input: ParserInput) -> Result<JsonValue, ParserEvalErro
             let raw = parse_skill_markdown(&markdown)?;
             to_json_value(validate_skill_with_options(raw, mode.into())?)
         }
-        ParserInput::ValidateMethodManifestYaml { yaml } => {
+        ParserInput::ValidateMethodManifestYaml { skill, yaml } => {
             let raw = parse_method_manifest_yaml(&yaml)?;
-            to_json_value(validate_method_manifest(raw)?)
+            to_json_value(validate_method_manifest(&skill, raw)?)
         }
         ParserInput::ValidateConnectorManifestYaml { yaml } => {
             let raw = crate::parse_connector_manifest(&yaml)?;
@@ -319,10 +321,8 @@ mod tests {
         let ParserEvalOutput::Output { value } =
             evaluate(source).map_err(|error| error.to_string())?;
         assert_eq!(
-            value
-                .as_object()
-                .and_then(|manifest| manifest.get("runtime_capability")),
-            Some(&JsonValue::Bool(true))
+            value.as_object().and_then(|manifest| manifest.get("name")),
+            Some(&JsonValue::String("web".to_owned()))
         );
         assert!(evaluate(&source.replace("usd_micro: 0", "usd_micro: -1")).is_err());
         Ok(())

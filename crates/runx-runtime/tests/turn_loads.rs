@@ -714,7 +714,7 @@ fn the_catalog_is_searched_and_inspected_without_adding_to_the_project() -> Test
     )?;
     assert_eq!(inspection.name, "echo");
     assert_eq!(
-        inspection.runner.map(|runner| runner.name).as_deref(),
+        inspection.method.map(|runner| runner.name).as_deref(),
         Some("say")
     );
     assert!(

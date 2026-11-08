@@ -15,29 +15,12 @@ pub struct RawWorkflowIr {
     pub document: JsonObject,
 }
 
-/// A condition the run must meet before `step` runs: a guard blocks the run
-/// when `value` does not hold.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct WorkflowGuard {
-    pub step: String,
-    pub value: Operand,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub equals: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub not_equals: Option<JsonValue>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WorkflowPolicy {
-    pub guards: Vec<WorkflowGuard>,
-}
-
-/// Per-step conditional selection. When present and the condition does not hold
-/// (or the field is unresolved), the step is skipped and the graph continues;
-/// sibling steps with complementary conditions form a branch. Unlike a guard,
-/// a `when` never blocks the run, it selects.
+/// A condition on a step: `value` equals, or does not equal, a literal. As a
+/// step's `when` it selects the step: when the condition does not hold (or
+/// the field is unresolved), the step is skipped and the workflow continues,
+/// and sibling steps with complementary conditions form a branch. As one of a
+/// step's `guard` conditions it must hold before the step may run, or the run
+/// fails.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkflowWhen {
@@ -48,7 +31,7 @@ pub struct WorkflowWhen {
     pub not_equals: Option<JsonValue>,
 }
 
-/// What one step does: exactly one of the five step kinds a graph declares,
+/// What one step does: exactly one of the five step kinds a method declares,
 /// or a load, which only an agent's call makes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -81,7 +64,7 @@ pub struct LoadStep {
     pub held: BTreeMap<String, String>,
 }
 
-/// What a load names: a skill, with the one runner it loads or all of them,
+/// What a load names: a skill, with the one method it loads or all of them,
 /// or a connector by name.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -89,26 +72,26 @@ pub enum LoadTarget {
     Skill {
         skill: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        runner: Option<String>,
+        method: Option<String>,
     },
     Connector {
         name: String,
     },
 }
 
-/// An agent act: the role that answers and the task it performs. The step's
+/// An agent turn: the task it performs, a `## Agent task: <name>` section of
+/// the package's `SKILL.md`, which carries its instructions. The step's
 /// `outputs` declare what the answer must contain.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentTask {
-    pub role: String,
     pub task: String,
-    /// What the turn may call: the enclosing skill's limits, bound when the
-    /// skill is parsed. A graph outside a skill allows nothing.
+    /// What the turn may call: the step's `calls`. Writing them grants
+    /// nothing.
     #[serde(default, skip_serializing_if = "TurnAllowance::is_empty")]
     pub allowance: TurnAllowance,
-    /// The skill's declarations of the requirements the allowance's
-    /// operations name, bound with it: what admits each operation call.
+    /// The skill's requirements for the connectors the allowance's operations
+    /// name, bound with it: what admits each operation call.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub connectors: BTreeMap<String, crate::ConnectorRequirement>,
 }
@@ -142,7 +125,7 @@ pub struct WorkerTool {
     pub timeout_seconds: Option<u64>,
     /// Runtime-owned paging over one contained immutable file.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pages: Option<ArtifactPageSource>,
+    pub paged_input: Option<ArtifactPageSource>,
     /// Non-secret configuration names the module reads. Values are resolved
     /// by the runtime and never stored here.
     #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
@@ -161,7 +144,7 @@ pub struct ProcessTool {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_mode: Option<InputMode>,
+    pub inputs_via: Option<InputMode>,
     /// Non-secret configuration names the process reads. Values are resolved
     /// by the runtime and never stored here.
     #[serde(default, skip_serializing_if = "EnvironmentRequirements::is_empty")]
@@ -181,24 +164,24 @@ pub struct AskGate {
     pub gate_type: Option<String>,
 }
 
-/// A child skill run: the skill, as the step names it, and an optional
-/// runner.
+/// A child skill run: the skill, as the step's reference names it, and the
+/// method after its `#`, if it names one.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SkillTarget {
     pub skill: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub runner: Option<String>,
+    pub method: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkflowStep {
     pub id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
     /// What the step does.
     pub kind: StepKind,
+    /// The outputs kept as artifacts, from the step's `outputs` that name a
+    /// packet and its `result_as`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artifacts: Option<SkillArtifactContract>,
     /// Complete output declarations owned by this step. Preserve these in
@@ -208,23 +191,27 @@ pub struct WorkflowStep {
     pub outputs: Option<JsonObject>,
     /// The values the step is invoked with, as written: literals, with each
     /// reference left in place for `bindings` to fill. For an operation step
-    /// these are the call's fields (`input`, `idempotency_key`, ...).
+    /// these are the call's fields (`inputs`, `idempotency_key`, ...).
     pub inputs: JsonObject,
     /// Where `inputs` reads the run's input and earlier steps' results.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<Binding>,
     /// The act an operation step's call performs, or the act a skill step's
-    /// child run takes as its `$act`.
+    /// child run takes as its `$run.act`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<StepAct>,
+    /// The skills whose instructions an agent turn reads before it starts.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_skills: Vec<String>,
-    pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub when: Option<WorkflowWhen>,
-    /// Whether this use tolerates a visible duplicate.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub duplicates: Option<DuplicatePolicy>,
+    /// What must hold before the step may run, all of it, or the run fails.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guard: Vec<WorkflowWhen>,
+    /// Whether recovery may resend a write whose outcome is unknown,
+    /// accepting that it may happen twice.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub retry_unknown_outcomes: bool,
 }
 
 impl WorkflowStep {
@@ -274,8 +261,8 @@ impl WorkflowStep {
 }
 
 /// A step's `act:` as written: its literal fields, with each reference left
-/// in place, and the bindings that fill them. `act: $act` is one binding of
-/// the whole.
+/// in place, and the bindings that fill them. `act: $run.act` is one binding
+/// of the whole.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StepAct {
@@ -284,14 +271,17 @@ pub struct StepAct {
     pub bindings: Vec<Binding>,
 }
 
-/// An operation step's target: a key of the skill's `connectors:` block and,
-/// unless the step binds its `operation_name` at run time, one operation on it.
+/// An operation step's target: the connector requirement it names and, unless
+/// the step chooses its operation per run, one operation on it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationStepTarget {
     pub requirement: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operation: Option<OperationName>,
+    /// The operations a per-run choice may name, when the step chooses one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub from: Vec<OperationName>,
     /// The requirement as the enclosing skill declares it, bound when the
     /// skill is parsed, or as a load of the turn bound it. A graph outside a
     /// skill has none, and its operation steps are refused at admission.
@@ -304,28 +294,15 @@ pub struct OperationStepTarget {
     pub loaded: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DuplicatePolicy {
-    /// No duplicate may become visible. The default.
-    Forbidden,
-    /// A duplicate is acceptable to this use.
-    Visible,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Workflow {
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publisher: Option<String>,
-    /// Steps whose complete declared output contracts form the graph's public
-    /// result. Multiple entries support mutually exclusive terminal branches
-    /// and workflows that intentionally return both an act result and its
-    /// durable readback. Diagnostic/base fields are never exported.
+    /// Steps whose complete declared output contracts form the method's
+    /// public result, the first listed that ran. Multiple entries support
+    /// mutually exclusive terminal branches and methods that intentionally
+    /// return both an act result and its durable readback.
     pub result_from: Vec<String>,
     pub steps: Vec<WorkflowStep>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy: Option<WorkflowPolicy>,
     pub raw: RawWorkflowIr,
 }

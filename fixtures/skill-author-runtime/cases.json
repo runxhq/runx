@@ -28,7 +28,7 @@
     {
       "id": "stdin-json",
       "mode": "inspect-stdin",
-      "input_mode": "stdin",
+      "inputs_via": "stdin",
       "timeout_seconds": 1,
       "inputs": {
         "message": "from stdin"

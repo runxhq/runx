@@ -4,8 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub use runx_parser::test_fixture::{
-    ReceiptExpectation, TestExpectation, TestExpectedStatus, TestFixture, TestFixtureKind,
-    TestJsonExpectation, TestSetup,
+    ReceiptExpectation, TestExpectation, TestExpectedStatus, TestFixture, TestJsonExpectation,
+    TestSetup,
 };
 use thiserror::Error;
 

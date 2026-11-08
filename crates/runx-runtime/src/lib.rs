@@ -97,8 +97,8 @@ pub use effects::{
 };
 pub use error::RuntimeError;
 pub use harness::{
-    PackageTestReport, TestExpectedStatus, TestFixtureError, TestFixtureKind, TestOptions,
-    TestReplayError, TestReplayOutput, load_test_fixture, replay_test_fixture, run_test_fixture,
+    PackageTestReport, TestExpectedStatus, TestFixtureError, TestOptions, TestReplayError,
+    TestReplayOutput, load_test_fixture, replay_test_fixture, run_test_fixture,
     run_test_fixture_with_adapter,
 };
 pub use host::{Host, NoopHost};

@@ -35,20 +35,29 @@ pub(super) fn validate_manual(markdown: &str) -> Result<ValidatedSkill, SkillPac
     })
 }
 
+/// The package's `run.yaml`, beside the `SKILL.md` that names it. A
+/// `run.yaml` deeper in the package belongs to its own package, so one
+/// without a `SKILL.md` beside it is refused.
 pub(super) fn validate_profiles(
     source: &SkillPackageSource,
+    skill: &ValidatedSkill,
 ) -> Result<BTreeMap<String, SkillMethodManifest>, SkillPackageError> {
-    owned_profile_paths(source)
-        .into_iter()
-        .map(|path| {
-            let contents = source
-                .files
-                .get(&path)
-                .ok_or_else(|| SkillPackageError::invalid(&path, "profile source is missing"))?;
-            let manifest = validate_manifest(&path, text_file(&path, contents)?)?;
-            Ok((path, manifest))
-        })
-        .collect()
+    let mut profiles = BTreeMap::new();
+    for path in owned_profile_paths(source) {
+        if path != super::super::PROFILE_FILE {
+            return Err(SkillPackageError::invalid(
+                &path,
+                "a run.yaml sits beside the SKILL.md that names its package",
+            ));
+        }
+        let contents = source
+            .files
+            .get(&path)
+            .ok_or_else(|| SkillPackageError::invalid(&path, "profile source is missing"))?;
+        let manifest = validate_manifest(&path, &skill.name, text_file(&path, contents)?)?;
+        profiles.insert(path, manifest);
+    }
+    Ok(profiles)
 }
 
 fn owned_profile_paths(source: &SkillPackageSource) -> Vec<String> {
@@ -78,46 +87,68 @@ pub(super) fn has_nested_manual_boundary(path: &str, source: &SkillPackageSource
     false
 }
 
-fn validate_manifest(path: &str, contents: &str) -> Result<SkillMethodManifest, SkillPackageError> {
+fn validate_manifest(
+    path: &str,
+    skill: &str,
+    contents: &str,
+) -> Result<SkillMethodManifest, SkillPackageError> {
     let parsed =
         parse_method_manifest_yaml(contents).map_err(|source| SkillPackageError::Parse {
             path: path.to_owned(),
             source,
         })?;
-    let manifest =
-        validate_method_manifest(parsed).map_err(|source| SkillPackageError::Validation {
-            path: path.to_owned(),
-            source,
-        })?;
-    let defaults = manifest
-        .runners
-        .values()
-        .filter(|runner| runner.default)
-        .count();
-    if defaults > 1 {
-        return Err(SkillPackageError::invalid(
-            format!("{path}.runners"),
-            "runner selection is ambiguous: declare at most one default runner",
-        ));
-    }
-    Ok(manifest)
+    validate_method_manifest(skill, parsed).map_err(|source| SkillPackageError::Validation {
+        path: path.to_owned(),
+        source,
+    })
 }
 
-pub(super) fn validate_package_identity(
+/// Every agent step's task is a `## Agent task: <name>` section of the
+/// package's `SKILL.md`, which carries its instructions.
+pub(super) fn validate_agent_task_sections(
     skill: &ValidatedSkill,
     manifest: Option<&SkillMethodManifest>,
 ) -> Result<(), SkillPackageError> {
-    let Some(manifest_name) = manifest.map(|manifest| manifest.skill.as_str()) else {
+    let Some(manifest) = manifest else {
         return Ok(());
     };
-    if manifest_name == skill.name {
-        return Ok(());
+    let sections = agent_task_sections(&skill.body);
+    for (name, method) in &manifest.methods {
+        for step in &method.graph.steps {
+            if let crate::StepKind::Agent(agent) = &step.kind
+                && !sections.contains(agent.task.as_str())
+            {
+                return Err(SkillPackageError::invalid(
+                    format!("run.yaml.methods.{name}.steps.{}", step.id),
+                    format!(
+                        "agent task {} has no \"## Agent task: {}\" section in SKILL.md, which carries its instructions",
+                        agent.task, agent.task
+                    ),
+                ));
+            }
+        }
     }
-    Err(SkillPackageError::invalid(
-        "run.yaml.skill",
-        format!(
-            "manifest skill {manifest_name:?} does not match SKILL.md name {:?}",
-            skill.name
-        ),
-    ))
+    Ok(())
+}
+
+/// The names of a manual's `## Agent task: <name>` sections, outside code.
+fn agent_task_sections(markdown: &str) -> std::collections::BTreeSet<&str> {
+    let mut fence: Option<&str> = None;
+    let mut sections = std::collections::BTreeSet::new();
+    for line in markdown.lines() {
+        let marker = ["```", "~~~"]
+            .into_iter()
+            .find(|marker| line.starts_with(marker));
+        match (marker, fence) {
+            (Some(marker), None) => fence = Some(marker),
+            (Some(marker), Some(open)) if marker == open => fence = None,
+            (_, None) => {
+                if let Some(name) = line.strip_prefix("## Agent task: ") {
+                    sections.insert(name.trim());
+                }
+            }
+            _ => {}
+        }
+    }
+    sections
 }

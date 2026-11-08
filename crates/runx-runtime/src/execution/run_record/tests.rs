@@ -118,7 +118,6 @@ fn turn(id: &str) -> ResolutionRequest {
         id: id.into(),
         invocation: Box::new(runx_contracts::TurnInvocation {
             id: id.into(),
-            role: "agent".into(),
             task: "answer".into(),
             envelope,
             allowance: Default::default(),

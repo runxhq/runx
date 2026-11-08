@@ -353,7 +353,6 @@ mod tests {
     fn test_step(tool: &str) -> WorkflowStep {
         WorkflowStep {
             id: "ship".to_owned(),
-            label: None,
             kind: StepKind::Tool(ToolTarget::Catalog(tool.to_owned())),
             artifacts: None,
             outputs: None,
@@ -361,9 +360,9 @@ mod tests {
             bindings: Vec::new(),
             act: None,
             context_skills: Vec::new(),
-            scopes: Vec::new(),
             when: None,
-            duplicates: None,
+            guard: Vec::new(),
+            retry_unknown_outcomes: false,
         }
     }
 }

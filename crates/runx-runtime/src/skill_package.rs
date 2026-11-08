@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use runx_parser::test_fixture::TestExpectedStatus;
 use runx_parser::{
-    OperatorJourneyMode, SkillMethodDefinition, SkillMethodManifest, SkillPackageSource,
-    ValidatedSkillPackage, validate_skill_package,
+    SkillMethodDefinition, SkillMethodManifest, SkillPackageSource, ValidatedSkillPackage,
+    validate_skill_package,
 };
 
 use crate::RuntimeError;
@@ -60,7 +60,7 @@ pub(crate) fn catalog_methods(
     manifest: &SkillMethodManifest,
 ) -> Vec<runx_contracts::CatalogMethod> {
     manifest
-        .runners
+        .methods
         .values()
         .map(|runner| runx_contracts::CatalogMethod {
             name: runner.name.clone(),
@@ -69,45 +69,20 @@ pub(crate) fn catalog_methods(
         .collect()
 }
 
-pub(crate) fn method_has_sealed_standalone_journey(
+/// Whether one of the package's tests runs `method` itself and seals: the
+/// proof a method is offered on its own by.
+pub(crate) fn method_has_sealed_test(
     package: &ValidatedSkillPackage,
     manifest: &SkillMethodManifest,
-    runner: &SkillMethodDefinition,
+    method: &SkillMethodDefinition,
 ) -> bool {
-    manifest
-        .harness
-        .iter()
-        .flat_map(|harness| harness.cases.iter())
-        .any(|case| {
-            fixture_selects_method(case.runner.as_deref(), manifest, runner)
-                && usable_example_status(case.expect.status.as_ref())
-                && has_standalone_journey(&case.operator_journeys, &runner.name)
-        })
-        || package.test_fixtures.values().any(|fixture| {
-            fixture_selects_method(fixture.runner.as_deref(), manifest, runner)
-                && usable_example_status(fixture.expect.status.as_ref())
-                && has_standalone_journey(&fixture.operator_journeys, &runner.name)
-        })
-}
-
-fn fixture_selects_method(
-    selected: Option<&str>,
-    manifest: &SkillMethodManifest,
-    runner: &SkillMethodDefinition,
-) -> bool {
-    selected.map_or_else(
-        || runner.default || manifest.runners.len() == 1,
-        |selected| selected == runner.name,
-    )
-}
-
-fn has_standalone_journey(journeys: &[runx_parser::OperatorJourneyClaim], runner: &str) -> bool {
-    journeys.iter().any(|journey| {
-        journey.mode == OperatorJourneyMode::Standalone
-            && journey
-                .exercises_method
-                .as_deref()
-                .is_none_or(|selected| selected == runner)
+    package.test_fixtures.values().any(|test| {
+        test.package.is_none()
+            && test.method.as_deref().map_or_else(
+                || manifest.default_method().map(|default| &default.name) == Some(&method.name),
+                |selected| selected == method.name,
+            )
+            && usable_example_status(test.expect.status.as_ref())
     })
 }
 

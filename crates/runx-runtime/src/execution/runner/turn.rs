@@ -914,11 +914,12 @@ where
         let step_id = call_step_id(self.scope.step_id, index);
         let mut inputs = input.clone();
         let mut act = None;
-        let (kind, scopes) = match target {
-            TurnTarget::Tool { tool } => (
-                StepKind::Tool(ToolTarget::Catalog(tool.as_str().to_owned())),
-                self.declared_scopes(tool.as_str())?,
-            ),
+        let kind = match target {
+            // A tool the turn lists resolves before its call runs.
+            TurnTarget::Tool { tool } => {
+                self.declared_scopes(tool.as_str())?;
+                StepKind::Tool(ToolTarget::Catalog(tool.as_str().to_owned()))
+            }
             TurnTarget::Operation {
                 requirement,
                 operation,
@@ -940,6 +941,7 @@ where
                         OperationName::new(operation.as_str().to_owned())
                             .ok_or_else(|| format!("{operation} is not an operation name"))?,
                     ),
+                    from: Vec::new(),
                     // A declaration the skill does not hold is one a load bound.
                     loaded: declared.is_some()
                         && !self
@@ -949,7 +951,7 @@ where
                             .contains_key(requirement.as_str()),
                     declared,
                 };
-                (StepKind::Operation(target), Vec::new())
+                StepKind::Operation(target)
             }
             TurnTarget::Skill { skill, runner, .. } => {
                 // `act` is never a skill input: it is why the skill is run.
@@ -960,36 +962,30 @@ where
                 let target = match runner {
                     Some(runner) => SkillTarget {
                         skill: skill.as_str().to_owned(),
-                        runner: Some(runner.as_str().to_owned()),
+                        method: Some(runner.as_str().to_owned()),
                     },
                     None => turn_skill_target(skill.as_str()),
                 };
-                (StepKind::Skill(target), Vec::new())
+                StepKind::Skill(target)
             }
-            TurnTarget::Load => (
-                StepKind::Load(LoadStep {
-                    target: load_target(input)?,
-                    rules: self.scope.agent.allowance.rules().copied().collect(),
-                    held: self.held().map_err(|error| error.to_string())?,
-                }),
-                Vec::new(),
-            ),
+            TurnTarget::Load => StepKind::Load(LoadStep {
+                target: load_target(input)?,
+                rules: self.scope.agent.allowance.rules().copied().collect(),
+                held: self.held().map_err(|error| error.to_string())?,
+            }),
             // An ask is a yes or no on its reason, or questions the person
             // answers.
             TurnTarget::Ask if input.len() == 1 && input.contains_key("questions") => {
                 let questions = super::step_handlers::ask_questions(&input["questions"])?;
-                (
-                    StepKind::Ask(AskGate {
-                        gate: step_id.clone(),
-                        reason: questions
-                            .iter()
-                            .map(|question| question.prompt.as_str())
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                        gate_type: Some(super::step_handlers::QUESTIONS_GATE.to_owned()),
-                    }),
-                    Vec::new(),
-                )
+                StepKind::Ask(AskGate {
+                    gate: step_id.clone(),
+                    reason: questions
+                        .iter()
+                        .map(|question| question.prompt.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    gate_type: Some(super::step_handlers::QUESTIONS_GATE.to_owned()),
+                })
             }
             TurnTarget::Ask => {
                 let reason = input
@@ -1000,31 +996,27 @@ where
                 if input.len() > 1 {
                     return Err("an ask takes its reason, or its questions, alone".to_owned());
                 }
-                (
-                    StepKind::Ask(AskGate {
-                        gate: step_id.clone(),
-                        reason: reason.to_owned(),
-                        gate_type: None,
-                    }),
-                    Vec::new(),
-                )
+                StepKind::Ask(AskGate {
+                    gate: step_id.clone(),
+                    reason: reason.to_owned(),
+                    gate_type: None,
+                })
             }
         };
         let mut step = WorkflowStep {
             id: step_id,
-            label: Some(label(target)),
             kind,
             artifacts: None,
             outputs: None,
-            // An agent's call carries values, never graph bindings. An
+            // An agent's call carries values, never workflow bindings. An
             // operation call's act is one of its fields.
             inputs,
             bindings: Vec::new(),
             act: None,
             context_skills: Vec::new(),
-            scopes,
             when: None,
-            duplicates: None,
+            guard: Vec::new(),
+            retry_unknown_outcomes: false,
         };
         let fed = self.admit_references(&mut step, target)?;
         Ok(CallStep { step, act, fed })
@@ -1079,14 +1071,7 @@ where
                     .and_then(|value| value.get("schema"))
                     .and_then(JsonValue::as_str)
             {
-                let value = if input.artifact == Some(true) {
-                    JsonValue::Object(JsonObject::from([(
-                        "data".to_owned(),
-                        step.inputs[&name].clone(),
-                    )]))
-                } else {
-                    step.inputs[&name].clone()
-                };
+                let value = step.inputs[&name].clone();
                 crate::input_contract::admit_input_value(declared_by, &name, input, &value)
                     .map_err(|error| error.to_string())?;
                 step.inputs.insert(name, value);
@@ -1111,13 +1096,7 @@ where
                 .map_err(|error| error.to_string())
                 .and_then(|recorded| crate::services::read_json_artifact(&artifacts, &recorded))
                 .map_err(|error| format!("input {name}: {error}"))?;
-            // An artifact input takes the packet in its envelope, as a step
-            // emits it.
-            let value = if input.artifact == Some(true) {
-                JsonValue::Object(JsonObject::from([("data".to_owned(), packet)]))
-            } else {
-                packet
-            };
+            let value = packet;
             crate::input_contract::admit_input_value(declared_by, &name, input, &value)
                 .map_err(|error| error.to_string())?;
             step.inputs.insert(name.clone(), value);
@@ -1197,9 +1176,9 @@ where
                 ))
             })?;
         let declared = &declared;
-        let connectors = if declared.connector_from.is_some() {
+        let connectors = if declared.choose.is_some() {
             declared
-                .allowed_connectors
+                .from
                 .iter()
                 .map(|id| id.as_str().to_owned())
                 .collect::<Vec<_>>()
@@ -1209,7 +1188,7 @@ where
         let mut described = Vec::new();
         for id in &connectors {
             // A pinned requirement reaches the version it pins.
-            let connector = if declared.connector_from.is_none() {
+            let connector = if declared.choose.is_none() {
                 scope.requirement(id, declared)
             } else {
                 scope.connector(id)
@@ -1302,8 +1281,8 @@ where
                 manifest_digest: runx_contracts::connector::Digest::new(
                     manifest_digest.as_str().to_owned(),
                 ),
-                connector_from: None,
-                allowed_connectors: Vec::new(),
+                choose: None,
+                from: Vec::new(),
             }));
         }
         Ok(None)
@@ -1317,8 +1296,8 @@ where
         if !connectors.is_empty() {
             let scope = self.connector_scope()?;
             for (key, requirement) in connectors {
-                let references = if requirement.connector_from.is_some() {
-                    requirement.allowed_connectors.clone()
+                let references = if requirement.choose.is_some() {
+                    requirement.from.clone()
                 } else {
                     vec![key.clone()]
                 };
@@ -1374,7 +1353,7 @@ where
             step_id: step.id.clone(),
         })?;
         let runner = target
-            .runner
+            .method
             .as_deref()
             .ok_or_else(|| RuntimeError::InvalidRunStep {
                 step_id: step.id.clone(),
@@ -1731,7 +1710,7 @@ pub(super) fn operation_descriptor(
     let act = JsonValue::from_serialize(&runx_contracts::CallAct::json_schema())
         .map_err(|error| describing(error.to_string()))?;
     properties.push(("act", act));
-    if declared.connector_from.is_some() {
+    if declared.choose.is_some() {
         properties.push((
             "connector",
             JsonValue::Object(JsonObject::from([(
@@ -1824,7 +1803,7 @@ fn load_target(input: &JsonObject) -> Result<LoadTarget, String> {
         ));
     }
     match (text("skill")?, text("runner")?, text("connector")?) {
-        (Some(skill), runner, None) => Ok(LoadTarget::Skill { skill, runner }),
+        (Some(skill), method, None) => Ok(LoadTarget::Skill { skill, method }),
         (None, None, Some(name)) => Ok(LoadTarget::Connector { name }),
         _ => {
             Err("a load names a skill, with its runner if it wants one, or a connector".to_owned())

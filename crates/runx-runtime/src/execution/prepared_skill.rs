@@ -132,7 +132,6 @@ pub struct PreparedGovernanceSummary {
     pub declared_steps: usize,
     pub conditional_steps: usize,
     pub tools: Vec<String>,
-    pub authority_scopes: Vec<String>,
     pub execution_boundaries: Vec<ExecutionBoundaryKind>,
     pub gates: Vec<String>,
     pub idempotency_keys: Vec<String>,
@@ -706,8 +705,6 @@ fn governance_summary(chain: &SkillOperatorContextChain) -> PreparedGovernanceSu
     summarize_node(&chain.entry, &mut summary);
     summary.tools.sort();
     summary.tools.dedup();
-    summary.authority_scopes.sort();
-    summary.authority_scopes.dedup();
     summary.execution_boundaries.sort();
     summary.execution_boundaries.dedup();
     summary.gates.sort();
@@ -718,9 +715,6 @@ fn governance_summary(chain: &SkillOperatorContextChain) -> PreparedGovernanceSu
 }
 
 fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGovernanceSummary) {
-    summary
-        .authority_scopes
-        .extend(node.runner.scopes.iter().cloned());
     summary
         .execution_boundaries
         .extend(node.tools.iter().map(|tool| tool.execution_boundary.kind));
@@ -735,9 +729,6 @@ fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGoverna
         if let Some(observation) = step.execution_boundary {
             summary.execution_boundaries.push(observation.kind);
         }
-        summary
-            .authority_scopes
-            .extend(definition.scopes.iter().cloned());
         match &definition.kind {
             StepKind::Ask(ask) => summary.gates.push(ask.gate.clone()),
             StepKind::Agent(_) => summary.managed_agent_acts += 1,
@@ -1335,42 +1326,9 @@ runners:
 
         assert_eq!(governance.declared_steps, 2);
         assert_eq!(governance.conditional_steps, 1);
-        assert_eq!(governance.authority_scopes, ["release:publish"]);
         assert_eq!(governance.gates, ["release.publish.approval"]);
         assert_eq!(governance.idempotency_keys, ["release-publish-1"]);
         assert_eq!(governance.managed_agent_acts, 0);
-        Ok(())
-    }
-
-    #[test]
-    fn prepared_governance_includes_terminal_method_scopes() -> Result<(), Box<dyn Error>> {
-        let temp = tempdir()?;
-        write_manual(temp.path(), "prepared", "# Prepared")?;
-        fs::write(
-            temp.path().join("run.yaml"),
-            r#"skill: prepared
-runners:
-  mutate:
-    default: true
-    steps:
-      - id: mutate
-        tool: { command: example-mutator }
-        scopes: [example:write]
-        outputs:
-          result: object
-"#,
-        )?;
-
-        let prepared = LocalOrchestrator::default().prepare_skill(
-            request(temp.path()),
-            None,
-            PreparedEntryProvenance::default(),
-        )?;
-
-        assert_eq!(
-            prepared.report().governance.authority_scopes,
-            ["example:write"]
-        );
         Ok(())
     }
 

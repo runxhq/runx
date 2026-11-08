@@ -19,7 +19,7 @@ pub(crate) use execution_closure::{CaseClosureTarget, LocalExecutionClosure};
 use execution_closure::{
     UnheldRegistryRefs, inspect_execution_closures, inspect_method_execution_closure,
 };
-use runner::{catalog_capabilities, fixture_examples, fixture_operator_journeys, inspect_method};
+use runner::{fixture_examples, inspect_method};
 use thiserror::Error;
 
 use crate::RuntimeError;
@@ -101,7 +101,7 @@ pub fn inspect_skill_readiness(
 ) -> Result<SkillInspection, SkillInspectionError> {
     let mut inspection = inspect_skill_package(skill_path, selected_method, Some(env))?;
     let Some(requirements) = inspection
-        .runner
+        .method
         .as_ref()
         .map(|runner| runner.requirements.clone())
     else {
@@ -183,30 +183,9 @@ pub fn inspect_connector_readiness(
         let Some(manifest) = package.manifest() else {
             continue;
         };
-        let Some(runner) = manifest.runners.get(&runner) else {
+        let Some(runner) = manifest.methods.get(&runner) else {
             continue;
         };
-        // Structural binding remains available when recovering a settled
-        // purchase. Admission under a seller's authority must cover the work
-        // its schedule promises before another payment can be accepted.
-        if authority.is_some()
-            && runner.continuations.is_empty()
-            && runner.graph.steps.iter().any(|step| {
-                step.artifacts
-                    .as_ref()
-                    .and_then(|artifacts| artifacts.packets.as_ref())
-                    .is_some_and(|packets| {
-                        packets.values().any(|packet| {
-                            packet == runx_contracts::EXTERNAL_JOB_SCHEDULE_INTENT_SCHEMA
-                        })
-                    })
-            })
-        {
-            return Err(SkillInspectionError::ClosureInvalid {
-                runner: runner.name.clone(),
-                problem: "omits external job continuation declarations",
-            });
-        }
         let unknown = JsonObject::new();
         let known = if package.directory == root_directory && runner.name == root_method {
             inputs
@@ -240,9 +219,9 @@ pub fn inspect_connector_readiness(
     Ok(readiness)
 }
 
-/// The requirements a runner's operation steps use, narrowed to the
-/// operations they call. A step that binds its operation at run time may call
-/// any operation its requirement lists.
+/// The requirements a method's operation steps use, narrowed to the
+/// operations they call. A step that chooses its operation per run may call
+/// any its `from` lists.
 fn method_requirements(
     connectors: &BTreeMap<String, runx_parser::ConnectorRequirement>,
     runner: &runx_parser::SkillMethodDefinition,
@@ -266,7 +245,7 @@ fn method_requirements(
         let operations = target
             .operation
             .as_ref()
-            .map_or(declared.operations.as_slice(), std::slice::from_ref);
+            .map_or(target.from.as_slice(), std::slice::from_ref);
         for operation in operations {
             if !requirement.operations.contains(operation) {
                 requirement.operations.push(operation.clone());
@@ -282,20 +261,12 @@ fn inspected_method<'a>(
     selected_method: Option<&str>,
 ) -> Result<Option<&'a runx_parser::SkillMethodDefinition>, SkillInspectionError> {
     Ok(match (manifest, selected_method) {
-        (Some(manifest), Some(name)) => Some(manifest.runners.get(name).ok_or_else(|| {
+        (Some(manifest), Some(name)) => Some(manifest.methods.get(name).ok_or_else(|| {
             SkillInspectionError::MethodNotFound {
                 runner: name.to_owned(),
             }
         })?),
-        (Some(manifest), None) => manifest
-            .runners
-            .values()
-            .find(|runner| runner.default)
-            .or_else(|| {
-                (manifest.runners.len() == 1)
-                    .then(|| manifest.runners.values().next())
-                    .flatten()
-            }),
+        (Some(manifest), None) => manifest.default_method(),
         (None, Some(name)) => {
             return Err(SkillInspectionError::MethodNotFound {
                 runner: name.to_owned(),
@@ -331,20 +302,20 @@ pub(crate) fn inspect_loaded_skill_package(
         }
     };
     if let Some(manifest) = manifest {
-        for definition in manifest.runners.values() {
+        for definition in manifest.methods.values() {
             let execution_closure = closure_of(&definition.name)?;
             if runner.is_some_and(|runner| runner.name == definition.name) {
                 output.execution_closure = Some(execution_closure.clone());
             }
             output.method_inspections.push(MethodInspectionEntry {
-                runner: inspect_method(manifest, definition, &definition.examples)?,
+                method: inspect_method(manifest, definition, &definition.examples)?,
                 execution_closure,
             });
         }
     }
     if let Some(runner) = runner {
         let manifest = manifest.ok_or(SkillInspectionError::ManifestUnavailable)?;
-        output.runner = Some(inspect_method(manifest, runner, &runner.examples)?);
+        output.method = Some(inspect_method(manifest, runner, &runner.examples)?);
         output.readiness = Some(InspectionReadiness {
             status: InspectionReadinessStatus::Ready,
         });
@@ -388,7 +359,7 @@ pub(crate) fn method_makes_calls(
             .any(|(package, runner)| {
                 package
                     .manifest()
-                    .and_then(|manifest| manifest.runners.get(&runner))
+                    .and_then(|manifest| manifest.methods.get(&runner))
                     .is_some_and(|runner| {
                         runner.graph.steps.iter().any(|step| {
                             matches!(
@@ -483,19 +454,6 @@ pub(crate) fn case_closure_connectors(
 fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, SkillInspectionError> {
     let package = &loaded.package;
     let manifest = loaded.manifest();
-    let semantic_report = manifest
-        .map(|manifest| {
-            JsonValue::from_serialize(&runx_parser::analyze_package_catalog_semantics(
-                &package.skill.name,
-                manifest,
-                &package.test_fixtures,
-            ))
-            .map_err(|error| SkillInspectionError::Json {
-                context: "projecting catalog semantic report",
-                source: serde::ser::Error::custom(error),
-            })
-        })
-        .transpose()?;
     Ok(SkillInspection {
         schema: SkillInspectionSchema::V1,
         status: SkillInspectionStatus::Ok,
@@ -505,21 +463,14 @@ fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, Skill
         package_digest: package.package_digest.clone(),
         description: package.skill.description.clone(),
         version: manifest.and_then(|manifest| manifest.version.clone()),
-        capabilities: manifest
-            .and_then(|manifest| manifest.catalog.as_ref())
-            .and_then(catalog_capabilities),
         catalog: manifest
             .and_then(|manifest| manifest.catalog.as_ref())
             .map(inspect_catalog),
-        semantic_report,
-        runners: manifest
-            .map(|manifest| manifest.runners.keys().cloned().collect())
-            .unwrap_or_default(),
-        operator_journeys: manifest
-            .map(|manifest| fixture_operator_journeys(package, manifest))
+        methods: manifest
+            .map(|manifest| manifest.methods.keys().cloned().collect())
             .unwrap_or_default(),
         method_inspections: Vec::new(),
-        runner: None,
+        method: None,
         execution_closure: None,
         readiness: None,
         connector_readiness: Vec::new(),
@@ -532,16 +483,9 @@ fn base_inspection(loaded: &LoadedSkillPackage) -> Result<SkillInspection, Skill
 
 fn inspect_catalog(catalog: &CatalogMetadata) -> SkillCatalog {
     SkillCatalog {
-        kind: catalog.kind.as_str().to_owned(),
-        audience: catalog.audience.as_str().to_owned(),
         visibility: catalog.visibility.as_str().to_owned(),
-        role: catalog.role.as_str().to_owned(),
-        canonical_skill: catalog.canonical_skill.clone(),
-        provider: catalog.provider.clone(),
-        part_of: catalog.part_of.clone(),
-        execution: catalog.execution.map(|value| value.as_str().to_owned()),
-        completion: catalog.completion.map(|value| value.as_str().to_owned()),
-        approval: catalog.approval.map(|value| value.as_str().to_owned()),
+        category: catalog.category.clone(),
+        tags: catalog.tags.clone(),
     }
 }
 

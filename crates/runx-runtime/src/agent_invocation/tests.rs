@@ -40,7 +40,6 @@ fn invocation(skill_directory: PathBuf, outputs: Option<JsonObject>) -> SkillInv
         step_id: None,
         artifacts: None,
         executable: Executable::Agent(AgentTask {
-            role: "planner".to_owned(),
             task: "plan".to_owned(),
             allowance: Default::default(),
             connectors: Default::default(),
