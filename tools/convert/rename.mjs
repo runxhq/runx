@@ -132,10 +132,22 @@ function writeTable(rows) {
 }
 
 // Never renamed here: this program and the converter, which hold the old words
-// as their rules; the package files the converter owns and runs on first; and
-// scafld's own records.
+// as their rules, and scafld's own records.
 // Vendored copies are replaced by their sync, never edited in place.
-const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\/|(^|\/)(run|connector)\.yaml$|\.graph$|(^|\/)(fixtures|tests)\/[^/]+\.ya?ml$/;
+const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
+// A package's files are renamed like any other source, once the converter has
+// written them in the 0.12 shape: a name a step, a test or a module shares is
+// one name in all of them. So the rename refuses a package file the converter
+// hasn't converted yet, which still holds the old shape's keys as its input.
+const UNCONVERTED = [
+  { file: /(^|\/)run\.yaml$/, old: (text) => !/^minimum_runx:/m.test(text), what: "a run.yaml with no minimum_runx" },
+  { file: /(^|\/)connector\.yaml$/, old: (text) => /^id:/m.test(text), what: "a connector.yaml that says id" },
+  { file: /\.graph$/, old: () => true, what: "a support graph" },
+];
+// A manual is prose, read in place, except where SKILL.md holds a name the
+// parser binds: its frontmatter `name`, the package's own, and each
+// `## Agent task: <name>` heading, which an agent step names.
+const MANUAL = /(^|\/)SKILL\.md$/;
 // Signed data verifies as its stored bytes, so a renamed field would break it.
 // The count reported as "signed" includes the vectors below.
 // Whether a signed fixture is re-signed in the new shape or kept as an old
@@ -193,13 +205,67 @@ function readSource(root, file) {
   }
 }
 
+function workingManuals(root) {
+  return workingFiles(root).filter((file) => MANUAL.test(file) && !file.includes("node_modules/") && !NOT_OURS.test(file) && !HISTORY.test(file));
+}
+
+/** Where a manual holds a name: its frontmatter `name` and each agent task heading's, outside code fences. */
+function manualNameSpans(text) {
+  const spans = [];
+  const front = /^---\n([\s\S]*?)\n---/.exec(text);
+  const name = front && /^name:[ \t]*(.*?)[ \t]*$/m.exec(front[1]);
+  if (name) {
+    const start = 4 + name.index + name[0].indexOf(name[1], "name:".length);
+    spans.push([start, start + name[1].length]);
+  }
+  let fence = null;
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    const marker = /^(```|~~~)/.exec(line);
+    if (marker) fence = fence === null ? marker[1] : fence === marker[1] ? null : fence;
+    else if (fence === null) {
+      const heading = /^## Agent task: (.+?)[ \t]*$/.exec(line);
+      if (heading) spans.push([offset + "## Agent task: ".length, offset + "## Agent task: ".length + heading[1].length]);
+    }
+    offset += line.length + 1;
+  }
+  return spans;
+}
+
+function manualTokens(text) {
+  return manualNameSpans(text).flatMap(([start, end]) => text.slice(start, end).match(TOKEN) ?? []);
+}
+
+/** Replaces the table's names in a text, or only within the given spans of it, counting each. */
+function renameText(text, renames, spans = [[0, text.length]]) {
+  let count = 0;
+  let out = "";
+  let at = 0;
+  for (const [start, end] of spans) {
+    out += text.slice(at, start);
+    out += text.slice(start, end).replace(TOKEN, (token) => {
+      const to = renames.get(token);
+      if (to === undefined) return token;
+      count += 1;
+      return to;
+    });
+    at = end;
+  }
+  return { text: out + text.slice(at), count };
+}
+
+/** Each name a file holds: every token of a source, and a manual's own names. */
+function namesOf(root, file) {
+  const { text } = readSource(root, file) ?? {};
+  if (text === undefined) return [];
+  return MANUAL.test(file) ? manualTokens(text) : text.match(TOKEN) ?? [];
+}
+
 /** Every name holding a renamed word in the repo's tracked sources, with its uses and two files. */
 function inventory(root) {
   const found = new Map();
-  for (const file of workingSources(root)) {
-    const { text } = readSource(root, file) ?? {};
-    if (text === undefined) continue;
-    for (const token of text.match(TOKEN) ?? []) {
+  for (const file of [...workingSources(root), ...workingManuals(root)]) {
+    for (const token of namesOf(root, file)) {
       if (wordsIn(token).length === 0) continue;
       const entry = found.get(token) ?? { uses: 0, where: new Set() };
       entry.uses += 1;
@@ -229,6 +295,14 @@ function apply(repo, root, write, list) {
   const rows = readTable().filter((row) => row.repo === repo);
   const known = new Set(rows.map((row) => row.identifier));
   const renames = new Map(rows.filter((row) => row.to !== "?" && row.to !== row.identifier).map((row) => [row.identifier, row.to]));
+  const unconverted = workingFiles(root)
+    .filter((file) => !NOT_OURS.test(file) && !file.includes("node_modules/"))
+    .flatMap((file) => UNCONVERTED.filter((rule) => rule.file.test(file) && rule.old(readFileSync(path.join(root, file), "utf8"))).map((rule) => `${file}   (${rule.what})`));
+  if (unconverted.length > 0) {
+    process.stdout.write(`refused ${repo}: ${unconverted.length} package files aren't in the 0.12 shape; the rename reads what the converter wrote, so convert them first\n`);
+    for (const line of unconverted.slice(0, 40)) process.stdout.write(`  ${line}\n`);
+    return 1;
+  }
   const missing = [...inventory(root).keys()].filter((token) => !known.has(token));
   if (missing.length > 0) {
     process.stdout.write(`refused ${repo}: ${missing.length} names hold a renamed word and aren't in identifiers.tsv; run scan and decide them\n`);
@@ -309,6 +383,16 @@ function apply(repo, root, write, list) {
     replaced += count;
     if (list) process.stdout.write(`${count}\t${file}\n`);
     if (write) writeFileSync(full, next);
+  }
+  for (const file of workingManuals(root)) {
+    const source = readSource(root, file)?.text;
+    if (source === undefined) continue;
+    const { text: next, count } = renameText(source, renames, manualNameSpans(source));
+    if (count === 0) continue;
+    files += 1;
+    replaced += count;
+    if (list) process.stdout.write(`${count}\t${file}\n`);
+    if (write) writeFileSync(path.join(root, file), next);
   }
   // A name that's also a file or folder moves with it: a bench, a module and
   // its file, a test. Each segment of a path, a folder or a file's stem, is

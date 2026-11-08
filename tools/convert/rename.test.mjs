@@ -39,3 +39,56 @@ test("scan reads a name's run sense from whole segments, so a test's harness-ref
   assert.deepEqual(rows.find((row) => row[1] === "checkout-harness-references")?.slice(4, 6), ["checkout-test-references", "the test sense"]);
   assert.deepEqual(rows.find((row) => row[1] === "checkout-harness-ref")?.slice(4, 6), ["checkout-run-ref", "the run sense"]);
 });
+
+const agentManual = `---
+name: agent-session
+description: One turn of a host's agent.
+---
+
+# Agent session
+
+The agent-session skill is one turn.
+
+## Agent task: read
+
+Read and answer.
+`;
+
+test("a package's name renames in its SKILL.md, its tests and its evals, and its prose stays", (t) => {
+  const root = tree(t, {
+    "skills/agent-session/SKILL.md": agentManual,
+    "skills/agent-session/run.yaml": "minimum_runx: 0.12.0\nmethods:\n  read:\n    steps:\n      - id: read\n        agent: read\n",
+    "skills/agent-session/tests/agent-session-read-answers-with-a-summary.yaml": "name: agent-session-read-answers-with-a-summary\nmethod: read\nexpect:\n  status: sealed\n",
+    "skills/agent-session/evals/evals.json": '{ "skill_name": "agent-session", "evals": [] }\n',
+  });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.equal(read(root, "skills/agent/SKILL.md"), agentManual.replace("name: agent-session", "name: agent"));
+  assert.equal(read(root, "skills/agent/tests/agent-read-answers-with-a-summary.yaml"), "name: agent-read-answers-with-a-summary\nmethod: read\nexpect:\n  status: sealed\n");
+  assert.equal(read(root, "skills/agent/evals/evals.json"), '{ "skill_name": "agent", "evals": [] }\n');
+});
+
+test("a name a run.yaml shares with its module renames in both", (t) => {
+  const root = tree(t, {
+    "skills/diagnose/SKILL.md": "---\nname: diagnose\ndescription: Diagnose a run.\n---\n",
+    "skills/diagnose/run.yaml": "minimum_runx: 0.12.0\nmethods:\n  review:\n    inputs:\n      harness_output: { type: string }\n    steps:\n      - id: finish\n        tool: { module: diagnose.mjs, export: finish }\n        inputs: { harness_output: $input.harness_output }\n",
+    "skills/diagnose/diagnose.mjs": "export const finish = (input) => input.harness_output;\n",
+  });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 0, out);
+  assert.match(read(root, "skills/diagnose/run.yaml"), /      test_output: \{ type: string \}\n[\s\S]*inputs: \{ test_output: \$input\.test_output \}/);
+  assert.equal(read(root, "skills/diagnose/diagnose.mjs"), "export const finish = (input) => input.test_output;\n");
+});
+
+test("the rename refuses a package file the converter hasn't converted", (t) => {
+  const root = tree(t, {
+    "skills/diagnose/SKILL.md": "---\nname: diagnose\ndescription: Diagnose a run.\n---\n",
+    "skills/diagnose/run.yaml": "skill: diagnose\nrunners:\n  review:\n    steps: []\n",
+    "connectors/demo/connector.yaml": "schema: runx.connector.v1\nid: demo\nname: Demo\n",
+  });
+  const { status, out } = run(RENAME, "apply", "oss", root, "--write");
+  assert.equal(status, 1);
+  assert.match(out, /refused oss: 2 package files aren't in the 0\.12 shape; the rename reads what the converter wrote, so convert them first/);
+  assert.match(out, /skills\/diagnose\/run\.yaml   \(a run\.yaml with no minimum_runx\)/);
+  assert.match(out, /connectors\/demo\/connector\.yaml   \(a connector\.yaml that says id\)/);
+});
