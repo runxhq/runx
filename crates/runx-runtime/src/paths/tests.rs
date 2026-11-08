@@ -65,6 +65,31 @@ fn without_a_user_home_every_directory_of_a_workspace_shares_its_home() {
     assert_eq!(paths.home(), Path::new("/work/app/.runx"));
 }
 
+/// A user home that is empty or relative is no home: the runx home falls back
+/// to the workspace as it does with none, and never to a path relative to
+/// wherever runx happens to run. An absolute `USERPROFILE` still stands in.
+#[test]
+fn an_empty_or_relative_user_home_counts_as_none() {
+    let fallback = RunxPaths::resolve(&env(&[(RUNX_CWD_ENV, "/work/app")]), Path::new("/work/app"));
+    assert_eq!(fallback.home(), Path::new("/work/app/.runx"));
+    for home in ["", "home/kam", "./home", "~"] {
+        let paths = RunxPaths::resolve(
+            &env(&[("HOME", home), (RUNX_CWD_ENV, "/work/app")]),
+            Path::new("/work/app"),
+        );
+        assert_eq!(paths.home(), fallback.home(), "HOME={home:?}");
+        let paths = RunxPaths::resolve(
+            &env(&[
+                ("HOME", home),
+                ("USERPROFILE", "/home/kam"),
+                (RUNX_CWD_ENV, "/work/app"),
+            ]),
+            Path::new("/work/app"),
+        );
+        assert_eq!(paths.home(), Path::new("/home/kam/.runx"), "HOME={home:?}");
+    }
+}
+
 #[test]
 fn a_blank_root_is_unset() {
     let paths = RunxPaths::resolve(

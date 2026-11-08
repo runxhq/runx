@@ -137,10 +137,12 @@ pub(crate) fn binding_proof(
     cwd: &Path,
     instance: &ConnectorInstance,
 ) -> Result<String, String> {
-    // A home the project could supply would let it supply the key too.
-    if ["RUNX_HOME", "HOME", "USERPROFILE"]
-        .iter()
-        .all(|name| env.get(*name).is_none_or(|value| value.trim().is_empty()))
+    // A home the project could supply would let it supply the key too, as a
+    // home fallen back to the workspace would.
+    if env
+        .get(crate::paths::RUNX_HOME_ENV)
+        .is_none_or(|value| value.trim().is_empty())
+        && crate::paths::rooted_user_home(env).is_none()
     {
         return Err(
             "a secret binding needs a runx home the operator owns; set RUNX_HOME or HOME"
@@ -371,12 +373,22 @@ mod tests {
                 .unwrap_err()
                 .contains("or that changed since")
         );
-        // With no home the operator owns, there is no key to prove with.
-        assert!(
-            super::binding_proof(&BTreeMap::new(), home.path(), &bound)
-                .unwrap_err()
-                .contains("needs a runx home the operator owns")
-        );
+        // With no home the operator owns, there is no key to prove with: an
+        // empty or relative user home is none, and leaves the home in the
+        // workspace.
+        for env in [
+            BTreeMap::new(),
+            BTreeMap::from([("HOME".to_owned(), String::new())]),
+            BTreeMap::from([("HOME".to_owned(), "home/operator".to_owned())]),
+            BTreeMap::from([("USERPROFILE".to_owned(), "operator".to_owned())]),
+        ] {
+            assert!(
+                super::binding_proof(&env, home.path(), &bound)
+                    .unwrap_err()
+                    .contains("needs a runx home the operator owns"),
+                "{env:?}"
+            );
+        }
 
         // A whole JSON object for a one-field credential is refused.
         crate::secrets::set_value(&paths, &exa, r#"{"api_key":"inside"}"#).unwrap();

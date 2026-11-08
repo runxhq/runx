@@ -337,9 +337,18 @@ fn is_root(dir: &Path) -> bool {
 /// The user's home, else the workspace, so every directory of one workspace
 /// shares one home.
 fn user_home(env: &BTreeMap<String, String>, workspace: &Path) -> PathBuf {
-    env.get("HOME")
-        .or_else(|| env.get("USERPROFILE"))
-        .map_or_else(|| workspace.to_path_buf(), PathBuf::from)
+    rooted_user_home(env).unwrap_or_else(|| workspace.to_path_buf())
+}
+
+/// The user's home, `HOME` else `USERPROFILE`, when it is rooted. An empty or
+/// relative one is none: it would put the home wherever runx happens to run,
+/// so the home falls back to the workspace as it does with none.
+pub(crate) fn rooted_user_home(env: &BTreeMap<String, String>) -> Option<PathBuf> {
+    ["HOME", "USERPROFILE"]
+        .into_iter()
+        .filter_map(|key| env.get(key))
+        .map(PathBuf::from)
+        .find(|home| home.has_root())
 }
 
 #[cfg(test)]
