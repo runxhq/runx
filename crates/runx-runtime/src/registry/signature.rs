@@ -224,6 +224,17 @@ pub(crate) mod testing {
             .map_err(|error| format!("{error:?}"))
     }
 
+    /// The test key, in `scope`.
+    pub(crate) fn key(
+        scope: super::super::keys::RegistryKeyScope,
+    ) -> Result<super::super::keys::RegistryKey, String> {
+        super::super::keys::RegistryKey::from_base64(
+            KEY_ID,
+            &base64::engine::general_purpose::STANDARD.encode(key_pair()?.public_key().as_ref()),
+            scope,
+        )
+    }
+
     /// The test key's signature over `payload`.
     pub(crate) fn sign_bytes(payload: &[u8]) -> Result<Vec<u8>, String> {
         Ok(key_pair()?.sign(payload).as_ref().to_vec())

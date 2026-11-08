@@ -365,38 +365,52 @@ pub fn registry_key_signs(
     }
 }
 
-/// Whether `key` may state `tier` for `name` of `kind` from `source`: it
-/// must be able to sign it, the official key states `first_party` only for
-/// runx's own skills, and no operator key ever states `first_party`.
+/// Whether `key` may make `statement` from `source`: it must be able to sign
+/// its subject, an operator key states only for its own publisher and never
+/// `first_party`, and the official key states `first_party` only for a skill
+/// under `runx/` and for a connector whose statement names publisher `runx`.
+/// A connector's name doesn't say who published it, so the statement's
+/// signed publisher does.
 ///
 /// # Errors
 ///
 /// Returns why the key may not state it.
 pub fn registry_key_states(
     key: &RegistryKey,
-    kind: RegistrySubjectKind,
-    name: &str,
-    tier: TrustTier,
+    statement: &RegistryTierStatement,
     source: Option<&RegistryManifestSourceAuthority>,
 ) -> Result<(), String> {
+    let kind = statement.subject.kind;
+    let name = statement.subject.name.as_str();
     registry_key_signs(key, kind, name, source)?;
-    if tier != TrustTier::FirstParty {
-        return Ok(());
-    }
-    match key.scope {
-        RegistryKeyScope::Official
-            if kind == RegistrySubjectKind::Skill && namespace(kind, name)? == "runx" =>
-        {
-            Ok(())
+    let first_party = statement.tier == TrustTier::FirstParty;
+    match &key.scope {
+        RegistryKeyScope::ThirdParty { publisher, .. } if statement.publisher != *publisher => {
+            Err(format!(
+                "operator key {} states only for publisher {publisher}, and this statement names {}",
+                key.key_id, statement.publisher
+            ))
         }
-        RegistryKeyScope::Official => Err(format!(
-            "official key {} states first_party only for runx/* skills",
-            key.key_id
-        )),
-        RegistryKeyScope::ThirdParty { .. } => Err(format!(
+        RegistryKeyScope::ThirdParty { .. } if first_party => Err(format!(
             "operator key {} may not state first_party",
             key.key_id
         )),
+        RegistryKeyScope::ThirdParty { .. } => Ok(()),
+        RegistryKeyScope::Official if !first_party => Ok(()),
+        RegistryKeyScope::Official => {
+            let runx_own = match kind {
+                RegistrySubjectKind::Skill => namespace(kind, name)? == "runx",
+                RegistrySubjectKind::Connector => statement.publisher == "runx",
+            };
+            if runx_own {
+                Ok(())
+            } else {
+                Err(format!(
+                    "official key {} states first_party only for a runx/ skill or a connector runx publishes",
+                    key.key_id
+                ))
+            }
+        }
     }
 }
 
@@ -428,6 +442,7 @@ fn decode_base64(value: &str) -> Result<Vec<u8>, base64::DecodeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use runx_contracts::RegistrySubject;
 
     const KEY: &str = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=";
 
@@ -511,40 +526,130 @@ mod tests {
         Ok(())
     }
 
+    /// A statement that `publisher` published `name` of `kind` at `tier`.
+    fn statement(
+        kind: RegistrySubjectKind,
+        name: &str,
+        publisher: &str,
+        tier: TrustTier,
+    ) -> RegistryTierStatement {
+        RegistryTierStatement {
+            schema: REGISTRY_TIER_STATEMENT_SCHEMA.to_owned(),
+            subject: RegistrySubject {
+                kind,
+                name: name.to_owned(),
+            },
+            version: "1.0.0".to_owned(),
+            content_digest: format!("sha256:{}", "a".repeat(64)),
+            publisher: publisher.to_owned(),
+            tier,
+            issued_at: "2026-11-08T00:00:00Z".to_owned(),
+            expires_at: "2026-11-15T00:00:00Z".to_owned(),
+            signer: RegistryManifestSigner {
+                id: "registry".to_owned(),
+                key_id: "key".to_owned(),
+            },
+            signature: RegistryManifestSignature {
+                alg: "ed25519".to_owned(),
+                value: "base64:AAAA".to_owned(),
+            },
+        }
+    }
+
+    /// The official key states first_party for a runx/ skill and for a
+    /// connector runx publishes, by its statement's signed publisher, since a
+    /// connector's name doesn't say; no operator key ever does, and one
+    /// states only for its own publisher.
     #[test]
-    fn only_the_official_key_states_first_party_and_only_for_runx_skills() -> Result<(), String> {
+    fn only_the_official_key_states_first_party_and_only_for_what_runx_publishes()
+    -> Result<(), String> {
         let official = official_registry_keys().remove(0);
         let key = operator("acme", "https://registry.acme.test")?;
-        let skill = RegistrySubjectKind::Skill;
-        assert_eq!(
-            registry_key_states(&official, skill, "runx/echo", TrustTier::FirstParty, None),
-            Ok(())
+        let (skill, connector) = (RegistrySubjectKind::Skill, RegistrySubjectKind::Connector);
+        let first_party = TrustTier::FirstParty;
+        let states = |key: &RegistryKey, statement: RegistryTierStatement| {
+            registry_key_states(key, &statement, None).is_ok()
+        };
+        assert!(states(
+            &official,
+            statement(skill, "runx/echo", "runx", first_party)
+        ));
+        assert!(states(
+            &official,
+            statement(connector, "github", "runx", first_party)
+        ));
+        assert!(!states(
+            &official,
+            statement(skill, "acme/echo", "acme", first_party)
+        ));
+        assert!(!states(
+            &official,
+            statement(connector, "stripe", "acme", first_party)
+        ));
+        assert!(!states(
+            &official,
+            statement(connector, "runx", "acme", first_party)
+        ));
+        assert!(states(
+            &official,
+            statement(connector, "stripe", "acme", TrustTier::Verified)
+        ));
+        assert!(!states(
+            &key,
+            statement(skill, "acme/echo", "acme", first_party)
+        ));
+        assert!(states(
+            &key,
+            statement(skill, "acme/echo", "acme", TrustTier::Verified)
+        ));
+        assert!(states(
+            &key,
+            statement(connector, "acme/records", "acme", TrustTier::Verified)
+        ));
+        assert!(!states(
+            &key,
+            statement(connector, "acme/records", "runx", TrustTier::Verified)
+        ));
+        Ok(())
+    }
+
+    /// The shared vectors' cases of what an official key may state, signed
+    /// by the vectors' key, which stands here as an official key.
+    #[test]
+    fn the_shared_vectors_say_what_an_official_key_states() -> Result<(), String> {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/contracts/registry-tier-statement/registry-tier-statement-v1.vectors.json"
         );
-        assert!(
-            registry_key_states(&official, skill, "acme/echo", TrustTier::FirstParty, None)
-                .is_err()
-        );
-        assert!(
-            registry_key_states(
-                &official,
-                RegistrySubjectKind::Connector,
-                "runx",
-                TrustTier::FirstParty,
-                None
-            )
-            .is_err()
-        );
-        assert_eq!(
-            registry_key_states(&official, skill, "acme/echo", TrustTier::Verified, None),
-            Ok(())
-        );
-        assert!(
-            registry_key_states(&key, skill, "acme/echo", TrustTier::FirstParty, None).is_err()
-        );
-        assert_eq!(
-            registry_key_states(&key, skill, "acme/echo", TrustTier::Verified, None),
-            Ok(())
-        );
+        let vectors: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(path).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+        let official = RegistryKey::from_base64(
+            vectors["key_id"].as_str().ok_or("key id")?,
+            vectors["public_key_base64"].as_str().ok_or("public key")?,
+            RegistryKeyScope::Official,
+        )?;
+        let cases = vectors["official_key_states"].as_array().ok_or("cases")?;
+        assert!(!cases.is_empty());
+        for case in cases {
+            let statement: RegistryTierStatement =
+                serde_json::from_value(case["statement"].clone())
+                    .map_err(|error| error.to_string())?;
+            let key = verify_registry_tier_statement(&statement, std::slice::from_ref(&official))
+                .map_err(|failure| failure.reason().to_owned())?;
+            assert_eq!(
+                registry_key_states(
+                    key,
+                    &statement,
+                    Some(&RegistryManifestSourceAuthority::OfficialRunx)
+                )
+                .is_ok(),
+                case["states"].as_bool().ok_or("states")?,
+                "{}",
+                case["name"]
+            );
+        }
         Ok(())
     }
 

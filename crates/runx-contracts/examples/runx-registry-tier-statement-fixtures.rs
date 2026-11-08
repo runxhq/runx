@@ -1,7 +1,8 @@
 //! Registry tier statement vectors: statements signed here with Rust's own
-//! signing payload and a fixture key, and statements whose terms the
-//! contract refuses. `@runxhq/contracts` builds the same payload bytes and
-//! refuses the same statements, so what Cloud signs is what runx verifies.
+//! signing payload and a fixture key, statements whose terms the contract
+//! refuses, and what the key may state as an official key, which the runtime
+//! checks. `@runxhq/contracts` builds the same payload bytes and refuses the
+//! same statements, so what Cloud signs is what runx verifies.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -55,12 +56,14 @@ fn parse_args() -> io::Result<Options> {
     })
 }
 
-/// A statement of `tier` for `subject@version`, signed by the fixture key.
+/// A statement that `publisher` published `subject@version` at `tier`,
+/// signed by the fixture key.
 fn signed(
     key: &Ed25519KeyPair,
     subject: RegistrySubject,
     version: &str,
     content_digest: String,
+    publisher: &str,
     tier: TrustTier,
 ) -> io::Result<(RegistryTierStatement, String)> {
     let mut statement = RegistryTierStatement {
@@ -68,6 +71,7 @@ fn signed(
         subject,
         version: version.to_owned(),
         content_digest,
+        publisher: publisher.to_owned(),
         tier,
         issued_at: "2026-11-08T00:00:00Z".to_owned(),
         expires_at: "2026-11-15T00:00:00Z".to_owned(),
@@ -90,29 +94,68 @@ fn signed(
     Ok((statement, payload))
 }
 
+fn subject(kind: RegistrySubjectKind, name: &str) -> RegistrySubject {
+    RegistrySubject {
+        kind,
+        name: name.to_owned(),
+    }
+}
+
 fn fixture_document() -> io::Result<Value> {
     let key = Ed25519KeyPair::from_seed_unchecked(&SEED)
         .map_err(|error| io::Error::other(error.to_string()))?;
+    let skill_kind = RegistrySubjectKind::Skill;
+    let connector_kind = RegistrySubjectKind::Connector;
     let (skill, skill_payload) = signed(
         &key,
-        RegistrySubject {
-            kind: RegistrySubjectKind::Skill,
-            name: "acme/echo".to_owned(),
-        },
+        subject(skill_kind, "acme/echo"),
         "1.0.0",
         format!("sha256:{}", "a".repeat(64)),
+        "acme",
         TrustTier::Verified,
     )?;
     let (connector, connector_payload) = signed(
         &key,
-        RegistrySubject {
-            kind: RegistrySubjectKind::Connector,
-            name: "acme/records".to_owned(),
-        },
+        subject(connector_kind, "acme/records"),
         "2.1.0",
         format!("sha256:{}", "b".repeat(64)),
+        "acme",
         TrustTier::Community,
     )?;
+    // A connector's name doesn't say who published it: runx publishes
+    // github, and its statement says so.
+    let (runx_connector, runx_connector_payload) = signed(
+        &key,
+        subject(connector_kind, "github"),
+        "3.0.0",
+        format!("sha256:{}", "c".repeat(64)),
+        "runx",
+        TrustTier::FirstParty,
+    )?;
+    // Each statement as the official key would sign it, and whether that key
+    // may state it: first_party only for a skill under runx/, or a connector
+    // whose statement names publisher runx.
+    let official = |name: &str,
+                    kind: RegistrySubjectKind,
+                    subject_name: &str,
+                    publisher: &str,
+                    tier: TrustTier,
+                    states: bool|
+     -> io::Result<Value> {
+        let (statement, _) = signed(
+            &key,
+            subject(kind, subject_name),
+            "1.0.0",
+            format!("sha256:{}", "d".repeat(64)),
+            publisher,
+            tier,
+        )?;
+        Ok(json!({
+            "name": name,
+            "statement": serde_json::to_value(&statement).map_err(io::Error::other)?,
+            "states": states,
+        }))
+    };
     let skill_value = serde_json::to_value(&skill).map_err(io::Error::other)?;
     let refused = |name: &str, change: &dyn Fn(&mut Value)| {
         let mut statement = skill_value.clone();
@@ -134,6 +177,18 @@ fn fixture_document() -> io::Result<Value> {
                 "statement": serde_json::to_value(&connector).map_err(io::Error::other)?,
                 "signing_payload": connector_payload,
             },
+            {
+                "name": "a connector runx publishes, at first_party",
+                "statement": serde_json::to_value(&runx_connector).map_err(io::Error::other)?,
+                "signing_payload": runx_connector_payload,
+            },
+        ],
+        "official_key_states": [
+            official("first_party for a runx/ skill", skill_kind, "runx/memory", "runx", TrustTier::FirstParty, true)?,
+            official("first_party for a connector runx publishes", connector_kind, "github", "runx", TrustTier::FirstParty, true)?,
+            official("first_party for a connector another publisher publishes", connector_kind, "stripe", "acme", TrustTier::FirstParty, false)?,
+            official("first_party for another publisher's skill", skill_kind, "acme/echo", "acme", TrustTier::FirstParty, false)?,
+            official("verified for another publisher's connector", connector_kind, "stripe", "acme", TrustTier::Verified, true)?,
         ],
         "invalid_statements": [
             refused("a field the contract does not name", &|statement| {
@@ -159,6 +214,14 @@ fn fixture_document() -> io::Result<Value> {
             }),
             refused("a skill named without its publisher", &|statement| {
                 statement["subject"]["name"] = json!("echo");
+            }),
+            refused("a skill whose publisher is not its name's namespace", &|statement| {
+                statement["publisher"] = json!("runx");
+            }),
+            refused("a statement naming no publisher", &|statement| {
+                if let Some(object) = statement.as_object_mut() {
+                    object.remove("publisher");
+                }
             }),
             refused("a short content digest", &|statement| {
                 statement["content_digest"] = json!("sha256:abc");

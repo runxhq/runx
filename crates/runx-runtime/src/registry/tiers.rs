@@ -47,14 +47,7 @@ pub(crate) fn verified_tier(
     let key = verify_registry_tier_statement(statement, keys).ok()?;
     (statement.states(package.subject, package.version, package.content_digest)
         && statement.holds_at(now)
-        && registry_key_states(
-            key,
-            package.subject.kind,
-            &package.subject.name,
-            statement.tier,
-            source,
-        )
-        .is_ok())
+        && registry_key_states(key, statement, source).is_ok())
     .then_some(statement.tier)
 }
 
@@ -99,9 +92,20 @@ pub(crate) fn stated_tier(
     env: &BTreeMap<String, String>,
     paths: &RunxPaths,
 ) -> TrustTier {
-    let Ok(keys) = registry_keys(env, paths) else {
-        return TrustTier::Community;
-    };
+    match registry_keys(env, paths) {
+        Ok(keys) => stated_tier_under(signed, &keys, env, paths),
+        Err(_) => TrustTier::Community,
+    }
+}
+
+/// [`stated_tier`] under the key set `keys`.
+#[must_use]
+pub(crate) fn stated_tier_under(
+    signed: &SignedPackage,
+    keys: &[RegistryKey],
+    env: &BTreeMap<String, String>,
+    paths: &RunxPaths,
+) -> TrustTier {
     let subject = RegistrySubject {
         kind: signed.kind,
         name: signed.name.clone(),
@@ -116,7 +120,7 @@ pub(crate) fn stated_tier(
     if let Some(tier) = tiers
         .as_deref()
         .and_then(|tiers| kept(tiers, signed.content_digest.as_str()))
-        .and_then(|statement| verified_tier(&statement, package, &keys, None, &now))
+        .and_then(|statement| verified_tier(&statement, package, keys, None, &now))
     {
         return tier;
     }
@@ -130,7 +134,7 @@ pub(crate) fn stated_tier(
     let source = registry_manifest_source_authority_from_registry_url(&registry_url);
     match served_statement(&registry_url, signed, env) {
         Some(statement) => {
-            accept_served(Some(&statement), package, &keys, &source, tiers.as_deref())
+            accept_served(Some(&statement), package, keys, &source, tiers.as_deref())
         }
         None => TrustTier::Community,
     }
@@ -219,12 +223,14 @@ pub(crate) mod testing {
         RegistrySubject, RegistryTierStatement, TrustTier,
     };
 
-    /// A statement of `tier` for `subject@version` over `content_digest`,
-    /// held from `issued_at` until `expires_at`, signed by the test key.
+    /// A statement that `publisher` published `subject@version`, over
+    /// `content_digest`, at `tier`, held from `issued_at` until `expires_at`,
+    /// signed by the test key.
     pub(crate) fn statement(
         subject: RegistrySubject,
         version: &str,
         content_digest: &str,
+        publisher: &str,
         tier: TrustTier,
         (issued_at, expires_at): (&str, &str),
     ) -> Result<RegistryTierStatement, String> {
@@ -233,6 +239,7 @@ pub(crate) mod testing {
             subject,
             version: version.to_owned(),
             content_digest: content_digest.to_owned(),
+            publisher: publisher.to_owned(),
             tier,
             issued_at: issued_at.to_owned(),
             expires_at: expires_at.to_owned(),
@@ -307,8 +314,14 @@ mod tests {
             content_digest: &digest,
         };
         let now = crate::time::now_iso8601();
-        let held =
-            testing::statement(subject.clone(), "1.0.0", &digest, TrustTier::Verified, HELD)?;
+        let held = testing::statement(
+            subject.clone(),
+            "1.0.0",
+            &digest,
+            "acme",
+            TrustTier::Verified,
+            HELD,
+        )?;
         assert_eq!(
             verified_tier(&held, package, &keys, Some(&source()), &now),
             Some(TrustTier::Verified)
@@ -321,6 +334,7 @@ mod tests {
             subject.clone(),
             "1.0.0",
             &format!("sha256:{}", "d".repeat(64)),
+            "acme",
             TrustTier::Verified,
             HELD,
         )?;
@@ -329,6 +343,7 @@ mod tests {
             subject.clone(),
             "1.0.0",
             &digest,
+            "acme",
             TrustTier::Verified,
             EXPIRED,
         )?;
@@ -358,6 +373,7 @@ mod tests {
             subject.clone(),
             "1.0.0",
             &digest,
+            "acme",
             TrustTier::FirstParty,
             HELD,
         )?;
@@ -383,8 +399,14 @@ mod tests {
             version: "1.0.0",
             content_digest: &digest,
         };
-        let held =
-            testing::statement(subject.clone(), "1.0.0", &digest, TrustTier::Verified, HELD)?;
+        let held = testing::statement(
+            subject.clone(),
+            "1.0.0",
+            &digest,
+            "acme",
+            TrustTier::Verified,
+            HELD,
+        )?;
         let home = tempfile::tempdir().map_err(|error| error.to_string())?;
         let rooted = RunxPaths::resolve(
             &BTreeMap::from([(
@@ -427,6 +449,7 @@ mod tests {
             subject("acme/echo"),
             "1.0.0",
             &signed.content_digest,
+            "acme",
             TrustTier::Verified,
             HELD,
         )?;

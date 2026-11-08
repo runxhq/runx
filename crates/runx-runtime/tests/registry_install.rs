@@ -724,6 +724,7 @@ fn an_install_reads_its_tier_from_the_statement_served_with_it()
             "acme/echo",
             "1.0.0",
             digest,
+            "acme",
             tier,
             held,
         )

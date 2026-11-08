@@ -12,6 +12,7 @@ const fixture = JSON.parse(readFileSync(
   readonly public_key_base64: string;
   readonly statements: readonly { readonly name: string; readonly statement: unknown; readonly signing_payload: string }[];
   readonly invalid_statements: readonly { readonly name: string; readonly statement: unknown }[];
+  readonly official_key_states: readonly { readonly name: string; readonly statement: unknown }[];
 };
 
 describe("registry tier statement", () => {
@@ -29,6 +30,13 @@ describe("registry tier statement", () => {
       expect(verify(null, Buffer.from(payload, "utf8"), key, signature), testCase.name).toBe(true);
       const { signature: _signature, ...unsigned } = statement;
       expect(registryTierStatementPayload(unsigned), testCase.name).toBe(testCase.signing_payload);
+    }
+    // What a key may state is the runtime's to judge; each of these is a
+    // well-formed statement whatever it states.
+    for (const testCase of fixture.official_key_states) {
+      const statement = validateRegistryTierStatement(testCase.statement);
+      const signature = Buffer.from(statement.signature.value.slice("base64:".length), "base64url");
+      expect(verify(null, Buffer.from(registryTierStatementPayload(statement), "utf8"), key, signature), testCase.name).toBe(true);
     }
   });
 

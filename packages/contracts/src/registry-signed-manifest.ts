@@ -128,6 +128,11 @@ const SKILL_NAME = /^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const CONNECTOR_NAME = /^(?!versions(?:\/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:\/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$/u;
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 
+/** A publisher's namespace: lowercase letters, digits and inner hyphens, at most 64. */
+export function isPublisherNamespace(value: unknown): value is string {
+  return typeof value === "string" && PUBLISHER_NAMESPACE.test(value);
+}
+
 /** A `sha256:` digest: 64 lowercase hex digits. */
 export function isSha256Digest(value: unknown): value is `sha256:${string}` {
   return typeof value === "string" && SHA256.test(value);

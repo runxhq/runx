@@ -169,7 +169,7 @@ function serve(defaultPublisher) {
       version,
       digest: sha256Prefixed(request.markdown),
       signed_manifest: signManifest(skillId, version, contentDigest),
-      tier_statement: stateTier(skillId, version, contentDigest, "community"),
+      tier_statement: stateTier(skillId, version, contentDigest, publisher, "community"),
       markdown: request.markdown,
       ...(typeof request.profile_document === "string"
         ? {
@@ -259,11 +259,12 @@ function serve(defaultPublisher) {
     };
   }
 
-  function stateTier(name, version, contentDigest, tier) {
+  function stateTier(name, version, contentDigest, publisher, tier) {
     const unsigned = {
       content_digest: contentDigest,
       expires_at: HELD.expires_at,
       issued_at: HELD.issued_at,
+      publisher,
       schema: TIER_STATEMENT_SCHEMA,
       signer: { id: SIGNER_ID, key_id: KEY_ID },
       subject: { kind: "skill", name },
@@ -278,6 +279,7 @@ function serve(defaultPublisher) {
       subject: unsigned.subject,
       version,
       content_digest: contentDigest,
+      publisher,
       tier,
       issued_at: HELD.issued_at,
       expires_at: HELD.expires_at,

@@ -208,6 +208,21 @@ pub(crate) fn connector_identity(
     env: &BTreeMap<String, String>,
     paths: &RunxPaths,
 ) -> Result<PackageIdentity, String> {
+    connector_identity_under(connector, || {
+        crate::registry::registry_keys(env, paths).map_err(|error| error.to_string())
+    })
+}
+
+/// [`connector_identity`] under the key set `keys` reads, read only when the
+/// connector carries a signature.
+///
+/// # Errors
+///
+/// Returns why a signature it carries is refused.
+pub(crate) fn connector_identity_under(
+    connector: &LoadedConnector,
+    keys: impl FnOnce() -> Result<Vec<crate::registry::RegistryKey>, String>,
+) -> Result<PackageIdentity, String> {
     let capability = ConnectorScope::runtime_capabilities()
         .map_err(|error| error.to_string())?
         .iter()
@@ -231,8 +246,7 @@ pub(crate) fn connector_identity(
             if !carries_signature(directory) {
                 return Ok(project());
             }
-            let keys =
-                crate::registry::registry_keys(env, paths).map_err(|error| error.to_string())?;
+            let keys = keys()?;
             let Some(signed) =
                 verify_package_signature(directory, RegistrySubjectKind::Connector, &keys)?
             else {

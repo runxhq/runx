@@ -877,6 +877,109 @@ mod tests {
         Ok(())
     }
 
+    /// A connector's name doesn't say who published it, so its tier
+    /// statement names the publisher, signed (D30). A connector runx
+    /// publishes, stated first_party by the official key, loads under a
+    /// verified rule with nothing asked; the official key stating first_party
+    /// for another publisher's connector states nothing, so that connector
+    /// reads community and waits on the person's trust. The official keys are
+    /// built into the CLI, so the test key stands as one here.
+    #[test]
+    fn a_connector_runx_publishes_loads_under_a_verified_rule_and_another_publishers_waits()
+    -> Result<(), String> {
+        use crate::registry::RegistryKeyScope;
+        use crate::registry::signature::testing as signing;
+        use runx_contracts::{RegistrySubject, RegistrySubjectKind};
+
+        let text = |error: std::io::Error| error.to_string();
+        let workspace = tempfile::tempdir().map_err(text)?;
+        let home = tempfile::tempdir().map_err(text)?;
+        // No statement is ever read again from a registry here: the one this
+        // runx is pointed at is loopback, and not the official one.
+        let env = BTreeMap::from([
+            (
+                crate::paths::RUNX_CWD_ENV.to_owned(),
+                workspace.path().display().to_string(),
+            ),
+            ("HOME".to_owned(), home.path().display().to_string()),
+            (
+                "RUNX_REGISTRY_URL".to_owned(),
+                "http://127.0.0.1:9".to_owned(),
+            ),
+        ]);
+        let paths = RunxPaths::resolve(&env, workspace.path());
+        let keys = vec![signing::key(RegistryKeyScope::Official)?];
+        let decide = |name: &str, publisher: &str| -> Result<Ruling, String> {
+            let directory = workspace
+                .path()
+                .join(".runx/added-connectors")
+                .join(name)
+                .join("1.0.0");
+            std::fs::create_dir_all(&directory).map_err(text)?;
+            std::fs::write(
+                directory.join("connector.yaml"),
+                format!(
+                    "schema: runx.connector.v1\nname: {name}\ntitle: Records\ndescription: Reads records.\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"ops://records\"}}\n"
+                ),
+            )
+            .map_err(text)?;
+            let manifest =
+                signing::sign(&directory, RegistrySubjectKind::Connector, name, "1.0.0")?;
+            let subject = RegistrySubject {
+                kind: RegistrySubjectKind::Connector,
+                name: name.to_owned(),
+            };
+            let statement = crate::registry::tiers::testing::statement(
+                subject.clone(),
+                "1.0.0",
+                &manifest.content_digest,
+                publisher,
+                TrustTier::FirstParty,
+                ("2026-11-01T00:00:00Z", "2099-01-01T00:00:00Z"),
+            )?;
+            // Served with the version from the official registry, as install
+            // reads it, and kept in the home when it holds.
+            crate::registry::tiers::accept_served(
+                Some(&statement),
+                crate::registry::tiers::StatedPackage {
+                    subject: &subject,
+                    version: "1.0.0",
+                    content_digest: &manifest.content_digest,
+                },
+                &keys,
+                &crate::registry::RegistryManifestSourceAuthority::OfficialRunx,
+                crate::registry::tiers::tier_cache(&paths).as_deref(),
+            );
+            let connector =
+                crate::kernel::connectors::load_installed(&directory).map_err(|e| e.to_string())?;
+            let identity =
+                crate::identity::connector_identity_under(&connector, || Ok(keys.clone()))?;
+            let PackageIdentity::Signed(signed) = &identity else {
+                return Err(format!("{name} binds by its signature: {identity:?}"));
+            };
+            let tier = identity.tier(Some(crate::registry::tiers::stated_tier_under(
+                signed, &keys, &env, &paths,
+            )));
+            Ok(ruling(
+                &identity,
+                tier,
+                &[],
+                &[catalog(TrustTier::Verified)],
+                &format!("connector {name}"),
+            ))
+        };
+        assert_eq!(decide("github", "runx")?, Ruling::Admitted);
+        assert_eq!(
+            decide("stripe", "acme")?,
+            Ruling::AsksTrust {
+                reason:
+                    "Trust connector stripe, a community package, below the turn's verified rule."
+                        .to_owned()
+            }
+        );
+        Ok(())
+    }
+
     #[test]
     fn a_load_binding_another_revision_of_a_held_connector_is_refused() -> Result<(), &'static str>
     {

@@ -2,12 +2,14 @@
 //! manifest because a tier and a withdrawal change after publication (D30).
 //!
 //! It binds the exact version and content digest the signed manifest names,
-//! and holds only while it is fresh. The registry signs the canonical JSON
-//! (`runx.stable-json.v1`) of the statement without its `signature`, as it
-//! signs a manifest, with a key that may state that tier for that subject.
+//! names the account that published the version, and holds only while it is
+//! fresh. The registry signs the canonical JSON (`runx.stable-json.v1`) of the
+//! statement without its `signature`, as it signs a manifest, with a key that
+//! may state that tier for that subject and publisher.
 
 use serde::{Deserialize, Serialize};
 
+use crate::connector::is_publisher_namespace;
 use crate::registry_signed_manifest::{
     REGISTRY_MANIFEST_SIGNATURE_ALG, REGISTRY_MANIFEST_SIGNATURE_PREFIX, RegistryManifestSignature,
     RegistryManifestSigner, RegistrySubject, is_registry_subject_name,
@@ -23,6 +25,11 @@ pub struct RegistryTierStatement {
     pub subject: RegistrySubject,
     pub version: String,
     pub content_digest: String,
+    /// The namespace of the registry account that published the version. A
+    /// skill's is its name's; a connector's name doesn't say who published
+    /// it, since a provider namespace can belong to any verified publisher
+    /// and can move, so this is the one signed place that does.
+    pub publisher: String,
     pub tier: TrustTier,
     /// When the registry stated it, as `YYYY-MM-DDTHH:MM:SSZ`.
     pub issued_at: String,
@@ -39,6 +46,7 @@ struct SigningPayload<'a> {
     subject: &'a RegistrySubject,
     version: &'a str,
     content_digest: &'a str,
+    publisher: &'a str,
     tier: TrustTier,
     issued_at: &'a str,
     expires_at: &'a str,
@@ -58,6 +66,7 @@ impl RegistryTierStatement {
             subject: &self.subject,
             version: &self.version,
             content_digest: &self.content_digest,
+            publisher: &self.publisher,
             tier: self.tier,
             issued_at: &self.issued_at,
             expires_at: &self.expires_at,
@@ -93,6 +102,25 @@ impl RegistryTierStatement {
         }
         if !is_sha256_digest(&self.content_digest) {
             return Err("content_digest must be sha256: and 64 lowercase hex digits".to_owned());
+        }
+        if !is_publisher_namespace(&self.publisher) {
+            return Err(format!(
+                "publisher {:?} is not a publisher namespace",
+                self.publisher
+            ));
+        }
+        if self.subject.kind == crate::RegistrySubjectKind::Skill
+            && self
+                .subject
+                .name
+                .split_once('/')
+                .map(|(namespace, _)| namespace)
+                != Some(self.publisher.as_str())
+        {
+            return Err(format!(
+                "a skill's publisher is its name's namespace, and {} names {}",
+                self.subject.name, self.publisher
+            ));
         }
         if !is_utc_second(&self.issued_at) || !is_utc_second(&self.expires_at) {
             return Err("issued_at and expires_at must be YYYY-MM-DDTHH:MM:SSZ".to_owned());
@@ -181,6 +209,7 @@ mod tests {
             },
             version: "1.0.0".to_owned(),
             content_digest: format!("sha256:{}", "a".repeat(64)),
+            publisher: "acme".to_owned(),
             tier: TrustTier::Verified,
             issued_at: "2026-11-08T00:00:00Z".to_owned(),
             expires_at: "2026-11-15T00:00:00Z".to_owned(),
@@ -202,7 +231,7 @@ mod tests {
         assert_eq!(
             payload,
             format!(
-                r#"{{"content_digest":"sha256:{}","expires_at":"2026-11-15T00:00:00Z","issued_at":"2026-11-08T00:00:00Z","schema":"runx.registry.tier_statement.v1","signer":{{"id":"runx-registry","key_id":"runx-registry-ed25519-v1"}},"subject":{{"kind":"skill","name":"acme/echo"}},"tier":"verified","version":"1.0.0"}}"#,
+                r#"{{"content_digest":"sha256:{}","expires_at":"2026-11-15T00:00:00Z","issued_at":"2026-11-08T00:00:00Z","publisher":"acme","schema":"runx.registry.tier_statement.v1","signer":{{"id":"runx-registry","key_id":"runx-registry-ed25519-v1"}},"subject":{{"kind":"skill","name":"acme/echo"}},"tier":"verified","version":"1.0.0"}}"#,
                 "a".repeat(64)
             )
         );
@@ -276,6 +305,28 @@ mod tests {
         assert!(!statement.holds_at("not a time"));
     }
 
+    /// A connector's name doesn't say who published it, so a connector's
+    /// statement names any publisher, `runx` among them.
+    #[test]
+    fn a_connector_statement_names_its_publisher_whatever_its_name() {
+        let mut statement = statement();
+        statement.subject = RegistrySubject {
+            kind: RegistrySubjectKind::Connector,
+            name: "stripe".to_owned(),
+        };
+        statement.publisher = "runx".to_owned();
+        assert_eq!(statement.validate(), Ok(()));
+        let without = serde_json::to_value(&statement)
+            .map(|mut value| {
+                value
+                    .as_object_mut()
+                    .map(|object| object.remove("publisher"));
+                value
+            })
+            .unwrap();
+        assert!(serde_json::from_value::<RegistryTierStatement>(without).is_err());
+    }
+
     #[test]
     fn a_statement_binds_the_exact_version_and_bytes() {
         let statement = statement();
@@ -294,7 +345,7 @@ mod tests {
     #[test]
     fn malformed_terms_are_refused() {
         type Mutation = fn(&mut RegistryTierStatement);
-        let cases: [(&str, Mutation); 5] = [
+        let cases: [(&str, Mutation); 8] = [
             ("schema", |s| s.schema = "runx.registry.tier.v0".to_owned()),
             ("instant", |s| {
                 s.issued_at = "2026-11-08T00:00:00.000Z".to_owned();
@@ -302,6 +353,10 @@ mod tests {
             ("order", |s| s.expires_at = s.issued_at.clone()),
             ("digest", |s| s.content_digest = "sha256:abc".to_owned()),
             ("subject", |s| s.subject.name = "echo".to_owned()),
+            ("publisher", |s| s.publisher = "Acme".to_owned()),
+            // A skill is published by its name's namespace.
+            ("skill publisher", |s| s.publisher = "runx".to_owned()),
+            ("missing publisher", |s| s.publisher = String::new()),
         ];
         for (name, mutate) in cases {
             let mut statement = statement();
@@ -313,6 +368,7 @@ mod tests {
             "subject": { "kind": "skill", "name": "acme/echo" },
             "version": "1.0.0",
             "content_digest": format!("sha256:{}", "a".repeat(64)),
+            "publisher": "acme",
             "tier": "verified",
             "issued_at": "2026-11-08T00:00:00Z",
             "expires_at": "2026-11-15T00:00:00Z",

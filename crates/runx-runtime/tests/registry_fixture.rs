@@ -258,11 +258,17 @@ impl LoopbackRegistry {
             version,
             package.content_digest.as_str().to_owned(),
         )?;
+        // The fixture key signs a connector in its name's namespace, so that
+        // namespace published it.
+        let publisher = name
+            .split_once('/')
+            .map_or(name.as_str(), |(namespace, _)| namespace);
         let tier_statement = state(
             RegistrySubjectKind::Connector,
             &name,
             version,
             package.content_digest.as_str(),
+            publisher,
             trust_tier,
             FRESH,
         )?;
@@ -386,6 +392,7 @@ fn build_record(publication: &Publication<'_>) -> Result<Value, Error> {
                 &skill_id,
                 publication.version,
                 &content_digest,
+                publication.publisher,
                 publication.trust_tier,
                 held,
             )
@@ -484,7 +491,8 @@ pub fn sign(
 }
 
 /// The tier statement the registry serves for one subject's version and
-/// content, held from `held.0` until `held.1`, signed with the fixture key.
+/// content, naming `publisher` as the account that published it, held from
+/// `held.0` until `held.1`, signed with the fixture key.
 ///
 /// # Errors
 ///
@@ -494,6 +502,7 @@ pub fn state(
     name: &str,
     version: &str,
     content_digest: &str,
+    publisher: &str,
     tier: TrustTier,
     held: (&str, &str),
 ) -> Result<RegistryTierStatement, Error> {
@@ -505,6 +514,7 @@ pub fn state(
         },
         version: version.to_owned(),
         content_digest: content_digest.to_owned(),
+        publisher: publisher.to_owned(),
         tier,
         issued_at: held.0.to_owned(),
         expires_at: held.1.to_owned(),

@@ -4,8 +4,9 @@
  * mirroring `runx-contracts::registry_tier_statement` against the same
  * vectors (`fixtures/contracts/registry-tier-statement`). The registry signs
  * the canonical JSON of the statement without its signature, as it signs a
- * manifest. What a key may state of a tier is the runtime's to check, against
- * its own key set.
+ * manifest. It names the account that published the version, since a
+ * connector's name doesn't say who did. What a key may state of a tier is the
+ * runtime's to check, against its own key set.
  */
 import { canonicalJsonStringify } from "./canonical-json.js";
 import type { TrustTierContract } from "./generated/contract-types.js";
@@ -13,6 +14,7 @@ import {
   REGISTRY_MANIFEST_SIGNATURE_ALG,
   REGISTRY_MANIFEST_SIGNATURE_PREFIX,
   exactObject,
+  isPublisherNamespace,
   isRegistrySubjectName,
   isSha256Digest,
   isSignerTerm,
@@ -29,6 +31,12 @@ export interface RegistryTierStatement {
   readonly version: string;
   /** @pattern ^sha256:[0-9a-f]{64}$ */
   readonly content_digest: `sha256:${string}`;
+  /**
+   * The namespace of the registry account that published the version: a
+   * skill's is its name's, and a connector's name doesn't say.
+   * @pattern ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$
+   */
+  readonly publisher: string;
   readonly tier: TrustTierContract;
   /**
    * When the registry stated it, a UTC instant to the second.
@@ -62,6 +70,7 @@ export function registryTierStatementPayload(statement: UnsignedRegistryTierStat
     subject: { kind: statement.subject.kind, name: statement.subject.name },
     version: statement.version,
     content_digest: statement.content_digest,
+    publisher: statement.publisher,
     tier: statement.tier,
     issued_at: statement.issued_at,
     expires_at: statement.expires_at,
@@ -72,7 +81,7 @@ export function registryTierStatementPayload(statement: UnsignedRegistryTierStat
 /** Checks the statement's shape and every term; refuses any field the contract does not name. */
 export function validateRegistryTierStatement(value: unknown): RegistryTierStatement {
   const statement = exactObject(value, "tier_statement", [
-    "schema", "subject", "version", "content_digest", "tier", "issued_at", "expires_at", "signer", "signature",
+    "schema", "subject", "version", "content_digest", "publisher", "tier", "issued_at", "expires_at", "signer", "signature",
   ]);
   const subject = exactObject(statement.subject, "tier_statement.subject", ["kind", "name"]);
   const signer = exactObject(statement.signer, "tier_statement.signer", ["id", "key_id"]);
@@ -84,6 +93,10 @@ export function validateRegistryTierStatement(value: unknown): RegistryTierState
   }
   if (typeof statement.version !== "string" || !isRegistryVersion(statement.version)) throw new Error("tier_statement.version is not a registry version label.");
   if (!isSha256Digest(statement.content_digest)) throw new Error("tier_statement.content_digest must be sha256: and 64 lowercase hex digits.");
+  if (!isPublisherNamespace(statement.publisher)) throw new Error("tier_statement.publisher is not a publisher namespace.");
+  if (subject.kind === "skill" && subject.name.slice(0, subject.name.indexOf("/")) !== statement.publisher) {
+    throw new Error("tier_statement.publisher must be a skill's name's namespace.");
+  }
   if (!TIERS.includes(statement.tier as TrustTierContract)) throw new Error("tier_statement.tier must be first_party, verified or community.");
   if (!isUtcSecond(statement.issued_at) || !isUtcSecond(statement.expires_at)) {
     throw new Error("tier_statement.issued_at and expires_at must be YYYY-MM-DDTHH:MM:SSZ.");

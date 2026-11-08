@@ -356,6 +356,7 @@ fn doctor_registry_json_reports_trust_policy_scope_without_key_material()
     assert!(rendered.contains("trust_policy"));
     assert!(rendered.contains("official_runx"));
     assert!(rendered.contains("runx/*"));
+    assert!(rendered.contains("first_party_connector_publisher"));
     assert!(rendered.contains("can_grant_first_party"));
     assert!(!rendered.contains("RUNX_REGISTRY_MANIFEST_PUBLIC_KEY"));
     Ok(())

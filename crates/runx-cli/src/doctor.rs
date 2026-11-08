@@ -537,8 +537,9 @@ fn registry_trust_key_diagnostic(
 
 fn registry_trust_policy_evidence(key: &runx_runtime::registry::RegistryKey) -> JsonValue {
     // The official keys sign any publisher from the official registry and
-    // state first_party for runx's own skills; an operator key signs its
-    // publisher from its registry and never states first_party.
+    // state first_party for runx/* skills and for connectors whose tier
+    // statement names publisher runx; an operator key signs its publisher
+    // from its registry and never states first_party.
     let (scope, allowed_namespace, allowed_source, first_party_namespace) = match &key.scope {
         runx_runtime::registry::RegistryKeyScope::Official => (
             "official_runx",
@@ -565,6 +566,14 @@ fn registry_trust_policy_evidence(key: &runx_runtime::registry::RegistryKey) -> 
         (
             "first_party_namespace",
             first_party_namespace.map_or(JsonValue::Null, string_value),
+        ),
+        // A connector's name doesn't say who published it, so its first
+        // party is the publisher its signed tier statement names.
+        (
+            "first_party_connector_publisher",
+            first_party_namespace
+                .map(|_| "runx")
+                .map_or(JsonValue::Null, string_value),
         ),
     ]))
 }
