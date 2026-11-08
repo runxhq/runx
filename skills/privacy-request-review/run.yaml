@@ -256,6 +256,9 @@ methods:
       - id: persist-verdict
         operation: store/events.append
         idempotency_key: $input.idempotency_key
+        approval:
+          reason: Record this verdict on the data subject's request. It decides whether their data is erased or exported.
+          type: privacy_verdict
         inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource

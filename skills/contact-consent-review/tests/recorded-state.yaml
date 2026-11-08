@@ -1,5 +1,8 @@
 name: recorded-suppression-cannot-be-overridden-by-caller-state
 package: fixtures/recorded-state
+host:
+  approvals:
+    record-suppression#append-transition: true
 expect:
   status: sealed
   step_outputs:

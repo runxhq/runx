@@ -17,6 +17,9 @@ inputs:
     active_unsubscribe_marker: false
     evidence_status: read
     evidence_version: 0
+host:
+  approvals:
+    append-transition: true
 expect:
   status: sealed
   steps:

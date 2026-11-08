@@ -38,6 +38,9 @@ inputs:
   aggregate_id: subject:scope-mismatch
   expected_version: 0
   idempotency_key: scope-mismatch:verdict:v1
+host:
+  approvals:
+    persist-verdict: true
 expect:
   status: sealed
   steps:

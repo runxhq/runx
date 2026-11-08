@@ -40,8 +40,11 @@ The deterministic decision order is conservative:
    moved to `re_permission`.
 5. A clean, recent subscribed contact returns `verify` without writing.
 
-Only `re_permission` and `suppress` can create transitions. The append uses the
-observed ledger version and the caller's stable idempotency key. Readback must
+Only `re_permission` and `suppress` can create transitions. A transition
+decides whether a person can be sent to, so its append waits on a person's
+approval of the exact event (`consent_transition`), whatever the run's
+`effects`. The append uses the observed ledger version and the caller's stable
+idempotency key. Readback must
 match the append status, source identity, new version, event reference, event
 digest, and projection digest before the result reports a recorded transition.
 No-write decisions also perform a second read and require the projection to

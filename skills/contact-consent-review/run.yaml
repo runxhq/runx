@@ -272,6 +272,9 @@ methods:
           equals: true
         operation: store/events.append
         idempotency_key: $input.idempotency_key
+        approval:
+          reason: Record this consent transition for the contact. It decides whether they can be sent to.
+          type: consent_transition
         inputs:
           data_source_uri: $input.data_source_uri
           resource: $input.resource

@@ -1,5 +1,8 @@
 name: privacy-request-review-composes-in-workflow
 package: fixtures/composed
+host:
+  approvals:
+    privacy-request-review#persist-verdict: true
 expect:
   status: sealed
   steps: [privacy-request-review, digest]

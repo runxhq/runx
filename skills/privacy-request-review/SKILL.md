@@ -30,7 +30,9 @@ durable verdict was appended.
    nothing is inferred.
 3. The verdict, eligible or refused, is appended to the pinned store
    stream with optimistic concurrency and an idempotency key, so repeated runs
-   cannot double-record.
+   cannot double-record. A verdict decides something about a person, so the
+   append waits on a person's approval of the exact event (`privacy_verdict`),
+   whatever the run's `effects`.
 4. An independent `events.read` reads the exact original event position.
    Finalization requires a committed/replayed append at the expected version
    and matching source, event id, version and digest. A conflict cannot become

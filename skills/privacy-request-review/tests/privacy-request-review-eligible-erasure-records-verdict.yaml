@@ -39,6 +39,9 @@ inputs:
   aggregate_id: subject:alice:dsr-001
   expected_version: 0
   idempotency_key: dsr-001:verdict:v1
+host:
+  approvals:
+    persist-verdict: true
 expect:
   status: sealed
   steps:

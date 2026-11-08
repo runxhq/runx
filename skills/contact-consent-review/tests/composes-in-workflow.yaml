@@ -1,5 +1,8 @@
 name: contact-consent-review-composes-in-workflow
 package: fixtures/composed
+host:
+  approvals:
+    contact-consent-review#append-transition: true
 expect:
   status: sealed
   steps: [contact-consent-review, digest]

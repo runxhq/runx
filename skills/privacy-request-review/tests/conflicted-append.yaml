@@ -1,4 +1,8 @@
 name: conflicted-append-never-reports-a-committed-verdict
 package: fixtures/conflicted-append
+host:
+  approvals:
+    first-verdict#persist-verdict: true
+    stale-verdict#persist-verdict: true
 expect:
   status: failure
