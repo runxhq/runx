@@ -415,7 +415,7 @@
                       "properties": {
                         "act": {
                           "additionalProperties": false,
-                          "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
+                          "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`.",
                           "properties": {
                             "decision": {
                               "description": "The decision the call carries out.",
@@ -1048,67 +1048,18 @@
                         },
                         "output": {
                           "additionalProperties": {
-                            "anyOf": [
-                              {
-                                "description": "A declared output value type.",
-                                "enum": [
-                                  "string",
-                                  "number",
-                                  "integer",
-                                  "boolean",
-                                  "array",
-                                  "object",
-                                  "null"
-                                ],
-                                "title": "OutputType",
-                                "type": "string"
+                            "additionalProperties": true,
+                            "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+                            "properties": {
+                              "optional": {
+                                "type": "boolean"
                               },
-                              {
-                                "additionalProperties": false,
-                                "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-                                "properties": {
-                                  "description": {
-                                    "type": "string"
-                                  },
-                                  "enum": {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "type": "array"
-                                  },
-                                  "required": {
-                                    "type": "boolean"
-                                  },
-                                  "schema": {
-                                    "additionalProperties": {},
-                                    "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                                    "type": "object"
-                                  },
-                                  "type": {
-                                    "description": "A declared output value type.",
-                                    "enum": [
-                                      "string",
-                                      "number",
-                                      "integer",
-                                      "boolean",
-                                      "array",
-                                      "object",
-                                      "null"
-                                    ],
-                                    "title": "OutputType",
-                                    "type": "string"
-                                  },
-                                  "wrap_as": {
-                                    "minLength": 1,
-                                    "type": "string"
-                                  }
-                                },
-                                "title": "OutputFieldSpec",
-                                "type": "object"
+                              "packet": {
+                                "type": "string"
                               }
-                            ],
-                            "description": "A single output field declaration: either a bare type name or a typed spec.",
-                            "title": "OutputField"
+                            },
+                            "title": "OutputField",
+                            "type": "object"
                           },
                           "type": "object"
                         },
@@ -1317,20 +1268,14 @@
                       "minLength": 1,
                       "type": "string"
                     },
-                    "role": {
-                      "description": "The kind of agent the step asks for.",
-                      "minLength": 1,
-                      "type": "string"
-                    },
                     "task": {
-                      "description": "The act it performs.",
+                      "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
                       "minLength": 1,
                       "type": "string"
                     }
                   },
                   "required": [
                     "id",
-                    "role",
                     "task",
                     "envelope",
                     "allowance"

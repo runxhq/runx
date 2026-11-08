@@ -549,7 +549,7 @@ export const runxSchemaArtifacts = {
                         "properties": {
                           "act": {
                             "additionalProperties": false,
-                            "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
+                            "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`.",
                             "properties": {
                               "decision": {
                                 "description": "The decision the call carries out.",
@@ -1182,67 +1182,18 @@ export const runxSchemaArtifacts = {
                           },
                           "output": {
                             "additionalProperties": {
-                              "anyOf": [
-                                {
-                                  "description": "A declared output value type.",
-                                  "enum": [
-                                    "string",
-                                    "number",
-                                    "integer",
-                                    "boolean",
-                                    "array",
-                                    "object",
-                                    "null"
-                                  ],
-                                  "title": "OutputType",
-                                  "type": "string"
+                              "additionalProperties": true,
+                              "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+                              "properties": {
+                                "optional": {
+                                  "type": "boolean"
                                 },
-                                {
-                                  "additionalProperties": false,
-                                  "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-                                  "properties": {
-                                    "description": {
-                                      "type": "string"
-                                    },
-                                    "enum": {
-                                      "items": {
-                                        "type": "string"
-                                      },
-                                      "type": "array"
-                                    },
-                                    "required": {
-                                      "type": "boolean"
-                                    },
-                                    "schema": {
-                                      "additionalProperties": {},
-                                      "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                                      "type": "object"
-                                    },
-                                    "type": {
-                                      "description": "A declared output value type.",
-                                      "enum": [
-                                        "string",
-                                        "number",
-                                        "integer",
-                                        "boolean",
-                                        "array",
-                                        "object",
-                                        "null"
-                                      ],
-                                      "title": "OutputType",
-                                      "type": "string"
-                                    },
-                                    "wrap_as": {
-                                      "minLength": 1,
-                                      "type": "string"
-                                    }
-                                  },
-                                  "title": "OutputFieldSpec",
-                                  "type": "object"
+                                "packet": {
+                                  "type": "string"
                                 }
-                              ],
-                              "description": "A single output field declaration: either a bare type name or a typed spec.",
-                              "title": "OutputField"
+                              },
+                              "title": "OutputField",
+                              "type": "object"
                             },
                             "type": "object"
                           },
@@ -1451,20 +1402,14 @@ export const runxSchemaArtifacts = {
                         "minLength": 1,
                         "type": "string"
                       },
-                      "role": {
-                        "description": "The kind of agent the step asks for.",
-                        "minLength": 1,
-                        "type": "string"
-                      },
                       "task": {
-                        "description": "The act it performs.",
+                        "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
                         "minLength": 1,
                         "type": "string"
                       }
                     },
                     "required": [
                       "id",
-                      "role",
                       "task",
                       "envelope",
                       "allowance"
@@ -2088,7 +2033,7 @@ export const runxSchemaArtifacts = {
         "properties": {
           "act": {
             "additionalProperties": false,
-            "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
+            "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`.",
             "properties": {
               "decision": {
                 "description": "The decision the call carries out.",
@@ -2721,67 +2666,18 @@ export const runxSchemaArtifacts = {
           },
           "output": {
             "additionalProperties": {
-              "anyOf": [
-                {
-                  "description": "A declared output value type.",
-                  "enum": [
-                    "string",
-                    "number",
-                    "integer",
-                    "boolean",
-                    "array",
-                    "object",
-                    "null"
-                  ],
-                  "title": "OutputType",
-                  "type": "string"
+              "additionalProperties": true,
+              "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+              "properties": {
+                "optional": {
+                  "type": "boolean"
                 },
-                {
-                  "additionalProperties": false,
-                  "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-                  "properties": {
-                    "description": {
-                      "type": "string"
-                    },
-                    "enum": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "required": {
-                      "type": "boolean"
-                    },
-                    "schema": {
-                      "additionalProperties": {},
-                      "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                      "type": "object"
-                    },
-                    "type": {
-                      "description": "A declared output value type.",
-                      "enum": [
-                        "string",
-                        "number",
-                        "integer",
-                        "boolean",
-                        "array",
-                        "object",
-                        "null"
-                      ],
-                      "title": "OutputType",
-                      "type": "string"
-                    },
-                    "wrap_as": {
-                      "minLength": 1,
-                      "type": "string"
-                    }
-                  },
-                  "title": "OutputFieldSpec",
-                  "type": "object"
+                "packet": {
+                  "type": "string"
                 }
-              ],
-              "description": "A single output field declaration: either a bare type name or a typed spec.",
-              "title": "OutputField"
+              },
+              "title": "OutputField",
+              "type": "object"
             },
             "type": "object"
           },
@@ -2990,20 +2886,14 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "role": {
-        "description": "The kind of agent the step asks for.",
-        "minLength": 1,
-        "type": "string"
-      },
       "task": {
-        "description": "The act it performs.",
+        "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
         "minLength": 1,
         "type": "string"
       }
     },
     "required": [
       "id",
-      "role",
       "task",
       "envelope",
       "allowance"
@@ -3019,7 +2909,7 @@ export const runxSchemaArtifacts = {
     "properties": {
       "act": {
         "additionalProperties": false,
-        "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
+        "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`.",
         "properties": {
           "decision": {
             "description": "The decision the call carries out.",
@@ -3652,67 +3542,18 @@ export const runxSchemaArtifacts = {
       },
       "output": {
         "additionalProperties": {
-          "anyOf": [
-            {
-              "description": "A declared output value type.",
-              "enum": [
-                "string",
-                "number",
-                "integer",
-                "boolean",
-                "array",
-                "object",
-                "null"
-              ],
-              "title": "OutputType",
-              "type": "string"
+          "additionalProperties": true,
+          "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+          "properties": {
+            "optional": {
+              "type": "boolean"
             },
-            {
-              "additionalProperties": false,
-              "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-              "properties": {
-                "description": {
-                  "type": "string"
-                },
-                "enum": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "required": {
-                  "type": "boolean"
-                },
-                "schema": {
-                  "additionalProperties": {},
-                  "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                  "type": "object"
-                },
-                "type": {
-                  "description": "A declared output value type.",
-                  "enum": [
-                    "string",
-                    "number",
-                    "integer",
-                    "boolean",
-                    "array",
-                    "object",
-                    "null"
-                  ],
-                  "title": "OutputType",
-                  "type": "string"
-                },
-                "wrap_as": {
-                  "minLength": 1,
-                  "type": "string"
-                }
-              },
-              "title": "OutputFieldSpec",
-              "type": "object"
+            "packet": {
+              "type": "string"
             }
-          ],
-          "description": "A single output field declaration: either a bare type name or a typed spec.",
-          "title": "OutputField"
+          },
+          "title": "OutputField",
+          "type": "object"
         },
         "type": "object"
       },
@@ -19535,70 +19376,21 @@ export const runxSchemaArtifacts = {
   "output.schema.json": {
     "$id": "https://schemas.runx.ai/runx/output/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "description": "A runner's declared outputs: each output field by name.",
+    "description": "A step's declared outputs: each output field by name.",
     "patternProperties": {
       "^(.*)$": {
-        "anyOf": [
-          {
-            "description": "A declared output value type.",
-            "enum": [
-              "string",
-              "number",
-              "integer",
-              "boolean",
-              "array",
-              "object",
-              "null"
-            ],
-            "title": "OutputType",
-            "type": "string"
+        "additionalProperties": true,
+        "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+        "properties": {
+          "optional": {
+            "type": "boolean"
           },
-          {
-            "additionalProperties": false,
-            "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-            "properties": {
-              "description": {
-                "type": "string"
-              },
-              "enum": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "required": {
-                "type": "boolean"
-              },
-              "schema": {
-                "additionalProperties": {},
-                "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                "type": "object"
-              },
-              "type": {
-                "description": "A declared output value type.",
-                "enum": [
-                  "string",
-                  "number",
-                  "integer",
-                  "boolean",
-                  "array",
-                  "object",
-                  "null"
-                ],
-                "title": "OutputType",
-                "type": "string"
-              },
-              "wrap_as": {
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "title": "OutputFieldSpec",
-            "type": "object"
+          "packet": {
+            "type": "string"
           }
-        ],
-        "description": "A single output field declaration: either a bare type name or a typed spec.",
-        "title": "OutputField"
+        },
+        "title": "OutputField",
+        "type": "object"
       }
     },
     "title": "Output",
@@ -19656,7 +19448,7 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "Immutable marketplace identity and commercial terms for paid runners in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`.",
+    "description": "Immutable marketplace identity and commercial terms for paid methods in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`.",
     "properties": {
       "bundle_digest": {
         "description": "The registry's digest of the published bundle's files.",
@@ -19667,9 +19459,9 @@ export const runxSchemaArtifacts = {
       "offers": {
         "additionalProperties": {
           "additionalProperties": false,
-          "description": "One immutable, registry-resolved runner offer.",
+          "description": "One immutable, registry-resolved method offer.",
           "properties": {
-            "accepted_settlement_families": {
+            "accepts": {
               "items": {
                 "maxLength": 64,
                 "minLength": 1,
@@ -19680,33 +19472,6 @@ export const runxSchemaArtifacts = {
               "minItems": 1,
               "type": "array",
               "uniqueItems": true
-            },
-            "acts_on": {
-              "additionalProperties": false,
-              "description": "A resource an earlier purchase bought that a paid runner acts on, such as the inbox an extension extends. runx admits the purchase only while its buyer holds that resource, so the buyer hands the seller's run no bearer.",
-              "properties": {
-                "connector": {
-                  "description": "The seller connector the resource is held in.",
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "credential": {
-                  "description": "That connector's `kind: purchase` credential.",
-                  "maxLength": 64,
-                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
-                  "type": "string"
-                },
-                "target": {
-                  "description": "The held resource, rendered from the runner's inputs alone."
-                }
-              },
-              "required": [
-                "connector",
-                "credential",
-                "target"
-              ],
-              "title": "PaidSkillActsOn",
-              "type": "object"
             },
             "currency": {
               "pattern": "^[A-Z]{3}$",
@@ -19762,33 +19527,37 @@ export const runxSchemaArtifacts = {
                       "minimum": 1,
                       "type": "integer"
                     },
-                    "model": {
+                    "basis": {
                       "const": "fixed",
                       "type": "string"
                     }
                   },
                   "required": [
-                    "model",
+                    "basis",
                     "amount_minor"
                   ],
                   "type": "object"
                 },
                 {
                   "additionalProperties": false,
-                  "description": "An amount for each combination of values of the selector inputs, each an `enum` input the runner requires. The cases cover every combination exactly once.",
+                  "description": "An amount for each combination of values of the priced inputs, each an `enum` input the method requires. Each case names every priced input by name, and the cases cover every combination exactly once.",
                   "properties": {
+                    "basis": {
+                      "const": "by_input",
+                      "type": "string"
+                    },
                     "cases": {
                       "items": {
                         "additionalProperties": false,
-                        "description": "One `input_choice` case: the selector values, in selector order, and what a call with them costs.",
+                        "description": "One `by_input` case: the value each priced input takes, by name, and what a call with them costs.",
                         "properties": {
                           "amount_minor": {
                             "maximum": 9007199254740991,
                             "minimum": 1,
                             "type": "integer"
                           },
-                          "when": {
-                            "items": {
+                          "inputs": {
+                            "additionalProperties": {
                               "oneOf": [
                                 {
                                   "type": "string"
@@ -19804,57 +19573,45 @@ export const runxSchemaArtifacts = {
                               ],
                               "title": "PriceChoice"
                             },
-                            "type": "array"
+                            "type": "object"
                           }
                         },
                         "required": [
-                          "when",
+                          "inputs",
                           "amount_minor"
                         ],
                         "title": "PaidSkillPriceCase",
                         "type": "object"
                       },
                       "type": "array"
-                    },
-                    "model": {
-                      "const": "input_choice",
-                      "type": "string"
-                    },
-                    "selectors": {
-                      "items": {
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "type": "array"
                     }
                   },
                   "required": [
-                    "model",
-                    "selectors",
+                    "basis",
                     "cases"
                   ],
                   "type": "object"
                 },
                 {
                   "additionalProperties": false,
-                  "description": "A base amount plus a unit amount for each started `unit_bytes` of the committed artifact the `artifact_input` names, up to `max_bytes`.",
+                  "description": "A base amount plus a unit amount for each started `unit_bytes` of the committed artifact the `input` holds, up to `max_bytes`.",
                   "properties": {
-                    "artifact_input": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
                     "base_amount_minor": {
                       "maximum": 9007199254740991,
                       "minimum": 1,
                       "type": "integer"
                     },
+                    "basis": {
+                      "const": "by_size",
+                      "type": "string"
+                    },
+                    "input": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
                     "max_bytes": {
                       "minimum": 1,
                       "type": "integer"
-                    },
-                    "model": {
-                      "const": "artifact_bytes",
-                      "type": "string"
                     },
                     "unit_amount_minor": {
                       "maximum": 9007199254740991,
@@ -19867,8 +19624,8 @@ export const runxSchemaArtifacts = {
                     }
                   },
                   "required": [
-                    "model",
-                    "artifact_input",
+                    "basis",
+                    "input",
                     "base_amount_minor",
                     "unit_bytes",
                     "unit_amount_minor",
@@ -19877,15 +19634,42 @@ export const runxSchemaArtifacts = {
                   "type": "object"
                 }
               ],
-              "description": "How an offer prices one call: from the listing and the inputs the runner receives, never from the runner. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's runner says can change it.",
+              "description": "How an offer prices one call: from the listing and the inputs the method receives, never from the method. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's method says can change it.",
               "title": "PaidSkillPrice"
+            },
+            "requires_lease": {
+              "additionalProperties": false,
+              "description": "The lease a buyer must hold to buy a paid method, such as the inbox an extension extends: only a buyer holding that lease, on the resource the method's inputs name, may buy, so the buyer hands the seller's run no bearer. It is checked before the quote and again before payment.",
+              "properties": {
+                "connector": {
+                  "description": "The seller connector that holds the lease.",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "credential": {
+                  "description": "That connector's `kind: lease` credential.",
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                  "type": "string"
+                },
+                "target": {
+                  "description": "The leased resource, rendered from the method's inputs alone."
+                }
+              },
+              "required": [
+                "connector",
+                "credential",
+                "target"
+              ],
+              "title": "RequiredLease",
+              "type": "object"
             }
           },
           "required": [
             "offer_version",
             "price",
             "currency",
-            "accepted_settlement_families"
+            "accepts"
           ],
           "title": "PaidSkillMethodOffer",
           "type": "object"
@@ -27654,76 +27438,32 @@ export const runxSchemaArtifacts = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "capabilities": {
-            "additionalProperties": false,
-            "properties": {
-              "approval": {
-                "type": "string"
-              },
-              "completion": {
-                "type": "string"
-              },
-              "execution": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "execution",
-              "completion",
-              "approval"
-            ],
-            "title": "SkillCapabilities",
-            "type": "object"
-          },
           "catalog": {
             "additionalProperties": false,
+            "description": "How a catalog files the package.",
             "properties": {
-              "approval": {
+              "category": {
                 "type": "string"
               },
-              "audience": {
-                "type": "string"
-              },
-              "canonical_skill": {
-                "type": "string"
-              },
-              "completion": {
-                "type": "string"
-              },
-              "execution": {
-                "type": "string"
-              },
-              "kind": {
-                "type": "string"
-              },
-              "part_of": {
+              "tags": {
                 "items": {
                   "type": "string"
                 },
                 "minItems": 1,
                 "type": "array"
               },
-              "provider": {
-                "type": "string"
-              },
-              "role": {
-                "type": "string"
-              },
               "visibility": {
                 "type": "string"
               }
             },
             "required": [
-              "kind",
-              "audience",
-              "visibility",
-              "role"
+              "visibility"
             ],
             "title": "SkillCatalog",
             "type": "object"
           },
           "connector_readiness": {
-            "description": "Each operation the runner may call, as ready as the project leaves it.",
+            "description": "Each operation the method may call, as ready as the project leaves it.",
             "items": {
               "$id": "https://schemas.runx.ai/runx/readiness/v1.json",
               "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -27951,7 +27691,7 @@ export const runxSchemaArtifacts = {
           },
           "environment": {
             "additionalProperties": false,
-            "description": "The environment the runner reads, by name and availability, never by value.",
+            "description": "The environment the method reads, by name and availability, never by value.",
             "properties": {
               "missing": {
                 "items": {
@@ -28014,282 +27754,14 @@ export const runxSchemaArtifacts = {
           "manual_digest": {
             "type": "string"
           },
-          "method_inspections": {
-            "description": "Each runner with the execution closure it binds.",
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "execution_closure": {
-                  "additionalProperties": {},
-                  "type": "object"
-                },
-                "runner": {
-                  "additionalProperties": false,
-                  "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
-                  "properties": {
-                    "connectors": {
-                      "additionalProperties": {},
-                      "description": "The connector requirements of the skill, by key.",
-                      "type": "object"
-                    },
-                    "continuations": {
-                      "description": "The runners this one's work continues in, which its run may admit.",
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "declared_result_packets": {
-                      "additionalProperties": {
-                        "maxLength": 200,
-                        "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                        "type": "string"
-                      },
-                      "description": "The packet each result output declares, by output name.",
-                      "type": "object"
-                    },
-                    "input_schema": {
-                      "additionalProperties": {},
-                      "description": "Its inputs as one JSON schema, with the runner's examples.",
-                      "type": "object"
-                    },
-                    "inputs": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "description": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "required": {
-                            "type": "boolean"
-                          },
-                          "schema": {
-                            "additionalProperties": {},
-                            "type": "object"
-                          },
-                          "type": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "required",
-                          "schema"
-                        ],
-                        "title": "InspectedInput",
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "outputs": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "required": {
-                            "type": "boolean"
-                          },
-                          "type": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "name"
-                        ],
-                        "title": "InspectedOutput",
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "requirements": {
-                      "additionalProperties": false,
-                      "description": "Parser-owned projection of all execution requirements for one act.",
-                      "properties": {
-                        "environment": {
-                          "additionalProperties": false,
-                          "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                          "minProperties": 1,
-                          "properties": {
-                            "optional": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "minItems": 1,
-                              "type": "array"
-                            },
-                            "required": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "minItems": 1,
-                              "type": "array"
-                            }
-                          },
-                          "type": "object"
-                        },
-                        "scopes": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        }
-                      },
-                      "title": "ExecutionRequirements",
-                      "type": "object"
-                    },
-                    "scopes": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 1,
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "input_schema",
-                    "inputs",
-                    "outputs",
-                    "declared_result_packets",
-                    "requirements"
-                  ],
-                  "title": "MethodInspection",
-                  "type": "object"
-                }
-              },
-              "required": [
-                "runner",
-                "execution_closure"
-              ],
-              "title": "MethodInspectionEntry",
-              "type": "object"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "name": {
-            "type": "string"
-          },
-          "operator_journeys": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "case": {
-                  "type": "string"
-                },
-                "confusors": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "exercises_method": {
-                  "type": "string"
-                },
-                "expected_outcome": {
-                  "type": "string"
-                },
-                "mode": {
-                  "type": "string"
-                },
-                "must_not_repeat": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "prior_evidence": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "request": {
-                  "type": "string"
-                },
-                "runner": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "case",
-                "mode",
-                "request",
-                "expected_outcome",
-                "confusors",
-                "prior_evidence",
-                "must_not_repeat"
-              ],
-              "title": "OperatorJourney",
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "package_digest": {
-            "description": "The execution package digest, as a run records it; a listing's package digest is the registry's digest of the published files.",
-            "type": "string"
-          },
-          "readiness": {
+          "method": {
             "additionalProperties": false,
-            "properties": {
-              "status": {
-                "enum": [
-                  "ready",
-                  "needs_connector_setup",
-                  "needs_environment"
-                ],
-                "title": "InspectionReadinessStatus",
-                "type": "string"
-              }
-            },
-            "required": [
-              "status"
-            ],
-            "title": "InspectionReadiness",
-            "type": "object"
-          },
-          "resume": {
-            "additionalProperties": false,
-            "properties": {
-              "command": {
-                "type": "string"
-              },
-              "may_pause": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "may_pause",
-              "command"
-            ],
-            "title": "InspectionResume",
-            "type": "object"
-          },
-          "runner": {
-            "additionalProperties": false,
-            "description": "The runner inspected: the one named, else the default.",
+            "description": "The method inspected: the one named, else the default.",
             "properties": {
               "connectors": {
                 "additionalProperties": {},
                 "description": "The connector requirements of the skill, by key.",
                 "type": "object"
-              },
-              "continuations": {
-                "description": "The runners this one's work continues in, which its run may admit.",
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
               },
               "declared_result_packets": {
                 "additionalProperties": {
@@ -28302,7 +27774,7 @@ export const runxSchemaArtifacts = {
               },
               "input_schema": {
                 "additionalProperties": {},
-                "description": "Its inputs as one JSON schema, with the runner's examples.",
+                "description": "Its inputs as one JSON schema, with the method's examples.",
                 "type": "object"
               },
               "inputs": {
@@ -28399,17 +27871,43 @@ export const runxSchemaArtifacts = {
                 "title": "ExecutionRequirements",
                 "type": "object"
               },
-              "scopes": {
-                "items": {
-                  "type": "string"
+              "schemas": {
+                "additionalProperties": false,
+                "description": "Its derived input and output schemas and their digests.",
+                "properties": {
+                  "input_schema": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "input_schema_digest": {
+                    "maxLength": 71,
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "output_schema": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "output_schema_digest": {
+                    "maxLength": 71,
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  }
                 },
-                "minItems": 1,
-                "type": "array"
+                "required": [
+                  "input_schema",
+                  "input_schema_digest",
+                  "output_schema",
+                  "output_schema_digest"
+                ],
+                "title": "MethodSchemas",
+                "type": "object"
               }
             },
             "required": [
               "name",
               "input_schema",
+              "schemas",
               "inputs",
               "outputs",
               "declared_result_packets",
@@ -28418,12 +27916,237 @@ export const runxSchemaArtifacts = {
             "title": "MethodInspection",
             "type": "object"
           },
-          "runners": {
-            "description": "Every runner the package declares, by name.",
+          "method_inspections": {
+            "description": "Each method with the execution closure it binds.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "execution_closure": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "method": {
+                  "additionalProperties": false,
+                  "description": "One method as a caller reads it: what it takes, what it returns, and what it needs.",
+                  "properties": {
+                    "connectors": {
+                      "additionalProperties": {},
+                      "description": "The connector requirements of the skill, by key.",
+                      "type": "object"
+                    },
+                    "declared_result_packets": {
+                      "additionalProperties": {
+                        "maxLength": 200,
+                        "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                        "type": "string"
+                      },
+                      "description": "The packet each result output declares, by output name.",
+                      "type": "object"
+                    },
+                    "input_schema": {
+                      "additionalProperties": {},
+                      "description": "Its inputs as one JSON schema, with the method's examples.",
+                      "type": "object"
+                    },
+                    "inputs": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "description": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "schema": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "type",
+                          "required",
+                          "schema"
+                        ],
+                        "title": "InspectedInput",
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "outputs": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "title": "InspectedOutput",
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "requirements": {
+                      "additionalProperties": false,
+                      "description": "Parser-owned projection of all execution requirements for one act.",
+                      "properties": {
+                        "environment": {
+                          "additionalProperties": false,
+                          "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
+                          "minProperties": 1,
+                          "properties": {
+                            "optional": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "required": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "scopes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "title": "ExecutionRequirements",
+                      "type": "object"
+                    },
+                    "schemas": {
+                      "additionalProperties": false,
+                      "description": "Its derived input and output schemas and their digests.",
+                      "properties": {
+                        "input_schema": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "input_schema_digest": {
+                          "maxLength": 71,
+                          "pattern": "^sha256:[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "output_schema": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "output_schema_digest": {
+                          "maxLength": 71,
+                          "pattern": "^sha256:[0-9a-f]{64}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "input_schema",
+                        "input_schema_digest",
+                        "output_schema",
+                        "output_schema_digest"
+                      ],
+                      "title": "MethodSchemas",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "input_schema",
+                    "schemas",
+                    "inputs",
+                    "outputs",
+                    "declared_result_packets",
+                    "requirements"
+                  ],
+                  "title": "MethodInspection",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "method",
+                "execution_closure"
+              ],
+              "title": "MethodInspectionEntry",
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "methods": {
+            "description": "Every method the package declares, by name.",
             "items": {
               "type": "string"
             },
             "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "package_digest": {
+            "description": "The execution package digest, as a run records it; a listing's package digest is the registry's digest of the published files.",
+            "type": "string"
+          },
+          "readiness": {
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "enum": [
+                  "ready",
+                  "needs_connector_setup",
+                  "needs_environment"
+                ],
+                "title": "InspectionReadinessStatus",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "title": "InspectionReadiness",
+            "type": "object"
+          },
+          "resume": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "may_pause": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "may_pause",
+              "command"
+            ],
+            "title": "InspectionResume",
+            "type": "object"
           },
           "schema": {
             "enum": [
@@ -28431,9 +28154,6 @@ export const runxSchemaArtifacts = {
             ],
             "title": "SkillInspectionSchema",
             "type": "string"
-          },
-          "semantic_report": {
-            "description": "The catalog's semantic analysis of the package, as the parser makes it."
           },
           "skill_path": {
             "type": "string"
@@ -28456,8 +28176,7 @@ export const runxSchemaArtifacts = {
           "skill_path",
           "manual_digest",
           "package_digest",
-          "runners",
-          "operator_journeys"
+          "methods"
         ],
         "title": "SkillInspection",
         "type": "object",
@@ -29151,7 +28870,7 @@ export const runxSchemaArtifacts = {
                 "properties": {
                   "act": {
                     "additionalProperties": false,
-                    "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
+                    "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`.",
                     "properties": {
                       "decision": {
                         "description": "The decision the call carries out.",
@@ -29784,67 +29503,18 @@ export const runxSchemaArtifacts = {
                   },
                   "output": {
                     "additionalProperties": {
-                      "anyOf": [
-                        {
-                          "description": "A declared output value type.",
-                          "enum": [
-                            "string",
-                            "number",
-                            "integer",
-                            "boolean",
-                            "array",
-                            "object",
-                            "null"
-                          ],
-                          "title": "OutputType",
-                          "type": "string"
+                      "additionalProperties": true,
+                      "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+                      "properties": {
+                        "optional": {
+                          "type": "boolean"
                         },
-                        {
-                          "additionalProperties": false,
-                          "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-                          "properties": {
-                            "description": {
-                              "type": "string"
-                            },
-                            "enum": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "required": {
-                              "type": "boolean"
-                            },
-                            "schema": {
-                              "additionalProperties": {},
-                              "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                              "type": "object"
-                            },
-                            "type": {
-                              "description": "A declared output value type.",
-                              "enum": [
-                                "string",
-                                "number",
-                                "integer",
-                                "boolean",
-                                "array",
-                                "object",
-                                "null"
-                              ],
-                              "title": "OutputType",
-                              "type": "string"
-                            },
-                            "wrap_as": {
-                              "minLength": 1,
-                              "type": "string"
-                            }
-                          },
-                          "title": "OutputFieldSpec",
-                          "type": "object"
+                        "packet": {
+                          "type": "string"
                         }
-                      ],
-                      "description": "A single output field declaration: either a bare type name or a typed spec.",
-                      "title": "OutputField"
+                      },
+                      "title": "OutputField",
+                      "type": "object"
                     },
                     "type": "object"
                   },
@@ -30053,20 +29723,14 @@ export const runxSchemaArtifacts = {
                 "minLength": 1,
                 "type": "string"
               },
-              "role": {
-                "description": "The kind of agent the step asks for.",
-                "minLength": 1,
-                "type": "string"
-              },
               "task": {
-                "description": "The act it performs.",
+                "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
                 "minLength": 1,
                 "type": "string"
               }
             },
             "required": [
               "id",
-              "role",
               "task",
               "envelope",
               "allowance"
@@ -32894,7 +32558,7 @@ export const runxSchemaArtifacts = {
                           "properties": {
                             "act": {
                               "additionalProperties": false,
-                              "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
+                              "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`.",
                               "properties": {
                                 "decision": {
                                   "description": "The decision the call carries out.",
@@ -33527,67 +33191,18 @@ export const runxSchemaArtifacts = {
                             },
                             "output": {
                               "additionalProperties": {
-                                "anyOf": [
-                                  {
-                                    "description": "A declared output value type.",
-                                    "enum": [
-                                      "string",
-                                      "number",
-                                      "integer",
-                                      "boolean",
-                                      "array",
-                                      "object",
-                                      "null"
-                                    ],
-                                    "title": "OutputType",
-                                    "type": "string"
+                                "additionalProperties": true,
+                                "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+                                "properties": {
+                                  "optional": {
+                                    "type": "boolean"
                                   },
-                                  {
-                                    "additionalProperties": false,
-                                    "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-                                    "properties": {
-                                      "description": {
-                                        "type": "string"
-                                      },
-                                      "enum": {
-                                        "items": {
-                                          "type": "string"
-                                        },
-                                        "type": "array"
-                                      },
-                                      "required": {
-                                        "type": "boolean"
-                                      },
-                                      "schema": {
-                                        "additionalProperties": {},
-                                        "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                                        "type": "object"
-                                      },
-                                      "type": {
-                                        "description": "A declared output value type.",
-                                        "enum": [
-                                          "string",
-                                          "number",
-                                          "integer",
-                                          "boolean",
-                                          "array",
-                                          "object",
-                                          "null"
-                                        ],
-                                        "title": "OutputType",
-                                        "type": "string"
-                                      },
-                                      "wrap_as": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                      }
-                                    },
-                                    "title": "OutputFieldSpec",
-                                    "type": "object"
+                                  "packet": {
+                                    "type": "string"
                                   }
-                                ],
-                                "description": "A single output field declaration: either a bare type name or a typed spec.",
-                                "title": "OutputField"
+                                },
+                                "title": "OutputField",
+                                "type": "object"
                               },
                               "type": "object"
                             },
@@ -33796,20 +33411,14 @@ export const runxSchemaArtifacts = {
                           "minLength": 1,
                           "type": "string"
                         },
-                        "role": {
-                          "description": "The kind of agent the step asks for.",
-                          "minLength": 1,
-                          "type": "string"
-                        },
                         "task": {
-                          "description": "The act it performs.",
+                          "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
                           "minLength": 1,
                           "type": "string"
                         }
                       },
                       "required": [
                         "id",
-                        "role",
                         "task",
                         "envelope",
                         "allowance"
@@ -38140,76 +37749,32 @@ export const runxSchemaArtifacts = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
-      "capabilities": {
-        "additionalProperties": false,
-        "properties": {
-          "approval": {
-            "type": "string"
-          },
-          "completion": {
-            "type": "string"
-          },
-          "execution": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "execution",
-          "completion",
-          "approval"
-        ],
-        "title": "SkillCapabilities",
-        "type": "object"
-      },
       "catalog": {
         "additionalProperties": false,
+        "description": "How a catalog files the package.",
         "properties": {
-          "approval": {
+          "category": {
             "type": "string"
           },
-          "audience": {
-            "type": "string"
-          },
-          "canonical_skill": {
-            "type": "string"
-          },
-          "completion": {
-            "type": "string"
-          },
-          "execution": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "part_of": {
+          "tags": {
             "items": {
               "type": "string"
             },
             "minItems": 1,
             "type": "array"
           },
-          "provider": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
           "visibility": {
             "type": "string"
           }
         },
         "required": [
-          "kind",
-          "audience",
-          "visibility",
-          "role"
+          "visibility"
         ],
         "title": "SkillCatalog",
         "type": "object"
       },
       "connector_readiness": {
-        "description": "Each operation the runner may call, as ready as the project leaves it.",
+        "description": "Each operation the method may call, as ready as the project leaves it.",
         "items": {
           "$id": "https://schemas.runx.ai/runx/readiness/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -38437,7 +38002,7 @@ export const runxSchemaArtifacts = {
       },
       "environment": {
         "additionalProperties": false,
-        "description": "The environment the runner reads, by name and availability, never by value.",
+        "description": "The environment the method reads, by name and availability, never by value.",
         "properties": {
           "missing": {
             "items": {
@@ -38500,282 +38065,14 @@ export const runxSchemaArtifacts = {
       "manual_digest": {
         "type": "string"
       },
-      "method_inspections": {
-        "description": "Each runner with the execution closure it binds.",
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "execution_closure": {
-              "additionalProperties": {},
-              "type": "object"
-            },
-            "runner": {
-              "additionalProperties": false,
-              "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
-              "properties": {
-                "connectors": {
-                  "additionalProperties": {},
-                  "description": "The connector requirements of the skill, by key.",
-                  "type": "object"
-                },
-                "continuations": {
-                  "description": "The runners this one's work continues in, which its run may admit.",
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "declared_result_packets": {
-                  "additionalProperties": {
-                    "maxLength": 200,
-                    "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                    "type": "string"
-                  },
-                  "description": "The packet each result output declares, by output name.",
-                  "type": "object"
-                },
-                "input_schema": {
-                  "additionalProperties": {},
-                  "description": "Its inputs as one JSON schema, with the runner's examples.",
-                  "type": "object"
-                },
-                "inputs": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "description": {
-                        "type": "string"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "required": {
-                        "type": "boolean"
-                      },
-                      "schema": {
-                        "additionalProperties": {},
-                        "type": "object"
-                      },
-                      "type": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "type",
-                      "required",
-                      "schema"
-                    ],
-                    "title": "InspectedInput",
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "outputs": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "name": {
-                        "type": "string"
-                      },
-                      "required": {
-                        "type": "boolean"
-                      },
-                      "type": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "name"
-                    ],
-                    "title": "InspectedOutput",
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "requirements": {
-                  "additionalProperties": false,
-                  "description": "Parser-owned projection of all execution requirements for one act.",
-                  "properties": {
-                    "environment": {
-                      "additionalProperties": false,
-                      "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                      "minProperties": 1,
-                      "properties": {
-                        "optional": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        },
-                        "required": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "scopes": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 1,
-                      "type": "array"
-                    }
-                  },
-                  "title": "ExecutionRequirements",
-                  "type": "object"
-                },
-                "scopes": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "minItems": 1,
-                  "type": "array"
-                }
-              },
-              "required": [
-                "name",
-                "input_schema",
-                "inputs",
-                "outputs",
-                "declared_result_packets",
-                "requirements"
-              ],
-              "title": "MethodInspection",
-              "type": "object"
-            }
-          },
-          "required": [
-            "runner",
-            "execution_closure"
-          ],
-          "title": "MethodInspectionEntry",
-          "type": "object"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
-      "name": {
-        "type": "string"
-      },
-      "operator_journeys": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "case": {
-              "type": "string"
-            },
-            "confusors": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "exercises_method": {
-              "type": "string"
-            },
-            "expected_outcome": {
-              "type": "string"
-            },
-            "mode": {
-              "type": "string"
-            },
-            "must_not_repeat": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "prior_evidence": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "request": {
-              "type": "string"
-            },
-            "runner": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "case",
-            "mode",
-            "request",
-            "expected_outcome",
-            "confusors",
-            "prior_evidence",
-            "must_not_repeat"
-          ],
-          "title": "OperatorJourney",
-          "type": "object"
-        },
-        "type": "array"
-      },
-      "package_digest": {
-        "description": "The execution package digest, as a run records it; a listing's package digest is the registry's digest of the published files.",
-        "type": "string"
-      },
-      "readiness": {
+      "method": {
         "additionalProperties": false,
-        "properties": {
-          "status": {
-            "enum": [
-              "ready",
-              "needs_connector_setup",
-              "needs_environment"
-            ],
-            "title": "InspectionReadinessStatus",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "InspectionReadiness",
-        "type": "object"
-      },
-      "resume": {
-        "additionalProperties": false,
-        "properties": {
-          "command": {
-            "type": "string"
-          },
-          "may_pause": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "may_pause",
-          "command"
-        ],
-        "title": "InspectionResume",
-        "type": "object"
-      },
-      "runner": {
-        "additionalProperties": false,
-        "description": "The runner inspected: the one named, else the default.",
+        "description": "The method inspected: the one named, else the default.",
         "properties": {
           "connectors": {
             "additionalProperties": {},
             "description": "The connector requirements of the skill, by key.",
             "type": "object"
-          },
-          "continuations": {
-            "description": "The runners this one's work continues in, which its run may admit.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
           },
           "declared_result_packets": {
             "additionalProperties": {
@@ -38788,7 +38085,7 @@ export const runxSchemaArtifacts = {
           },
           "input_schema": {
             "additionalProperties": {},
-            "description": "Its inputs as one JSON schema, with the runner's examples.",
+            "description": "Its inputs as one JSON schema, with the method's examples.",
             "type": "object"
           },
           "inputs": {
@@ -38885,17 +38182,43 @@ export const runxSchemaArtifacts = {
             "title": "ExecutionRequirements",
             "type": "object"
           },
-          "scopes": {
-            "items": {
-              "type": "string"
+          "schemas": {
+            "additionalProperties": false,
+            "description": "Its derived input and output schemas and their digests.",
+            "properties": {
+              "input_schema": {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              "input_schema_digest": {
+                "maxLength": 71,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "output_schema": {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              "output_schema_digest": {
+                "maxLength": 71,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              }
             },
-            "minItems": 1,
-            "type": "array"
+            "required": [
+              "input_schema",
+              "input_schema_digest",
+              "output_schema",
+              "output_schema_digest"
+            ],
+            "title": "MethodSchemas",
+            "type": "object"
           }
         },
         "required": [
           "name",
           "input_schema",
+          "schemas",
           "inputs",
           "outputs",
           "declared_result_packets",
@@ -38904,12 +38227,237 @@ export const runxSchemaArtifacts = {
         "title": "MethodInspection",
         "type": "object"
       },
-      "runners": {
-        "description": "Every runner the package declares, by name.",
+      "method_inspections": {
+        "description": "Each method with the execution closure it binds.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "execution_closure": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "method": {
+              "additionalProperties": false,
+              "description": "One method as a caller reads it: what it takes, what it returns, and what it needs.",
+              "properties": {
+                "connectors": {
+                  "additionalProperties": {},
+                  "description": "The connector requirements of the skill, by key.",
+                  "type": "object"
+                },
+                "declared_result_packets": {
+                  "additionalProperties": {
+                    "maxLength": 200,
+                    "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "description": "The packet each result output declares, by output name.",
+                  "type": "object"
+                },
+                "input_schema": {
+                  "additionalProperties": {},
+                  "description": "Its inputs as one JSON schema, with the method's examples.",
+                  "type": "object"
+                },
+                "inputs": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "description": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "additionalProperties": {},
+                        "type": "object"
+                      },
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "type",
+                      "required",
+                      "schema"
+                    ],
+                    "title": "InspectedInput",
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "outputs": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "title": "InspectedOutput",
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "requirements": {
+                  "additionalProperties": false,
+                  "description": "Parser-owned projection of all execution requirements for one act.",
+                  "properties": {
+                    "environment": {
+                      "additionalProperties": false,
+                      "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
+                      "minProperties": 1,
+                      "properties": {
+                        "optional": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "required": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "scopes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "title": "ExecutionRequirements",
+                  "type": "object"
+                },
+                "schemas": {
+                  "additionalProperties": false,
+                  "description": "Its derived input and output schemas and their digests.",
+                  "properties": {
+                    "input_schema": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "input_schema_digest": {
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    "output_schema": {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    "output_schema_digest": {
+                      "maxLength": 71,
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "input_schema",
+                    "input_schema_digest",
+                    "output_schema",
+                    "output_schema_digest"
+                  ],
+                  "title": "MethodSchemas",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "input_schema",
+                "schemas",
+                "inputs",
+                "outputs",
+                "declared_result_packets",
+                "requirements"
+              ],
+              "title": "MethodInspection",
+              "type": "object"
+            }
+          },
+          "required": [
+            "method",
+            "execution_closure"
+          ],
+          "title": "MethodInspectionEntry",
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "methods": {
+        "description": "Every method the package declares, by name.",
         "items": {
           "type": "string"
         },
         "type": "array"
+      },
+      "name": {
+        "type": "string"
+      },
+      "package_digest": {
+        "description": "The execution package digest, as a run records it; a listing's package digest is the registry's digest of the published files.",
+        "type": "string"
+      },
+      "readiness": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "ready",
+              "needs_connector_setup",
+              "needs_environment"
+            ],
+            "title": "InspectionReadinessStatus",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "InspectionReadiness",
+        "type": "object"
+      },
+      "resume": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "may_pause": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "may_pause",
+          "command"
+        ],
+        "title": "InspectionResume",
+        "type": "object"
       },
       "schema": {
         "enum": [
@@ -38917,9 +38465,6 @@ export const runxSchemaArtifacts = {
         ],
         "title": "SkillInspectionSchema",
         "type": "string"
-      },
-      "semantic_report": {
-        "description": "The catalog's semantic analysis of the package, as the parser makes it."
       },
       "skill_path": {
         "type": "string"
@@ -38942,8 +38487,7 @@ export const runxSchemaArtifacts = {
       "skill_path",
       "manual_digest",
       "package_digest",
-      "runners",
-      "operator_journeys"
+      "methods"
     ],
     "title": "SkillInspection",
     "type": "object",
@@ -40280,9 +39824,6 @@ export const runxSchemaArtifacts = {
           "additionalProperties": false,
           "description": "One declared input shared by skills, local tools, inspection, and runtime materialization. Keeping this at the contract boundary prevents each parser or catalog surface from inventing its own type/default semantics.",
           "properties": {
-            "artifact": {
-              "type": "boolean"
-            },
             "default": {},
             "description": {
               "type": "string"
@@ -40845,7 +40386,7 @@ export const runxSchemaArtifacts = {
                               "properties": {
                                 "act": {
                                   "additionalProperties": false,
-                                  "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
+                                  "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`.",
                                   "properties": {
                                     "decision": {
                                       "description": "The decision the call carries out.",
@@ -41478,67 +41019,18 @@ export const runxSchemaArtifacts = {
                                 },
                                 "output": {
                                   "additionalProperties": {
-                                    "anyOf": [
-                                      {
-                                        "description": "A declared output value type.",
-                                        "enum": [
-                                          "string",
-                                          "number",
-                                          "integer",
-                                          "boolean",
-                                          "array",
-                                          "object",
-                                          "null"
-                                        ],
-                                        "title": "OutputType",
-                                        "type": "string"
+                                    "additionalProperties": true,
+                                    "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+                                    "properties": {
+                                      "optional": {
+                                        "type": "boolean"
                                       },
-                                      {
-                                        "additionalProperties": false,
-                                        "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-                                        "properties": {
-                                          "description": {
-                                            "type": "string"
-                                          },
-                                          "enum": {
-                                            "items": {
-                                              "type": "string"
-                                            },
-                                            "type": "array"
-                                          },
-                                          "required": {
-                                            "type": "boolean"
-                                          },
-                                          "schema": {
-                                            "additionalProperties": {},
-                                            "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                                            "type": "object"
-                                          },
-                                          "type": {
-                                            "description": "A declared output value type.",
-                                            "enum": [
-                                              "string",
-                                              "number",
-                                              "integer",
-                                              "boolean",
-                                              "array",
-                                              "object",
-                                              "null"
-                                            ],
-                                            "title": "OutputType",
-                                            "type": "string"
-                                          },
-                                          "wrap_as": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                          }
-                                        },
-                                        "title": "OutputFieldSpec",
-                                        "type": "object"
+                                      "packet": {
+                                        "type": "string"
                                       }
-                                    ],
-                                    "description": "A single output field declaration: either a bare type name or a typed spec.",
-                                    "title": "OutputField"
+                                    },
+                                    "title": "OutputField",
+                                    "type": "object"
                                   },
                                   "type": "object"
                                 },
@@ -41747,20 +41239,14 @@ export const runxSchemaArtifacts = {
                               "minLength": 1,
                               "type": "string"
                             },
-                            "role": {
-                              "description": "The kind of agent the step asks for.",
-                              "minLength": 1,
-                              "type": "string"
-                            },
                             "task": {
-                              "description": "The act it performs.",
+                              "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
                               "minLength": 1,
                               "type": "string"
                             }
                           },
                           "required": [
                             "id",
-                            "role",
                             "task",
                             "envelope",
                             "allowance"
@@ -43206,7 +42692,7 @@ export const runxSchemaArtifacts = {
                                     "properties": {
                                       "act": {
                                         "additionalProperties": false,
-                                        "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$act`.",
+                                        "description": "The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`.",
                                         "properties": {
                                           "decision": {
                                             "description": "The decision the call carries out.",
@@ -43839,67 +43325,18 @@ export const runxSchemaArtifacts = {
                                       },
                                       "output": {
                                         "additionalProperties": {
-                                          "anyOf": [
-                                            {
-                                              "description": "A declared output value type.",
-                                              "enum": [
-                                                "string",
-                                                "number",
-                                                "integer",
-                                                "boolean",
-                                                "array",
-                                                "object",
-                                                "null"
-                                              ],
-                                              "title": "OutputType",
-                                              "type": "string"
+                                          "additionalProperties": true,
+                                          "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+                                          "properties": {
+                                            "optional": {
+                                              "type": "boolean"
                                             },
-                                            {
-                                              "additionalProperties": false,
-                                              "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-                                              "properties": {
-                                                "description": {
-                                                  "type": "string"
-                                                },
-                                                "enum": {
-                                                  "items": {
-                                                    "type": "string"
-                                                  },
-                                                  "type": "array"
-                                                },
-                                                "required": {
-                                                  "type": "boolean"
-                                                },
-                                                "schema": {
-                                                  "additionalProperties": {},
-                                                  "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                                                  "type": "object"
-                                                },
-                                                "type": {
-                                                  "description": "A declared output value type.",
-                                                  "enum": [
-                                                    "string",
-                                                    "number",
-                                                    "integer",
-                                                    "boolean",
-                                                    "array",
-                                                    "object",
-                                                    "null"
-                                                  ],
-                                                  "title": "OutputType",
-                                                  "type": "string"
-                                                },
-                                                "wrap_as": {
-                                                  "minLength": 1,
-                                                  "type": "string"
-                                                }
-                                              },
-                                              "title": "OutputFieldSpec",
-                                              "type": "object"
+                                            "packet": {
+                                              "type": "string"
                                             }
-                                          ],
-                                          "description": "A single output field declaration: either a bare type name or a typed spec.",
-                                          "title": "OutputField"
+                                          },
+                                          "title": "OutputField",
+                                          "type": "object"
                                         },
                                         "type": "object"
                                       },
@@ -44108,20 +43545,14 @@ export const runxSchemaArtifacts = {
                                     "minLength": 1,
                                     "type": "string"
                                   },
-                                  "role": {
-                                    "description": "The kind of agent the step asks for.",
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
                                   "task": {
-                                    "description": "The act it performs.",
+                                    "description": "The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions.",
                                     "minLength": 1,
                                     "type": "string"
                                   }
                                 },
                                 "required": [
                                   "id",
-                                  "role",
                                   "task",
                                   "envelope",
                                   "allowance"
@@ -45181,67 +44612,18 @@ export const runxSchemaArtifacts = {
               },
               "output": {
                 "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "description": "A declared output value type.",
-                      "enum": [
-                        "string",
-                        "number",
-                        "integer",
-                        "boolean",
-                        "array",
-                        "object",
-                        "null"
-                      ],
-                      "title": "OutputType",
-                      "type": "string"
+                  "additionalProperties": true,
+                  "description": "One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as.",
+                  "properties": {
+                    "optional": {
+                      "type": "boolean"
                     },
-                    {
-                      "additionalProperties": false,
-                      "description": "The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express).",
-                      "properties": {
-                        "description": {
-                          "type": "string"
-                        },
-                        "enum": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
-                        "required": {
-                          "type": "boolean"
-                        },
-                        "schema": {
-                          "additionalProperties": {},
-                          "description": "Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds.",
-                          "type": "object"
-                        },
-                        "type": {
-                          "description": "A declared output value type.",
-                          "enum": [
-                            "string",
-                            "number",
-                            "integer",
-                            "boolean",
-                            "array",
-                            "object",
-                            "null"
-                          ],
-                          "title": "OutputType",
-                          "type": "string"
-                        },
-                        "wrap_as": {
-                          "minLength": 1,
-                          "type": "string"
-                        }
-                      },
-                      "title": "OutputFieldSpec",
-                      "type": "object"
+                    "packet": {
+                      "type": "string"
                     }
-                  ],
-                  "description": "A single output field declaration: either a bare type name or a typed spec.",
-                  "title": "OutputField"
+                  },
+                  "title": "OutputField",
+                  "type": "object"
                 },
                 "type": "object"
               },
@@ -45446,10 +44828,6 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
-          "role": {
-            "minLength": 1,
-            "type": "string"
-          },
           "task": {
             "minLength": 1,
             "type": "string"
@@ -45457,7 +44835,6 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "id",
-          "role",
           "task",
           "envelope"
         ],

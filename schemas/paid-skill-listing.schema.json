@@ -2,7 +2,7 @@
   "$id": "https://schemas.runx.ai/runx/marketplace/paid-skill-listing/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Immutable marketplace identity and commercial terms for paid runners in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`.",
+  "description": "Immutable marketplace identity and commercial terms for paid methods in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`.",
   "properties": {
     "bundle_digest": {
       "description": "The registry's digest of the published bundle's files.",
@@ -13,9 +13,9 @@
     "offers": {
       "additionalProperties": {
         "additionalProperties": false,
-        "description": "One immutable, registry-resolved runner offer.",
+        "description": "One immutable, registry-resolved method offer.",
         "properties": {
-          "accepted_settlement_families": {
+          "accepts": {
             "items": {
               "maxLength": 64,
               "minLength": 1,
@@ -26,33 +26,6 @@
             "minItems": 1,
             "type": "array",
             "uniqueItems": true
-          },
-          "acts_on": {
-            "additionalProperties": false,
-            "description": "A resource an earlier purchase bought that a paid runner acts on, such as the inbox an extension extends. runx admits the purchase only while its buyer holds that resource, so the buyer hands the seller's run no bearer.",
-            "properties": {
-              "connector": {
-                "description": "The seller connector the resource is held in.",
-                "minLength": 1,
-                "type": "string"
-              },
-              "credential": {
-                "description": "That connector's `kind: purchase` credential.",
-                "maxLength": 64,
-                "pattern": "^[a-z][a-z0-9_]{0,63}$",
-                "type": "string"
-              },
-              "target": {
-                "description": "The held resource, rendered from the runner's inputs alone."
-              }
-            },
-            "required": [
-              "connector",
-              "credential",
-              "target"
-            ],
-            "title": "PaidSkillActsOn",
-            "type": "object"
           },
           "currency": {
             "pattern": "^[A-Z]{3}$",
@@ -108,33 +81,37 @@
                     "minimum": 1,
                     "type": "integer"
                   },
-                  "model": {
+                  "basis": {
                     "const": "fixed",
                     "type": "string"
                   }
                 },
                 "required": [
-                  "model",
+                  "basis",
                   "amount_minor"
                 ],
                 "type": "object"
               },
               {
                 "additionalProperties": false,
-                "description": "An amount for each combination of values of the selector inputs, each an `enum` input the runner requires. The cases cover every combination exactly once.",
+                "description": "An amount for each combination of values of the priced inputs, each an `enum` input the method requires. Each case names every priced input by name, and the cases cover every combination exactly once.",
                 "properties": {
+                  "basis": {
+                    "const": "by_input",
+                    "type": "string"
+                  },
                   "cases": {
                     "items": {
                       "additionalProperties": false,
-                      "description": "One `input_choice` case: the selector values, in selector order, and what a call with them costs.",
+                      "description": "One `by_input` case: the value each priced input takes, by name, and what a call with them costs.",
                       "properties": {
                         "amount_minor": {
                           "maximum": 9007199254740991,
                           "minimum": 1,
                           "type": "integer"
                         },
-                        "when": {
-                          "items": {
+                        "inputs": {
+                          "additionalProperties": {
                             "oneOf": [
                               {
                                 "type": "string"
@@ -150,57 +127,45 @@
                             ],
                             "title": "PriceChoice"
                           },
-                          "type": "array"
+                          "type": "object"
                         }
                       },
                       "required": [
-                        "when",
+                        "inputs",
                         "amount_minor"
                       ],
                       "title": "PaidSkillPriceCase",
                       "type": "object"
                     },
                     "type": "array"
-                  },
-                  "model": {
-                    "const": "input_choice",
-                    "type": "string"
-                  },
-                  "selectors": {
-                    "items": {
-                      "minLength": 1,
-                      "type": "string"
-                    },
-                    "type": "array"
                   }
                 },
                 "required": [
-                  "model",
-                  "selectors",
+                  "basis",
                   "cases"
                 ],
                 "type": "object"
               },
               {
                 "additionalProperties": false,
-                "description": "A base amount plus a unit amount for each started `unit_bytes` of the committed artifact the `artifact_input` names, up to `max_bytes`.",
+                "description": "A base amount plus a unit amount for each started `unit_bytes` of the committed artifact the `input` holds, up to `max_bytes`.",
                 "properties": {
-                  "artifact_input": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
                   "base_amount_minor": {
                     "maximum": 9007199254740991,
                     "minimum": 1,
                     "type": "integer"
                   },
+                  "basis": {
+                    "const": "by_size",
+                    "type": "string"
+                  },
+                  "input": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
                   "max_bytes": {
                     "minimum": 1,
                     "type": "integer"
-                  },
-                  "model": {
-                    "const": "artifact_bytes",
-                    "type": "string"
                   },
                   "unit_amount_minor": {
                     "maximum": 9007199254740991,
@@ -213,8 +178,8 @@
                   }
                 },
                 "required": [
-                  "model",
-                  "artifact_input",
+                  "basis",
+                  "input",
                   "base_amount_minor",
                   "unit_bytes",
                   "unit_amount_minor",
@@ -223,15 +188,42 @@
                 "type": "object"
               }
             ],
-            "description": "How an offer prices one call: from the listing and the inputs the runner receives, never from the runner. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's runner says can change it.",
+            "description": "How an offer prices one call: from the listing and the inputs the method receives, never from the method. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's method says can change it.",
             "title": "PaidSkillPrice"
+          },
+          "requires_lease": {
+            "additionalProperties": false,
+            "description": "The lease a buyer must hold to buy a paid method, such as the inbox an extension extends: only a buyer holding that lease, on the resource the method's inputs name, may buy, so the buyer hands the seller's run no bearer. It is checked before the quote and again before payment.",
+            "properties": {
+              "connector": {
+                "description": "The seller connector that holds the lease.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "credential": {
+                "description": "That connector's `kind: lease` credential.",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "type": "string"
+              },
+              "target": {
+                "description": "The leased resource, rendered from the method's inputs alone."
+              }
+            },
+            "required": [
+              "connector",
+              "credential",
+              "target"
+            ],
+            "title": "RequiredLease",
+            "type": "object"
           }
         },
         "required": [
           "offer_version",
           "price",
           "currency",
-          "accepted_settlement_families"
+          "accepts"
         ],
         "title": "PaidSkillMethodOffer",
         "type": "object"

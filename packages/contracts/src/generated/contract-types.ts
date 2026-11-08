@@ -93,7 +93,7 @@ export type AdmissionReasonContract = {
 };
 
 export type AgentContextEnvelopeContract = {
-  /** The act its run's invoker stated: why the run exists, as the run's steps read `$act`. */
+  /** The act its run's invoker stated: why the run exists, as the run's steps read `$run.act`. */
   readonly act?: CallActContract;
   readonly context?: AgentContextProfilesContract;
   readonly current_context: readonly ContextEntryContract[];
@@ -1590,7 +1590,6 @@ export type ImplementationContract = {
 
 /** One declared input shared by skills, local tools, inspection, and runtime materialization. Keeping this at the contract boundary prevents each parser or catalog surface from inventing its own type/default semantics. */
 export type InputDefinitionContract = {
-  readonly artifact?: boolean;
   readonly default?: unknown;
   readonly description?: string;
   /** Canonical packet contract for a JSON-valued input. The runtime resolves this identifier through the packet-schema catalog before inspection or execution; authors never duplicate the packet schema inline. */
@@ -1870,19 +1869,17 @@ export type McpServerContract = {
   readonly transport: "stdio";
 };
 
-/** One runner as a caller reads it: what it takes, what it returns, and what it needs. */
+/** One method as a caller reads it: what it takes, what it returns, and what it needs. */
 export type MethodInspectionContract = {
   /** The connector requirements of the skill, by key. */
   readonly connectors?: {
     readonly [key: string]: unknown;
   };
-  /** The runners this one's work continues in, which its run may admit. */
-  readonly continuations?: readonly string[];
   /** The packet each result output declares, by output name. */
   readonly declared_result_packets: {
     readonly [key: string]: string;
   };
-  /** Its inputs as one JSON schema, with the runner's examples. */
+  /** Its inputs as one JSON schema, with the method's examples. */
   readonly input_schema: {
     readonly [key: string]: unknown;
   };
@@ -1890,14 +1887,27 @@ export type MethodInspectionContract = {
   readonly name: string;
   readonly outputs: readonly InspectedOutputContract[];
   readonly requirements: ExecutionRequirementsContract;
-  readonly scopes?: readonly string[];
+  /** Its derived input and output schemas and their digests. */
+  readonly schemas: MethodSchemasContract;
 };
 
 export type MethodInspectionEntryContract = {
   readonly execution_closure: {
     readonly [key: string]: unknown;
   };
-  readonly runner: MethodInspectionContract;
+  readonly method: MethodInspectionContract;
+};
+
+/** A method's input and output JSON Schemas, derived from its fields, and the canonical digest of each: what a paid method's listing, purchases and receipts bind. */
+export type MethodSchemasContract = {
+  readonly input_schema: {
+    readonly [key: string]: unknown;
+  };
+  readonly input_schema_digest: string;
+  readonly output_schema: {
+    readonly [key: string]: unknown;
+  };
+  readonly output_schema_digest: string;
 };
 
 /** A file `fs.read_bundle` could not read, and why. */
@@ -2196,18 +2206,6 @@ export type OperationTargetContract = {
 /** The authority verbs an operation may declare. `read` makes the operation a read; every other verb makes it a mutation. What kind of write it is, a comment or a merge, is its `scopes`' to say. */
 export type OperationVerbContract = "read" | "write" | "execute" | "revoke";
 
-export type OperatorJourneyContract = {
-  readonly case: string;
-  readonly confusors: readonly string[];
-  readonly exercises_method?: string;
-  readonly expected_outcome: string;
-  readonly mode: string;
-  readonly must_not_repeat: readonly string[];
-  readonly prior_evidence: readonly string[];
-  readonly request: string;
-  readonly runner?: string;
-};
-
 export type OrchestratorExecutionContextContract = {
   readonly caller?: string;
   readonly caller_id?: string;
@@ -2274,29 +2272,17 @@ export type OrchestratorReceiverValidationContract = {
   readonly require_scope: string;
 };
 
-/** A runner's declared outputs: each output field by name. */
+/** A step's declared outputs: each output field by name. */
 export type OutputContract = {
   readonly [key: string]: unknown;
 };
 
-/** A single output field declaration: either a bare type name or a typed spec. */
-export type OutputFieldContract = OutputTypeContract | OutputFieldSpecContract;
-
-/** The expanded form of an output field declaration. Committed with `additionalProperties: false` and `minProperties: 1` (the latter is a numeric bound the emitter does not express). */
-export type OutputFieldSpecContract = {
-  readonly description?: string;
-  readonly enum?: readonly string[];
-  readonly required?: boolean;
-  /** Additional JSON Schema 2020-12 keywords for this output value. The scalar type, description, and enum above remain the canonical top-level declaration; this object owns nested shape and bounds. */
-  readonly schema?: {
-    readonly [key: string]: unknown;
-  };
-  readonly type?: OutputTypeContract;
-  readonly wrap_as?: string;
+/** One output field: its JSON Schema, `optional: true` when a producer may leave it out, and the `packet` it is kept as. */
+export type OutputFieldContract = {
+  readonly optional?: boolean;
+  readonly packet?: string;
+  readonly [key: string]: unknown;
 };
-
-/** A declared output value type. */
-export type OutputTypeContract = "string" | "number" | "integer" | "boolean" | "array" | "object" | "null";
 
 /** Every packet id published from one source tree, ordered by id. */
 export type PacketLockContract = {
@@ -2312,16 +2298,6 @@ export type PacketLockEntryContract = {
 
 export type PacketLockSchemaContract = "runx.packet.lock.v1";
 
-/** A resource an earlier purchase bought that a paid runner acts on, such as the inbox an extension extends. runx admits the purchase only while its buyer holds that resource, so the buyer hands the seller's run no bearer. */
-export type PaidSkillActsOnContract = {
-  /** The seller connector the resource is held in. */
-  readonly connector: string;
-  /** That connector's `kind: purchase` credential. */
-  readonly credential: string;
-  /** The held resource, rendered from the runner's inputs alone. */
-  readonly target: unknown;
-};
-
 /** An exact execution package: the skill and runner, and the digests of the package and closure that run. */
 export type PaidSkillExecutorBindingContract = {
   readonly execution_closure_digest: string;
@@ -2331,7 +2307,7 @@ export type PaidSkillExecutorBindingContract = {
   readonly skill: string;
 };
 
-/** Immutable marketplace identity and commercial terms for paid runners in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`. */
+/** Immutable marketplace identity and commercial terms for paid methods in one published skill version. Seller identity is resolved by the authenticated registry boundary and is never accepted from `run.yaml`. */
 export type PaidSkillListingContract = {
   /** The registry's digest of the published bundle's files. */
   readonly bundle_digest: string;
@@ -2345,36 +2321,37 @@ export type PaidSkillListingContract = {
   readonly version: string;
 };
 
-/** One immutable, registry-resolved runner offer. */
+/** One immutable, registry-resolved method offer. */
 export type PaidSkillMethodOfferContract = {
-  readonly accepted_settlement_families: readonly string[];
-  readonly acts_on?: PaidSkillActsOnContract;
+  readonly accepts: readonly string[];
   readonly currency: string;
   readonly offer_version: EmbeddedOfferVersionBindingContract;
   readonly price: PaidSkillPriceContract;
+  readonly requires_lease?: RequiredLeaseContract;
 };
 
-/** How an offer prices one call: from the listing and the inputs the runner receives, never from the runner. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's runner says can change it. */
+/** How an offer prices one call: from the listing and the inputs the method receives, never from the method. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's method says can change it. */
 export type PaidSkillPriceContract = {
   readonly amount_minor: number;
-  readonly model: "fixed";
+  readonly basis: "fixed";
 } | {
+  readonly basis: "by_input";
   readonly cases: readonly PaidSkillPriceCaseContract[];
-  readonly model: "input_choice";
-  readonly selectors: readonly string[];
 } | {
-  readonly artifact_input: string;
   readonly base_amount_minor: number;
+  readonly basis: "by_size";
+  readonly input: string;
   readonly max_bytes: number;
-  readonly model: "artifact_bytes";
   readonly unit_amount_minor: number;
   readonly unit_bytes: number;
 };
 
-/** One `input_choice` case: the selector values, in selector order, and what a call with them costs. */
+/** One `by_input` case: the value each priced input takes, by name, and what a call with them costs. */
 export type PaidSkillPriceCaseContract = {
   readonly amount_minor: number;
-  readonly when: readonly PriceChoiceContract[];
+  readonly inputs: {
+    readonly [key: string]: PriceChoiceContract;
+  };
 };
 
 /** Constraints on a candidate payment method. These declarations filter discovery; the selected operation still admits the exact payment and account. */
@@ -3095,6 +3072,16 @@ export type RegistrySearchPacketContract = {
 
 export type RegistryTestStateContract = "pending" | "failed" | "test_verified";
 
+/** The lease a buyer must hold to buy a paid method, such as the inbox an extension extends: only a buyer holding that lease, on the resource the method's inputs name, may buy, so the buyer hands the seller's run no bearer. It is checked before the quote and again before payment. */
+export type RequiredLeaseContract = {
+  /** The seller connector that holds the lease. */
+  readonly connector: string;
+  /** That connector's `kind: lease` credential. */
+  readonly credential: string;
+  /** The leased resource, rendered from the method's inputs alone. */
+  readonly target: unknown;
+};
+
 export type ResolutionRequestContract = {
   readonly id: string;
   readonly kind: "input";
@@ -3589,22 +3576,10 @@ export type SkillBehaviorDecisionContract = {
   readonly reuses?: string;
 };
 
-export type SkillCapabilitiesContract = {
-  readonly approval: string;
-  readonly completion: string;
-  readonly execution: string;
-};
-
+/** How a catalog files the package. */
 export type SkillCatalogContract = {
-  readonly approval?: string;
-  readonly audience: string;
-  readonly canonical_skill?: string;
-  readonly completion?: string;
-  readonly execution?: string;
-  readonly kind: string;
-  readonly part_of?: readonly string[];
-  readonly provider?: string;
-  readonly role: string;
+  readonly category?: string;
+  readonly tags?: readonly string[];
   readonly visibility: string;
 };
 
@@ -3707,37 +3682,33 @@ export type SkillIdentityDecisionContract = {
 };
 
 export type SkillInspectionContract = {
-  readonly capabilities?: SkillCapabilitiesContract;
   readonly catalog?: SkillCatalogContract;
-  /** Each operation the runner may call, as ready as the project leaves it. */
+  /** Each operation the method may call, as ready as the project leaves it. */
   readonly connector_readiness?: readonly ReadinessContract[];
   readonly description?: string;
   /** Where the inspected package came from, when a resolver found it. */
   readonly entry_provenance?: {
     readonly [key: string]: unknown;
   };
-  /** The environment the runner reads, by name and availability, never by value. */
+  /** The environment the method reads, by name and availability, never by value. */
   readonly environment?: EnvironmentReadinessContract;
   readonly examples?: readonly string[];
   readonly execution_closure?: {
     readonly [key: string]: unknown;
   };
   readonly manual_digest: string;
-  /** Each runner with the execution closure it binds. */
+  /** The method inspected: the one named, else the default. */
+  readonly method?: MethodInspectionContract;
+  /** Each method with the execution closure it binds. */
   readonly method_inspections?: readonly MethodInspectionEntryContract[];
+  /** Every method the package declares, by name. */
+  readonly methods: readonly string[];
   readonly name: string;
-  readonly operator_journeys: readonly OperatorJourneyContract[];
   /** The execution package digest, as a run records it; a listing's package digest is the registry's digest of the published files. */
   readonly package_digest: string;
   readonly readiness?: InspectionReadinessContract;
   readonly resume?: InspectionResumeContract;
-  /** The runner inspected: the one named, else the default. */
-  readonly runner?: MethodInspectionContract;
-  /** Every runner the package declares, by name. */
-  readonly runners: readonly string[];
   readonly schema: SkillInspectionSchemaContract;
-  /** The catalog's semantic analysis of the package, as the parser makes it. */
-  readonly semantic_report?: unknown;
   readonly skill_path: string;
   readonly status: SkillInspectionStatusContract;
   readonly version?: string;
@@ -4059,9 +4030,7 @@ export type TurnInvocationContract = {
   readonly allowance: TurnAllowanceContract;
   readonly envelope: AgentContextEnvelopeContract;
   readonly id: string;
-  /** The kind of agent the step asks for. */
-  readonly role: string;
-  /** The act it performs. */
+  /** The task it performs: a `## Agent task: <name>` section of the package's `SKILL.md`, which carries its instructions. */
   readonly task: string;
 };
 
@@ -4132,7 +4101,6 @@ export type TurnToolContract = {
 export type TurnViewContract = {
   readonly envelope: TurnViewEnvelopeContract;
   readonly id: string;
-  readonly role: string;
   readonly task: string;
 };
 

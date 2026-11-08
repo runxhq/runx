@@ -57,9 +57,6 @@
         "additionalProperties": false,
         "description": "One declared input shared by skills, local tools, inspection, and runtime materialization. Keeping this at the contract boundary prevents each parser or catalog surface from inventing its own type/default semantics.",
         "properties": {
-          "artifact": {
-            "type": "boolean"
-          },
           "default": {},
           "description": {
             "type": "string"
