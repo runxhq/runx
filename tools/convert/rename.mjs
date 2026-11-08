@@ -40,7 +40,7 @@ const ORDER = Object.keys(FORMS);
 
 // The plan's own names (§4.2, §6.1 to §6.5), exact.
 const OVERRIDES = {
-  ExecutionGraph: "Workflow", GraphStep: "WorkflowStep", parse_graph_yaml: "parse_workflow_yaml",
+  ExecutionGraph: "Workflow", GraphStep: "WorkflowStep",
   graph_step_failed: "workflow_step_failed", graph_blocked: "workflow_blocked", TurnInvocation: "TurnView", TurnEnvelope: "TurnViewEnvelope",
   AgentAct: "Turn", AgentActInvocation: "TurnInvocation", HarnessTurnScript: "TestTurnCalls", "agent-session": "agent", $held: "$lease",
   held_connectors: "connectors_with_leases",
