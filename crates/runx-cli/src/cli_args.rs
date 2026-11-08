@@ -53,25 +53,6 @@ pub fn os_flag_value(
     Ok((value.clone(), index + 2))
 }
 
-pub fn optional_flag_value(
-    args: &[OsString],
-    index: usize,
-    inline_value: Option<&str>,
-    command: &str,
-) -> Result<(Option<String>, usize), String> {
-    if let Some(value) = inline_value {
-        return Ok((Some(value.to_owned()), index + 1));
-    }
-    let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
-        return Ok((None, index + 1));
-    };
-    if value.starts_with('-') {
-        return Ok((None, index + 1));
-    }
-    os_arg(args, index + 1, command)?;
-    Ok((Some(value.to_owned()), index + 2))
-}
-
 pub fn optional_flag_value_or(
     args: &[OsString],
     index: usize,

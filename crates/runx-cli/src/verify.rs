@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fmt;
 use std::fs;
-use std::io::{self, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use runx_receipts::{
@@ -140,14 +140,6 @@ impl VerifyReport {
             valid,
         }
     }
-}
-
-pub fn run_verify_command(
-    args: &[OsString],
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Result<VerifyCliResult, VerifyCliError> {
-    run_verify_command_with_stdin(args, env, cwd, io::empty())
 }
 
 pub fn run_verify_command_with_stdin<R: Read>(
@@ -624,6 +616,14 @@ mod tests {
 
     type JsonValue = test_json::Value;
 
+    fn verify(
+        args: &[OsString],
+        env: &BTreeMap<String, String>,
+        cwd: &Path,
+    ) -> Result<VerifyCliResult, VerifyCliError> {
+        run_verify_command_with_stdin(args, env, cwd, io::empty())
+    }
+
     const CORPUS_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/receipt-verify");
     const FIXTURE_KID: &str = "runx-cli-verify-fixture-key";
     const FIXTURE_SEED: [u8; 32] = [0x47; 32];
@@ -665,7 +665,7 @@ mod tests {
             .map_err(|error| io::Error::other(error.to_string()))?;
 
         for env in [verifier_env(&signer), signer_env()] {
-            let result = run_verify_command(
+            let result = verify(
                 &[
                     "verify".into(),
                     "--receipt-dir".into(),
@@ -708,7 +708,7 @@ mod tests {
             r#"{"schema_version":1,"entries":{}}"#,
         )?;
 
-        let result = run_verify_command(
+        let result = verify(
             &[
                 "verify".into(),
                 "--receipt-dir".into(),
@@ -755,7 +755,7 @@ mod tests {
         fs::write(&receipt_file, tampered)?;
 
         let env = verifier_env(&signer);
-        let result = run_verify_command(
+        let result = verify(
             &[
                 "verify".into(),
                 "--receipt-dir".into(),
@@ -781,7 +781,7 @@ mod tests {
         let receipt_dir = temp.join("receipts");
         fs::create_dir_all(&receipt_dir)?;
         let signer = fixture_signer().map_err(io::Error::other)?;
-        let error = match run_verify_command(
+        let error = match verify(
             &[
                 "verify".into(),
                 "receipt_missing".into(),
@@ -818,7 +818,7 @@ mod tests {
             serde_json::to_vec_pretty(&receipt).map_err(io::Error::other)?,
         )?;
 
-        let result = run_verify_command(
+        let result = verify(
             &[
                 "verify".into(),
                 "--receipt".into(),
@@ -894,7 +894,7 @@ mod tests {
             serde_json::to_vec_pretty(&receipt).map_err(io::Error::other)?,
         )?;
 
-        let error = match run_verify_command(
+        let error = match verify(
             &[
                 "verify".into(),
                 "--receipt".into(),
@@ -1222,7 +1222,7 @@ mod tests {
     #[test]
     fn single_receipt_rejects_store_selection_flags() -> Result<(), io::Error> {
         let temp = tempfile_dir()?;
-        let error = match run_verify_command(
+        let error = match verify(
             &[
                 "verify".into(),
                 "receipt_1".into(),
@@ -1281,7 +1281,7 @@ mod tests {
                 case_dir.join(&case.receipt).into_os_string(),
                 "--json".into(),
             ];
-            let result = run_verify_command(&args, &env, &root)
+            let result = verify(&args, &env, &root)
                 .map_err(|error| io::Error::other(error.to_string()))?;
             let actual: JsonValue =
                 serde_json::from_str(&result.output).map_err(io::Error::other)?;
@@ -1315,7 +1315,7 @@ mod tests {
         let destination = home_env(&temp.join("destination-home"));
         home_signed_receipt(&destination, &temp)?;
 
-        let result = run_verify_command(
+        let result = verify(
             &[
                 "verify".into(),
                 "--receipt-dir".into(),
@@ -1482,7 +1482,7 @@ mod tests {
             "--json".into(),
         ];
         args.extend(extra.iter().map(OsString::from));
-        run_verify_command(&args, env, cwd)
+        verify(&args, env, cwd)
     }
 
     fn trust_env(issuer_type: &str, kid: &str, public_key: &[u8]) -> BTreeMap<String, String> {

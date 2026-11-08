@@ -299,46 +299,6 @@ pub fn command_help_text(command: &str) -> Option<String> {
     crate::command_spec::command_help_text(command)
 }
 
-pub fn history_help_text() -> String {
-    command_help("history")
-}
-
-pub fn harness_help_text() -> String {
-    command_help("harness")
-}
-
-pub fn resume_help_text() -> String {
-    command_help("resume")
-}
-
-pub fn list_help_text() -> String {
-    command_help("list")
-}
-
-pub fn login_help_text() -> String {
-    command_help("login")
-}
-
-pub fn notarize_help_text() -> String {
-    command_help("notarize")
-}
-
-pub fn registry_help_text() -> String {
-    command_help("registry")
-}
-
-pub fn verify_help_text() -> String {
-    command_help("verify")
-}
-
-pub fn skill_help_text() -> String {
-    command_help("skill")
-}
-
-fn command_help(command: &str) -> String {
-    command_help_text(command).unwrap_or_default()
-}
-
 pub fn json_failure_output(message: &str, code: &str) -> String {
     crate::cli_error::json_failure_output(message, code)
 }

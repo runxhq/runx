@@ -30,17 +30,6 @@ pub enum DocumentInputError {
     },
 }
 
-impl DocumentInputError {
-    pub fn is_stdin(&self) -> bool {
-        match self {
-            Self::Workspace { .. } => false,
-            Self::Read { location, .. }
-            | Self::TooLarge { location, .. }
-            | Self::InvalidUtf8 { location } => location == "stdin",
-        }
-    }
-}
-
 impl fmt::Display for DocumentInputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

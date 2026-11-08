@@ -7,9 +7,7 @@ use runx_cli::registry::{RegistryAction, RegistryPlan};
 use runx_cli::resume::ResumePlan;
 use runx_cli::router::{
     DoctorMode, DoctorPlan, FilterMode, HarnessPlan, HistoryPlan, ListKind, ListPlan,
-    RouterAction, ToolAction, ToolPlan, command_help_text, harness_help_text, help_text,
-    history_help_text, list_help_text, login_help_text, notarize_help_text, registry_help_text,
-    route_args, skill_help_text, verify_help_text,
+    RouterAction, ToolAction, ToolPlan, command_help_text, help_text, route_args,
 };
 use runx_cli::skill::{SkillAction, SkillPlan};
 use runx_runtime::HostedApiCredentialPurpose;
@@ -18,6 +16,10 @@ use std::path::{Path, PathBuf};
 
 fn plan(args: &[&str]) -> RouterAction {
     route_args(args.iter().map(std::ffi::OsString::from).collect())
+}
+
+fn help(command: &str) -> String {
+    command_help_text(command).unwrap_or_default()
 }
 
 #[test]
@@ -136,45 +138,45 @@ fn nested_skill_history_verify_and_notarize_help_are_native() {
     );
 
     assert_help_line(
-        &skill_help_text(),
+        &help("skill"),
         "runx skill <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [-i name=value...] [--inputs file|-] [--act json] [--run-authority json] [--max-cost usd] [--context json] [--run-id id] [-j] [--diagnostics] [--managed-agent [--managed-agent-rounds n]] [--registry url|path] [--digest sha256] [--package-digest sha256 --execution-closure-digest sha256] [-R dir]",
     );
     assert_help_line(
-        &skill_help_text(),
+        &help("skill"),
         "runx skill inspect <skill-ref|publisher/name@version|skill-dir|SKILL.md> [runner] [--inputs file|-] [--run-authority json] [-j] [--registry url|path] [--digest sha256]",
     );
     assert_help_line(
-        &skill_help_text(),
+        &help("skill"),
         "--act json               State the act the run is invoked with, as a JSON act with its purpose",
     );
     assert_help_line(
-        &history_help_text(),
+        &help("history"),
         "runx history [query] [--skill s] [--state s] [--since iso] [--until iso] [--limit n] [--json]",
     );
     assert_help_line(
-        &history_help_text(),
+        &help("history"),
         "runx history <run-id> [--after cursor] [--json]",
     );
     assert_help_line(
-        &history_help_text(),
+        &help("history"),
         "runx history <receipt-id> [--receipt-dir dir] [--json]",
     );
     assert_help_line(
-        &verify_help_text(),
+        &help("verify"),
         "runx verify [receipt-id] [--receipt-dir dir] [--receipt <path|->] [--trust home|configured] [--notary <path|-> --notary-key trusted.pem] [-j|--json]",
     );
-    assert!(verify_help_text().contains("--trust home|configured"));
-    assert!(history_help_text().contains("--limit n"));
+    assert!(help("verify").contains("--trust home|configured"));
+    assert!(help("history").contains("--limit n"));
     assert_help_line(
-        &notarize_help_text(),
+        &help("notarize"),
         "runx notarize <receipt.json> [--api-base-url url] [--allow-local-api] [-j|--json]",
     );
-    assert!(notarize_help_text().contains("anyone can read it"));
+    assert!(help("notarize").contains("anyone can read it"));
     assert_help_line(
-        &harness_help_text(),
+        &help("harness"),
         "runx harness <fixture.yaml...|skill-dir|SKILL.md> [-R dir] [-j|--json]",
     );
-    assert!(harness_help_text().contains("inline harness.cases and sorted fixtures/*.yaml"));
+    assert!(help("harness").contains("inline harness.cases and sorted fixtures/*.yaml"));
 }
 
 #[test]
@@ -266,15 +268,15 @@ fn documented_command_help_is_native() -> Result<(), Box<dyn std::error::Error>>
     );
 
     assert_help_line(
-        &registry_help_text(),
+        &help("registry"),
         "runx registry install <publisher>/<name>[@version] [--registry url|path] [--digest sha256] [-j|--json]",
     );
     assert_help_line(
-        &list_help_text(),
+        &help("list"),
         "runx list [tools|skills|graphs|packets|overlays] [--ok-only|--invalid-only] [-j|--json]",
     );
     assert_help_line(
-        &login_help_text(),
+        &help("login"),
         "runx login [--provider name] [--for default|publish] [--token-stdin] [--api-base-url url] [--allow-local-api] [-j|--json]",
     );
     let resume_help = command_help_text("resume").unwrap_or_default();
@@ -291,10 +293,10 @@ fn documented_command_help_is_native() -> Result<(), Box<dyn std::error::Error>>
     );
     assert!(resume_help.contains("Agents must never author it"));
     assert_help_line(
-        &registry_help_text(),
+        &help("registry"),
         "runx registry search <query> [--registry url|path] [--limit n] [-j|--json]",
     );
-    assert!(!registry_help_text().contains("--installation-id"));
+    assert!(!help("registry").contains("--installation-id"));
     Ok(())
 }
 
