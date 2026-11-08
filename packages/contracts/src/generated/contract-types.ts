@@ -3124,7 +3124,7 @@ export type ResumeDocumentContract = {
     readonly [key: string]: BoundApprovalContract;
   };
   readonly close?: RunCloseContract;
-  /** The person's new standing approvals, which replace the run's set for every later step and answer any open approval of a local effect they cover. */
+  /** The person's new standing approvals, which replace the run's set for every later step and answer any open approval of the floor they cover. */
   readonly standing_approvals?: readonly StandingApprovalContract[];
 };
 
@@ -3895,7 +3895,7 @@ export type SourcePacketContract = {
 
 export type SourcePacketSchemaContract = "runx.source_packet.v1";
 
-/** A person's bounded confirmation of the local effects a run worked by an agent would otherwise hold for them: exactly one of `edits`, `commands` and `local`. It never covers an operation's own declared approval. */
+/** A person's bounded confirmation of the writes a run under `effects: ask` would otherwise hold for them: exactly one of `edits`, `commands`, `operations` and `local`. It never covers a write's own approval, an operation's declared one or a step's. */
 export type StandingApprovalContract = {
   /** A command or process whose argv begins with these tokens. */
   readonly commands?: StandingCommandsContract;
@@ -3903,6 +3903,8 @@ export type StandingApprovalContract = {
   readonly edits?: StandingEditsContract;
   /** Every local effect. */
   readonly local?: true;
+  /** A connector operation's write that these names cover. */
+  readonly operations?: StandingOperationsContract;
 };
 
 export type StandingCommandsContract = {
@@ -3913,6 +3915,11 @@ export type StandingCommandsContract = {
 export type StandingEditsContract = {
   /** Workspace-relative path prefixes, by whole components; `""` is the whole workspace. */
   readonly paths: readonly string[];
+};
+
+export type StandingOperationsContract = {
+  /** Connector operations as `<connector>/<operation>`, or every operation of exactly one connector as `<connector>/*`. */
+  readonly names: readonly string[];
 };
 
 /** The runtime's event store: append-only streams with an expected version and an idempotency key per append, a rolling projection per stream, and stream heads by latest event. The instance's `url` parameter chooses SQLite, Postgres or Redis; without one it is the workspace store. */

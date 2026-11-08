@@ -30321,10 +30321,10 @@ export const runxSchemaArtifacts = {
         "type": "object"
       },
       "standing_approvals": {
-        "description": "The person's new standing approvals, which replace the run's set for every later step and answer any open approval of a local effect they cover.",
+        "description": "The person's new standing approvals, which replace the run's set for every later step and answer any open approval of the floor they cover.",
         "items": {
           "additionalProperties": false,
-          "description": "A person's bounded confirmation of the local effects a run worked by an agent would otherwise hold for them: exactly one of `edits`, `commands` and `local`. It never covers an operation's own declared approval.",
+          "description": "A person's bounded confirmation of the writes a run under `effects: ask` would otherwise hold for them: exactly one of `edits`, `commands`, `operations` and `local`. It never covers a write's own approval, an operation's declared one or a step's.",
           "properties": {
             "commands": {
               "additionalProperties": false,
@@ -30367,6 +30367,25 @@ export const runxSchemaArtifacts = {
               "const": true,
               "description": "Every local effect.",
               "type": "boolean"
+            },
+            "operations": {
+              "additionalProperties": false,
+              "description": "A connector operation's write that these names cover.",
+              "properties": {
+                "names": {
+                  "description": "Connector operations as `<connector>/<operation>`, or every operation of exactly one connector as `<connector>/*`.",
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "names"
+              ],
+              "title": "StandingOperations",
+              "type": "object"
             }
           },
           "title": "StandingApproval",
@@ -30915,6 +30934,25 @@ export const runxSchemaArtifacts = {
                     "const": true,
                     "description": "Every local effect.",
                     "type": "boolean"
+                  },
+                  "operations": {
+                    "additionalProperties": false,
+                    "description": "A connector operation's write that these names cover.",
+                    "properties": {
+                      "names": {
+                        "description": "Connector operations as `<connector>/<operation>`, or every operation of exactly one connector as `<connector>/*`.",
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "names"
+                    ],
+                    "title": "StandingOperations",
+                    "type": "object"
                   }
                 },
                 "title": "StandingApproval",
@@ -31101,7 +31139,7 @@ export const runxSchemaArtifacts = {
               "approvals": {
                 "items": {
                   "additionalProperties": false,
-                  "description": "A person's bounded confirmation of the local effects a run worked by an agent would otherwise hold for them: exactly one of `edits`, `commands` and `local`. It never covers an operation's own declared approval.",
+                  "description": "A person's bounded confirmation of the writes a run under `effects: ask` would otherwise hold for them: exactly one of `edits`, `commands`, `operations` and `local`. It never covers a write's own approval, an operation's declared one or a step's.",
                   "properties": {
                     "commands": {
                       "additionalProperties": false,
@@ -31144,6 +31182,25 @@ export const runxSchemaArtifacts = {
                       "const": true,
                       "description": "Every local effect.",
                       "type": "boolean"
+                    },
+                    "operations": {
+                      "additionalProperties": false,
+                      "description": "A connector operation's write that these names cover.",
+                      "properties": {
+                        "names": {
+                          "description": "Connector operations as `<connector>/<operation>`, or every operation of exactly one connector as `<connector>/*`.",
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "names"
+                      ],
+                      "title": "StandingOperations",
+                      "type": "object"
                     }
                   },
                   "title": "StandingApproval",
@@ -31840,6 +31897,25 @@ export const runxSchemaArtifacts = {
                           "const": true,
                           "description": "Every local effect.",
                           "type": "boolean"
+                        },
+                        "operations": {
+                          "additionalProperties": false,
+                          "description": "A connector operation's write that these names cover.",
+                          "properties": {
+                            "names": {
+                              "description": "Connector operations as `<connector>/<operation>`, or every operation of exactly one connector as `<connector>/*`.",
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "names"
+                          ],
+                          "title": "StandingOperations",
+                          "type": "object"
                         }
                       },
                       "title": "StandingApproval",
@@ -32026,7 +32102,7 @@ export const runxSchemaArtifacts = {
                     "approvals": {
                       "items": {
                         "additionalProperties": false,
-                        "description": "A person's bounded confirmation of the local effects a run worked by an agent would otherwise hold for them: exactly one of `edits`, `commands` and `local`. It never covers an operation's own declared approval.",
+                        "description": "A person's bounded confirmation of the writes a run under `effects: ask` would otherwise hold for them: exactly one of `edits`, `commands`, `operations` and `local`. It never covers a write's own approval, an operation's declared one or a step's.",
                         "properties": {
                           "commands": {
                             "additionalProperties": false,
@@ -32069,6 +32145,25 @@ export const runxSchemaArtifacts = {
                             "const": true,
                             "description": "Every local effect.",
                             "type": "boolean"
+                          },
+                          "operations": {
+                            "additionalProperties": false,
+                            "description": "A connector operation's write that these names cover.",
+                            "properties": {
+                              "names": {
+                                "description": "Connector operations as `<connector>/<operation>`, or every operation of exactly one connector as `<connector>/*`.",
+                                "items": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "names"
+                            ],
+                            "title": "StandingOperations",
+                            "type": "object"
                           }
                         },
                         "title": "StandingApproval",
