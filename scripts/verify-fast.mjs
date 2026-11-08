@@ -28,6 +28,7 @@ await runParallelGroup("source checks", [
     "docs/architecture/deterministic-module-engine.json",
   ]),
   step("integration module guard", "node", ["scripts/check-integration-test-modules.mjs"]),
+  step("runx-py", "python3", ["-m", "unittest", "discover", "-s", "packages/sdk-python/tests", "-q"]),
 ]);
 
 await runSerialGroup("rust structure checks", [
