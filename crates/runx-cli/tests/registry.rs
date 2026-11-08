@@ -486,8 +486,8 @@ methods:
         output["registry"]["package"]["metadata"]["skills"],
         json!([])
     );
-    // A run-time choice names each connector it may choose; connectors are sorted
-    // and operations keep the order the package lists them. Each connector is
+    // A run-time choice names each connector it may choose. Connectors are
+    // sorted, and so are the operations its steps call. Each connector is
     // named by its name and the digests a closure binds it by.
     let connectors = output["registry"]["package"]["metadata"]["connectors"]
         .as_array()
@@ -506,7 +506,7 @@ methods:
         named,
         [
             json!({"connector": "fixture/automation", "runtime_capability": false, "operations": ["handoff.deliver"]}),
-            json!({"connector": "fixture/forge", "runtime_capability": false, "operations": ["issues.read", "issue.read"]}),
+            json!({"connector": "fixture/forge", "runtime_capability": false, "operations": ["issue.read", "issues.read"]}),
             json!({"connector": "fixture/hooks", "runtime_capability": false, "operations": ["handoff.deliver"]}),
         ]
     );

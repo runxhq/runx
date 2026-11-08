@@ -922,34 +922,40 @@ fn json_inputs_do_not_become_shell_flags() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// A public package whose default method no sealed test proves is offered
+/// to no host: a full export leaves it out, and naming it is refused.
 #[test]
 fn rejects_public_package_without_standalone_proof() -> Result<(), Box<dyn std::error::Error>> {
     let fixture = ExportFixture::new("runx-export-composed-only")?;
     fixture.write_skill("stage", None)?;
-    let profile = fixture.project.join("skills/stage/run.yaml");
+    let test = fixture
+        .project
+        .join("skills/stage/tests/export-operator-journeys.yaml");
     fs::write(
-        &profile,
-        fs::read_to_string(&profile)?.replace(
-            "mode: standalone",
-            "mode: composed\n          prior_evidence: [A supplied result.]\n          must_not_repeat: [Do not repeat completed work.]",
-        ),
+        &test,
+        fs::read_to_string(&test)?.replace("status: sealed", "status: needs_agent"),
     )?;
-    for refs in [Vec::new(), vec!["stage".to_owned()]] {
-        let plan = ExportPlan {
-            target: Target::Claude,
-            refs,
-            project: false,
-            json: false,
-        };
-        let error = run_export_command(&plan, &fixture.project, &fixture.env)
-            .err()
-            .ok_or("package without standalone proof exported")?;
-        assert!(
-            error
-                .to_string()
-                .contains("missing_standalone_default_proof")
-        );
-    }
+    let plan = |refs: Vec<String>| ExportPlan {
+        target: Target::Claude,
+        refs,
+        project: false,
+        json: false,
+    };
+    let report = run_export_command(&plan(Vec::new()), &fixture.project, &fixture.env)?;
+    assert!(report.exported.is_empty(), "{:?}", report.exported);
+    let error = run_export_command(
+        &plan(vec!["stage".to_owned()]),
+        &fixture.project,
+        &fixture.env,
+    )
+    .err()
+    .ok_or("package without standalone proof exported")?;
+    assert!(
+        error.to_string().contains(
+            "cannot export stage as an agent skill because its default runner has no sealed standalone invocation contract"
+        ),
+        "{error}"
+    );
     assert!(!fixture.home.join(".claude/skills/stage/SKILL.md").exists());
     Ok(())
 }

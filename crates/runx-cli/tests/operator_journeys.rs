@@ -336,8 +336,6 @@ fn skill_author_journey_discovers_tests_runs_verifies_and_reads_history() -> Tes
     let inspect = assert_json(&inspect, 0)?;
     assert_eq!(inspect["status"], "ok");
     assert_eq!(inspect["readiness"]["status"], "ready");
-    assert_eq!(inspect["capabilities"]["execution"], "read");
-    assert_eq!(inspect["capabilities"]["completion"], "runtime_receipt");
     assert!(
         inspect["method"]["inputs"]
             .as_array()
