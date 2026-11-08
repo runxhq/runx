@@ -199,12 +199,14 @@ pub(super) fn inspect_execution_closures(
 
 /// What a run of a runner admits: the closure of `loaded`'s runner
 /// `method_name`, every package it binds as it was loaded, by canonical
-/// directory, and who each is, by package root, with each signature verified
-/// against its exact bytes (D30).
+/// directory, who each is, by package root, with each signature verified
+/// against its exact bytes, and the root of each `project:<name>` it binds
+/// as itself (D30).
 pub(super) type AdmittedClosure = (
     JsonValue,
     BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
     BTreeMap<PathBuf, PackageIdentity>,
+    BTreeMap<String, PathBuf>,
 );
 
 pub(super) fn inspect_method_execution_closure(
@@ -221,7 +223,8 @@ pub(super) fn inspect_method_execution_closure(
         .into_iter()
         .map(|(root, bound)| (root, bound.identity))
         .collect();
-    Ok((serialize_closure(closure)?, packages, identities))
+    let projects = std::mem::take(&mut closure.project_roots);
+    Ok((serialize_closure(closure)?, packages, identities, projects))
 }
 
 /// Every runner the closure of `loaded`'s runner `method_name` binds, its

@@ -819,6 +819,62 @@ fn a_repository_shipping_install_and_trust_records_gains_nothing() -> TestResult
     Ok(())
 }
 
+/// Two directories are never one `project:<name>` in a run, since the two
+/// would own the same streams (D30): across a turn's loads, and against the
+/// run's own closure, a second directory under a name the run already binds
+/// is refused, and the same directory loads again.
+#[test]
+fn two_loads_never_bind_two_directories_as_one_project_name() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    let jot = "minimum_runx: 0.12.0\nmethods:\n  jot:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs:\n          value: $input.value\n          encoding: utf8_text\n";
+    for (directory, name) in [
+        ("skills/notes", "notes"),
+        ("skills/archive/notes", "notes"),
+        ("skills/session-copy", "session"),
+    ] {
+        crate::support::write_test_skill_package(
+            &project.root.join(directory),
+            &format!("---\nname: {name}\ndescription: The project's own.\n---\n# Notes\n"),
+            jot,
+        )?;
+    }
+    let run_id = project.start(project.session(serde_json::json!([{"project": true}]))?)?;
+    let turn = project.open(&run_id)?;
+    let load = |skill: &str| {
+        turn.call(
+            TURN,
+            "load",
+            None,
+            input(serde_json::json!({"skill": skill})).unwrap_or_default(),
+        )
+    };
+    let first = loaded(&load("skills/notes")?)?;
+    assert_eq!(
+        first
+            .projects
+            .iter()
+            .map(|binding| (binding.name.as_str(), binding.directory.as_str()))
+            .collect::<Vec<_>>(),
+        [("notes", "skills/notes")]
+    );
+    let second = load("skills/archive/notes")?;
+    let reason = refused(&second)?;
+    assert!(
+        reason.contains("two directories are never one package in a run"),
+        "{reason}"
+    );
+    assert!(reason.contains("skills/notes"), "{reason}");
+    // The session the run is, bound by its own closure, is project:session.
+    let shadow = load("skills/session-copy")?;
+    assert!(
+        refused(&shadow)?.contains("as project:session"),
+        "{shadow:?}"
+    );
+    loaded(&load("skills/notes")?)?;
+    Ok(())
+}
+
 #[test]
 fn a_loaded_connectors_operations_are_tools_of_the_turn() -> TestResult {
     let temp = tempdir()?;

@@ -103,6 +103,9 @@ pub(crate) struct AdmittedPackages {
     packages: Arc<BTreeMap<PathBuf, Arc<LoadedSkillPackage>>>,
     /// Who each package is, by its package root, as the binding set it.
     identities: Arc<BTreeMap<PathBuf, crate::identity::PackageIdentity>>,
+    /// The root of each `project:<name>` the binding binds as itself, which
+    /// is that package for the whole run.
+    projects: Arc<BTreeMap<String, PathBuf>>,
 }
 
 impl AdmittedPackages {
@@ -112,6 +115,11 @@ impl AdmittedPackages {
         package_root: &Path,
     ) -> Option<&crate::identity::PackageIdentity> {
         self.identities.get(package_root)
+    }
+
+    /// The root of each `project:<name>` the binding binds as itself.
+    pub(crate) fn projects(&self) -> &BTreeMap<String, PathBuf> {
+        &self.projects
     }
 
     /// The admitted package at `directory`, as the run names it or as the
@@ -179,6 +187,7 @@ pub(crate) fn verify_loaded_execution_binding(
         packages: AdmittedPackages {
             packages: Arc::new(closure.packages),
             identities: Arc::new(closure.identities),
+            projects: Arc::new(closure.projects),
         },
     })
 }

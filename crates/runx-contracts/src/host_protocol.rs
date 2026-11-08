@@ -477,6 +477,24 @@ pub struct TurnLoad {
     /// does not already reach at that implementation waits on trust.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub connectors: Vec<crate::connector::ConnectorBinding>,
+    /// Each skill package of the person's own it bound, `project:<name>`, at
+    /// its directory: a later load in the run that binds another directory
+    /// as the same `project:<name>` is refused, since the two would be one
+    /// package.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub projects: Vec<ProjectBinding>,
+}
+
+/// A skill package of the person's own, as a run binds it (D30): it is
+/// `project:<name>`, and one directory is that package in the run.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectBinding {
+    /// Its manifest's name.
+    pub name: NonEmptyString,
+    /// Its directory: relative to the workspace when within it, else
+    /// absolute.
+    pub directory: NonEmptyString,
 }
 
 /// A skill's manual: its `SKILL.md` exactly as its package holds it, the

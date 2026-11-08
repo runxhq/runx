@@ -349,6 +349,8 @@ pub(crate) struct InspectedExecutionClosureBinding {
     pub(crate) packages: BTreeMap<PathBuf, Arc<LoadedSkillPackage>>,
     /// Who each package is, by its package root.
     pub(crate) identities: BTreeMap<PathBuf, crate::identity::PackageIdentity>,
+    /// The root of each `project:<name>` it binds as itself.
+    pub(crate) projects: BTreeMap<String, PathBuf>,
 }
 
 /// Whether a run of `runner` reaches an agent turn that can make calls, child
@@ -383,7 +385,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
     selected_method: &str,
     env: &std::collections::BTreeMap<String, String>,
 ) -> Result<InspectedExecutionClosureBinding, SkillInspectionError> {
-    let (closure, packages, identities) =
+    let (closure, packages, identities, projects) =
         inspect_method_execution_closure(loaded, selected_method, env)?;
     let closure = closure
         .as_object()
@@ -412,6 +414,7 @@ pub(crate) fn inspect_loaded_execution_closure_binding(
         fully_bound,
         packages,
         identities,
+        projects,
     })
 }
 

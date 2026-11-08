@@ -2502,6 +2502,14 @@ export type ProjectArtifactContract = {
 
 export type ProjectArtifactSchemaContract = "runx.project_artifact.v1";
 
+/** A skill package of the person's own, as a run binds it (D30): it is `project:<name>`, and one directory is that package in the run. */
+export type ProjectBindingContract = {
+  /** Its directory: relative to the workspace when within it, else absolute. */
+  readonly directory: string;
+  /** Its manifest's name. */
+  readonly name: string;
+};
+
 export type ProofKindContract = "effect_evidence" | "effect_finality" | "credential_resolution";
 
 /** One input/output provenance edge. */
@@ -4049,6 +4057,8 @@ export type TurnLoadContract = {
   /** A loaded skill's manual; none for a connector. */
   readonly manual?: SkillManualContract;
   readonly package: LoadedPackageContract;
+  /** Each skill package of the person's own it bound, `project:<name>`, at its directory: a later load in the run that binds another directory as the same `project:<name>` is refused, since the two would be one package. */
+  readonly projects?: readonly ProjectBindingContract[];
   /** Every runner of a loaded skill, as a model chooses one, and whether this load bound it. */
   readonly runners?: readonly LoadedMethodContract[];
   /** One per bound runner, or per operation of a loaded connector, as the turn offers it from then on. */

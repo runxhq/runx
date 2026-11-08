@@ -142,6 +142,33 @@
       "description": "The package a load bound. A project's own package has no tier and no publisher.",
       "title": "LoadedPackage"
     },
+    "projects": {
+      "description": "Each skill package of the person's own it bound, `project:<name>`, at its directory: a later load in the run that binds another directory as the same `project:<name>` is refused, since the two would be one package.",
+      "items": {
+        "additionalProperties": false,
+        "description": "A skill package of the person's own, as a run binds it (D30): it is `project:<name>`, and one directory is that package in the run.",
+        "properties": {
+          "directory": {
+            "description": "Its directory: relative to the workspace when within it, else absolute.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "description": "Its manifest's name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "directory"
+        ],
+        "title": "ProjectBinding",
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
     "runners": {
       "description": "Every runner of a loaded skill, as a model chooses one, and whether this load bound it.",
       "items": {

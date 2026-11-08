@@ -19,6 +19,27 @@ use crate::kernel::connectors::{ConnectorOrigin, ConnectorScope, LoadedConnector
 use crate::registry::{SignedPackage, carries_signature, verify_package_signature};
 use crate::{LoadedSkillPackage, RunxPaths};
 
+/// `project:<name>` at `root`, as a run holds it: its directory relative to
+/// the workspace when within it, else absolute.
+#[must_use]
+pub(crate) fn project_binding(
+    name: &str,
+    root: &std::path::Path,
+    paths: &RunxPaths,
+) -> runx_contracts::ProjectBinding {
+    let workspace = std::fs::canonicalize(paths.workspace())
+        .unwrap_or_else(|_| paths.workspace().to_path_buf());
+    let directory = match root.strip_prefix(&workspace) {
+        Ok(relative) if relative.as_os_str().is_empty() => ".".to_owned(),
+        Ok(relative) => relative.to_string_lossy().replace('\\', "/"),
+        Err(_) => root.to_string_lossy().into_owned(),
+    };
+    runx_contracts::ProjectBinding {
+        name: name.into(),
+        directory: directory.into(),
+    }
+}
+
 /// Who a bound package is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum PackageIdentity {

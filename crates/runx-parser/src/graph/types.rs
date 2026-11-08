@@ -63,6 +63,10 @@ pub struct LoadStep {
     /// implementation it binds: one run binds one revision of a name, and
     /// what reaches beyond these is what a load adds.
     pub held: Vec<runx_contracts::connector::ConnectorBinding>,
+    /// Each `project:<name>` the run already binds, at its directory: one
+    /// directory is each in a run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub projects: Vec<runx_contracts::ProjectBinding>,
 }
 
 /// What a load names: a skill, with the one method it loads or all of them,

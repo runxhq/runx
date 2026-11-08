@@ -19,8 +19,8 @@ use runx_contracts::connector::ConnectorBinding;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     ApprovalGate, AuthorityVerb, BoundClosure, CatalogRule, JsonObject, JsonValue, LoadedMethod,
-    LoadedMethodInput, LoadedPackage, ResolutionRequest, SkillManual, TrustTier, TurnLoad,
-    TurnTarget, TurnTool,
+    LoadedMethodInput, LoadedPackage, ProjectBinding, ResolutionRequest, SkillManual, TrustTier,
+    TurnLoad, TurnTarget, TurnTool,
 };
 use runx_core::state_machine::StepAdmissionWitness;
 use runx_parser::{LoadStep, LoadTarget};
@@ -65,6 +65,8 @@ struct Bound {
     closures: Vec<String>,
     /// Each connector it reaches, at the exact revision it binds.
     connectors: Vec<ConnectorBinding>,
+    /// Each skill package of the person's own it binds as itself.
+    projects: Vec<ProjectBinding>,
     /// What the person is shown when it asks for their trust.
     declares: JsonValue,
 }
@@ -98,6 +100,9 @@ where
     }
     .map_err(refused)?;
     if let Some(reason) = revision_refusal(&bound, &load.held) {
+        return Err(refused(reason));
+    }
+    if let Some(reason) = project_refusal(&bound, &load.projects) {
         return Err(refused(reason));
     }
     let tier = bound
@@ -137,6 +142,7 @@ where
         runners: bound.runners,
         tools: bound.tools,
         connectors: bound.connectors,
+        projects: bound.projects,
     };
     let value = JsonValue::from_serialize(&output)
         .map_err(|error| RuntimeError::effect_state("reporting a load", error.to_string()))?;
@@ -240,6 +246,7 @@ fn bind_skill(
     let mut closures = Vec::new();
     let mut connectors = Vec::new();
     let mut identity = None;
+    let mut projects = BTreeMap::new();
     for runner in &runners {
         let binding = crate::skill_package::verify_loaded_execution_binding(
             Arc::clone(&loaded),
@@ -251,6 +258,9 @@ fn bind_skill(
         .map_err(|error| format!("{reference}#{runner}: {error}"))?;
         if identity.is_none() {
             identity = binding.packages.identity(&loaded.package_root).cloned();
+        }
+        for (name, root) in binding.packages.projects() {
+            agree_project(&mut projects, name, root, reference)?;
         }
         let closure_digest = binding.closure_digest.ok_or_else(|| {
             format!("{reference}#{runner}: its execution closure is not fully bound")
@@ -297,6 +307,13 @@ fn bind_skill(
         Some(identity) => identity,
         None => crate::identity::skill_identity(&loaded, env)?,
     };
+    if let PackageIdentity::Project { name } = &identity {
+        agree_project(&mut projects, name, &loaded.package_root, reference)?;
+    }
+    let projects = projects
+        .iter()
+        .map(|(name, root)| crate::identity::project_binding(name, root, paths))
+        .collect();
     Ok(Bound {
         package: LoadedPackage::Skill {
             skill: package_name.into(),
@@ -333,6 +350,7 @@ fn bind_skill(
         tools,
         closures,
         connectors,
+        projects,
         declares,
     })
 }
@@ -426,6 +444,8 @@ fn bind_connector(
         tools,
         closures: vec![connector.connector_digest.as_str().to_owned()],
         connectors,
+        // A connector is never a `project:<name>` skill package.
+        projects: Vec::new(),
         declares,
     })
 }
@@ -488,6 +508,48 @@ fn ruling(
                     minimum.as_str()
                 ),
             }
+        }
+    }
+}
+
+/// Why `bound` would make two directories one `project:<name>` in the run:
+/// each skill package of the person's own is one directory for the whole
+/// run, since the two would own the same streams (D30).
+fn project_refusal(bound: &Bound, held: &[ProjectBinding]) -> Option<String> {
+    bound.projects.iter().find_map(|binding| {
+        held.iter()
+            .find(|held| held.name == binding.name && held.directory != binding.directory)
+            .map(|held| {
+                format!(
+                    "{} binds {} as project:{}, and this run already binds {} as project:{}; two directories are never one package in a run",
+                    describe(&bound.package),
+                    binding.directory,
+                    binding.name,
+                    held.directory,
+                    held.name
+                )
+            })
+    })
+}
+
+/// Record that `reference` binds `root` as `project:<name>`, refusing a
+/// second directory under that name.
+fn agree_project(
+    projects: &mut BTreeMap<String, PathBuf>,
+    name: &str,
+    root: &Path,
+    reference: &str,
+) -> Result<(), String> {
+    match projects.get(name) {
+        Some(other) if other != root => Err(format!(
+            "{reference} binds two directories as project:{name}, {} and {}",
+            other.display(),
+            root.display()
+        )),
+        Some(_) => Ok(()),
+        None => {
+            projects.insert(name.to_owned(), root.to_path_buf());
+            Ok(())
         }
     }
 }
@@ -743,6 +805,7 @@ mod tests {
                 manifest_digest: "sha256:b".into(),
             },
             identity: project(),
+            projects: Vec::new(),
             manual: None,
             runners: Vec::new(),
             tools: Vec::new(),

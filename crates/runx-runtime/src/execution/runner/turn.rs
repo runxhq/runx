@@ -15,9 +15,9 @@ use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName
 use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AllowedOperation, BoundClosure, CallAct, InputDefinition, JsonObject, JsonValue, LoadedPackage,
-    ProjectArtifact, ProvenanceEntry, Reference, ReferenceType, ResolutionRequest, RunCallOutput,
-    TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage,
-    TurnStatus, TurnTarget, TurnTool, TurnView,
+    ProjectArtifact, ProjectBinding, ProvenanceEntry, Reference, ReferenceType, ResolutionRequest,
+    RunCallOutput, TurnCallOutcome, TurnCallResult, TurnInvocation, TurnLoad, TurnLocator,
+    TurnReadPage, TurnStatus, TurnTarget, TurnTool, TurnView,
 };
 use runx_parser::{
     AgentTask, AskGate, ConnectorRequirement, LoadStep, LoadTarget, OperationStepTarget,
@@ -999,6 +999,7 @@ where
                 target: load_target(input)?,
                 rules: self.scope.agent.allowance.rules().copied().collect(),
                 held: self.held().map_err(|error| error.to_string())?,
+                projects: self.held_projects().map_err(|error| error.to_string())?,
             }),
             // An ask is a yes or no on its reason, or questions the person
             // answers.
@@ -1366,6 +1367,24 @@ where
         }
         for load in self.loads()? {
             held.extend(load.connectors);
+        }
+        Ok(held)
+    }
+
+    /// Each `project:<name>` the run already binds: those its own closure
+    /// binds, and those the turn's loads bound. One directory is each for the
+    /// whole run.
+    fn held_projects(&self) -> Result<Vec<ProjectBinding>, RuntimeError> {
+        let options = &self.scope.runtime.options;
+        let paths = crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir);
+        let mut held = options
+            .packages
+            .iter()
+            .flat_map(|admitted| admitted.projects())
+            .map(|(name, root)| crate::identity::project_binding(name, root, &paths))
+            .collect::<Vec<_>>();
+        for load in self.loads()? {
+            held.extend(load.projects);
         }
         Ok(held)
     }
