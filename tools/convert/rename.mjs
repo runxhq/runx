@@ -150,6 +150,9 @@ const VECTORS = /canonical-json|oracle|c14n|stable-json/i;
 // note starts "stored" and names the new migration that renames the stored
 // copy, or the row stays.
 const HISTORY = /(^|\/)(migrations|drizzle)\//;
+// Files whose own name isn't ours to change: the converter's own files,
+// scafld's, and vendored copies, which keep their upstream names.
+const KEEPS_NAME = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
 // Literals whose exact bytes stored data depends on, in files a token rename
 // would otherwise change them in. Each is masked while its file is renamed,
 // and a pin that isn't found refuses.
@@ -301,20 +304,31 @@ function apply(repo, root, write, list) {
   }
   // A name that's also a file or folder moves with it: a bench, a module and
   // its file, a test. Each segment of a path, a folder or a file's stem, is
-  // renamed when the table renames that exact name.
+  // renamed when the table renames that exact name. A renamed folder moves
+  // whole, its run.yaml and vendored files included, so no package is split.
+  // A file keeps its own name only where the name isn't ours to change.
   const moves = new Map();
+  const stranded = [];
   for (const file of trackedFiles(root)) {
-    if (NOT_OURS.test(file) || HISTORY.test(file)) continue;
     const parts = file.split("/");
+    const keepsName = KEEPS_NAME.test(file);
     const renamed = parts.map((part, index) => {
       const last = index === parts.length - 1;
+      if (last && keepsName) return part;
       const dot = last ? part.indexOf(".") : -1;
       const stem = dot > 0 ? part.slice(0, dot) : part;
       const to = renames.get(stem);
       return to === undefined ? part : to + (dot > 0 ? part.slice(dot) : "");
     });
     const target = renamed.join("/");
-    if (target !== file) moves.set(file, target);
+    if (target === file) continue;
+    if (HISTORY.test(file)) stranded.push(file);
+    else moves.set(file, target);
+  }
+  if (stranded.length > 0) {
+    process.stdout.write(`refused ${repo}: ${stranded.length} applied migrations sit under a renamed path\n`);
+    for (const file of stranded.slice(0, 20)) process.stdout.write(`  ${file}\n`);
+    return 1;
   }
   const targets = new Set(moves.values());
   const taken = [...targets].filter((target) => existsSync(path.join(root, target)) && !moves.has(target));
