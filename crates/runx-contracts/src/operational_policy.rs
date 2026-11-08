@@ -19,9 +19,8 @@ use crate::schema::{
 mod evaluate;
 
 pub use evaluate::{
-    admit_operational_policy_request, lint_operational_policy_contract,
-    project_operational_policy_readback, validate_operational_policy_contract,
-    validate_operational_policy_semantics,
+    lint_operational_policy_contract, project_operational_policy_readback,
+    validate_operational_policy_contract,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -516,44 +515,6 @@ pub struct OperationalPolicyValidationFinding {
     pub code: NonEmptyString,
     pub path: NonEmptyString,
     pub message: NonEmptyString,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OperationalPolicyAdmissionRequest {
-    pub source_id: Option<String>,
-    pub target_repo: Option<String>,
-    pub action: OperationalPolicyAction,
-    pub runner_id: Option<String>,
-    pub source_thread_locator: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct OperationalPolicyAdmission {
-    pub status: OperationalPolicyAdmissionStatus,
-    pub findings: Vec<OperationalPolicyValidationFinding>,
-    pub policy_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_repo: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub runner_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner_route_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owners: Option<Vec<String>>,
-    pub dedupe_strategy: OperationalPolicyDedupeStrategy,
-    pub outcome_close_mode: OperationalPolicyOutcomeCloseMode,
-    pub source_thread_required: bool,
-    pub mutate_target_repo: bool,
-    pub require_human_merge_gate: bool,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum OperationalPolicyAdmissionStatus {
-    Allow,
-    Deny,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

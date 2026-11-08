@@ -7,7 +7,6 @@
 
 mod credential_delivery_fixtures;
 mod doctor_fixtures;
-mod example_external_fixture;
 mod fixture_support;
 mod harness_spine_fixtures;
 mod host_protocol_fixtures;
