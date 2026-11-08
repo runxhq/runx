@@ -120,29 +120,29 @@ async function runRegistryResolverDogfood() {
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(
       skillDirPath(skillDir, "SKILL.md"),
-      "---\nname: echo\ndescription: Echo fixture for the registry resolver dogfood.\n---\n# Echo\n",
+      "---\nname: echo\ndescription: Echo fixture for the registry resolver dogfood.\n---\n# Echo\n\n## Agent task: echo\n\nReturn the input as the result.\n",
       "utf8",
     );
     writeFileSync(
       skillDirPath(skillDir, "run.yaml"),
       [
-        "skill: echo",
         'version: "1.0.0"',
-        "harness:",
-        "  cases:",
-        "    - name: registry-agent-boundary",
-        "      runner: default",
-        "      expect: { status: needs_agent }",
-        "runners:",
+        "minimum_runx: 0.12.0",
+        "methods:",
         "  default:",
-        "    default: true",
         "    steps:",
         "      - id: default",
-        "        agent: { role: fixture, task: echo }",
+        "        agent: echo",
         "        outputs:",
-        "          result: object",
+        "          result: {type: object}",
         "",
       ].join("\n"),
+      "utf8",
+    );
+    mkdirSync(skillDirPath(skillDir, "tests"), { recursive: true });
+    writeFileSync(
+      skillDirPath(skillDir, "tests/registry-agent-boundary.yaml"),
+      ["name: registry-agent-boundary", "method: default", "expect: {status: needs_agent}", ""].join("\n"),
       "utf8",
     );
 

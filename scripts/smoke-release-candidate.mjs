@@ -55,7 +55,6 @@ try {
   const environment = proveDeclaredEnvironment();
   const context = proveOperatorContext();
   const approval = proveSingleApproval();
-  const scopes = proveOpaqueScopes();
   const interruption = await proveInterruption();
 
   process.stdout.write(`${JSON.stringify({
@@ -68,7 +67,6 @@ try {
       declared_workspace_environment: environment,
       operator_context_digest: context,
       single_approval: approval,
-      opaque_scope_passthrough: scopes,
       interruption,
     },
   })}\n`);
@@ -110,24 +108,18 @@ function proveNestedRegistryExecution() {
   writeSkill(
     child,
     "registry-child",
-    `skill: registry-child
-version: "1.0.0"
-harness:
-  cases:
-    - name: release-candidate-child
-      runner: run
-      expect: { status: sealed }
-runners:
+    `version: "1.0.0"
+minimum_runx: 0.12.0
+methods:
   run:
-    default: true
     steps:
       - id: run
-        tool: { module: child.mjs }
+        tool: {module: child.mjs}
         outputs:
-          nested: object
-        artifacts:
-          named_emits: { nested: nested }
+          nested: {type: object}
 `,
+    "",
+    { "release-candidate-child": "name: release-candidate-child\nmethod: run\nexpect: {status: sealed}\n" },
   );
   writeFileSync(
     path.join(child, "child.mjs"),
@@ -156,10 +148,9 @@ runners:
   writeSkill(
     parent,
     "registry-parent",
-    `skill: registry-parent
-runners:
+    `minimum_runx: 0.12.0
+methods:
   run:
-    default: true
     result_from: [nested]
     steps:
       - id: nested
@@ -178,7 +169,7 @@ runners:
   if (output.status !== "sealed") {
     throw new Error(`nested registry run was ${output.status}`);
   }
-  const nested = output.result?.nested?.data;
+  const nested = output.result?.nested;
   if (
     nested?.message !== "registry child"
     || nested?.frozen !== true
@@ -193,15 +184,14 @@ function proveDeclaredEnvironment() {
   writeSkill(
     skill,
     "environment-probe",
-    `skill: environment-probe
-runners:
+    `minimum_runx: 0.12.0
+methods:
   run:
-    default: true
     steps:
       - id: run
-        tool: { module: environment.mjs, environment: { required: [RELEASE_SMOKE_MARKER] } }
+        tool: {module: environment.mjs, environment: {required: [RELEASE_SMOKE_MARKER]}}
         outputs:
-          environment: object
+          environment: {type: object}
 `,
   );
   writeFileSync(
@@ -249,17 +239,18 @@ function proveOperatorContext() {
   writeSkill(
     skill,
     "context-probe",
-    `skill: context-probe
-runners:
+    `minimum_runx: 0.12.0
+methods:
   inspect:
-    default: true
     steps:
       - id: inspect
-        agent: { role: operator, task: inspect-context }
+        agent: inspect-context
         outputs:
-          report: object
+          report: {type: object}
 `,
     [
+      "## Agent task: inspect-context",
+      "",
       "This manual proves that a packaged candidate carries the complete operating",
       "context into an agent act. The final marker must survive without truncation.",
       "",
@@ -302,26 +293,21 @@ function proveSingleApproval() {
   writeSkill(
     skill,
     "approval-probe",
-    `skill: approval-probe
-runners:
+    `minimum_runx: 0.12.0
+methods:
   approve:
-    default: true
     result_from: [apply]
     steps:
       - id: approve
-        ask: { gate: release-candidate.single-approval, reason: Prove one consequential action has one approval owner. }
+        ask: {gate: release-candidate.single-approval, reason: Prove one consequential action has one approval owner.}
       - id: apply
+        guard:
+          - {value: $steps.approve.approval_decision.approved, equals: true}
         tool: fs.write
-        scopes: [fs.write]
         inputs:
           repo_root: .
           path: approval-proof.txt
           contents: one host-attested human approval
-    policy:
-      guards:
-        - step: apply
-          value: $steps.approve.approval_decision.approved
-          equals: true
 `,
   );
   const pausedResult = run(
@@ -411,30 +397,6 @@ function preparedRunCount(stderr) {
   return (stderr.match(/^Prepared run$/gmu) ?? []).length;
 }
 
-function proveOpaqueScopes() {
-  const skill = path.join(root, "scope-probe");
-  const scope = "provider:resource.write/a+b?tenant=one,two";
-  writeSkill(
-    skill,
-    "scope-probe",
-    `skill: scope-probe
-runners:
-  inspect:
-    default: true
-    result_from: [read]
-    steps:
-      - id: read
-        tool: data.digest
-        scopes: ["${scope}"]
-`,
-  );
-  const output = runJson(["skill", "inspect", skill, "--json"]);
-  if (!JSON.stringify(output).includes(scope)) {
-    throw new Error("inspection changed or dropped an opaque skill scope");
-  }
-  return true;
-}
-
 async function proveInterruption() {
   if (process.platform === "win32") {
     return "covered_by_windows_process_containment";
@@ -449,15 +411,14 @@ async function proveInterruption() {
   writeSkill(
     skill,
     "interrupt-probe",
-    `skill: interrupt-probe
-runners:
+    `minimum_runx: 0.12.0
+methods:
   run:
-    default: true
     steps:
       - id: run
-        tool: { module: interrupt.mjs, timeout_seconds: 30 }
+        tool: {module: interrupt.mjs, timeout_seconds: 30}
         outputs:
-          completed: boolean
+          completed: {type: boolean}
 `,
   );
   writeFileSync(path.join(skill, "interrupt.mjs"), "export default () => ({ completed: true });\n");
@@ -546,7 +507,7 @@ async function waitForDirectChildProcess(child, expectedCommand, closed) {
   throw new Error("candidate did not start its JavaScript worker before SIGINT");
 }
 
-function writeSkill(directory, name, profile, manualBody = "") {
+function writeSkill(directory, name, profile, manualBody = "", tests = {}) {
   mkdirSync(directory, { recursive: true });
   writeFileSync(
     path.join(directory, "SKILL.md"),
@@ -563,6 +524,10 @@ ${manualBody}
 `,
   );
   writeFileSync(path.join(directory, "run.yaml"), profile);
+  for (const [test, source] of Object.entries(tests)) {
+    mkdirSync(path.join(directory, "tests"), { recursive: true });
+    writeFileSync(path.join(directory, "tests", `${test}.yaml`), source);
+  }
 }
 
 function runJson(args, expectedStatuses = [0]) {

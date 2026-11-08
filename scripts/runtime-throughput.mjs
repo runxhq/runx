@@ -575,26 +575,17 @@ Digest one bounded note through the normal skill execution and receipt path.
     );
     writeFileSync(
       path.join(skill, "run.yaml"),
-      `skill: cli-file-input-performance
-version: "0.1.0"
+      `version: "0.1.0"
+minimum_runx: 0.12.0
 
 catalog:
-  kind: graph
-  audience: public
   visibility: public
-  role: context
-  execution: read
-  completion: runtime_receipt
-  requires_adapter: false
-  approval: none
 
-runners:
+methods:
   digest:
-    default: true
     inputs:
       note:
         type: string
-        required: true
         description: Exact UTF-8 note to digest.
     steps:
       - id: digest

@@ -21,15 +21,14 @@ description: Verify the published image runs a JavaScript-backed skill.
 
 # Image smoke
 `);
-  writeFileSync(path.join(skill, "run.yaml"), `skill: image-smoke
-runners:
+  writeFileSync(path.join(skill, "run.yaml"), `minimum_runx: 0.12.0
+methods:
   run:
-    default: true
     steps:
       - id: run
-        tool: { module: probe.mjs }
+        tool: {module: probe.mjs}
         outputs:
-          value: string
+          value: {type: string}
 `);
   writeFileSync(path.join(skill, "probe.mjs"), 'export default () => ({ value: "image-worker-ok" });\n');
 
