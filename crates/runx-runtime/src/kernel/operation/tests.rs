@@ -191,7 +191,7 @@ impl Provider {
     ) {
         self.grants.lock().unwrap().push(serde_json::json!({
             "grant_id": grant_id,
-            "provider": connector.manifest.id.as_str(),
+            "provider": connector.manifest.name.as_str(),
             "connector_binding": connector.binding(),
             "status": "active",
             "credential_material_bound": true,
@@ -227,8 +227,10 @@ impl crate::http::RuntimeHttpTransport for Provider {
         }
         if request.url == "https://api.forge.fixture.invalid/oauth/token" {
             self.calls.lock().unwrap().push(
-                serde_json::from_value(serde_json::json!({"method": "POST", "url": request.url}))
-                    .unwrap(),
+                serde_json::from_value(
+                    serde_json::json!({"http_method": "POST", "url": request.url}),
+                )
+                .unwrap(),
             );
             return Ok(RuntimeHttpResponse::new(
                 200,
@@ -1578,7 +1580,7 @@ fn price_advisories_with_a_precondition(fixture: &Fixture) -> std::path::PathBuf
         .join("connectors/fixture/advisories/connector.yaml");
     let yaml = std::fs::read_to_string(&path).unwrap().replace(
         "        allowed_hosts: [advisories.fixture.invalid]\n",
-        "        allowed_hosts: [advisories.fixture.invalid]\n        preconditions:\n          - request: {id: exists, method: GET, url: \"https://advisories.fixture.invalid/v1/vulns/exists\"}\n            expected_status: 200\n",
+        "        allowed_hosts: [advisories.fixture.invalid]\n        preconditions:\n          - request: {id: exists, http_method: GET, url: \"https://advisories.fixture.invalid/v1/vulns/exists\"}\n            expected_status: 200\n",
     );
     std::fs::write(&path, yaml).unwrap();
     path
@@ -1612,8 +1614,8 @@ fn a_priced_call_keeps_its_spend_when_its_request_cannot_be_built_after_its_prec
     let path = price_advisories_with_a_precondition(&fixture);
     // A header takes a string, so this request cannot be rendered from a list of ids.
     let yaml = std::fs::read_to_string(&path).unwrap().replace(
-        "          - each: {\"$argument\": \"/ids\"}\n            method: GET\n",
-        "          - each: {\"$argument\": \"/ids\"}\n            method: GET\n            headers: {x-test: {\"$argument\": \"/ids\"}}\n",
+        "          - each: {\"$argument\": \"/ids\"}\n            http_method: GET\n",
+        "          - each: {\"$argument\": \"/ids\"}\n            http_method: GET\n            headers: {x-test: {\"$argument\": \"/ids\"}}\n",
     );
     std::fs::write(path, yaml).unwrap();
     let authority = limited(5_000);
@@ -2138,10 +2140,9 @@ fn a_stdio_mcp_server_receives_the_instance_credential_and_no_operator_secret() 
         connector_dir.join("connector.yaml"),
         format!(
             r#"schema: runx.connector.v1
-id: probe-mcp
-name: Probe
+name: probe-mcp
+title: Probe
 description: Reads its own environment.
-runtime_capability: false
 auth:
   credentials:
     key:
@@ -2428,17 +2429,16 @@ fn an_effect_renders_from_the_result_and_is_checked_only_against_declared_patter
     let manifest = |references: &str, kind: &str, locator: &str| {
         let yaml = format!(
             r#"schema: runx.connector.v1
-id: acme
-name: Acme
+name: acme
+title: Acme
 description: A plugin-shaped connector.
-runtime_capability: false
 auth: {{none: {{}}}}
 placements: {{local: {{auth: [none]}}}}
 {references}
 operations:
   items.create:
     description: Create items.
-    verb: create
+    verb: write
     scopes: [items.write]
     target: {{template: "acme://items"}}
     result_fields: [items]
@@ -2682,10 +2682,9 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
     let manifest: runx_contracts::connector::ConnectorManifest =
         serde_json::from_value(serde_json::json!({
             "schema": "runx.connector.v1",
-            "id": "notes",
-            "name": "Notes",
+            "name": "notes",
+            "title": "Notes",
             "description": "Write and read notes.",
-            "runtime_capability": false,
             "auth": {"delegated": {"principal": {"url": "https://notes.example/api/me", "id": "id", "login": "login"}}},
             "placements": {"hosted": {"auth": "delegated"}},
             "operations": {
@@ -2694,7 +2693,7 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
                     "verb": "read",
                     "scopes": ["note.read"],
                     "target": {"template": {"$argument": "/note"}},
-                    "hosted": {"provider_scopes": ["notes:read"]}
+                    "provider_scopes": ["notes:read"]
                 },
                 "note.post": {
                     "description": "Post a note.",
@@ -2703,7 +2702,7 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
                     "target": {"template": {"$argument": "/note"}},
                     "approval": "required",
                     "result_fields": ["note"],
-                    "hosted": {"provider_scopes": ["notes:write"]}
+                    "provider_scopes": ["notes:write"]
                 },
                 "note.put": {
                     "description": "Put a note by its key.",
@@ -2714,7 +2713,7 @@ fn a_read_or_a_deduplicated_write_resends_and_any_other_write_does_not() {
                     "idempotency_key_format": "uuid",
                     "guarantees": {"provider_idempotency": "enforced"},
                     "result_fields": ["note"],
-                    "hosted": {"provider_scopes": ["notes:write"]}
+                    "provider_scopes": ["notes:write"]
                 }
             }
         }))

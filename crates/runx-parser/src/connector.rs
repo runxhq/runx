@@ -12,10 +12,10 @@ use runx_contracts::connector::{
     AmountRule, ApprovalFloor, ConnectorAuth, ConnectorManifest, ConnectorOperation,
     CredentialDeclaration, CredentialName, Digest, HostedAuth, HttpAuth, HttpBodyEncoding,
     HttpImplementation, HttpMethod, HttpPageCursorLocation, HttpReadback, HttpRequest,
-    Implementation, LeaseAction, LocalAuth, McpServer, OperationAccess, OperationName,
-    OperationVerb, PrincipalRequest, ProviderIdempotency, ReadbackExpected, ReadbackGuarantee,
-    ReadbackMatch, ReferenceDeclaration, SessionAuth, Template, json_pointer_segments,
-    manifest_digest, operation_digest,
+    Implementation, LocalAuth, McpServer, OperationAccess, OperationLease, OperationName,
+    OperationVerb, Placement, PrincipalRequest, ProviderIdempotency, ReadbackExpected,
+    ReadbackGuarantee, ReadbackMatch, ReferenceDeclaration, SessionAuth, Template,
+    json_pointer_segments, manifest_digest, operation_digest,
 };
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{JsonObject, JsonValue, ReferenceType};
@@ -76,7 +76,7 @@ pub fn validate_connector_manifest(
         .operations
         .iter()
         .map(|(name, operation)| {
-            operation_digest(&manifest.id, name, operation).map(|digest| (name.clone(), digest))
+            operation_digest(&manifest.name, name, operation).map(|digest| (name.clone(), digest))
         })
         .collect::<Result<BTreeMap<_, _>, _>>()
         .map_err(digest_error)?;
@@ -435,11 +435,11 @@ fn validate_process_binding(
         );
     }
     let mut seen = BTreeSet::new();
-    for scope in &process.runtime_scopes {
+    for scope in &process.requires {
         if !seen.insert(scope.as_str()) {
             errors.push(
-                &format!("{field}.runtime_scopes"),
-                format!("duplicate runtime scope {scope}"),
+                &format!("{field}.requires"),
+                format!("duplicate requirement {scope}"),
             );
         }
     }
@@ -475,7 +475,7 @@ fn credential_recipient(
         .values()
         .filter(|operation| operation.credentials.contains(credential))
     {
-        if operation.hosted.is_some() {
+        if manifest.implements(operation, Placement::Hosted) {
             return CredentialRecipient::Network;
         }
         match operation.implementation.as_ref() {
@@ -588,7 +588,7 @@ fn validate_delegated_principal(
     let declared: BTreeSet<&str> = manifest
         .operations
         .values()
-        .filter(|operation| operation.hosted.is_some())
+        .filter(|operation| manifest.implements(operation, Placement::Hosted))
         .filter_map(|operation| match &operation.implementation {
             Some(Implementation::Http(http)) => Some(http),
             _ => None,
@@ -728,23 +728,25 @@ fn validate_operation(
         );
     }
 
-    match (&operation.hosted, &manifest.placements.hosted) {
-        (Some(_), None) => errors.push(
-            &format!("{field}.hosted"),
-            "the connector has no hosted placement",
-        ),
-        (Some(hosted), Some(placement)) => match placement.auth {
-            HostedAuth::Delegated if hosted.provider_scopes.is_empty() => errors.push(
-                &format!("{field}.hosted.provider_scopes"),
-                "delegated placement needs the provider's scopes",
+    // Under delegated auth an operation the hosted placement runs names the
+    // provider's scopes its grant asks for, and only such an operation names
+    // them; a credential placement has none.
+    if !operation.provider_scopes.is_empty() {
+        match &manifest.placements.hosted {
+            None => errors.push(
+                &format!("{field}.provider_scopes"),
+                "the connector has no hosted placement",
             ),
-            HostedAuth::Credential if !hosted.provider_scopes.is_empty() => errors.push(
-                &format!("{field}.hosted.provider_scopes"),
+            Some(placement) if placement.auth == HostedAuth::Credential => errors.push(
+                &format!("{field}.provider_scopes"),
                 "credential placement has no provider scopes",
             ),
-            _ => {}
-        },
-        (None, _) => {}
+            Some(_) if !manifest.implements(operation, Placement::Hosted) => errors.push(
+                &format!("{field}.provider_scopes"),
+                "the hosted placement runs only an http implementation or a private driver",
+            ),
+            Some(_) => {}
+        }
     }
 
     if let Some(cost) = &operation.cost {
@@ -813,7 +815,8 @@ fn validate_operation(
         }
         _ => {}
     }
-    if let (Some(_), Some(placement)) = (&operation.hosted, &manifest.placements.hosted)
+    if let Some(placement) = &manifest.placements.hosted
+        && manifest.implements(operation, Placement::Hosted)
         && let Implementation::Http(http) = implementation
     {
         let supported = match placement.auth {
@@ -834,7 +837,7 @@ fn validate_operation(
                         .auth
                         .credentials
                         .get(*name)
-                        .is_some_and(CredentialDeclaration::is_purchase)
+                        .is_some_and(CredentialDeclaration::is_lease)
                 })
                 .or(placement.credential.as_ref())
                 .and_then(|name| http.auth.get(name))
@@ -888,8 +891,8 @@ fn validate_operation(
             );
         }
     }
-    let hosted_http =
-        operation.hosted.is_some() && matches!(implementation, Implementation::Http(_));
+    let hosted_http = manifest.implements(operation, Placement::Hosted)
+        && matches!(implementation, Implementation::Http(_));
     if manifest.placements.local.is_none() && !hosted_http {
         errors.push(
             &format!("{field}.implementation"),
@@ -957,9 +960,6 @@ fn validate_operation(
                     "a store write is confirmed by reading it back",
                 );
             }
-            if operation.hosted.is_some() {
-                errors.push(&format!("{field}.hosted"), "a store runs only locally");
-            }
         }
         Implementation::Artifact(_) => {
             if operation.input_schema.is_none() {
@@ -973,9 +973,6 @@ fn validate_operation(
                     &format!("{field}.guarantees.readback"),
                     "an artifact write is confirmed by reading it back",
                 );
-            }
-            if operation.hosted.is_some() {
-                errors.push(&format!("{field}.hosted"), "an artifact runs only locally");
             }
             if !operation.credentials.is_empty() {
                 errors.push(
@@ -1084,24 +1081,25 @@ fn validate_effects(manifest: &ConnectorManifest, errors: &mut Errors) {
     }
 }
 
-/// A purchase credential is what a purchase bought (S10, N11). runx Connect
-/// takes it from the seller's answer to the operation that holds it, keeps it
-/// per resource for the purchase's buyer, and presents it only to the hosted
-/// requests of operations on that resource, so the kernel never sees it.
+/// A lease is a credential the provider issues for one resource a call
+/// creates (S10, N11). runx Connect takes it from the seller's answer to the
+/// operation that takes it, keeps it per resource for the resource's owner,
+/// and presents it only to the hosted requests of operations on that
+/// resource, so the kernel never sees it.
 fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
     let auth = &manifest.auth;
-    let purchase = |credential: &CredentialName| {
+    let leased = |credential: &CredentialName| {
         auth.credentials
             .get(credential)
-            .is_some_and(CredentialDeclaration::is_purchase)
+            .is_some_and(CredentialDeclaration::is_lease)
     };
-    let mut held = false;
+    let mut any_lease = false;
     for (name, declaration) in &auth.credentials {
         let field = format!("auth.credentials.{name}");
-        match (declaration.is_purchase(), declaration.delivery.is_some()) {
+        match (declaration.is_lease(), declaration.delivery.is_some()) {
             (true, true) => errors.push(
                 &format!("{field}.delivery"),
-                "a purchase credential never leaves runx Connect; declare no delivery",
+                "a lease never leaves runx Connect; declare no delivery",
             ),
             (false, false) => errors.push(
                 &format!("{field}.delivery"),
@@ -1109,10 +1107,10 @@ fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
             ),
             _ => {}
         }
-        if !declaration.is_purchase() {
+        if !declaration.is_lease() {
             continue;
         }
-        held = true;
+        any_lease = true;
         if manifest
             .placements
             .hosted
@@ -1122,56 +1120,54 @@ fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
         {
             errors.push(
                 "placements.hosted.credential",
-                "a purchase credential is held per resource; the placement names the connector's own credential",
+                "a lease is held per resource; the placement names the connector's own credential",
             );
         }
         let taken = manifest.operations.values().any(|operation| {
-            operation
-                .holds
-                .as_ref()
-                .is_some_and(|hold| hold.action == LeaseAction::Take && &hold.credential == name)
+            matches!(&operation.lease, Some(OperationLease::Take(take)) if &take.take == name)
         });
         if !taken {
-            errors.push(
-                &field,
-                "a purchase credential is filled by an operation that holds it with action take",
-            );
+            errors.push(&field, "a lease is filled by an operation that takes it");
         }
     }
-    if held && manifest.placements.local.is_some() {
+    if any_lease && manifest.placements.local.is_some() {
         errors.push(
             "placements.local",
-            "a connector holding what a purchase bought runs only through runx Connect",
+            "a connector with leases runs only through runx Connect",
         );
     }
 
     for (name, operation) in &manifest.operations {
         let field = format!("operations.{name}");
         let http = match &operation.implementation {
-            Some(Implementation::Http(http)) if operation.hosted.is_some() => Some(http),
+            Some(Implementation::Http(http))
+                if manifest.implements(operation, Placement::Hosted) =>
+            {
+                Some(http)
+            }
             _ => None,
         };
-        if operation.credentials.iter().any(purchase) {
+        if operation.credentials.iter().any(leased) {
             if operation.credentials.len() != 1 {
                 errors.push(
                     &format!("{field}.credentials"),
-                    "an operation on a held resource is authorized by its purchase credential alone",
+                    "an operation on a leased resource is authorized by its lease alone",
                 );
             }
             if !acts_on_arguments(&operation.target.template) {
                 errors.push(
                     &format!("{field}.target"),
-                    "an operation on a held resource renders its target from the call's arguments alone, so the hold is found before the call",
+                    "an operation on a leased resource renders its target from the call's arguments alone, so the lease is found before the call",
                 );
             }
             match http {
                 None => errors.push(
                     &field,
-                    "an operation on a held resource runs hosted declared requests",
+                    "an operation on a leased resource runs hosted declared requests",
                 ),
                 Some(http) => {
                     for (credential, presentation) in &http.auth {
-                        if purchase(credential)
+                        if leased(credential)
                             && !matches!(
                                 presentation,
                                 HttpAuth::Bearer { .. } | HttpAuth::Header { .. }
@@ -1179,7 +1175,7 @@ fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
                         {
                             errors.push(
                                 &format!("{field}.implementation.http.auth.{credential}"),
-                                "runx Connect presents a held credential only as a header",
+                                "runx Connect presents a lease only as a header",
                             );
                         }
                     }
@@ -1187,142 +1183,120 @@ fn validate_leases(manifest: &ConnectorManifest, errors: &mut Errors) {
             }
         }
 
-        let Some(hold) = &operation.holds else {
+        let Some(lease) = &operation.lease else {
             continue;
         };
-        let field = format!("{field}.holds");
-        if !purchase(&hold.credential) {
+        let field = format!("{field}.lease");
+        let credential = lease.credential();
+        if !leased(credential) {
             errors.push(
-                &format!("{field}.credential"),
-                format!(
-                    "credential {} is not declared with kind purchase",
-                    hold.credential
-                ),
+                &format!("{field}.{}", lease.action().as_str()),
+                format!("credential {credential} is not declared with kind lease"),
             );
         }
         if operation.access() == OperationAccess::Read {
-            errors.push(&field, "a read changes no hold");
+            errors.push(&field, "a read changes no lease");
         }
         let Some(http) = http else {
             errors.push(
                 &field,
-                "runx Connect applies a hold to the answer of hosted declared requests",
+                "runx Connect applies a lease to the answer of hosted declared requests",
             );
             continue;
         };
-        let single_result = |template: &Option<Template>| {
-            template
-                .as_ref()
-                .is_some_and(|template| template.result_pointer().is_some())
-        };
-        match hold.action {
-            LeaseAction::Take => {
-                if !(operation.target.template.is_literal()
-                    || acts_on_arguments(&operation.target.template))
-                {
-                    errors.push(
-                        &format!("{field}.target"),
-                        "the operation that takes a hold renders its own target without instance parameters",
-                    );
-                }
-                let target = &hold.target;
-                if !target.binds_result()
-                    || target.binds_argument()
-                    || target.binds_parameter()
-                    || target.binds_exchange()
-                    || target.binds_runx()
-                {
-                    errors.push(
-                        &format!("{field}.target"),
-                        "a taken hold's target is rendered from the call's public result",
-                    );
-                }
-                if !single_result(&hold.expires_at) {
-                    errors.push(
-                        &format!("{field}.expires_at"),
-                        "a taken hold states its expiry as one $result binding",
-                    );
-                }
-                if !http.readbacks.is_empty() {
-                    errors.push(
-                        &field,
-                        "a readback would read the held value again; the operation that takes a hold declares none",
-                    );
-                }
-                let declared = auth
-                    .credentials
-                    .get(&hold.credential)
-                    .map(|declaration| {
-                        declaration
-                            .fields
-                            .iter()
-                            .map(|field| &field.name)
-                            .collect::<BTreeSet<_>>()
-                    })
-                    .unwrap_or_default();
-                if hold.fields.keys().collect::<BTreeSet<_>>() != declared {
-                    errors.push(
-                        &format!("{field}.fields"),
-                        format!(
-                            "a take fills every field of credential {}, and only those",
-                            hold.credential
-                        ),
-                    );
-                }
-                for (credential_field, binding) in &hold.fields {
-                    let path = binding
-                        .response_reference()
-                        .and_then(|reference| reference.strip_prefix("write."));
-                    let Some(path) = path else {
-                        errors.push(
-                            &format!("{field}.fields.{credential_field}"),
-                            "a held field is one $response binding on what the write returned (write.<path>)",
-                        );
-                        continue;
-                    };
-                    let held = format!("acknowledgement.{path}");
-                    let overlaps = |read: &str| {
-                        read == held
-                            || held.starts_with(&format!("{read}."))
-                            || read.starts_with(&format!("{held}."))
-                    };
-                    if http
-                        .result_paths
-                        .values()
-                        .any(|read| overlaps(read.as_str()))
-                        || http
-                            .operation_id_path
-                            .as_ref()
-                            .is_some_and(|read| overlaps(&format!("acknowledgement.{read}")))
-                    {
-                        errors.push(
-                            &format!("{field}.fields.{credential_field}"),
-                            "the call's result reads the held value; point result_paths at the public answer only",
-                        );
-                    }
-                }
+        if let Some(expires_at) = lease.expires_at()
+            && expires_at.result_pointer().is_none()
+        {
+            errors.push(
+                &format!("{field}.expires_at"),
+                "a lease states its expiry as one $result binding",
+            );
+        }
+        let OperationLease::Take(take) = lease else {
+            if !acts_on_arguments(&operation.target.template) {
+                errors.push(
+                    &format!("operations.{name}.target"),
+                    "a lease is renewed or released on the target the call's arguments name",
+                );
             }
-            LeaseAction::Refresh | LeaseAction::Release => {
-                if !acts_on_arguments(&hold.target) {
-                    errors.push(
-                        &format!("{field}.target"),
-                        "a hold is refreshed or released by the target the call's arguments name",
-                    );
-                }
-                if !hold.fields.is_empty() {
-                    errors.push(&format!("{field}.fields"), "only a take fills fields");
-                }
-                match hold.action {
-                    LeaseAction::Refresh if !single_result(&hold.expires_at) => errors.push(
-                        &format!("{field}.expires_at"),
-                        "a refresh states the new expiry as one $result binding",
-                    ),
-                    LeaseAction::Release if hold.expires_at.is_some() => errors.push(
-                        &format!("{field}.expires_at"),
-                        "a release ends the hold; it states no expiry",
-                    ),
-                    _ => {}
-                }
+            continue;
+        };
+        if !(operation.target.template.is_literal()
+            || acts_on_arguments(&operation.target.template))
+        {
+            errors.push(
+                &format!("operations.{name}.target"),
+                "the operation that takes a lease renders its own target without instance parameters",
+            );
+        }
+        let target = &take.target;
+        if !target.binds_result()
+            || target.binds_argument()
+            || target.binds_parameter()
+            || target.binds_exchange()
+            || target.binds_runx()
+        {
+            errors.push(
+                &format!("{field}.target"),
+                "a taken lease's target is rendered from the call's public result",
+            );
+        }
+        if !http.readbacks.is_empty() {
+            errors.push(
+                &field,
+                "a readback would read the leased value again; the operation that takes a lease declares none",
+            );
+        }
+        let declared = auth
+            .credentials
+            .get(&take.take)
+            .map(|declaration| {
+                declaration
+                    .fields
+                    .iter()
+                    .map(|field| &field.name)
+                    .collect::<BTreeSet<_>>()
+            })
+            .unwrap_or_default();
+        if take.fields.keys().collect::<BTreeSet<_>>() != declared {
+            errors.push(
+                &format!("{field}.fields"),
+                format!(
+                    "a take fills every field of credential {}, and only those",
+                    take.take
+                ),
+            );
+        }
+        for (credential_field, binding) in &take.fields {
+            let path = binding
+                .response_reference()
+                .and_then(|reference| reference.strip_prefix("write."));
+            let Some(path) = path else {
+                errors.push(
+                    &format!("{field}.fields.{credential_field}"),
+                    "a leased field is one $response binding on what the write returned (write.<path>)",
+                );
+                continue;
+            };
+            let leased_path = format!("acknowledgement.{path}");
+            let overlaps = |read: &str| {
+                read == leased_path
+                    || leased_path.starts_with(&format!("{read}."))
+                    || read.starts_with(&format!("{leased_path}."))
+            };
+            if http
+                .result_paths
+                .values()
+                .any(|read| overlaps(read.as_str()))
+                || http
+                    .operation_id_path
+                    .as_ref()
+                    .is_some_and(|read| overlaps(&format!("acknowledgement.{read}")))
+            {
+                errors.push(
+                    &format!("{field}.fields.{credential_field}"),
+                    "the call's result reads the leased value; point result_paths at the public answer only",
+                );
             }
         }
     }
@@ -1459,7 +1433,7 @@ fn validate_purchase_binding(manifest: &ConnectorManifest, errors: &mut Errors) 
         {
             errors.push(&format!("{field}.effect"), CONNECT_ONLY);
         }
-        if operation.hosted_http().is_none()
+        if manifest.hosted_http(operation).is_none()
             && implementation_templates(manifest, operation).any(Template::binds_purchase)
         {
             errors.push(&format!("{field}.implementation"), CONNECT_ONLY);
@@ -1797,7 +1771,7 @@ fn validate_http(
                 ),
             );
         }
-        if read && !matches!(request.method, HttpMethod::Get | HttpMethod::Post) {
+        if read && !matches!(request.http_method, HttpMethod::Get | HttpMethod::Post) {
             errors.push(
                 &format!("{field}.requests"),
                 "a read issues GET or POST requests only",
@@ -1828,7 +1802,7 @@ fn validate_http(
                     format!("request {} pages only as a declared read", request.id),
                 );
             }
-            if pages.location == HttpPageCursorLocation::Body {
+            if pages.next.location == HttpPageCursorLocation::Body {
                 if request.body_encoding == HttpBodyEncoding::Form {
                     errors.push(
                         &format!("{field}.requests"),
@@ -1841,7 +1815,7 @@ fn validate_http(
                         "a body page cursor needs a request body",
                     );
                 }
-                match json_pointer_segments(pages.param.as_str()) {
+                match json_pointer_segments(pages.next.param.as_str()) {
                     None => errors.push(
                         &format!("{field}.requests"),
                         "a body page cursor names an object member with a JSON pointer",
@@ -1966,7 +1940,7 @@ fn validate_http(
                 ),
             );
         }
-        if readback.request.method != HttpMethod::Get {
+        if readback.request.http_method != HttpMethod::Get {
             errors.push(
                 &format!("{field}.readbacks"),
                 format!("checking read {} must be a GET", readback.request.id),

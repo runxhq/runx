@@ -651,10 +651,12 @@ fn render_request(
     // A page after the first carries the cursor in place of whatever the
     // call started from.
     let paged = match (cursor, request.pages.as_ref()) {
-        (Some(cursor), Some(pages)) if pages.location == HttpPageCursorLocation::Query => Some((
-            pages.param.as_str(),
-            scalar_string(cursor).ok_or("a page cursor must be a scalar")?,
-        )),
+        (Some(cursor), Some(pages)) if pages.next.location == HttpPageCursorLocation::Query => {
+            Some((
+                pages.next.param.as_str(),
+                scalar_string(cursor).ok_or("a page cursor must be a scalar")?,
+            ))
+        }
         _ => None,
     };
     if let Some((param, _)) = &paged {
@@ -700,7 +702,7 @@ fn render_request(
     if !pairs.is_empty() {
         url.query_pairs_mut().extend_pairs(pairs);
     }
-    let method = match request.method {
+    let method = match request.http_method {
         ManifestMethod::Get => HttpMethod::Get,
         ManifestMethod::Post => HttpMethod::Post,
         ManifestMethod::Put => HttpMethod::Put,
@@ -721,9 +723,9 @@ fn render_request(
         .transpose()
         .map_err(|error| error.to_string())?;
     if let (Some(cursor), Some(pages)) = (cursor, request.pages.as_ref())
-        && pages.location == HttpPageCursorLocation::Body
+        && pages.next.location == HttpPageCursorLocation::Body
     {
-        pages::place_body_cursor(body.as_mut(), pages.param.as_str(), cursor)?;
+        pages::place_body_cursor(body.as_mut(), pages.next.param.as_str(), cursor)?;
     }
     if let Some(instance) = instance {
         instance.credential_body(body.as_mut())?;

@@ -1110,11 +1110,10 @@ mod tests {
         fs::write(
             connector_dir.join("connector.yaml"),
             r#"schema: runx.connector.v1
-id: ledger
-name: Ledger
+name: ledger
+title: Ledger
 description: Read a public ledger.
 category: agent-tools
-runtime_capability: false
 auth:
   credentials:
     service_token:
@@ -1134,7 +1133,6 @@ operations:
     credentials: [service_token]
     target: {template: "acme:ledger"}
     result_fields: [entry]
-    hosted: {}
 "#,
         )?;
         let connector = crate::ConnectorScope::at(&publisher)?.named("ledger")?;

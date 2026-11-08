@@ -18,10 +18,9 @@ fn assert_rejects(yaml: &str, expected: &str) {
 
 const FORGE: &str = r#"
 schema: runx.connector.v1
-id: forge
-name: Forge
+name: forge
+title: Forge
 description: Issues and pull requests.
-runtime_capability: false
 auth:
   delegated: {principal: {url: "https://api.example.com/user", id: id, login: login}}
 placements:
@@ -32,10 +31,10 @@ operations:
     verb: read
     scopes: [repo.read]
     target: {template: {"$argument": "/repo"}}
-    hosted: {provider_scopes: [repo]}
+    provider_scopes: [repo]
   pullrequest.merge:
     description: Merge a pull request.
-    verb: merge
+    verb: write
     scopes: [pr.merge]
     target: {template: {"$argument": "/repository"}}
     approval: required
@@ -43,10 +42,9 @@ operations:
 
 const NITROSEND: &str = r#"
 schema: runx.connector.v1
-id: nitrosend
-name: Nitrosend
+name: nitrosend
+title: Nitrosend
 description: Email campaigns and transactional sends.
-runtime_capability: false
 auth:
   credentials:
     api_key:
@@ -99,18 +97,37 @@ fn valid_manifests_produce_digests() {
 fn reads_cannot_require_approval_or_carry_standing() {
     assert_rejects(
         &FORGE.replace(
-            "    hosted: {provider_scopes: [repo]}\n",
-            "    approval: required\n    hosted: {provider_scopes: [repo]}\n",
+            "    provider_scopes: [repo]\n",
+            "    approval: required\n    provider_scopes: [repo]\n",
         ),
         "a read cannot require approval",
     );
 }
 
+/// A delegated grant asks for the provider's scopes each operation names, so
+/// the delegated placement runs only an operation that names them.
 #[test]
-fn delegated_placement_needs_provider_scopes() {
+fn delegated_placement_runs_only_operations_naming_provider_scopes() {
+    let read = OperationName::new("issue.read").expect("operation name");
+    let scoped = validate(FORGE).expect("forge validates");
+    assert!(
+        scoped
+            .manifest
+            .implements(&scoped.manifest.operations[&read], Placement::Hosted)
+    );
+    let unscoped = validate(&FORGE.replace("    provider_scopes: [repo]\n", ""))
+        .expect("an operation no placement runs is declared but unavailable");
+    assert!(
+        !unscoped
+            .manifest
+            .implements(&unscoped.manifest.operations[&read], Placement::Hosted)
+    );
     assert_rejects(
-        &FORGE.replace("hosted: {provider_scopes: [repo]}", "hosted: {}"),
-        "delegated placement needs the provider's scopes",
+        &FORGE.replace(
+            "placements:\n  hosted: {auth: delegated}",
+            "placements:\n  hosted: {auth: credential, credential: key}",
+        ),
+        "credential placement has no provider scopes",
     );
 }
 
@@ -170,10 +187,9 @@ fn multiplexed_mcp_tools_need_literal_distinct_discriminators() {
 
 const PLAIN_READ: &str = r#"
 schema: runx.connector.v1
-id: example
-name: Example
+name: example
+title: Example
 description: Example API.
-runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -187,7 +203,7 @@ operations:
       http:
         allowed_hosts: [api.example.com]
         requests:
-          - method: GET
+          - http_method: GET
             url: "https://api.example.com/item"
 "#;
 
@@ -195,7 +211,7 @@ fn header_read() -> String {
     PLAIN_READ
         .replace("auth: {none: {}}", "auth:\n  credentials:\n    key:\n      kind: api_key\n      fields: [{name: api_key}]\n      delivery: {env: EXAMPLE_KEY}\n      audience: [api.example.com]")
         .replace("placements: {local: {auth: [none]}}", "placements:\n  local: {auth: [credentials]}\n  hosted: {auth: credential, credential: key}")
-        .replace("    scopes: [item.read]", "    scopes: [item.read]\n    credentials: [key]\n    hosted: {}")
+        .replace("    scopes: [item.read]", "    scopes: [item.read]\n    credentials: [key]")
         .replace("        requests:", "        auth: {key: {type: header, name: x-api-key, field: api_key}}\n        requests:")
 }
 
@@ -296,10 +312,9 @@ fn mcp_uses_the_same_header_contract_and_rejects_session_overrides() {
 
 const HOOK: &str = r#"
 schema: runx.connector.v1
-id: hooks
-name: Hooks
+name: hooks
+title: Hooks
 description: Deliver to a webhook.
-runtime_capability: false
 auth:
   credentials:
     hook:
@@ -328,7 +343,7 @@ operations:
         auth: {hook: {type: url, field: url}}
         requests:
           - id: deliver
-            method: POST
+            http_method: POST
             url: "https://hooks.example.com/catch"
             body: {"$argument": "/payload"}
         decode: [{op: auto_json}]
@@ -357,7 +372,7 @@ fn a_webhook_write_takes_its_url_as_a_credential_and_is_acknowledged() {
     assert_rejects(
         &HOOK.replace(
             "        result_paths:",
-            "        readbacks:\n          - request: {id: check, method: GET, url: \"https://hooks.example.com/catch\"}\n            expected_status: 200\n        result_paths:",
+            "        readbacks:\n          - request: {id: check, http_method: GET, url: \"https://hooks.example.com/catch\"}\n            expected_status: 200\n        result_paths:",
         ),
         "a write the provider cannot read back declares no readbacks",
     );
@@ -374,10 +389,9 @@ fn a_webhook_write_takes_its_url_as_a_credential_and_is_acknowledged() {
 fn http_hosts_stay_inside_the_credential_audience() {
     let http = r#"
 schema: runx.connector.v1
-id: example
-name: Example
+name: example
+title: Example
 description: Example API.
-runtime_capability: false
 auth:
   credentials:
     token:
@@ -397,7 +411,7 @@ operations:
       http:
         allowed_hosts: [evil.example.net]
         auth: {token: {type: bearer}}
-        requests: [{id: item, method: GET, url: "https://evil.example.net/items"}]
+        requests: [{id: item, http_method: GET, url: "https://evil.example.net/items"}]
         decode: [{op: auto_json}]
         result_paths: {item: acknowledgement}
 "#;
@@ -427,10 +441,9 @@ operations:
 fn oauth2_client_credentials_bind_both_endpoints_and_fields() {
     let manifest = r#"
 schema: runx.connector.v1
-id: example
-name: Example
+name: example
+title: Example
 description: App-authenticated API.
-runtime_capability: false
 auth:
   credentials:
     app:
@@ -447,12 +460,11 @@ operations:
     credentials: [app]
     target: {template: "example://items"}
     result_fields: [item]
-    hosted: {}
     implementation:
       http:
         allowed_hosts: [api.example.test, auth.example.test]
         auth: {app: {type: oauth2_client_credentials, token_url: "https://auth.example.test/token", client_id: client_id, client_secret: client_secret}}
-        requests: [{id: item, method: GET, url: "https://api.example.test/items/1"}]
+        requests: [{id: item, http_method: GET, url: "https://api.example.test/items/1"}]
 "#;
     validate(manifest).expect("local and hosted app credentials validate");
     let dynamic = manifest.replace(
@@ -503,8 +515,8 @@ fn financial_bindings_cannot_hide_unapproved_terms_inside_decimal_conversion() {
         };
         let binding = serde_json::json!({"units":{"$minor_units":{"decimal":{source:reference},"scale":2}},"currency":"USD"});
         let manifest = FORGE.replace(
-            "    verb: merge",
-            &format!("    verb: merge\n    amount: {}", binding),
+            "    verb: write",
+            &format!("    verb: write\n    amount: {}", binding),
         );
         assert_rejects(&manifest, "financial amount binds only provider inputs");
     }
@@ -513,10 +525,9 @@ fn financial_bindings_cannot_hide_unapproved_terms_inside_decimal_conversion() {
 /// A user credential and an app credential, each presented its own way.
 const SOCIAL: &str = r#"
 schema: runx.connector.v1
-id: social
-name: Social
+name: social
+title: Social
 description: Posts and accounts.
-runtime_capability: false
 auth:
   credentials:
     user:
@@ -547,11 +558,11 @@ operations:
         allowed_hosts: [api.social.example]
         auth: {user: {type: oauth1}, app: {type: bearer}}
         requests:
-          - {id: me, method: GET, url: "https://api.social.example/me"}
+          - {id: me, http_method: GET, url: "https://api.social.example/me"}
           - id: posts
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.social.example/users/", {"$response": "me.json.id"}, "/posts"]}
-            pages: {param: cursor, cursor: meta.next, items: data, limit: {"$argument": "/limit"}}
+            pages: {items: data, limit: {"$argument": "/limit"}, next: {cursor: meta.next, param: cursor}}
         decode: [{op: auto_json}]
         result_paths: {account: acknowledgement.0, posts: acknowledgement.1.items}
 "#;
@@ -586,8 +597,8 @@ fn a_page_limit_comes_from_the_call_and_post_reads_can_page() {
         "takes its page limit from the call",
     );
     validate(&SOCIAL.replace(
-        "method: GET\n            url: {\"$concat\"",
-        "method: POST\n            url: {\"$concat\"",
+        "http_method: GET\n            url: {\"$concat\"",
+        "http_method: POST\n            url: {\"$concat\"",
     ))
     .expect("a declared POST read can carry its page cursor in the query");
 }
@@ -595,15 +606,14 @@ fn a_page_limit_comes_from_the_call_and_post_reads_can_page() {
 #[test]
 fn default_query_paging_preserves_the_existing_wire_shape_and_operation_digest() {
     let legacy = validate(SOCIAL).expect("existing query pager");
-    let explicit =
-        validate(&SOCIAL.replace("pages: {param: cursor", "pages: {in: query, param: cursor"))
-            .expect("explicit query placement");
+    let explicit = validate(&SOCIAL.replace("param: cursor}", "param: cursor, in: query}"))
+        .expect("explicit query placement");
     let name = OperationName::new("account.posts.read").expect("operation name");
     let old_operation = &legacy.manifest.operations[&name];
     let explicit_operation = &explicit.manifest.operations[&name];
     assert_eq!(
-        operation_digest(&legacy.manifest.id, &name, old_operation).expect("digest"),
-        operation_digest(&explicit.manifest.id, &name, explicit_operation).expect("digest")
+        operation_digest(&legacy.manifest.name, &name, old_operation).expect("digest"),
+        operation_digest(&explicit.manifest.name, &name, explicit_operation).expect("digest")
     );
     let Some(Implementation::Http(http)) = &old_operation.implementation else {
         unreachable!("HTTP fixture");
@@ -611,16 +621,15 @@ fn default_query_paging_preserves_the_existing_wire_shape_and_operation_digest()
     let page = serde_json::to_value(&http.requests[1].pages).expect("page serialization");
     assert_eq!(
         page,
-        serde_json::json!({"param":"cursor","cursor":"meta.next","items":"data","limit":{"$argument":"/limit"}})
+        serde_json::json!({"items":"data","limit":{"$argument":"/limit"},"next":{"cursor":"meta.next","param":"cursor"}})
     );
 }
 
 const BODY_PAGE_READ: &str = r#"
 schema: runx.connector.v1
-id: pager
-name: Pager
+name: pager
+title: Pager
 description: Bounded provider reads.
-runtime_capability: false
 auth:
   credentials:
     key:
@@ -650,10 +659,10 @@ operations:
         requests:
           - id: query
             each: {"$argument": "/queries"}
-            method: POST
+            http_method: POST
             url: https://api.example.test/query
             body: {"$item": ""}
-            pages: {in: body, param: /page_token, cursor: next, items: data}
+            pages: {items: data, next: {cursor: next, param: /page_token, in: body}}
         result_paths: {rows: acknowledgement}
 "#;
 
@@ -662,8 +671,8 @@ fn body_paging_admits_bounded_repeated_reads_and_rejects_malformed_locations() {
     validate(BODY_PAGE_READ).expect("a bounded repeated POST read can page");
     assert_rejects(
         &BODY_PAGE_READ.replace(
-            "method: POST",
-            "method: POST\n            body_encoding: form",
+            "http_method: POST",
+            "http_method: POST\n            body_encoding: form",
         ),
         "requires JSON encoding",
     );
@@ -677,7 +686,7 @@ fn body_paging_admits_bounded_repeated_reads_and_rejects_malformed_locations() {
     );
     assert_rejects(&BODY_PAGE_READ.replace(", maxItems: 4", ""), "maxItems");
     assert_rejects(
-        &BODY_PAGE_READ.replace("method: POST", "method: DELETE"),
+        &BODY_PAGE_READ.replace("http_method: POST", "http_method: DELETE"),
         "a read issues GET or POST",
     );
 }
@@ -718,12 +727,13 @@ fn paging_preserves_metering_and_hosted_placement_restrictions() {
         ),
         "cannot page",
     );
-    let hosted = BODY_PAGE_READ
-        .replace("placements: {local: {auth: [credentials]}}", "placements: {local: {auth: [credentials]}, hosted: {auth: credential, credential: key}}")
-        .replace("    result_fields: [rows]", "    result_fields: [rows]\n    hosted: {}");
+    let hosted = BODY_PAGE_READ.replace(
+        "placements: {local: {auth: [credentials]}}",
+        "placements: {local: {auth: [credentials]}, hosted: {auth: credential, credential: key}}",
+    );
     assert_rejects(&hosted, "a hosted read is not paged");
     assert_rejects(
-        &BODY_PAGE_READ.replace("    verb: read", "    verb: create"),
+        &BODY_PAGE_READ.replace("    verb: read", "    verb: write"),
         "pages only as a declared read",
     );
 }
@@ -741,7 +751,7 @@ fn item_read_digest(yaml: &str) -> Digest {
     let validated = validate(yaml).expect("the manifest validates");
     let name = OperationName::new("item.read").expect("name");
     runx_contracts::connector::operation_digest(
-        &validated.manifest.id,
+        &validated.manifest.name,
         &name,
         &validated.manifest.operations[&name],
     )
@@ -809,7 +819,7 @@ fn metered_reads_can_gate_usage_and_deduplicate_only_with_a_real_provider_key() 
         &keyed,
         "enforced deduplication needs the request to send the call's key",
     );
-    let sent = keyed.replace("          - method: GET", "          - method: GET\n            headers: {idempotency-key: {\"$runx\": \"idempotency_key\"}}");
+    let sent = keyed.replace("          - http_method: GET", "          - http_method: GET\n            headers: {idempotency-key: {\"$runx\": \"idempotency_key\"}}");
     validate(&sent).expect("the metered read sends the declared deduplication key");
     assert_rejects(
         &sent.replace("    guarantees: {provider_idempotency: enforced}\n", ""),
@@ -862,7 +872,7 @@ fn a_lone_json_read_takes_its_whole_answer_by_default() {
     assert_rejects(
         &PLAIN_READ.replace(
             "            url: \"https://api.example.com/item\"\n",
-            "            url: \"https://api.example.com/item\"\n          - method: GET\n            url: \"https://api.example.com/other\"\n",
+            "            url: \"https://api.example.com/item\"\n          - http_method: GET\n            url: \"https://api.example.com/other\"\n",
         ),
         "duplicate request id request; name each request when an exchange has more than one",
     );
@@ -870,10 +880,9 @@ fn a_lone_json_read_takes_its_whole_answer_by_default() {
 
 const REPEATED: &str = r#"
 schema: runx.connector.v1
-id: example
-name: Example
+name: example
+title: Example
 description: Example API.
-runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -893,7 +902,7 @@ operations:
         requests:
           - id: item
             each: {"$argument": "/ids"}
-            method: GET
+            http_method: GET
             url: {"$concat": ["https://api.example.com/items/", {"$item": ""}]}
         decode: [{op: auto_json}]
         result_paths: {items: acknowledgement}
@@ -922,10 +931,9 @@ fn input_schemas_are_valid_json_schema() {
 
 const HOSTED_WRITE: &str = r#"
 schema: runx.connector.v1
-id: example
-name: Example
+name: example
+title: Example
 description: Example API.
-runtime_capability: false
 auth:
   delegated: {principal: {url: "https://api.example.com/user", id: id, login: login}}
   credentials:
@@ -944,15 +952,15 @@ operations:
     scopes: [item.write]
     credentials: [token]
     target: {template: {"$argument": "/id"}}
-    hosted: {provider_scopes: [items]}
+    provider_scopes: [items]
     implementation:
       http:
         allowed_hosts: [api.example.com]
         auth: {token: {type: bearer}}
         requests:
-          - {id: update, method: PATCH, url: {"$concat": ["https://api.example.com/items/", {"$argument": "/id"}]}, body: {"$argument": "/patch"}}
+          - {id: update, http_method: PATCH, url: {"$concat": ["https://api.example.com/items/", {"$argument": "/id"}]}, body: {"$argument": "/patch"}}
         readbacks:
-          - request: {id: item, method: GET, url: {"$concat": ["https://api.example.com/items/", {"$argument": "/id"}]}}
+          - request: {id: item, http_method: GET, url: {"$concat": ["https://api.example.com/items/", {"$argument": "/id"}]}}
             matches: [{expected: {source: argument, path: patch.title}, observed: title}]
         decode: [{op: auto_json}]
         result_paths: {item: acknowledgement}
@@ -1030,8 +1038,8 @@ fn only_a_hosted_declared_request_binds_the_purchase() {
     );
     assert_rejects(
         &HOSTED_WRITE.replace(
-            "    hosted: {provider_scopes: [items]}\n",
-            "    hosted: {provider_scopes: [items]}\n    effect: {kind: thread, locator: {\"$concat\": [\"example://items/\", {\"$runx\": \"purchase\"}]}}\n",
+            "    provider_scopes: [items]\n",
+            "    provider_scopes: [items]\n    effect: {kind: thread, locator: {\"$concat\": [\"example://items/\", {\"$runx\": \"purchase\"}]}}\n",
         ),
         CONNECT_ONLY,
     );
@@ -1072,7 +1080,7 @@ fn a_precondition_reads_no_answer() {
         HOSTED_WRITE.replace(
             "        readbacks:\n",
             &format!(
-                "        preconditions:\n          - request: {{id: exists, method: GET, url: {url}}}\n            expected_status: 200\n        readbacks:\n"
+                "        preconditions:\n          - request: {{id: exists, http_method: GET, url: {url}}}\n            expected_status: 200\n        readbacks:\n"
             ),
         )
     };
@@ -1158,8 +1166,8 @@ fn a_write_declares_what_it_produces_and_only_an_effect_reads_the_result() {
     // it does not have yet.
     assert_rejects(
         &FORGE.replace(
-            "    hosted: {provider_scopes: [repo]}\n",
-            "    hosted: {provider_scopes: [repo]}\n    effect: {kind: thread, locator: {\"$result\": \"/url\"}}\n",
+            "    provider_scopes: [repo]\n",
+            "    provider_scopes: [repo]\n    effect: {kind: thread, locator: {\"$result\": \"/url\"}}\n",
         ),
         "a read produces nothing",
     );
@@ -1208,8 +1216,8 @@ fn a_read_neither_claims_deduplication_nor_sends_a_key() {
 fn a_declared_category_must_be_a_connector_category_of_the_taxonomy() {
     let with_category = |category: &str| {
         FORGE.replace(
-            "runtime_capability: false\n",
-            &format!("category: {category}\nruntime_capability: false\n"),
+            "description: Issues and pull requests.\n",
+            &format!("description: Issues and pull requests.\ncategory: {category}\n"),
         )
     };
     let validated = validate(&with_category("dev-tools")).expect("a connector category validates");
@@ -1229,31 +1237,24 @@ fn a_declared_category_must_be_a_connector_category_of_the_taxonomy() {
     assert_rejects(&with_category("payment"), "not in the registry taxonomy");
 }
 
+/// The kernel recognises its own connectors by where they come from, so a
+/// manifest has no way to claim to be one.
 #[test]
-fn runtime_capability_is_declared_never_assumed() {
-    let undeclared = FORGE.replace("runtime_capability: false\n", "");
-    assert!(
-        validate(&undeclared).is_err(),
-        "a manifest must declare runtime_capability"
-    );
-    assert!(
-        validate(&FORGE.replace("runtime_capability: false", "runtime_capability: \"no\""))
-            .is_err()
-    );
-    assert!(
-        !validate(FORGE)
-            .expect("forge validates")
-            .manifest
-            .runtime_capability
+fn a_manifest_cannot_claim_to_be_the_runtime_s_own() {
+    assert_rejects(
+        &FORGE.replace(
+            "description: Issues and pull requests.\n",
+            "description: Issues and pull requests.\nruntime_capability: true\n",
+        ),
+        "unknown field `runtime_capability`",
     );
 }
 
 const INDEXNOW: &str = r#"
 schema: runx.connector.v1
-id: indexnow
-name: IndexNow
+name: indexnow
+title: IndexNow
 description: Tell search engines a site's pages changed.
-runtime_capability: false
 auth:
   credentials:
     site:
@@ -1282,7 +1283,7 @@ operations:
         auth: {site: {type: body, field: key, pointer: /key}}
         requests:
           - id: submit
-            method: POST
+            http_method: POST
             url: "https://api.indexnow.org/indexnow"
             body: {host: example.com, urlList: {"$argument": "/urls"}}
         decode: [{op: auto_json}]
@@ -1322,14 +1323,13 @@ fn a_body_credential_owns_its_pointer() {
     );
 }
 
-/// A seller connector that provisions an inbox under its own token and holds
-/// the inbox's lease for whoever bought it.
+/// A seller connector that provisions an inbox under its own token, whose
+/// lease runx Connect holds for whoever bought it.
 const INBOX: &str = r#"
 schema: runx.connector.v1
-id: acme/inbox
-name: Acme Inbox
+name: acme/inbox
+title: Acme Inbox
 description: Agent inboxes.
-runtime_capability: false
 auth:
   credentials:
     service_token:
@@ -1338,7 +1338,7 @@ auth:
       delivery: {env: ACME_INBOX_TOKEN}
       audience: [inbox.acme.test]
     lease:
-      kind: purchase
+      kind: lease
       fields: [{name: capability}]
       audience: [inbox.acme.test]
 placements:
@@ -1346,50 +1346,44 @@ placements:
 operations:
   inbox.provision:
     description: Provision one inbox.
-    verb: create
+    verb: write
     scopes: [inbox.provision]
     credentials: [service_token]
     target: {template: "acme:inbox"}
     guarantees: {provider_idempotency: inherent, readback: unavailable}
     result_fields: [lease]
-    holds:
-      action: take
-      credential: lease
+    lease:
+      take: lease
       target: {"$concat": ["acme:inbox/", {"$result": "/lease/inbox_id"}]}
       expires_at: {"$result": "/lease/expires_at"}
       fields: {capability: {"$response": "write.capability"}}
-    hosted: {}
     implementation:
       http:
         allowed_hosts: [inbox.acme.test]
         auth: {service_token: {type: bearer, field: token}}
         requests:
-          - {method: POST, url: "https://inbox.acme.test/internal/inboxes", body: {purchase_id: {"$runx": "purchase"}}}
+          - {http_method: POST, url: "https://inbox.acme.test/internal/inboxes", body: {purchase_id: {"$runx": "purchase"}}}
         result_paths: {lease: acknowledgement.lease}
   inbox.delete:
     description: Delete one inbox.
-    verb: delete
+    verb: write
     scopes: [inbox.delete]
     credentials: [lease]
     target: {template: {"$concat": ["acme:inbox/", {"$argument": "/inbox_id"}]}}
     guarantees: {provider_idempotency: inherent, readback: unavailable}
     input_schema: {type: object, required: [inbox_id], additionalProperties: false, properties: {inbox_id: {type: string}}}
     result_fields: [inbox]
-    holds:
-      action: release
-      credential: lease
-      target: {"$concat": ["acme:inbox/", {"$argument": "/inbox_id"}]}
-    hosted: {}
+    lease: {release: lease}
     implementation:
       http:
         allowed_hosts: [inbox.acme.test]
         auth: {lease: {type: bearer, field: capability}}
         requests:
-          - {method: DELETE, url: {"$concat": ["https://inbox.acme.test/v1/inboxes/", {"$argument": "/inbox_id"}]}}
+          - {http_method: DELETE, url: {"$concat": ["https://inbox.acme.test/v1/inboxes/", {"$argument": "/inbox_id"}]}}
 "#;
 
 #[test]
-fn a_purchase_credential_is_taken_from_the_answer_and_leased_per_resource() {
+fn a_lease_is_taken_from_the_answer_and_held_per_resource() {
     let validated = validate(INBOX).expect("the inbox connector is valid");
     let lease = validated
         .manifest
@@ -1398,8 +1392,8 @@ fn a_purchase_credential_is_taken_from_the_answer_and_leased_per_resource() {
         .iter()
         .find_map(|(name, declaration)| (name.as_str() == "lease").then_some(declaration))
         .expect("the lease credential");
-    assert!(lease.is_purchase());
-    assert!(lease.env().is_none(), "nothing delivers a held credential");
+    assert!(lease.is_lease());
+    assert!(lease.env().is_none(), "nothing delivers a lease");
 }
 
 #[test]
@@ -1409,36 +1403,36 @@ fn a_leased_value_never_reaches_the_call_s_result() {
             "result_paths: {lease: acknowledgement.lease}",
             "result_paths: {lease: acknowledgement}",
         ),
-        "the call's result reads the held value",
+        "the call's result reads the leased value",
     );
     assert_rejects(
         &INBOX.replace(
             "        result_paths: {lease: acknowledgement.lease}",
-            "        result_paths: {lease: acknowledgement.lease}\n        readbacks:\n          - request: {method: GET, url: \"https://inbox.acme.test/internal/inboxes\"}",
+            "        result_paths: {lease: acknowledgement.lease}\n        readbacks:\n          - request: {http_method: GET, url: \"https://inbox.acme.test/internal/inboxes\"}",
         ),
-        "a readback would read the held value again",
+        "a readback would read the leased value again",
     );
 }
 
 #[test]
-fn a_purchase_credential_is_leased_by_runx_alone() {
+fn a_lease_is_held_by_runx_alone() {
     assert_rejects(
         &INBOX.replace(
             "      fields: [{name: capability}]\n",
             "      fields: [{name: capability}]\n      delivery: {env: ACME_LEASE}\n",
         ),
-        "a purchase credential never leaves runx Connect",
+        "a lease never leaves runx Connect",
     );
     assert_rejects(
         &INBOX.replace("credential: service_token}", "credential: lease}"),
-        "a purchase credential is held per resource",
+        "a lease is held per resource",
     );
     assert_rejects(
         &INBOX.replace(
             "    credentials: [lease]\n",
             "    credentials: [lease, service_token]\n",
         ),
-        "authorized by its purchase credential alone",
+        "authorized by its lease alone",
     );
 }
 
@@ -1474,15 +1468,18 @@ fn a_take_fills_every_field_from_what_the_write_returned() {
             "      expires_at: {\"$result\": \"/lease/expires_at\"}\n      fields",
             "      fields",
         ),
-        "states its expiry as one $result binding",
+        "missing field `expires_at`",
     );
 }
 
 #[test]
-fn a_purchase_credential_no_operation_takes_is_refused() {
+fn a_lease_no_operation_takes_is_refused() {
     assert_rejects(
-        &INBOX.replace("      action: take\n", "      action: refresh\n"),
-        "filled by an operation that holds it with action take",
+        &INBOX.replace(
+            "    lease:\n      take: lease\n      target: {\"$concat\": [\"acme:inbox/\", {\"$result\": \"/lease/inbox_id\"}]}\n      expires_at: {\"$result\": \"/lease/expires_at\"}\n      fields: {capability: {\"$response\": \"write.capability\"}}\n",
+            "    lease: {renew: lease, expires_at: {\"$result\": \"/lease/expires_at\"}}\n",
+        ),
+        "a lease is filled by an operation that takes it",
     );
 }
 
@@ -1490,10 +1487,9 @@ fn a_purchase_credential_no_operation_takes_is_refused() {
 fn local_process_credentials_have_no_false_network_audience() {
     let process = r#"
 schema: runx.connector.v1
-id: local-db
-name: Local database
+name: local-db
+title: Local database
 description: Read a configured source through a trusted process.
-runtime_capability: false
 auth:
   credentials:
     connection:
@@ -1515,7 +1511,7 @@ operations:
         "kind: password", "audience: [api.example.com]\n      kind: password",
     )).expect("an existing process descriptor can document recipients without claiming egress confinement");
     let mixed = format!(
-        "{process}\n  remote.read:\n    description: Read a remote source.\n    verb: read\n    scopes: [remote.read]\n    credentials: [connection]\n    target: {{template: https://api.example.com/read}}\n    result_fields: [result]\n    implementation:\n      http:\n        allowed_hosts: [api.example.com]\n        auth: {{connection: {{type: bearer, field: connection}}}}\n        requests:\n          - {{method: GET, url: https://api.example.com/read}}\n"
+        "{process}\n  remote.read:\n    description: Read a remote source.\n    verb: read\n    scopes: [remote.read]\n    credentials: [connection]\n    target: {{template: https://api.example.com/read}}\n    result_fields: [result]\n    implementation:\n      http:\n        allowed_hosts: [api.example.com]\n        auth: {{connection: {{type: bearer, field: connection}}}}\n        requests:\n          - {{http_method: GET, url: https://api.example.com/read}}\n"
     );
     assert_rejects(&mixed, "declare the hosts the credential may be sent to");
     validate(&mixed.replace(
@@ -1529,10 +1525,9 @@ operations:
 fn managed_command_sessions_use_processes_without_exporting_credentials() {
     let valid = r#"
 schema: runx.connector.v1
-id: fixture/account
-name: Account
+name: fixture/account
+title: Account
 description: A CLI-owned session.
-runtime_capability: false
 auth:
   session:
     kind: managed_command

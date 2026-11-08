@@ -86,7 +86,7 @@ impl Http<'_> {
             let empty = found.is_empty();
             budget.items = budget.items.saturating_add(found.len());
             items.extend(found);
-            cursor = match at_path(&page, pages.cursor.as_str()) {
+            cursor = match at_path(&page, pages.next.cursor.as_str()) {
                 None | Some(JsonValue::Null) => None,
                 Some(JsonValue::String(value)) if value.is_empty() => None,
                 Some(
@@ -95,7 +95,7 @@ impl Http<'_> {
                 Some(_) => return Err(invalid_page("page cursor is not a scalar")),
             };
             if let Some(next) = &cursor {
-                let identity = match pages.location {
+                let identity = match pages.next.location {
                     HttpPageCursorLocation::Query => super::scalar_string(next)
                         .ok_or_else(|| invalid_page("page cursor cannot be encoded"))?,
                     HttpPageCursorLocation::Body => serde_json::to_string(next)

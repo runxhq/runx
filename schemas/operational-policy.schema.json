@@ -363,11 +363,6 @@
             "pattern": "^[A-Za-z0-9_.:-]+$",
             "type": "string"
           },
-          "repo": {
-            "minLength": 3,
-            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-            "type": "string"
-          },
           "method_ids": {
             "items": {
               "minLength": 1,
@@ -376,6 +371,11 @@
             },
             "minItems": 1,
             "type": "array"
+          },
+          "repo": {
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
           },
           "scafld_required": {
             "type": "boolean"

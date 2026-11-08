@@ -28,10 +28,6 @@
             "minimum": 0,
             "type": "integer"
           },
-          "test_cases": {
-            "minimum": 0,
-            "type": "integer"
-          },
           "kind": {
             "enum": [
               "tool",
@@ -64,6 +60,10 @@
             ],
             "title": "RunxListStatus",
             "type": "string"
+          },
+          "test_cases": {
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -91,10 +91,6 @@
             "minimum": 0,
             "type": "integer"
           },
-          "test_cases": {
-            "minimum": 0,
-            "type": "integer"
-          },
           "kind": {
             "enum": [
               "tool",
@@ -127,6 +123,10 @@
             ],
             "title": "RunxListStatus",
             "type": "string"
+          },
+          "test_cases": {
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [

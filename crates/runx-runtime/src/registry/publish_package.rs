@@ -749,11 +749,10 @@ runners:
     }
 
     const ACME_OPS: &str = r#"schema: runx.connector.v1
-id: acme-ops
-name: Acme Ops
+name: acme-ops
+title: Acme Ops
 description: Syncs Acme items.
 category: dev-tools
-runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -947,7 +946,6 @@ operations:
             serde_json::to_string(&manifest)?,
         )?;
         let snapshot = load_installed(&installed)?;
-        assert!(snapshot.manifest.runtime_capability);
         assert!(!snapshot.is_runtime_capability()?);
         fs::write(
             work.join("SKILL.md"),
@@ -1108,7 +1106,7 @@ operations:
                 "tools/acme/sync/sync.mjs"
             ]
         );
-        assert_eq!(connector.manifest.id.as_str(), "acme-ops");
+        assert_eq!(connector.manifest.name.as_str(), "acme-ops");
         let binding = package_at(&skill)?
             .metadata
             .connectors

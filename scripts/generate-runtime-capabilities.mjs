@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Embed the runtime capability connectors (a manifest declaring
-// `runtime_capability: true`) in the runtime: they are part of runx, implemented
-// by the runtime and shipping no tool package, so an installed runx resolves
-// them without the source tree or a registry. Every other connector here is
+// Embed the runtime capability connectors (every operation implemented by the
+// runtime's own `web`, `store` or `artifact`) in the runtime: they are part of
+// runx, implemented by the runtime and shipping no tool package, so an
+// installed runx resolves them without the source tree or a registry. The
+// runtime knows them by this origin, never by what a manifest claims. Every other connector here is
 // published like any publisher's, with `runx registry publish`. Read source
 // manifests through the native parser: loading them against an older runtime
 // would reject the very capability change this generator needs to embed.
@@ -62,7 +63,7 @@ function render(embedded) {
     "// Module rationale: the embedded runtime capability manifests are one generated",
     "// table so a change is a single mechanical, reviewable diff.",
     "",
-    "/// Runtime capability connector manifests, by id.",
+    "/// Runtime capability connector manifests, by name.",
     "pub(super) const CONNECTORS: &[(&str, &str)] = &[",
     ...embedded.map((id) => literal([id, read(id, "connector.yaml")])),
     "];",
@@ -80,9 +81,14 @@ const manifests = evaluateParserRequests(ids.map((id) => ({
   kind: "parser.validateConnectorManifestYaml",
   yaml: readFileSync(path.join(connectorsRoot, id, "connector.yaml"), "utf8"),
 })));
+const RUNTIME_IMPLEMENTATIONS = ["web", "store", "artifact"];
+const runtimeOwn = (manifest) =>
+  Object.values(manifest.operations).every((operation) =>
+    RUNTIME_IMPLEMENTATIONS.some((kind) => operation.implementation && kind in operation.implementation),
+  );
 const embedded = ids.filter((id, index) => {
-  if (manifests[index].id !== id) throw new Error(`connectors/${id} declares ${manifests[index].id}`);
-  return manifests[index].runtime_capability === true;
+  if (manifests[index].name !== id) throw new Error(`connectors/${id} declares ${manifests[index].name}`);
+  return runtimeOwn(manifests[index]);
 });
 for (const id of embedded) {
   if (existsSync(path.join(connectorsRoot, id, "tools"))) {

@@ -10,11 +10,10 @@ use std::path::{Path, PathBuf};
 use runx_runtime::{TestExpectedStatus, TestReplayError, TestReplayOutput, run_test_fixture};
 
 const CONNECTOR: &str = r#"schema: runx.connector.v1
-id: ledger
-name: Acme Ledger
+name: ledger
+title: Acme Ledger
 description: Read one ledger entry.
 category: agent-tools
-runtime_capability: false
 auth:
   credentials:
     service_token:
@@ -34,7 +33,6 @@ operations:
     target:
       template: "acme:ledger"
     result_fields: [entry]
-    hosted: {}
 "#;
 
 const SKILL: &str = r#"

@@ -13,11 +13,10 @@ use std::path::{Path, PathBuf};
 use runx_runtime::{TestExpectedStatus, TestReplayError, TestReplayOutput, run_test_fixture};
 
 const CONNECTOR: &str = r#"schema: runx.connector.v1
-id: sales
-name: Acme Sales
+name: sales
+title: Acme Sales
 description: Record one sale for the purchase a run fulfills.
 category: agent-tools
-runtime_capability: false
 auth:
   credentials:
     service_token:
@@ -31,7 +30,7 @@ placements:
 operations:
   sale.create:
     description: Record one sale for the purchase this run fulfills.
-    verb: create
+    verb: write
     scopes: [sale.create]
     credentials: [service_token]
     target:
@@ -46,13 +45,12 @@ operations:
       properties:
         amount: {type: integer}
     result_fields: [sale]
-    hosted: {}
     implementation:
       http:
         allowed_hosts: [api.example.com]
         auth: {service_token: {type: bearer, field: token}}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://api.example.com/v1/sales
             body:
               amount: {"$argument": "/amount"}
@@ -81,7 +79,7 @@ runners:
 /// purchase, and the sale it records.
 const EXCHANGE: &str = r#"  http_exchanges:
     - request:
-        method: POST
+        http_method: POST
         url: https://api.example.com/v1/sales
         body: {json: {amount: 7, purchase: purchase_sale_1}}
       response:

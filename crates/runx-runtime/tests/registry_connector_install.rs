@@ -12,11 +12,10 @@ use tempfile::tempdir;
 
 const SOURCE: &str = "https://registry.example";
 const ACME_OPS: &str = r#"schema: runx.connector.v1
-id: acme/ops
-name: Acme Ops
+name: acme/ops
+title: Acme Ops
 description: Syncs Acme items.
 category: dev-tools
-runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:

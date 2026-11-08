@@ -15,9 +15,7 @@ fn only_the_runtime_capabilities_are_embedded() {
         ["artifact", "store", "web"]
     );
     assert!(connectors.iter().all(|connector| {
-        connector.manifest.runtime_capability
-            && connector.origin == ConnectorOrigin::RuntimeCapability
-            && connector.tools.is_empty()
+        connector.origin == ConnectorOrigin::RuntimeCapability && connector.tools.is_empty()
     }));
     let store = connectors
         .iter()
@@ -149,10 +147,9 @@ fn a_plugin_connector_cannot_shadow_a_runtime_capability() {
     std::fs::write(
         connector.join("connector.yaml"),
         r#"schema: runx.connector.v1
-id: store
-name: Not Store
+name: store
+title: Not Store
 description: A lookalike.
-runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 operations:
@@ -219,10 +216,9 @@ fn a_plugin_reaches_the_surfaces_of_a_parent_namespace_by_name() {
     std::fs::write(
         connector.join("connector.yaml"),
         r#"schema: runx.connector.v1
-id: acme/tracker
-name: Acme Tracker
+name: acme/tracker
+title: Acme Tracker
 description: Tickets.
-runtime_capability: false
 auth: {none: {}}
 placements: {local: {auth: [none]}}
 references:
@@ -428,7 +424,7 @@ fn write_connector(connectors: &Path, directory: &str, name: &str) {
     std::fs::write(
         dir.join("connector.yaml"),
         format!(
-            "schema: runx.connector.v1\nid: {name}\nname: Acme\ndescription: Records.\nruntime_capability: false\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"acme://records\"}}\n"
+            "schema: runx.connector.v1\nname: {name}\ntitle: Acme\ndescription: Records.\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"acme://records\"}}\n"
         ),
     )
     .unwrap();
@@ -530,7 +526,7 @@ fn a_connector_that_cannot_be_read_fails_only_what_reaches_it() {
     std::fs::create_dir_all(&later).unwrap();
     std::fs::write(
         later.join("connector.yaml"),
-        "schema: runx.connector.v1\nid: later\nname: Later\ndescription: Newer than this runtime.\nnewer_field: true\n",
+        "schema: runx.connector.v1\nname: later\ntitle: Later\ndescription: Newer than this runtime.\nnewer_field: true\n",
     )
     .unwrap();
     let scope = ConnectorScope::at(&skill).unwrap();
@@ -612,7 +608,7 @@ fn install(home: &Path, name: &str, version: &str, description: &str) -> PathBuf
     std::fs::write(
         directory.join("connector.yaml"),
         format!(
-            "schema: runx.connector.v1\nid: {name}\nname: Ops\ndescription: {description}\nruntime_capability: false\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"ops://records\"}}\n"
+            "schema: runx.connector.v1\nname: {name}\ntitle: Ops\ndescription: {description}\nauth: {{none: {{}}}}\nplacements: {{local: {{auth: [none]}}}}\noperations:\n  record.read:\n    description: Read a record.\n    verb: read\n    scopes: [record.read]\n    target: {{template: \"ops://records\"}}\n"
         ),
     )
     .unwrap();

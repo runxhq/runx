@@ -513,7 +513,7 @@ fn registry_connector_package_projects_a_connector_on_its_own()
     fs::create_dir_all(&connector)?;
     fs::write(
         connector.join("connector.yaml"),
-        "schema: runx.connector.v1\nid: acme/ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
+        "schema: runx.connector.v1\nname: acme/ops\ntitle: Acme Ops\ndescription: Reads Acme items.\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
     )?;
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
 
@@ -535,8 +535,7 @@ fn registry_connector_package_projects_a_connector_on_its_own()
     let packaged = &output["registry"]["connector"];
     assert_eq!(output["registry"]["action"], "connector_package");
     assert_eq!(packaged["connector"], "acme/ops");
-    assert_eq!(packaged["manifest"]["id"], "acme/ops");
-    assert_eq!(packaged["manifest"]["runtime_capability"], false);
+    assert_eq!(packaged["manifest"]["name"], "acme/ops");
     // The connector names itself, so its package carries no namespace file.
     let files = packaged["files"].as_array().ok_or("files missing")?;
     assert_eq!(
@@ -574,7 +573,7 @@ fn registry_connector_install_verifies_and_caches_a_published_version()
     fs::create_dir_all(&connector)?;
     fs::write(
         connector.join("connector.yaml"),
-        "schema: runx.connector.v1\nid: acme/ops\nname: Acme Ops\ndescription: Reads Acme items.\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
+        "schema: runx.connector.v1\nname: acme/ops\ntitle: Acme Ops\ndescription: Reads Acme items.\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  item.read:\n    description: Read an item.\n    verb: read\n    scopes: [item.read]\n    target: {template: \"acme://items\"}\n",
     )?;
     fs::write(connector.join("README.md"), "# Acme Ops\n")?;
     // No skill holds the name, so `registry install` installs the connector.

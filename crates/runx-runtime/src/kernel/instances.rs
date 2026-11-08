@@ -527,7 +527,7 @@ pub(crate) fn environment_instance(
         Placement::Local,
         format!(
             "runx:principal:local-environment:{}:{variable}",
-            connector.manifest.id
+            connector.manifest.name
         ),
         None,
         InstanceAuthority::Environment {
@@ -552,7 +552,7 @@ pub(crate) fn served_scopes(
         scopes,
         &format!(
             "credential {credential} of connector {}",
-            connector.manifest.id
+            connector.manifest.name
         ),
     )
 }

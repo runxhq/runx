@@ -18,7 +18,7 @@ import {
 const payments = JSON.parse(
   readFileSync(new URL("../../../fixtures/contracts/connector-payments.json", import.meta.url), "utf8"),
 ) as {
-  readonly pays: ConnectorManifest["pays"];
+  readonly payment: ConnectorManifest["payment"];
   readonly cases: readonly {
     readonly name: string;
     readonly terms: Parameters<typeof connectorPays>[1];
@@ -34,8 +34,8 @@ describe("connector payment compatibility", () => {
   }
   it("requires a declared family", () => {
     expect(connectorPays({}, { family: "x402" })).toBe(false);
-    expect(connectorPays({ pays: {} }, { family: "constructor" })).toBe(false);
-    expect(connectorPays({ pays: {} }, { family: "toString" })).toBe(false);
+    expect(connectorPays({ payment: {} }, { family: "constructor" })).toBe(false);
+    expect(connectorPays({ payment: {} }, { family: "toString" })).toBe(false);
   });
 });
 

@@ -190,7 +190,7 @@
           "type": "string"
         },
         "invocation": {
-          "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
+          "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {

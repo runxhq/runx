@@ -82,10 +82,9 @@ fn connector_use_binds_a_credential_for_a_connector_of_the_workspace_plugin()
     fs::write(
         root.join("connectors/notes/connector.yaml"),
         r#"schema: runx.connector.v1
-id: notes
-name: Notes
+name: notes
+title: Notes
 description: A plugin's own notes service.
-runtime_capability: false
 auth:
   credentials:
     token:
@@ -108,7 +107,7 @@ operations:
         allowed_hosts: [api.notes.test]
         auth: {token: {type: bearer}}
         requests:
-          - {id: note, method: GET, url: {"$concat": ["https://api.notes.test/notes/", {"$argument": "/id"}]}}
+          - {id: note, http_method: GET, url: {"$concat": ["https://api.notes.test/notes/", {"$argument": "/id"}]}}
         decode: [{op: auto_json}]
         result_paths: {note: acknowledgement}
 "#,
@@ -138,10 +137,9 @@ fn write_notes_plugin(root: &std::path::Path) -> Result<(), Box<dyn std::error::
     fs::write(
         root.join("connectors/notes/connector.yaml"),
         r#"schema: runx.connector.v1
-id: notes
-name: Notes
+name: notes
+title: Notes
 description: A plugin's own notes service, read by a local tool.
-runtime_capability: false
 auth:
   credentials:
     token:

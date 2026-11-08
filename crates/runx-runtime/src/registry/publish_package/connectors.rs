@@ -197,7 +197,7 @@ fn ship_connector(
     connector: &LoadedConnector,
     files: &mut BTreeMap<String, RegistryPackageFile>,
 ) -> Result<(), RegistryPublishPackageError> {
-    let id = connector.manifest.id.as_str();
+    let id = connector.manifest.name.as_str();
     let invalid = |message: String| {
         RegistryPublishPackageError::invalid(format!("connector {id}: {message}"))
     };

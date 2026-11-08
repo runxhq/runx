@@ -43,7 +43,7 @@ pub(crate) const MANIFEST_FILE: &str = "connector.yaml";
 /// A validated connector with its digests, computed once.
 #[derive(Debug, PartialEq)]
 pub struct LoadedConnector {
-    /// The connector's name, its manifest's `id`.
+    /// The connector's name, its manifest's `name`.
     pub name: ConnectorName,
     pub manifest: ConnectorManifest,
     pub manifest_digest: Digest,
@@ -191,12 +191,6 @@ fn load_runtime_capabilities() -> Result<RuntimeCapabilities, ConnectorRegistryE
             parse_connector_manifest(source).map_err(|error| invalid(id, error.to_string()))?;
         let validated = validate_connector_manifest(manifest)
             .map_err(|errors| invalid(id, format!("{errors:?}")))?;
-        if !validated.manifest.runtime_capability {
-            return Err(invalid(
-                id,
-                "an embedded connector must declare runtime_capability: true".to_owned(),
-            ));
-        }
         // A runtime capability is implemented by the runtime: it ships no tool
         // package for a process operation to run.
         if let Some(tool) = process_tools(&validated.manifest).next() {
@@ -206,7 +200,7 @@ fn load_runtime_capabilities() -> Result<RuntimeCapabilities, ConnectorRegistryE
             ));
         }
         connectors.insert(
-            validated.manifest.id.clone(),
+            validated.manifest.name.clone(),
             Arc::new(
                 loaded(
                     validated,
@@ -233,7 +227,7 @@ fn loaded(
     )
     .map_err(|error| error.to_string())?;
     Ok(LoadedConnector {
-        name: validated.manifest.id.clone(),
+        name: validated.manifest.name.clone(),
         manifest: validated.manifest,
         manifest_digest: validated.manifest_digest,
         connector_digest,
@@ -1162,14 +1156,14 @@ fn load_directory(
 pub(crate) fn embedded_manifest(connector: &LoadedConnector) -> Option<&'static str> {
     runtime_capabilities::CONNECTORS
         .iter()
-        .find(|(id, _)| *id == connector.manifest.id.as_str())
+        .find(|(id, _)| *id == connector.manifest.name.as_str())
         .map(|(_, document)| *document)
 }
 
 pub(crate) fn embedded_asset(connector: &LoadedConnector, path: &str) -> Option<&'static [u8]> {
     runtime_capabilities::ASSETS
         .iter()
-        .find(|(id, file, _)| *id == connector.manifest.id.as_str() && *file == path)
+        .find(|(id, file, _)| *id == connector.manifest.name.as_str() && *file == path)
         .map(|(_, _, document)| document.as_bytes())
 }
 

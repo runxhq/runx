@@ -111,14 +111,15 @@ pub(crate) fn confirm_session_over(
         .auth
         .session
         .as_ref()
-        .ok_or_else(|| format!("connector {} declares no local session", manifest.id))?;
+        .ok_or_else(|| format!("connector {} declares no local session", manifest.name))?;
     let instance = match session.kind() {
         SessionKind::Command => {
             if !parameters.is_empty() {
                 return Err("a command session declares no instance parameters".to_owned());
             }
-            let session = super::session::CommandSession::of(manifest)
-                .ok_or_else(|| format!("connector {} declares no command session", manifest.id))?;
+            let session = super::session::CommandSession::of(manifest).ok_or_else(|| {
+                format!("connector {} declares no command session", manifest.name)
+            })?;
             let scopes = served_scopes(connector, session.credential, scopes)?;
             let token = session.token(env, cwd)?;
             let principal = session.principal(&token, readers.transport)?;
@@ -130,7 +131,7 @@ pub(crate) fn confirm_session_over(
                     &principal.login,
                 ])?,
                 Placement::Local,
-                principal.principal_uri(manifest.id.as_str()),
+                principal.principal_uri(manifest.name.as_str()),
                 Some(principal.login),
                 InstanceAuthority::Session {
                     session: SessionKind::Command,
@@ -151,7 +152,7 @@ pub(crate) fn confirm_session_over(
                     &principal.id,
                 ])?,
                 Placement::Local,
-                principal.principal_uri(manifest.id.as_str()),
+                principal.principal_uri(manifest.name.as_str()),
                 Some(principal.login),
                 InstanceAuthority::Session {
                     session: SessionKind::ManagedCommand,
@@ -177,7 +178,7 @@ pub(crate) fn confirm_session_over(
                     &principal.id,
                 ])?,
                 Placement::Local,
-                principal.principal_uri(manifest.id.as_str()),
+                principal.principal_uri(manifest.name.as_str()),
                 Some(principal.login),
                 InstanceAuthority::Session {
                     session: SessionKind::HostBrowser,
@@ -228,7 +229,7 @@ pub(crate) fn bind_secret(
         Placement::Local,
         format!(
             "runx:principal:local-secret:{}:{secret}",
-            connector.manifest.id
+            connector.manifest.name
         ),
         None,
         InstanceAuthority::Secret {
@@ -267,7 +268,7 @@ pub(crate) fn bind_environment(
         .ok_or_else(|| {
             format!(
                 "connector {}'s {credential} credential is held by runx for a purchase; nobody binds it",
-                connector.manifest.id
+                connector.manifest.name
             )
         })?;
     credentials::from_environment(workspace.env(), connector, credential, &variable)?;
@@ -294,7 +295,7 @@ pub(crate) fn confirm_public(
     {
         return Err(format!(
             "connector {} does not act without authority locally",
-            manifest.id
+            manifest.name
         ));
     }
     let parameters = instance_parameters(connector, parameters)?;
@@ -304,7 +305,7 @@ pub(crate) fn confirm_public(
         connector,
         super::instances::instance_id(&[
             "public",
-            manifest.id.as_str(),
+            manifest.name.as_str(),
             &digest.trim_start_matches("sha256:")[..12],
         ])?,
         Placement::Local,
@@ -328,7 +329,7 @@ fn instance_parameters(
             None => Ok(parameters),
             Some(name) => Err(format!(
                 "connector {} takes no instance parameter {name}",
-                manifest.id
+                manifest.name
             )),
         };
     };
@@ -338,7 +339,7 @@ fn instance_parameters(
         .map_err(|error| {
             format!(
                 "connector {}'s parameter schema is invalid: {error}",
-                manifest.id
+                manifest.name
             )
         })?;
     let instance = serde_json::to_value(&parameters).map_err(|error| error.to_string())?;
@@ -347,7 +348,7 @@ fn instance_parameters(
         Some(error) => Err(format!(
             "the parameters at {:?} do not satisfy connector {}'s schema: {error}",
             error.instance_path().as_str(),
-            manifest.id
+            manifest.name
         )),
     }
 }
@@ -364,7 +365,7 @@ fn credential_declaration<'a>(
         .ok_or_else(|| {
             format!(
                 "connector {} declares no credential {credential}",
-                connector.manifest.id
+                connector.manifest.name
             )
         })
 }
@@ -383,7 +384,7 @@ fn credential_scopes(
     {
         return Err(format!(
             "connector {} takes no stored credential locally",
-            manifest.id
+            manifest.name
         ));
     }
     served_scopes(connector, credential, scopes)

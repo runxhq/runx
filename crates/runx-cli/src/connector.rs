@@ -304,7 +304,7 @@ fn execute(plan: &ConnectorPlan, workspace: &WorkspaceEnv) -> Result<String, Str
                         let manifest = &connector.manifest;
                         ConnectorSummary {
                             connector_binding: connector.binding(),
-                            name: &manifest.name,
+                            title: &manifest.title,
                             description: &manifest.description,
                             placements: placements(manifest),
                             operations: manifest.operations.keys().collect(),
@@ -490,7 +490,7 @@ fn inspect_text(
     let manifest = &connector.manifest;
     let mut out = format!(
         "{} ({})\n{}\n",
-        manifest.name, manifest.id, manifest.description
+        manifest.title, manifest.name, manifest.description
     );
     out.push_str(&format!(
         "placements: {}\n",
@@ -514,10 +514,10 @@ fn inspect_text(
     out.push_str("operations:\n");
     for (name, operation) in &manifest.operations {
         let kind = operation.implementation.as_ref().map(Implementation::kind);
-        let implementations = [operation.hosted.as_ref().map(|_| "hosted"), kind]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+        let hosted = manifest
+            .implements(operation, runx_contracts::connector::Placement::Hosted)
+            .then_some("hosted");
+        let implementations = [hosted, kind].into_iter().flatten().collect::<Vec<_>>();
         out.push_str(&format!(
             "  {name}  {}  [{}]  {}\n",
             operation.verb.as_str(),
@@ -563,7 +563,7 @@ fn list_text(connectors: &[Arc<LoadedConnector>], sources: &AuthoritySources) ->
         out.push_str(&format!(
             "{}  {}  [{}]  {} operations{}\n",
             connector.name,
-            manifest.name,
+            manifest.title,
             placements(manifest).join(", "),
             manifest.operations.len(),
             selected
@@ -654,7 +654,7 @@ enum Output<'a> {
 #[derive(Serialize)]
 struct ConnectorSummary<'a> {
     connector_binding: runx_contracts::connector::ConnectorBinding,
-    name: &'a NonEmptyString,
+    title: &'a NonEmptyString,
     description: &'a NonEmptyString,
     placements: Vec<&'static str>,
     operations: Vec<&'a OperationName>,

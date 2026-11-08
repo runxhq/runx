@@ -79,7 +79,7 @@ impl<'a> CommandSession<'a> {
                 credential,
                 principal,
             } => Some(Self {
-                connector: manifest.id.as_str(),
+                connector: manifest.name.as_str(),
                 command,
                 credential,
                 principal,
@@ -200,7 +200,7 @@ impl<'a> ManagedCommandSession<'a> {
             return None;
         };
         Some(Self {
-            connector: manifest.id.as_str(),
+            connector: manifest.name.as_str(),
             command,
             id: id.as_str(),
             login: login.as_str(),
@@ -284,10 +284,9 @@ mod tests {
 
     const MANIFEST: &str = r#"
 schema: runx.connector.v1
-id: forge
-name: Forge
+name: forge
+title: Forge
 description: A forge reached with the token its CLI prints.
-runtime_capability: false
 auth:
   credentials:
     token:

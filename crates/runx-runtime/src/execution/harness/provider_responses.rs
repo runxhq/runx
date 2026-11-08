@@ -65,7 +65,7 @@ impl RuntimeHttpTransport for TestTransport {
                         // binds, however the fixture named that connector.
                         vec![serde_json::json!({
                             "grant_id": grant.grant_id,
-                            "provider": connector.manifest.id.as_str(),
+                            "provider": connector.manifest.name.as_str(),
                             "connector_binding": connector.binding(),
                             "credential_material_bound": true,
                             "status": "active",
@@ -154,7 +154,7 @@ impl TestTransport {
         };
         let provider = self.grant_connector.as_ref().map_or_else(
             || grant.provider.clone(),
-            |connector| connector.manifest.id.as_str().to_owned(),
+            |connector| connector.manifest.name.as_str().to_owned(),
         );
         let fixture = fixture
             .operations
@@ -380,7 +380,7 @@ impl TestTransport {
                 ),
             );
         };
-        let Some(spec) = operation.hosted_http() else {
+        let Some(spec) = connector.manifest.hosted_http(operation) else {
             return refused(
                 400,
                 "operation_unsupported",
@@ -396,7 +396,7 @@ impl TestTransport {
                 .credentials
                 .iter()
                 .any(|(name, declaration)| {
-                    name.as_str() == held.credential && declaration.is_purchase()
+                    name.as_str() == held.credential && declaration.is_lease()
                 });
             if !purchase
                 || !operation
@@ -474,9 +474,9 @@ impl TestTransport {
             Err(error) => return refused(400, "invalid_input", error),
         };
         let answer = self.exchanges.answer(&rendered)?;
-        let body = match operation.holds.as_ref() {
-            Some(hold) if hold.action == runx_contracts::connector::LeaseAction::Take => {
-                leased_answer(hold, spec, answer.status, &answer.body).map_err(transport_error)?
+        let body = match operation.lease.as_ref() {
+            Some(runx_contracts::connector::OperationLease::Take(take)) => {
+                leased_answer(take, spec, answer.status, &answer.body).map_err(transport_error)?
             }
             _ => answer.body,
         };
@@ -491,16 +491,16 @@ impl TestTransport {
 }
 
 /// What runx Connect answers a take with: the provider's answer with every
-/// field the hold takes replaced by the hold's evidence, so the kernel sees
-/// that a hold was taken and never what it holds. An error answer keeps none
-/// of the fields.
+/// field the lease takes replaced by the lease's evidence, so the kernel sees
+/// that a lease was taken and never its value. An error answer keeps none of
+/// the fields.
 fn leased_answer(
-    hold: &runx_contracts::connector::OperationLease,
+    take: &runx_contracts::connector::LeaseTake,
     spec: &runx_contracts::connector::HttpImplementation,
     status: u16,
     body: &str,
 ) -> Result<String, String> {
-    let paths = hold
+    let paths = take
         .fields
         .iter()
         .map(|(name, binding)| {
@@ -508,13 +508,13 @@ fn leased_answer(
                 .response_reference()
                 .and_then(|reference| reference.strip_prefix("write."))
                 .map(|path| (name.as_str().to_owned(), path.to_owned()))
-                .ok_or_else(|| format!("held field {name} names no path in the write's answer"))
+                .ok_or_else(|| format!("leased field {name} names no path in the write's answer"))
         })
         .collect::<Result<Vec<_>, String>>()?;
     let decoded = serde_json::from_str::<serde_json::Value>(body).ok();
     let Some(serde_json::Value::Object(mut answer)) = decoded else {
         return if (200..300).contains(&status) {
-            Err("the provider's answer is not the JSON object its hold reads".to_owned())
+            Err("the provider's answer is not the JSON object its lease reads".to_owned())
         } else {
             Ok(body.to_owned())
         };
@@ -545,14 +545,12 @@ fn leased_answer(
         result: Some(&result),
         ..runx_contracts::connector::TemplateInputs::default()
     };
-    let target = hold
+    let target = take
         .target
         .render_string(&inputs)
-        .map_err(|error| format!("the provider's answer names no held resource: {error}"))?;
-    let expires_at = hold
+        .map_err(|error| format!("the provider's answer names no leased resource: {error}"))?;
+    let expires_at = take
         .expires_at
-        .as_ref()
-        .ok_or("a take states when its resource ends")?
         .render_string(&inputs)
         .map_err(|error| format!("the provider's answer names no expiry: {error}"))?;
     let mut fields = serde_json::Map::new();
@@ -784,15 +782,14 @@ fn transport_error(message: String) -> RuntimeHttpError {
 mod tests {
     #![allow(clippy::expect_used)]
 
-    use runx_contracts::connector::{HttpImplementation, OperationLease};
+    use runx_contracts::connector::{HttpImplementation, LeaseTake};
     use serde_json::json;
 
     use super::leased_answer;
 
-    fn hold() -> OperationLease {
+    fn take() -> LeaseTake {
         serde_json::from_value(json!({
-            "action": "take",
-            "credential": "lease",
+            "take": "lease",
             "target": {"$concat": ["acme:inbox/", {"$result": "/lease/inbox_id"}]},
             "expires_at": {"$result": "/lease/expires_at"},
             "fields": {"capability": {"$response": "write.capability"}},
@@ -803,7 +800,7 @@ mod tests {
     fn spec() -> HttpImplementation {
         serde_json::from_value(json!({
             "allowed_hosts": ["inbox.acme.test"],
-            "requests": [{"id": "provision", "method": "POST", "url": "https://inbox.acme.test/inboxes"}],
+            "requests": [{"id": "provision", "http_method": "POST", "url": "https://inbox.acme.test/inboxes"}],
             "result_paths": {"lease": "acknowledgement.lease"},
         }))
         .expect("an http implementation")
@@ -812,16 +809,16 @@ mod tests {
     #[test]
     fn a_take_answers_the_lease_s_evidence_in_place_of_what_it_leases() {
         let answer = leased_answer(
-            &hold(),
+            &take(),
             &spec(),
             200,
             r#"{"lease":{"inbox_id":"inb_1","expires_at":"2026-10-16T00:00:00.000Z"},"capability":"auc_secret"}"#,
         )
-        .expect("a held answer");
+        .expect("a leased answer");
         assert!(!answer.contains("auc_secret"));
         let answer: serde_json::Value = serde_json::from_str(&answer).expect("json");
         assert_eq!(
-            answer["capability"]["$held"],
+            answer["capability"]["$lease"],
             json!({
                 "target": "acme:inbox/inb_1",
                 "expires_at": "2026-10-16T00:00:00.000Z",
@@ -834,7 +831,7 @@ mod tests {
     #[test]
     fn a_take_leases_nothing_from_an_error_or_an_answer_without_its_fields() {
         let refused = leased_answer(
-            &hold(),
+            &take(),
             &spec(),
             409,
             r#"{"error":"quota","capability":"auc_secret"}"#,
@@ -842,12 +839,12 @@ mod tests {
         .expect("an error answer");
         assert_eq!(refused, r#"{"capability":null,"error":"quota"}"#);
         leased_answer(
-            &hold(),
+            &take(),
             &spec(),
             200,
             r#"{"lease":{"inbox_id":"inb_1","expires_at":"2026-10-16T00:00:00.000Z"}}"#,
         )
-        .expect_err("no capability to hold");
-        leased_answer(&hold(), &spec(), 200, "not json").expect_err("not an object");
+        .expect_err("no capability to lease");
+        leased_answer(&take(), &spec(), 200, "not json").expect_err("not an object");
     }
 }

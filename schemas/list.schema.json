@@ -42,10 +42,6 @@
             "minimum": 0,
             "type": "integer"
           },
-          "test_cases": {
-            "minimum": 0,
-            "type": "integer"
-          },
           "kind": {
             "enum": [
               "tool",
@@ -109,6 +105,10 @@
             "type": "string"
           },
           "steps": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "test_cases": {
             "minimum": 0,
             "type": "integer"
           },

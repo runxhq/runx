@@ -79,32 +79,35 @@ export interface CredentialField {
 }
 
 export interface CredentialDeclaration {
-  /** `api_key`, `oauth1_user`, ... or `purchase`: filled by a purchase, held by runx Connect. */
+  /** `api_key`, `oauth1_user`, ... or `lease`: taken from a provider's answer, held by runx Connect. */
   readonly kind: string;
   readonly fields: readonly CredentialField[];
-  /** How the local placement delivers it; a purchase credential has none. */
+  /** How the local placement delivers it; a lease has none. */
   readonly delivery?: { readonly env: string };
   readonly audience?: readonly string[];
 }
 
 /**
- * What a hosted call does to a resource a purchase holds: runx Connect takes
- * the credential's fields from the provider's answer, moves its expiry, or
- * ends the hold, and the kernel sees only the hold's evidence.
+ * What a hosted call does to a lease: runx Connect takes the credential's
+ * fields from the provider's answer, renews its expiry, or releases it, and
+ * the kernel sees only the lease's evidence. A renew or a release acts on the
+ * operation's own target.
  */
-export interface OperationLease {
-  readonly action: "take" | "refresh" | "release";
-  /** The connector's `kind: purchase` credential. */
-  readonly credential: string;
-  /** The held resource: from the call's result on a take, its arguments otherwise. */
-  readonly target: Template;
-  /** One `$result` binding; a take and a refresh state it. */
-  readonly expires_at?: Template;
-  /** Each credential field and the `$response` binding on the write that fills it. */
-  readonly fields?: { readonly [field: string]: Template };
-}
+export type OperationLease =
+  | {
+      /** The connector's `kind: lease` credential. */
+      readonly take: string;
+      /** The new resource, rendered from the call's result. */
+      readonly target: Template;
+      /** One `$result` binding. */
+      readonly expires_at: Template;
+      /** Each credential field and the `$response` binding on the write that fills it. */
+      readonly fields: { readonly [field: string]: Template };
+    }
+  | { readonly renew: string; readonly expires_at: Template }
+  | { readonly release: string };
 
-/** Where runx Connect put a held value in a provider answer, as `{"$held": ...}`. */
+/** Where runx Connect put a leased value in a provider answer, as `{"$lease": ...}`. */
 export interface LeaseEvidence {
   readonly target: string;
   readonly expires_at: string;
@@ -114,7 +117,7 @@ export interface LeaseEvidence {
 export interface HttpRequest {
   readonly id: string;
   readonly each?: Template;
-  readonly method: HttpMethod;
+  readonly http_method: HttpMethod;
   readonly url: Template;
   readonly query?: { readonly [name: string]: Template };
   readonly headers?: { readonly [name: string]: Template };
@@ -170,16 +173,16 @@ export interface ConnectorOperation {
    * arguments and result, one per element of the `each` result array.
    */
   readonly effect?: OperationEffect;
-  /** What the call does to a resource a purchase holds. */
-  readonly holds?: OperationLease;
-  /** Present when the hosted placement offers the operation. */
-  readonly hosted?: { readonly provider_scopes?: readonly string[] };
+  /** What the call does to a lease. */
+  readonly lease?: OperationLease;
+  /** The provider's own permissions, needed under delegated auth. */
+  readonly provider_scopes?: readonly string[];
   readonly implementation?: {
     readonly http?: HttpImplementation;
     readonly mcp?: JsonObject;
     readonly process?: {
       readonly tool: string;
-      readonly runtime_scopes?: readonly string[];
+      readonly requires?: readonly string[];
       readonly readback?: { readonly matches: readonly JsonValue[] };
       readonly result_from?: "acknowledgement" | "readback";
     };
@@ -214,13 +217,12 @@ export interface PrincipalRequest {
 export interface ConnectorManifest {
   readonly schema: "runx.connector.v1";
   /** The connector's whole name: `stripe`, `google/calendar`. */
-  readonly id: string;
   readonly name: string;
+  /** Its display name, such as "GitHub". */
+  readonly title: string;
   readonly description: string;
   /** A connector category of the registry taxonomy; absent means uncategorized. */
   readonly category?: string;
-  /** Whether the connector is the runtime's own capability rather than an outside service. */
-  readonly runtime_capability: boolean;
   readonly auth: {
     readonly credentials?: { readonly [name: string]: CredentialDeclaration };
     /** A grant runx Connect brokers, naming its account by its principal request. */
@@ -242,25 +244,25 @@ export interface ConnectorManifest {
   readonly operations: { readonly [name: string]: ConnectorOperation };
   readonly references?: readonly ReferenceDeclaration[];
   /** What a payment connector pays in, so a purchase offers it only for a quote it can pay. */
-  readonly pays?: { readonly [family: string]: PaymentCompatibility };
+  readonly payment?: { readonly [family: string]: PaymentCompatibility };
 }
 
 /** Rust-owned connector payment compatibility, projected without provider names. */
 export interface PaymentCompatibility {
-  readonly methods?: readonly string[];
+  readonly payment_methods?: readonly string[];
   readonly networks?: readonly string[];
   readonly currencies?: readonly string[];
 }
 
 /** Discovery only: the selected operation still admits the exact payment/account. */
 export function connectorPays(
-  connector: Pick<ConnectorManifest, "pays">,
+  connector: Pick<ConnectorManifest, "payment">,
   terms: { readonly family: string; readonly method?: string; readonly network?: string; readonly currency?: string },
 ): boolean {
-  if (connector.pays === undefined || !Object.hasOwn(connector.pays, terms.family)) return false;
-  const compatibility = connector.pays?.[terms.family];
+  if (connector.payment === undefined || !Object.hasOwn(connector.payment, terms.family)) return false;
+  const compatibility = connector.payment?.[terms.family];
   if (!compatibility) return false;
-  return (compatibility.methods === undefined || (terms.method !== undefined && compatibility.methods.includes(terms.method)))
+  return (compatibility.payment_methods === undefined || (terms.method !== undefined && compatibility.payment_methods.includes(terms.method)))
     && (compatibility.networks === undefined || (terms.network !== undefined && compatibility.networks.includes(terms.network)))
     && (compatibility.currencies === undefined || (terms.currency !== undefined && compatibility.currencies.includes(terms.currency)));
 }
@@ -311,9 +313,18 @@ export function operationAccess(operation: ConnectorOperation): "read" | "mutate
   return operation.verb === "read" ? "read" : "mutate";
 }
 
-/** The declared requests the hosted placement sends, when it offers them. */
-export function hostedHttp(operation: ConnectorOperation): HttpImplementation | undefined {
-  return operation.hosted ? operation.implementation?.http : undefined;
+/**
+ * The declared requests the hosted placement sends, when it runs the
+ * operation: an `http` implementation, and under delegated auth only one
+ * naming the provider's scopes its grant asks for.
+ */
+export function hostedHttp(
+  connector: Pick<ConnectorManifest, "placements">,
+  operation: ConnectorOperation,
+): HttpImplementation | undefined {
+  const hosted = connector.placements.hosted;
+  if (!hosted || (hosted.auth === "delegated" && !operation.provider_scopes?.length)) return undefined;
+  return operation.implementation?.http;
 }
 
 const inputValidators = new WeakMap<JsonObject, ValidateFunction>();
@@ -596,7 +607,7 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
     if (typeof value !== "string") throw new TemplateError("template rendered a non-string where a string was required");
     headers[name] = value;
   }
-  if (request.body === undefined) return { method: request.method, url: href, headers };
+  if (request.body === undefined) return { method: request.http_method, url: href, headers };
   const body = renderTemplate(request.body, inputs);
   for (const name of Object.keys(headers)) {
     if (name.toLowerCase() === "content-type") delete headers[name];
@@ -610,10 +621,10 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
       form.append(name, String(value));
     }
     headers["content-type"] = "application/x-www-form-urlencoded";
-    return { method: request.method, url: href, headers, body: form.toString() };
+    return { method: request.http_method, url: href, headers, body: form.toString() };
   }
   headers["content-type"] = "application/json";
-  return { method: request.method, url: href, headers, body: JSON.stringify(body) };
+  return { method: request.http_method, url: href, headers, body: JSON.stringify(body) };
 }
 
 /** The path a URL is written with: after its authority, up to its query or fragment. A URL not written `scheme://authority` has none to compare. */

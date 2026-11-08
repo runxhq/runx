@@ -292,7 +292,7 @@ fn unreadable_connector_files() -> Vec<RegistryPackageFile> {
     vec![
         RegistryPackageFile {
             path: "connectors/acme/records/connector.yaml".to_owned(),
-            content: "schema: runx.connector.v1\nid: acme/records\nname: Records\ndescription: Records.\ncolour: red\nruntime_capability: false\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations: {}\n".to_owned(),
+            content: "schema: runx.connector.v1\nname: acme/records\ntitle: Records\ndescription: Records.\ncolour: red\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations: {}\n".to_owned(),
         },
         RegistryPackageFile {
             path: "runx.package.json".to_owned(),

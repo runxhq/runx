@@ -445,7 +445,7 @@ export const runxSchemaArtifacts = {
                     "type": "string"
                   },
                   "invocation": {
-                    "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
+                    "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
                     "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "additionalProperties": false,
                     "properties": {
@@ -1984,7 +1984,7 @@ export const runxSchemaArtifacts = {
     "x-runx-schema": "runx.act_result.v1"
   } as JsonSchema,
   "agent-act-invocation.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
+    "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
@@ -4431,7 +4431,7 @@ export const runxSchemaArtifacts = {
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
-          "run_ref": {
+          "receipt_ref": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -4509,7 +4509,7 @@ export const runxSchemaArtifacts = {
             "type": "object",
             "x-runx-schema": "runx.reference.v1"
           },
-          "receipt_ref": {
+          "run_ref": {
             "$id": "https://schemas.runx.ai/runx/reference/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -8121,7 +8121,7 @@ export const runxSchemaArtifacts = {
                 },
                 "delivery": {
                   "additionalProperties": false,
-                  "description": "How the local placement delivers the secret to an implementation. A purchase credential has none: it never leaves runx Connect.",
+                  "description": "How the local placement delivers the secret to an implementation. A lease has none: it never leaves runx Connect.",
                   "properties": {
                     "env": {
                       "maxLength": 128,
@@ -8136,7 +8136,7 @@ export const runxSchemaArtifacts = {
                   "type": "object"
                 },
                 "fields": {
-                  "description": "The connect form, or for a purchase credential the fields its hold fills.",
+                  "description": "The connect form, or for a lease the fields its take fills.",
                   "items": {
                     "additionalProperties": false,
                     "properties": {
@@ -8177,7 +8177,7 @@ export const runxSchemaArtifacts = {
                   "type": "array"
                 },
                 "kind": {
-                  "description": "The credential kind the hosted store checks (`api_key`, `oauth1_user`, `purchase`, ...).",
+                  "description": "The credential kind the hosted store checks (`api_key`, `oauth1_user`, `lease`, ...).",
                   "minLength": 1,
                   "type": "string"
                 }
@@ -8473,20 +8473,21 @@ export const runxSchemaArtifacts = {
                         "title": "ProcessReadback",
                         "type": "object"
                       },
-                      "result_from": {
-                        "description": "The bounded public answer to return after confirmation. A durable acknowledgement can remain just an opaque provider reference.",
-                        "enum": [
-                          "readback"
-                        ],
-                        "type": "string"
-                      },
-                      "runtime_scopes": {
+                      "requires": {
+                        "description": "What the runtime grants the tool, such as `fs:write`.",
                         "items": {
                           "minLength": 1,
                           "type": "string"
                         },
                         "minItems": 1,
                         "type": "array"
+                      },
+                      "result_from": {
+                        "description": "The bounded public answer to return after confirmation. A durable acknowledgement can remain just an opaque provider reference.",
+                        "enum": [
+                          "readback"
+                        ],
+                        "type": "string"
                       },
                       "tool": {
                         "minLength": 1,
@@ -8523,14 +8524,10 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "id": {
+      "name": {
         "description": "The connector's whole name: `stripe`, `google/calendar`.",
         "maxLength": 129,
         "pattern": "^(?!versions(?:/|$))[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:/(?!versions$)[a-z][a-z0-9-]{0,62}[a-z0-9])?$",
-        "type": "string"
-      },
-      "name": {
-        "minLength": 1,
         "type": "string"
       },
       "operations": {
@@ -8674,66 +8671,6 @@ export const runxSchemaArtifacts = {
                   "type": "string"
                 }
               },
-              "type": "object"
-            },
-            "holds": {
-              "additionalProperties": false,
-              "description": "What the call does to a resource a purchase holds: takes it from the provider's answer, moves its expiry, or ends it.",
-              "properties": {
-                "action": {
-                  "enum": [
-                    "take",
-                    "refresh",
-                    "release"
-                  ],
-                  "title": "LeaseAction",
-                  "type": "string"
-                },
-                "credential": {
-                  "description": "The `kind: purchase` credential held.",
-                  "maxLength": 64,
-                  "pattern": "^[a-z][a-z0-9_]{0,63}$",
-                  "type": "string"
-                },
-                "expires_at": {
-                  "description": "When the resource ends, one `$result` binding. A take and a refresh state it; a release does not."
-                },
-                "fields": {
-                  "additionalProperties": {},
-                  "description": "Each field of the credential and the one `$result` binding that fills it. Only a take fills fields.",
-                  "minProperties": 1,
-                  "propertyNames": {
-                    "pattern": "^[a-z][a-z0-9_]{0,63}$"
-                  },
-                  "type": "object"
-                },
-                "target": {
-                  "description": "The held resource. A take renders it from the call's public result; a refresh or release from the call's arguments, as the operations that use the credential render theirs."
-                }
-              },
-              "required": [
-                "action",
-                "credential",
-                "target"
-              ],
-              "title": "OperationLease",
-              "type": "object"
-            },
-            "hosted": {
-              "additionalProperties": false,
-              "description": "Present when the hosted placement offers the operation: it runs an `http` implementation through the provider gateway, and any other operation through a private driver.",
-              "properties": {
-                "provider_scopes": {
-                  "description": "The provider's own permissions, required under delegated auth.",
-                  "items": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "minItems": 1,
-                  "type": "array"
-                }
-              },
-              "title": "HostedImplementation",
               "type": "object"
             },
             "idempotency_key_format": {
@@ -9327,12 +9264,7 @@ export const runxSchemaArtifacts = {
                                     "minProperties": 1,
                                     "type": "object"
                                   },
-                                  "id": {
-                                    "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "method": {
+                                  "http_method": {
                                     "enum": [
                                       "GET",
                                       "POST",
@@ -9343,22 +9275,15 @@ export const runxSchemaArtifacts = {
                                     "title": "HttpMethod",
                                     "type": "string"
                                   },
+                                  "id": {
+                                    "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
                                   "pages": {
                                     "additionalProperties": false,
                                     "description": "A read whose answer comes in pages.",
                                     "properties": {
-                                      "cursor": {
-                                        "description": "Where a decoded page names the next cursor.",
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "in": {
-                                        "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
-                                        "enum": [
-                                          "body"
-                                        ],
-                                        "type": "string"
-                                      },
                                       "items": {
                                         "description": "Where a decoded page holds its items.",
                                         "minLength": 1,
@@ -9367,16 +9292,39 @@ export const runxSchemaArtifacts = {
                                       "limit": {
                                         "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                       },
-                                      "param": {
-                                        "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
-                                        "minLength": 1,
-                                        "type": "string"
+                                      "next": {
+                                        "additionalProperties": false,
+                                        "description": "Where the next page comes from.",
+                                        "properties": {
+                                          "cursor": {
+                                            "description": "Where a decoded page names the next cursor.",
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "in": {
+                                            "description": "Cursor placement. Body placement retains the cursor's JSON type.",
+                                            "enum": [
+                                              "body"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "param": {
+                                            "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "cursor",
+                                          "param"
+                                        ],
+                                        "title": "HttpPageCursor",
+                                        "type": "object"
                                       }
                                     },
                                     "required": [
-                                      "param",
-                                      "cursor",
-                                      "items"
+                                      "items",
+                                      "next"
                                     ],
                                     "title": "HttpPages",
                                     "type": "object"
@@ -9389,7 +9337,7 @@ export const runxSchemaArtifacts = {
                                   "url": {}
                                 },
                                 "required": [
-                                  "method",
+                                  "http_method",
                                   "url"
                                 ],
                                 "title": "HttpRequest",
@@ -9699,12 +9647,7 @@ export const runxSchemaArtifacts = {
                                     "minProperties": 1,
                                     "type": "object"
                                   },
-                                  "id": {
-                                    "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "method": {
+                                  "http_method": {
                                     "enum": [
                                       "GET",
                                       "POST",
@@ -9715,22 +9658,15 @@ export const runxSchemaArtifacts = {
                                     "title": "HttpMethod",
                                     "type": "string"
                                   },
+                                  "id": {
+                                    "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
                                   "pages": {
                                     "additionalProperties": false,
                                     "description": "A read whose answer comes in pages.",
                                     "properties": {
-                                      "cursor": {
-                                        "description": "Where a decoded page names the next cursor.",
-                                        "minLength": 1,
-                                        "type": "string"
-                                      },
-                                      "in": {
-                                        "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
-                                        "enum": [
-                                          "body"
-                                        ],
-                                        "type": "string"
-                                      },
                                       "items": {
                                         "description": "Where a decoded page holds its items.",
                                         "minLength": 1,
@@ -9739,16 +9675,39 @@ export const runxSchemaArtifacts = {
                                       "limit": {
                                         "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                       },
-                                      "param": {
-                                        "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
-                                        "minLength": 1,
-                                        "type": "string"
+                                      "next": {
+                                        "additionalProperties": false,
+                                        "description": "Where the next page comes from.",
+                                        "properties": {
+                                          "cursor": {
+                                            "description": "Where a decoded page names the next cursor.",
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          "in": {
+                                            "description": "Cursor placement. Body placement retains the cursor's JSON type.",
+                                            "enum": [
+                                              "body"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "param": {
+                                            "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
+                                            "minLength": 1,
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "cursor",
+                                          "param"
+                                        ],
+                                        "title": "HttpPageCursor",
+                                        "type": "object"
                                       }
                                     },
                                     "required": [
-                                      "param",
-                                      "cursor",
-                                      "items"
+                                      "items",
+                                      "next"
                                     ],
                                     "title": "HttpPages",
                                     "type": "object"
@@ -9761,7 +9720,7 @@ export const runxSchemaArtifacts = {
                                   "url": {}
                                 },
                                 "required": [
-                                  "method",
+                                  "http_method",
                                   "url"
                                 ],
                                 "title": "HttpRequest",
@@ -9799,12 +9758,7 @@ export const runxSchemaArtifacts = {
                                 "minProperties": 1,
                                 "type": "object"
                               },
-                              "id": {
-                                "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
-                                "minLength": 1,
-                                "type": "string"
-                              },
-                              "method": {
+                              "http_method": {
                                 "enum": [
                                   "GET",
                                   "POST",
@@ -9815,22 +9769,15 @@ export const runxSchemaArtifacts = {
                                 "title": "HttpMethod",
                                 "type": "string"
                               },
+                              "id": {
+                                "description": "Names the request, unique within the exchange, so a later request reads its answer as `{\"$response\": \"<id>.<path>\"}`. A lone request needs no name. Readbacks address what a write returned as `{\"$response\": \"write.<path>\"}`; `write` is reserved for that.",
+                                "minLength": 1,
+                                "type": "string"
+                              },
                               "pages": {
                                 "additionalProperties": false,
                                 "description": "A read whose answer comes in pages.",
                                 "properties": {
-                                  "cursor": {
-                                    "description": "Where a decoded page names the next cursor.",
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "in": {
-                                    "description": "Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type.",
-                                    "enum": [
-                                      "body"
-                                    ],
-                                    "type": "string"
-                                  },
                                   "items": {
                                     "description": "Where a decoded page holds its items.",
                                     "minLength": 1,
@@ -9839,16 +9786,39 @@ export const runxSchemaArtifacts = {
                                   "limit": {
                                     "description": "How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read."
                                   },
-                                  "param": {
-                                    "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
-                                    "minLength": 1,
-                                    "type": "string"
+                                  "next": {
+                                    "additionalProperties": false,
+                                    "description": "Where the next page comes from.",
+                                    "properties": {
+                                      "cursor": {
+                                        "description": "Where a decoded page names the next cursor.",
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "in": {
+                                        "description": "Cursor placement. Body placement retains the cursor's JSON type.",
+                                        "enum": [
+                                          "body"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "param": {
+                                        "description": "Query parameter name, or an object-member JSON pointer when `in` is body.",
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "cursor",
+                                      "param"
+                                    ],
+                                    "title": "HttpPageCursor",
+                                    "type": "object"
                                   }
                                 },
                                 "required": [
-                                  "param",
-                                  "cursor",
-                                  "items"
+                                  "items",
+                                  "next"
                                 ],
                                 "title": "HttpPages",
                                 "type": "object"
@@ -9861,7 +9831,7 @@ export const runxSchemaArtifacts = {
                               "url": {}
                             },
                             "required": [
-                              "method",
+                              "http_method",
                               "url"
                             ],
                             "title": "HttpRequest",
@@ -10194,20 +10164,21 @@ export const runxSchemaArtifacts = {
                           "title": "ProcessReadback",
                           "type": "object"
                         },
-                        "result_from": {
-                          "description": "The bounded public answer to return after confirmation. A durable acknowledgement can remain just an opaque provider reference.",
-                          "enum": [
-                            "readback"
-                          ],
-                          "type": "string"
-                        },
-                        "runtime_scopes": {
+                        "requires": {
+                          "description": "What the runtime grants the tool, such as `fs:write`.",
                           "items": {
                             "minLength": 1,
                             "type": "string"
                           },
                           "minItems": 1,
                           "type": "array"
+                        },
+                        "result_from": {
+                          "description": "The bounded public answer to return after confirmation. A durable acknowledgement can remain just an opaque provider reference.",
+                          "enum": [
+                            "readback"
+                          ],
+                          "type": "string"
                         },
                         "tool": {
                           "minLength": 1,
@@ -10275,12 +10246,92 @@ export const runxSchemaArtifacts = {
                   "type": "object"
                 }
               ],
-              "description": "What one operation does, written as a single-key map: `{http: ...}`, `{mcp: ...}`, `{process: ...}`, `{web: {}}`, `{store: {}}` or `{artifact: {}}`. The local placement runs every kind; the hosted placement runs `http`.",
+              "description": "How the local placement runs it. The hosted placement runs an `http` implementation through the provider gateway, and an operation with no implementation through a private driver.",
               "title": "Implementation"
             },
             "input_schema": {
               "additionalProperties": {},
               "type": "object"
+            },
+            "lease": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "description": "This call creates the resource and takes its credential.",
+                  "properties": {
+                    "expires_at": {
+                      "description": "When the resource ends, one `$result` binding."
+                    },
+                    "fields": {
+                      "additionalProperties": {},
+                      "description": "Each field of the credential and the one `$response` binding that fills it.",
+                      "propertyNames": {
+                        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                      },
+                      "type": "object"
+                    },
+                    "take": {
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                      "type": "string"
+                    },
+                    "target": {}
+                  },
+                  "required": [
+                    "take",
+                    "target",
+                    "expires_at",
+                    "fields"
+                  ],
+                  "title": "LeaseTake",
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "description": "This call moves the lease's expiry.",
+                  "properties": {
+                    "expires_at": {},
+                    "renew": {
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "renew",
+                    "expires_at"
+                  ],
+                  "title": "LeaseRenew",
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "description": "This call ends the lease: the resource is gone.",
+                  "properties": {
+                    "release": {
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "release"
+                  ],
+                  "title": "LeaseRelease",
+                  "type": "object"
+                }
+              ],
+              "description": "What the call does to a lease: takes it from the provider's answer, renews it, or releases it.",
+              "title": "OperationLease"
+            },
+            "provider_scopes": {
+              "description": "The provider's own permissions, needed under delegated auth.",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
             },
             "result_fields": {
               "items": {
@@ -10317,16 +10368,10 @@ export const runxSchemaArtifacts = {
               "type": "object"
             },
             "verb": {
-              "description": "The provider verbs an operation may declare. `read` makes the operation a read; every other verb makes it a mutation.",
+              "description": "The authority verbs an operation may declare. `read` makes the operation a read; every other verb makes it a mutation. What kind of write it is, a comment or a merge, is its `scopes`' to say.",
               "enum": [
                 "read",
                 "write",
-                "comment",
-                "review",
-                "merge",
-                "create",
-                "update",
-                "delete",
                 "execute",
                 "revoke"
               ],
@@ -10353,7 +10398,7 @@ export const runxSchemaArtifacts = {
         "description": "The JSON Schema of what an instance pins besides its authority, such as a store's location. Templates bind them as `$parameter`.",
         "type": "object"
       },
-      "pays": {
+      "payment": {
         "additionalProperties": {
           "additionalProperties": false,
           "description": "Constraints on a candidate payment method. These declarations filter discovery; the selected operation still admits the exact payment and account.",
@@ -10367,8 +10412,8 @@ export const runxSchemaArtifacts = {
               "minItems": 1,
               "type": "array"
             },
-            "methods": {
-              "description": "Protocol method identifiers, such as `stripe` or `tempo` for MPP.",
+            "networks": {
+              "description": "Protocol network identifiers, such as the CAIP-2 `eip155:8453`.",
               "items": {
                 "minLength": 1,
                 "type": "string"
@@ -10376,8 +10421,8 @@ export const runxSchemaArtifacts = {
               "minItems": 1,
               "type": "array"
             },
-            "networks": {
-              "description": "Protocol network identifiers, such as the CAIP-2 `eip155:8453`.",
+            "payment_methods": {
+              "description": "Protocol payment method identifiers, such as `stripe` or `tempo` for MPP.",
               "items": {
                 "minLength": 1,
                 "type": "string"
@@ -10698,24 +10743,24 @@ export const runxSchemaArtifacts = {
         "minItems": 1,
         "type": "array"
       },
-      "runtime_capability": {
-        "description": "Whether the connector is the runtime's own capability (a store, the web, a vault) rather than an outside service. Declared, never inferred.",
-        "type": "boolean"
-      },
       "schema": {
         "enum": [
           "runx.connector.v1"
         ],
         "title": "ConnectorSchema",
         "type": "string"
+      },
+      "title": {
+        "description": "Its display name, such as \"GitHub\".",
+        "minLength": 1,
+        "type": "string"
       }
     },
     "required": [
       "schema",
-      "id",
       "name",
+      "title",
       "description",
-      "runtime_capability",
       "auth",
       "placements",
       "operations"
@@ -10906,84 +10951,6 @@ export const runxSchemaArtifacts = {
         ],
         "title": "CredentialDeliveryMode",
         "type": "string"
-      },
-      "run_ref": {
-        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "label": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "locator": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "observed_at": {
-            "minLength": 1,
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
-            "type": "string"
-          },
-          "proof_kind": {
-            "enum": [
-              "effect_evidence",
-              "effect_finality",
-              "credential_resolution"
-            ],
-            "title": "ProofKind",
-            "type": "string"
-          },
-          "provider": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": {
-            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
-            "enum": [
-              "thread",
-              "comment",
-              "event",
-              "tracking_item",
-              "change_request",
-              "repository",
-              "signal",
-              "run",
-              "act",
-              "receipt",
-              "artifact",
-              "verification",
-              "harness",
-              "host",
-              "surface",
-              "target",
-              "skill_binding",
-              "principal",
-              "scope_admission",
-              "grant",
-              "mandate",
-              "credential",
-              "webhook_delivery",
-              "redaction_policy",
-              "external_url",
-              "connector_instance",
-              "connector_operation"
-            ],
-            "title": "ReferenceType",
-            "type": "string"
-          },
-          "uri": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "uri"
-        ],
-        "title": "Reference",
-        "type": "object",
-        "x-runx-schema": "runx.reference.v1"
       },
       "host_ref": {
         "$id": "https://schemas.runx.ai/runx/reference/v1.json",
@@ -11182,6 +11149,84 @@ export const runxSchemaArtifacts = {
       "response_id": {
         "minLength": 1,
         "type": "string"
+      },
+      "run_ref": {
+        "$id": "https://schemas.runx.ai/runx/reference/v1.json",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "locator": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "observed_at": {
+            "minLength": 1,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+            "type": "string"
+          },
+          "proof_kind": {
+            "enum": [
+              "effect_evidence",
+              "effect_finality",
+              "credential_resolution"
+            ],
+            "title": "ProofKind",
+            "type": "string"
+          },
+          "provider": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "description": "What a reference points at. External kinds never name a provider: the reference's `provider` and `locator` say where, and connectors declare which of their locators are which kind.",
+            "enum": [
+              "thread",
+              "comment",
+              "event",
+              "tracking_item",
+              "change_request",
+              "repository",
+              "signal",
+              "run",
+              "act",
+              "receipt",
+              "artifact",
+              "verification",
+              "harness",
+              "host",
+              "surface",
+              "target",
+              "skill_binding",
+              "principal",
+              "scope_admission",
+              "grant",
+              "mandate",
+              "credential",
+              "webhook_delivery",
+              "redaction_policy",
+              "external_url",
+              "connector_instance",
+              "connector_operation"
+            ],
+            "title": "ReferenceType",
+            "type": "string"
+          },
+          "uri": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "uri"
+        ],
+        "title": "Reference",
+        "type": "object",
+        "x-runx-schema": "runx.reference.v1"
       },
       "schema": {
         "enum": [
@@ -17138,36 +17183,6 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.git.status.v1"
   } as JsonSchema,
-  "run-context.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/control/run-context/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "description": "What `control.capture_run_context` returns: the harness, signal and decision packets a run was given, held as explicit context.",
-    "properties": {
-      "captured": {
-        "type": "boolean"
-      },
-      "decision": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "harness": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "signal": {
-        "additionalProperties": {},
-        "type": "object"
-      }
-    },
-    "required": [
-      "captured"
-    ],
-    "title": "RunContext",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.control.run_context.v1"
-  } as JsonSchema,
   "ledger-entry.schema.json": {
     "$id": "https://schemas.runx.ai/runx/ledger-entry/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17419,10 +17434,6 @@ export const runxSchemaArtifacts = {
               "minimum": 0,
               "type": "integer"
             },
-            "test_cases": {
-              "minimum": 0,
-              "type": "integer"
-            },
             "kind": {
               "enum": [
                 "tool",
@@ -17486,6 +17497,10 @@ export const runxSchemaArtifacts = {
               "type": "string"
             },
             "steps": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "test_cases": {
               "minimum": 0,
               "type": "integer"
             },
@@ -18043,11 +18058,6 @@ export const runxSchemaArtifacts = {
               "pattern": "^[A-Za-z0-9_.:-]+$",
               "type": "string"
             },
-            "repo": {
-              "minLength": 3,
-              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-              "type": "string"
-            },
             "method_ids": {
               "items": {
                 "minLength": 1,
@@ -18056,6 +18066,11 @@ export const runxSchemaArtifacts = {
               },
               "minItems": 1,
               "type": "array"
+            },
+            "repo": {
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+              "type": "string"
             },
             "scafld_required": {
               "type": "boolean"
@@ -20246,18 +20261,18 @@ export const runxSchemaArtifacts = {
                     "default_owner_route": {
                       "type": "string"
                     },
+                    "method_ids": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
                     "owner_count": {
                       "minimum": 0,
                       "type": "integer"
                     },
                     "repo": {
                       "type": "string"
-                    },
-                    "method_ids": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
                     },
                     "scafld_required": {
                       "type": "boolean"
@@ -27999,6 +28014,169 @@ export const runxSchemaArtifacts = {
           "manual_digest": {
             "type": "string"
           },
+          "method_inspections": {
+            "description": "Each runner with the execution closure it binds.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "execution_closure": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "runner": {
+                  "additionalProperties": false,
+                  "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
+                  "properties": {
+                    "connectors": {
+                      "additionalProperties": {},
+                      "description": "The connector requirements of the skill, by key.",
+                      "type": "object"
+                    },
+                    "continuations": {
+                      "description": "The runners this one's work continues in, which its run may admit.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "declared_result_packets": {
+                      "additionalProperties": {
+                        "maxLength": 200,
+                        "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                        "type": "string"
+                      },
+                      "description": "The packet each result output declares, by output name.",
+                      "type": "object"
+                    },
+                    "input_schema": {
+                      "additionalProperties": {},
+                      "description": "Its inputs as one JSON schema, with the runner's examples.",
+                      "type": "object"
+                    },
+                    "inputs": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "description": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "schema": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "type",
+                          "required",
+                          "schema"
+                        ],
+                        "title": "InspectedInput",
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "outputs": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "title": "InspectedOutput",
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "requirements": {
+                      "additionalProperties": false,
+                      "description": "Parser-owned projection of all execution requirements for one act.",
+                      "properties": {
+                        "environment": {
+                          "additionalProperties": false,
+                          "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
+                          "minProperties": 1,
+                          "properties": {
+                            "optional": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "required": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "scopes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "title": "ExecutionRequirements",
+                      "type": "object"
+                    },
+                    "scopes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "input_schema",
+                    "inputs",
+                    "outputs",
+                    "declared_result_packets",
+                    "requirements"
+                  ],
+                  "title": "MethodInspection",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "runner",
+                "execution_closure"
+              ],
+              "title": "MethodInspectionEntry",
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
           "name": {
             "type": "string"
           },
@@ -28239,169 +28417,6 @@ export const runxSchemaArtifacts = {
             ],
             "title": "MethodInspection",
             "type": "object"
-          },
-          "method_inspections": {
-            "description": "Each runner with the execution closure it binds.",
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "execution_closure": {
-                  "additionalProperties": {},
-                  "type": "object"
-                },
-                "runner": {
-                  "additionalProperties": false,
-                  "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
-                  "properties": {
-                    "connectors": {
-                      "additionalProperties": {},
-                      "description": "The connector requirements of the skill, by key.",
-                      "type": "object"
-                    },
-                    "continuations": {
-                      "description": "The runners this one's work continues in, which its run may admit.",
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "declared_result_packets": {
-                      "additionalProperties": {
-                        "maxLength": 200,
-                        "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                        "type": "string"
-                      },
-                      "description": "The packet each result output declares, by output name.",
-                      "type": "object"
-                    },
-                    "input_schema": {
-                      "additionalProperties": {},
-                      "description": "Its inputs as one JSON schema, with the runner's examples.",
-                      "type": "object"
-                    },
-                    "inputs": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "description": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "required": {
-                            "type": "boolean"
-                          },
-                          "schema": {
-                            "additionalProperties": {},
-                            "type": "object"
-                          },
-                          "type": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "name",
-                          "type",
-                          "required",
-                          "schema"
-                        ],
-                        "title": "InspectedInput",
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "outputs": {
-                      "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "required": {
-                            "type": "boolean"
-                          },
-                          "type": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "name"
-                        ],
-                        "title": "InspectedOutput",
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "requirements": {
-                      "additionalProperties": false,
-                      "description": "Parser-owned projection of all execution requirements for one act.",
-                      "properties": {
-                        "environment": {
-                          "additionalProperties": false,
-                          "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                          "minProperties": 1,
-                          "properties": {
-                            "optional": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "minItems": 1,
-                              "type": "array"
-                            },
-                            "required": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "minItems": 1,
-                              "type": "array"
-                            }
-                          },
-                          "type": "object"
-                        },
-                        "scopes": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        }
-                      },
-                      "title": "ExecutionRequirements",
-                      "type": "object"
-                    },
-                    "scopes": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 1,
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "input_schema",
-                    "inputs",
-                    "outputs",
-                    "declared_result_packets",
-                    "requirements"
-                  ],
-                  "title": "MethodInspection",
-                  "type": "object"
-                }
-              },
-              "required": [
-                "runner",
-                "execution_closure"
-              ],
-              "title": "MethodInspectionEntry",
-              "type": "object"
-            },
-            "minItems": 1,
-            "type": "array"
           },
           "runners": {
             "description": "Every runner the package declares, by name.",
@@ -29032,7 +29047,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "invocation": {
-            "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
+            "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
@@ -30699,6 +30714,36 @@ export const runxSchemaArtifacts = {
     "title": "ResumeDocument",
     "type": "object",
     "x-runx-schema": "runx.resume.v1"
+  } as JsonSchema,
+  "run-context.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/control/run-context/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "What `control.capture_run_context` returns: the harness, signal and decision packets a run was given, held as explicit context.",
+    "properties": {
+      "captured": {
+        "type": "boolean"
+      },
+      "decision": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "harness": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "signal": {
+        "additionalProperties": {},
+        "type": "object"
+      }
+    },
+    "required": [
+      "captured"
+    ],
+    "title": "RunContext",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.control.run_context.v1"
   } as JsonSchema,
   "run-event.schema.json": {
     "$id": "https://schemas.runx.ai/runx/run-event/v1.json",
@@ -32745,7 +32790,7 @@ export const runxSchemaArtifacts = {
                       "type": "string"
                     },
                     "invocation": {
-                      "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
+                      "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
                       "$schema": "https://json-schema.org/draft/2020-12/schema",
                       "additionalProperties": false,
                       "properties": {
@@ -37174,10 +37219,6 @@ export const runxSchemaArtifacts = {
               "minimum": 0,
               "type": "integer"
             },
-            "test_cases": {
-              "minimum": 0,
-              "type": "integer"
-            },
             "kind": {
               "enum": [
                 "tool",
@@ -37210,6 +37251,10 @@ export const runxSchemaArtifacts = {
               ],
               "title": "RunxListStatus",
               "type": "string"
+            },
+            "test_cases": {
+              "minimum": 0,
+              "type": "integer"
             }
           },
           "required": [
@@ -37237,10 +37282,6 @@ export const runxSchemaArtifacts = {
               "minimum": 0,
               "type": "integer"
             },
-            "test_cases": {
-              "minimum": 0,
-              "type": "integer"
-            },
             "kind": {
               "enum": [
                 "tool",
@@ -37273,6 +37314,10 @@ export const runxSchemaArtifacts = {
               ],
               "title": "RunxListStatus",
               "type": "string"
+            },
+            "test_cases": {
+              "minimum": 0,
+              "type": "integer"
             }
           },
           "required": [
@@ -38455,6 +38500,169 @@ export const runxSchemaArtifacts = {
       "manual_digest": {
         "type": "string"
       },
+      "method_inspections": {
+        "description": "Each runner with the execution closure it binds.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "execution_closure": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "runner": {
+              "additionalProperties": false,
+              "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
+              "properties": {
+                "connectors": {
+                  "additionalProperties": {},
+                  "description": "The connector requirements of the skill, by key.",
+                  "type": "object"
+                },
+                "continuations": {
+                  "description": "The runners this one's work continues in, which its run may admit.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "declared_result_packets": {
+                  "additionalProperties": {
+                    "maxLength": 200,
+                    "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                    "type": "string"
+                  },
+                  "description": "The packet each result output declares, by output name.",
+                  "type": "object"
+                },
+                "input_schema": {
+                  "additionalProperties": {},
+                  "description": "Its inputs as one JSON schema, with the runner's examples.",
+                  "type": "object"
+                },
+                "inputs": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "description": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "schema": {
+                        "additionalProperties": {},
+                        "type": "object"
+                      },
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "type",
+                      "required",
+                      "schema"
+                    ],
+                    "title": "InspectedInput",
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "outputs": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "title": "InspectedOutput",
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "requirements": {
+                  "additionalProperties": false,
+                  "description": "Parser-owned projection of all execution requirements for one act.",
+                  "properties": {
+                    "environment": {
+                      "additionalProperties": false,
+                      "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
+                      "minProperties": 1,
+                      "properties": {
+                        "optional": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "required": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "scopes": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "title": "ExecutionRequirements",
+                  "type": "object"
+                },
+                "scopes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "name",
+                "input_schema",
+                "inputs",
+                "outputs",
+                "declared_result_packets",
+                "requirements"
+              ],
+              "title": "MethodInspection",
+              "type": "object"
+            }
+          },
+          "required": [
+            "runner",
+            "execution_closure"
+          ],
+          "title": "MethodInspectionEntry",
+          "type": "object"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
       "name": {
         "type": "string"
       },
@@ -38695,169 +38903,6 @@ export const runxSchemaArtifacts = {
         ],
         "title": "MethodInspection",
         "type": "object"
-      },
-      "method_inspections": {
-        "description": "Each runner with the execution closure it binds.",
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "execution_closure": {
-              "additionalProperties": {},
-              "type": "object"
-            },
-            "runner": {
-              "additionalProperties": false,
-              "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
-              "properties": {
-                "connectors": {
-                  "additionalProperties": {},
-                  "description": "The connector requirements of the skill, by key.",
-                  "type": "object"
-                },
-                "continuations": {
-                  "description": "The runners this one's work continues in, which its run may admit.",
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "declared_result_packets": {
-                  "additionalProperties": {
-                    "maxLength": 200,
-                    "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                    "type": "string"
-                  },
-                  "description": "The packet each result output declares, by output name.",
-                  "type": "object"
-                },
-                "input_schema": {
-                  "additionalProperties": {},
-                  "description": "Its inputs as one JSON schema, with the runner's examples.",
-                  "type": "object"
-                },
-                "inputs": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "description": {
-                        "type": "string"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "required": {
-                        "type": "boolean"
-                      },
-                      "schema": {
-                        "additionalProperties": {},
-                        "type": "object"
-                      },
-                      "type": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "type",
-                      "required",
-                      "schema"
-                    ],
-                    "title": "InspectedInput",
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "outputs": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "name": {
-                        "type": "string"
-                      },
-                      "required": {
-                        "type": "boolean"
-                      },
-                      "type": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "name"
-                    ],
-                    "title": "InspectedOutput",
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "requirements": {
-                  "additionalProperties": false,
-                  "description": "Parser-owned projection of all execution requirements for one act.",
-                  "properties": {
-                    "environment": {
-                      "additionalProperties": false,
-                      "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                      "minProperties": 1,
-                      "properties": {
-                        "optional": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        },
-                        "required": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 1,
-                          "type": "array"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "scopes": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 1,
-                      "type": "array"
-                    }
-                  },
-                  "title": "ExecutionRequirements",
-                  "type": "object"
-                },
-                "scopes": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "minItems": 1,
-                  "type": "array"
-                }
-              },
-              "required": [
-                "name",
-                "input_schema",
-                "inputs",
-                "outputs",
-                "declared_result_packets",
-                "requirements"
-              ],
-              "title": "MethodInspection",
-              "type": "object"
-            }
-          },
-          "required": [
-            "runner",
-            "execution_closure"
-          ],
-          "title": "MethodInspectionEntry",
-          "type": "object"
-        },
-        "minItems": 1,
-        "type": "array"
       },
       "runners": {
         "description": "Every runner the package declares, by name.",
@@ -40696,7 +40741,7 @@ export const runxSchemaArtifacts = {
                           "type": "string"
                         },
                         "invocation": {
-                          "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
+                          "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
                           "$schema": "https://json-schema.org/draft/2020-12/schema",
                           "additionalProperties": false,
                           "properties": {
@@ -43057,7 +43102,7 @@ export const runxSchemaArtifacts = {
                                 "type": "string"
                               },
                               "invocation": {
-                                "$id": "https://schemas.runx.ai/runx/agent-act-invocation/v1.json",
+                                "$id": "https://schemas.runx.ai/runx/turn-invocation/v1.json",
                                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                                 "additionalProperties": false,
                                 "properties": {

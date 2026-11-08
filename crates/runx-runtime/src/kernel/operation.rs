@@ -358,7 +358,7 @@ impl OperationAdmission {
     pub(crate) fn skill_label(&self) -> String {
         format!(
             "operation:{}/{}",
-            self.admitted.connector.manifest.id, self.admitted.operation
+            self.admitted.connector.manifest.name, self.admitted.operation
         )
     }
 
@@ -418,8 +418,11 @@ impl OperationAdmission {
         let operation = self.admitted.operation();
         let implementation = match self.admitted.instance.placement {
             Placement::Local => operation.implementation.as_ref()?,
-            Placement::Hosted => operation
-                .hosted_http()
+            Placement::Hosted => self
+                .admitted
+                .connector
+                .manifest
+                .hosted_http(operation)
                 .and(operation.implementation.as_ref())?,
         };
         let server = self
@@ -465,7 +468,7 @@ impl OperationAdmission {
             .ok_or_else(|| {
                 format!(
                     "connector {} ships no tool {}",
-                    connector.manifest.id, process.tool
+                    connector.manifest.name, process.tool
                 )
             })?
             .installed(
@@ -660,7 +663,7 @@ impl RuntimeEffect for OperationEffect {
         {
             return Err(state("the packet does not match the admitted intent"));
         }
-        let provider = context.admitted.connector.manifest.id.as_str();
+        let provider = context.admitted.connector.manifest.name.as_str();
         let mut refs = vec![verification(
             format!("runx:operation_intent:{intent_digest}"),
             provider,
@@ -984,7 +987,7 @@ pub(crate) fn execute(
     .and_then(|readback| {
         readback
             .verify(&Expected {
-                connector: admitted.connector.manifest.id.as_str(),
+                connector: admitted.connector.manifest.name.as_str(),
                 operation: admitted.operation.as_str(),
                 target: &admitted.target,
                 mutation: context.mutation(),
@@ -1129,7 +1132,7 @@ fn prepare(
                     super::session::ManagedCommandSession::of(&admitted.connector.manifest)
                         .ok_or("the connector no longer declares its managed-command session")?;
                 let principal = managed.principal(env, cwd)?;
-                if principal.principal_uri(admitted.connector.manifest.id.as_str())
+                if principal.principal_uri(admitted.connector.manifest.name.as_str())
                     != instance.principal_uri.as_str()
                 {
                     return Err("the CLI is signed in as another account; confirm the connector session again".to_owned());
@@ -1188,7 +1191,7 @@ fn signed_in(
                         | Failure::ReadbackPending(reason) => reason,
                     })?;
             let principal = session.principal(&token, transport.as_ref())?;
-            let principal_uri = principal.principal_uri(manifest.id.as_str());
+            let principal_uri = principal.principal_uri(manifest.name.as_str());
             context
                 .placements
                 .principals
@@ -1201,7 +1204,7 @@ fn signed_in(
     if principal_uri != instance.principal_uri.as_str() {
         return Err(format!(
             "{} is signed in as {}, not the account instance {} is pinned to; confirm it again with `runx connector use {} --session`",
-            manifest.id,
+            manifest.name,
             login.as_deref().unwrap_or("another account"),
             instance.instance_id,
             context.admitted.connector.name
@@ -1241,7 +1244,7 @@ fn dispatch(
         Session::Local(secret) => (None, secret, None),
         Session::Account(session) => (None, None, Some(session)),
     };
-    let implementation = match (&hosted, operation.hosted_http()) {
+    let implementation = match (&hosted, admitted.connector.manifest.hosted_http(operation)) {
         (Some(session), None) => {
             *dispatched = Some(Dispatched::of(context));
             return private_driver(context, session, provider_key);
@@ -1258,7 +1261,7 @@ fn dispatch(
     };
     let arguments = JsonValue::Object(context.call.input.clone());
     let call = AdmittedCall {
-        connector: admitted.connector.manifest.id.as_str(),
+        connector: admitted.connector.manifest.name.as_str(),
         operation: admitted.operation.as_str(),
         implementation: implementation.kind(),
         target: &admitted.target,
@@ -1275,19 +1278,16 @@ fn dispatch(
         )
         .then_some(admitted.instance.principal_uri.as_str()),
         env,
-        held: operation
-            .holds
-            .as_ref()
-            .filter(|hold| hold.action == runx_contracts::connector::LeaseAction::Take)
-            .map(|hold| {
-                hold.fields
-                    .values()
-                    .filter_map(|binding| binding.response_reference())
-                    .filter_map(|reference| reference.strip_prefix("write."))
-                    .map(str::to_owned)
-                    .collect()
-            })
-            .unwrap_or_default(),
+        held: match &operation.lease {
+            Some(runx_contracts::connector::OperationLease::Take(take)) => take
+                .fields
+                .values()
+                .filter_map(|binding| binding.response_reference())
+                .filter_map(|reference| reference.strip_prefix("write."))
+                .map(str::to_owned)
+                .collect(),
+            _ => Vec::new(),
+        },
         access: operation.access(),
         _sealed: Sealed,
     };
@@ -1413,7 +1413,7 @@ fn dispatch(
         Implementation::Process(spec) => {
             let delivery = process_delivery(context, call.credential)?;
             let scopes = spec
-                .runtime_scopes
+                .requires
                 .iter()
                 .map(|scope| scope.as_str().to_owned())
                 .collect::<Vec<_>>();
@@ -1552,7 +1552,7 @@ fn stdio_server_delivery(
     let declaration = super::instances::delivered_credential(manifest, &instance.authority)
         .and_then(|credential| manifest.auth.credentials.get(credential))?;
     Some(crate::credentials::build_local_provision_observation(
-        manifest.id.as_str(),
+        manifest.name.as_str(),
         declaration.kind.as_str(),
         instance.instance_id.as_str(),
     ))
@@ -1601,7 +1601,7 @@ fn process_delivery(
         )
     })?;
     crate::credentials::CredentialDelivery::process_env(
-        manifest.id.as_str(),
+        manifest.name.as_str(),
         declaration.kind.as_str(),
         variable.as_str(),
         instance.instance_id.as_str(),
@@ -1935,11 +1935,11 @@ fn render_effects(
                 return Err(format!(
                     "the effect locator {locator:?} is not a {} {} declares",
                     ReferenceType::from(effect.kind).as_str(),
-                    manifest.id
+                    manifest.name
                 ));
             }
             Ok(Reference {
-                provider: Some(manifest.id.as_str().to_owned().into()),
+                provider: Some(manifest.name.as_str().to_owned().into()),
                 ..Reference::with_uri(effect.kind.into(), locator)
             })
         })
@@ -2328,7 +2328,7 @@ fn failed(context: &OperationAdmission, reason: String) -> RuntimeError {
     RuntimeError::SkillFailed {
         skill_name: format!(
             "{}/{}",
-            context.admitted.connector.manifest.id, context.admitted.operation
+            context.admitted.connector.manifest.name, context.admitted.operation
         ),
         message: reason,
     }

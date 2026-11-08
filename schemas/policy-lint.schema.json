@@ -281,18 +281,18 @@
                   "default_owner_route": {
                     "type": "string"
                   },
+                  "method_ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "owner_count": {
                     "minimum": 0,
                     "type": "integer"
                   },
                   "repo": {
                     "type": "string"
-                  },
-                  "method_ids": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
                   },
                   "scafld_required": {
                     "type": "boolean"

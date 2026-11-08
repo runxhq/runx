@@ -980,7 +980,7 @@ fn methods(
         let Some(pays) = scope
             .as_ref()
             .and_then(|scope| scope.connector(instance.connector.as_str()).ok())
-            .and_then(|connector| connector.manifest.pays.clone())
+            .and_then(|connector| connector.manifest.payment.clone())
         else {
             continue;
         };

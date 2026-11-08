@@ -92,17 +92,6 @@ export type AdmissionReasonContract = {
   readonly refs?: readonly ReferenceContract[];
 };
 
-export type TurnInvocationContract = {
-  /** What the agent may call while its turn is open. */
-  readonly allowance: TurnAllowanceContract;
-  readonly envelope: AgentContextEnvelopeContract;
-  readonly id: string;
-  /** The kind of agent the step asks for. */
-  readonly role: string;
-  /** The act it performs. */
-  readonly task: string;
-};
-
 export type AgentContextEnvelopeContract = {
   /** The act its run's invoker stated: why the run exists, as the run's steps read `$act`. */
   readonly act?: CallActContract;
@@ -229,8 +218,8 @@ export type ArtifactImplementationContract = {};
 export type ArtifactProducedByContract = {
   readonly act?: ActAddressContract;
   readonly decision_ref?: ReferenceContract;
-  readonly run_ref?: ReferenceContract;
   readonly receipt_ref?: ReferenceContract;
+  readonly run_ref?: ReferenceContract;
   readonly signal_ref?: ReferenceContract;
 };
 
@@ -429,6 +418,13 @@ export type CatalogHitContract = {
   readonly trust_tier?: TrustTierContract;
 };
 
+/** One runner of a skill, as a model chooses it from an index. */
+export type CatalogMethodContract = {
+  readonly name: string;
+  /** What it does and when to use it, as its package states it. */
+  readonly purpose?: string;
+};
+
 /** What a skill or connector is, as the catalog lists it. */
 export type CatalogPackageKindContract = "skill" | "connector";
 
@@ -436,13 +432,6 @@ export type CatalogPackageKindContract = "skill" | "connector";
 export type CatalogRuleContract = {
   readonly catalog?: CatalogTrustContract;
   readonly project?: true;
-};
-
-/** One runner of a skill, as a model chooses it from an index. */
-export type CatalogMethodContract = {
-  readonly name: string;
-  /** What it does and when to use it, as its package states it. */
-  readonly purpose?: string;
 };
 
 /** Where a package is: the registry publishes it, or the project authored it. */
@@ -591,7 +580,6 @@ export type ConnectorManifestContract = {
   readonly category?: string;
   readonly description: string;
   /** The connector's whole name: `stripe`, `google/calendar`. */
-  readonly id: string;
   readonly name: string;
   readonly operations: {
     readonly [key: string]: ConnectorOperationContract;
@@ -601,15 +589,15 @@ export type ConnectorManifestContract = {
     readonly [key: string]: unknown;
   };
   /** What a payment connector pays with, so a purchase offers it as a method only for a quote it can pay (S8, N10). */
-  readonly pays?: {
+  readonly payment?: {
     readonly [key: string]: PaymentCompatibilityContract;
   };
   readonly placements: ConnectorPlacementsContract;
   /** What the connector's locators name, so references to them are classified without the runtime knowing the provider. */
   readonly references?: readonly ReferenceDeclarationContract[];
-  /** Whether the connector is the runtime's own capability (a store, the web, a vault) rather than an outside service. Declared, never inferred. */
-  readonly runtime_capability: boolean;
   readonly schema: ConnectorSchemaContract;
+  /** Its display name, such as "GitHub". */
+  readonly title: string;
 };
 
 /** One named action on a connector. */
@@ -628,15 +616,16 @@ export type ConnectorOperationContract = {
     readonly provider_idempotency?: "enforced" | "inherent";
     readonly readback?: "unavailable";
   };
-  /** What the call does to a resource a purchase holds: takes it from the provider's answer, moves its expiry, or ends it. */
-  readonly holds?: OperationLeaseContract;
-  /** Present when the hosted placement offers the operation: it runs an `http` implementation through the provider gateway, and any other operation through a private driver. */
-  readonly hosted?: HostedImplementationContract;
   readonly idempotency_key_format?: "uuid";
+  /** How the local placement runs it. The hosted placement runs an `http` implementation through the provider gateway, and an operation with no implementation through a private driver. */
   readonly implementation?: ImplementationContract;
   readonly input_schema?: {
     readonly [key: string]: unknown;
   };
+  /** What the call does to a lease: takes it from the provider's answer, renews it, or releases it. */
+  readonly lease?: OperationLeaseContract;
+  /** The provider's own permissions, needed under delegated auth. */
+  readonly provider_scopes?: readonly string[];
   readonly result_fields?: readonly string[];
   /** Grant scopes, all required. */
   readonly scopes: readonly string[];
@@ -743,11 +732,11 @@ export type CostSourceContract = "docs" | "rate_card" | "observed";
 export type CredentialDeclarationContract = {
   /** Hosts the runtime may present the credential to. A local store-only credential has none. For process-only use this is optional: delivery is to the bound executor, which owns further presentation. This field does not claim to confine a trusted process's network access. */
   readonly audience?: readonly string[];
-  /** How the local placement delivers the secret to an implementation. A purchase credential has none: it never leaves runx Connect. */
+  /** How the local placement delivers the secret to an implementation. A lease has none: it never leaves runx Connect. */
   readonly delivery?: CredentialDeliveryContract;
-  /** The connect form, or for a purchase credential the fields its hold fills. */
+  /** The connect form, or for a lease the fields its take fills. */
   readonly fields: readonly CredentialFieldContract[];
-  /** The credential kind the hosted store checks (`api_key`, `oauth1_user`, `purchase`, ...). */
+  /** The credential kind the hosted store checks (`api_key`, `oauth1_user`, `lease`, ...). */
   readonly kind: string;
 };
 
@@ -761,7 +750,6 @@ export type CredentialDeliveryObservationContract = {
   readonly credential_refs: readonly ReferenceContract[];
   readonly delivered_roles: readonly CredentialMaterialRoleContract[];
   readonly delivery_mode?: CredentialDeliveryModeContract;
-  readonly run_ref: ReferenceContract;
   readonly host_ref?: ReferenceContract;
   readonly material_id_digest?: string;
   readonly observation_id: string;
@@ -772,6 +760,7 @@ export type CredentialDeliveryObservationContract = {
   readonly redaction_refs?: readonly ReferenceContract[];
   readonly request_id: string;
   readonly response_id?: string;
+  readonly run_ref: ReferenceContract;
   readonly schema: CredentialDeliveryObservationSchemaContract;
   readonly status: CredentialDeliveryObservationStatusContract;
 };
@@ -1465,30 +1454,9 @@ export type GitStatusContract = {
   readonly repo_root: string;
 };
 
-/** What `control.capture_run_context` returns: the harness, signal and decision packets a run was given, held as explicit context. */
-export type RunContextContract = {
-  readonly captured: boolean;
-  readonly decision?: {
-    readonly [key: string]: unknown;
-  };
-  readonly harness?: {
-    readonly [key: string]: unknown;
-  };
-  readonly signal?: {
-    readonly [key: string]: unknown;
-  };
-};
-
-export type LeaseActionContract = "take" | "refresh" | "release";
-
 export type HostedAuthContract = "delegated" | "credential";
 
 export type HostedCallersContract = "public" | "runtime";
-
-export type HostedImplementationContract = {
-  /** The provider's own permissions, required under delegated auth. */
-  readonly provider_scopes?: readonly string[];
-};
 
 export type HostedPlacementContract = {
   readonly auth: HostedAuthContract;
@@ -1548,21 +1516,27 @@ export type HttpImplementationContract = {
 
 export type HttpMethodContract = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+/** Where a page names the next page's cursor, and how the next request carries it. */
+export type HttpPageCursorContract = {
+  /** Where a decoded page names the next cursor. */
+  readonly cursor: string;
+  /** Cursor placement. Body placement retains the cursor's JSON type. */
+  readonly in?: "body";
+  /** Query parameter name, or an object-member JSON pointer when `in` is body. */
+  readonly param: string;
+};
+
 /** The request location of a provider's page cursor. Body cursors retain the provider's scalar JSON type; query cursors are serialized as URL parameters. */
 export type HttpPageCursorLocationContract = "query" | "body";
 
 /** A read answered in pages. The request is sent again with the cursor each page names until a page names none, a page holds no items, or the items gathered reach `limit`. The pages decode to `{items, next}`: every page's items in order, and the cursor a further read would start from, or null once the read reached the end. Repeated requests additionally return `started` and `complete` for each item: an exhausted shared budget can leave later items unstarted, which must never be interpreted as no matches. */
 export type HttpPagesContract = {
-  /** Where a decoded page names the next cursor. */
-  readonly cursor: string;
-  /** Cursor placement; omitted query placement preserves existing manifest bytes and operation digests. Body placement retains the cursor's JSON type. */
-  readonly in?: "body";
   /** Where a decoded page holds its items. */
   readonly items: string;
   /** How many items the caller asked for. Absent, or rendered from an argument the call does not carry, every page is read. */
   readonly limit?: unknown;
-  /** Query parameter name, or an object-member JSON pointer when `in` is body. */
-  readonly param: string;
+  /** Where the next page comes from. */
+  readonly next: HttpPageCursorContract;
 };
 
 export type HttpReadbackContract = {
@@ -1582,9 +1556,9 @@ export type HttpRequestContract = {
   readonly headers?: {
     readonly [key: string]: unknown;
   };
+  readonly http_method: HttpMethodContract;
   /** Names the request, unique within the exchange, so a later request reads its answer as `{"$response": "<id>.<path>"}`. A lone request needs no name. Readbacks address what a write returned as `{"$response": "write.<path>"}`; `write` is reserved for that. */
   readonly id?: string;
-  readonly method: HttpMethodContract;
   /** A read whose answer comes in pages. */
   readonly pages?: HttpPagesContract;
   readonly query?: {
@@ -1700,6 +1674,29 @@ export type IntentContract = {
   readonly purpose: string;
 };
 
+/** A release: the leased credential, whose resource is gone. */
+export type LeaseReleaseContract = {
+  readonly release: string;
+};
+
+/** A renew: the leased credential and its new expiry, one `$result` binding. */
+export type LeaseRenewContract = {
+  readonly expires_at: unknown;
+  readonly renew: string;
+};
+
+/** A take: the `kind: lease` credential, the new resource's target rendered from the call's public result, when it ends, and each of the credential's fields filled from the provider's raw answer. */
+export type LeaseTakeContract = {
+  /** When the resource ends, one `$result` binding. */
+  readonly expires_at: unknown;
+  /** Each field of the credential and the one `$response` binding that fills it. */
+  readonly fields: {
+    readonly [key: string]: unknown;
+  };
+  readonly take: string;
+  readonly target: unknown;
+};
+
 export type LedgerCanonicalizationContract = "runx.stable-json.v1";
 
 export type LedgerChainContract = {
@@ -1764,23 +1761,6 @@ export type LinksContract = {
   readonly supersedes?: readonly ReferenceContract[];
 };
 
-/** The package a load bound. A project's own package has no tier and no publisher. */
-export type LoadedPackageContract = {
-  readonly kind: "skill";
-  readonly package_digest: string;
-  readonly publisher?: string;
-  /** The ref each of its tools names: the canonical `<publisher>/<name>@<version>` of a registry skill, or the project's path. */
-  readonly skill: string;
-  readonly trust_tier?: TrustTierContract;
-} | {
-  readonly connector: string;
-  readonly kind: "connector";
-  /** The manifest each of its operations runs; one that changed since the load is refused. */
-  readonly manifest_digest: string;
-  readonly publisher?: string;
-  readonly trust_tier?: TrustTierContract;
-};
-
 /** One runner of a loaded skill, as a model chooses it. */
 export type LoadedMethodContract = {
   /** Whether this load bound it, so the turn offers it as a tool. */
@@ -1796,6 +1776,23 @@ export type LoadedMethodInputContract = {
   readonly name: string;
   readonly required: boolean;
   readonly type: string;
+};
+
+/** The package a load bound. A project's own package has no tier and no publisher. */
+export type LoadedPackageContract = {
+  readonly kind: "skill";
+  readonly package_digest: string;
+  readonly publisher?: string;
+  /** The ref each of its tools names: the canonical `<publisher>/<name>@<version>` of a registry skill, or the project's path. */
+  readonly skill: string;
+  readonly trust_tier?: TrustTierContract;
+} | {
+  readonly connector: string;
+  readonly kind: "connector";
+  /** The manifest each of its operations runs; one that changed since the load is refused. */
+  readonly manifest_digest: string;
+  readonly publisher?: string;
+  readonly trust_tier?: TrustTierContract;
 };
 
 export type LocalArtifactContract = {
@@ -1873,6 +1870,36 @@ export type McpServerContract = {
   readonly transport: "stdio";
 };
 
+/** One runner as a caller reads it: what it takes, what it returns, and what it needs. */
+export type MethodInspectionContract = {
+  /** The connector requirements of the skill, by key. */
+  readonly connectors?: {
+    readonly [key: string]: unknown;
+  };
+  /** The runners this one's work continues in, which its run may admit. */
+  readonly continuations?: readonly string[];
+  /** The packet each result output declares, by output name. */
+  readonly declared_result_packets: {
+    readonly [key: string]: string;
+  };
+  /** Its inputs as one JSON schema, with the runner's examples. */
+  readonly input_schema: {
+    readonly [key: string]: unknown;
+  };
+  readonly inputs: readonly InspectedInputContract[];
+  readonly name: string;
+  readonly outputs: readonly InspectedOutputContract[];
+  readonly requirements: ExecutionRequirementsContract;
+  readonly scopes?: readonly string[];
+};
+
+export type MethodInspectionEntryContract = {
+  readonly execution_closure: {
+    readonly [key: string]: unknown;
+  };
+  readonly runner: MethodInspectionContract;
+};
+
 /** A file `fs.read_bundle` could not read, and why. */
 export type MissingFileContract = {
   readonly path: string;
@@ -1923,6 +1950,26 @@ export type OperationalPolicyDedupeStrategyContract = "source_digest" | "provide
 
 export type OperationalPolicyDuplicateBehaviorContract = "reuse" | "comment" | "block";
 
+export type OperationalPolicyMethodReadbackContract = {
+  readonly allowed_actions: readonly OperationalPolicyActionContract[];
+  readonly kind: string;
+  readonly method_id: string;
+  readonly scafld_required: boolean;
+  readonly state: OperationalPolicyMethodStateContract;
+  readonly target_repos: readonly string[];
+};
+
+export type OperationalPolicyMethodRuleContract = {
+  readonly allowed_actions: readonly OperationalPolicyActionContract[];
+  readonly kind: string;
+  readonly method_id: string;
+  readonly scafld_required: boolean;
+  readonly state: OperationalPolicyMethodStateContract;
+  readonly target_repos: readonly string[];
+};
+
+export type OperationalPolicyMethodStateContract = "available" | "disabled" | "maintenance";
+
 export type OperationalPolicyMissingBehaviorContract = "fail_closed";
 
 export type OperationalPolicyOutcomeCloseModeContract = "never" | "when_verified" | "when_terminal";
@@ -1955,26 +2002,6 @@ export type OperationalPolicyReadbackContract = {
   readonly targets: readonly OperationalPolicyTargetReadbackContract[];
   readonly valid: boolean;
 };
-
-export type OperationalPolicyMethodReadbackContract = {
-  readonly allowed_actions: readonly OperationalPolicyActionContract[];
-  readonly kind: string;
-  readonly method_id: string;
-  readonly scafld_required: boolean;
-  readonly state: OperationalPolicyMethodStateContract;
-  readonly target_repos: readonly string[];
-};
-
-export type OperationalPolicyMethodRuleContract = {
-  readonly allowed_actions: readonly OperationalPolicyActionContract[];
-  readonly kind: string;
-  readonly method_id: string;
-  readonly scafld_required: boolean;
-  readonly state: OperationalPolicyMethodStateContract;
-  readonly target_repos: readonly string[];
-};
-
-export type OperationalPolicyMethodStateContract = "available" | "disabled" | "maintenance";
 
 export type OperationalPolicySchemaContract = "runx.operational_policy.v1";
 
@@ -2009,9 +2036,9 @@ export type OperationalPolicyTargetReadbackContract = {
   readonly allowed_actions: readonly OperationalPolicyActionContract[];
   readonly available_method_count: number;
   readonly default_owner_route: string;
+  readonly method_ids: readonly string[];
   readonly owner_count: number;
   readonly repo: string;
-  readonly method_ids: readonly string[];
   readonly scafld_required: boolean;
 };
 
@@ -2019,8 +2046,8 @@ export type OperationalPolicyTargetRuleContract = {
   readonly allowed_actions: readonly OperationalPolicyActionContract[];
   readonly base_branch?: string;
   readonly default_owner_route: string;
-  readonly repo: string;
   readonly method_ids: readonly string[];
+  readonly repo: string;
   readonly scafld_required: boolean;
 };
 
@@ -2134,21 +2161,6 @@ export type OperationGuaranteesContract = {
   readonly readback?: "unavailable";
 };
 
-/** What a hosted call does to a resource a purchase holds (S10, N11). runx Connect applies it at the provider's answer: a held value never reaches the kernel, which sees only the hold's evidence (its target, expiry and the value's digest). A hold is keyed by connector, credential and target, so a seller holds resources only in its own connector. */
-export type OperationLeaseContract = {
-  readonly action: LeaseActionContract;
-  /** The `kind: purchase` credential held. */
-  readonly credential: string;
-  /** When the resource ends, one `$result` binding. A take and a refresh state it; a release does not. */
-  readonly expires_at?: unknown;
-  /** Each field of the credential and the one `$result` binding that fills it. Only a take fills fields. */
-  readonly fields?: {
-    readonly [key: string]: unknown;
-  };
-  /** The held resource. A take renders it from the call's public result; a refresh or release from the call's arguments, as the operations that use the credential render theirs. */
-  readonly target: unknown;
-};
-
 /** An operation call before admission: everything a grant, a delegation or a person is asked to cover. Its digest is the one identity of the call: the execution term, the approval, the idempotency key and the receipt all bind it, so a call that changes in any of these fields is a new call. */
 export type OperationIntentContract = {
   /** Digest of the act the call performs, when its caller states one. */
@@ -2171,6 +2183,9 @@ export type OperationIntentContract = {
   readonly target: string;
 };
 
+/** What a hosted call does to a lease (S10, N11): a credential the provider issues for one resource a call creates, held by runx Connect for the resource's owner. Connect applies it at the provider's answer, so a leased value never reaches the kernel, which sees only the lease's evidence (its target, expiry and the value's digest). A lease is keyed by connector, credential and target, so a seller leases resources only in its own connector. Each action carries only what it needs: a take names the new resource, and a renew or a release acts on the operation's own target. */
+export type OperationLeaseContract = LeaseTakeContract | LeaseRenewContract | LeaseReleaseContract;
+
 /** The target an operation acts on, rendered from the call's arguments and the instance's parameters. The rendered value must equal the admitted target. */
 export type OperationTargetContract = {
   /** A regular expression the rendered target must match whole, for a connector whose targets have a shape authority compares, such as a conversation locator. */
@@ -2178,8 +2193,8 @@ export type OperationTargetContract = {
   readonly template: unknown;
 };
 
-/** The provider verbs an operation may declare. `read` makes the operation a read; every other verb makes it a mutation. */
-export type OperationVerbContract = "read" | "write" | "comment" | "review" | "merge" | "create" | "update" | "delete" | "execute" | "revoke";
+/** The authority verbs an operation may declare. `read` makes the operation a read; every other verb makes it a mutation. What kind of write it is, a comment or a merge, is its `scopes`' to say. */
+export type OperationVerbContract = "read" | "write" | "execute" | "revoke";
 
 export type OperatorJourneyContract = {
   readonly case: string;
@@ -2330,6 +2345,15 @@ export type PaidSkillListingContract = {
   readonly version: string;
 };
 
+/** One immutable, registry-resolved runner offer. */
+export type PaidSkillMethodOfferContract = {
+  readonly accepted_settlement_families: readonly string[];
+  readonly acts_on?: PaidSkillActsOnContract;
+  readonly currency: string;
+  readonly offer_version: EmbeddedOfferVersionBindingContract;
+  readonly price: PaidSkillPriceContract;
+};
+
 /** How an offer prices one call: from the listing and the inputs the runner receives, never from the runner. Cloud and the buyer's kernel compute the same amount, so nothing the buyer or the seller's runner says can change it. */
 export type PaidSkillPriceContract = {
   readonly amount_minor: number;
@@ -2353,23 +2377,14 @@ export type PaidSkillPriceCaseContract = {
   readonly when: readonly PriceChoiceContract[];
 };
 
-/** One immutable, registry-resolved runner offer. */
-export type PaidSkillMethodOfferContract = {
-  readonly accepted_settlement_families: readonly string[];
-  readonly acts_on?: PaidSkillActsOnContract;
-  readonly currency: string;
-  readonly offer_version: EmbeddedOfferVersionBindingContract;
-  readonly price: PaidSkillPriceContract;
-};
-
 /** Constraints on a candidate payment method. These declarations filter discovery; the selected operation still admits the exact payment and account. */
 export type PaymentCompatibilityContract = {
   /** Quoted currencies; an omitted restriction leaves validation to the provider's exact operation, rather than inventing an FX conversion. */
   readonly currencies?: readonly string[];
-  /** Protocol method identifiers, such as `stripe` or `tempo` for MPP. */
-  readonly methods?: readonly string[];
   /** Protocol network identifiers, such as the CAIP-2 `eip155:8453`. */
   readonly networks?: readonly string[];
+  /** Protocol payment method identifiers, such as `stripe` or `tempo` for MPP. */
+  readonly payment_methods?: readonly string[];
 };
 
 export type PaymentIdempotencyBindingContract = {
@@ -2441,9 +2456,10 @@ export type ProcessExitReasonContract = "exited" | "stopped" | "timed_out" | "fa
 export type ProcessImplementationContract = {
   /** How a write is confirmed: the tool is run again with `phase: readback` and the acknowledgement, and what it observes must match. */
   readonly readback?: ProcessReadbackContract;
+  /** What the runtime grants the tool, such as `fs:write`. */
+  readonly requires?: readonly string[];
   /** The bounded public answer to return after confirmation. A durable acknowledgement can remain just an opaque provider reference. */
   readonly result_from?: "readback";
-  readonly runtime_scopes?: readonly string[];
   readonly tool: string;
 };
 
@@ -3047,15 +3063,6 @@ export type RegistryBindingContract = {
   readonly [key: string]: unknown;
 };
 
-/** Where a binding's harness verification is. Open. */
-export type RegistryBindingTestContract = {
-  readonly assertion_count?: number;
-  readonly case_count: number;
-  readonly case_names?: readonly string[];
-  readonly state: RegistryTestStateContract;
-  readonly [key: string]: unknown;
-};
-
 export type RegistryBindingSchemaContract = "runx.registry_binding.v1";
 
 /** The skill identity for a registry binding. Open (`additionalProperties: true`). */
@@ -3068,7 +3075,14 @@ export type RegistryBindingSkillContract = {
 
 export type RegistryBindingStateContract = "registry_binding_drafted" | "registry_bound" | "test_verified" | "published";
 
-export type RegistryTestStateContract = "pending" | "failed" | "test_verified";
+/** Where a binding's harness verification is. Open. */
+export type RegistryBindingTestContract = {
+  readonly assertion_count?: number;
+  readonly case_count: number;
+  readonly case_names?: readonly string[];
+  readonly state: RegistryTestStateContract;
+  readonly [key: string]: unknown;
+};
 
 /** What `registry.inspect` reports: a skill's inspection (`runx.skill.inspect.v1`), or a connector's. */
 export type RegistryInspectionContract = SkillInspectionContract | ConnectorInspectionContract;
@@ -3078,6 +3092,8 @@ export type RegistrySearchPacketContract = {
   readonly hits: readonly CatalogHitContract[];
   readonly query: string;
 };
+
+export type RegistryTestStateContract = "pending" | "failed" | "test_verified";
 
 export type ResolutionRequestContract = {
   readonly id: string;
@@ -3166,6 +3182,20 @@ export type RunCallOutputContract = {
 /** Seal the run without continuing it: a person stopped it, or a new attempt replaced it. An effect the run left unconfirmed stays unconfirmed. */
 export type RunCloseContract = {
   readonly outcome: CloseOutcomeContract;
+};
+
+/** What `control.capture_run_context` returns: the harness, signal and decision packets a run was given, held as explicit context. */
+export type RunContextContract = {
+  readonly captured: boolean;
+  readonly decision?: {
+    readonly [key: string]: unknown;
+  };
+  readonly harness?: {
+    readonly [key: string]: unknown;
+  };
+  readonly signal?: {
+    readonly [key: string]: unknown;
+  };
 };
 
 /** Who works a run's agent turns, fixed when it starts: the host it is attached to, or runx's managed agent. */
@@ -3274,36 +3304,6 @@ export type RunListEntryContract = {
 
 export type RunListSchemaContract = "runx.run.list.v1";
 
-/** One runner as a caller reads it: what it takes, what it returns, and what it needs. */
-export type MethodInspectionContract = {
-  /** The connector requirements of the skill, by key. */
-  readonly connectors?: {
-    readonly [key: string]: unknown;
-  };
-  /** The runners this one's work continues in, which its run may admit. */
-  readonly continuations?: readonly string[];
-  /** The packet each result output declares, by output name. */
-  readonly declared_result_packets: {
-    readonly [key: string]: string;
-  };
-  /** Its inputs as one JSON schema, with the runner's examples. */
-  readonly input_schema: {
-    readonly [key: string]: unknown;
-  };
-  readonly inputs: readonly InspectedInputContract[];
-  readonly name: string;
-  readonly outputs: readonly InspectedOutputContract[];
-  readonly requirements: ExecutionRequirementsContract;
-  readonly scopes?: readonly string[];
-};
-
-export type MethodInspectionEntryContract = {
-  readonly execution_closure: {
-    readonly [key: string]: unknown;
-  };
-  readonly runner: MethodInspectionContract;
-};
-
 /** How a run, or a receipt's subject, ended. */
 export type RunOutcomeContract = "completed" | "deferred" | "superseded" | "declined" | "blocked" | "failed" | "killed" | "timed_out";
 
@@ -3359,7 +3359,6 @@ export type RunxListItemContract = {
   readonly diagnostics?: readonly string[];
   readonly emits?: readonly RunxListEmitContract[];
   readonly fixtures?: number;
-  readonly test_cases?: number;
   readonly kind: RunxListItemKindContract;
   readonly name: string;
   readonly path: string;
@@ -3369,6 +3368,7 @@ export type RunxListItemContract = {
   readonly source: RunxListSourceContract;
   readonly status: RunxListStatusContract;
   readonly steps?: number;
+  readonly test_cases?: number;
   /** A skill's catalog visibility; public when its manifest declares none. */
   readonly visibility?: RunxListVisibilityContract;
 };
@@ -3612,12 +3612,12 @@ export type SkillCatalogContract = {
 export type SkillCatalogEntryContract = {
   readonly description?: string;
   readonly fixtures?: number;
-  readonly test_cases?: number;
   readonly kind: RunxListItemKindContract;
   readonly name: string;
   readonly path: string;
   readonly scopes: readonly string[];
   readonly status: RunxListStatusContract;
+  readonly test_cases?: number;
 };
 
 export type SkillChainPlanContract = {
@@ -3723,6 +3723,8 @@ export type SkillInspectionContract = {
     readonly [key: string]: unknown;
   };
   readonly manual_digest: string;
+  /** Each runner with the execution closure it binds. */
+  readonly method_inspections?: readonly MethodInspectionEntryContract[];
   readonly name: string;
   readonly operator_journeys: readonly OperatorJourneyContract[];
   /** The execution package digest, as a run records it; a listing's package digest is the registry's digest of the published files. */
@@ -3731,8 +3733,6 @@ export type SkillInspectionContract = {
   readonly resume?: InspectionResumeContract;
   /** The runner inspected: the one named, else the default. */
   readonly runner?: MethodInspectionContract;
-  /** Each runner with the execution closure it binds. */
-  readonly method_inspections?: readonly MethodInspectionEntryContract[];
   /** Every runner the package declares, by name. */
   readonly runners: readonly string[];
   readonly schema: SkillInspectionSchemaContract;
@@ -4054,36 +4054,14 @@ export type TurnContextLineContract = {
   readonly type?: string;
 };
 
-/** An act's envelope as its turn's agent reads it: whole, except that each context entry is a line of an index, its data read by `turn_read`. The act's instructions and inputs stay whole, as the act itself; each input also reads by its ref. */
-export type TurnEnvelopeContract = {
-  readonly act?: CallActContract;
-  readonly context?: AgentContextProfilesContract;
-  readonly current_context: readonly TurnContextLineContract[];
-  readonly execution_location?: ExecutionLocationContract;
-  readonly historical_context: readonly TurnContextLineContract[];
-  readonly inputs: {
-    readonly [key: string]: unknown;
-  };
-  readonly instructions: string;
-  readonly instructions_digest: string;
-  readonly output?: {
-    readonly [key: string]: OutputFieldContract;
-  };
-  readonly output_schema?: unknown;
-  readonly provenance: readonly ProvenanceEntryContract[];
-  readonly requirements: AgentExecutionRequirementsContract;
-  readonly run_id: string;
-  readonly skill: string;
-  readonly step_id?: string;
-  readonly trust_boundary: string;
-  readonly voice_profile?: ProfileFileContract;
-};
-
-/** An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */
-export type TurnViewContract = {
-  readonly envelope: TurnEnvelopeContract;
+export type TurnInvocationContract = {
+  /** What the agent may call while its turn is open. */
+  readonly allowance: TurnAllowanceContract;
+  readonly envelope: AgentContextEnvelopeContract;
   readonly id: string;
+  /** The kind of agent the step asks for. */
   readonly role: string;
+  /** The act it performs. */
   readonly task: string;
 };
 
@@ -4148,6 +4126,39 @@ export type TurnToolContract = {
   /** Distinct within the turn, in the MCP tool-name grammar. */
   readonly name: string;
   readonly target: TurnTargetContract;
+};
+
+/** An agent act as its turn's agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */
+export type TurnViewContract = {
+  readonly envelope: TurnViewEnvelopeContract;
+  readonly id: string;
+  readonly role: string;
+  readonly task: string;
+};
+
+/** An act's envelope as its turn's agent reads it: whole, except that each context entry is a line of an index, its data read by `turn_read`. The act's instructions and inputs stay whole, as the act itself; each input also reads by its ref. */
+export type TurnViewEnvelopeContract = {
+  readonly act?: CallActContract;
+  readonly context?: AgentContextProfilesContract;
+  readonly current_context: readonly TurnContextLineContract[];
+  readonly execution_location?: ExecutionLocationContract;
+  readonly historical_context: readonly TurnContextLineContract[];
+  readonly inputs: {
+    readonly [key: string]: unknown;
+  };
+  readonly instructions: string;
+  readonly instructions_digest: string;
+  readonly output?: {
+    readonly [key: string]: OutputFieldContract;
+  };
+  readonly output_schema?: unknown;
+  readonly provenance: readonly ProvenanceEntryContract[];
+  readonly requirements: AgentExecutionRequirementsContract;
+  readonly run_id: string;
+  readonly skill: string;
+  readonly step_id?: string;
+  readonly trust_boundary: string;
+  readonly voice_profile?: ProfileFileContract;
 };
 
 /** A request the run waits on: its address, the digest an answer binds to, and the request itself. */

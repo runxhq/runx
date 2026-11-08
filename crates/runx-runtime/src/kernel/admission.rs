@@ -266,13 +266,13 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
                 AdmissionCheck::Requirement,
                 format!(
                     "connector {} declares no operation {operation}",
-                    manifest.id
+                    manifest.name
                 ),
             )
         })?;
     reasons.pass(
         AdmissionCheck::Requirement,
-        format!("{}/{operation_name}", manifest.id),
+        format!("{}/{operation_name}", manifest.name),
     );
     reasons.1 = Some(operation_spec.verb.authority_verb());
 
@@ -570,11 +570,11 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // Implementation: the instance's placement executes the operation.
     let stood_in = evaluation.fixture_stand_in
         && instance.placement == Placement::Hosted
-        && operation_spec.hosted.is_none();
-    if !stood_in && let Err(detail) = executable(operation_spec, instance.placement) {
+        && !manifest.implements(operation_spec, Placement::Hosted);
+    if !stood_in && let Err(detail) = executable(manifest, operation_spec, instance.placement) {
         return Err(reasons.refuse(
             AdmissionCheck::Implementation,
-            format!("{}/{operation_name}: {detail}", manifest.id),
+            format!("{}/{operation_name}: {detail}", manifest.name),
         ));
     }
     reasons.pass(
@@ -811,14 +811,14 @@ fn readiness(
             CheckOutcome::Fail,
             format!(
                 "connector {} declares no operation {operation}",
-                connector.manifest.id
+                connector.manifest.name
             ),
         );
         return finish(readiness, reasons);
     };
     reasons.pass(
         AdmissionCheck::Requirement,
-        format!("{}/{operation_name}", connector.manifest.id),
+        format!("{}/{operation_name}", connector.manifest.name),
     );
     readiness.cost.clone_from(&spec.cost);
     let instance = match standing_instance(context, &connector, authority) {
@@ -983,7 +983,7 @@ fn readiness(
     } else {
         reasons.pass(AdmissionCheck::Approval, "no approval floor applies");
     }
-    match executable(spec, instance.placement) {
+    match executable(&connector.manifest, spec, instance.placement) {
         Ok(()) => reasons.pass(
             AdmissionCheck::Implementation,
             format!("{} placement", instance.placement.as_str()),
@@ -1123,7 +1123,7 @@ fn pins_current(
     if instance.operation_digests.get(operation) != Some(operation_digest) {
         return Err(format!(
             "operation {}/{operation} changed since instance {} was confirmed; confirm it again",
-            connector.manifest.id, instance.instance_id
+            connector.manifest.name, instance.instance_id
         ));
     }
     if let Some(credential) =
@@ -1135,7 +1135,7 @@ fn pins_current(
         {
             return Err(format!(
                 "operation {}/{operation} does not accept credential {credential}, which instance {} holds",
-                connector.manifest.id, instance.instance_id
+                connector.manifest.name, instance.instance_id
             ));
         }
         let declaration = connector
@@ -1146,7 +1146,7 @@ fn pins_current(
             .ok_or_else(|| {
                 format!(
                     "connector {} no longer declares credential {credential}",
-                    connector.manifest.id
+                    connector.manifest.name
                 )
             })?;
         let current =
@@ -1154,7 +1154,7 @@ fn pins_current(
         if instance.credential_declaration_digest.as_ref() != Some(&current) {
             return Err(format!(
                 "credential {credential} of connector {} changed where it may be sent since instance {} was confirmed; confirm it again",
-                connector.manifest.id, instance.instance_id
+                connector.manifest.name, instance.instance_id
             ));
         }
     }
@@ -1177,7 +1177,7 @@ fn leased_resource(
             .auth
             .credentials
             .get(*name)
-            .is_some_and(runx_contracts::connector::CredentialDeclaration::is_purchase)
+            .is_some_and(runx_contracts::connector::CredentialDeclaration::is_lease)
     })?;
     Some((|| {
         let arguments = JsonValue::Object(evaluation.call.input.clone());
@@ -1317,8 +1317,12 @@ fn approval_text(call: &OperationCall, operation: &ConnectorOperation) -> Option
 
 /// Whether this runtime can execute the operation on the placement. A
 /// `process` implementation is reached by a host's agent, not a step.
-fn executable(operation: &ConnectorOperation, placement: Placement) -> Result<(), String> {
-    if !operation.implemented_by(placement) {
+fn executable(
+    manifest: &runx_contracts::connector::ConnectorManifest,
+    operation: &ConnectorOperation,
+    placement: Placement,
+) -> Result<(), String> {
+    if !manifest.implements(operation, placement) {
         return Err(format!(
             "the {} placement does not implement it",
             placement.as_str()
@@ -1460,10 +1464,9 @@ mod tests {
             std::fs::write(
                 connector.join("connector.yaml"),
                 r#"schema: runx.connector.v1
-id: acme
-name: Acme
+name: acme
+title: Acme
 description: Syncs records.
-runtime_capability: false
 auth:
   credentials:
     key:

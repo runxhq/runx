@@ -705,10 +705,9 @@ runners:
     fn hosted_connector(id: &str) -> String {
         format!(
             r#"schema: runx.connector.v1
-id: {id}
-name: Acme
+name: {id}
+title: Acme
 description: Write one note to Acme.
-runtime_capability: false
 auth:
   credentials:
     service_token:
@@ -722,7 +721,7 @@ placements:
 operations:
   notes.write:
     description: Write one note.
-    verb: create
+    verb: write
     scopes: [notes.write]
     credentials: [service_token]
     target:
@@ -743,7 +742,7 @@ operations:
         allowed_hosts: [notes.acme.test]
         auth: {{service_token: {{type: bearer, field: token}}}}
         requests:
-          - method: POST
+          - http_method: POST
             url: https://notes.acme.test/v1/notes
             headers: {{accept: application/json}}
             body:

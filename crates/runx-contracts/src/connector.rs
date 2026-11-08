@@ -110,17 +110,15 @@ pub enum ConnectorSchema {
 pub struct ConnectorManifest {
     pub schema: ConnectorSchema,
     /// The connector's whole name: `stripe`, `google/calendar`.
-    pub id: ConnectorName,
-    pub name: NonEmptyString,
+    pub name: ConnectorName,
+    /// Its display name, such as "GitHub".
+    pub title: NonEmptyString,
     pub description: NonEmptyString,
     /// The connector category it declares from the registry taxonomy
     /// (`registry/taxonomy.json`); a connector that declares none is
     /// uncategorized.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<NonEmptyString>,
-    /// Whether the connector is the runtime's own capability (a store, the
-    /// web, a vault) rather than an outside service. Declared, never inferred.
-    pub runtime_capability: bool,
     pub auth: ConnectorAuth,
     /// The JSON Schema of what an instance pins besides its authority, such
     /// as a store's location. Templates bind them as `$parameter`.
@@ -135,21 +133,59 @@ pub struct ConnectorManifest {
     /// What a payment connector pays with, so a purchase offers it as a
     /// method only for a quote it can pay (S8, N10).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pays: Option<ConnectorPays>,
+    pub payment: Option<ConnectorPayment>,
+}
+
+impl ConnectorManifest {
+    /// Whether a placement implements an operation. The local placement runs
+    /// any implementation, and an operation with none is unavailable there.
+    /// The hosted placement runs an `http` implementation through the
+    /// provider gateway, and one the connector leaves to the host through a
+    /// private driver, never a process, an MCP tool or the runtime's own
+    /// capabilities; under delegated auth only an operation naming the
+    /// provider's scopes it needs can run, since the grant asks for them.
+    #[must_use]
+    pub fn implements(&self, operation: &ConnectorOperation, placement: Placement) -> bool {
+        match placement {
+            Placement::Local => operation.implementation.is_some(),
+            Placement::Hosted => self.placements.hosted.as_ref().is_some_and(|hosted| {
+                matches!(
+                    operation.implementation,
+                    None | Some(Implementation::Http(_))
+                ) && (hosted.auth != HostedAuth::Delegated || !operation.provider_scopes.is_empty())
+            }),
+        }
+    }
+
+    /// The declared requests the hosted placement sends through the provider
+    /// gateway, when it runs the operation and the implementation is `http`.
+    #[must_use]
+    pub fn hosted_http<'a>(
+        &self,
+        operation: &'a ConnectorOperation,
+    ) -> Option<&'a HttpImplementation> {
+        match &operation.implementation {
+            Some(Implementation::Http(http)) if self.implements(operation, Placement::Hosted) => {
+                Some(http)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The settlement families a connector can pay. Family names are extension
 /// identifiers, not a fixed list of first-party processors or protocols.
-pub type ConnectorPays = BTreeMap<crate::SettlementFamily, PaymentCompatibility>;
+pub type ConnectorPayment = BTreeMap<crate::SettlementFamily, PaymentCompatibility>;
 
 /// Constraints on a candidate payment method. These declarations filter
 /// discovery; the selected operation still admits the exact payment and account.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PaymentCompatibility {
-    /// Protocol method identifiers, such as `stripe` or `tempo` for MPP.
+    /// Protocol payment method identifiers, such as `stripe` or `tempo` for
+    /// MPP.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub methods: Option<NonEmptyVec<NonEmptyString>>,
+    pub payment_methods: Option<NonEmptyVec<NonEmptyString>>,
     /// Protocol network identifiers, such as the CAIP-2 `eip155:8453`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub networks: Option<NonEmptyVec<NonEmptyString>>,
@@ -169,7 +205,7 @@ impl PaymentCompatibility {
         network: Option<&str>,
         currency: Option<&str>,
     ) -> bool {
-        self.methods.as_ref().is_none_or(|allowed| {
+        self.payment_methods.as_ref().is_none_or(|allowed| {
             method.is_some_and(|value| allowed.iter().any(|entry| entry.as_str() == value))
         }) && self.networks.as_ref().is_none_or(|allowed| {
             network.is_some_and(|value| allowed.iter().any(|entry| entry.as_str() == value))
@@ -229,22 +265,21 @@ pub struct DelegatedAuth {
 #[serde(deny_unknown_fields)]
 pub struct NoAuth {}
 
-/// The kind of a credential a purchase fills. runx Connect holds it per
-/// resource for the purchase's buyer, taken from the seller's provider answer
+/// The kind of a credential a lease fills. runx Connect holds it per resource
+/// for the resource's owner, taken from the seller's provider answer
 /// (`OperationLease`), so nobody connects it and nothing local delivers it.
-pub const PURCHASE_CREDENTIAL_KIND: &str = "purchase";
+pub const LEASE_CREDENTIAL_KIND: &str = "lease";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CredentialDeclaration {
     /// The credential kind the hosted store checks (`api_key`, `oauth1_user`,
-    /// `purchase`, ...).
+    /// `lease`, ...).
     pub kind: NonEmptyString,
-    /// The connect form, or for a purchase credential the fields its hold
-    /// fills.
+    /// The connect form, or for a lease the fields its take fills.
     pub fields: NonEmptyVec<CredentialField>,
     /// How the local placement delivers the secret to an implementation. A
-    /// purchase credential has none: it never leaves runx Connect.
+    /// lease has none: it never leaves runx Connect.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivery: Option<CredentialDelivery>,
     /// Hosts the runtime may present the credential to. A local store-only
@@ -256,14 +291,14 @@ pub struct CredentialDeclaration {
 }
 
 impl CredentialDeclaration {
-    /// Whether a purchase fills this credential rather than a person.
+    /// Whether a lease fills this credential rather than a person.
     #[must_use]
-    pub fn is_purchase(&self) -> bool {
-        self.kind.as_str() == PURCHASE_CREDENTIAL_KIND
+    pub fn is_lease(&self) -> bool {
+        self.kind.as_str() == LEASE_CREDENTIAL_KIND
     }
 
     /// The variable the local placement delivers the credential in; none
-    /// for a purchase credential, which runx Connect alone presents.
+    /// for a lease, which runx Connect alone presents.
     #[must_use]
     pub fn env(&self) -> Option<&EnvName> {
         self.delivery.as_ref().map(|delivery| &delivery.env)
@@ -477,19 +512,14 @@ pub enum McpServer {
     },
 }
 
-/// The provider verbs an operation may declare. `read` makes the operation a
-/// read; every other verb makes it a mutation.
+/// The authority verbs an operation may declare. `read` makes the operation a
+/// read; every other verb makes it a mutation. What kind of write it is, a
+/// comment or a merge, is its `scopes`' to say.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OperationVerb {
     Read,
     Write,
-    Comment,
-    Review,
-    Merge,
-    Create,
-    Update,
-    Delete,
     Execute,
     Revoke,
 }
@@ -500,12 +530,6 @@ impl OperationVerb {
         match self {
             Self::Read => "read",
             Self::Write => "write",
-            Self::Comment => "comment",
-            Self::Review => "review",
-            Self::Merge => "merge",
-            Self::Create => "create",
-            Self::Update => "update",
-            Self::Delete => "delete",
             Self::Execute => "execute",
             Self::Revoke => "revoke",
         }
@@ -525,12 +549,6 @@ impl OperationVerb {
         match self {
             Self::Read => AuthorityVerb::Read,
             Self::Write => AuthorityVerb::Write,
-            Self::Comment => AuthorityVerb::Comment,
-            Self::Review => AuthorityVerb::Review,
-            Self::Merge => AuthorityVerb::Merge,
-            Self::Create => AuthorityVerb::Create,
-            Self::Update => AuthorityVerb::Update,
-            Self::Delete => AuthorityVerb::Delete,
             Self::Execute => AuthorityVerb::Execute,
             Self::Revoke => AuthorityVerb::Revoke,
         }
@@ -587,15 +605,16 @@ pub struct ConnectorOperation {
     /// carries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effect: Option<OperationEffect>,
-    /// What the call does to a resource a purchase holds: takes it from the
-    /// provider's answer, moves its expiry, or ends it.
+    /// What the call does to a lease: takes it from the provider's answer,
+    /// renews it, or releases it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub holds: Option<OperationLease>,
-    /// Present when the hosted placement offers the operation: it runs an
-    /// `http` implementation through the provider gateway, and any other
-    /// operation through a private driver.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hosted: Option<HostedImplementation>,
+    pub lease: Option<OperationLease>,
+    /// The provider's own permissions, needed under delegated auth.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub provider_scopes: Vec<NonEmptyString>,
+    /// How the local placement runs it. The hosted placement runs an `http`
+    /// implementation through the provider gateway, and an operation with no
+    /// implementation through a private driver.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub implementation: Option<Implementation>,
 }
@@ -627,16 +646,6 @@ impl ConnectorOperation {
         self.verb.access()
     }
 
-    /// Whether a placement implements this operation. An operation with no
-    /// implementation is declared but unavailable.
-    #[must_use]
-    pub fn implemented_by(&self, placement: Placement) -> bool {
-        match placement {
-            Placement::Hosted => self.hosted.is_some(),
-            Placement::Local => self.implementation.is_some(),
-        }
-    }
-
     /// How a sealed call stands: a write the provider cannot read back is
     /// acknowledged; every other call is confirmed by its answer or readback.
     #[must_use]
@@ -662,16 +671,6 @@ impl ConnectorOperation {
                     if matches!(http.requests.as_slice(), [request] if request.each.is_some())
             )
     }
-
-    /// The declared requests the hosted placement sends through the provider
-    /// gateway, when it offers the operation and the implementation is `http`.
-    #[must_use]
-    pub fn hosted_http(&self) -> Option<&HttpImplementation> {
-        match (&self.hosted, &self.implementation) {
-            (Some(_), Some(Implementation::Http(http))) => Some(http),
-            _ => None,
-        }
-    }
 }
 
 /// What a write produced: one reference, or one per element of a result
@@ -692,44 +691,152 @@ pub struct OperationEffect {
     pub each: Option<Template>,
 }
 
-/// What a hosted call does to a resource a purchase holds (S10, N11). runx
-/// Connect applies it at the provider's answer: a held value never reaches
-/// the kernel, which sees only the hold's evidence (its target, expiry and
-/// the value's digest). A hold is keyed by connector, credential and target,
-/// so a seller holds resources only in its own connector.
+/// What a hosted call does to a lease (S10, N11): a credential the provider
+/// issues for one resource a call creates, held by runx Connect for the
+/// resource's owner. Connect applies it at the provider's answer, so a leased
+/// value never reaches the kernel, which sees only the lease's evidence (its
+/// target, expiry and the value's digest). A lease is keyed by connector,
+/// credential and target, so a seller leases resources only in its own
+/// connector. Each action carries only what it needs: a take names the new
+/// resource, and a renew or a release acts on the operation's own target.
+#[derive(Clone, Debug, PartialEq, Serialize, RunxSchema)]
+#[serde(untagged)]
+pub enum OperationLease {
+    /// This call creates the resource and takes its credential.
+    Take(LeaseTake),
+    /// This call moves the lease's expiry.
+    Renew(LeaseRenew),
+    /// This call ends the lease: the resource is gone.
+    Release(LeaseRelease),
+}
+
+/// A take: the `kind: lease` credential, the new resource's target rendered
+/// from the call's public result, when it ends, and each of the credential's
+/// fields filled from the provider's raw answer.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub struct OperationLease {
-    pub action: LeaseAction,
-    /// The `kind: purchase` credential held.
-    pub credential: CredentialName,
-    /// The held resource. A take renders it from the call's public result;
-    /// a refresh or release from the call's arguments, as the operations
-    /// that use the credential render theirs.
+pub struct LeaseTake {
+    pub take: CredentialName,
     pub target: Template,
-    /// When the resource ends, one `$result` binding. A take and a refresh
-    /// state it; a release does not.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expires_at: Option<Template>,
-    /// Each field of the credential and the one `$result` binding that fills
-    /// it. Only a take fills fields.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    /// When the resource ends, one `$result` binding.
+    pub expires_at: Template,
+    /// Each field of the credential and the one `$response` binding that
+    /// fills it.
     pub fields: BTreeMap<CredentialName, Template>,
 }
 
-/// The key a hold's evidence stands under in a provider answer.
-pub const LEASE_EVIDENCE_KEY: &str = "$held";
+/// A renew: the leased credential and its new expiry, one `$result` binding.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LeaseRenew {
+    pub renew: CredentialName,
+    pub expires_at: Template,
+}
+
+/// A release: the leased credential, whose resource is gone.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LeaseRelease {
+    pub release: CredentialName,
+}
+
+impl<'de> Deserialize<'de> for OperationLease {
+    /// A lease names exactly one action, so the error names what's wrong with
+    /// that action's keys rather than that no shape matched.
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let value = crate::JsonValue::deserialize(deserializer)?;
+        let crate::JsonValue::Object(map) = &value else {
+            return Err(D::Error::custom(
+                "a lease is a map naming one of take, renew or release",
+            ));
+        };
+        let actions = [LeaseAction::Take, LeaseAction::Renew, LeaseAction::Release]
+            .into_iter()
+            .filter(|action| map.contains_key(action.as_str()))
+            .collect::<Vec<_>>();
+        let lease = match actions.as_slice() {
+            [LeaseAction::Take] => value.deserialize_into().map(Self::Take),
+            [LeaseAction::Renew] => value.deserialize_into().map(Self::Renew),
+            [LeaseAction::Release] => value.deserialize_into().map(Self::Release),
+            _ => {
+                return Err(D::Error::custom(
+                    "a lease names exactly one of take, renew or release",
+                ));
+            }
+        };
+        lease.map_err(|error| D::Error::custom(format!("lease: {error}")))
+    }
+}
+
+impl OperationLease {
+    #[must_use]
+    pub fn action(&self) -> LeaseAction {
+        match self {
+            Self::Take(_) => LeaseAction::Take,
+            Self::Renew(_) => LeaseAction::Renew,
+            Self::Release(_) => LeaseAction::Release,
+        }
+    }
+
+    /// The `kind: lease` credential the action applies to.
+    #[must_use]
+    pub fn credential(&self) -> &CredentialName {
+        match self {
+            Self::Take(take) => &take.take,
+            Self::Renew(renew) => &renew.renew,
+            Self::Release(release) => &release.release,
+        }
+    }
+
+    /// The leased resource: a take's own, rendered from the call's result,
+    /// and otherwise the operation's target, rendered from its arguments.
+    #[must_use]
+    pub fn target<'a>(&'a self, operation: &'a OperationTarget) -> &'a Template {
+        match self {
+            Self::Take(take) => &take.target,
+            Self::Renew(_) | Self::Release(_) => &operation.template,
+        }
+    }
+
+    /// When the resource ends: a take and a renew say, a release doesn't.
+    #[must_use]
+    pub fn expires_at(&self) -> Option<&Template> {
+        match self {
+            Self::Take(take) => Some(&take.expires_at),
+            Self::Renew(renew) => Some(&renew.expires_at),
+            Self::Release(_) => None,
+        }
+    }
+}
+
+/// The key a lease's evidence stands under in a provider answer.
+pub const LEASE_EVIDENCE_KEY: &str = "$lease";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LeaseAction {
-    /// Hold a new resource's credential for the buyer of the purchase whose
+    /// Take a new resource's credential for the buyer of the purchase whose
     /// run made the call.
     Take,
-    /// Move a held resource's expiry.
-    Refresh,
-    /// End a hold: the resource is gone.
+    /// Move a leased resource's expiry.
+    Renew,
+    /// End a lease: the resource is gone.
     Release,
+}
+
+impl LeaseAction {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Take => "take",
+            Self::Renew => "renew",
+            Self::Release => "release",
+        }
+    }
 }
 
 /// The target an operation acts on, rendered from the call's arguments and
@@ -799,14 +906,6 @@ pub enum ReadbackGuarantee {
     /// acknowledgement is the only evidence, and the call seals as
     /// acknowledged, never confirmed.
     Unavailable,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct HostedImplementation {
-    /// The provider's own permissions, required under delegated auth.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub provider_scopes: Vec<NonEmptyString>,
 }
 
 /// What one operation does, written as a single-key map: `{http: ...}`,
@@ -1081,7 +1180,7 @@ pub struct HttpRequest {
     /// outcome per element. Bounded by the input schema's `maxItems`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub each: Option<Template>,
-    pub method: HttpMethod,
+    pub http_method: HttpMethod,
     pub url: Template,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub query: BTreeMap<String, Template>,
@@ -1134,24 +1233,32 @@ impl HttpRequest {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HttpPages {
-    /// Query parameter name, or an object-member JSON pointer when `in` is body.
-    pub param: NonEmptyString,
-    /// Cursor placement; omitted query placement preserves existing manifest
-    /// bytes and operation digests. Body placement retains the cursor's JSON type.
-    #[serde(
-        rename = "in",
-        default,
-        skip_serializing_if = "crate::schema::is_default"
-    )]
-    pub location: HttpPageCursorLocation,
-    /// Where a decoded page names the next cursor.
-    pub cursor: NonEmptyString,
     /// Where a decoded page holds its items.
     pub items: NonEmptyString,
     /// How many items the caller asked for. Absent, or rendered from an
     /// argument the call does not carry, every page is read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<Template>,
+    /// Where the next page comes from.
+    pub next: HttpPageCursor,
+}
+
+/// Where a page names the next page's cursor, and how the next request
+/// carries it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HttpPageCursor {
+    /// Where a decoded page names the next cursor.
+    pub cursor: NonEmptyString,
+    /// Query parameter name, or an object-member JSON pointer when `in` is body.
+    pub param: NonEmptyString,
+    /// Cursor placement. Body placement retains the cursor's JSON type.
+    #[serde(
+        rename = "in",
+        default,
+        skip_serializing_if = "crate::schema::is_default"
+    )]
+    pub location: HttpPageCursorLocation,
 }
 
 /// The request location of a provider's page cursor. Body cursors retain the
@@ -1273,8 +1380,9 @@ pub struct McpReadback {
 #[serde(deny_unknown_fields)]
 pub struct ProcessImplementation {
     pub tool: NonEmptyString,
+    /// What the runtime grants the tool, such as `fs:write`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub runtime_scopes: Vec<NonEmptyString>,
+    pub requires: Vec<NonEmptyString>,
     /// How a write is confirmed: the tool is run again with `phase:
     /// readback` and the acknowledgement, and what it observes must match.
     #[serde(default, skip_serializing_if = "Option::is_none")]

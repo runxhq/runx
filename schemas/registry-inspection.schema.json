@@ -367,6 +367,169 @@
         "manual_digest": {
           "type": "string"
         },
+        "method_inspections": {
+          "description": "Each runner with the execution closure it binds.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "execution_closure": {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              "runner": {
+                "additionalProperties": false,
+                "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
+                "properties": {
+                  "connectors": {
+                    "additionalProperties": {},
+                    "description": "The connector requirements of the skill, by key.",
+                    "type": "object"
+                  },
+                  "continuations": {
+                    "description": "The runners this one's work continues in, which its run may admit.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "declared_result_packets": {
+                    "additionalProperties": {
+                      "maxLength": 200,
+                      "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
+                      "type": "string"
+                    },
+                    "description": "The packet each result output declares, by output name.",
+                    "type": "object"
+                  },
+                  "input_schema": {
+                    "additionalProperties": {},
+                    "description": "Its inputs as one JSON schema, with the runner's examples.",
+                    "type": "object"
+                  },
+                  "inputs": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "required": {
+                          "type": "boolean"
+                        },
+                        "schema": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "required",
+                        "schema"
+                      ],
+                      "title": "InspectedInput",
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "outputs": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "required": {
+                          "type": "boolean"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "title": "InspectedOutput",
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "requirements": {
+                    "additionalProperties": false,
+                    "description": "Parser-owned projection of all execution requirements for one act.",
+                    "properties": {
+                      "environment": {
+                        "additionalProperties": false,
+                        "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
+                        "minProperties": 1,
+                        "properties": {
+                          "optional": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "required": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "scopes": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "title": "ExecutionRequirements",
+                    "type": "object"
+                  },
+                  "scopes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "name",
+                  "input_schema",
+                  "inputs",
+                  "outputs",
+                  "declared_result_packets",
+                  "requirements"
+                ],
+                "title": "MethodInspection",
+                "type": "object"
+              }
+            },
+            "required": [
+              "runner",
+              "execution_closure"
+            ],
+            "title": "MethodInspectionEntry",
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
         "name": {
           "type": "string"
         },
@@ -607,169 +770,6 @@
           ],
           "title": "MethodInspection",
           "type": "object"
-        },
-        "method_inspections": {
-          "description": "Each runner with the execution closure it binds.",
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "execution_closure": {
-                "additionalProperties": {},
-                "type": "object"
-              },
-              "runner": {
-                "additionalProperties": false,
-                "description": "One runner as a caller reads it: what it takes, what it returns, and what it needs.",
-                "properties": {
-                  "connectors": {
-                    "additionalProperties": {},
-                    "description": "The connector requirements of the skill, by key.",
-                    "type": "object"
-                  },
-                  "continuations": {
-                    "description": "The runners this one's work continues in, which its run may admit.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "declared_result_packets": {
-                    "additionalProperties": {
-                      "maxLength": 200,
-                      "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-                      "type": "string"
-                    },
-                    "description": "The packet each result output declares, by output name.",
-                    "type": "object"
-                  },
-                  "input_schema": {
-                    "additionalProperties": {},
-                    "description": "Its inputs as one JSON schema, with the runner's examples.",
-                    "type": "object"
-                  },
-                  "inputs": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "description": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "required": {
-                          "type": "boolean"
-                        },
-                        "schema": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "type": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "type",
-                        "required",
-                        "schema"
-                      ],
-                      "title": "InspectedInput",
-                      "type": "object"
-                    },
-                    "type": "array"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "outputs": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "required": {
-                          "type": "boolean"
-                        },
-                        "type": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ],
-                      "title": "InspectedOutput",
-                      "type": "object"
-                    },
-                    "type": "array"
-                  },
-                  "requirements": {
-                    "additionalProperties": false,
-                    "description": "Parser-owned projection of all execution requirements for one act.",
-                    "properties": {
-                      "environment": {
-                        "additionalProperties": false,
-                        "description": "Environment names consumed by an executable act. Values are resolved only at execution time and never enter this declaration.",
-                        "minProperties": 1,
-                        "properties": {
-                          "optional": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "minItems": 1,
-                            "type": "array"
-                          },
-                          "required": {
-                            "items": {
-                              "type": "string"
-                            },
-                            "minItems": 1,
-                            "type": "array"
-                          }
-                        },
-                        "type": "object"
-                      },
-                      "scopes": {
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "type": "array"
-                      }
-                    },
-                    "title": "ExecutionRequirements",
-                    "type": "object"
-                  },
-                  "scopes": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1,
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "name",
-                  "input_schema",
-                  "inputs",
-                  "outputs",
-                  "declared_result_packets",
-                  "requirements"
-                ],
-                "title": "MethodInspection",
-                "type": "object"
-              }
-            },
-            "required": [
-              "runner",
-              "execution_closure"
-            ],
-            "title": "MethodInspectionEntry",
-            "type": "object"
-          },
-          "minItems": 1,
-          "type": "array"
         },
         "runners": {
           "description": "Every runner the package declares, by name.",

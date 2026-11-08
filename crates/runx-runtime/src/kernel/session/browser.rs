@@ -43,7 +43,7 @@ pub(crate) fn principal(
         ),
     ]);
     let scopes = process
-        .runtime_scopes
+        .requires
         .iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>();
@@ -74,7 +74,7 @@ pub(crate) fn verify(
     tools: &dyn ToolRunner,
 ) -> Result<(), String> {
     let principal = principal(connector, &instance.parameters, env, cwd, tools)?;
-    if principal.principal_uri(connector.manifest.id.as_str()) != instance.principal_uri.as_str()
+    if principal.principal_uri(connector.manifest.name.as_str()) != instance.principal_uri.as_str()
         || instance.account_id.as_ref().map(|value| value.as_str())
             != Some(principal.login.as_str())
     {

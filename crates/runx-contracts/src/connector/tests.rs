@@ -9,10 +9,9 @@ use crate::{JsonObject, JsonValue};
 
 const SLACK: &str = r#"{
   "schema": "runx.connector.v1",
-  "id": "slack",
-  "name": "Slack",
+  "name": "slack",
+  "title": "Slack",
   "description": "Search, read and post messages in Slack workspaces.",
-  "runtime_capability": false,
   "auth": {"delegated": {"principal": {"url": "https://slack.com/api/auth.test", "id": "user_id", "login": "user"}}},
   "placements": {"hosted": {"auth": "delegated"}},
   "operations": {
@@ -24,14 +23,14 @@ const SLACK: &str = r#"{
       "approval": "required",
       "idempotency_key_format": "uuid",
       "result_fields": ["message_locator"],
-      "hosted": {"provider_scopes": ["chat:write"]}
+      "provider_scopes": ["chat:write"]
     },
     "channel.post.read": {
       "description": "Read a posted message back.",
       "verb": "read",
       "scopes": ["channel.post.read"],
       "target": {"template": {"$argument": "/conversation_locator"}},
-      "hosted": {"provider_scopes": ["channels:history"]}
+      "provider_scopes": ["channels:history"]
     }
   }
 }"#;
@@ -116,7 +115,7 @@ fn decimal_bindings_preserve_template_authority_and_dependency_analysis() {
 fn payment_compatibility_is_family_neutral_and_matches_each_declared_restriction() {
     #[derive(Deserialize)]
     struct Corpus {
-        pays: ConnectorPays,
+        payment: ConnectorPayment,
         cases: Vec<Case>,
     }
     #[derive(Deserialize)]
@@ -138,7 +137,7 @@ fn payment_compatibility_is_family_neutral_and_matches_each_declared_restriction
     .unwrap();
     for case in corpus.cases {
         let matches = corpus
-            .pays
+            .payment
             .get(case.terms.family.as_str())
             .is_some_and(|method| {
                 method.matches(
@@ -153,11 +152,11 @@ fn payment_compatibility_is_family_neutral_and_matches_each_declared_restriction
 
 #[test]
 fn payment_families_and_constraints_have_the_same_rust_and_schema_shape() {
-    let schema = <ConnectorPays as RunxSchema>::json_schema();
+    let schema = <ConnectorPayment as RunxSchema>::json_schema();
     let validator = jsonschema::validator_for(&schema).unwrap();
     for (value, accepted) in [
         (
-            json!({"mpp": {"methods": ["stripe"], "currencies": ["USD"]}}),
+            json!({"mpp": {"payment_methods": ["stripe"], "currencies": ["USD"]}}),
             true,
         ),
         (
@@ -166,13 +165,13 @@ fn payment_families_and_constraints_have_the_same_rust_and_schema_shape() {
         ),
         (json!({"x402": {"networks": ["eip155:8453"]}}), true),
         (json!({"bad/family": {}}), false),
-        (json!({"mpp": {"methods": []}}), false),
+        (json!({"mpp": {"payment_methods": []}}), false),
         (json!({"mpp": {"networks": []}}), false),
         (json!({"mpp": {"currencies": ["usd"]}}), false),
         (json!({"mpp": {"anything": true}}), false),
     ] {
         assert_eq!(
-            serde_json::from_value::<ConnectorPays>(value.clone()).is_ok(),
+            serde_json::from_value::<ConnectorPayment>(value.clone()).is_ok(),
             accepted,
             "Rust: {value}"
         );
@@ -290,16 +289,16 @@ fn manifest_round_trips_and_rejects_unknown_fields() {
     let operation = operation(&manifest, "channel.post");
     assert_eq!(operation.access(), OperationAccess::Mutate);
     assert_eq!(operation.approval, ApprovalFloor::Required);
-    assert!(operation.implemented_by(Placement::Hosted));
-    assert!(!operation.implemented_by(Placement::Local));
+    assert!(manifest.implements(operation, Placement::Hosted));
+    assert!(!manifest.implements(operation, Placement::Local));
 
     let encoded = serde_json::to_string(&manifest).expect("encode");
     let decoded: ConnectorManifest = serde_json::from_str(&encoded).expect("decode");
     assert_eq!(decoded, manifest);
 
     let unknown = SLACK.replace(
-        "\"name\": \"Slack\",",
-        "\"name\": \"Slack\", \"lane\": \"x\",",
+        "\"title\": \"Slack\",",
+        "\"title\": \"Slack\", \"lane\": \"x\",",
     );
     assert!(serde_json::from_str::<ConnectorManifest>(&unknown).is_err());
     let bad_operation = SLACK.replace("\"channel.post.read\": {", "\"Channel.Read\": {");
@@ -311,7 +310,8 @@ fn operation_digest_binds_authority_not_copy_or_implementation() {
     let manifest = slack();
     let name = OperationName::new("channel.post").expect("name");
     let digest = |manifest: &ConnectorManifest| {
-        operation_digest(&manifest.id, &name, operation(manifest, "channel.post")).expect("digest")
+        operation_digest(&manifest.name, &name, operation(manifest, "channel.post"))
+            .expect("digest")
     };
     let base = digest(&manifest);
 
@@ -326,7 +326,7 @@ fn operation_digest_binds_authority_not_copy_or_implementation() {
     provider_scopes
         .operations
         .values_mut()
-        .for_each(|operation| operation.hosted = Some(HostedImplementation::default()));
+        .for_each(|operation| operation.provider_scopes = vec!["other:scope".into()]);
     assert_eq!(digest(&provider_scopes), base);
 
     let mut widened = manifest.clone();

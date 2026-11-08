@@ -65,11 +65,11 @@ fn plugin_connectors_validate_and_are_named_by_their_directory() -> Result<(), S
                 continue;
             }
         };
-        if manifest.id.as_str() != name {
+        if manifest.name.as_str() != name {
             failures.push(format!(
                 "{}: id {} does not match its directory",
                 manifest_path.display(),
-                manifest.id
+                manifest.name
             ));
         }
         if let Err(errors) = validate_connector_manifest(manifest) {

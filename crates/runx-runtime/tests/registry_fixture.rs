@@ -251,12 +251,20 @@ impl LoopbackRegistry {
         let detail = json!({
             "connector": name,
             "version": version,
-            "name": package.manifest.name,
+            "name": package.manifest.title,
             "description": package.manifest.description,
             "content_digest": package.content_digest,
             "manifest_digest": package.manifest_digest,
             "connector_digest": package.connector_digest,
-            "runtime_capability": package.manifest.runtime_capability,
+            // The runtime's own connectors are the ones it implements whole.
+            "runtime_capability": package.manifest.operations.values().all(|operation| matches!(
+                operation.implementation,
+                Some(
+                    runx_contracts::connector::Implementation::Web(_)
+                        | runx_contracts::connector::Implementation::Store(_)
+                        | runx_contracts::connector::Implementation::Artifact(_)
+                )
+            )),
             "trust_tier": trust_tier,
             "operations": package.manifest.operations.iter().map(|(operation, declared)| json!({
                 "name": operation,

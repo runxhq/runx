@@ -2,16 +2,15 @@
 // Module rationale: the embedded runtime capability manifests are one generated
 // table so a change is a single mechanical, reviewable diff.
 
-/// Runtime capability connector manifests, by id.
+/// Runtime capability connector manifests, by name.
 pub(super) const CONNECTORS: &[(&str, &str)] = &[
     (
         "artifact",
         r###"schema: runx.connector.v1
-id: artifact
-name: Artifact
+name: artifact
+title: Artifact
 description: Store one bounded value in the artifact space of the runx account the runtime is signed in as, and read it back by its reference.
 category: agent-tools
-runtime_capability: true
 auth:
   none: {}
 placements:
@@ -20,7 +19,7 @@ placements:
 operations:
   artifact.allocate:
     description: Store one value, as JSON or canonical base64 bytes, under the media type it names. The artifact is keyed by the call's idempotency key, so a repeated call answers with the same artifact; the reference is read back before the call settles.
-    verb: create
+    verb: write
     scopes: [artifact.allocate]
     target:
       template: {"$argument": "/purpose"}
@@ -43,11 +42,10 @@ operations:
     (
         "store",
         r###"schema: runx.connector.v1
-id: store
-name: Store
+name: store
+title: Store
 description: Durable event streams for skills. Append an event when its stream is at the expected version, read a stream's events and projection, and list the newest stream heads. An instance's url chooses SQLite, Postgres or Redis; without one it is the workspace store.
 category: agent-tools
-runtime_capability: true
 auth:
   none: {}
   credentials:
@@ -161,11 +159,10 @@ operations:
     (
         "web",
         r###"schema: runx.connector.v1
-id: web
-name: Web
+name: web
+title: Web
 description: Read public web pages over HTTP(S).
 category: search
-runtime_capability: true
 auth:
   none: {}
 placements:

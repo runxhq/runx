@@ -296,10 +296,9 @@ mod tests {
     use crate::kernel::operation::hosted::HostedClient;
 
     const MANIFEST: &str = r#"schema: runx.connector.v1
-id: forge
-name: Forge
+name: forge
+title: Forge
 description: A forge reached with the token its CLI prints.
-runtime_capability: false
 auth:
   credentials:
     token:

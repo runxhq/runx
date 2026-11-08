@@ -275,7 +275,7 @@ fn declaration<'a>(
     connector.auth.credentials.get(credential).ok_or_else(|| {
         format!(
             "connector {} declares no credential {credential}",
-            connector.id
+            connector.name
         )
     })
 }

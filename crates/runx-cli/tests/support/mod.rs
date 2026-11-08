@@ -394,7 +394,7 @@ impl MockConnect {
                 let connector = scope.connector(connector)?;
                 Ok(serde_json::json!({
                     "grant_id": grant_id,
-                    "provider": connector.manifest.id.as_str(),
+                    "provider": connector.manifest.name.as_str(),
                     "connector_binding": connector.binding(),
                     "status": "active",
                     "credential_material_bound": true,
