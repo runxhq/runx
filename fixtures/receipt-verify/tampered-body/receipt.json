@@ -36,7 +36,7 @@
       }
     ],
     "outcome": "completed",
-    "reason": "graph_blocked"
+    "reason": "workflow_blocked"
   },
   "signature": {
     "alg": "Ed25519",

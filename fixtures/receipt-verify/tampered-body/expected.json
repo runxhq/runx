@@ -1,12 +1,12 @@
 {
   "content_address": {
     "actual": "sha256:5b2dce6d66b9fb6259d07b928697551b4c29e1f4c7a420fc729c689429bd3e33",
-    "expected": "sha256:61eb34a86e6ff061e3972889295a22786092e494f6ab403cbf94505d556ae6ce",
+    "expected": "sha256:662a3ef4ac08532a7c31df9acbb388bf4e20d7d4195bee4edf4229d81bc3b1d0",
     "status": "invalid"
   },
   "digest": {
     "actual": "sha256:400255648fecbba8c732b15ea15b76e9b88abf8afa92b6abce2e64ae5d49f89a",
-    "expected": "sha256:26c4979c551fb39750a109761046a1dc6fa3652acc18a1ba4dfa44f58a5a785b",
+    "expected": "sha256:844e44dade6fbe1835b99b276d445fb3b4cf942eabe83c5abd39378a240b1973",
     "status": "invalid"
   },
   "findings": [
