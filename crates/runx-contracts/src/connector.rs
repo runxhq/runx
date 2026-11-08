@@ -513,13 +513,16 @@ pub enum McpServer {
 }
 
 /// The authority verbs an operation may declare. `read` makes the operation a
-/// read; every other verb makes it a mutation. What kind of write it is, a
-/// comment or a merge, is its `scopes`' to say.
+/// read; every other verb makes it a mutation. `delete` stays its own verb
+/// because a grant that serves a delete or a revoke is a destructive one, and
+/// a targeted grant matches only a request of its own kind. What kind of
+/// write it is, a comment or a merge, is its `scopes`' to say.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OperationVerb {
     Read,
     Write,
+    Delete,
     Execute,
     Revoke,
 }
@@ -530,6 +533,7 @@ impl OperationVerb {
         match self {
             Self::Read => "read",
             Self::Write => "write",
+            Self::Delete => "delete",
             Self::Execute => "execute",
             Self::Revoke => "revoke",
         }
@@ -549,6 +553,7 @@ impl OperationVerb {
         match self {
             Self::Read => AuthorityVerb::Read,
             Self::Write => AuthorityVerb::Write,
+            Self::Delete => AuthorityVerb::Delete,
             Self::Execute => AuthorityVerb::Execute,
             Self::Revoke => AuthorityVerb::Revoke,
         }

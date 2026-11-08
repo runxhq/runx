@@ -36,8 +36,8 @@ export type JsonObject = { readonly [key: string]: JsonValue };
 
 export type Template = JsonValue;
 
-/** The authority's own verbs: `read` is a read, and the rest mutate. What kind of write it is lives in the operation's `scopes`. */
-export type OperationVerb = "read" | "write" | "execute" | "revoke";
+/** The authority's own verbs: `read` is a read, and the rest mutate. `delete` stays its own verb because a grant serving a delete or a revoke is a destructive one. What kind of write it is lives in the operation's `scopes`. */
+export type OperationVerb = "read" | "write" | "delete" | "execute" | "revoke";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

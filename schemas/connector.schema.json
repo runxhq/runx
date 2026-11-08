@@ -2270,10 +2270,11 @@
             "type": "object"
           },
           "verb": {
-            "description": "The authority verbs an operation may declare. `read` makes the operation a read; every other verb makes it a mutation. What kind of write it is, a comment or a merge, is its `scopes`' to say.",
+            "description": "The authority verbs an operation may declare. `read` makes the operation a read; every other verb makes it a mutation. `delete` stays its own verb because a grant that serves a delete or a revoke is a destructive one, and a targeted grant matches only a request of its own kind. What kind of write it is, a comment or a merge, is its `scopes`' to say.",
             "enum": [
               "read",
               "write",
+              "delete",
               "execute",
               "revoke"
             ],

@@ -316,6 +316,18 @@ fn operation<'a>(manifest: &'a ConnectorManifest, name: &str) -> &'a ConnectorOp
 }
 
 #[test]
+fn delete_is_a_verb_of_its_own_and_a_mutation() {
+    // A grant serving a delete is a destructive one, so the verb isn't
+    // folded into write.
+    let verb: OperationVerb = serde_json::from_value(json!("delete")).expect("delete is a verb");
+    assert_eq!(verb, OperationVerb::Delete);
+    assert_eq!(verb.as_str(), "delete");
+    assert_eq!(verb.access(), OperationAccess::Mutate);
+    assert_eq!(verb.authority_verb(), AuthorityVerb::Delete);
+    assert_eq!(serde_json::to_value(verb).expect("encode"), json!("delete"));
+}
+
+#[test]
 fn manifest_round_trips_and_rejects_unknown_fields() {
     let manifest = slack();
     let operation = operation(&manifest, "channel.post");
