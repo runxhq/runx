@@ -35,7 +35,7 @@ try {
     writeFileSync(outputPath, json);
   }
   process.stdout.write(json);
-  process.stderr.write(`runx harness sweep: ${report.summary}\n`);
+  process.stderr.write(`runx test sweep: ${report.summary}\n`);
   if (report.status !== "passed") {
     process.exitCode = 1;
   }
@@ -185,7 +185,7 @@ function sweepFailures({
   }
   if (failed.length > 0) {
     failures.push(
-      `unallowed harness failures: ${failed.map((result) => result.skill).join(", ")}`,
+      `unallowed test failures: ${failed.map((result) => result.skill).join(", ")}`,
     );
   }
   return failures;
@@ -201,7 +201,7 @@ async function runSelfTests() {
   };
   assertFailures(
     sweepFailures({ ...defaults, failed: [{ skill: "broken" }] }),
-    ["unallowed harness failures: broken"],
+    ["unallowed test failures: broken"],
     "an unallowed failure must fail an ungated sweep",
   );
   assertFailures(
@@ -316,7 +316,7 @@ async function runSkillTest(skill, runxBin, tempRoot, workspaceDir, allowed, tim
   }
   const result = await spawnBounded(
     runxBin,
-    ["harness", skillDir, "--json", "--receipt-dir", receiptDir],
+    ["test", skillDir, "--json", "--receipt-dir", receiptDir],
     {
       cwd: skillWorkspaceDir,
       encoding: "utf8",
@@ -620,9 +620,9 @@ function resolveRunxBinary(options) {
   return binary;
 }
 
-// The named skills and every core skill whose runners or context name one of
+// The named skills and every core skill whose methods or context name one of
 // them, by package path or registry ref: a change to a skill is proven by its
-// own harness and its core dependants', not the whole catalog.
+// own tests and its core dependants', not the whole catalog.
 function selectSkills(skills, names) {
   if (!names) return skills;
   const selected = new Set(names);
@@ -683,7 +683,7 @@ function parseTestReport(stdout) {
     return JSON.parse(text);
   } catch (error) {
     return {
-      parse_error: `invalid harness JSON: ${error instanceof Error ? error.message : String(error)}`,
+      parse_error: `invalid test JSON: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

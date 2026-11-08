@@ -105,9 +105,13 @@ export function validateSkillMarkdownBatch(markdowns, env = process.env) {
   );
 }
 
+/**
+ * Each `{ skill, yaml }`: a `run.yaml`, validated as the package named
+ * `skill`, the name its `SKILL.md` holds, as the runtime validates it.
+ */
 export function validateMethodManifestYamlBatch(documents, env = process.env) {
   return evaluateParserRequests(
-    documents.map((yaml) => ({ kind: "parser.validateMethodManifestYaml", yaml })),
+    documents.map(({ skill, yaml }) => ({ kind: "parser.validateMethodManifestYaml", skill, yaml })),
     env,
   );
 }
@@ -141,8 +145,8 @@ export function validateSkillMarkdown(markdown, env = process.env) {
   return validateSkillMarkdownBatch([markdown], env)[0];
 }
 
-export function validateMethodManifestYaml(yaml, env = process.env) {
-  return validateMethodManifestYamlBatch([yaml], env)[0];
+export function validateMethodManifestYaml(document, env = process.env) {
+  return validateMethodManifestYamlBatch([document], env)[0];
 }
 
 export function validateWorkflowYaml(yaml, env = process.env) {

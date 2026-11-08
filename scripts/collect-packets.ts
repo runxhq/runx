@@ -11,7 +11,7 @@
 //
 // Gates: the parser admits each package's packets (an id names its owner and
 // its file); every declared packet resolves; every package packet is
-// declared by its owner; a `wrap_as` step declares the fields its packet
+// declared by its owner; a `result_as` step declares the fields its packet
 // requires; no object in a package packet is left without a shape; a
 // published id never changes bytes; and no SKILL.md restates a packet in an
 // output-schema section.
@@ -27,6 +27,7 @@ import {
   listToolPacketDeclarations,
   resolveNativeRunxBinary,
   validateMethodManifestYamlBatch,
+  validateSkillMarkdownBatch,
 } from "./lib/native-parser.mjs";
 import { bundledCoreSkills } from "./classify-ci-changes.mjs";
 
@@ -38,6 +39,10 @@ interface PacketFile {
   readonly source: string;
 }
 
+/**
+ * A step as the parser validates it: its `outputs`, and the artifacts it
+ * keeps, from each output that names a `packet` and from `result_as`.
+ */
 interface StepDeclaration {
   readonly id: string;
   readonly outputs?: JsonObject;
@@ -54,7 +59,7 @@ interface MethodDeclaration {
 }
 
 interface MethodManifest {
-  readonly runners: Readonly<Record<string, MethodDeclaration>>;
+  readonly methods: Readonly<Record<string, MethodDeclaration>>;
 }
 
 interface LockEntry {
@@ -179,7 +184,7 @@ async function readPackagePackets(): Promise<Map<string, PacketFile>> {
   return packets;
 }
 
-/** What each package's profiles declare: every packet id, and each `wrap_as` binding. */
+/** What each package's profiles declare: every packet id, and each `result_as` binding. */
 async function readDeclarations(): Promise<
   Map<string, { ids: Set<string>; wrapped: { packet: string; outputs: string[]; at: string }[] }>
 > {
@@ -187,8 +192,15 @@ async function readDeclarations(): Promise<
     ? [...selectedSkills].map((name) => path.join(skillsRoot, name))
     : [skillsRoot];
   const profilePaths = (await Promise.all(profileRoots.map(findProfiles))).flat().sort();
+  // Each run.yaml is validated as the package its SKILL.md names.
+  const skills = validateSkillMarkdownBatch(
+    await Promise.all(profilePaths.map((profilePath) => readFile(path.join(path.dirname(profilePath), "SKILL.md"), "utf8"))),
+  ) as { name: string }[];
   const manifests = validateMethodManifestYamlBatch(
-    await Promise.all(profilePaths.map((profilePath) => readFile(profilePath, "utf8"))),
+    await Promise.all(profilePaths.map(async (profilePath, index) => ({
+      skill: skills[index]!.name,
+      yaml: await readFile(profilePath, "utf8"),
+    }))),
   ) as MethodManifest[];
   const declarations = new Map<
     string,
@@ -199,19 +211,21 @@ async function readDeclarations(): Promise<
     const packageName = relative.split(path.sep)[1]!;
     const declared = declarations.get(packageName) ?? { ids: new Set<string>(), wrapped: [] };
     declarations.set(packageName, declared);
-    for (const [methodName, runner] of Object.entries(manifests[index]!.runners)) {
-      for (const input of Object.values(runner.inputs ?? {})) {
+    for (const [methodName, method] of Object.entries(manifests[index]!.methods)) {
+      for (const input of Object.values(method.inputs ?? {})) {
         if (input.packet) declared.ids.add(input.packet);
       }
-      for (const step of runner.graph.steps) {
+      for (const step of method.graph.steps) {
         const artifacts = step.artifacts;
         if (!artifacts) continue;
         for (const packet of Object.values(artifacts.packets ?? {})) declared.ids.add(packet);
         if (artifacts.packet) {
           declared.ids.add(artifacts.packet);
+          // The `result_as` output is the packet itself; the step's other
+          // outputs are its fields.
           declared.wrapped.push({
             packet: artifacts.packet,
-            outputs: Object.keys(step.outputs ?? {}),
+            outputs: Object.keys(step.outputs ?? {}).filter((output) => output !== artifacts.wrap_as),
             at: `${relative}#${methodName}.${step.id}`,
           });
         }
@@ -221,7 +235,7 @@ async function readDeclarations(): Promise<
   return declarations;
 }
 
-/** A `wrap_as` step's outputs are its packet's fields: every required one, and none it closes out. */
+/** A `result_as` step's outputs are its packet's fields: every required one, and none it closes out. */
 function wrappedFieldFindings(
   packet: JsonObject,
   wrapped: { packet: string; outputs: string[]; at: string },
