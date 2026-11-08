@@ -533,8 +533,6 @@ oss	SkillRunnerDefinition	62	runner	SkillMethodDefinition		crates/runx-parser/sr
 oss	GraphStepState	61	graph	WorkflowStepState		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph/planning.rs
 oss	execution_closure	58	closure	execution_closure	a package's closure, or English: stays	crates/runx-cli/src/export/shim.rs crates/runx-cli/tests/skill.rs
 oss	harness_output	58	harness	test_output	the test sense	crates/runx-runtime/bundled-skills.json skills/diagnose-skill-run/diagnose-skill-run.mjs
-oss	parse_graph_yaml	55	graph	parse_workflow_yaml	the plan's name	crates/runx-parser/src/eval.rs crates/runx-parser/src/graph.rs
-oss	validate_graph	53	graph	validate_workflow		crates/runx-parser/src/eval.rs crates/runx-parser/src/graph.rs
 oss	SequentialGraphEvent	52	graph	SequentialWorkflowEvent		crates/runx-core/src/kernel_eval/input.rs crates/runx-core/src/state_machine.rs
 oss	runner_name	51	runner	method_name		crates/runx-cli/src/skill/operator_context.rs crates/runx-cli/tests/runx_maintained_skill_admission.rs
 oss	harness_cases	50	harness	test_cases	the test sense	crates/runx-contracts/src/list.rs crates/runx-contracts/src/skill_authoring.rs
@@ -716,7 +714,6 @@ oss	inspect_root_runner_accumulator	7	runner	inspect_root_method_accumulator		cr
 oss	LoadedRunnerInput	7	runner	LoadedMethodInput		crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	plan_sequential_graph_transition_indexed	7	graph	plan_sequential_workflow_transition_indexed		crates/runx-core/src/state_machine.rs crates/runx-core/src/state_machine/sequential_graph.rs
 oss	RegistryHarnessCaseMetadata	7	harness	RegistryTestCaseMetadata	the test sense	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/local/build.rs
-oss	run_graph_file	7	graph	run_workflow_file		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/tests/governance_witness.rs
 oss	run_harness_fixture_with_adapter	7	harness	run_test_fixture_with_adapter	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/runner.rs
 oss	run_package_harness	7	harness	run_package_test	the test sense	crates/runx-cli/src/main.rs crates/runx-runtime/src/execution/orchestrator.rs
 oss	run_package_harness_with_effects	7	harness	run_package_test_with_effects	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/package.rs
@@ -777,12 +774,10 @@ oss	graphTypesPath	5	graph	workflowTypesPath		scripts/runtime-architecture/parse
 oss	HarnessContextOutput	5	harness	RunContextOutput	the run sense	crates/runx-runtime/src/tool_catalogs/native/data.rs
 oss	has_passing_graph_case	5	graph	has_passing_workflow_case		crates/runx-contracts/src/maturity.rs crates/runx-runtime/src/registry/types.rs
 oss	isRunnerKernelFixture	5	runner	isRunnerKernelFixture	the kernel fixture runner is machinery: stays	scripts/generate-kernel-parity-fixtures.ts tests/kernel-parity-fixtures.test.ts
-oss	load_graph	5	graph	load_workflow		crates/runx-runtime/src/execution/graph.rs crates/runx-runtime/src/execution/runner.rs
 oss	load_harness_case	5	harness	load_test_case	the test sense	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/execution/harness/runner.rs
 oss	materialize_publish_closure	5	closure	materialize_publish_closure	a package's closure, or English: stays	crates/runx-cli/src/registry.rs crates/runx-runtime/src/registry.rs
 oss	native_graph	5	graph	native_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
 oss	overlay_harness_env	5	harness	overlay_test_env	the test sense	crates/runx-runtime/src/execution/harness/runner.rs
-oss	ParsedRunnerManifest	5	runner	ParsedMethodManifest		scripts/generate-rust-skill-fixtures.ts
 oss	provider_graph	5	graph	provider_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
 oss	PublishClosure	5	closure	PublishClosure	a package's closure, or English: stays	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	PublishHarnessPackage	5	harness	PublishTestPackage	the test sense	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/registry/publish_package/harness.rs
@@ -792,13 +787,11 @@ oss	RegistryHarnessState	5	harness	RegistryTestState	the test sense	crates/runx-
 oss	replay_harness_fixture	5	harness	replay_test_fixture	the test sense	crates/runx-runtime/examples/runx-harness-fixture-oracles.rs crates/runx-runtime/src/execution/harness.rs
 oss	resolve_runner	5	runner	resolve_method		crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-runtime/src/execution/prepared_skill.rs
 oss	run_graph	5	graph	run_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
-oss	run_graph_file_with_host	5	graph	run_workflow_file_with_host		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/tests/skill_manual_context.rs
 oss	run_graph_with_host_outcome	5	graph	run_workflow_with_host_outcome		crates/runx-runtime/src/execution/runner.rs
 oss	run_held_1	5	hold	run_held_1	a run waiting: stays	crates/runx-runtime/src/execution/run_record/tests.rs
 oss	RunHarness	5	harness	RunTest	the test sense	crates/runx-cli/src/main.rs crates/runx-cli/src/router.rs
 oss	SkillOperatorContextRunner	5	runner	SkillOperatorContextMethod		crates/runx-runtime/src/execution/operator_context.rs crates/runx-runtime/src/execution/skill_front.rs
 oss	validate_harness_http_url	5	harness	validate_test_http_url	the test sense	crates/runx-parser/src/harness_fixture.rs crates/runx-parser/src/harness_fixture/tests.rs
-oss	validateGraphYaml	5	graph	validateWorkflowYaml		crates/runx-parser/src/eval.rs scripts/generate-rust-parser-fixtures.ts
 oss	validateHarnessFixtureYaml	5	harness	validateTestFixtureYaml	the test sense	crates/runx-parser/src/eval.rs scripts/lib/native-parser.mjs
 oss	with_default_closure	5	closure	with_default_ending	how a run ended	crates/runx-runtime/src/receipts/seal.rs
 oss	write_graph_agent_task_with_context_skill	5	graph	write_workflow_agent_task_with_context_skill		crates/runx-runtime/tests/skill_run.rs
@@ -964,7 +957,6 @@ oss	readHarnessSpineFixture	3	harness	readRunSpineFixture	the run sense	packages
 oss	readiness_harness	3	harness	readiness_test	the test sense	crates/runx-cli/tests/export.rs
 oss	replay_harness_case	3	harness	replay_test_case	the test sense	crates/runx-runtime/src/execution/harness/runner.rs
 oss	replay_output_from_graph	3	graph	replay_output_from_workflow		crates/runx-runtime/src/execution/harness/runner.rs
-oss	resolved_graph_path	3	graph	resolved_workflow_path		crates/runx-runtime/src/execution/runner.rs
 oss	resumed_hold	3	hold	resumed_hold	a run waiting: stays	crates/runx-runtime/src/execution/runner/graph_engine.rs
 oss	run_provider_graph	3	graph	run_provider_workflow		crates/runx-runtime/benches/graph_throughput/runtime_paths.rs
 oss	runner_action_not_allowed	3	runner	runner_action_not_allowed	the operational policy's runners are machinery (rename-table.tsv, policy row): stays	crates/runx-contracts/src/operational_policy/evaluate.rs crates/runx-contracts/tests/operational_policy.rs
@@ -1073,13 +1065,11 @@ oss	harness_fixture_files	2	harness	test_fixture_files	the test sense	crates/run
 oss	harness_request_body_matches	2	harness	test_request_body_matches	the test sense	crates/runx-runtime/src/http/mod.rs
 oss	harness_result	2	harness	test_result	the test sense	crates/runx-runtime/src/execution/orchestrator.rs
 oss	harness_runs	2	harness	test_runs	the test sense	crates/runx-runtime/src/execution/harness/package.rs crates/runx-runtime/src/paths.rs
-oss	harness_schema	2	harness	test_schema	the test sense	fixtures/runtime/skills/code-intake/metadata.json scripts/generate-rust-skill-fixtures.ts
 oss	harness-basic	2	harness	test-basic	the test sense	crates/runx-parser/tests/parser_fixtures.rs fixtures/parser/runner-manifests/harness-basic.json
 oss	harness-evidence-reuse	2	harness	test-evidence-reuse	the test sense	crates/runx-runtime/bundled-skills.json
 oss	harness-only	2	harness	test-only	the test sense	crates/runx-runtime/bundled-skills.json
 oss	harness-posthog-key	2	harness	test-posthog-key	the test sense	skills/product-analytics/tests/holds-missing-cache-time.yaml skills/product-analytics/tests/reads-saved-insight.yaml
 oss	harness-selection	2	harness	test-selection	the test sense	crates/runx-runtime/bundled-skills.json
-oss	harnessCases	2	harness	testCases	the test sense	scripts/generate-rust-skill-fixtures.ts
 oss	Harnesses	2	harness	?	a bare word: code or prose, read in place	crates/runx-runtime/bundled-skills.json
 oss	HarnessHttpRequestFixture	2	harness	TestHttpRequestFixture	the test sense	crates/runx-parser/src/harness_fixture.rs
 oss	harnessTarget	2	harness	testTarget	the test sense	scripts/check-demo-inventory.mjs
@@ -1144,7 +1134,6 @@ oss	revoke_holding	2	hold	revoke_lease	the lease family	crates/runx-runtime/src/
 oss	root_runner	2	runner	root_method		crates/runx-runtime/src/skill_package/inspection.rs
 oss	routine_graph	2	graph	routine_workflow		crates/runx-runtime/tests/policy_approval.rs
 oss	run_candidate_harness	2	harness	run_candidate_test	the test sense	crates/runx-runtime/src/services/skill_packages/validation.rs
-oss	run_graph_file_for_harness	2	harness,graph	run_workflow_file_for_test	the test sense	crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner.rs
 oss	run_graph_fixture	2	graph	run_workflow_fixture		crates/runx-runtime/src/execution/harness/runner.rs
 oss	run_graph_for_harness	2	harness,graph	run_workflow_for_test	the test sense	crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner.rs
 oss	run_graph_skill_fixture	2	graph	run_workflow_skill_fixture		crates/runx-runtime/src/execution/harness/runner.rs
@@ -1220,7 +1209,6 @@ oss	validate_skill_runner_inputs	2	runner	validate_skill_method_inputs		crates/r
 oss	validateAgentActInvocationContract	2	agent_act	validateTurnInvocationContract		packages/contracts/src/index.ts packages/contracts/src/schemas/agent-act.ts
 oss	ValidateGraph	2	graph	ValidateWorkflow		crates/runx-runtime/src/error.rs
 oss	ValidateGraphYaml	2	graph	ValidateWorkflowYaml		crates/runx-parser/src/eval.rs
-oss	validateGraphYamlBatch	2	graph	validateWorkflowYamlBatch		scripts/lib/native-parser.mjs
 oss	ValidateHarnessFixtureYaml	2	harness	ValidateTestFixtureYaml	the test sense	crates/runx-parser/src/eval.rs
 oss	validateNativeRunnerManifestYaml	2	runner	validateNativeMethodManifestYaml		tests/product/runx-maintained-skill-catalog.test.ts
 oss	validateNativeRunnerManifestYamlBatch	2	runner	validateNativeMethodManifestYamlBatch		tests/product/runx-maintained-skill-catalog.test.ts
