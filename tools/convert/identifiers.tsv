@@ -8,11 +8,11 @@ ausca	__harness	9	harness	__test	the test sense	services/browser-session/tests/s
 ausca	holding	5	hold	?	a bare word: code or prose, read in place	runx/skills/document-ocr/schemas/ocr.output.schema.json scripts/test-resource-release-live-proof.sh
 ausca	stage_runner	5	runner	stage_runner	another runner: stays	runx/skills/async-packages.test.mjs runx/skills/document-analysis/async.mjs
 ausca	BrowserWorkerHarness	4	harness	BrowserWorkerTest	the test sense	services/browser-session/tests/support/workerd.ts services/browser-session/tests/worker.test.ts
-ausca	createTestHarness	4	harness	createTestTest	the test sense	services/agent-inbox/tests/store.test.ts services/agent-inbox/tests/worker.test.ts
+ausca	createTestHarness	4	harness	createTestHarness	wrangler's own name: stays	services/agent-inbox/tests/store.test.ts services/agent-inbox/tests/worker.test.ts
 ausca	harnessPost	4	harness	testPost	the test sense	services/browser-session/tests/worker.test.ts
 ausca	HarnessResponse	3	harness	TestResponse	the test sense	services/agent-inbox/tests/worker.test.ts
-ausca	RUNNER_LIMIT_MINUTES	3	runner	METHOD_LIMIT_MINUTES		scripts/buyer-canary.mjs
-ausca	RUNNER_TEMP	3	runner	METHOD_TEMP		.github/workflows/buyer-canary.yml
+ausca	RUNNER_LIMIT_MINUTES	3	runner	RUNNER_LIMIT_MINUTES	a CI runner's time limit: stays	scripts/buyer-canary.mjs
+ausca	RUNNER_TEMP	3	runner	RUNNER_TEMP	GitHub Actions' variable: stays	.github/workflows/buyer-canary.yml
 ausca	Harness	2	harness	?	a bare word: code or prose, read in place	services/browser-session/tests/support/provider.ts services/browser-session/tests/worker.test.ts
 ausca	Harness-only	2	harness	Test-only	the test sense	services/browser-session/tests/support/provider.ts services/browser-session/tests/support/worker-entry.ts
 ausca	harness-spine	2	harness	run-spine	the run sense	contracts/vendor/runx/canonical-json/runx-receipt-c14n-v1.oracles.json
@@ -340,15 +340,15 @@ fieldwork	checkBrowserGraph	7	graph	checkBrowserWorkflow		scripts/check-structur
 fieldwork	agent_act	6	agent_act	turn		src/agent/session.ts src/service/session-calls.ts
 fieldwork	agent-session	5	agent_session	agent	the plan's name	src/service/application.ts src/service/main.ts
 fieldwork	browserGraph	5	graph	browserWorkflow		scripts/check-structure.mjs scripts/check-structure.test.mjs
-fieldwork	TurnRunner	4	runner	TurnMethod		src/service/application.ts src/service/turns.ts
+fieldwork	TurnRunner	4	runner	TurnRunner	Fieldwork's own executor: stays	src/service/application.ts src/service/turns.ts
 fieldwork	wakeLiftsHold	4	hold	wakeLiftsHold	English, or a skill's own word: stays	src/work/occurrences.ts src/work/queries.ts
 fieldwork	Hold	3	hold	?	a bare word: code or prose, read in place	src/agent/loop.ts src/agent/model-call.ts
 fieldwork	holdingNative	3	hold	holdingNative	English, or a skill's own word: stays	src/service/turn-context.ts src/service/turns.ts
 fieldwork	not_held	3	hold	not_held	English, or a skill's own word: stays	src/contracts/common.ts src/work/commands.test.ts
-fieldwork	CallRunners	2	runner	CallMethods		src/agent/loop.ts
+fieldwork	CallRunners	2	runner	CallRunners	Fieldwork's own executors: stays	src/agent/loop.ts
 fieldwork	holdsUnsettled	2	hold	holdsUnsettled	English, or a skill's own word: stays	src/service/recovery.ts
 fieldwork	leaseHeld	2	hold	leaseHeld	English, or a skill's own word: stays	src/service/application.ts src/service/main.ts
-fieldwork	RUNNER_PATH	2	runner	METHOD_PATH		scripts/env.mjs
+fieldwork	RUNNER_PATH	2	runner	RUNNER_PATH	a package runner's path: stays	scripts/env.mjs
 fieldwork	runtimeClosure	2	closure	runtimeClosure	a package's closure, or English: stays	scripts/check-structure.mjs
 fieldwork	build-graph	1	graph	build-workflow		architecture.json
 fieldwork	fieldwork-browser-graph	1	graph	fieldwork-browser-workflow		scripts/check-structure.mjs
@@ -384,8 +384,8 @@ frantic	runnerArgs	5	runner	methodArgs		scripts/run-frantic-operator.mjs
 frantic	runx_skill_min_harness_cases	5	harness	runx_skill_min_test_cases	the test sense	packages/core/src/verification-profiles.ts packages/core/src/verification-recipes.ts
 frantic	idempotentIntakeDbHarness	4	harness	idempotentIntakeDbTest	the test sense	packages/db/src/vendor-intake.test.ts
 frantic	in-graph	4	graph	in-workflow		runx/skills/frantic-operator/tools/frantic/bounty-batch/batches/agency-skills-wave0.mjs runx/skills/frantic-operator/tools/frantic/bounty-batch/batches/agency-skills-wave3.mjs
-frantic	RUNNER_VOICED	4	runner	METHOD_VOICED		packages/seed/src/run-playbook.ts packages/seed/src/runner.ts
-frantic	RunnerConfig	4	runner	MethodConfig		packages/seed/src/runner.ts
+frantic	RUNNER_VOICED	4	runner	RUNNER_VOICED	Frantic's seed playbook runner: stays	packages/seed/src/run-playbook.ts packages/seed/src/runner.ts
+frantic	RunnerConfig	4	runner	RunnerConfig	Frantic's seed playbook runner: stays	packages/seed/src/runner.ts
 frantic	runx_skill_min_harness_receipts	4	harness	runx_skill_min_test_receipts	the test sense	packages/core/src/verification-profiles.ts packages/core/src/verification-recipes.ts
 frantic	$RUNNER_TEMP	3	runner	$RUNNER_TEMP	another runner: stays	.github/workflows/auto-review.yml
 frantic	GraphStep	3	graph	WorkflowStep	the plan's name	packages/verifier/src/checks/runx-skill-effects.ts
@@ -419,14 +419,14 @@ frantic	HELD	1	hold	?	a bare word: code or prose, read in place	apps/api/src/ops
 frantic	held-funds	1	hold	held-funds	English, or a skill's own word: stays	packages/db/src/projections/payment-effects.test.ts
 frantic	Hold	1	hold	?	a bare word: code or prose, read in place	apps/api/src/review-write-routes.ts
 frantic	HOLDS	1	hold	?	a bare word: code or prose, read in place	packages/seed/src/cast.ts
-frantic	mcp-runner	1	runner	mcp-method		packages/db/src/signup.test.ts
+frantic	mcp-runner	1	runner	mcp-runner	a GitHub handle in test data: stays	packages/db/src/signup.test.ts
 frantic	operator-runner	1	runner	operator-method		apps/api/src/internal-read-routes.test.ts
 frantic	Runner	1	runner	?	a bare word: code or prose, read in place	packages/db/src/signup.test.ts
 frantic	runner_id	1	runner	method_id		config/runx-frantic-policy.json
 frantic	runner_ids	1	runner	method_ids		config/runx-frantic-policy.json
-frantic	runner-driven	1	runner	method-driven		packages/seed/src/runner.ts
+frantic	runner-driven	1	runner	runner-driven	Frantic's seed playbook runner: stays	packages/seed/src/runner.ts
 frantic	runx-skill-harness	1	harness	runx-skill-test	the test sense	packages/verifier/src/checks/runx-skill.test.ts
-frantic	verifier-runner	1	runner	verifier-method		apps/api/src/scheduled.ts
+frantic	verifier-runner	1	runner	verifier-runner	Frantic's verifier job runner: stays	apps/api/src/scheduled.ts
 frantic	why123-harness-fail	1	harness	why123-test-fail	the test sense	packages/db/src/launch-board.ts
 nitrosend	runner	30	runner	?	a bare word: code or prose, read in place	dogfood/inbound-email/bin/run.mjs dogfood/inbound-email/tests/audit-runner.test.ts
 nitrosend	harness	9	harness	?	a bare word: code or prose, read in place	scripts/editor-battery/support.rb skills/nitrosend/issue-intake/X.yaml
@@ -435,7 +435,7 @@ nitrosend	sentryRunner	7	runner	sentryMethod		scripts/runx-issue-flow.test.mjs
 nitrosend	agent_act_closed	3	agent_act	turn_closed		skills/nitrosend/issue-intake/X.yaml skills/nitrosend/team-slack/X.yaml
 nitrosend	runner_id	3	runner	method_id		.runx/runx-issue-flow.json scripts/runx-issue-flow.test.mjs
 nitrosend	runner_ids	3	runner	method_ids		.runx/runx-issue-flow.json
-nitrosend	RUNNER_TEMP	3	runner	METHOD_TEMP		scripts/scafld-verify.sh
+nitrosend	RUNNER_TEMP	3	runner	RUNNER_TEMP	GitHub Actions' variable: stays	scripts/scafld-verify.sh
 nitrosend	graph	1	graph	?	a bare word: code or prose, read in place	connectors/nitrosend/tools/nitrosend/bulk_import/run.mjs
 nitrosend	held	1	hold	?	a bare word: code or prose, read in place	skills/nitrosend/load-drill/tools/nitrosend/lib/sends.mjs
 oss	runner	2114	runner	?	a bare word: code or prose, read in place	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
@@ -619,7 +619,7 @@ oss	agent-session	7	agent_session	agent	the plan's name	crates/runx-runtime/bund
 oss	allow_execute_harness	7	harness	allow_execute_test	the test sense	crates/runx-runtime/bundled-skills.json crates/runx-runtime/src/services/skill_packages/validation.rs
 oss	approval-graph	7	graph	approval-workflow		crates/runx-cli/tests/skill.rs
 oss	case_closure_connectors	7	closure	case_closure_connectors	a package's closure, or English: stays	crates/runx-runtime/src/execution/harness/runner.rs crates/runx-runtime/src/execution/runner/step_handlers/load.rs
-oss	ClosureInvalid	7	closure	EndingInvalid	how a run ended	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	ClosureInvalid	7	closure	ClosureInvalid	a package's closure: stays	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	executionClosureFromInspection	7	closure	executionClosureFromInspection	a package's closure, or English: stays	packages/client/src/index.test.ts packages/client/src/index.ts
 oss	FailGraph	7	graph	FailWorkflow		crates/runx-core/src/state_machine/sequential_graph/transition.rs crates/runx-core/src/state_machine/types.rs
 oss	graph_run_skill_output	7	graph	workflow_run_skill_output		crates/runx-runtime/src/execution/runner.rs crates/runx-runtime/src/execution/runner/step_handlers.rs
@@ -661,7 +661,7 @@ oss	harness_receipts	6	harness	test_receipts	the test sense	crates/runx-runtime/
 oss	harness-receipts	6	harness	test-receipts	the test sense	crates/runx-cli/src/main.rs crates/runx-cli/tests/harness.rs
 oss	HarnessFixtureStepOracle	6	harness	TestFixtureStepOracle	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/fixtures.rs
 oss	HarnessReplayReceipt	6	harness	TestReplayReceipt	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/assertions.rs
-oss	held_connectors	6	hold	leased_connectors	the lease family	crates/runx-runtime/src/execution/harness/provider_responses.rs crates/runx-runtime/src/execution/harness/transport.rs
+oss	held_connectors	6	hold	connectors_with_leases	the lease family: the connectors that hold the fixture's leases	crates/runx-runtime/src/execution/harness/provider_responses.rs crates/runx-runtime/src/execution/harness/transport.rs
 oss	inspect_loaded_execution_closure_binding	6	closure	inspect_loaded_execution_closure_binding	a package's closure, or English: stays	crates/runx-runtime/src/execution/prepared_skill.rs crates/runx-runtime/src/export.rs
 oss	isolate_harness_environment	6	harness	isolate_test_environment	the test sense	crates/runx-runtime/src/execution/harness.rs crates/runx-runtime/src/execution/harness/package.rs
 oss	isolated_harness_env	6	harness	isolated_test_env	the test sense	crates/runx-runtime/src/services/skill_packages/staging.rs crates/runx-runtime/src/services/skill_packages/validation.rs
@@ -729,7 +729,7 @@ oss	advertised_runner_names	4	runner	advertised_method_names		crates/runx-runtim
 oss	AgentActStepSeal	4	agent_act	TurnStepSeal		crates/runx-runtime/src/execution/runner/step_handlers.rs
 oss	apply_sequential_graph_event_owned_with_index	4	graph	apply_sequential_workflow_event_owned_with_index		crates/runx-core/src/state_machine/sequential_graph/transition.rs
 oss	classifyHarnessResult	4	harness	classifyTestResult	the test sense	scripts/harness-sweep.mjs
-oss	crate-graph	4	graph	crate-workflow		package.json scripts/check-verify-fast-plan.mjs
+oss	crate-graph	4	graph	crate-graph	a dependency graph: stays	package.json scripts/check-verify-fast-plan.mjs
 oss	CreateSequentialGraphState	4	graph	CreateSequentialWorkflowState		crates/runx-core/src/kernel_eval/dispatch.rs crates/runx-core/src/kernel_eval/input.rs
 oss	declared_runner_packet_ids	4	runner	declared_method_packet_ids		crates/runx-runtime/src/packet_schemas.rs crates/runx-runtime/src/registry/publish_package/files/packet.rs
 oss	DIGEST_RUNNER	4	runner	DIGEST_METHOD		crates/runx-runtime/tests/turn_loads.rs
@@ -806,7 +806,7 @@ oss	at_graph_step	3	graph	at_workflow_step		crates/runx-runtime/src/error.rs cra
 oss	catalog_runners	3	runner	catalog_methods		crates/runx-runtime/src/list.rs crates/runx-runtime/src/skill_package.rs
 oss	CatalogRunnerContract	3	runner	CatalogMethodContract		packages/contracts/src/generated/contract-types.ts
 oss	check-inline-harness-summary-snapshot	3	harness	check-inline-test-summary-snapshot	the test sense	package.json scripts/check-inline-harness-summary-snapshot.mjs
-oss	check-rust-crate-graph	3	graph	check-rust-crate-workflow		crates/deny.toml package.json
+oss	check-rust-crate-graph	3	graph	check-rust-crate-graph	a dependency graph: stays	crates/deny.toml package.json
 oss	collect_graph_references	3	graph	collect_workflow_references		crates/runx-parser/src/package/validate/references.rs
 oss	collect_harness_fixture_references	3	harness	collect_test_fixture_references	the test sense	crates/runx-parser/src/package/validate.rs crates/runx-parser/src/package/validate/references.rs
 oss	complete_graph	3	graph	complete_workflow		crates/runx-runtime/src/execution/runner/graph_engine.rs
@@ -895,7 +895,7 @@ oss	RUNX_HARNESS_FIXTURE_ORACLE_BIN	3	harness	RUNX_TEST_FIXTURE_ORACLE_BIN	the t
 oss	select_harness_runner	3	harness,runner	select_test_method	the test sense	crates/runx-runtime/src/execution/harness/runner.rs
 oss	select_step_runner	3	runner	select_step_method		crates/runx-runtime/src/execution/graph.rs crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	sequential-create-graph	3	graph	sequential-create-workflow		crates/runx-core/tests/state_machine_fixtures.rs fixtures/kernel/state-machine/sequential-create-graph.json
-oss	serialize_closure	3	closure	serialize_ending	how a run ended	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
+oss	serialize_closure	3	closure	serialize_closure	a package's closure: stays	crates/runx-runtime/src/skill_package/inspection/execution_closure.rs
 oss	start_sequential_graph_step	3	graph	start_sequential_workflow_step		crates/runx-core/src/state_machine/sequential_graph/transition.rs
 oss	startedGraph	3	graph	startedWorkflow		scripts/generate-kernel-parity-fixtures.ts
 oss	succeed_sequential_graph_step	3	graph	succeed_sequential_workflow_step		crates/runx-core/src/state_machine/sequential_graph/transition.rs
@@ -935,7 +935,7 @@ oss	child_policy_graph	2	graph	child_policy_workflow		crates/runx-runtime/tests/
 oss	classify_runner	2	runner	classify_method		crates/runx-runtime/src/services/skill_packages/validation/resources.rs
 oss	closure_only	2	closure	closure_only	a package's closure, or English: stays	crates/runx-cli/src/skill/parser.rs
 oss	ClosureDigestMismatch	2	closure	ClosureDigestMismatch	a package's closure, or English: stays	crates/runx-runtime/src/skill_package.rs crates/runx-runtime/src/skill_package/inspection.rs
-oss	ClosureMissing	2	closure	EndingMissing	how a run ended	crates/runx-runtime/src/skill_package/inspection.rs
+oss	ClosureMissing	2	closure	ClosureMissing	a package's closure: stays	crates/runx-runtime/src/skill_package/inspection.rs
 oss	ClosureNotFullyBound	2	closure	ClosureNotFullyBound	a package's closure, or English: stays	crates/runx-runtime/src/skill_package.rs crates/runx-runtime/src/skill_package/inspection.rs
 oss	ClosureNotObject	2	closure	EndingNotObject	how a run ended	crates/runx-runtime/src/execution/outcome.rs
 oss	collect_runner_findings	2	runner	collect_method_findings		crates/runx-contracts/src/operational_policy/evaluate.rs

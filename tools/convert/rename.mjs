@@ -39,15 +39,17 @@ const OVERRIDES = {
   ExecutionGraph: "Workflow", GraphStep: "WorkflowStep", parse_graph_yaml: "parse_workflow_yaml",
   graph_step_failed: "workflow_step_failed", graph_blocked: "workflow_blocked", TurnInvocation: "TurnView", TurnEnvelope: "TurnViewEnvelope",
   AgentAct: "Turn", AgentActInvocation: "TurnInvocation", HarnessTurnScript: "TestTurnCalls", "agent-session": "agent", $held: "$lease",
+  held_connectors: "connectors_with_leases",
 };
 
-// The other senses each word has, which stay.
+// The other senses each word has, which stay: CI and package runners, the
+// consumers' own executors and playbook runner, test data, and a dependency graph.
 const STAYS = {
-  runner: /^\$RUNNER_|ToolRunner|tool_runner|test_runner|local-pr-runner|^step_runner$|^stage_runner$/,
-  graph: /GraphQL|dependency-advisory-graph/,
+  runner: /^\$RUNNER_|^RUNNER_(TEMP|OS|ARCH|NAME|TOOL_CACHE|DEBUG|ENVIRONMENT|WORKSPACE|LIMIT_MINUTES|PATH|VOICED)$|ToolRunner|tool_runner|test_runner|local-pr-runner|^step_runner$|^stage_runner$|^TurnRunner$|^CallRunners$|^RunnerConfig$|^runner-driven$|^mcp-runner$|^verifier-runner$/,
+  graph: /GraphQL|dependency-advisory-graph|crate-graph/,
 };
 const RUN_HARNESS = /harness[-_]?(context|ref|spine)|capture_harness_context/i;
-const ENDING = /^Closure$|GraphClosure|StepSealClosure|graph_stop_closure|graph_receipt_with_closure|harness_blocks_closure|ClosureInvalid|ClosureMissing|ClosureNotObject|serialize_closure|with_default_closure|ClosureDisposition/;
+const ENDING = /^Closure$|GraphClosure|StepSealClosure|graph_stop_closure|graph_receipt_with_closure|harness_blocks_closure|ClosureNotObject|with_default_closure|ClosureDisposition/;
 const LEASE = /OperationHold|HoldAction|HoldEvidence|HOLD_EVIDENCE|DeclaredHold|HarnessProviderHoldFixture|PurchaseHold|purchase_holdings|purchaseHolding|holdPurchaseOf|HoldPurchase|HeldResource|heldValueDigest|HoldOwnerRef|HoldingOwner|held_resource|held_answer|held_connectors|validate_holds|revoke_holding|take_answers_the_hold|take_holds_nothing|purchase_credential_is|held_value_never|connect_holds|connect_could_hold|names_the_held_resource|on_a_held_resource|purchase_connect_holds|holdingStore|HoldingStore|holdings/;
 const RUN_HOLD = /RunHold|run_hold|HoldEvent|hold_event|child_hold|suspended_hold|resumed_hold|run_held|NotHeld|held_lock/;
 
@@ -239,6 +241,22 @@ function apply(repo, root, write, list) {
   if (stored.size > 0) {
     process.stdout.write(`refused ${repo}: ${stored.size} renamed names are stored, because an applied migration holds them; each row's note starts "stored" and names the migration that renames the stored copy, or the row stays\n`);
     for (const [name, file] of [...stored].slice(0, 40)) process.stdout.write(`  ${name}   (${file})\n`);
+    return 1;
+  }
+  // A name an outside package defines is that package's, so it never changes
+  // here: an import from anything but a relative path or runx's own packages.
+  const outside = new Map();
+  for (const file of trackedSources(root).filter((file) => /\.(ts|tsx|mts|mjs|js|cjs|astro)$/.test(file))) {
+    for (const m of readSource(root, file)?.text?.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*["']([^"'.][^"']*)["']/g) ?? []) {
+      if (/^(@runxhq\/|@runx\/|runx)/.test(m[2])) continue;
+      for (const name of m[1].split(",").map((part) => part.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0])) {
+        if (renames.has(name)) outside.set(name, `${m[2]}, in ${file}`);
+      }
+    }
+  }
+  if (outside.size > 0) {
+    process.stdout.write(`refused ${repo}: ${outside.size} renamed names are imported from outside packages, which own them; each row stays\n`);
+    for (const [name, from] of [...outside].slice(0, 40)) process.stdout.write(`  ${name}   (${from})\n`);
     return 1;
   }
   // A new name a file already holds needs a row for the name it lands on:
