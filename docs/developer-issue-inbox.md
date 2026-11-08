@@ -15,7 +15,6 @@ manual source references into a provider-neutral command shape:
 - target repo hint from concrete GitHub URLs
 - stable source dedupe key
 - `source_event` input for `code-intake`
-- operational-policy admission request fields
 - chat-safe command response text for accepted, blocked, unsupported, or failed
   command paths
 
@@ -128,12 +127,6 @@ Core can still enforce the policy shape. A PR-producing lane should require:
 - a target repo that is scafld-ready when mutation is requested
 - an owner route for reviewer assignment
 - explicit human merge gate policy
-
-The PR packaging boundary stores a redacted policy admission summary in the
-draft packet and outbox metadata: policy id, source id, target repo, runner id,
-owner route id, owner count, dedupe strategy, outcome close mode, source-thread
-requirement, mutation permission, and human merge gate. It does not echo raw
-Slack, Sentry, GitHub, or local path locators.
 
 `code-intake` chooses the next lane:
 
