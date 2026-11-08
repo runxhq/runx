@@ -238,8 +238,15 @@ function convertOperation(doc, step, scope, where, notes) {
     pairOf(step, "confirms").value = new Scalar(match[1]);
   }
   if (take(step, "amount") !== undefined) notes.push(`${where}.amount removed: admission derives it from the operation's inputs`);
-  const duplicates = pairOf(step, "duplicates");
-  if (duplicates && plain(duplicates.value) === "visible") duplicates.value = new Scalar("allowed");
+  // Whether recovery may resend a write whose outcome is unknown says what it
+  // permits; `forbidden` was the default, so it says nothing.
+  const duplicatesAt = indexOf(step, "duplicates");
+  const duplicates = take(step, "duplicates");
+  if (duplicates !== undefined) {
+    const value = plain(duplicates);
+    if (value === "visible" || value === "allowed") insertAt(step, duplicatesAt, "retry_unknown_outcomes", new Scalar(true));
+    else if (value !== "forbidden") refuse(`${where}.duplicates is ${JSON.stringify(value)}, which the converter doesn't know`);
+  }
 }
 
 // An output with a packet is an artifact. A named emit with no packet becomes
@@ -307,6 +314,7 @@ function convertOffer(doc, offer, where) {
   const model = PRICE_MODELS[plain(modelPair?.value)];
   if (model === undefined) refuse(`${where}.price.model is ${plain(modelPair?.value)}, which the converter doesn't know`);
   modelPair.value = new Scalar(model);
+  modelPair.key = new Scalar("basis");
   rename(price, "artifact_input", "input");
   if (model === "by_input") {
     const selectors = plain(take(price, "selectors"));
@@ -609,6 +617,16 @@ function convertPackage(dir) {
   const harness = take(root, "harness");
 
   if (!rename(root, "runners", "methods")) refuse("run.yaml has no runners");
+  // Which method a bare reference runs is one name at the root, so `default`
+  // keeps its one JSON Schema meaning, and two methods can't both claim it.
+  const defaults = [];
+  for (const pair of node(root, "methods").items) {
+    const flag = isMap(pair.value) ? take(pair.value, "default") : undefined;
+    if (flag !== undefined && plain(flag) === true) defaults.push(keyOf(pair));
+    else if (flag !== undefined && plain(flag) !== false) refuse(`methods.${keyOf(pair)}.default is ${JSON.stringify(plain(flag))}`);
+  }
+  if (defaults.length > 1) refuse(`methods ${defaults.join(", ")} are each marked default`);
+  if (defaults.length === 1) insertAt(root, indexOf(root, "minimum_runx") + 1, "default_method", new Scalar(defaults[0]));
   for (const pair of node(root, "methods").items) {
     convertMethod(doc, keyOf(pair), pair.value, { root: rootAllowance, shared, requirementOperations }, notes);
   }
@@ -735,6 +753,8 @@ function convertConnector(dir) {
   rename(root, "id", "name");
   take(root, "runtime_capability");
   rename(root, "pays", "payment");
+  // A protocol's `methods` competed with a skill's methods.
+  for (const pair of node(root, "payment")?.items ?? []) if (isMap(pair.value)) rename(pair.value, "methods", "payment_methods");
 
   for (const pair of node(node(root, "auth") ?? new YAMLMap(), "credentials")?.items ?? []) {
     const kind = pairOf(pair.value, "kind");
@@ -766,6 +786,8 @@ function convertConnector(dir) {
     renameProcessScopes(implementation && node(implementation, "process"));
     const http = implementation && node(implementation, "http");
     for (const request of (http && node(http, "requests")?.items) ?? []) {
+      // `method` is a skill's method everywhere else in runx.
+      rename(request, "method", "http_method");
       const pages = node(request, "pages");
       if (pages === undefined) continue;
       only(pages, PAGE_KEYS, `${where}.implementation.http.requests.pages`);
