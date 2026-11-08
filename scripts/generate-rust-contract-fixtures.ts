@@ -14,7 +14,6 @@ import {
 
 const workspaceRoot = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const fixtureRoot = path.join(workspaceRoot, "fixtures", "contracts");
-const sdkFixtureRoot = path.join(workspaceRoot, "fixtures", "sdk-rust");
 const actAssignmentRoot = path.join(fixtureRoot, "act-assignment");
 
 interface ContractFixture {
@@ -88,20 +87,10 @@ if (
 if (selectedScope === undefined || selectedScope === "act-assignment") {
   const fixtures = buildActAssignmentFixtures();
   await writeFixtures(fixtures, actAssignmentRoot);
-  await writeFixtures(
-    fixtures.filter(({ name }) => ["cli-no-trigger", "github-trigger"].includes(name)),
-    path.join(sdkFixtureRoot, "act-assignment"),
-  );
 }
 if (selectedScope === undefined || selectedScope === "host-protocol") {
   const fixtures = buildHostProtocolFixtures();
   await writeFixtures(fixtures, path.join(fixtureRoot, "host-protocol"));
-  await writeFixtures(
-    fixtures.filter(({ name }) =>
-      ["inspect-host-state-needs-agent", "result-host-run-completed"].includes(name),
-    ),
-    path.join(sdkFixtureRoot, "host-protocol"),
-  );
 }
 if (selectedScope === undefined || selectedScope === "purchase") {
   runPurchaseFixtures();
