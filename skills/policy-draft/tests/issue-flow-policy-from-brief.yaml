@@ -41,7 +41,7 @@ host:
                 missing_behavior: fail_closed
               minimum_confidence: 0.82
           runners:
-            - runner_id: local-review
+            - method_id: local-review
               kind: local
               state: available
               allowed_actions:
@@ -67,7 +67,7 @@ host:
                 - acme/app
           targets:
             - repo: acme/acme
-              runner_ids:
+              method_ids:
                 - local-review
               allowed_actions:
                 - issue-intake
@@ -77,7 +77,7 @@ host:
               scafld_required: true
               base_branch: main
             - repo: acme/api
-              runner_ids:
+              method_ids:
                 - local-review
               allowed_actions:
                 - issue-intake
@@ -87,7 +87,7 @@ host:
               scafld_required: true
               base_branch: main
             - repo: acme/app
-              runner_ids:
+              method_ids:
                 - local-review
               allowed_actions:
                 - issue-intake

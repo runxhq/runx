@@ -45,7 +45,7 @@ sources:
       missing_behavior: fail_closed
     minimum_confidence: number     # optional
 runners:
-  - runner_id: string
+  - method_id: string
     kind: string
     state: available | disabled | maintenance
     allowed_actions: [string]
@@ -57,7 +57,7 @@ owner_routes:
     target_repos: [owner/repo]
 targets:
   - repo: owner/repo
-    runner_ids: [string]
+    method_ids: [string]
     allowed_actions: [string]
     default_owner_route: string
     scafld_required: boolean

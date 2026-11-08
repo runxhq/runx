@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Create a bounded decision-note skill without package-local runtime code.",
-      "expected_output": "A validated declarative skill package is applied with a useful manual and semantic harness.",
+      "expected_output": "A validated declarative skill package is applied with a useful manual and tests that prove it.",
       "files": []
     }
   ]

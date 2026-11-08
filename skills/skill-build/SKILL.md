@@ -1,6 +1,6 @@
 ---
 name: skill-build
-description: Canonical Runx skill-authoring implementation. Use for designing, creating, updating, improving, or adding harness coverage to a Runx skill package; it combines bounded agent judgment with native file writes, inspection, and safe harness validation. When a host skill-creator also triggers, use its general guidance but execute Runx work through this skill.
+description: Canonical Runx skill-authoring implementation. Use for designing, creating, updating, improving, or adding test coverage to a Runx skill package; it combines bounded agent judgment with native file writes, inspection, and safe test replay. When a host skill-creator also triggers, use its general guidance but execute Runx work through this skill.
 ---
 
 # Skill Build
@@ -16,13 +16,14 @@ inspect target files, catalog ownership, and native/shared tools
 → author only bounded writes, explicit deletions, and output intent
 → bind those bytes to the admitted architecture in native code
 → validate paths, secret posture, and the complete candidate
-→ inspect and safely replay the exact staged package
+→ inspect the exact staged package and safely replay its tests
 → commit that validated bundle through one native transaction
 ```
 
 Use the generic host `skill-creator` for platform-wide authoring guidance when
 it is available. Do not reproduce Runx package operations from that guidance;
-invoke the appropriate `skill-build` runner so the work is bounded and receipted.
+invoke the appropriate `skill-build` method, as `runx skill runx/skill-build#<method>`,
+so the work is bounded and receipted.
 
 ## Captured source artifacts
 
@@ -36,25 +37,25 @@ authority. Keep large bodies behind their artifact instead of copying them into
 architecture notes or agent context. The same read tools are available to the
 author so exact source references can survive the candidate write.
 
-## Runners
+## Methods
 
 - `design`: read-only catalog-fit and architecture planning. It returns a
   native digest-bound plan and never authors package bytes. A later build
   re-inspects and replans against its exact target before any write.
-- `build` (default): create or update a package after its exact staged bundle
-  passes native parsing, inspection, and safe harness replay.
-- `improve`: turn one receipt or harness failure into a bounded package update,
+- `build` (the `default_method`): create or update a package after its exact
+  staged bundle passes native parsing, inspection, and safe replay of its tests.
+- `improve`: turn one receipt or test failure into a bounded package update,
   then validate and commit the exact staged bytes.
-- `harness`: add fixture files to an existing package and replay the safe native
-  harness against the exact candidate before committing it.
+- `harness`: add tests to an existing package and replay them safely against
+  the exact candidate before committing it.
 
 `build`, `improve`, and `harness` write local workspace files. They never
-publish, install, push, or mutate an external provider. Native harness replay
+publish, install, push, or mutate an external provider. Native test replay
 runs with isolated Runx home, receipts, and no operator credentials. Invalid
 staged packages stop before the target package is touched. Design, inspection,
 validation, and the bounded transactional workspace write do not add a human
 approval gate; the operator authorizes those reversible local writes by
-invoking a runner whose native filesystem steps request
+invoking a method whose native filesystem steps request
 `fs.write`/`fs.delete`. Publication, installation, provider effects, and other
 consequential boundaries remain outside this skill and keep their own approval
 rules.
@@ -78,7 +79,7 @@ authoring.
   skill contributes, and what durable result it returns. A package that merely
   restates ordinary agent behavior, renames one native call, or produces a
   document with no usable next step is not a valuable skill even when every
-  contract and harness passes.
+  contract and test passes.
 - Treat prior implementations, accepted bounty text, issue suggestions, and
   named integrations as evidence about the intended capability, not binding
   architecture. Preserve the real user outcome and compatibility obligations;
@@ -156,29 +157,33 @@ authoring.
   procedure, operator decision, or state into Cloud. If that operator surface is
   missing, return work to OSS or the product owner; never extend a Cloud script
   or hosted service as a substitute.
-- For provider work, list the connector and its operations under
-  `connectors:` and call them from `operation` steps; the connector declares
-  the scopes, target and readbacks. Connector requirements do not grant direct
-  agent calls. When an agent phase genuinely chooses provider calls dynamically,
-  declare its exact `operations: [requirement/operation]` list on that runner.
-  Omitted or empty `operations` grants no direct provider calls; graph operation
-  steps keep their declared behavior. Do not give a supplied-data judgment phase
-  acquisition or mutation tools merely because another phase needs them. A scoped grant is sufficient by default.
-  When an act genuinely needs a human decision, put one typed `approval`
-  request in the operation step's inputs with a concrete reason and
-  action-specific type, or rely on the operation's `approval: required`. The
-  kernel constructs the exact operator summary, binds the request to the
-  intent, and suspends for `runx resume`; never add an adjacent
-  graph approval for the same action. Use an explicit graph approval only for a
-  consequential decision no native capability owns. One action has one
-  approval owner. Payment effects must also provide the typed
-  `amount: {units, unit}` input so the exact amount is visible and plan-bound;
-  do not bury it only inside provider-specific payload JSON. Use
-  `expected_result` to bind the returned resource identity and `result_fields`
-  to admit only the fields the receipt needs. Secret-adjacent operations must
-  project their result. Pass retry identity through the native
-  `idempotency_key` input; do not copy it into the provider payload. Never add a
-  package token loader or request client.
+- For provider work, call each connector operation from an `operation` step
+  that names it as `<connector>/<operation>`; the connector declares the scopes,
+  target and readbacks. The package's connector requirements are derived from
+  the steps that call them, so `connectors:` says only what a step can't: a
+  `manifest_digest` pin, or a connector chosen per run with `choose` and `from`,
+  which steps then name as `<name>/<operation>`. A connector no step calls is
+  refused. Connector requirements do not grant direct agent calls. When an
+  agent step genuinely chooses provider calls dynamically, list the exact
+  operations in that step's `calls.operations`, each as `<connector>/<operation>`.
+  Omitted or empty `calls.operations` grants no direct provider calls;
+  `operation` steps keep their declared behavior. Do not give a supplied-data
+  judgment step acquisition or mutation tools merely because another step
+  needs them. A scoped grant is sufficient by default.
+  When an act genuinely needs a human decision, give the operation step one
+  `approval: { reason, type }` with a concrete reason and action-specific
+  type, or rely on the operation's `approval: required`. The kernel constructs
+  the exact operator summary, binds the request to the intent, and suspends for
+  `runx resume`; never add an adjacent `ask` step for the same action. Use an
+  `ask` step only for a consequential decision no native capability owns. One
+  action has one approval owner. The money a call moves is derived from its
+  operation's inputs, which the connector declares, so a step never states an
+  amount. Use the step's `result.equals` to bind the returned resource identity
+  and `result.required` and `result.optional` to admit only the fields the
+  receipt needs. Secret-adjacent operations must project their result. Give
+  every write an `idempotency_key` on the step, which names one intent; do not
+  copy it into the provider payload. Never add a package token loader or
+  request client.
 - Never model human authority as a caller-supplied approval string, boolean, or
   reference. A native approval gate must summarize the exact target and effect;
   its host-attested packet is the only approval input a credentialed provider
@@ -190,29 +195,31 @@ authoring.
 - An `ask` step is a human gate. Agent provenance is rejected by the runtime;
   use an `agent` step for model judgment and keep its result distinct from
   human authority.
-- Treat the selected runner's typed execution requirements as the complete
-  permission request. Put opaque scope strings, exact non-secret environment
-  names, and runtime metadata on their canonical runner or source fields, never
-  under `runx`, in prose, or in a package loader; credentials belong to the
-  connectors the runner calls. Runx resolves and records those declarations without
-  inventing a scope vocabulary; the native capability or provider that owns a
-  scope enforces it.
-- Make every public runner contract recursively complete at the authoring
+- Treat the selected method's typed execution requirements as the complete
+  permission request. Put exact non-secret environment names and runtime
+  metadata on their canonical step and tool fields, never under `runx`, in
+  prose, or in a package loader; credentials belong to the connectors the
+  method calls, and a catalog tool's scopes come from the tool. Runx resolves
+  and records those declarations without inventing a scope vocabulary; the
+  native capability or provider that owns a scope enforces it.
+- Make every public method contract recursively complete at the authoring
   boundary. `run.yaml` owns nested properties, closed objects, enums, bounds,
-  and complete parser-validated invocation examples; `runx skill inspect`,
+  and complete parser-validated invocation `examples`; `runx skill inspect`,
   MCP, agent tools, and generated exports must project that same declaration.
-  When an identical input declaration is used by multiple runners, define it
-  once with the manifest's exact input-definition reference rather than copy
-  it or invent merge overrides. JavaScript may enforce irreducible
-  relationships between otherwise valid fields, but must not repeat structural
-  validation already owned by the profile.
+  When an identical input declaration is used by several methods, define it
+  once under `shared_inputs` and have each method take it by name, as
+  `repository: {}`; a key written beside it overrides only that key, so never
+  copy the whole declaration. A rule across fields that no single field can
+  state belongs in the method's `input_constraints`. JavaScript may enforce
+  irreducible relationships between otherwise valid fields, but must not
+  repeat structural validation already owned by the profile.
 - Dogfood the result through the real agent-facing surface, not only the
-  package harness. A cold agent must be able to inspect the selected runner,
+  package's tests. A cold agent must be able to inspect the selected method,
   construct a valid call without reading source or fixtures, understand a
   path-specific rejection, and continue from the resulting context. Exercise
-  every materially different runner; a default-only export cannot certify a
-  multi-runner skill. For an existing target, use
-  `authoring_context.target_inspection` as the canonical runner-contract and
+  every materially different method; a default-only export cannot certify a
+  multi-method skill. For an existing target, use
+  `authoring_context.target_inspection` as the canonical method-contract and
   execution-closure evidence. An `invalid` inspection is repair context, not
   permission to guess: read the declared target files, correct the owning
   contract, and validate the complete candidate.
@@ -221,66 +228,73 @@ authoring.
   artifacts as well as remote sources, support both through their canonical
   evidence boundaries; do not require HTTPS, Hosted Connect, or another
   provider merely to analyze evidence already available on the operator's
-  machine. Provider-specific acquisition remains a separate runner or upstream
+  machine. Provider-specific acquisition remains a separate method or upstream
   skill when it adds real readback value.
-- Make permission claims executable through the existing package harness.
-  Permission-bearing native and provider paths need a realistic admitted case
-  and, where the harness can exercise that owner, a refusal case with the
-  required scope or grant withheld. The harness must call the same catalog,
+- Make permission claims executable through the package's own tests.
+  Permission-bearing native and provider paths need a realistic admitted test
+  and, where a test can exercise that owner, a refusal test with the
+  required scope or grant withheld. A test must call the same catalog,
   dispatcher, and capability/provider implementation as a real run; never add
   a mock permission evaluator, scope vocabulary, or parallel verification
   report. This proves enforcement owned by Runx capabilities and providers. It
   cannot prove that trusted host code avoided undeclared filesystem, network,
   or syscall access, so report that boundary as trusted rather than confined.
-- Tool fixtures inherit the exact scopes declared by the canonically resolved
-  manifest and pass declared packets through the production packet verifier.
-  Use `expect.output.matches_packet` only when the whole fixture output is one
-  self-described packet; named artifact packets are already verified from the
-  manifest and should not be asserted through a second fixture path.
+- A test's tool steps inherit the exact scopes declared by the canonically
+  resolved manifest and pass declared packets through the production packet
+  verifier. An output with a `packet` is already verified from the declaration,
+  so do not assert it again through a second path in the test.
 - Search the inspected native-tool and skill catalogs before designing files.
   Prefer an existing core tool or canonical skill over executable package code.
-- Make every public runner input constructible from inspection. Use ordinary
-  `schema` for runner-owned nested values. When an input is exactly one
-  canonical Runx packet, declare `type: json` plus `packet: <packet-id>` and
-  let the runtime resolve the catalog-owned schema into inspection, validation,
-  exports, registry bundles, and harnesses. Never copy that packet schema into
-  the consumer. If the canonical schema is too weak to make the input usable,
+- Make every public method input constructible from inspection. A field is
+  its own JSON Schema, so write a method-owned nested value's properties on the
+  field itself. A field is required unless it says `optional: true`; JSON
+  Schema's `required` keeps its one meaning, the properties an object must
+  have. When an input takes an artifact of exactly one canonical Runx packet,
+  name its `packet: <packet-id>` and let the runtime resolve the catalog-owned
+  schema into inspection, validation, exports, registry bundles, and tests.
+  Never copy that packet schema into the consumer. If the canonical schema is too weak to make the input usable,
   improve the producing packet contract first; a packet reference is not a
-  substitute for a complete schema. Do not mint a packet id for a runner-local
-  nested value, graph intermediate, or one-run implementation detail. A packet
+  substitute for a complete schema. Do not mint a packet id for a method-local
+  nested value, workflow intermediate, or one-run implementation detail. A packet
   exists only for the complete value crossing a named reusable skill, runtime,
   SDK, provider, receipt, or registry boundary, and it must have one active
   producer and consumer or an explicit public native owner. Remove the generated
-  artifact when that ownership disappears. Every public runner still needs at
+  artifact when that ownership disappears. Every public method still needs at
   least one realistic, copy-valid example unless its inputs are empty.
 - A named packet must expose its semantic fields or reference a canonical typed
   contract. Bare `type: object`, unconstrained `{}`, and opaque property bags do
-  not make a runner inspectable and must be repaired at the producing contract,
+  not make a method inspectable and must be repaired at the producing contract,
   not documented around in prose. Open JSON is admissible only as an explicitly
   named protocol extension or generic data payload inside an otherwise bounded
   semantic envelope.
 - Apply that rule recursively. Every nested `type: object` declares meaningful
   properties or an explicit `additionalProperties` policy. If the value is
-  intentionally arbitrary JSON, declare `type: json`; do not make an object
-  declaration imply structure that the contract does not provide.
-- Put a producer's nested output shape in that output declaration's `schema`.
-  Do not hand-maintain the same shape in a packet file, fixture, exporter, or
+  intentionally arbitrary JSON, leave out `type`, since a field with no type
+  takes any value; do not make an object declaration imply structure that the
+  contract does not provide.
+- Put a producer's nested output shape on that output's own declaration. Do
+  not hand-maintain the same shape in a packet file, test, exporter, or
   consumer: native parsing, agent context, runtime validation, packet
-  generation, registry packaging, and harness replay all consume the producer's
+  generation, registry packaging, and test replay all consume the producer's
   declaration.
 - Express orchestration through `run.yaml`; keep all static agent operating
   knowledge and task contracts in `SKILL.md`. Never put model instructions in
   manifests, fixtures, or duplicated prompt fragments.
-- Declare every harness-only support file explicitly in `harness.files` using a
-  normalized profile-relative path under `fixtures/`. Runx stages only those
-  declared files into the isolated harness workspace; it never guesses
-  dependencies from arbitrary input strings. Do not turn the declaration into
-  a second source tree or include unconsumed helpers.
+- Each test is one `tests/<name>.yaml`: its `name`, the `method` it runs, its
+  `inputs`, what answers the run under `host` (agent `answers` by request id,
+  `turns` worked call by call, `approvals`), exactly what it reaches under
+  `providers` (`http`, `mcp`, `processes`, `hosted`), and its `expect`. Data a
+  test reads lives under `fixtures/`, which Runx stages whole into the isolated
+  test workspace, with `fixtures/bin/` executable; a test that composes skills
+  uses a small fixture package there, named by the test's `package`. Do not
+  turn `fixtures/` into a second source tree or include unconsumed helpers.
 - Put every typed output and packet contract on the step that actually produces
-  it. A graph runner is composition and its receipt proves that composition; it
-  must not declare a second runner-level `outputs` or `artifacts` contract with
-  ambiguous ownership. Every graph runner declares `graph.result_from` as the
-  intentional public result boundary. Name the final provider readback or
+  it: an output with a `packet` is kept as an artifact of that packet, and
+  `result_as` names the output the whole result becomes. A composed method is
+  composition and its receipt proves that composition; it must not restate its
+  steps' outputs in a second method-level `outputs` contract with ambiguous
+  ownership. Every composed method declares `result_from` as the intentional
+  public result boundary. Name the final provider readback or
   package/finalize step, not every leaf: approvals, evidence gathering, and
   intermediate writes remain available in operator context and receipts without
   polluting the result. Multiple producers are valid only for mutually exclusive
@@ -315,20 +329,20 @@ authoring.
   exports of the form `(inputs, context) => JSON`; split it only when the
   computations have genuinely separate ownership. Runx owns input delivery,
   output serialization, errors, wall limits, and isolation. Do not add fake
-  operation inputs, Node command declarations, per-runner wrapper files, or
+  operation inputs, Node command declarations, per-method wrapper files, or
   stdout/environment plumbing. Pure JavaScript receives only its validated
   in-memory module bundle, JSON input, and a frozen
-  `context.environment` object containing the exact names declared in the
-  runner's `environment.required` and `environment.optional` lists. A missing
+  `context.environment` object containing the exact names declared in its
+  tool's `environment.required` and `environment.optional` lists. A missing
   required name stops before worker execution; an absent optional name is
   omitted. Values never enter the manifest, agent context, inspection output,
   or receipts. Environment declarations are for non-secret runtime
   configuration; credentials stay on the native credential/provider boundary.
   The worker process itself has an empty ambient environment and no workspace
   path, filesystem, network, clock, randomness, subprocess, credential, or
-  provider surface. The default wall limit is two seconds; a runner may declare
-  `timeout_seconds` from 1 through 30 when irreducible computation genuinely
-  needs it. The worker is ECMAScript, not a browser: use the frozen
+  provider surface. The default wall limit is two seconds; a worker tool may
+  declare `timeout_seconds` from 1 through 30 when irreducible computation
+  genuinely needs it. The worker is ECMAScript, not a browser: use the frozen
   `Runx.parseUrl(value)` helper for absolute URLs and do not assume Web or Node
   globals exist. Use `Runx.parseData(source, format)` for bounded JSON, YAML or
   TOML syntax decoding, with package-specific interpretation kept in the domain
@@ -338,15 +352,15 @@ authoring.
   permissions. The baseline `parseUrl` helper predates this declaration.
   Never replace unavailable helpers with Node, shell or hand-written parsers.
 - Classify volume before authoring. Small typed control values belong in normal
-  runner inputs; `runx skill --inputs` is only a bounded transport for one
+  method inputs; `runx skill --inputs` is only a bounded transport for one
   complete control object. Large immutable local content belongs behind
   `artifact.admit`/bounded pages. Durable history belongs behind
   the store's `events.read` cursors or a compact projection. A graph must not carry an
   archive, growing event history, or completed-id array simply because one CLI
   call can parse it.
-- Use deterministic `pages` only for irreducible record transforms over one
-  admitted JSON-array artifact. Declare `scopes: [fs.read]` on the step. Native
-  admission preserves caller bounds: agent-bound runs refuse secret files and
+- Use a worker tool's deterministic `paged_input` only for irreducible record
+  transforms over one admitted JSON-array artifact. Paged input reads under
+  `fs.read`, and native admission preserves caller bounds: agent-bound runs refuse secret files and
   Runx state, including symlink aliases. The runtime owns artifact admission, page
   framing, snapshot digest, record boundaries, offsets, retries, and the page
   loop; the module owns only
@@ -356,12 +370,12 @@ authoring.
   `runx_page.whole_digest`, which is stable for identical content. Keep
   continuation state proportional to the bounded result. For a retained provider
   array, use native `artifact.store` and `artifact.open`, then set
-  `pages.artifact_from` to the input carrying `local_artifact.artifact_uri`. This
+  `paged_input.artifact` to the input carrying `local_artifact.artifact_uri`. This
   reuses an admitted snapshot; never reconstruct its storage path. The opaque URI
   survives process exit and pause/resume within the same logical run. A different
   run or project refuses it; reopen the retained ProjectArtifact descriptor when
-  crossing that boundary. `artifact_from` cannot also
-  declare path or media-type fields, and still requires `fs.read`; native
+  crossing that boundary. `artifact` cannot also
+  declare `path` or `media_type`, and still requires `fs.read`; native
   `artifact.open` keeps its separate operator and artifact scope checks. Do not add a package
   file reader, manual byte cursor, hashing loop, high-volume profile, or raised
   worker limit. If safe framing or bounded state is impossible, choose
@@ -381,10 +395,11 @@ authoring.
   canonical hash only when that hash is an intrinsic field of an established
   domain or wire protocol, not as a substitute for receipt or effect integrity.
   State that exception at the computation boundary.
-- Keep packages concise: normally `SKILL.md`, `run.yaml`, and focused fixtures;
-  add narrowly scoped references, assets, tools, or domain code only when consumed.
+- Keep packages concise: normally `SKILL.md`, `run.yaml`, focused `tests/`,
+  and `fixtures/` only for data those tests read; add narrowly scoped
+  references, assets, tools, or domain code only when consumed.
 - Judge the whole capability, not proxy metrics. Native reuse, fewer files,
-  shorter code, green harnesses, and low resource ceilings are valuable only
+  shorter code, passing tests, and low resource ceilings are valuable only
   when the result remains understandable, useful, truthful, and complete.
   Keep JavaScript when it performs irreducible domain computation; remove it
   when it reimplements runtime mechanics. Never trade away domain semantics or
@@ -408,35 +423,36 @@ authoring.
 - Preserve registry identity as part of capability ownership. Inspect the live
   registry before publishing a shared package; update the intended existing
   publisher/name rather than creating a first-party neighbor beside an older name.
-  Preserve an accepted contributor's namespace in `catalog.publisher` in
-  `run.yaml`; absence means the Runx-owned `runx` namespace.
+  Preserve an accepted contributor's namespace at publication: the publisher
+  is the namespace the registry signs the package under, never a `run.yaml`
+  field.
   A deliberate rename must migrate or retire the prior identity through the
   registry operator. Never transfer a contributor's community-owned row into
   the first-party namespace unless that ownership transfer is explicit.
 - Treat registry portability as execution truth, not a publish-time smoke test.
   A local cross-package skill edge must be present in the digest-bound registry
-  package bundle, and the publish harness must execute that exact materialized
-  package. Never copy sibling source beside a harness while omitting it from the
+  package bundle, and the tests a publish runs must execute that exact
+  materialized package. Never copy sibling source beside a test while omitting it from the
   published artifact, rewrite the source graph for registry-only execution, or
   certify a package that needs the original checkout to run.
 - Include a realistic happy path and refusal, stop, or error path.
 - Never treat supplied agent answers as provider-effect proof.
-- For every public package, make the native readiness report the acceptance
-  boundary. One executable `standalone` journey must select the actual default
-  runner and name at least two existing nearby public skills as `confusors`.
-  One executable `composed` journey must consume named prior evidence and state
-  the work or effects it must not repeat. A journey on a convenient phase runner
-  cannot prove the standalone default. A graph-level harness may use
-  `exercises_runner` only to identify the public runner it really invokes.
-- Read `semantic_report.readiness` from `runx skill inspect`; do not recreate its
-  classification in package code, prose, or a second test script. Public work is
-  not ready unless `evaluated`, `coldSelection`, `standaloneDefault`, and
-  `composedReuse` are true and native semantic diagnostics are empty.
+- For every public package, a sealed test of its default method is the
+  acceptance boundary: a method is offered on its own, exported or listed over
+  MCP, only when one of its tests seals, and a test on a convenient phase
+  method cannot prove the default. Write the package's evaluations in
+  `evals/evals.json`, the Agent Skills evaluation file, naming the package: a
+  realistic direct request with the outcome it must reach, and for composed
+  use, the prior evidence it reuses and the work or effects it must not
+  repeat. Selection queries, including nearby public skills a request must not
+  select, belong in `eval_queries.json`. Evaluations are not a format
+  requirement and decide nothing at export, so never recreate their judgment
+  in package code, prose, or a second test script.
 - Keep provider evidence labels exact. Deterministic replay is `harness`, not
-  `live`. A sealed provider-readback case supplied through caller agent answers
-  does not prove provider execution. Harnesses must not inherit local Runx
+  `live`. A sealed provider-readback test supplied through host agent answers
+  does not prove provider execution. Tests must not inherit local Runx
   grants, tokens, credential delivery, or global configuration; every fake
-  binding must be explicit in the fixture, and live proof must come from a
+  binding must be explicit in the test, and live proof must come from a
   separately identified provider run.
 
 Before admitting an architecture, perform a cold-operator trial against the
@@ -454,7 +470,7 @@ actual proposed result:
 5. Does one clear owner hold each decision, approval, mutation, and readback?
 6. Would this still be the architecture chosen from scratch against the current
    Runx catalog?
-7. Can a cold agent actually invoke every public runner from inspection alone,
+7. Can a cold agent actually invoke every public method from inspection alone,
    using local or remote evidence appropriate to the job, without source-diving,
    guessed JSON, or an unnecessary provider dependency?
 
@@ -480,13 +496,14 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 
 - `objective` (required): capability or improvement to deliver.
 - `package_name` (optional, build): explicit identity for a newly requested
-  package; use it for `SKILL.md` and `run.yaml` even when the target directory has
-  a different basename.
+  package; use it as `SKILL.md`'s `name` even when the target directory has a
+  different basename.
 - `repo_root` (optional): workspace root; defaults to the caller workspace.
 - `target_dir` (required for `build`, `improve`, and `harness`): repo-relative package directory.
 - `project_context` (optional): product, repository, and operator constraints.
 - `receipt_id`, `receipt_summary`, `harness_output`, `failure_packet` (improve):
   failure evidence, including the stable packet from `diagnose-skill-run`.
+  `harness_output` carries a test run's sanitized output.
 
 ## Agent task: skill-build-architecture
 
@@ -542,8 +559,9 @@ completion, and evidence-preserving composition. A generic harness or sealed
 receipt may supplement them but cannot replace them. The selection trial names
 at least two real public catalog confusors; the standalone journey runs the
 actual default; and the composed journey names both reused prior evidence and
-work that must not repeat. The final package inspection must report all four
-native readiness facts true with no semantic diagnostics.
+work that must not repeat. The final candidate proves the standalone journey
+with a sealed test of its default method, and carries the journeys in its
+`evals/evals.json`.
 
 Declare effects, authority scopes, approval meaning, provider boundary, skill
 routes, resource ceilings, preservation obligations, exact intended deletions,
@@ -575,8 +593,9 @@ registry HTTP, credentials, auto-publish, or an adjacent publisher/name.
 For `improve`, diagnose only from supplied receipt or harness evidence and
 distinguish contract, implementation, fixture, environment, and operator
 failures. When evidence cannot justify a change, choose `extend_existing` and
-let the author return `no_change`. For `harness`, plan fixture-only changes and
-preserve all production behavior.
+let the author return `no_change`. For `harness`, plan test-only changes, new
+`tests/<name>.yaml` and the `fixtures/` data they read, and preserve all
+production behavior.
 
 ## Agent task: skill-build-author
 
@@ -594,17 +613,31 @@ When source bytes are needed, read the planned target files together with
 by `authoring_context` or the architecture plan; reserve the final round for the
 complete `change_draft`.
 
-When `package_name` is supplied, use it consistently in the `SKILL.md`
-frontmatter and the `run.yaml` `skill` field. The directory is a placement
-decision, not a second source of package identity.
+The package's name is its `SKILL.md` frontmatter `name`; `run.yaml` has no
+name of its own. When `package_name` is supplied, use it there. The directory
+is a placement decision, not a second source of package identity.
 
-A `run.yaml` `catalog` block takes exact values, and native apply refuses any
-other: `kind` is skill or graph; `audience` public, builder, operator or system;
-`visibility` public or internal; `role` canonical, branded, context, graph-stage,
-runtime-path or harness-fixture; `execution` plan, read or execute; `completion`
-plan, runtime_receipt, provider_readback or provider_acknowledgement; `approval`
-none, conditional or required; `category` code, research, ops, growth, content,
-data, security, authoring or payments.
+Write `run.yaml` in the shape the parser reads, which refuses every key it
+doesn't. Its root says `version`; `minimum_runx`, required, the oldest runx
+that can run the package, `0.12.0` today; `catalog`; `shared_inputs`;
+`connectors`, only for a pin or a connector chosen per run; `default_method`,
+only when there is more than one method; and `methods`. A method has its
+`description`, `inputs`, `outputs`, `examples` and `steps`, and may add
+`input_constraints`, `result_from`, `effects`, `reach` and `offer`. A method is
+always its steps, and one agent turn is one `agent` step. Every step has an
+`id` and exactly one kind: `agent`, `tool`, `operation`, `ask` or `skill`, and
+may add `when`, `guard`, `inputs`, `outputs`, `result_as`, `effects` and
+`reach`. An `agent` step names its task, and `SKILL.md` must hold that task's
+`## Agent task: <name>` section with its instructions; its `calls` lists what
+the turn may call (`tools`, `operations` as `<connector>/<operation>`, `skills`
+as `<ref>#<method>`, `load`, `ask: true`) and its `context.skills` the
+skills it reads first. A `skill` step names its target as `<ref>#<method>`,
+where `.#<method>` is this package's own method. Steps read `$input`,
+`$steps.<id>`, and `$run.act` inside an `act`.
+
+A `catalog` block takes exact values, and native apply refuses any other:
+`visibility` public or internal, `category` code, research, ops, growth,
+content, data, security, authoring or payments, and `tags`.
 
 Put static operating knowledge and task-specific agent rules in `SKILL.md` and
 execution structure in `run.yaml`. Compose selected native capabilities and
@@ -614,8 +647,9 @@ adapter name for that explanation. Add a domain module only when the architectur
 admits it, and keep the module inside its stated computation boundary. A module
 runs in one worker process, so its architecture budgets `max_process_spawns` of
 at least 1. Include
-focused proof for a useful path and a stop, refusal, or regression path. In
-`harness` mode, every write or delete must be under `fixtures/*.yaml`. Preserve
+focused proof for a useful path and a stop, refusal, or regression path, each a
+`tests/<name>.yaml`. In `harness` mode, write or delete only tests and the
+`fixtures/` data they read. Preserve
 useful behavior and delete superseded implementation in the same draft. Never
 add auxiliary docs, generated state, credentials, placeholder modules,
 duplicated generic Runx mechanics, or an undeclared provider boundary.

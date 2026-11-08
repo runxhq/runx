@@ -56,7 +56,7 @@ methods:
           base_digest: $steps.inspect.authoring_context.base_digest
           architecture: $steps.architect.architecture_decision
   build:
-    description: Create or update a skill package, writing it only once its exact staged bundle passes parsing, inspection and safe harness replay.
+    description: Create or update a skill package, writing it only once its exact staged bundle passes parsing, inspection and safe replay of its tests.
     inputs:
       objective:
         type: string
@@ -137,7 +137,7 @@ methods:
           mode: build
           change_bundle: $steps.bind.change_bundle
   improve:
-    description: Turn one receipt or harness failure into a bounded update of a package, validated before it is written.
+    description: Turn one receipt or test failure into a bounded update of a package, validated before it is written.
     inputs:
       objective:
         type: string
@@ -164,13 +164,13 @@ methods:
         optional: true
       harness_output:
         type: string
-        description: Sanitized harness output or assertion failure.
+        description: Sanitized test output or assertion failure.
         optional: true
       failure_packet:
         description: Stable runx/diagnose-skill-run.diagnosis.v1 failure packet from diagnose-skill-run.
         optional: true
     examples:
-      - objective: Make every public runner callable from inspection without source-diving.
+      - objective: Make every public method callable from inspection without source-diving.
         repo_root: .
         target_dir: skills/github
         project_context: Preserve the existing contract version and provider boundary.
@@ -236,7 +236,7 @@ methods:
           mode: improve
           change_bundle: $steps.bind.change_bundle
   harness:
-    description: Add fixtures to an existing package and replay its harness against them before writing.
+    description: Add tests to an existing package and replay them against the candidate before writing.
     inputs:
       objective:
         type: string
@@ -255,7 +255,7 @@ methods:
         optional: true
       harness_output:
         type: string
-        description: Existing harness evidence to reproduce or strengthen.
+        description: Existing test evidence to reproduce or strengthen.
         optional: true
     examples:
       - objective: Prove that local evidence preserves exact UTF-8 content and rejects missing files.

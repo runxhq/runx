@@ -26,7 +26,7 @@ no_skill, needs_core, or a blocked result instead of an adopted package.
 
 ## Source and destination
 
-The default runner is adopt. Inputs are the actual objective, repo_root
+The default method is adopt. Inputs are the actual objective, repo_root
 (default .), target_dir, and the appropriate source entry:
 
 - adopt takes source_paths: repository-relative files including the upstream SKILL.md.
@@ -34,8 +34,9 @@ The default runner is adopt. Inputs are the actual objective, repo_root
   validation holds any missing or truncated files. Include
   licenses and referenced scripts, templates or other resources you already
   have; the builder can inspect genuinely missing local dependencies.
-- from-source takes source_snapshot: an existing runx.fs.file_read_bundle.v1 value, reused without
-  another source read. This is useful after review or another graph stage.
+- from-source (`runx skill skill-adopt#from-source`) takes source_snapshot: an
+  existing runx.fs.file_read_bundle.v1 value, reused without another source
+  read. This is useful after review or another workflow step.
   A caller-supplied packet does not make its provenance claims verified.
 
 source_byte_budget controls the fresh native read (default 524288 bytes);

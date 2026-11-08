@@ -142,78 +142,47 @@ host:
               A sealed result is a decision note, not evidence that an external
               action happened.
 
-              ## Agent task contracts
-
-              ### `fixture-decision-note`
+              ## Agent task: fixture-decision-note
 
               Return `decision_note` with the objective preserved exactly and
               one concise recommendation and an explicit caveats array. Do not claim external effects.
           - path: run.yaml
             contents: |
-              skill: fixture-decision-note
               version: "0.1.0"
+              minimum_runx: 0.12.0
               catalog:
-                kind: skill
-                audience: builder
                 visibility: internal
-                role: context
-                execution: read
-                completion: runtime_receipt
-                approval: none
-              harness:
-                cases:
-                  - name: fixture-decision-note-ready
-                    runner: note
-                    inputs:
-                      objective: Choose the bounded next action.
-                    caller:
-                      answers:
-                        note:
-                          decision_note:
-                            objective: Choose the bounded next action.
-                            recommendation: Inspect the supplied evidence first.
-                            caveats:
-                              - No external action is performed.
-                    expect:
-                      status: sealed
-                      receipt:
-                        schema: runx.receipt.v1
-              runners:
+              methods:
                 note:
-                  default: true
                   inputs:
                     objective:
                       type: string
-                      required: true
                       description: Bounded decision objective.
                   steps:
                     - id: note
-                      agent:
-                        role: analyst
-                        task: fixture-decision-note
+                      agent: fixture-decision-note
                       inputs:
                         objective: $input.objective
                       outputs:
                         decision_note:
                           type: object
-                          schema:
-                            additionalProperties: false
-                            required:
-                              - objective
-                              - recommendation
-                              - caveats
-                            properties:
-                              objective:
+                          additionalProperties: false
+                          required:
+                            - objective
+                            - recommendation
+                            - caveats
+                          properties:
+                            objective:
+                              type: string
+                              minLength: 1
+                            recommendation:
+                              type: string
+                              minLength: 1
+                            caveats:
+                              type: array
+                              items:
                                 type: string
                                 minLength: 1
-                              recommendation:
-                                type: string
-                                minLength: 1
-                              caveats:
-                                type: array
-                                items:
-                                  type: string
-                                  minLength: 1
           - path: references/upstream/SKILL.md
             contents: |
               ---
@@ -238,6 +207,24 @@ host:
 
               Return `decision_note` with the objective preserved exactly and
               one concise recommendation. Do not claim external effects.
+          - path: tests/fixture-decision-note-ready.yaml
+            contents: |
+              name: fixture-decision-note-ready
+              method: note
+              inputs:
+                objective: Choose the bounded next action.
+              host:
+                answers:
+                  note:
+                    decision_note:
+                      objective: Choose the bounded next action.
+                      recommendation: Inspect the supplied evidence first.
+                      caveats:
+                        - No external action is performed.
+              expect:
+                status: sealed
+                receipt:
+                  schema: runx.receipt.v1
         deletes: []
         expected_outputs:
           - name: decision_note
