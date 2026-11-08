@@ -11,9 +11,6 @@
       "node"
     ],
     "paths": {
-      "@runxhq/extension-sdk": [
-        "./packages/extension-sdk/src/index.ts"
-      ],
       "@runxhq/contracts": [
         "./packages/contracts/src/index.ts"
       ],

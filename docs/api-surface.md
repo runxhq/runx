@@ -35,16 +35,6 @@ Version: `0.4.5`
 | --- | --- | --- |
 | `@runxhq/contracts` | `./dist/index.d.ts` | `./dist/index.js` |
 
-## @runxhq/extension-sdk
-
-Narrow SDK for Runx process tool extensions.
-
-Version: `0.1.0`
-
-| Import | Types | Runtime |
-| --- | --- | --- |
-| `@runxhq/extension-sdk` | `./dist/index.d.ts` | `./dist/index.js` |
-
 ## @runxhq/langchain
 
 Optional LangChain bridge for runx tool catalogs and governed workflow tools.

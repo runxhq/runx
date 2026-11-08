@@ -75,7 +75,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   mcp: annotation("adapter", ["mcp", "caller-mediated-resolution", "graph-runtime", "receipts"], ["mcp.skills.validate", "mcp.run.validate"], "none"),
   skill: annotation("local-runtime", ["skill-resolution", "graph-runtime", "receipts", "execution-boundary", "authority", "caller-mediated-resolution", "adapter-process-tool", "adapter-agent", "cli-presentation"], ["skill.run.validate", "skill.inspect.validate"]),
   harness: annotation("local-runtime", ["harness", "receipts", "execution-boundary"], ["harness.execute"]),
-  tool: annotation("external-stub", ["tool-catalog", "extension-sdk"], ["tool.build.validate", "tool.search.validate", "tool.inspect.validate"]),
+  tool: annotation("external-stub", ["tool-catalog"], ["tool.build.validate", "tool.search.validate", "tool.inspect.validate"]),
   registry: annotation("external-stub", ["registry", "cli-presentation"], ["registry.validate"]),
 };
 
@@ -106,7 +106,6 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("caller-mediated-resolution", "runx-runtime", "fixture-backed", "Required input, approvals, and agent work keep the same continuation contract."),
   surface("skill-authoring", "runx-runtime + skill-build", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, harness, and transactional apply lane."),
   surface("list", "runx-cli", "semantic", "Inventory output for tools, skills, graphs, packets, and overlays stays represented."),
-  surface("extension-sdk", "packages/extension-sdk", "schema-exact", "External process extension output and manifest validation remain schema-exact."),
 ];
 
 export interface CliFeatureParityContract {

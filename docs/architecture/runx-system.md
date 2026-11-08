@@ -54,8 +54,6 @@ consume those owners; none is a parallel implementation.
   authoring engine, or provider client.
 - `@runxhq/contracts` is a generated or mechanically checked binding over the
   portable contract owner.
-- `@runxhq/extension-sdk` owns the narrow process tool helpers required by
-  genuine external extensions. It does not recreate Runx.
 - `skills/*` and product-local skill trees own operator knowledge, declarative
   composition, harnesses, and irreducible deterministic domain computation.
 - `runx/cloud` owns hosted control-plane state, credential custody, grant

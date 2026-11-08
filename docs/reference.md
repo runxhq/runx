@@ -462,7 +462,6 @@ generated-contract layer:
   native CLI.
 - `@runxhq/client`: finite native invocation and portable response formatting
   over generated contracts.
-- `@runxhq/extension-sdk`: helpers for external process tools.
 - `@runxhq/langchain`: optional LangChain tool formatting over the public client.
 
 For the generated package export index, see [docs/api-surface.md](api-surface.md).
@@ -939,9 +938,6 @@ tools/<namespace>/<tool>/
 source, inputs, defaults, artifact projection, scopes, and governance metadata.
 Process code contains only the domain behavior the native catalog cannot
 express.
-`defineTool()` from `@runxhq/extension-sdk` may transport the already
-materialized input object and structured failures over the local process
-protocol; it does not declare or regenerate the manifest.
 
 ```bash
 runx tool build --all --json

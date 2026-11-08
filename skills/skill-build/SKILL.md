@@ -298,9 +298,7 @@ authoring.
   generated `runtime`, `output`, `runx`, hash, or toolkit fields beside that
   contract.
   `runx tool build` validates and reports derived hashes without rewriting the
-  package. The extension SDK may carry the already-materialized JSON request
-  and response across a process boundary; it must not become a second manifest
-  or input-contract owner. The declared entrypoint must execute on the
+  package. The declared entrypoint must execute on the
   repository's supported runtime without probing for generated files or
   importing uncompiled TypeScript. A bundled tool lives at
   `tools/<namespace>/<name>/manifest.json`, its dotted manifest name must match

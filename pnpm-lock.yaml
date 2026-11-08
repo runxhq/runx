@@ -18,9 +18,6 @@ importers:
       '@runxhq/contracts':
         specifier: workspace:*
         version: link:packages/contracts
-      '@runxhq/extension-sdk':
-        specifier: workspace:^0.1.0
-        version: link:packages/extension-sdk
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.6
@@ -59,12 +56,6 @@ importers:
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
-
-  packages/extension-sdk:
-    dependencies:
-      '@runxhq/contracts':
-        specifier: workspace:^0.4.1
-        version: link:../contracts
 
   packages/langchain:
     dependencies:

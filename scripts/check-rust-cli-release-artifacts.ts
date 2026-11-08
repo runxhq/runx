@@ -400,7 +400,7 @@ function inspectDependencySections(
     const section = manifest[sectionName];
     if (!section) continue;
     for (const [name, spec] of Object.entries(section)) {
-      if (["@runxhq/adapters", "@runxhq/contracts", "@runxhq/extension-sdk", "@runxhq/runtime-local"].includes(name)) {
+      if (["@runxhq/adapters", "@runxhq/contracts", "@runxhq/runtime-local"].includes(name)) {
         output.push(finding("ts_runtime_dependency", manifestPath, `${sectionName}.${name} is not allowed in the Rust CLI artifact`));
       }
       if (spec.startsWith("workspace:")) {

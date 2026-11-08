@@ -28,7 +28,6 @@
     "docs:api": "tsx scripts/gen-api-index.ts",
     "docs:api:check": "tsx scripts/gen-api-index.ts --check",
     "docs:exit-codes": "tsx scripts/check-cli-exit-codes.ts",
-    "extension-sdk:check-package-contract": "node scripts/check-extension-sdk-package-contract.mjs",
     "bindings:check": "node scripts/check-upstream-skill-bindings.mjs",
     "runtime-capabilities:generate": "node scripts/generate-runtime-capabilities.mjs",
     "runtime-capabilities:check": "node scripts/generate-runtime-capabilities.mjs --check",
@@ -98,7 +97,6 @@
   "devDependencies": {
     "@runxhq/client": "workspace:^",
     "@runxhq/contracts": "workspace:*",
-    "@runxhq/extension-sdk": "workspace:^0.1.0",
     "@types/node": "^26.6.5",
     "@x402/core": "2.29.0",
     "ajv": "^8.20.0",

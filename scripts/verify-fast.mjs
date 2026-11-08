@@ -53,7 +53,6 @@ if (rustBuild.status === 0) {
       step("runtime capabilities", "pnpm", ["runtime-capabilities:check"]),
       step("registry taxonomy", "pnpm", ["registry-taxonomy:check"]),
       step("build workspace", "node", ["scripts/build-workspace.mjs"]),
-      step("extension SDK package contract", "node", ["scripts/check-extension-sdk-package-contract.mjs"]),
       step("publishable manifests", "node", ["scripts/check-publishable-package-manifests.mjs"]),
       step("fixtures:kernel:validate", "pnpm", ["fixtures:kernel:validate"]),
       step("fixtures:kernel:check", "pnpm", ["fixtures:kernel:check"]),
