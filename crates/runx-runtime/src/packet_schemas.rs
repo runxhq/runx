@@ -470,8 +470,10 @@ impl PacketLookup {
     /// Candidate paths in precedence order, each group a source that settles
     /// the id when any of its paths declares it: the package's own packet
     /// and its pinned copy, then each enclosing package's own packet, nearest
-    /// first, then the owning package in the workspace, then every version
-    /// of the owning package added to the project.
+    /// first, then the owning package in the workspace, as the person's own
+    /// copy of `<publisher>/<package>` at `skills/<publisher>/<package>/` (as
+    /// the skill resolver takes it) and then at `skills/<package>/`, then
+    /// every version of the owning package added to the project.
     fn candidates(
         &self,
         packet_id: &PacketId,
@@ -491,6 +493,13 @@ impl PacketLookup {
                 .map(|package| vec![package.join("packets").join(&file_name)]),
         );
         if let Some((skills, added_skills)) = &self.owners {
+            candidates.push(vec![
+                skills
+                    .join(publisher)
+                    .join(package)
+                    .join("packets")
+                    .join(&file_name),
+            ]);
             candidates.push(vec![skills.join(package).join("packets").join(&file_name)]);
             let versions = added_skills.join(publisher).join(package);
             candidates.push(
@@ -795,6 +804,56 @@ mod tests {
         let stage = nested(&left_out)?;
         let catalog = PacketSchemaCatalog::for_package(&stage, [&id])?;
         assert!(catalog.get(&id).is_none(), "{}", catalog.not_found(&id));
+        Ok(())
+    }
+
+    /// Nitrosend's layout: packages at `skills/<publisher>/<package>`, and a
+    /// stage with its own manual nested in one. The stage reads the packet
+    /// its enclosing package owns, and any other package in the workspace
+    /// reads it from the person's own copy of `<publisher>/<package>`, where
+    /// the skill resolver finds that package.
+    #[test]
+    fn nitrosends_nested_stage_and_its_neighbours_read_its_packets()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let workspace = tempfile::tempdir()?;
+        fs::create_dir_all(workspace.path().join(".git"))?;
+        let id = PacketId::new("nitrosend/nitrosend.provider_evidence.v1").ok_or("id")?;
+        let evidence = packet("nitrosend/nitrosend.provider_evidence.v1", "object")?;
+        let owner = workspace.path().join("skills/nitrosend/nitrosend");
+        fs::create_dir_all(owner.join("packets"))?;
+        fs::write(
+            owner.join("SKILL.md"),
+            "---\nname: nitrosend\ndescription: Test.\n---\n",
+        )?;
+        fs::write(
+            owner.join("packets/provider_evidence.v1.schema.json"),
+            &evidence,
+        )?;
+        let stage = owner.join("graph/provider-operation");
+        fs::create_dir_all(&stage)?;
+        fs::write(
+            stage.join("SKILL.md"),
+            "---\nname: provider-operation\ndescription: Test.\n---\n",
+        )?;
+        let catalog = PacketSchemaCatalog::for_package(&stage, [&id])?;
+        let found = catalog.get(&id).ok_or_else(|| catalog.not_found(&id))?;
+        assert_eq!(
+            found.path,
+            owner.join("packets/provider_evidence.v1.schema.json")
+        );
+
+        let neighbour = workspace.path().join("skills/nitrosend/support");
+        fs::create_dir_all(&neighbour)?;
+        fs::write(
+            neighbour.join("SKILL.md"),
+            "---\nname: support\ndescription: Test.\n---\n",
+        )?;
+        let catalog = PacketSchemaCatalog::for_package(&neighbour, [&id])?;
+        let found = catalog.get(&id).ok_or_else(|| catalog.not_found(&id))?;
+        assert_eq!(
+            found.path,
+            owner.join("packets/provider_evidence.v1.schema.json")
+        );
         Ok(())
     }
 
