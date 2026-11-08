@@ -13,7 +13,8 @@ use std::path::Path;
 
 use super::http::{RegistryClient, RegistryClientError};
 use super::install::{
-    InstallCandidate, InstallError, InstallLocalSkillOptions, install_local_skill,
+    InstallCandidate, InstallError, InstallLocalSkillOptions, InstallLocalSkillResult,
+    install_local_skill,
 };
 use super::publish_package::{
     RegistryPublishPackageError, RegistryPublishPackageRequest, unheld_publish_registry_refs,
@@ -113,19 +114,7 @@ pub fn install_registry_closure<T: RuntimeHttpTransport>(
     registry_url: &str,
     request: RegistryPublishPackageRequest<'_>,
 ) -> Result<(), PublishClosureError> {
-    let paths = crate::RunxPaths::resolve(request.env, request.cwd);
-    // The records' source authority is the registry they came from.
-    let source_authority = registry_manifest_source_authority_from_registry_url(registry_url);
-    let options = InstallLocalSkillOptions {
-        destination_root: paths.added_skills(),
-        connectors_root: paths.added_connectors(),
-        install_records: paths.install_records(),
-        expected_digest: None,
-        trusted_manifest_keys: trusted_registry_manifest_keys_from_env(
-            request.env,
-            &source_authority,
-        )?,
-    };
+    let installer = RecordInstaller::new(registry_url, request.env, request.cwd)?;
     let mut supplied = BTreeSet::new();
     for _ in 0..=MAX_CLOSURE_DEPTH {
         let unheld = unheld_publish_registry_refs(request)?;
@@ -160,16 +149,69 @@ pub fn install_registry_closure<T: RuntimeHttpTransport>(
                         "registry ref '{reference}' names no executable published version"
                     ))
                 })?;
-            install_local_skill(
-                &candidate_from_record(record, source_authority.clone()),
-                &options,
-            )
-            .map_err(|source| PublishClosureError::Install { reference, source })?;
+            installer
+                .install(record)
+                .map_err(|source| PublishClosureError::Install { reference, source })?;
         }
     }
     Err(PublishClosureError::Unresolved(format!(
         "the package's registry closure exceeds {MAX_CLOSURE_DEPTH} levels"
     )))
+}
+
+/// How a signed version record from one registry becomes an installed skill
+/// in a project: verified against the keys trusted for that registry, then
+/// installed, as a registry's package. A closure read from the registry and a
+/// record a host already holds (`runx registry install --record`) install
+/// this one way.
+pub struct RecordInstaller {
+    source_authority: RegistryManifestSourceAuthority,
+    options: InstallLocalSkillOptions,
+}
+
+impl RecordInstaller {
+    /// Installing into the project `env` names, records the registry at
+    /// `registry_url` signed: their source authority is that registry's.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the environment names a malformed trust key.
+    pub fn new(
+        registry_url: &str,
+        env: &BTreeMap<String, String>,
+        cwd: &Path,
+    ) -> Result<Self, RegistryManifestTrustEnvError> {
+        let paths = crate::RunxPaths::resolve(env, cwd);
+        let source_authority = registry_manifest_source_authority_from_registry_url(registry_url);
+        let options = InstallLocalSkillOptions {
+            destination_root: paths.added_skills(),
+            connectors_root: paths.added_connectors(),
+            install_records: paths.install_records(),
+            expected_digest: None,
+            trusted_manifest_keys: trusted_registry_manifest_keys_from_env(env, &source_authority)?,
+        };
+        Ok(Self {
+            source_authority,
+            options,
+        })
+    }
+
+    /// Install `record`, verified: its envelope signed by a trusted key for
+    /// this registry, naming this skill and version, over these exact files.
+    ///
+    /// # Errors
+    ///
+    /// Returns the install's typed error when the record does not verify or
+    /// does not install.
+    pub fn install(
+        &self,
+        record: RegistrySkillVersion,
+    ) -> Result<InstallLocalSkillResult, InstallError> {
+        install_local_skill(
+            &candidate_from_record(record, self.source_authority.clone()),
+            &self.options,
+        )
+    }
 }
 
 /// A version's record, as an install candidate from `source_authority`.

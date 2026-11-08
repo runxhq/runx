@@ -294,6 +294,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         usage: &[
             "runx registry search <query> [--registry url] [--limit n] [-j|--json]",
             "runx registry install <publisher>/<name>[@version] [--registry url] [--digest sha256] [-j|--json]",
+            "runx registry install --records file|- [--registry url] [-j|--json]",
             "runx registry package <SKILL.md|connector.yaml|package-dir> [-j|--json]",
             "runx registry publish <SKILL.md|connector.yaml|package-dir> [--registry url] [--publisher slug] [-j|--json]",
         ],
@@ -306,6 +307,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &[
             "--registry url           The hosted registry, by its URL",
             "--digest sha256",
+            "--records file|-         One JSON array of signed version records the registry served, from a file or stdin, each installed as it was signed",
             "--publisher slug         The namespace a package is published into",
             "--limit n",
             "-j, --json",

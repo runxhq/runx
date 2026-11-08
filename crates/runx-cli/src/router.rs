@@ -2,7 +2,7 @@
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
-use crate::cli_args::{flag_value, os_arg, split_flag};
+use crate::cli_args::{flag_value, os_arg, os_flag_value, split_flag};
 use crate::config::ConfigPlan;
 use crate::connector::ConnectorPlan;
 use crate::export::ExportPlan;
@@ -614,9 +614,18 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
     let mut state = RegistryParseState::default();
     parse_registry_args(args, 2, &mut state)?;
     validate_registry_action_flags(action, subcommand, &state)?;
-    let mut subject = registry_subject(action, subcommand, &mut state.positionals)?;
+    let mut subject = if state.records.is_none() {
+        registry_subject(action, subcommand, &mut state.positionals)?
+    } else if state.positionals.is_empty() {
+        String::new()
+    } else {
+        return Err(
+            "runx registry install --records takes no ref: each record names the version it installs"
+                .to_owned(),
+        );
+    };
     let mut version = None;
-    if action == RegistryAction::Install {
+    if action == RegistryAction::Install && state.records.is_none() {
         // `<publisher>/<name>@<version>` is the one way to name a version.
         let parsed = runx_runtime::registry::parse_registry_ref(&subject);
         subject = parsed.skill_id;
@@ -631,6 +640,7 @@ fn parse_registry_plan(args: &[OsString]) -> Result<RegistryPlan, String> {
         expected_digest: state.expected_digest,
         publisher: state.publisher,
         limit: state.limit,
+        records: state.records,
         json: state.json,
     })
 }
@@ -646,10 +656,14 @@ fn validate_registry_action_flags(
     let (accepted, allowed) = match action {
         RegistryAction::Search => (
             "--registry, --limit and --json",
-            state.expected_digest.is_none() && state.publisher.is_none(),
+            state.expected_digest.is_none() && state.publisher.is_none() && state.records.is_none(),
+        ),
+        RegistryAction::Install if state.records.is_some() => (
+            "--records, --registry and --json when it installs records",
+            state.publisher.is_none() && state.limit.is_none() && state.expected_digest.is_none(),
         ),
         RegistryAction::Install => (
-            "--registry, --digest and --json",
+            "--registry, --digest, --records and --json",
             state.publisher.is_none() && state.limit.is_none(),
         ),
         RegistryAction::Package => (
@@ -657,11 +671,12 @@ fn validate_registry_action_flags(
             state.registry.is_none()
                 && state.expected_digest.is_none()
                 && state.publisher.is_none()
-                && state.limit.is_none(),
+                && state.limit.is_none()
+                && state.records.is_none(),
         ),
         RegistryAction::Publish => (
             "--registry, --publisher and --json",
-            state.expected_digest.is_none() && state.limit.is_none(),
+            state.expected_digest.is_none() && state.limit.is_none() && state.records.is_none(),
         ),
     };
     if allowed {
@@ -680,6 +695,7 @@ struct RegistryParseState {
     expected_digest: Option<String>,
     publisher: Option<String>,
     limit: Option<usize>,
+    records: Option<crate::document_input::DocumentInputSource>,
     positionals: Vec<String>,
 }
 
@@ -732,6 +748,20 @@ fn parse_registry_flag(
             set_registry_string_flag(args, index, flag, inline_value, &mut state.publisher)
         }
         "--limit" => set_registry_limit_flag(args, index, flag, inline_value, state),
+        "--records" => {
+            if state.records.is_some() {
+                return Err(
+                    "runx registry install accepts exactly one --records document".to_owned(),
+                );
+            }
+            let (value, next_index) = os_flag_value(args, index, flag, inline_value)?;
+            state.records = Some(if value == "-" {
+                crate::document_input::DocumentInputSource::Stdin
+            } else {
+                crate::document_input::DocumentInputSource::Path(PathBuf::from(value))
+            });
+            Ok(next_index)
+        }
         _ => Err(format!("unknown registry flag {flag}")),
     }
 }

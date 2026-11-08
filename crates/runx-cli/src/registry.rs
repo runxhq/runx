@@ -13,8 +13,9 @@ use runx_runtime::registry::resolve::{
     resolve_registry_target, trusted_manifest_keys_for_source,
 };
 use runx_runtime::registry::{
-    InstallLocalSkillOptions, InstallLocalSkillResult, RegistryPublishPackageRequest,
-    install_local_skill, materialize_publish_closure, prepare_registry_publish_package,
+    InstallLocalSkillOptions, InstallLocalSkillResult, RecordInstaller,
+    RegistryPublishPackageRequest, RegistrySkillVersion, install_local_skill,
+    materialize_publish_closure, prepare_registry_publish_package,
 };
 
 mod connector;
@@ -45,6 +46,9 @@ pub struct RegistryPlan {
     /// The namespace a publish goes into.
     pub publisher: Option<String>,
     pub limit: Option<usize>,
+    /// A JSON array of signed version records to install in place of a ref:
+    /// a file, or stdin.
+    pub records: Option<crate::document_input::DocumentInputSource>,
     pub json: bool,
 }
 
@@ -113,6 +117,9 @@ fn run_registry(
     let target = plan.target(env)?;
     match plan.action {
         RegistryAction::Search => run_search(plan, target, env),
+        RegistryAction::Install if plan.records.is_some() => {
+            run_record_install(plan, target, env, cwd)
+        }
         RegistryAction::Install => run_install(plan, target, env, cwd),
         RegistryAction::Publish => run_publish(plan, target, env, cwd),
         RegistryAction::Package => unreachable!("packaging is handled before registry resolution"),
@@ -286,6 +293,67 @@ fn run_install(
                     install_count: acquired.install_count,
                 }),
             },
+        },
+        || human,
+    )
+}
+
+/// Installs each signed version record a host already holds, one JSON array
+/// read from a file or stdin as `--inputs` reads its document, as the
+/// registry `target` names signed it, into the project: the records verify
+/// and install exactly as a closure's records do when read from that
+/// registry. The first that does not verify stops the install with its
+/// typed error.
+fn run_record_install(
+    plan: RegistryPlan,
+    target: RegistryTarget,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<RegistryCliOutput, RegistryCliError> {
+    let Some(document) = &plan.records else {
+        return Err(usage_error(
+            "runx registry install --records names a file or -",
+        ));
+    };
+    let text = crate::document_input::read_document_input(document, env, cwd)
+        .map_err(|error| usage_error(format!("runx registry install --records: {error}")))?;
+    let records: Vec<RegistrySkillVersion> = serde_json::from_str(&text).map_err(|error| {
+        usage_error(format!(
+            "runx registry install --records is one JSON array of registry version records: {error}"
+        ))
+    })?;
+    if records.is_empty() {
+        return Err(usage_error(
+            "runx registry install --records holds no record: the array is empty",
+        ));
+    }
+    let installer =
+        RecordInstaller::new(&target.registry_url, env, cwd).map_err(ResolveError::from)?;
+    let source = target.source_uri();
+    let mut installs = Vec::with_capacity(records.len());
+    let mut human = String::new();
+    for record in records {
+        let package = format!("{}@{}", record.skill_id, record.version);
+        let bundle_digest = record.bundle_digest.clone();
+        let signed_manifest = record.signed_manifest.clone();
+        let install = installer.install(record)?;
+        human.push_str(&output::render_install(
+            &source,
+            &package,
+            &install,
+            signed_manifest.as_ref(),
+        ));
+        installs.push(output::RecordInstall {
+            package,
+            install: Box::new(install),
+            bundle_digest,
+        });
+    }
+    output::write_output(
+        plan.json,
+        &output::RegistryEnvelope {
+            status: "success",
+            registry: output::RegistryPayload::RecordInstall { source, installs },
         },
         || human,
     )

@@ -38,6 +38,12 @@ pub(super) enum RegistryPayload {
         #[serde(skip_serializing_if = "Option::is_none")]
         acquisition: Option<InstallAcquisition>,
     },
+    /// Each signed version record installed, in the order given, from the
+    /// registry named by its source URI.
+    RecordInstall {
+        source: String,
+        installs: Vec<RecordInstall>,
+    },
     Package {
         package: Box<runx_runtime::registry::RegistryPublishPackageParts>,
         /// The exact complete content identity used by default publication.
@@ -58,6 +64,16 @@ pub(super) enum RegistryPayload {
     Publish {
         publish: Box<HostedSkillPublishResult>,
     },
+}
+
+/// One record's install: the package it named, what installing it returned,
+/// and the package digest the record states.
+#[derive(serde::Serialize)]
+pub(super) struct RecordInstall {
+    pub(super) package: String,
+    pub(super) install: Box<runx_runtime::registry::InstallLocalSkillResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) bundle_digest: Option<String>,
 }
 
 pub(super) fn write_output<T: serde::Serialize>(

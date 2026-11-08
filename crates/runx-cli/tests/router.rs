@@ -816,6 +816,7 @@ fn routes_registry_to_native_plan() {
             expected_digest: None,
             publisher: None,
             limit: Some(10),
+            records: None,
             json: true,
         })
     );
@@ -829,6 +830,7 @@ fn routes_registry_to_native_plan() {
             expected_digest: None,
             publisher: None,
             limit: None,
+            records: None,
             json: true,
         })
     );
@@ -841,6 +843,62 @@ fn routes_registry_to_native_plan() {
             "https://runx.example",
         ]),
         RouterAction::Error("runx registry package accepts only --json".to_owned())
+    );
+}
+
+/// Records a host holds install in place of a ref, from one JSON array in a
+/// file or on stdin; a ref beside them, a second document or a flag only a
+/// ref takes is refused.
+#[test]
+fn registry_install_takes_records_in_place_of_a_ref() {
+    for (source, expected) in [
+        (
+            "records.json",
+            runx_cli::document_input::DocumentInputSource::Path(PathBuf::from("records.json")),
+        ),
+        ("-", runx_cli::document_input::DocumentInputSource::Stdin),
+    ] {
+        assert_eq!(
+            plan(&["registry", "install", "--records", source, "--json"]),
+            RouterAction::RunRegistry(RegistryPlan {
+                action: RegistryAction::Install,
+                subject: String::new(),
+                registry: None,
+                version: None,
+                expected_digest: None,
+                publisher: None,
+                limit: None,
+                records: Some(expected),
+                json: true,
+            })
+        );
+    }
+    assert_eq!(
+        plan(&["registry", "install", "acme/echo@1.0.0", "--records", "-"]),
+        RouterAction::Error(
+            "runx registry install --records takes no ref: each record names the version it installs"
+                .to_owned()
+        )
+    );
+    assert_eq!(
+        plan(&[
+            "registry",
+            "install",
+            "--records",
+            "a.json",
+            "--records",
+            "b.json"
+        ]),
+        RouterAction::Error(
+            "runx registry install accepts exactly one --records document".to_owned()
+        )
+    );
+    assert_eq!(
+        plan(&["registry", "install", "--records", "-", "--digest", "sha256:abc"]),
+        RouterAction::Error(
+            "runx registry install accepts only --records, --registry and --json when it installs records"
+                .to_owned()
+        )
     );
 }
 
@@ -887,6 +945,7 @@ fn routes_registry_install_for_either_kind_and_refuses_retired_verbs() {
             expected_digest: Some(digest.clone()),
             publisher: None,
             limit: None,
+            records: None,
             json: true,
         })
     );

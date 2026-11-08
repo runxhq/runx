@@ -953,6 +953,208 @@ fn an_operator_publish_goes_into_the_namespace_it_names() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// What `runx registry install --records` with `args` prints, given the
+/// signed version records `records` on stdin or in a file in `root`, the
+/// workspace, as `--records` reads them.
+fn install_records(
+    registry: &LoopbackRegistry,
+    root: &std::path::Path,
+    records: &serde_json::Value,
+    through_stdin: bool,
+    env: &[(&str, &str)],
+    args: &[&str],
+) -> Result<std::process::Output, Box<dyn std::error::Error>> {
+    use std::io::Write;
+
+    let mut command = runx_command()?;
+    command
+        .env("RUNX_HOME", root.join("home"))
+        .env("RUNX_CWD", root)
+        .envs(env.iter().copied())
+        .args(["registry", "install", "--registry", &registry.url, "--json"])
+        .args(args);
+    if !through_stdin {
+        fs::create_dir_all(root)?;
+        fs::write(root.join("records.json"), serde_json::to_vec(records)?)?;
+        return Ok(command.args(["--records", "records.json"]).output()?);
+    }
+    let mut child = command
+        .args(["--records", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+    child
+        .stdin
+        .take()
+        .ok_or("the install's stdin")?
+        .write_all(&serde_json::to_vec(records)?)?;
+    Ok(child.wait_with_output()?)
+}
+
+/// The environment that trusts `registry`'s key, as name and value pairs.
+fn trust_env(
+    registry: &LoopbackRegistry,
+) -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
+    Ok(registry.env()?.into_iter().collect())
+}
+
+/// Signed version records a host already holds, as Cloud holds a closure's,
+/// install verified, under the keys trusted for the registry --registry
+/// names, through a file or stdin; a run then reads the installed copy and
+/// asks the registry nothing.
+#[test]
+fn records_a_host_holds_install_verified_and_a_run_reads_them()
+-> Result<(), Box<dyn std::error::Error>> {
+    let registry = LoopbackRegistry::serve()?;
+    let record = registry.publish(Publication::new(
+        "acme",
+        "1.0.0",
+        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        Some(include_str!(
+            "../../../fixtures/registry/install/echo-run.yaml"
+        )),
+    ))?;
+    let trust = trust_env(&registry)?;
+    let trust = trust
+        .iter()
+        .map(|(name, value)| (name.as_str(), value.as_str()))
+        .collect::<Vec<_>>();
+    for through_stdin in [false, true] {
+        let root = temp_root("registry-install-records");
+        fs::create_dir_all(&root)?;
+        let installed = install_records(
+            &registry,
+            &root,
+            &json!([record]),
+            through_stdin,
+            &trust,
+            &[],
+        )?;
+        assert_success_contains(&installed, &["\"action\": \"record_install\""])?;
+        let output: serde_json::Value = serde_json::from_slice(&installed.stdout)?;
+        let install = &output["registry"]["installs"][0]["install"];
+        assert_eq!(
+            output["registry"]["installs"][0]["package"],
+            "acme/echo@1.0.0"
+        );
+        assert_eq!(install["skill_id"], "acme/echo");
+        assert_eq!(install["version"], "1.0.0");
+        assert_eq!(install["trust_tier"], "community");
+        assert!(
+            install["digest"]
+                .as_str()
+                .is_some_and(|digest| digest.starts_with("sha256:")),
+            "{install}"
+        );
+        assert!(
+            install["profile_digest"]
+                .as_str()
+                .is_some_and(|digest| digest.starts_with("sha256:")),
+            "{install}"
+        );
+        let destination = crate::support::added_skills().join("acme/echo/1.0.0/SKILL.md");
+        assert_eq!(
+            install["destination"],
+            json!(destination.to_str().ok_or("non-utf8 destination")?)
+        );
+        assert!(
+            ["installed", "unchanged"].contains(&install["status"].as_str().unwrap_or_default()),
+            "{install}"
+        );
+        fs::remove_dir_all(&root)?;
+    }
+
+    // A run reads the installed copy: the registry is asked nothing.
+    let root = temp_root("registry-records-run");
+    let parent = root.join("parent");
+    fs::create_dir_all(&parent)?;
+    fs::write(
+        parent.join("SKILL.md"),
+        "---\nname: parent\ndescription: Runs the echo registry skill as a step.\n---\n# Parent\n",
+    )?;
+    fs::write(
+        parent.join("run.yaml"),
+        "skill: parent\nrunners:\n  default:\n    default: true\n    steps:\n      - id: echo\n        skill: registry:acme/echo@1.0.0\n",
+    )?;
+    let asked = registry.asked().len();
+    let run = runx_command()?
+        .envs(trust.iter().copied())
+        .env("RUNX_HOME", root.join("home"))
+        .env("RUNX_CWD", &root)
+        .args([
+            "skill",
+            parent.to_str().ok_or("non-utf8 parent dir")?,
+            "--registry",
+            &registry.url,
+            "--json",
+        ])
+        .output()?;
+    assert_eq!(
+        run.status.code(),
+        Some(2),
+        "stdout={}\nstderr={}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(registry.asked().len(), asked, "{:?}", registry.asked());
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
+/// A record that does not verify installs nothing: tampered files, a key
+/// this runx does not trust for the registry named, an empty array, and a
+/// ref beside the records are each refused.
+#[test]
+fn records_that_do_not_verify_install_nothing() -> Result<(), Box<dyn std::error::Error>> {
+    let registry = LoopbackRegistry::serve()?;
+    let record = registry.publish(Publication::new(
+        "acme",
+        "1.0.0",
+        include_str!("../../../fixtures/registry/install/echo-SKILL.md"),
+        Some(include_str!(
+            "../../../fixtures/registry/install/echo-run.yaml"
+        )),
+    ))?;
+    let trust = trust_env(&registry)?;
+    let trust = trust
+        .iter()
+        .map(|(name, value)| (name.as_str(), value.as_str()))
+        .collect::<Vec<_>>();
+    let mut tampered = record.clone();
+    tampered["markdown"] = json!("---\nname: echo\ndescription: Echo fixture.\n---\n# Tampered\n");
+    let root = temp_root("registry-records-refused");
+    fs::create_dir_all(&root)?;
+    let installed = || crate::support::added_skills().join("acme/echo").exists();
+
+    let refused = install_records(&registry, &root, &json!([tampered]), true, &trust, &[])?;
+    assert_json_failure_contains(&refused, "registry install digest_mismatch:")?;
+    assert!(!installed());
+
+    // No key trusted for this registry signs it.
+    let untrusted = install_records(&registry, &root, &json!([record]), true, &[], &[])?;
+    assert_json_failure_contains(&untrusted, "registry install unknown_key:")?;
+    assert!(!installed());
+
+    let empty = install_records(&registry, &root, &json!([]), false, &trust, &[])?;
+    assert_json_failure_contains(&empty, "the array is empty")?;
+    assert_eq!(empty.status.code(), Some(64));
+
+    let with_ref = install_records(
+        &registry,
+        &root,
+        &json!([record]),
+        false,
+        &trust,
+        &["acme/echo@1.0.0"],
+    )?;
+    assert_json_failure_contains(&with_ref, "--records takes no ref")?;
+    assert_eq!(with_ref.status.code(), Some(64));
+    assert!(!installed());
+    fs::remove_dir_all(&root)?;
+    Ok(())
+}
+
 /// Publishes the echo fixture as acme's at `version`, its manual titled
 /// `title`.
 fn publish_echo(

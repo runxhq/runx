@@ -44,7 +44,8 @@ pub use publish::{
     publish_hosted_admin_skill, publish_hosted_connector, publish_hosted_skill,
 };
 pub use publish_closure::{
-    PublishClosure, PublishClosureError, install_registry_closure, materialize_publish_closure,
+    PublishClosure, PublishClosureError, RecordInstaller, install_registry_closure,
+    materialize_publish_closure,
 };
 pub use publish_package::{
     RegistryConnectorPackage, RegistryPublishPackage, RegistryPublishPackageError,

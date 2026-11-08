@@ -746,6 +746,16 @@ Connectors are published only to a hosted registry: the runx catalog unless
   repackage as exactly those files before they are renamed into place. A
   version directory is written once and never rewritten: installing it again
   is `unchanged`, and other files under the same version are refused.
+- `runx registry install --records <file or -> [--registry <url>]` installs
+  signed skill version records a host already holds, such as an operation's
+  closure, in place of a ref: one JSON array of the records the registry
+  serves at `/v1/skills/<publisher>/<name>/versions/<version>/record`, from a
+  file or stdin as `--inputs` reads its document. Each is verified against the
+  keys trusted for the registry `--registry` names (the runx catalog unless it
+  names another) and installed into the project exactly as a publish installs
+  its closure's records; a record that does not verify stops the install with
+  the same typed error as any install. A closure holds only skills: the
+  connectors a skill binds travel inside its record's package files.
 
 The packages you write sit beside your source; the packages runx adds sit in
 the project directory, `.runx/` (or `RUNX_PROJECT_DIR`). `skills/` holds the
