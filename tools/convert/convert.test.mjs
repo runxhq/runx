@@ -178,6 +178,38 @@ Review the plan.
   assert.match(out, /SKILL\.md's "## Agent task contracts" has text before its first task, kept under "## Agent tasks", which names no task/);
 });
 
+test("a root connector nothing calls is refused, and one a turn's list or a called package reaches stays where it's called", (t) => {
+  const turn = (operations) => `skill: sync
+version: "0.1.0"
+connectors:
+  web: {operations: [page.read]}
+  acme-ops: {operations: [item.sync]}
+runners:
+  main:
+    default: true
+${operations}    steps:
+      - id: plan
+        agent: { role: agent, task: plan }
+`;
+  const plan = "---\nname: sync\ndescription: Syncs items.\n---\n\n## Agent task: plan\n\nPlan.\n";
+  const unreached = tree(t, { "SKILL.md": plan, "run.yaml": turn("") });
+  const refused = convert(unreached);
+  assert.equal(refused.status, 1);
+  assert.match(refused.out, /refused .*: connectors web, acme-ops are called by no step and named in no turn's calls\. Today a connector's operations are only a ceiling/);
+
+  const reached = tree(t, {
+    "sync/SKILL.md": plan,
+    "sync/run.yaml": turn("    operations: [web/page.read]\n").replace("      - id: plan\n", "      - id: items\n        skill: ../items\n      - id: plan\n"),
+    "items/SKILL.md": manual("items"),
+    "items/run.yaml": "skill: items\nconnectors:\n  acme-ops: {operations: [item.sync]}\nrunners:\n  sync:\n    steps:\n      - id: sync\n        operation: acme-ops/item.sync\n",
+  });
+  const converted = convert("--write", path.join(reached, "sync"));
+  assert.equal(converted.status, 0, converted.out);
+  const run = read(reached, "sync/run.yaml");
+  assert.doesNotMatch(run, /^connectors:/m);
+  assert.match(run, /      - id: plan\n        agent: plan\n        calls:\n          operations: \[web\/page\.read\]\n/);
+});
+
 const invoiceCase = (env, path) => `name: reads-invoice
 runner: pay
 env:

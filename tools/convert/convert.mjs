@@ -419,6 +419,64 @@ function settleSharedInputs(doc, root, notes) {
   if (shared.items.length === 0) take(root, "shared_inputs");
 }
 
+// The connectors a package's steps call: an operation step's own, each one
+// an agent step's calls name, and each a connector chosen per run may be.
+// A connector's name may hold a slash, so it's what precedes the last one.
+const connectorOf = (reference) => reference.slice(0, Math.max(0, reference.lastIndexOf("/")));
+
+// The connectors a local package declares or calls, in either format, and
+// those of the local packages it calls in turn.
+function packageConnectors(dir, seen = new Set()) {
+  const file = path.join(dir, "run.yaml");
+  if (seen.has(dir) || !existsSync(file)) return new Set();
+  seen.add(dir);
+  const document = YAML.parse(readFileSync(file, "utf8")) ?? {};
+  const found = new Set(Object.keys(document.connectors ?? {}));
+  for (const method of Object.values(document.methods ?? document.runners ?? {})) {
+    for (const step of method?.steps ?? []) {
+      if (typeof step?.operation === "string") found.add(step.operation.includes("/") && !(step.operation in (document.connectors ?? {})) ? connectorOf(step.operation) : step.operation);
+      for (const called of step?.calls?.operations ?? []) found.add(connectorOf(called));
+    }
+  }
+  for (const child of calledPackages(dir, document)) for (const name of packageConnectors(child, seen)) found.add(name);
+  return found;
+}
+
+// The local packages a package's skill steps and turns call, by path.
+function calledPackages(dir, document) {
+  const references = [];
+  for (const method of Object.values(document.methods ?? document.runners ?? {})) {
+    for (const step of method?.steps ?? []) {
+      if (typeof step?.skill === "string") references.push(step.skill);
+      for (const skill of step?.calls?.skills ?? []) if (typeof skill === "string") references.push(skill);
+    }
+  }
+  return references
+    .map((reference) => reference.split("#")[0])
+    .filter((reference) => reference.startsWith("./") || reference.startsWith("../"))
+    .map((reference) => path.resolve(dir, reference));
+}
+
+function reachedConnectors(root, dir) {
+  const reached = new Set();
+  for (const child of calledPackages(dir, root.toJSON())) for (const name of packageConnectors(child)) reached.add(name);
+  for (const method of node(root, "methods")?.items ?? []) {
+    for (const step of (isMap(method.value) ? node(method.value, "steps")?.items : undefined) ?? []) {
+      if (!isMap(step)) continue;
+      const operation = read(step, "operation");
+      if (typeof operation === "string") reached.add(connectorOf(operation));
+      else if (operation && typeof operation === "object" && typeof operation.connector === "string") reached.add(operation.connector);
+      const calls = read(step, "calls");
+      for (const called of calls?.operations ?? []) if (typeof called === "string") reached.add(connectorOf(called));
+    }
+  }
+  for (const pair of node(root, "connectors")?.items ?? []) {
+    const from = isMap(pair.value) ? read(pair.value, "from") : undefined;
+    if (reached.has(keyOf(pair)) && Array.isArray(from)) for (const choice of from) reached.add(choice);
+  }
+  return reached;
+}
+
 function convertMethod(doc, name, method, context, notes) {
   const where = `methods.${name}`;
   only(method, METHOD_KEYS, where);
@@ -787,6 +845,7 @@ function convertPackage(dir) {
 
   const requirementOperations = new Map();
   const connectors = node(root, "connectors");
+  const declaredConnectors = connectors === undefined ? [] : connectors.items.map(keyOf);
   if (connectors !== undefined) {
     for (const pair of [...connectors.items]) {
       const requirement = keyOf(pair);
@@ -848,6 +907,10 @@ function convertPackage(dir) {
     insertAt(target, indexOf(target, "steps") >= 0 ? indexOf(target, "steps") : target.items.length, "offer", offer);
   }
   settleSharedInputs(doc, root, notes);
+  const unreached = declaredConnectors.filter((name) => !reachedConnectors(root, dir).has(name));
+  if (unreached.length) {
+    refuse(`connectors ${unreached.join(", ")} ${unreached.length === 1 ? "is" : "are"} called by no step and named in no turn's calls. Today a connector's operations are only a ceiling, and a turn calls only the operations its own list names, so nothing here called them. In 0.12 a connector is declared where a step or a turn's calls name it: naming one on a turn would let it call what it couldn't, and dropping one drops a dependency the package declared, so its owner names it where it's called or removes it`);
+  }
 
   // Tests: the cases in run.yaml and in fixtures/*.yaml, and support graphs.
   const evals = [];
