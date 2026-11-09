@@ -77,15 +77,6 @@ export function registrySignedManifestPayload(manifest: UnsignedRegistryManifest
   });
 }
 
-/**
- * Whether an envelope signs the given version of the given subject. The kind
- * is part of the identity: a connector's envelope never stands for a skill,
- * nor a skill's for a connector, even where the name fits both grammars.
- */
-export function registrySignedManifestSigns(manifest: RegistrySignedManifest, subject: RegistrySubject, version: string): boolean {
-  return manifest.subject.kind === subject.kind && manifest.subject.name === subject.name && manifest.version === version;
-}
-
 /** A subject of the given kind: a skill's `publisher/name`, or a connector's name. */
 export function isRegistrySubjectName(kind: RegistrySubjectKind, value: string): boolean {
   if (kind === "connector") return isConnectorName(value);

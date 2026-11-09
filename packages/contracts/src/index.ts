@@ -57,7 +57,6 @@ export {
   isRegistrySubjectName,
   registryContentDigest,
   registrySignedManifestPayload,
-  registrySignedManifestSigns,
   validateRegistrySignedManifest,
   type RegistryContentFile,
   type RegistrySignedManifest,

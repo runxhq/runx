@@ -6,10 +6,8 @@ import { describe, expect, it } from "vitest";
 import {
   registryContentDigest,
   registrySignedManifestPayload,
-  registrySignedManifestSigns,
   validateRegistrySignedManifest,
   type RegistryContentFile,
-  type RegistrySubject,
 } from "./registry-signed-manifest.js";
 
 const fixture = JSON.parse(readFileSync(
@@ -21,13 +19,6 @@ const fixture = JSON.parse(readFileSync(
   readonly invalid_content: readonly { readonly name: string; readonly files: readonly RegistryContentFile[] }[];
   readonly envelopes: readonly { readonly name: string; readonly files: readonly RegistryContentFile[]; readonly manifest: unknown; readonly signing_payload: string }[];
   readonly invalid_envelopes: readonly { readonly name: string; readonly manifest: unknown }[];
-  readonly subject_bindings: readonly {
-    readonly name: string;
-    readonly envelope: string;
-    readonly subject: RegistrySubject;
-    readonly version: string;
-    readonly signs: boolean;
-  }[];
   readonly unknown_field_envelope: unknown;
 };
 
@@ -50,14 +41,6 @@ describe("registry signed manifest", () => {
       const signature = Buffer.from(manifest.signature.value.slice("base64:".length), "base64url");
       expect(verify(null, Buffer.from(payload, "utf8"), key, signature), testCase.name).toBe(true);
       expect(registryContentDigest(testCase.files), testCase.name).toBe(manifest.content_digest);
-    }
-  });
-
-  it("signs only its own kind, subject and version", () => {
-    for (const testCase of fixture.subject_bindings) {
-      const envelope = fixture.envelopes.find((candidate) => candidate.name === testCase.envelope);
-      const manifest = validateRegistrySignedManifest(envelope?.manifest);
-      expect(registrySignedManifestSigns(manifest, testCase.subject, testCase.version), testCase.name).toBe(testCase.signs);
     }
   });
 
