@@ -285,3 +285,76 @@ fn two_calls_waiting_on_approval_at_once_are_both_listed_and_answered_apart() ->
     );
     Ok(())
 }
+
+/// Three calls run at once under `concurrency: 3`: each call's child marks
+/// that it started, then waits until all three have, which it can only get
+/// past if all three run together.
+#[test]
+fn a_script_runs_its_calls_at_once_up_to_its_concurrency() -> TestResult {
+    let temp = tempdir()?;
+    let barrier = temp.path().join("started");
+    let child = temp.path().join("barrier-child");
+    crate::support::write_test_skill_package(
+        &child,
+        "---\nname: barrier-child\ndescription: Waits until three of it have started.\n---\n# Barrier child\n\nMeet the others.\n",
+        &format!(
+            r#"minimum_runx: 0.12.0
+methods:
+  meet:
+    steps:
+      - id: meet
+        tool:
+          command: sh
+          args:
+            - -c
+            - 'mkdir -p "{dir}" && : > "{dir}/$$" && until [ "$(ls "{dir}" | wc -l)" -ge 3 ]; do :; done; printf "{{\"met\":true}}\n"'
+        outputs:
+          met: {{type: boolean}}
+"#,
+            dir = barrier.display()
+        ),
+    )?;
+    let skill_dir = temp.path().join("script-demo");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: script-demo\ndescription: Meets three children at once.\n---\n# Script demo\n\nMeet.\n",
+        r#"minimum_runx: 0.12.0
+methods:
+  prepare:
+    inputs:
+      value: {type: string}
+    steps:
+      - id: prepare
+        script: {module: prepare.mjs}
+        calls:
+          skills: [../barrier-child]
+        max_calls: 3
+        concurrency: 3
+        outputs:
+          met: {type: array}
+"#,
+    )?;
+    std::fs::write(
+        skill_dir.join("prepare.mjs"),
+        r#"export default async function (ctx) {
+  const met = await Promise.all([0, 1, 2].map(() => ctx.skill("../barrier-child", {})));
+  return { met: met.map((child) => child.met) };
+}
+"#,
+    )?;
+    let sealed = run(temp.path(), skill_dir)?;
+    let output = object(&sealed.output)?;
+    assert_eq!(text(output, "status"), Some("sealed"), "{output:?}");
+    let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    // Admitted in position order under the driver; recorded as they finished.
+    let events = call_events(temp.path(), &run_id)?;
+    assert_eq!(events[..3], [(0, "child"), (1, "child"), (2, "child")]);
+    let mut completed = events[3..]
+        .iter()
+        .map(|(index, _)| *index)
+        .collect::<Vec<_>>();
+    completed.sort_unstable();
+    assert_eq!(completed, [0, 1, 2]);
+    assert_eq!(std::fs::read_dir(&barrier)?.count(), 3);
+    Ok(())
+}

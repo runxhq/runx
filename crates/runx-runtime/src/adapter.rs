@@ -348,7 +348,9 @@ impl InvocationOutput {
     }
 }
 
-pub trait SkillAdapter {
+/// What runs a skill's own work. A step's calls run apart from its driver,
+/// on threads of their own, so every adapter can be shared across them.
+pub trait SkillAdapter: Send + Sync {
     fn invoke(&self, request: SkillInvocation) -> Result<InvocationOutput, RuntimeError>;
 }
 

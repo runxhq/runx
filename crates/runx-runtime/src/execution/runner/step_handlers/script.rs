@@ -10,6 +10,7 @@
 //! hold.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::panic::AssertUnwindSafe;
 
 use runx_contracts::javascript_worker::{
     ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptEnding, ScriptRejection,
@@ -19,7 +20,8 @@ use runx_contracts::{JsonObject, JsonValue, TurnCallOutcome, TurnTarget};
 use runx_parser::ScriptStep;
 
 use super::super::super::run_record::{CallOutcome, RecordedCall};
-use super::super::turn::{CallLedger, TurnScope};
+use super::super::bounded::run_bounded;
+use super::super::turn::{Admission, CallLedger, TurnScope};
 use super::{
     RegularSkillSeal, RegularSkillStepOutput, StepHandlerCtx, StepReceiptLineage,
     build_ephemeral_step_output, build_step_output_projection, output_error,
@@ -89,6 +91,7 @@ where
     let mut made = Vec::new();
     let mut calls = 0_usize;
     let max_calls = usize::try_from(script.max_calls).unwrap_or(usize::MAX);
+    let concurrency = usize::try_from(script.concurrency).unwrap_or(1);
     let ended = loop {
         let recorded = ledger.recorded()?;
         matches_record(&step.id, &passed.calls, recorded)?;
@@ -141,7 +144,7 @@ where
                     ));
                 }
                 let positions = new.iter().map(|call| call.position).collect::<Vec<_>>();
-                match make_calls(&mut ledger, host, new)? {
+                match make_calls(&mut ledger, host, new, concurrency)? {
                     Err(refusal) => break Err(refusal),
                     Ok(still) => waiting.extend(still),
                 }
@@ -217,19 +220,23 @@ where
 /// A call that waits, at its position, with the requests it waits on.
 type Waiting = (u32, Vec<runx_contracts::ResolutionRequest>);
 
-/// Make each new call, in position order, through the step's ledger, and
-/// return those that wait on a person or a child; a waiting call doesn't stop
-/// the next. A pass that reads `ctx.now()` past its record is refused, since
-/// this runtime doesn't record the clock yet.
+/// Make each new call: admitted in position order under the driver, then run
+/// at most `concurrency` at once, apart from the driver where its host can
+/// detach a host for each, and recorded under the driver in the order they
+/// finish. Return those that wait on a person or a child; a waiting call
+/// doesn't stop the next. A pass that reads `ctx.now()` past its record is
+/// refused, since this runtime doesn't record the clock yet.
 fn make_calls<A>(
     ledger: &mut CallLedger<'_, A>,
     host: &mut dyn Host,
     new: Vec<ScriptCall>,
+    concurrency: usize,
 ) -> Result<Result<Vec<Waiting>, String>, RuntimeError>
 where
     A: SkillAdapter,
 {
     let mut waiting = Vec::new();
+    let mut admitted = Vec::new();
     for call in new {
         let (target, input) = match ledger_call(&call.target) {
             Ok(Some(call)) => call,
@@ -241,10 +248,64 @@ where
             }
             Err(refusal) => return Ok(Err(refusal)),
         };
-        if let TurnCallOutcome::Pending { waiting: requests } =
-            ledger.make(host, call.position, target, input)?.outcome
-        {
-            waiting.push((call.position, requests));
+        match ledger.admit(host, call.position, target, input)? {
+            Admission::Settled(result) => {
+                if let TurnCallOutcome::Pending { waiting: requests } = result.outcome {
+                    waiting.push((call.position, requests));
+                }
+            }
+            Admission::Admitted(call) => admitted.push(*call),
+        }
+    }
+    let detached = (concurrency > 1 && admitted.len() > 1)
+        .then(|| {
+            admitted
+                .iter()
+                .map(|_| host.detached())
+                .collect::<Option<Vec<_>>>()
+        })
+        .flatten();
+    let mut concluded = |ledger: &mut CallLedger<'_, A>, executed| {
+        let result = ledger.conclude(executed)?;
+        if let TurnCallOutcome::Pending { waiting: requests } = result.outcome {
+            waiting.push((result.index, requests));
+        }
+        Ok::<(), RuntimeError>(())
+    };
+    match detached {
+        // Each call runs on a thread of its own with its own host.
+        Some(hosts) => {
+            let scope = ledger.scope();
+            std::thread::scope(|threads| {
+                run_bounded(
+                    admitted.into_iter().zip(hosts),
+                    concurrency,
+                    |(call, mut detached), done| {
+                        threads.spawn(move || {
+                            let executed = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                                scope.execute_call(&mut detached, call)
+                            }))
+                            .unwrap_or_else(|_| {
+                                Err(RuntimeError::EngineInvariant {
+                                    context: "running a script's call",
+                                    message: "the call's execution panicked".to_owned(),
+                                })
+                            });
+                            let _ = done.send((executed, detached));
+                        });
+                    },
+                    |(executed, detached)| {
+                        detached.hand_back(host)?;
+                        concluded(ledger, executed?)
+                    },
+                )
+            })?;
+        }
+        None => {
+            for call in admitted {
+                let executed = ledger.scope().execute_call(host, call)?;
+                concluded(ledger, executed)?;
+            }
         }
     }
     Ok(Ok(waiting))

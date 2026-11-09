@@ -785,6 +785,34 @@ impl RunHost {
     }
 }
 
+/// The answer `given` or `answers` hold for `request`, by its address.
+fn answer_from(
+    given: &mut BTreeMap<String, JsonValue>,
+    answers: &ResolutionAnswers,
+    request: &ResolutionRequest,
+) -> Result<Option<ResolutionResponse>, RuntimeError> {
+    let request_id = resolution_request_id(request).to_owned();
+    if let Some(answer) = given.remove(&request_id) {
+        return Ok(Some(ResolutionResponse {
+            actor: ResolutionResponseActor::Agent,
+            payload: answer,
+        }));
+    }
+    let current = crate::execution::run_record::request_digest(request)?;
+    let Some(answer) = answers.get(&request_id, &current).cloned() else {
+        return Ok(None);
+    };
+    let actor = if answers.is_human_approval(&request_id) {
+        ResolutionResponseActor::Human
+    } else {
+        ResolutionResponseActor::Agent
+    };
+    Ok(Some(ResolutionResponse {
+        actor,
+        payload: answer,
+    }))
+}
+
 impl Host for RunHost {
     /// Only a managed agent at a loopback endpoint is known to run here; a
     /// host that works the run's turns from outside may run its model anywhere.
@@ -807,26 +835,17 @@ impl Host for RunHost {
         &mut self,
         request: ResolutionRequest,
     ) -> Result<Option<ResolutionResponse>, RuntimeError> {
-        let request_id = resolution_request_id(&request).to_owned();
-        if let Some(answer) = self.given.remove(&request_id) {
-            return Ok(Some(ResolutionResponse {
-                actor: ResolutionResponseActor::Agent,
-                payload: answer,
-            }));
-        }
-        let current = crate::execution::run_record::request_digest(&request)?;
-        let Some(answer) = self.answers.get(&request_id, &current).cloned() else {
-            return Ok(None);
-        };
-        let actor = if self.answers.is_human_approval(&request_id) {
-            ResolutionResponseActor::Human
-        } else {
-            ResolutionResponseActor::Agent
-        };
-        Ok(Some(ResolutionResponse {
-            actor,
-            payload: answer,
-        }))
+        answer_from(&mut self.given, &self.answers, &request)
+    }
+
+    /// A call apart from the driver is answered from the same answers.
+    /// Turns stay on the driver, since its managed agent works them.
+    fn detached(&self) -> Option<crate::host::DetachedHost> {
+        let mut given = self.given.clone();
+        let answers = self.answers.clone();
+        Some(crate::host::DetachedHost::new(Box::new(move |request| {
+            answer_from(&mut given, &answers, &request)
+        })))
     }
 
     fn log(&mut self, _message: String) -> Result<(), RuntimeError> {

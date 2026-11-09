@@ -113,6 +113,10 @@ impl Host for AnsweringHost<'_> {
         self.host.log(message)
     }
 
+    fn detached(&self) -> Option<crate::host::DetachedHost> {
+        self.host.detached()
+    }
+
     /// The turn's calls answer through the host itself: each call records
     /// the answers it consumed, never the step that holds the turn.
     fn drive_turn(&mut self, turn: &mut dyn super::turn::Turn) -> Result<(), RuntimeError> {

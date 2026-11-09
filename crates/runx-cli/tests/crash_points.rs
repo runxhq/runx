@@ -59,6 +59,7 @@ methods:
           tools: [data.digest]
           skills: [../confirm-child]
         max_calls: 4
+        concurrency: 2
         outputs:
 {outputs}"#
         ),
@@ -335,6 +336,100 @@ fn only_a_test_build_has_crash_points() -> TestResult {
             "{} exposes crash points as a feature of its own",
             manifest.display()
         );
+    }
+    Ok(())
+}
+
+const TWO_DIGESTS_AT_ONCE: &str = r#"export default async function (ctx, { value }) {
+  const digested = await Promise.all([
+    ctx.tool("data.digest", { value, encoding: "utf8_text" }),
+    ctx.tool("data.digest", { value: value + "!", encoding: "utf8_text" }),
+  ]);
+  return { digested: digested.map((each) => Object.keys(each).length) };
+}
+"#;
+
+/// Acknowledge every retry the run waits on, in one resume.
+fn acknowledge_retries(root: &Path) -> TestResult<serde_json::Value> {
+    let read = history(root)?;
+    let mut approvals = serde_json::Map::new();
+    for waited in read["waiting"].as_array().into_iter().flatten() {
+        if let Some(address) = waited["address"].as_str() {
+            approvals.insert(
+                address.to_owned(),
+                serde_json::json!({"value": {"retry": true}}),
+            );
+        }
+    }
+    let answers = root.join("retries.json");
+    fs::write(
+        &answers,
+        crate::support::bind_resume(&read, serde_json::json!({"approvals": approvals}))?
+            .to_string(),
+    )?;
+    let resumed = unsigned_runx_command_at(root)
+        .args(["resume", RUN_ID])
+        .arg(&answers)
+        .arg("--receipt-dir")
+        .arg(root.join("receipts"))
+        .arg("--json")
+        .output()?;
+    status(&resumed)
+}
+
+/// Killed while two calls are in flight, each recovers by its own record: a
+/// call recorded as done isn't run again, and one admitted but not recorded
+/// waits on its retry.
+#[test]
+fn a_kill_with_calls_in_flight_recovers_each_by_its_own_record() -> TestResult {
+    for crash in ["after_admission@prepare/1", "after_execution@prepare/0"] {
+        let root = crate::support::temp_root("crash-in-flight");
+        let skill = write_skills(
+            &root,
+            TWO_DIGESTS_AT_ONCE,
+            "          digested: {type: array}\n",
+        )?;
+        crashed(&run(&root, &skill, Some(crash))?);
+        let left = calls(&history(&root)?, RUN_ID);
+        // Both were admitted, in position order, before either ran.
+        assert_eq!(
+            left[..2],
+            [pair(0, "claimed"), pair(1, "claimed")],
+            "{crash}"
+        );
+        let done_before = left
+            .iter()
+            .filter(|(_, status)| status == "completed")
+            .map(|(index, _)| *index)
+            .collect::<Vec<_>>();
+
+        let recovered = status(&run(&root, &skill, None)?)?;
+        let waiting = recovered["requests"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|request| request["id"].as_str().map(str::to_owned))
+            .collect::<Vec<_>>();
+        let expected = [0, 1]
+            .iter()
+            .filter(|index| !done_before.contains(index))
+            .map(|index| format!("prepare/{index}/retry"))
+            .collect::<Vec<_>>();
+        assert_eq!(waiting, expected, "{crash}: {recovered}");
+
+        let sealed = acknowledge_retries(&root)?;
+        assert_eq!(sealed["status"], "sealed", "{crash}: {sealed}");
+        let settled = calls(&history(&root)?, RUN_ID);
+        for index in [0, 1] {
+            assert_eq!(
+                settled
+                    .iter()
+                    .filter(|call| **call == pair(index, "completed"))
+                    .count(),
+                1,
+                "{crash}: call {index} ran once: {settled:?}"
+            );
+        }
     }
     Ok(())
 }

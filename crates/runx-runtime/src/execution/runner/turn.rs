@@ -237,6 +237,173 @@ pub(super) struct TurnScope<'a, A> {
     pub(super) reads_local_only: bool,
 }
 
+impl<A> Clone for TurnScope<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for TurnScope<'_, A> {}
+
+impl<A> TurnScope<'_, A>
+where
+    A: SkillAdapter,
+{
+    /// Execute an admitted call through `host`, which is the driver's or a
+    /// host detached for this call alone.
+    pub(super) fn execute_call(
+        &self,
+        host: &mut dyn Host,
+        admitted: AdmittedCall,
+    ) -> Result<ExecutedCall, RuntimeError> {
+        self.execute(&mut AnsweringHost::new(host, None), admitted)
+    }
+
+    /// Execute an admitted call through `host`; what it consumed rides with
+    /// what it came to. It reads nothing of its step's record, so it runs
+    /// apart from the driver as well as under it.
+    pub(super) fn execute(
+        &self,
+        host: &mut AnsweringHost<'_>,
+        admitted: AdmittedCall,
+    ) -> Result<ExecutedCall, RuntimeError> {
+        let AdmittedCall {
+            made,
+            call,
+            claim,
+            admitted_by,
+            held_by_effects,
+        } = admitted;
+        let ran = self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?;
+        Ok(ExecutedCall {
+            made,
+            claim,
+            ran,
+            answers: std::mem::take(&mut host.answers),
+        })
+    }
+
+    /// Run a call as its step; a skill call's act becomes its child run's.
+    /// What admitted it on the floor, and the artifacts its inputs were given
+    /// by, ride in its receipt; where those inputs came from rides in its
+    /// provenance.
+    fn run_call_step(
+        &self,
+        call: &CallStep,
+        target: &TurnTarget,
+        admitted_by: Vec<Reference>,
+        held_by_effects: bool,
+        host: &mut dyn Host,
+    ) -> Result<Ran, RuntimeError> {
+        let scope = self;
+        let step = &call.step;
+        let mut admission_refs = admitted_by;
+        admission_refs.extend(call.fed.iter().map(|fed| fed.artifact.clone()));
+        let request = StepRunRequest {
+            runtime: scope.runtime,
+            workflow_dir: scope.workflow_dir,
+            workflow_name: scope.workflow_name,
+            step,
+            attempt: 1,
+            inputs: step.inputs.clone(),
+            child_act: call.act.clone(),
+            provenance: call.fed.iter().filter_map(|fed| fed.edge.clone()).collect(),
+            admission_refs,
+            held_by_effects,
+            host,
+            // A turn's call is a tool, operation or skill, never an agent
+            // step, so it reads no earlier steps' context entries, and an ask
+            // it makes states its own reason.
+            context_entries: Vec::new(),
+            ask_reason: None,
+        };
+        let result = match target {
+            TurnTarget::Skill {
+                bound: Some(bound), ..
+            } => self
+                .bound_skill(step, bound)
+                .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
+            TurnTarget::Skill { .. } => load_step_skill(
+                scope.workflow_dir,
+                step,
+                StepSkillLoadOptions::of_run(&scope.runtime.options),
+            )
+            .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
+            _ => run_step_with_inputs(request),
+        };
+        Ok(match result {
+            Ok(run) => Ran::Settled(CallOutcome::Completed(Box::new(run))),
+            Err(RuntimeError::ResolutionPending { request, .. }) => Ran::Waiting(request),
+            Err(
+                RuntimeError::AuthorityDenied { reason, .. }
+                | RuntimeError::CostLimitExceeded { reason, .. },
+            ) => Ran::Settled(CallOutcome::Refused(reason)),
+            // The act may have reached its provider: its custody holds it, and
+            // the call stays claimed until a retry with the same input
+            // reconciles it.
+            Err(RuntimeError::ProviderEffectUnknown { .. })
+            | Err(RuntimeError::ProviderReadbackPending { .. }) => Ran::Unconfirmed,
+            Err(error) if error.is_fatal_step_fault() => return Err(error),
+            Err(error) => Ran::Settled(CallOutcome::Failed(error.to_string())),
+        })
+    }
+
+    /// The skill a loaded method's call runs: the package its load bound,
+    /// read from the project again and refused if it changed since, with the
+    /// packages its closure binds for its child run to execute.
+    fn bound_skill(
+        &self,
+        step: &WorkflowStep,
+        bound: &BoundClosure,
+    ) -> Result<LoadedStepSkill, RuntimeError> {
+        let options = &self.runtime.options;
+        let target = step.skill().ok_or_else(|| RuntimeError::StepMissingSkill {
+            step_id: step.id.clone(),
+        })?;
+        let method = target
+            .method
+            .as_deref()
+            .ok_or_else(|| RuntimeError::StepFailed {
+                step_id: step.id.clone(),
+                reason: "a loaded skill's call names its method".to_owned(),
+            })?;
+        let changed = |reason: String| RuntimeError::AuthorityDenied {
+            verb: runx_contracts::AuthorityVerb::Execute,
+            step_id: step.id.clone(),
+            reason: format!(
+                "skill {} is not what the turn loaded: {reason}",
+                target.skill
+            ),
+        };
+        let paths = crate::paths::RunxPaths::resolve(&options.env, self.workflow_dir);
+        let directory = super::step_handlers::resolve_loaded(&target.skill, &paths, &options.env)
+            .map_err(changed)?
+            .runnable_path;
+        let package = std::sync::Arc::new(
+            crate::load_validated_skill_package(&directory)
+                .map_err(|error| changed(error.to_string()))?,
+        );
+        let binding = crate::skill_package::verify_loaded_execution_binding(
+            std::sync::Arc::clone(&package),
+            method,
+            &options.env,
+            Some(bound.package_digest.as_str()),
+            Some(bound.closure_digest.as_str()),
+        )
+        .map_err(|error| changed(error.to_string()))?;
+        let mut skill = step_skill(
+            step,
+            LoadedStepSkillPackage {
+                package,
+                registry: None,
+            },
+            &options.env,
+        )?;
+        skill.admitted = Some(binding.packages);
+        Ok(skill)
+    }
+}
+
 /// The calls one step makes, as its run records them: admitted, executed and
 /// recorded the same way whichever drives them, an agent's turn or a script.
 pub(super) struct CallLedger<'a, A> {
@@ -386,27 +553,6 @@ where
             calls: OnceCell::new(),
             events: Cell::new(None),
         }
-    }
-
-    /// Make call `index`, at the position its driver gives it: admitted,
-    /// executed and recorded at once, as a turn's call is.
-    pub(super) fn make(
-        &mut self,
-        host: &mut dyn Host,
-        index: u32,
-        target: TurnTarget,
-        input: JsonObject,
-    ) -> Result<TurnCallResult, RuntimeError> {
-        self.run(
-            AnsweringHost::new(host, None),
-            Made {
-                index,
-                call_id: None,
-                target,
-                input,
-                standing: None,
-            },
-        )
     }
 
     /// Take call `index` further under `host`, which now brings something for
@@ -591,23 +737,69 @@ where
         mut host: AnsweringHost<'_>,
         made: Made,
     ) -> Result<TurnCallResult, RuntimeError> {
+        match self.admit_at(&mut host, made)? {
+            Admission::Settled(result) => Ok(*result),
+            Admission::Admitted(admitted) => {
+                let executed = self.execute_admitted(&mut host, *admitted)?;
+                self.conclude(executed)
+            }
+        }
+    }
+
+    /// Admit call `index` under the driver, without executing it: it settles
+    /// at admission, or is claimed and comes back to execute, under the
+    /// driver or apart from it.
+    pub(super) fn admit(
+        &mut self,
+        host: &mut dyn Host,
+        index: u32,
+        target: TurnTarget,
+        input: JsonObject,
+    ) -> Result<Admission, RuntimeError> {
+        self.admit_at(
+            &mut AnsweringHost::new(host, None),
+            Made {
+                index,
+                call_id: None,
+                target,
+                input,
+                standing: None,
+            },
+        )
+    }
+
+    fn admit_at(
+        &mut self,
+        host: &mut AnsweringHost<'_>,
+        made: Made,
+    ) -> Result<Admission, RuntimeError> {
         #[cfg(feature = "crash-points")]
         let call = self.call_address(made.index);
         #[cfg(feature = "crash-points")]
         crate::crash::at("before_admission", &call);
-        match self.admit_made(&mut host, made)? {
-            Admission::Settled(result) => Ok(*result),
-            Admission::Admitted(admitted) => {
-                #[cfg(feature = "crash-points")]
-                crate::crash::at("after_admission", &call);
-                let executed = self.execute_admitted(&mut host, *admitted)?;
-                // For a skill call, its child run has sealed here and the
-                // call isn't recorded yet.
-                #[cfg(feature = "crash-points")]
-                crate::crash::at("after_execution", &call);
-                self.conclude_executed(executed)
-            }
+        let admission = self.admit_made(host, made)?;
+        #[cfg(feature = "crash-points")]
+        if matches!(admission, Admission::Admitted(_)) {
+            crate::crash::at("after_admission", &call);
         }
+        Ok(admission)
+    }
+
+    /// Record what an executed call came to, under the driver.
+    pub(super) fn conclude(
+        &mut self,
+        executed: ExecutedCall,
+    ) -> Result<TurnCallResult, RuntimeError> {
+        // For a skill call, its child run has sealed here and the call isn't
+        // recorded yet.
+        #[cfg(feature = "crash-points")]
+        crate::crash::at("after_execution", &self.call_address(executed.made.index));
+        self.conclude_executed(executed)
+    }
+
+    /// Where the step's calls run, to execute one apart from the driver.
+    pub(super) fn scope(&self) -> TurnScope<'a, A> {
+        self.scope
     }
 
     /// Call `index`'s address in its run: `<step>/<index>`.
@@ -691,8 +883,13 @@ where
             | TurnTarget::Operation { .. }
             | TurnTarget::Ask
             | TurnTarget::Load => {
-                let ran =
-                    self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?;
+                let ran = self.scope.run_call_step(
+                    &call,
+                    &made.target,
+                    admitted_by,
+                    held_by_effects,
+                    host,
+                )?;
                 return match ran {
                     Ran::Settled(outcome) => {
                         let answers = host.answers.clone();
@@ -721,27 +918,13 @@ where
         })))
     }
 
-    /// Execute an admitted call through `host`; what it consumed rides with
-    /// what it came to.
+    /// Execute an admitted call through `host`, under the driver.
     fn execute_admitted(
         &self,
         host: &mut AnsweringHost<'_>,
         admitted: AdmittedCall,
     ) -> Result<ExecutedCall, RuntimeError> {
-        let AdmittedCall {
-            made,
-            call,
-            claim,
-            admitted_by,
-            held_by_effects,
-        } = admitted;
-        let ran = self.run_call_step(&call, &made.target, admitted_by, held_by_effects, host)?;
-        Ok(ExecutedCall {
-            made,
-            claim,
-            ran,
-            answers: std::mem::take(&mut host.answers),
-        })
+        self.scope.execute(host, admitted)
     }
 
     /// Record what an executed call came to. A claimed call whose effect is
@@ -790,7 +973,10 @@ where
                 message: reason,
             })?;
         let mut answering = AnsweringHost::new(host, None);
-        match self.run_call_step(&step, &made.target, Vec::new(), false, &mut answering)? {
+        match self
+            .scope
+            .run_call_step(&step, &made.target, Vec::new(), false, &mut answering)?
+        {
             Ran::Settled(outcome) => {
                 let answers = answering.answers;
                 self.settled(made, outcome, &answers)
@@ -1023,71 +1209,6 @@ where
             input_digest: crate::execution::run_record::input_digest(&made.input)?.into(),
             call_id: made.call_id.clone().map(Into::into),
             outcome,
-        })
-    }
-
-    /// Run a call as its step; a skill call's act becomes its child run's.
-    /// What admitted it on the floor, and the artifacts its inputs were given
-    /// by, ride in its receipt; where those inputs came from rides in its
-    /// provenance.
-    fn run_call_step(
-        &self,
-        call: &CallStep,
-        target: &TurnTarget,
-        admitted_by: Vec<Reference>,
-        held_by_effects: bool,
-        host: &mut dyn Host,
-    ) -> Result<Ran, RuntimeError> {
-        let scope = &self.scope;
-        let step = &call.step;
-        let mut admission_refs = admitted_by;
-        admission_refs.extend(call.fed.iter().map(|fed| fed.artifact.clone()));
-        let request = StepRunRequest {
-            runtime: scope.runtime,
-            workflow_dir: scope.workflow_dir,
-            workflow_name: scope.workflow_name,
-            step,
-            attempt: 1,
-            inputs: step.inputs.clone(),
-            child_act: call.act.clone(),
-            provenance: call.fed.iter().filter_map(|fed| fed.edge.clone()).collect(),
-            admission_refs,
-            held_by_effects,
-            host,
-            // A turn's call is a tool, operation or skill, never an agent
-            // step, so it reads no earlier steps' context entries, and an ask
-            // it makes states its own reason.
-            context_entries: Vec::new(),
-            ask_reason: None,
-        };
-        let result = match target {
-            TurnTarget::Skill {
-                bound: Some(bound), ..
-            } => self
-                .bound_skill(step, bound)
-                .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
-            TurnTarget::Skill { .. } => load_step_skill(
-                scope.workflow_dir,
-                step,
-                StepSkillLoadOptions::of_run(&scope.runtime.options),
-            )
-            .and_then(|skill| run_step_with_loaded_skill_inputs(request, skill)),
-            _ => run_step_with_inputs(request),
-        };
-        Ok(match result {
-            Ok(run) => Ran::Settled(CallOutcome::Completed(Box::new(run))),
-            Err(RuntimeError::ResolutionPending { request, .. }) => Ran::Waiting(request),
-            Err(
-                RuntimeError::AuthorityDenied { reason, .. }
-                | RuntimeError::CostLimitExceeded { reason, .. },
-            ) => Ran::Settled(CallOutcome::Refused(reason)),
-            // The act may have reached its provider: its custody holds it, and
-            // the call stays claimed until a retry with the same input
-            // reconciles it.
-            Err(RuntimeError::ProviderEffectUnknown { .. })
-            | Err(RuntimeError::ProviderReadbackPending { .. }) => Ran::Unconfirmed,
-            Err(error) if error.is_fatal_step_fault() => return Err(error),
-            Err(error) => Ran::Settled(CallOutcome::Failed(error.to_string())),
         })
     }
 
@@ -1347,6 +1468,7 @@ where
                 bound: Some(bound),
                 ..
             } => self
+                .scope
                 .bound_skill(step, bound)
                 .map(|loaded| ("method", loaded.method.inputs))
                 .map_err(|error| format!("skill {skill} could not be loaded: {error}")),
@@ -1576,61 +1698,6 @@ where
         .map_err(|error| {
             RuntimeError::effect_state("reading the skill's connectors", error.to_string())
         })
-    }
-
-    /// The skill a loaded method's call runs: the package its load bound,
-    /// read from the project again and refused if it changed since, with the
-    /// packages its closure binds for its child run to execute.
-    fn bound_skill(
-        &self,
-        step: &WorkflowStep,
-        bound: &BoundClosure,
-    ) -> Result<LoadedStepSkill, RuntimeError> {
-        let options = &self.scope.runtime.options;
-        let target = step.skill().ok_or_else(|| RuntimeError::StepMissingSkill {
-            step_id: step.id.clone(),
-        })?;
-        let method = target
-            .method
-            .as_deref()
-            .ok_or_else(|| RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: "a loaded skill's call names its method".to_owned(),
-            })?;
-        let changed = |reason: String| RuntimeError::AuthorityDenied {
-            verb: runx_contracts::AuthorityVerb::Execute,
-            step_id: step.id.clone(),
-            reason: format!(
-                "skill {} is not what the turn loaded: {reason}",
-                target.skill
-            ),
-        };
-        let paths = crate::paths::RunxPaths::resolve(&options.env, self.scope.workflow_dir);
-        let directory = super::step_handlers::resolve_loaded(&target.skill, &paths, &options.env)
-            .map_err(changed)?
-            .runnable_path;
-        let package = std::sync::Arc::new(
-            crate::load_validated_skill_package(&directory)
-                .map_err(|error| changed(error.to_string()))?,
-        );
-        let binding = crate::skill_package::verify_loaded_execution_binding(
-            std::sync::Arc::clone(&package),
-            method,
-            &options.env,
-            Some(bound.package_digest.as_str()),
-            Some(bound.closure_digest.as_str()),
-        )
-        .map_err(|error| changed(error.to_string()))?;
-        let mut skill = step_skill(
-            step,
-            LoadedStepSkillPackage {
-                package,
-                registry: None,
-            },
-            &options.env,
-        )?;
-        skill.admitted = Some(binding.packages);
-        Ok(skill)
     }
 
     /// A catalog tool's tool: its description and inputs as the catalog

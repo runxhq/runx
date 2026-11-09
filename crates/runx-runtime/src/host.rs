@@ -35,6 +35,68 @@ pub trait Host {
     fn records(&self) -> bool {
         false
     }
+
+    /// A host for one call that runs apart from the run's driver, on a
+    /// thread of its own: it answers what this host would, by address, and
+    /// keeps what the call reports for the driver to take back. `None` when
+    /// this host can't serve a call apart, so its calls run on the driver.
+    fn detached(&self) -> Option<DetachedHost> {
+        None
+    }
+}
+
+/// What answers a request for a call that runs apart from its driver.
+pub type DetachedAnswers =
+    Box<dyn FnMut(ResolutionRequest) -> Result<Option<ResolutionResponse>, RuntimeError> + Send>;
+
+/// A host serving one call apart from the run's driver. What the call
+/// reports and logs is kept, and the driver hands it to its own host when it
+/// records the call.
+pub struct DetachedHost {
+    answers: DetachedAnswers,
+    reported: Vec<ExecutionEvent>,
+    logged: Vec<String>,
+}
+
+impl DetachedHost {
+    #[must_use]
+    pub fn new(answers: DetachedAnswers) -> Self {
+        Self {
+            answers,
+            reported: Vec::new(),
+            logged: Vec::new(),
+        }
+    }
+
+    /// Hand what the call reported and logged to the driver's `host`.
+    pub(crate) fn hand_back(self, host: &mut dyn Host) -> Result<(), RuntimeError> {
+        for event in self.reported {
+            host.report(event)?;
+        }
+        for message in self.logged {
+            host.log(message)?;
+        }
+        Ok(())
+    }
+}
+
+impl Host for DetachedHost {
+    fn report(&mut self, event: ExecutionEvent) -> Result<(), RuntimeError> {
+        self.reported.push(event);
+        Ok(())
+    }
+
+    fn resolve(
+        &mut self,
+        request: ResolutionRequest,
+    ) -> Result<Option<ResolutionResponse>, RuntimeError> {
+        (self.answers)(request)
+    }
+
+    fn log(&mut self, message: String) -> Result<(), RuntimeError> {
+        self.logged.push(message);
+        Ok(())
+    }
 }
 
 #[derive(Default)]
