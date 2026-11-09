@@ -55,6 +55,37 @@ pub enum RegistryPublishError {
     Operation(#[from] HostedApiOperationError),
     #[error("remote registry publish returned an invalid contract: {0}")]
     Contract(String),
+    #[error("{0}")]
+    Refused(String),
+}
+
+/// Nobody publishes under `project`: it's the namespace a person's own
+/// packages bind under, and a package there would claim to be theirs.
+///
+/// # Errors
+///
+/// Returns the refusal when `publisher` is `project`.
+pub fn publishable(publisher: Option<&str>) -> Result<(), RegistryPublishError> {
+    match publisher {
+        Some(super::keys::PROJECT_NAMESPACE) => Err(RegistryPublishError::Refused(format!(
+            "nobody publishes under {}: it names the person's own packages, as project:<name>",
+            super::keys::PROJECT_NAMESPACE
+        ))),
+        _ => Ok(()),
+    }
+}
+
+/// The publish the registry answered, refused when it names `project`.
+fn published(
+    result: HostedSkillPublishResult,
+) -> Result<HostedSkillPublishResult, RegistryPublishError> {
+    publishable(Some(&result.publisher)).map_err(|_| {
+        RegistryPublishError::Contract(format!(
+            "the registry published {} under the project namespace, which nobody publishes into",
+            result.skill_id
+        ))
+    })?;
+    Ok(result)
 }
 
 pub fn publish_hosted_skill(
@@ -63,6 +94,7 @@ pub fn publish_hosted_skill(
     token: &str,
     request: &HostedSkillPublishRequest<'_>,
 ) -> Result<HostedSkillPublishResult, RegistryPublishError> {
+    publishable(request.publisher)?;
     let body = serde_json::to_string(request).map_err(invalid_request_json)?;
     let envelope: HostedSkillPublishEnvelope = send_json(
         transport,
@@ -79,7 +111,7 @@ pub fn publish_hosted_skill(
             envelope.status, envelope.publish.status
         )));
     }
-    Ok(envelope.publish)
+    published(envelope.publish)
 }
 
 /// A connector package for the hosted registry, which re-reads the files
@@ -129,6 +161,13 @@ pub fn publish_hosted_connector(
             envelope.status, envelope.publish.status
         )));
     }
+    let namespace = envelope.publish.connector.as_str().split('/').next();
+    if namespace == Some(super::keys::PROJECT_NAMESPACE) {
+        return Err(RegistryPublishError::Contract(format!(
+            "the registry published {} under the project namespace, which nobody publishes into",
+            envelope.publish.connector
+        )));
+    }
     Ok(envelope.publish)
 }
 
@@ -138,6 +177,7 @@ pub fn publish_hosted_admin_skill(
     token: &str,
     request: &HostedAdminSkillPublishRequest<'_>,
 ) -> Result<HostedSkillPublishResult, RegistryPublishError> {
+    publishable(Some(request.publisher))?;
     let body = serde_json::to_string(request).map_err(invalid_request_json)?;
     let envelope: HostedAdminSkillPublishEnvelope = send_json(
         transport,
@@ -156,7 +196,7 @@ pub fn publish_hosted_admin_skill(
             envelope.status, envelope.publish.status
         )));
     }
-    Ok(envelope.publish.into_hosted_result())
+    published(envelope.publish.into_hosted_result())
 }
 
 fn invalid_request_json(error: serde_json::Error) -> RegistryPublishError {

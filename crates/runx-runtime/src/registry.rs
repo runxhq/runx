@@ -47,7 +47,7 @@ pub use payload::VersionPage;
 pub use publish::{
     HostedAdminSkillPublishRequest, HostedConnectorPublishRequest, HostedConnectorPublishResult,
     HostedSkillPublishRequest, HostedSkillPublishResult, RegistryPublishError,
-    publish_hosted_admin_skill, publish_hosted_connector, publish_hosted_skill,
+    publish_hosted_admin_skill, publish_hosted_connector, publish_hosted_skill, publishable,
 };
 pub use publish_closure::{
     PublishClosure, PublishClosureError, RecordInstaller, install_registry_closure,

@@ -37,7 +37,11 @@ const OFFICIAL_REGISTRY_KEYS: &[(&str, &str)] = &[(
 
 /// A namespace no third-party key covers: runx's own, and the one a
 /// person's own packages bind under.
-const RESERVED_NAMESPACES: [&str; 2] = ["runx", "project"];
+const RESERVED_NAMESPACES: [&str; 2] = ["runx", PROJECT_NAMESPACE];
+
+/// The namespace a person's own packages bind under, as `project:<name>`,
+/// which nobody publishes into.
+pub const PROJECT_NAMESPACE: &str = "project";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RegistryKey {
@@ -329,6 +333,15 @@ pub fn registry_key_signs(
     source: Option<&RegistryManifestSourceAuthority>,
 ) -> Result<(), String> {
     let namespace = namespace(kind, name)?;
+    // A project package is the person's own and never signed, so no key,
+    // runx's own included, makes a signature under `project` verify: nobody
+    // can publish there.
+    if namespace == PROJECT_NAMESPACE {
+        return Err(format!(
+            "key {} may not sign {namespace}/*: a project package is the person's own, and nobody publishes under project",
+            key.key_id
+        ));
+    }
     match &key.scope {
         RegistryKeyScope::Official => match source {
             None | Some(RegistryManifestSourceAuthority::OfficialRunx) => Ok(()),
@@ -523,6 +536,24 @@ mod tests {
             registry_key_signs(&official, skill, "acme/echo", None),
             Ok(())
         );
+        // Nobody publishes under project, so not even runx's own key signs
+        // there, a skill or a connector.
+        for (kind, name) in [
+            (skill, "project/github"),
+            (RegistrySubjectKind::Connector, "project/github"),
+            (RegistrySubjectKind::Connector, "project"),
+        ] {
+            assert!(
+                registry_key_signs(
+                    &official,
+                    kind,
+                    name,
+                    Some(&RegistryManifestSourceAuthority::OfficialRunx)
+                )
+                .is_err(),
+                "{name}"
+            );
+        }
         Ok(())
     }
 

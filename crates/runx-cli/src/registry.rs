@@ -121,7 +121,13 @@ fn run_registry(
             run_record_install(plan, target, env, cwd)
         }
         RegistryAction::Install => run_install(plan, target, env, cwd),
-        RegistryAction::Publish => run_publish(plan, target, env, cwd),
+        RegistryAction::Publish => {
+            // Nobody publishes under project, so it's refused before the
+            // package is tested or anything is sent.
+            runx_runtime::registry::publishable(plan.publisher.as_deref())
+                .map_err(|error| usage_error(error.to_string()))?;
+            run_publish(plan, target, env, cwd)
+        }
         RegistryAction::Package => unreachable!("packaging is handled before registry resolution"),
     }
 }
