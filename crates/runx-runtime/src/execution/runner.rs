@@ -287,13 +287,21 @@ impl RuntimeOptions {
     }
 
     /// The chain a step of the package at `directory` calls from: this run's,
-    /// or for a root run, its own package as it binds by itself.
+    /// or for a root run, its own package as it binds by itself. A workflow a
+    /// runtime runs from a directory that holds no package is made from none,
+    /// and its chain is empty.
     pub(crate) fn chain_at(
         &self,
         directory: &Path,
     ) -> Result<Vec<crate::identity::ChainLink>, RuntimeError> {
         if !self.chain.is_empty() {
             return Ok(self.chain.clone());
+        }
+        if self.packages.is_none()
+            && crate::skill_package::find_owning_package_root(directory).is_none()
+            && !directory.join(runx_parser::PROFILE_FILE).is_file()
+        {
+            return Ok(Vec::new());
         }
         let package = self.package(directory)?;
         let identity = match self

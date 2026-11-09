@@ -504,17 +504,22 @@ fn child_chain<A>(
         .step
         .skill()
         .map_or_else(String::new, |target| target.skill.clone());
-    let parent = chain.last().ok_or_else(|| {
-        crate::execution::runner::identity_refused(request.workflow_dir, "the run has no package")
-    })?;
+    let signed = skill.registry.as_ref().map(|registry| &registry.signed);
+    let refused =
+        |reason: String| crate::execution::runner::identity_refused(&skill.directory, &reason);
+    let Some(parent) = chain.last() else {
+        // A step no package runs reaches a package that binds by itself.
+        let identity = match signed {
+            Some(signed) => crate::identity::PackageIdentity::Signed(signed.clone()),
+            None => crate::identity::skill_identity(&package, &options.env).map_err(refused)?,
+        };
+        return Ok(vec![
+            crate::identity::ChainLink::of(&identity, &package).map_err(refused)?,
+        ]);
+    };
     let link = parent
-        .child(
-            &reference,
-            &package,
-            skill.registry.as_ref().map(|registry| &registry.signed),
-            &options.env,
-        )
-        .map_err(|reason| crate::execution::runner::identity_refused(&skill.directory, &reason))?;
+        .child(&reference, &package, signed, &options.env)
+        .map_err(refused)?;
     if link.root != parent.root {
         chain.push(link);
     }

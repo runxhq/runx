@@ -403,6 +403,18 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     if let Some(detail) = uncovered_package(evaluation.chain, &delegations) {
         return Err(reasons.refuse(AdmissionCheck::Delegation, detail));
     }
+    // A call made from no package can't be covered by the packages a run
+    // names.
+    if evaluation.chain.is_empty()
+        && evaluation
+            .run_authority
+            .is_some_and(|authority| authority.packages.is_some())
+    {
+        return Err(reasons.refuse(
+            AdmissionCheck::Delegation,
+            "the call is made from no package, so the run's packages cover nothing it is made from",
+        ));
+    }
     let mandate_ref = evaluation
         .run_authority
         .and_then(|authority| authority.mandate_ref.clone());

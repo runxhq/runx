@@ -992,6 +992,32 @@ fn a_read_never_asks_and_never_takes_an_approval() {
     assert!(fixture.admit("read", &gated).is_err());
 }
 
+/// A run's `packages` covers only calls made from a package: a call a
+/// workflow makes from no package is refused under it, never let through by
+/// an empty chain (D31).
+#[test]
+fn a_runs_packages_refuse_a_call_made_from_no_package() {
+    let fixture = Fixture::new(&["channel.post.read"]);
+    let read: JsonObject = serde_json::from_value(serde_json::json!({
+        "inputs": {"conversation_locator": "chat://T123/C456"}
+    }))
+    .unwrap();
+    fixture
+        .admit_as("read", &read, None)
+        .expect("no packages, no bound");
+    let bounded = crate::RunAuthority {
+        packages: Some(vec![
+            runx_contracts::PackagePattern::new("project:work").unwrap(),
+        ]),
+        ..crate::RunAuthority::default()
+    };
+    let refused = fixture.admit_as("read", &read, Some(&bounded)).unwrap_err();
+    assert!(
+        refused.to_string().contains("made from no package"),
+        "{refused}"
+    );
+}
+
 #[test]
 fn acting_for_another_principal_requires_a_bounded_delegation() {
     let mut fixture = Fixture::new(&["channel.post", "channel.post.read"]);
